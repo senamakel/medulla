@@ -3,6 +3,7 @@
 //! [`super::core_socket_tests`].
 
 use super::*;
+use crate::tinyplace::BudgetWindow;
 use std::collections::HashMap;
 
 fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
@@ -168,4 +169,193 @@ fn memory_section_parses_camel_case() {
 fn peer_protocol_defaults_to_task() {
     let peer: Peer = serde_json::from_str(r#"{"id":"p1"}"#).unwrap();
     assert_eq!(peer.protocol, "task");
+}
+
+#[test]
+fn router_absent_by_default_and_omitted_from_output() {
+    // No [router] section → feature entirely off, and it never appears in
+    // serialized output (zero behaviour change for configs that don't use it).
+    let cfg: TuiConfig = serde_json::from_str("{}").unwrap();
+    assert!(cfg.router.is_none());
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert!(
+        json.get("router").is_none(),
+        "absent router must be omitted"
+    );
+}
+
+#[test]
+fn router_section_round_trips_camel_case() {
+    // The exact published contract shape (matches medulla-v1's routerConfig
+    // fixture and the backend's stored shape).
+    let cfg: TuiConfig = serde_json::from_str(
+        r#"{"router":{
+            "baseUrl":"https://gateway.internal/v1",
+            "apiKeyEnv":"MEDULLA_ROUTER_KEY",
+            "models":{"reasoning":"gpt-tier-a","compress":"gpt-tier-c"},
+            "providers":{"claude":{"baseUrl":"https://gateway.internal/anthropic"}}
+        }}"#,
+    )
+    .unwrap();
+    let router = cfg.router.clone().unwrap();
+    assert_eq!(
+        router.base_url.as_deref(),
+        Some("https://gateway.internal/v1")
+    );
+    assert_eq!(router.api_key_env.as_deref(), Some("MEDULLA_ROUTER_KEY"));
+    assert_eq!(router.model_for_tier("reasoning"), Some("gpt-tier-a"));
+    assert_eq!(router.model_for_tier("compress"), Some("gpt-tier-c"));
+    assert_eq!(router.model_for_tier("orchestrator"), None);
+
+    // Re-serialize and confirm camelCase keys survive (never snake_case).
+    let out = serde_json::to_string(&cfg).unwrap();
+    assert!(out.contains("\"baseUrl\""));
+    assert!(out.contains("\"apiKeyEnv\""));
+    assert!(!out.contains("base_url"));
+    assert!(!out.contains("api_key_env"));
+
+    // Full round-trip preserves equality.
+    let reparsed: TuiConfig = serde_json::from_str(&out).unwrap();
+    assert_eq!(reparsed.router, cfg.router);
+}
+
+#[test]
+fn router_base_url_precedence_provider_over_top_level() {
+    // providers.<p>.baseUrl beats the top-level baseUrl; a provider with no
+    // override inherits the top-level; an unconfigured router yields nothing.
+    let router: RouterConfig = serde_json::from_str(
+        r#"{
+            "baseUrl":"https://top.example/v1",
+            "providers":{"claude":{"baseUrl":"https://claude.example/anthropic"}}
+        }"#,
+    )
+    .unwrap();
+    // claude has an explicit override → provider URL wins.
+    assert_eq!(
+        router.base_url_for("claude"),
+        Some("https://claude.example/anthropic")
+    );
+    // codex has no override → falls back to the top-level baseUrl.
+    assert_eq!(router.base_url_for("codex"), Some("https://top.example/v1"));
+
+    // With neither top-level nor provider baseUrl set, resolution is empty.
+    let empty = RouterConfig::default();
+    assert_eq!(empty.base_url_for("codex"), None);
+}
+
+#[test]
+fn router_blank_base_url_is_unset_at_both_levels() {
+    // A blank provider override must not shadow a valid top-level endpoint...
+    let shadowed: RouterConfig = serde_json::from_str(
+        r#"{"baseUrl":"https://top.example/v1","providers":{"claude":{"baseUrl":""}}}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        shadowed.base_url_for("claude"),
+        Some("https://top.example/v1"),
+        "blank provider override falls through to the top-level"
+    );
+
+    // ...and a blank top-level value must not enable routing with an empty
+    // *_BASE_URL (which would break otherwise-normal spawns) → resolves to None.
+    let blank_top: RouterConfig = serde_json::from_str(r#"{"baseUrl":""}"#).unwrap();
+    assert_eq!(blank_top.base_url_for("codex"), None);
+
+    // Blank at both levels is also None.
+    let blank_both: RouterConfig =
+        serde_json::from_str(r#"{"baseUrl":"","providers":{"codex":{"baseUrl":""}}}"#).unwrap();
+    assert_eq!(blank_both.base_url_for("codex"), None);
+}
+
+#[test]
+fn routing_strategy_round_trips_camel_case() {
+    use crate::runtime::RoutingStrategy;
+    // camelCase wire value matching the backend's routing-strategy contract.
+    let cfg: TuiConfig = serde_json::from_str(r#"{"routingStrategy":"cpuFirst"}"#).unwrap();
+    assert_eq!(cfg.routing_strategy, Some(RoutingStrategy::CpuFirst));
+
+    let out = serde_json::to_string(&cfg).unwrap();
+    assert!(out.contains("\"routingStrategy\":\"cpuFirst\""), "{out}");
+
+    // Absent by default and omitted from output.
+    let empty: TuiConfig = serde_json::from_str("{}").unwrap();
+    assert!(empty.routing_strategy.is_none());
+    let json = serde_json::to_value(&empty).unwrap();
+    assert!(json.get("routingStrategy").is_none());
+}
+
+#[test]
+fn budget_absent_by_default_and_omitted_from_output() {
+    // No [budget] section → estimates only, and it never appears in output.
+    let cfg: TuiConfig = serde_json::from_str("{}").unwrap();
+    assert!(cfg.budget.is_none());
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert!(
+        json.get("budget").is_none(),
+        "absent budget must be omitted"
+    );
+}
+
+#[test]
+fn budget_section_round_trips_camel_case() {
+    // Operator-declared per-provider budgets, camelCase on the wire with
+    // snake_case BudgetWindow values (`five_hour`).
+    let cfg: TuiConfig = serde_json::from_str(
+        r#"{"budget":{"providers":{
+            "claude":{"seat":"team-a","window":"five_hour","limitTokens":500000,
+                      "usedTokens":120000,"cooldownUntil":1234567890},
+            "codex":{"window":"weekly","remainingTokens":42}
+        }}}"#,
+    )
+    .unwrap();
+    let budget = cfg.budget.clone().unwrap();
+    let claude = budget.for_provider("claude").expect("claude budget");
+    assert_eq!(claude.seat.as_deref(), Some("team-a"));
+    assert_eq!(claude.window, Some(BudgetWindow::FiveHour));
+    assert_eq!(claude.limit_tokens, Some(500_000));
+    assert_eq!(claude.used_tokens, Some(120_000));
+    assert_eq!(claude.cooldown_until, Some(1_234_567_890));
+    let codex = budget.for_provider("codex").expect("codex budget");
+    assert_eq!(codex.remaining_tokens, Some(42));
+    assert!(budget.for_provider("opencode").is_none());
+
+    // Re-serialize and confirm camelCase keys survive (never snake_case).
+    let out = serde_json::to_string(&cfg).unwrap();
+    assert!(out.contains("\"limitTokens\""));
+    assert!(out.contains("\"cooldownUntil\""));
+    assert!(!out.contains("limit_tokens"));
+    assert!(!out.contains("cooldown_until"));
+    // The window value is the snake_case provider-enum wire form.
+    assert!(out.contains("five_hour"));
+
+    // Full round-trip preserves equality.
+    let reparsed: TuiConfig = serde_json::from_str(&out).unwrap();
+    assert_eq!(reparsed.budget, cfg.budget);
+}
+
+#[test]
+fn budget_tolerates_unknown_fields() {
+    // Permissive parsing: unknown keys inside a provider budget must not fail.
+    let cfg: TuiConfig = serde_json::from_str(
+        r#"{"budget":{"providers":{"opencode":{"limitTokens":10,"futureKnob":true}}}}"#,
+    )
+    .unwrap();
+    let budget = cfg.budget.unwrap();
+    assert_eq!(
+        budget.for_provider("opencode").unwrap().limit_tokens,
+        Some(10)
+    );
+}
+
+#[test]
+fn router_tolerates_unknown_fields() {
+    // Permissive parsing: unknown keys inside [router] (and a future
+    // provider-scoped field) must not fail the load.
+    let cfg: TuiConfig = serde_json::from_str(
+        r#"{"router":{"baseUrl":"https://x/v1","futureKnob":true,
+            "providers":{"codex":{"baseUrl":"https://c/v1","weight":3}}}}"#,
+    )
+    .unwrap();
+    let router = cfg.router.unwrap();
+    assert_eq!(router.base_url_for("codex"), Some("https://c/v1"));
 }

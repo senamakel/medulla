@@ -56,6 +56,16 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // read by `BackendRuntime::workers()`/`worker_op()` so the Workers tab manages
     // the hub's tiny.place peers live.
     let hub_slot: crate::hub_relay::HubSlot = Arc::new(Mutex::new(None));
+    // Active workspace roots whose `MEDULLA.md` profiles ride every backend
+    // session mint (`workspaceProfiles`). Roots without a profile are skipped by
+    // the collector, so passing every configured workspace is safe.
+    let workspace_roots: Vec<std::path::PathBuf> = loaded
+        .config
+        .workflow
+        .workspaces
+        .iter()
+        .map(std::path::PathBuf::from)
+        .collect();
     // The hub narrates itself; those lines must not reach the terminal while the
     // TUI owns the screen, so they are captured here instead.
     let hub_logs = medulla_tui::log::LogBuffer::new();
@@ -143,8 +153,12 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 let client = MedullaClient::new(backend.base_url.clone(), tok);
                 match client.me().await {
                     Ok(_) => {
-                        match BackendRuntime::connect_with_hub(client.clone(), hub_slot.clone())
-                            .await
+                        match BackendRuntime::connect_with_workspaces(
+                            client.clone(),
+                            hub_slot.clone(),
+                            workspace_roots.clone(),
+                        )
+                        .await
                         {
                             Ok(rt) => {
                                 backend_client = Some(client);
@@ -200,7 +214,13 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             }
             LoginOutcome::Token(jwt) => {
                 let client = MedullaClient::new(base_url.clone(), jwt.clone());
-                match BackendRuntime::connect_with_hub(client.clone(), hub_slot.clone()).await {
+                match BackendRuntime::connect_with_workspaces(
+                    client.clone(),
+                    hub_slot.clone(),
+                    workspace_roots.clone(),
+                )
+                .await
+                {
                     Ok(rt) => {
                         runtime = Some(Arc::new(rt));
                         backend_client = Some(client);
@@ -223,16 +243,21 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // history. Gated locally by `[onboarding] welcomeCompleted` so a returning
     // user is never re-prompted; the backend independently refuses a second
     // grant. Only runs against a real authenticated backend — never on the mock.
-    let config_path = home.join("config.toml");
-    // Onboarding state must be written back to the file it is *read* from. With
-    // an explicit --config, discovery is bypassed entirely, so persisting to the
-    // home config would leave the flag unread and the flow would reappear every
-    // launch.
-    let onboarding_path = args
+    let home_config_path = home.join("config.toml");
+    // Every write-back (onboarding flag, routing strategy, …) must target the
+    // file whose value *wins on the next launch*, or the change is silently lost —
+    // the welcome flow reappears, the saved strategy reverts. That target is:
+    //   1. the explicit --config file when one was passed (discovery is bypassed);
+    //   2. otherwise the highest-precedence file that actually contributed to the
+    //      layered load (`sources` is ordered low → high, so `.last()`), which is
+    //      the project-local `.medulla/config.toml` / `medulla.toml` when present;
+    //   3. otherwise the home config (nothing was discovered to layer).
+    let active_config_path = args
         .config
         .as_deref()
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| config_path.clone());
+        .or_else(|| loaded.sources.last().map(std::path::PathBuf::from))
+        .unwrap_or_else(|| home_config_path.clone());
     // A consented upload outlives the welcome screen; the event loop reports its
     // progress and result on the status line while the user works.
     let mut sharing = None;
@@ -244,7 +269,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 // a user who declined or silently burns an unclaimed offer.
                 if session.outcome.settles_onboarding() {
                     if let Err(e) =
-                        medulla::config::persist_welcome_completed(&onboarding_path, true)
+                        medulla::config::persist_welcome_completed(&active_config_path, true)
                     {
                         startup_status = Some(format!("could not save onboarding state ({e})"));
                     }
@@ -309,13 +334,13 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 loaded: loaded.clone(),
                 startup_status: status.take(),
                 tinyplace_obs: tinyplace_obs.clone(),
-                config_path: config_path.clone(),
+                config_path: active_config_path.clone(),
                 medulla_home: home.clone(),
                 memory_service: memory_service.clone(),
                 // Only the first session can inherit the share: by the time a
                 // relogin happens it has long finished.
                 sharing: sharing.take(),
-                onboarding_path: onboarding_path.clone(),
+                onboarding_path: active_config_path.clone(),
             },
         )
         .await;
@@ -345,7 +370,13 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             }
             LoginOutcome::Token(jwt) => {
                 let client = MedullaClient::new(base_url.clone(), jwt.clone());
-                match BackendRuntime::connect_with_hub(client.clone(), hub_slot.clone()).await {
+                match BackendRuntime::connect_with_workspaces(
+                    client.clone(),
+                    hub_slot.clone(),
+                    workspace_roots.clone(),
+                )
+                .await
+                {
                     Ok(rt) => {
                         runtime = Arc::new(rt);
                         status = save_credentials(&home, &base_url, &jwt);

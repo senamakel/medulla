@@ -227,6 +227,27 @@ pub async fn run_daemon(
             })
         })
     };
+    // The custom OpenAI-compatible router and operator budget config, both read
+    // from the same layered config the TUI loads (`--config` override, else
+    // project-local/user-global discovery). A malformed or missing config leaves
+    // both off rather than failing the daemon — routing is an optional overlay,
+    // not a boot dependency — but the failure is narrated so "my [router] does
+    // nothing" is answerable even when `--config` was passed explicitly.
+    let loaded_config = match crate::config::load_config(
+        flags.string("config").as_deref(),
+        &env,
+        std::path::Path::new(&workspace),
+    ) {
+        Ok(loaded) => Some(loaded.config),
+        Err(err) => {
+            log(&format!(
+                "config load failed ({err}); routing and budgets are off"
+            ));
+            None
+        }
+    };
+    let router = loaded_config.as_ref().and_then(|c| c.router.clone());
+    let budget = loaded_config.as_ref().and_then(|c| c.budget.clone());
     let config = DaemonConfig {
         providers: providers.clone(),
         default_provider,
@@ -242,6 +263,12 @@ pub async fn run_daemon(
         agent: opencode_agent,
         extra_args: Vec::new(),
         skip_permissions,
+        // The custom OpenAI-compatible router from the layered `[router]` config,
+        // layered into every task's spawn environment by the executor.
+        router,
+        // Operator-declared per-provider budgets from the `[budget]` config,
+        // advertised on the capability probe as `source: configured`.
+        budget,
     };
     let run_task: RunTaskFn =
         Arc::new(|options: RunTaskOptions| Box::pin(run_provider_task(options)));

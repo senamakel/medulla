@@ -77,9 +77,21 @@ pub struct WorkerInfo {
     /// Primary IPv4 address reported by the worker.
     pub ip_address: Option<String>,
     pub selected: bool,
+    /// Per-harness token budgets the worker advertised on its capability probe.
+    /// Empty when none were reported. Display-only; the orchestrator sizes tasks.
+    pub budgets: Vec<crate::tinyplace::HarnessBudget>,
+    /// Per-harness readiness the worker advertised on its capability probe. Empty
+    /// when none were reported. Display-only.
+    pub readiness: Vec<crate::tinyplace::HarnessReadiness>,
 }
 /// How the hub chooses a default worker from captured capacity details.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Wire values are camelCase (`manual` / `balanced` / `cpuFirst` / `memoryFirst`),
+/// matching the backend's `GET/PUT /medulla/v1/routing/strategy` contract and the
+/// persisted `routingStrategy` config key, so one value round-trips across config,
+/// backend, and TUI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum RoutingStrategy {
     /// Preserve the operator's explicit worker selection.
     Manual,
@@ -89,6 +101,40 @@ pub enum RoutingStrategy {
     CpuFirst,
     /// Prefer the worker with the most currently available memory.
     MemoryFirst,
+}
+
+impl RoutingStrategy {
+    /// The camelCase wire token (`manual` / `balanced` / `cpuFirst` / `memoryFirst`).
+    pub fn as_wire(&self) -> &'static str {
+        match self {
+            RoutingStrategy::Manual => "manual",
+            RoutingStrategy::Balanced => "balanced",
+            RoutingStrategy::CpuFirst => "cpuFirst",
+            RoutingStrategy::MemoryFirst => "memoryFirst",
+        }
+    }
+
+    /// Parse a camelCase wire token, or `None` when unrecognized.
+    pub fn from_wire(value: &str) -> Option<Self> {
+        match value {
+            "manual" => Some(RoutingStrategy::Manual),
+            "balanced" => Some(RoutingStrategy::Balanced),
+            "cpuFirst" => Some(RoutingStrategy::CpuFirst),
+            "memoryFirst" => Some(RoutingStrategy::MemoryFirst),
+            _ => None,
+        }
+    }
+
+    /// Reconcile a locally-configured strategy with a backend-provided one.
+    ///
+    /// The backend wins as configuration when it provides one; otherwise the local
+    /// config applies; absent both, [`RoutingStrategy::Manual`] preserves the
+    /// operator's explicit selection. An operator change is persisted locally by
+    /// the caller regardless, so a later backend value overrides the *display* but
+    /// never silently discards what the operator saved.
+    pub fn reconcile(local: Option<Self>, backend: Option<Self>) -> Self {
+        backend.or(local).unwrap_or(RoutingStrategy::Manual)
+    }
 }
 /// A mutation on the worker-peer registry (`worker.add`/`select`/`update`/`remove`).
 #[derive(Debug, Clone)]

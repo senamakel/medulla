@@ -62,6 +62,8 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
         theme,
         trust_workspace,
         skip_permissions,
+        router,
+        budget,
     } = config;
     let providers = medulla::daemon::providers::detect_providers(&env, None, None);
     let sessions = PtyManager::new();
@@ -136,6 +138,8 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
         logs,
         trust_workspace,
         skip_permissions,
+        router,
+        budget,
     };
     let result = drive(&mut terminal, &mut app, &start, &mut inbox, &mut runtime).await;
 
@@ -165,6 +169,8 @@ pub(super) fn worker_runtime(
         providers,
         sessions,
         logs,
+        router,
+        budget,
         ..
     } = start;
     let config = DaemonConfig {
@@ -190,6 +196,13 @@ pub(super) fn worker_runtime(
         // `--no-skip-permissions` is how an operator who *is* watching declines
         // it. Narrated at startup: this is not a default to discover later.
         skip_permissions: start.skip_permissions,
+        // The custom OpenAI-compatible router from the loaded `[router]` config.
+        // Layered into every peer task's spawn env by the same executor the
+        // headless daemon uses, so `--tui` and headless route identically.
+        router: router.clone(),
+        // Operator-declared budgets from the `[budget]` config, advertised on the
+        // capability probe as `source: configured` for matching providers.
+        budget: budget.clone(),
     };
     let executor = match mode {
         // The same executor `medulla daemon` uses, so headless-with-a-screen is

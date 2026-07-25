@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::urls::{PROD_BACKEND_BASE_URL, PROD_TINYPLACE_BASE_URL};
+use crate::runtime::RoutingStrategy;
+use crate::tinyplace::BudgetWindow;
 
 // --- serde default helpers -------------------------------------------------
 
@@ -310,6 +312,137 @@ impl Default for BackendConfig {
     }
 }
 
+/// Per-provider router override. Only `baseUrl` is provider-scoped today: the
+/// three harnesses reach a custom endpoint differently (claude needs an
+/// Anthropic-passthrough URL, codex/opencode an OpenAI-compatible one), so the
+/// endpoint can be steered per provider while the API key stays shared.
+///
+/// Mirrors medulla-v1's `RouterProviderConfig` and the backend's stored shape so
+/// one config document round-trips across all three modules.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RouterProviderConfig {
+    /// OpenAI-compatible (or Anthropic-passthrough) endpoint for this provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+}
+
+/// The optional `[router]` section: a custom OpenAI-compatible router (gateway or
+/// proxy) the worker points its harnesses at, so inference is centralized,
+/// metered, and re-routable without hand-editing each harness's on-disk config.
+///
+/// camelCase on the wire (`baseUrl`, `apiKeyEnv`, `models`,
+/// `providers.<p>.baseUrl`), matching the published contract that medulla-v1
+/// resolves and the backend serves at `GET/PUT /medulla/v1/router`. Absent
+/// entirely means the feature is off — zero behaviour change.
+///
+/// The API key is referenced by env-var **name** (`apiKeyEnv`), never inlined:
+/// it is resolved from the daemon's own environment at spawn and excluded from
+/// every frame and config diagnostic. Every field is optional; a config that
+/// sets only `baseUrl` still routes, deferring model selection to the harness.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RouterConfig {
+    /// Top-level OpenAI-compatible endpoint for every provider without an override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// Env-var NAME holding the API key — never the secret itself.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key_env: Option<String>,
+    /// Tier → model/SKU mapping (`reasoning` / `compress` / `orchestrator`). A
+    /// missing tier falls through to the harness's own configuration.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub models: HashMap<String, String>,
+    /// Per-provider overrides, keyed by provider id (`claude` / `codex` /
+    /// `opencode`).
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub providers: HashMap<String, RouterProviderConfig>,
+}
+
+impl RouterConfig {
+    /// The effective endpoint for `provider`, applying the documented precedence
+    /// `providers.<p>.baseUrl` > top-level `baseUrl` > (unset → the harness's
+    /// own on-disk config). Returns `None` when neither is configured.
+    ///
+    /// A blank endpoint (`baseUrl = ""`) at either level is treated as unset:
+    /// a blank provider override cannot shadow a valid top-level endpoint, and a
+    /// blank top-level value does not enable routing with an empty `*_BASE_URL`
+    /// (which would break otherwise-normal spawns). Matches how blank `apiKeyEnv`
+    /// values are filtered elsewhere.
+    pub fn base_url_for(&self, provider: &str) -> Option<&str> {
+        self.providers
+            .get(provider)
+            .and_then(|p| p.base_url.as_deref())
+            .filter(|s| !s.is_empty())
+            .or(self.base_url.as_deref())
+            .filter(|s| !s.is_empty())
+    }
+
+    /// The model/SKU mapped for `tier`, or `None` when the router leaves it to
+    /// the harness.
+    pub fn model_for_tier(&self, tier: &str) -> Option<&str> {
+        self.models.get(tier).map(String::as_str)
+    }
+}
+
+/// Operator-declared budget numbers for one provider in the `[budget]` section.
+///
+/// Mirrors the daemon's `ConfiguredBudget`: every field is optional, and when
+/// present it makes the advertised `HarnessBudget` authoritative
+/// (`source: configured`) instead of a best-effort estimate. camelCase on the
+/// wire; `window` reuses the snake_case [`BudgetWindow`] values (`daily` /
+/// `weekly` / `five_hour` / `unknown`) so one document round-trips across all
+/// three modules.
+///
+/// No credential material lives here: `seat` is an opaque label only, never a
+/// key or token, matching the frame contract that excludes secrets from budgets.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ProviderBudgetConfig {
+    /// Opaque seat/subscription label the operator recorded (never a credential).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seat: Option<String>,
+    /// The metering window the allowance renews on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window: Option<BudgetWindow>,
+    /// The configured allowance for the window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_tokens: Option<i64>,
+    /// Consumption recorded so far in the window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub used_tokens: Option<i64>,
+    /// Remaining allowance, when the operator records it directly rather than
+    /// leaving it to be derived from `limitTokens - usedTokens`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remaining_tokens: Option<i64>,
+    /// Unix seconds until which the seat is parked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cooldown_until: Option<i64>,
+}
+
+/// The optional `[budget]` section: operator-declared per-provider token budgets.
+///
+/// Absent entirely (the default) means every installed, usable harness advertises
+/// a best-effort `estimate` with no invented numbers. A `[budget.providers.<p>]`
+/// entry promotes that provider's advertised descriptor to `source: configured`
+/// with the operator's exact numbers, so a hosted orchestrator can size tasks
+/// against a real allowance. Keyed by provider id (`claude` / `codex` /
+/// `opencode`), mirroring `[router.providers.<p>]`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct BudgetConfig {
+    /// Per-provider configured budgets, keyed by provider id.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub providers: HashMap<String, ProviderBudgetConfig>,
+}
+
+impl BudgetConfig {
+    /// The operator's configured numbers for `provider` (its wire id), if any.
+    pub fn for_provider(&self, provider: &str) -> Option<&ProviderBudgetConfig> {
+        self.providers.get(provider)
+    }
+}
+
 /// The optional `[theme]` config section: named ratatui colors (case-insensitive)
 /// or `#rrggbb` hex strings. Missing fields fall back to the default theme. The
 /// Appearance settings subpage persists these keys.
@@ -366,6 +499,18 @@ pub struct TuiConfig {
     pub workflow: WorkflowConfig,
     #[serde(default)]
     pub hub: HubSection,
+    /// Custom OpenAI-compatible router. Absent means routing is off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub router: Option<RouterConfig>,
+    /// Operator-declared per-provider token budgets. Absent means every harness
+    /// advertises a best-effort estimate instead of configured numbers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget: Option<BudgetConfig>,
+    /// The operator's persisted worker routing strategy (camelCase on the wire).
+    /// Loaded on start and reconciled with the backend's routing-strategy config
+    /// when present. Absent means no local preference (defaults to `manual`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_strategy: Option<RoutingStrategy>,
 }
 
 impl Default for TuiConfig {
@@ -383,6 +528,9 @@ impl Default for TuiConfig {
             onboarding: OnboardingConfig::default(),
             workflow: WorkflowConfig::default(),
             hub: HubSection::default(),
+            router: None,
+            budget: None,
+            routing_strategy: None,
         }
     }
 }

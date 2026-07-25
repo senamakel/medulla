@@ -60,6 +60,7 @@ async fn run(
         extra_args: Vec::new(),
         skip_permissions: false,
         abort: Abort::new(),
+        router: None,
         on_event: Some(Box::new(move |ev| {
             sink.lock().unwrap().push(ev.event.kind.clone());
         })),
@@ -176,6 +177,7 @@ async fn spawn_failure_for_missing_binary() {
         extra_args: Vec::new(),
         skip_permissions: false,
         abort: Abort::new(),
+        router: None,
         on_event: None,
         on_stdin: None,
     };
@@ -205,6 +207,7 @@ async fn abort_before_start_returns_immediately() {
         extra_args: Vec::new(),
         skip_permissions: false,
         abort,
+        router: None,
         on_event: None,
         on_stdin: None,
     };
@@ -238,6 +241,7 @@ async fn abort_mid_run_kills_child() {
         extra_args: Vec::new(),
         skip_permissions: false,
         abort,
+        router: None,
         on_event: None,
         on_stdin: None,
     };
@@ -271,6 +275,7 @@ async fn stdin_input_reaches_child_and_echoes_in_reply() {
             extra_args: Vec::new(),
             skip_permissions: false,
             abort: Abort::new(),
+            router: None,
             on_event: None,
             on_stdin: Some(Box::new(move |tx| {
                 *register.lock().unwrap() = Some(tx);
@@ -320,6 +325,7 @@ async fn stdin_is_immediate_eof_for_batch_cli() {
             extra_args: Vec::new(),
             skip_permissions: false,
             abort: Abort::new(),
+            router: None,
             on_event: None,
             on_stdin: Some(Box::new(move |_tx| {
                 *register.lock().unwrap() = true;

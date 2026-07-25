@@ -34,6 +34,15 @@ pub async fn probe_capabilities(options: ProbeOptions) -> AgentCapabilities {
     let git = read_git_facts(&cwd).await;
     let dir = read_dir_context(&cwd).await;
 
+    // Best-effort budget/readiness for the offered harnesses. Fails open: this
+    // never errors and only reports installed providers, so an unusable machine
+    // simply advertises fewer (or no) budgets rather than blocking the report.
+    let mut seams = BudgetSeams::from_env(&options.env);
+    if let Some(budget) = &options.budget {
+        seams = seams.with_configured(budget.clone());
+    }
+    let (readiness, budgets) = probe_budgets(&options.providers, &seams);
+
     let base = AgentCapabilities {
         cwd: Some(cwd.clone()),
         accessible_dirs: unique(
@@ -52,6 +61,10 @@ pub async fn probe_capabilities(options: ProbeOptions) -> AgentCapabilities {
         // Deterministic digest of CLAUDE.md/AGENTS.md/README.md — the summary
         // of last resort so a failed probe still carries project context.
         summary: dir.fallback_summary.clone(),
+        // Budget/readiness are established from the environment, not the agent's
+        // self-report, so they survive a failed probe (which returns `base`).
+        budgets,
+        readiness,
     };
 
     let prompt = match &dir.prompt_block {
@@ -73,6 +86,11 @@ pub async fn probe_capabilities(options: ProbeOptions) -> AgentCapabilities {
         extra_args: Vec::new(),
         skip_permissions: options.skip_permissions,
         abort: options.abort.clone(),
+        // The probe spawns a real harness inference, so it routes exactly like a
+        // delegated task: when a gateway is configured the spawn must carry it, or
+        // the probe leaks this machine's context to the direct provider (or fails
+        // when the only credential is bound to the gateway via `apiKeyEnv`).
+        router: options.router.clone(),
         on_event: None,
         on_stdin: None,
     };
@@ -230,6 +248,11 @@ fn resolve_path(path: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+pub mod budget;
+pub use budget::{
+    evaluate_provider, probe_budgets, BudgetSeams, ConfiguredBudget, ProviderProbeInput,
+};
 
 mod types;
 pub use types::GitFacts;

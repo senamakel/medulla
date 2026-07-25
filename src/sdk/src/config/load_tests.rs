@@ -206,6 +206,19 @@ fn load_config_layers_global_project_env_flag() {
     assert_eq!(loaded.config.backend.base_url, "http://project:2");
     assert_eq!(loaded.config.backend.token_env, "GLOBAL_TOK");
     assert_eq!(loaded.sources.len(), 2);
+    // `sources` is ordered low → high precedence: global first, project-local
+    // last. Write-backs (routing strategy, onboarding) target `sources.last()`,
+    // so the file that wins on reload is the one written — pin that ordering.
+    assert!(
+        loaded.sources[0].ends_with("config.toml") && loaded.sources[0].contains("layer-home"),
+        "sources[0] is the global config: {:?}",
+        loaded.sources
+    );
+    assert!(
+        loaded.sources[1].contains(".medulla"),
+        "sources.last() is the highest-precedence project-local config: {:?}",
+        loaded.sources
+    );
 
     // Env beats both files.
     let loaded = load_config(
@@ -246,6 +259,50 @@ fn load_config_toml_and_json_parity() {
     assert_eq!(from_toml.config.backend.base_url, "http://x:1");
     assert_eq!(from_json.config.medulla.max_passes, Some(3));
     assert_eq!(from_toml.config.medulla.max_passes, Some(3));
+    let _ = std::fs::remove_dir_all(&home);
+    let _ = std::fs::remove_dir_all(&cwd);
+}
+
+#[test]
+fn load_config_layers_router_section_from_toml() {
+    // A global config sets the top-level router endpoint + key-var name; a
+    // project-local config adds a per-provider (claude) Anthropic-passthrough
+    // override. The field-level merge keeps both, and precedence resolves so
+    // claude uses its override while codex inherits the top-level endpoint.
+    let home = temp_dir("router-home");
+    let cwd = temp_dir("router-cwd");
+    std::fs::write(
+        home.join("config.toml"),
+        "[router]\nbaseUrl = \"https://gateway.internal/v1\"\napiKeyEnv = \"MEDULLA_ROUTER_KEY\"\n\n[router.models]\nreasoning = \"gpt-tier-a\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(cwd.join(".medulla")).unwrap();
+    std::fs::write(
+        cwd.join(".medulla").join("config.toml"),
+        "[router.providers.claude]\nbaseUrl = \"https://gateway.internal/anthropic\"\n",
+    )
+    .unwrap();
+
+    let loaded = load_config(
+        None,
+        &env(&[("MEDULLA_HOME", home.to_str().unwrap())]),
+        &cwd,
+    )
+    .unwrap();
+    let router = loaded.config.router.expect("router section merged");
+    // Global top-level survives the merge.
+    assert_eq!(router.api_key_env.as_deref(), Some("MEDULLA_ROUTER_KEY"));
+    assert_eq!(router.model_for_tier("reasoning"), Some("gpt-tier-a"));
+    // Project-local provider override wins for claude; codex inherits top-level.
+    assert_eq!(
+        router.base_url_for("claude"),
+        Some("https://gateway.internal/anthropic")
+    );
+    assert_eq!(
+        router.base_url_for("codex"),
+        Some("https://gateway.internal/v1")
+    );
+    assert_eq!(loaded.sources.len(), 2);
     let _ = std::fs::remove_dir_all(&home);
     let _ = std::fs::remove_dir_all(&cwd);
 }
