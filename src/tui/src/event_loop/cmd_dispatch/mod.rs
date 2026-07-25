@@ -14,6 +14,9 @@ use super::AppMsg;
 
 mod tasks;
 
+#[cfg(test)]
+mod tests;
+
 /// Translate a [`Cmd`] emitted by the app into a spawned async task whose result
 /// is reported back over the [`AppMsg`] channel. Memory queries touch SQLite so
 /// they run on `spawn_blocking` off the UI thread.
