@@ -22,7 +22,7 @@ of three things.
 
 A **remote peer** is a machine registered on the fleet, reachable over
 [tiny.place](https://tiny.place) and addressable by handle or address. This is
-what the TUI's Workers tab manages. A **local harness sandbox** is a configured
+what the TUI's Routing tab manages. A **local harness sandbox** is a configured
 `claude-code`, `codex`, or `opencode` instance rooted in a workspace and
 published into the roster. A **daemon machine** is `medulla daemon` offering a
 machine's installed coding-agent CLIs as one addressable agent.
@@ -33,11 +33,51 @@ them.
 
 ### Managing them
 
-The Workers tab lists each registered peer with its handle, label, and harness.
-Press `a` to add a peer, where the first token is the address or `@handle` and
-the rest is a label. `Enter` or `s` selects, `e` edits the label, `d` removes.
-Fleet peer management and task steering require the core runtime, covered in
-[Configuration](../developers/configuration.md#runtimes).
+Fleet management lives on the **Routing** tab, which has four pages: `List
+Workers`, `Add Worker`, `Manage Keys`, and `Strategies`. The list page shows each
+registered peer with its handle, label, harness, and — once capacity is
+refreshed — its CPU cores and available memory. Press `a` to add a peer, where
+the first token is the address or `@handle` and the rest is a label. `Enter` or
+`s` selects, `e` edits the label, `d` removes, and a refresh pulls fresh
+capacity. A worker carries several identifiers that are deliberately kept
+distinct — a stable registry ID for edit/select/remove, a messaging address for
+delivery, and a wallet peer ID as identity metadata — and none stands in for
+another. The roster persists under the `hub` config section, so a selected
+default survives a restart.
+
+Fleet peer management and task steering require a runtime that exposes a worker
+surface — the hosted backend wired to a live hub, or the local core runtime —
+covered in [Configuration](../developers/configuration.md#runtimes). Without one,
+worker management reports itself unavailable rather than silently mutating
+unrelated state.
+
+### Choosing a default worker
+
+The `Strategies` page sets the policy that picks the default worker from the
+roster:
+
+| Strategy | Selection rule |
+| --- | --- |
+| **Manual** | Keep the operator's explicit selection. |
+| **Balanced** | Most logical CPU cores, breaking ties by available memory. |
+| **CPU First** | Most logical CPU cores. |
+| **Memory First** | Most currently available memory. |
+
+Every strategy but Manual operates on capacity a worker actually reported, pulled
+with a system-information probe; a worker whose details have not been captured is
+not invented into a ranking. See [Orchestrator Routing](routing.md) for how these
+sit alongside Medulla's model and harness routing.
+
+### Admitting a peer
+
+A worker is a machine on the open [tiny.place](https://tiny.place) network, so
+who may send it work is a real security decision, not a formality. tiny.place
+refuses direct messages between peers that are not accepted contacts, which means
+accepting a contact is exactly what grants that peer the ability to hand your
+machine work. The default posture is manual review: incoming requests collect in
+a pending queue for you to accept, decline, or block, and blocking — being
+destructive — asks for confirmation. A relay hiccup surfaces as poller health
+rather than quietly emptying the queue.
 
 ### How work reaches them
 
@@ -109,9 +149,14 @@ continues while you keep going, instead of blocking until the fan-out drains. Th
 
 ## What you see
 
-The terminal app organizes this into six tabs: Overview, Chat, Agents, Workers,
-Memory, and Settings, the last of which holds Usage, Appearance, Config,
-Feedback, Trace, Context, Account, and Help.
+The terminal app organizes this into seven tabs: Overview, Chat, Agents, Tasks,
+Routing, Memory, and Settings — the last of which holds Usage, Appearance,
+Config, Feedback, Trace, Context, Account, and Help, grouped under General,
+Debug, and About headings. Overview is the at-a-glance panel: runtime identity
+and health, the active cycle, recent events, the last cycle's results, the task
+ledger, and any pending decision. The Tasks tab is the planning surface, covered
+in [Tasks and Sources](tasks-and-sources.md); Routing is the fleet surface
+described above.
 
 The Agents tab is where an operation becomes legible. There is one lane per
 agent, idle until its first task and busy while in flight, with context usage

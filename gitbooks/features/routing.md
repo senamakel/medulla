@@ -69,9 +69,12 @@ three CLIs into one observation model, so a fleet mixing them reads as one
 operation instead of three log formats.
 
 Routing here is by resolved agent identity. A task addressed to a specific
-configured worker, or auto-assigned to one, reaches that worker. See
-[Workers and Sessions](workers-and-sessions.md) for how assignment picks a target
-and how degraded capacity is handled.
+configured worker, or auto-assigned to one, reaches that worker. When no explicit
+target is named, a default-worker strategy — Manual, Balanced, CPU First, or
+Memory First — picks from the roster using capacity each worker actually
+reported, so a fan-out spreads across real cores and free memory rather than a
+guess. See [Workers and Sessions](workers-and-sessions.md) for the strategies in
+full, how assignment picks a target, and how degraded capacity is handled.
 
 Transient startup failures are treated as transient. Mass-spawning a pool can
 trip a harness's own locking, so Medulla retries those with backoff rather than
