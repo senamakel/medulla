@@ -3,6 +3,9 @@
 use std::sync::Arc;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::backend::TestBackend;
+use ratatui::style::Color;
+use ratatui::Terminal;
 
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
@@ -44,6 +47,12 @@ fn type_text(app: &mut App, text: &str) {
     for character in text.chars() {
         assert!(app.on_event(key(KeyCode::Char(character))).is_none());
     }
+}
+
+fn render(app: &mut App) -> ratatui::buffer::Buffer {
+    let mut terminal = Terminal::new(TestBackend::new(120, 32)).unwrap();
+    terminal.draw(|frame| app.draw(frame)).unwrap();
+    terminal.backend().buffer().clone()
 }
 
 #[test]
@@ -163,4 +172,26 @@ fn tasks_use_the_shared_subpage_menu() {
     assert!(app.tasks_focused());
     assert!(app.on_event(key(KeyCode::Esc)).is_none());
     assert!(!app.tasks_focused());
+}
+
+#[test]
+fn selected_task_status_uses_one_continuous_highlight() {
+    let mut app = app();
+    focus_tasks(&mut app);
+    app.set_tasks(TaskDocument {
+        tasks: vec![task("styled", "Styled task")],
+        sources: vec![],
+    });
+
+    let buffer = render(&mut app);
+    let status_bracket = buffer
+        .content()
+        .iter()
+        .find(|cell| cell.symbol() == "[")
+        .expect("rendered task status");
+    assert_eq!(
+        status_bracket.bg,
+        Color::Cyan,
+        "the status suffix should share the selected row background"
+    );
 }

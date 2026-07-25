@@ -52,13 +52,15 @@ impl App {
             } else {
                 Style::default()
             };
+            let status_style = if selected {
+                style
+            } else {
+                Style::default().add_modifier(Modifier::DIM)
+            };
             list.push(Line::from(vec![
                 Span::styled(if selected { "▸ " } else { "  " }, style),
                 Span::styled(clip(&task.title, 28), style),
-                Span::styled(
-                    format!("  [{:?}]", task.status),
-                    Style::default().add_modifier(Modifier::DIM),
-                ),
+                Span::styled(format!("  [{:?}]", task.status), status_style),
             ]));
         }
         frame.render_widget(
