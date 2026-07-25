@@ -1,6 +1,7 @@
 //! Data types for the `config` module.
 #[allow(unused_imports)]
 use super::*;
+use serde::{Deserialize, Serialize};
 /// The persisted CLI config. JSON field names match the TypeScript SDK
 /// (camelCase for the multi-word keys).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

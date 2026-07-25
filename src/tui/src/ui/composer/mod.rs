@@ -1,12 +1,48 @@
 //! Composer text math. The draft is one string with embedded newlines; these
 //! helpers map the flat caret offset onto rendered rows so the input box can
-//! draw a multi-line draft with the caret on the correct row. Offsets are in
-//! Unicode scalar values (chars), matching the JS string-index semantics closely
-//! enough for terminal editing.
+//! draw a multi-line draft with the caret on the correct row. The shared
+//! [`TextPrompt`] and [`edit_prompt`] path also keeps main and daemon overlays
+//! behaviorally identical. Offsets are in Unicode scalar values (chars),
+//! matching the JS string-index semantics closely enough for terminal editing.
+
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 impl Draft {
     pub fn new() -> Self {
         Draft::default()
+    }
+}
+
+/// Apply standard single-line prompt editing.
+///
+/// Control and Alt character chords are consumed without inserting their
+/// printable character; callers retain ownership of global chords before
+/// invoking this helper.
+pub fn edit_prompt<K>(prompt: &mut TextPrompt<K>, key: KeyEvent) -> PromptAction {
+    match key.code {
+        KeyCode::Esc => PromptAction::Cancel,
+        KeyCode::Enter => PromptAction::Submit,
+        KeyCode::Backspace | KeyCode::Delete => {
+            prompt.draft = delete_before(&prompt.draft.text, prompt.draft.cursor);
+            PromptAction::Editing
+        }
+        KeyCode::Left => {
+            prompt.draft.cursor = prompt.draft.cursor.saturating_sub(1);
+            PromptAction::Editing
+        }
+        KeyCode::Right => {
+            prompt.draft.cursor = (prompt.draft.cursor + 1).min(prompt.draft.text.chars().count());
+            PromptAction::Editing
+        }
+        KeyCode::Char(ch)
+            if !key
+                .modifiers
+                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+        {
+            prompt.draft = insert_at(&prompt.draft.text, prompt.draft.cursor, &ch.to_string());
+            PromptAction::Editing
+        }
+        _ => PromptAction::Editing,
     }
 }
 
@@ -91,5 +127,4 @@ pub fn delete_before(text: &str, cursor: usize) -> Draft {
 mod tests;
 
 mod types;
-pub use types::Caret;
-pub use types::Draft;
+pub use types::{Caret, Draft, PromptAction, TextPrompt};

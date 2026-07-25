@@ -9,6 +9,7 @@ use medulla::tinyplace::HarnessProvider;
 use super::super::pty::{PtyManager, SessionRow};
 use super::types::{Confirm, ExecutionMode, Screen, SetupStep, WorkerApp, TABS};
 use crate::log::LogBuffer;
+use crate::ui::theme::Theme;
 
 impl WorkerApp {
     /// Build the worker TUI from its wiring.
@@ -64,6 +65,7 @@ impl WorkerApp {
             config_path: wiring.config_path,
             credential_dir: wiring.credential_dir,
             endpoint: wiring.endpoint,
+            theme: wiring.theme,
             prompt: None,
             confirm: None,
             status,

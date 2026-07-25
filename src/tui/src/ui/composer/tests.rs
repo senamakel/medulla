@@ -1,6 +1,7 @@
 //! Tests for the composer module.
 
 use super::*;
+use crossterm::event::{KeyCode, KeyEvent};
 
 #[test]
 fn caret_maps_rows_and_cols() {
@@ -55,4 +56,33 @@ fn unicode_offsets() {
     let d = insert_at("héllo", 2, "!");
     assert_eq!(d.text, "hé!llo");
     assert_eq!(d.cursor, 3);
+}
+
+#[test]
+fn text_prompt_edits_unicode_and_reports_terminal_actions() {
+    let mut prompt = TextPrompt::new((), "title");
+    assert_eq!(
+        edit_prompt(&mut prompt, KeyEvent::from(KeyCode::Char('é'))),
+        PromptAction::Editing
+    );
+    assert_eq!(prompt.draft.text, "é");
+    assert_eq!(prompt.draft.cursor, 1);
+    assert_eq!(
+        edit_prompt(&mut prompt, KeyEvent::from(KeyCode::Enter)),
+        PromptAction::Submit
+    );
+    assert_eq!(
+        edit_prompt(&mut prompt, KeyEvent::from(KeyCode::Esc)),
+        PromptAction::Cancel
+    );
+}
+
+#[test]
+fn prefilled_prompt_places_the_caret_after_unicode_text() {
+    let prompt = TextPrompt::with_text("edit", "Worker label", "café");
+
+    assert_eq!(prompt.kind, "edit");
+    assert_eq!(prompt.title, "Worker label");
+    assert_eq!(prompt.draft.text, "café");
+    assert_eq!(prompt.draft.cursor, 4);
 }

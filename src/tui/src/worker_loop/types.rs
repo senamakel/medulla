@@ -14,6 +14,7 @@ pub struct WorkerTuiConfig {
     pub startup_status: Option<String>,
     pub transport: Option<SignalTransport>,
     pub endpoint: Option<String>,
+    pub theme: medulla_tui::ui::theme::Theme,
     pub trust_workspace: bool,
     pub skip_permissions: bool,
 }

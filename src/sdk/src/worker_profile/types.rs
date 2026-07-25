@@ -1,6 +1,7 @@
 //! Data types for the `worker_profile` module.
 #[allow(unused_imports)]
 use super::*;
+use serde::{Deserialize, Serialize};
 /// The persisted worker identity: what the operator named this worker, its
 /// tiny.place wallet address, the OpenHuman owner it answers to, and when it was
 /// first registered.
