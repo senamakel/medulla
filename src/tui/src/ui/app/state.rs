@@ -49,6 +49,7 @@ impl App {
             tasks_index: 0,
             tasks_focused: false,
             task_source_index: 0,
+            tasks_detail_open: false,
             memory_status: None,
             memory_hits: Vec::new(),
             memory_directives: Vec::new(),
@@ -126,6 +127,11 @@ impl App {
     /// Whether Tasks focus is inside the active content pane.
     pub fn tasks_focused(&self) -> bool {
         self.tasks_focused
+    }
+
+    /// Whether a selected task or source is open in the detail modal.
+    pub fn tasks_detail_open(&self) -> bool {
+        self.tasks_detail_open
     }
 
     /// The active Memory subpage name. Test/inspection seam.

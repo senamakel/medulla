@@ -3,7 +3,7 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 
 use super::super::types::{TASKS_SUBPAGES, TP_SOURCES, TP_TASKS};
@@ -30,14 +30,13 @@ impl App {
             TP_SOURCES => self.draw_task_sources(frame, content),
             _ => self.draw_task_list(frame, content),
         }
+        if self.tasks_detail_open {
+            self.draw_task_detail_popup(frame, area);
+        }
     }
 
-    /// Render local tasks in a selectable list with a description detail pane.
+    /// Render local tasks in a full-width selectable list.
     fn draw_task_list(&mut self, frame: &mut Frame, area: Rect) {
-        let columns = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(42), Constraint::Percentage(58)])
-            .split(area);
         let mut list = Vec::new();
         if self.tasks.tasks.is_empty() {
             list.push(Line::from(Span::styled(
@@ -67,27 +66,14 @@ impl App {
             Paragraph::new(list).block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title("All Tasks · a add · e edit · d delete"),
+                    .title("All Tasks · a add · e edit · d delete · Enter details"),
             ),
-            columns[0],
-        );
-        let detail = self.tasks.tasks.get(self.selected.min(self.tasks.tasks.len().saturating_sub(1)))
-            .map(|task| format!("{}\n\n{}\n\nstatus: {:?}\nsource: {}\ncreated: {}\nupdated: {}\nlast sync: {}", task.title, task.description, task.status, task.source.as_ref().map(|s| format!("{}:{}", s.provider, s.source_id)).unwrap_or_else(|| "local".into()), task.created_at, task.updated_at, task.last_synced_at.as_deref().unwrap_or("never")))
-            .unwrap_or_else(|| "Select a task to view its details.\n\nSources are configured in tasks.json under the Medulla home.".into());
-        frame.render_widget(
-            Paragraph::new(detail)
-                .wrap(Wrap { trim: false })
-                .block(Block::default().borders(Borders::ALL).title("Details")),
-            columns[1],
+            area,
         );
     }
 
-    /// Render configured external task providers and their synchronization state.
+    /// Render configured external task providers in a full-width selectable list.
     fn draw_task_sources(&mut self, frame: &mut Frame, area: Rect) {
-        let columns = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(42), Constraint::Percentage(58)])
-            .split(area);
         let mut rows = Vec::new();
         for (index, source) in self.tasks.sources.iter().enumerate() {
             let selected = index
@@ -124,48 +110,98 @@ impl App {
             Paragraph::new(rows).block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title("Sources · a add · Enter/s sync"),
+                    .title("Sources · a add · s sync · Enter details"),
             ),
-            columns[0],
-        );
-
-        let detail = self
-            .tasks
-            .sources
-            .get(
-                self.task_source_index
-                    .min(self.tasks.sources.len().saturating_sub(1)),
-            )
-            .map(|source| {
-                format!(
-                    "{}\n\nprovider: {}\nstate filter: {}\nlabels: {}\ncustom filter: {}\ncredentials: {}",
-                    source.repository,
-                    source.provider,
-                    source.state,
-                    if source.labels.is_empty() {
-                        "(none)".into()
-                    } else {
-                        source.labels.join(", ")
-                    },
-                    source.filter.as_deref().unwrap_or("(none)"),
-                    if source.token.is_some() {
-                        "configured"
-                    } else {
-                        "GITHUB_TOKEN / default"
-                    },
-                )
-            })
-            .unwrap_or_else(|| {
-                "Add a GitHub repository source to synchronize open issues into the local task list."
-                    .into()
-            });
-        frame.render_widget(
-            Paragraph::new(detail).wrap(Wrap { trim: false }).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Source Details"),
-            ),
-            columns[1],
+            area,
         );
     }
+
+    /// Draw selected task or source details over the Tasks page.
+    fn draw_task_detail_popup(&self, frame: &mut Frame, area: Rect) {
+        let detail = match self.tasks_index {
+            TP_TASKS => self
+                .tasks
+                .tasks
+                .get(self.selected.min(self.tasks.tasks.len().saturating_sub(1)))
+                .map(|task| {
+                    let source = task
+                        .source
+                        .as_ref()
+                        .map(|source| format!("{}:{}", source.provider, source.source_id))
+                        .unwrap_or_else(|| "local".into());
+                    (
+                        task.title.clone(),
+                        format!(
+                            "{}\n\nstatus: {:?}\nsource: {}\ncreated: {}\nupdated: {}\nlast sync: {}\n\nEsc close",
+                            task.description,
+                            task.status,
+                            source,
+                            task.created_at,
+                            task.updated_at,
+                            task.last_synced_at.as_deref().unwrap_or("never"),
+                        ),
+                    )
+                }),
+            TP_SOURCES => self
+                .tasks
+                .sources
+                .get(
+                    self.task_source_index
+                        .min(self.tasks.sources.len().saturating_sub(1)),
+                )
+                .map(|source| {
+                    (
+                        source.repository.clone(),
+                        format!(
+                            "provider: {}\nstate filter: {}\nlabels: {}\ncustom filter: {}\ncredentials: {}\n\nEsc close",
+                            source.provider,
+                            source.state,
+                            if source.labels.is_empty() {
+                                "(none)".into()
+                            } else {
+                                source.labels.join(", ")
+                            },
+                            source.filter.as_deref().unwrap_or("(none)"),
+                            if source.token.is_some() {
+                                "configured"
+                            } else {
+                                "GITHUB_TOKEN / default"
+                            },
+                        ),
+                    )
+                }),
+            _ => None,
+        };
+        let Some((title, body)) = detail else {
+            return;
+        };
+        let popup = centered_rect(area, 70, 60);
+        frame.render_widget(Clear, popup);
+        frame.render_widget(
+            Paragraph::new(body)
+                .wrap(Wrap { trim: false })
+                .block(self.panel(title)),
+            popup,
+        );
+    }
+}
+
+/// Center a percentage-sized rectangle within `area`.
+fn centered_rect(area: Rect, width_percent: u16, height_percent: u16) -> Rect {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - height_percent) / 2),
+            Constraint::Percentage(height_percent),
+            Constraint::Percentage((100 - height_percent) / 2),
+        ])
+        .split(area);
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - width_percent) / 2),
+            Constraint::Percentage(width_percent),
+            Constraint::Percentage((100 - width_percent) / 2),
+        ])
+        .split(vertical[1])[1]
 }

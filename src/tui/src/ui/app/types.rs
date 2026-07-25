@@ -371,6 +371,8 @@ pub struct App {
     pub(super) tasks_focused: bool,
     /// Selected provider row on the Tasks Sources page.
     pub(super) task_source_index: usize,
+    /// Whether the selected task or source's detail modal is visible.
+    pub(super) tasks_detail_open: bool,
     // Persona-memory tab state (lazily loaded on tab entry / search).
     pub(super) memory_status: Option<MemoryStatus>,
     pub(super) memory_hits: Vec<MemoryHit>,

@@ -10,6 +10,14 @@ use super::super::types::{App, Cmd, Prompt, PromptKind, TASKS_SUBPAGES, TP_SOURC
 impl App {
     /// Handle Tasks navigation and actions in the currently focused page.
     pub(super) fn on_tasks_key(&mut self, code: KeyCode) -> TasksKey {
+        if self.tasks_detail_open {
+            if code == KeyCode::Esc {
+                self.tasks_detail_open = false;
+                self.set_status(format!("Tasks · {}", self.tasks_subpage()));
+            }
+            return TasksKey::Handled(None);
+        }
+
         match multi_pane::navigate(
             code,
             TASKS_SUBPAGES.len(),
@@ -17,7 +25,11 @@ impl App {
             &mut self.tasks_focused,
             true,
         ) {
-            NavAction::SelectionChanged | NavAction::Consumed => {
+            NavAction::SelectionChanged => {
+                self.tasks_detail_open = false;
+                return TasksKey::Handled(None);
+            }
+            NavAction::Consumed => {
                 return TasksKey::Handled(None);
             }
             NavAction::Entered => {
@@ -78,6 +90,13 @@ impl App {
                     .get(self.selected)
                     .map(|task| Cmd::DeleteTask(task.id.clone())),
             ),
+            KeyCode::Enter => {
+                if self.tasks.tasks.get(self.selected).is_some() {
+                    self.tasks_detail_open = true;
+                    self.set_status("Task details · Esc close");
+                }
+                TasksKey::Handled(None)
+            }
             _ => TasksKey::Unhandled,
         }
     }
@@ -103,7 +122,14 @@ impl App {
                 self.set_status("Sources · Enter save · Esc cancel");
                 TasksKey::Handled(None)
             }
-            KeyCode::Char('s') | KeyCode::Enter => {
+            KeyCode::Enter => {
+                if self.tasks.sources.get(self.task_source_index).is_some() {
+                    self.tasks_detail_open = true;
+                    self.set_status("Source details · Esc close");
+                }
+                TasksKey::Handled(None)
+            }
+            KeyCode::Char('s') => {
                 let source = self
                     .tasks
                     .sources

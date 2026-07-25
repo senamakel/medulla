@@ -195,3 +195,66 @@ fn selected_task_status_uses_one_continuous_highlight() {
         "the status suffix should share the selected row background"
     );
 }
+
+#[test]
+fn task_details_open_in_a_popup_instead_of_a_sidebar() {
+    let mut app = app();
+    focus_tasks(&mut app);
+    let mut selected = task("popup", "Popup task");
+    selected.description = "Full task description".into();
+    app.set_tasks(TaskDocument {
+        tasks: vec![selected],
+        sources: vec![],
+    });
+
+    let list = render(&mut app);
+    let list_text: String = list.content().iter().map(|cell| cell.symbol()).collect();
+    assert!(
+        !list_text.contains("Full task description"),
+        "details stay out of the list page"
+    );
+
+    assert!(app.on_event(key(KeyCode::Enter)).is_none());
+    assert!(app.tasks_detail_open());
+    let popup = render(&mut app);
+    let popup_text: String = popup.content().iter().map(|cell| cell.symbol()).collect();
+    assert!(
+        popup_text.contains("Full task description"),
+        "popup shows task details"
+    );
+    assert!(popup_text.contains("Esc close"), "popup has a close hint");
+    app.on_event(key(KeyCode::Esc));
+    assert!(!app.tasks_detail_open());
+}
+
+#[test]
+fn source_details_open_with_enter_and_sync_stays_on_s() {
+    let mut app = app();
+    focus_tasks(&mut app);
+    app.set_tasks(TaskDocument {
+        tasks: vec![],
+        sources: vec![SourceConfig {
+            id: "github".into(),
+            provider: "github".into(),
+            enabled: true,
+            repository: "tinyhumansai/medulla".into(),
+            state: "open".into(),
+            labels: vec!["tui".into()],
+            filter: None,
+            token: None,
+        }],
+    });
+    app.on_event(key(KeyCode::Esc));
+    app.on_event(key(KeyCode::Char('2')));
+
+    assert!(app.on_event(key(KeyCode::Enter)).is_none());
+    assert!(app.tasks_detail_open());
+    let popup = render(&mut app);
+    let popup_text: String = popup.content().iter().map(|cell| cell.symbol()).collect();
+    assert!(popup_text.contains("labels: tui"), "source detail popup");
+    app.on_event(key(KeyCode::Esc));
+    assert!(matches!(
+        app.on_event(key(KeyCode::Char('s'))),
+        Some(Cmd::SyncTasks(id)) if id == "github"
+    ));
+}
