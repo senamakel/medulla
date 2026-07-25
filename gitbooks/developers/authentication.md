@@ -38,7 +38,7 @@ MEDULLA_TOKEN=<jwt> medulla
 
 ## Logging in from the TUI
 
-When you start `medulla` without `--core` and no token resolves — or the
+When you start `medulla` without `--core-socket` and no token resolves — or the
 stored/env token is expired or rejected (the `me()` preflight fails with an auth
 error) — the TUI opens a login screen before the main app instead of silently
 dropping to the mock:
@@ -54,7 +54,7 @@ dropping to the mock:
 
 On a token from either path the TUI verifies it via `/auth/me`, flashes who you
 are, saves the credentials (a save failure is a non-fatal notice), and proceeds
-into the app with a backend runtime. Explicit `--core` runs are never redirected
+into the app with a backend runtime. Explicit `--core-socket` runs are never redirected
 to this screen.
 
 ## Security model

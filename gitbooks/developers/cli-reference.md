@@ -7,13 +7,19 @@ for headless operation, bridging coding-agent harnesses to
 | Command | What it does |
 | --- | --- |
 | `medulla` | Bare invocation starts the [TUI](#the-tui). |
+| `medulla run <instruction>` | [Headless one-shot](#medulla-run): submit one instruction to a core socket and stream events as JSON lines. |
 | `medulla login` / `logout` | [Browser OAuth login](authentication.md); clears credentials. |
-| `medulla daemon` | [Headless coding-agent daemon](#medulla-daemon) over tiny.place. |
+| `medulla daemon` | [Headless coding-agent daemon](#medulla-daemon) over tiny.place (`--tui` for the operator screen). |
 | `medulla codex` / `claude` / `opencode` | [Harness wrappers](#harness-wrappers): run a CLI, bridged to tiny.place. |
 | `medulla sessions` | List recent claude/codex sessions as JSON. |
 | `medulla memory <cmd>` | [Persona memory](#medulla-memory): `status` / `ingest` / `backfill` / `compile` / `search`. |
+| `medulla init [dir]` | [Draft a MEDULLA.md](#medulla-init) workspace profile. |
+| `medulla hub` | [Relay hosted-backend tasks](#medulla-hub) to configured tiny.place workers. |
 | `medulla update` | [Self-update](#medulla-update): download, verify, install the latest release. |
 | `medulla version` / `help` | Version string; usage. |
+
+Unknown first arguments are treated as arguments to the main TUI rather than
+rejected as unknown subcommands.
 
 ## The TUI
 
@@ -28,11 +34,31 @@ TUI flags:
 | Flag | Effect |
 | --- | --- |
 | `--config <path>` | Explicit config file (`.toml` or `.json`); bypasses layered discovery. |
-| `--core` | Drive the [core orchestration server](configuration.md#core-socket) over its Unix socket. |
+| `--core-socket <path>` | Attach to a running [core orchestration server](configuration.md#core-socket) at that Unix socket. |
+| `--mock` | Force the scripted offline runtime and skip login. |
 | `--no-alt-screen` | Stay on the main screen buffer (useful for scrollback while debugging). |
 
-The core runtime unlocks the Workers tab (fleet peer management) and task
+The core runtime unlocks the Routing tab (fleet peer management) and task
 steering (`X` cancel task, `A` answer a pending question).
+
+## `medulla run`
+
+A headless, scriptable path to a single instruction. `medulla run` drives the
+same [core-socket runtime](configuration.md#core-socket) the TUI uses, waits for
+the socket to become usable, submits one instruction, and streams the resulting
+events as newline-delimited JSON:
+
+```sh
+medulla run "audit the payments service for unbounded retries"
+medulla run --core-socket /tmp/medulla.sock "..."   # explicit socket
+```
+
+Everything after the flags is joined into one instruction; with no instruction it
+errors. It retains the cycle receipt the socket returns, emits each folded event
+as a JSON line, ignores unrelated cycle completions, and returns only when the
+correlated cycle ends — so a script gets a deterministic, non-TUI path with no
+separate wire protocol to learn. Attach failures, rejections, an unavailable
+runtime, and completion timeouts are all reported.
 
 ## `medulla daemon`
 
@@ -42,6 +68,38 @@ A headless coding-agent daemon that serves
 [opencode](https://github.com/sst/opencode) over encrypted tiny.place DMs. On
 first launch it runs a one-time [worker registration](#first-run-worker-registration)
 flow. `medulla daemon --reonboard` forces that flow again.
+
+When stdout is a terminal it selects the operator UI unless headless behaviour is
+explicitly requested; a non-terminal launch runs headless, and `--tui` forces the
+operator screen. The operator UI opens by asking two things before it listens for
+work: an execution mode (Interactive holds live, watchable harness sessions;
+Headless launches one process per task and shows logs) and a default harness from
+the providers detected on `PATH`. It then presents four tabs — **Agents** (live
+sessions with an embedded PTY you can attach to or take over), **Master** (the
+worker address, saved masters, and operator messages), **Workspaces** (the
+canonicalized roots the worker may advertise), and **Requests** (pending contact
+requests to accept, decline, or block).
+
+Daemon flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--tui` | Force the operator screen (default on a terminal). |
+| `--providers <a,b>` | Restrict the accepted harnesses. |
+| `--workspace <dir>` | Set the primary task working directory. |
+| `--handle <name>` | Register a tiny.place `@handle`. |
+| `--model <name>` | Supply a default model hint. |
+| `--concurrency <n>` | Cap simultaneous executions. |
+| `--once` | Drain the current inbox once and exit. |
+| `--no-onboard` | Skip publishing/registration onboarding. |
+| `--reonboard` | Replace the stored worker registration. |
+| `--dangerously-skip-permissions` | Pass the provider's unsafe permission switch. |
+| `--no-trust-workspace` | Do not pre-trust a Claude workspace in the TUI path. |
+
+The primary `--workspace` is the execution directory; any additional advertised
+roots are capability metadata, not per-task working directories. Skip-permission
+mode is opt-in and visibly named for a reason — it hands the harness the
+provider's unsafe switch.
 
 ## Harness wrappers
 
@@ -130,6 +188,43 @@ medulla memory search "<query>"      # BM25 search over the persona corpus (offl
 
 `ingest` and `backfill` call an LLM and need an API key; `status`, `compile`, and
 `search` run fully offline against the persisted corpus.
+
+## `medulla init`
+
+Draft a [`MEDULLA.md`](../features/workspace-profiles.md) workspace profile — the
+short, operator-editable routing file a repository root carries:
+
+```sh
+medulla init             # draft for the current directory
+medulla init ./payments  # or for a specific one
+medulla init --offline   # skip the model and write an editable stub
+medulla init --force     # overwrite an existing profile (default: refuse)
+```
+
+`init` reads the directory's `AGENTS.md`, `CLAUDE.md`, and `README.md`, asks the
+configured model to distil a summary plus routing hints, and renders the shipped
+template for review. With `--offline`, no model available, a model failure, or no
+source files, it writes a deterministic stub instead — so it always leaves a
+usable file. It refuses to overwrite an authored profile unless `--force`/`-f` is
+given. Inference resolves the same way [memory](#medulla-memory) does: an explicit
+`OPENROUTER_API_KEY` wins, else the backend's inference surface with your
+`medulla login` token.
+
+## `medulla hub`
+
+Relay hosted-backend tasks to configured [tiny.place](https://tiny.place) workers:
+
+```sh
+medulla hub
+```
+
+The hub is the outbound half of the peer harness plane. It takes a task the hosted
+backend produced for a registered worker, encodes a `medulla-tinyplace/1` task
+frame, sends it in an encrypted Signal DM, and correlates the worker's
+status/reply/error frames back to the originating dispatch — routing each reply to
+exactly one waiting dispatch, since concurrent tasks share a destructively drained
+inbox. It requires backend credentials plus a configured worker roster and fails
+with an actionable message when there is nothing to run.
 
 ## `medulla update`
 

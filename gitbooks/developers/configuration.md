@@ -32,7 +32,7 @@ Config is merged from lowest to highest precedence (highest wins):
 
 Files are merged field-by-field (a recursive table merge), so a project-local file can override just `backend.baseUrl` without discarding the rest of a global file. [TOML](https://toml.io/) is the primary format; `--config <path>` still accepts either `.toml` or `.json` (parser chosen by extension) and bypasses file discovery, but env vars and CLI flags still override it. The Config tab shows the merged effective config and lists the source files that contributed.
 
-Every section is optional; with no file anywhere, all defaults apply. Sections: `backend`, `core`, `tinyplace` (identity/presence + peer roster for the daemon and Overview panel), `stateDir` (default `<home>/state`; `MEDULLA_STATE_DIR` overrides), `opencode` (worker display), `update` (`check = true`/`false` for the background release check; `MEDULLA_NO_UPDATE_CHECK` env kill-switch), `theme` (TUI colors — `primary`/`accent`/`selectionFg`/`dimBorder` as [ratatui](https://ratatui.rs/) color names or `#rrggbb`; the Settings › Appearance subpage edits and persists these), and `medulla.contextWindowTokens` (Context tab usage hint). Inference and tracing are server-side concerns — the TUI has no config for them; unknown sections are ignored.
+Every section is optional; with no file anywhere, all defaults apply. Sections: `backend`, `core`, `tinyplace` (identity/presence + peer roster for the daemon and Overview panel), `hub` (the persisted worker roster and selected default worker, so a fleet survives a restart), `stateDir` (default `<home>/state`; `MEDULLA_STATE_DIR` overrides), `opencode` (worker display, model, agent, workspace, concurrency), `memory` (persona-memory switch, roots, identity, model, and the `maxCostUsd` ingest ceiling), `workflow` (the daemon's workspace allowlist), `onboarding` (welcome-flow completion state), `update` (`check = true`/`false` for the background release check; `MEDULLA_NO_UPDATE_CHECK` env kill-switch), `theme` (TUI colors — `primary`/`accent`/`selectionFg`/`dimBorder` as [ratatui](https://ratatui.rs/) color names or `#rrggbb`; the Settings › Appearance subpage edits and persists these), and `medulla.contextWindowTokens` (Context tab usage hint; the orchestration limits section also carries pass/step/depth/task/token bounds). Inference and tracing are server-side concerns — the TUI has no config for them; unknown sections are ignored.
 
 See [`config.example.toml`](https://github.com/tinyhumansai/medulla/blob/main/config.example.toml) for a commented reference and [`src/sdk/src/config.rs`](../../src/sdk/src/config/) for the full schema — fields are camelCase.
 
@@ -62,11 +62,11 @@ An inline `"token"` field is also accepted, but keep secrets out of committed fi
 
 On startup the TUI picks one of three runtimes, in this order. If a preferred runtime fails, it falls back down this chain and shows why in the status line.
 
-1. **Core socket** — if `--core` is passed or the config has a `core` section, and the socket is reachable.
+1. **Core socket** — if `--core-socket <path>` is passed or the config has a `core` section, and the socket is reachable.
 2. **Backend HTTP/SSE** — if a backend token is available (an inline `backend.token`, the `backend.tokenEnv` variable, or credentials saved by [`medulla login`](authentication.md)).
 3. **Mock** — otherwise.
 
-In the default (non-`--core`) path, when no token resolves the TUI does not drop straight to the mock: it first opens the [login screen](authentication.md#logging-in-from-the-tui), and the mock runtime is entered only if you press `m` to continue offline. An explicit `--core` run keeps the plain backend→mock fallback and is never redirected to the login screen.
+In the default (non-`--core-socket`) path, when no token resolves the TUI does not drop straight to the mock: it first opens the [login screen](authentication.md#logging-in-from-the-tui), and the mock runtime is entered only if you press `m` to continue offline. An explicit `--core-socket` run keeps the plain backend→mock fallback and is never redirected to the login screen.
 
 ### Mock (zero setup)
 
@@ -91,10 +91,10 @@ Or log in through the browser — see [Authentication](authentication.md).
 For driving a locally running core orchestration server over its [NDJSON](https://ndjson.org/) Unix-socket protocol:
 
 ```sh
-medulla --core
+medulla --core-socket /path/to/serve.sock
 ```
 
-The socket path resolves as: `core.socketPath` from the config if set, else `$XDG_RUNTIME_DIR/medulla/core.sock`, else `<stateDir>/core.sock` (the resolved `stateDir`, which defaults to `<home>/state` and honors `MEDULLA_STATE_DIR`). Config form:
+The socket path resolves as, highest first: the explicit `--core-socket <path>` flag, then `MEDULLA_CORE_SOCKET`, then `core.socketPath` from the config, then `$XDG_RUNTIME_DIR/medulla/core.sock`, then `<stateDir>/core.sock` (the resolved `stateDir`, which defaults to `<home>/state` and honors `MEDULLA_STATE_DIR`). It is **attach-only** — the TUI connects to an already-running orchestration server and does not launch one. Config form:
 
 ```json
 {
@@ -102,4 +102,4 @@ The socket path resolves as: `core.socketPath` from the config if set, else `$XD
 }
 ```
 
-The core runtime unlocks the Workers tab (fleet peer management) and task steering (`X` cancel task, `A` answer a pending question). It is **unix-only** (it rides a Unix domain socket). On Windows a `--core` flag or `[core]` config section resolves to a startup note ("core runtime requires unix sockets — unavailable on Windows") and falls through to the normal backend→mock chain.
+The core runtime unlocks the Routing tab (fleet peer management) and task steering (`X` cancel task, `A` answer a pending question). It is **unix-only** (it rides a Unix domain socket). On Windows a `--core-socket` flag or `[core]` config section resolves to a startup note ("core runtime requires unix sockets — unavailable on Windows") and falls through to the normal backend→mock chain.
