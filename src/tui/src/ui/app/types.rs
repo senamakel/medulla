@@ -1,5 +1,5 @@
-//! The data model for the interactive TUI screen: the tab list and Settings
-//! subpage constants, the [`Cmd`] the event loop runs on the app's behalf, the
+//! The data model for the interactive TUI screen: the tab list, multi-pane
+//! navigation constants, the [`Cmd`] the event loop runs on the app's behalf, the
 //! small overlay/state types ([`ResumePicker`], [`Prompt`], [`PromptKind`],
 //! [`MemoryEntry`]), and the central [`App`] struct itself.
 //!
@@ -18,6 +18,7 @@ use crate::ui::theme::Theme;
 use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery, FeedbackType};
 use medulla::config::LoadedConfig;
 use medulla::memory::{MemoryHit, MemoryStatus};
+use medulla::runtime::RoutingStrategy;
 use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
 
 /// The ordered top-level tab names. The tab index selects into this array.
@@ -26,7 +27,50 @@ use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
 /// two of them diagnostic — so they now sit under Settings, keeping the tab bar
 /// to the views a session is actually driven from.
 pub const TABS: [&str; 8] = [
-    "Overview", "Chat", "Agents", "Repo", "Tasks", "Workers", "Memory", "Settings",
+    "Overview", "Chat", "Agents", "Repo", "Tasks", "Routing", "Memory", "Settings",
+];
+
+/// The Routing tab's left-nav pages.
+pub const ROUTING_SUBPAGES: [&str; 4] = ["List Workers", "Add Worker", "Manage Keys", "Strategies"];
+
+pub(super) const RP_WORKERS: usize = 0;
+pub(super) const RP_ADD_WORKER: usize = 1;
+pub(super) const RP_KEYS: usize = 2;
+pub(super) const RP_STRATEGIES: usize = 3;
+
+/// Display metadata coupled to the routing strategy it applies.
+#[derive(Clone, Copy)]
+pub(super) struct RoutingStrategyOption {
+    /// Runtime strategy sent when the option is applied.
+    pub(super) strategy: RoutingStrategy,
+    /// Short label rendered in the strategy chooser.
+    pub(super) label: &'static str,
+    /// Operator-facing explanation of the selection rule.
+    pub(super) description: &'static str,
+}
+
+/// Routing strategy options in the order shown by the chooser.
+pub(super) const ROUTING_STRATEGIES: [RoutingStrategyOption; 4] = [
+    RoutingStrategyOption {
+        strategy: RoutingStrategy::Manual,
+        label: "Manual",
+        description: "Keep the worker explicitly selected in List Workers.",
+    },
+    RoutingStrategyOption {
+        strategy: RoutingStrategy::Balanced,
+        label: "Balanced",
+        description: "Choose the most CPU cores, breaking ties by available RAM.",
+    },
+    RoutingStrategyOption {
+        strategy: RoutingStrategy::CpuFirst,
+        label: "CPU First",
+        description: "Choose the worker with the most logical CPU cores.",
+    },
+    RoutingStrategyOption {
+        strategy: RoutingStrategy::MemoryFirst,
+        label: "Memory First",
+        description: "Choose the worker with the most currently available RAM.",
+    },
 ];
 
 /// The Settings tab's left-nav subpages, in order (number keys 1-8 jump to them).
@@ -118,9 +162,9 @@ pub enum Cmd {
     /// Reload the local task document.
     LoadTasks,
     /// Persist a new or edited local task.
-    SaveTask(medulla::tasks::Task),
+    SaveTask(Box<medulla::tasks::Task>),
     /// Persist the complete local task document.
-    SaveTasks(medulla::tasks::TaskDocument),
+    SaveTasks(Box<medulla::tasks::TaskDocument>),
     /// Remove a local task by id.
     DeleteTask(String),
     /// Synchronize one configured task source.
@@ -301,6 +345,16 @@ pub(super) struct Prompt {
     pub(super) draft: Draft,
 }
 
+/// Cached credential-presence flags displayed by Routing's Manage Keys pane.
+#[derive(Default)]
+pub(super) struct CredentialStatus {
+    pub(super) claude_subscription: bool,
+    pub(super) codex_subscription: bool,
+    pub(super) anthropic_api_key: bool,
+    pub(super) openai_api_key: bool,
+    pub(super) openrouter_api_key: bool,
+}
+
 /// The interactive TUI screen: all tab state, input focus, and render geometry.
 pub struct App {
     /// The runtime this screen drives.
@@ -325,6 +379,14 @@ pub struct App {
     pub(super) agent_scroll: usize,
     pub(super) chat_scroll: usize,
     pub(super) worker_index: usize,
+    /// The active Routing subpage (index into [`ROUTING_SUBPAGES`]).
+    pub(super) routing_index: usize,
+    /// Whether keyboard focus is inside the Routing content pane.
+    pub(super) routing_focused: bool,
+    /// Selected row on the Routing strategy page.
+    pub(super) routing_strategy_index: usize,
+    /// Credential presence captured on startup and refreshed when its pane opens.
+    pub(super) credential_status: CredentialStatus,
     // Persona-memory tab state (lazily loaded on tab entry / search).
     pub(super) memory_status: Option<MemoryStatus>,
     pub(super) memory_hits: Vec<MemoryHit>,

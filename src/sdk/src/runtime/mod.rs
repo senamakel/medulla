@@ -98,7 +98,28 @@ pub struct WorkerInfo {
     pub label: Option<String>,
     pub harness: Option<String>,
     pub peer_id: Option<String>,
+    /// Logical CPU cores reported by the worker.
+    pub cpu_cores: Option<u32>,
+    /// Total physical memory reported by the worker, in bytes.
+    pub memory_total_bytes: Option<u64>,
+    /// Currently available memory reported by the worker, in bytes.
+    pub memory_available_bytes: Option<u64>,
+    /// Primary IPv4 address reported by the worker.
+    pub ip_address: Option<String>,
     pub selected: bool,
+}
+
+/// How the hub chooses a default worker from captured capacity details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoutingStrategy {
+    /// Preserve the operator's explicit worker selection.
+    Manual,
+    /// Prefer CPU, using available memory as the tie-breaker.
+    Balanced,
+    /// Prefer the worker with the most logical CPU cores.
+    CpuFirst,
+    /// Prefer the worker with the most currently available memory.
+    MemoryFirst,
 }
 
 /// A mutation on the worker-peer registry (`worker.add`/`select`/`update`/`remove`).
@@ -121,6 +142,14 @@ pub enum WorkerOp {
     },
     Remove {
         id: String,
+    },
+    /// Ask a worker for current CPU, RAM, and IP details.
+    RefreshDetails {
+        id: String,
+    },
+    /// Choose the default worker according to captured capacity details.
+    ApplyStrategy {
+        strategy: RoutingStrategy,
     },
 }
 

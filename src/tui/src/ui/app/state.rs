@@ -1,6 +1,5 @@
-//! Construction, state accessors/setters, snapshot refresh, and the small
-//! tab/lane helpers for [`App`]. This is the observable-state surface: the
-//! test/inspection seams and the mutators the event loop calls between ticks.
+//! Construction, state accessors, snapshot refresh, and tab/lane helpers for
+//! [`App`], including inspection seams and event-loop mutators.
 
 use std::sync::Arc;
 
@@ -16,7 +15,8 @@ use medulla::memory::{MemoryHit, MemoryStatus};
 use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
-    App, Cmd, MemoryEntry, ResumePicker, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_USAGE, TABS,
+    App, Cmd, MemoryEntry, ResumePicker, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, SP_CONTEXT,
+    SP_FEEDBACK, SP_USAGE, TABS,
 };
 
 impl App {
@@ -42,6 +42,10 @@ impl App {
             agent_scroll: 0,
             chat_scroll: 0,
             worker_index: 0,
+            routing_index: 0,
+            routing_focused: false,
+            routing_strategy_index: 0,
+            credential_status: super::credentials::detect_credential_status(),
             memory_status: None,
             memory_hits: Vec::new(),
             memory_directives: Vec::new(),
@@ -88,15 +92,13 @@ impl App {
         &self.status
     }
 
-    /// Point appearance persistence at a config file (the user-global
-    /// `config.toml`). Wiring seam so feature tests avoid the real home.
+    /// Point appearance persistence at the user-global `config.toml`; injectable
+    /// so feature tests avoid the real home.
     pub fn set_config_path(&mut self, path: std::path::PathBuf) {
         self.config_path = Some(path);
     }
 
-    /// Point the Account subpage's logout at a Medulla home directory. Wiring
-    /// seam so feature tests never clear the real credential store. Without it,
-    /// logout reports that it has nowhere to write rather than guessing.
+    /// Configure Account logout with a testable home; without it, logout reports no writable location.
     pub fn set_medulla_home(&mut self, home: std::path::PathBuf) {
         self.medulla_home = Some(home);
         if let Some(home) = &self.medulla_home {
@@ -192,6 +194,27 @@ impl App {
     /// The active worker-selection index. Test/inspection seam.
     pub fn worker_index(&self) -> usize {
         self.worker_index
+    }
+
+    /// The active Routing subpage name. Test/inspection seam.
+    pub fn routing_subpage(&self) -> &'static str {
+        ROUTING_SUBPAGES[self.routing_index.min(ROUTING_SUBPAGES.len() - 1)]
+    }
+
+    /// Whether Routing focus is inside the active content pane.
+    pub fn routing_focused(&self) -> bool {
+        self.routing_focused
+    }
+
+    /// Focus Routing on a named subpage and enter its content pane.
+    pub fn focus_routing_subpage(&mut self, name: &str) {
+        self.tab_index = super::types::tab_pos("Routing");
+        self.routing_index = ROUTING_SUBPAGES
+            .iter()
+            .position(|page| *page == name)
+            .unwrap_or(0);
+        self.routing_focused = true;
+        self.refresh_credential_status_if_needed();
     }
 
     /// Route `copy_chat` into a captured sink instead of the OS clipboard, and

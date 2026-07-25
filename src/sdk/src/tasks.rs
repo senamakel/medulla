@@ -3,9 +3,12 @@
 //! The repository is deliberately independent from the runtime/orchestrator:
 //! tasks are records an operator can edit and synchronize, not work to dispatch.
 
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -103,6 +106,13 @@ pub struct SyncResult {
 /// Errors raised while loading or persisting the task document.
 #[derive(Debug, Error)]
 pub enum TaskRepositoryError {
+    #[error("could not lock task repository {path}: {source}")]
+    Lock {
+        /// Lock file that could not be opened or acquired.
+        path: PathBuf,
+        /// Underlying filesystem error.
+        source: std::io::Error,
+    },
     #[error("could not read task repository {path}: {source}")]
     Read {
         path: PathBuf,
@@ -122,17 +132,44 @@ pub enum TaskRepositoryError {
     Serialize(serde_json::Error),
 }
 
-/// JSON-backed repository with atomic replacement on save.
+/// JSON-backed repository with exclusive lifetime locking and atomic saves.
+///
+/// Public constructors acquire a sibling lock file before reading and retain it
+/// until every clone is dropped, serializing the complete read-mutate-save
+/// lifecycle across threads and processes.
 #[derive(Debug, Clone)]
 pub struct TaskRepository {
     path: PathBuf,
     document: TaskDocument,
+    _lock: Option<Arc<File>>,
 }
 
 impl TaskRepository {
     /// Open an existing document, or return an empty repository when absent.
     pub fn open(path: impl Into<PathBuf>) -> Result<Self, TaskRepositoryError> {
         let path = path.into();
+        let lock_path = path.with_extension("json.lock");
+        if let Some(parent) = lock_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|source| TaskRepositoryError::Lock {
+                path: lock_path.clone(),
+                source,
+            })?;
+        }
+        let lock = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&lock_path)
+            .map_err(|source| TaskRepositoryError::Lock {
+                path: lock_path.clone(),
+                source,
+            })?;
+        lock.lock_exclusive()
+            .map_err(|source| TaskRepositoryError::Lock {
+                path: lock_path,
+                source,
+            })?;
         let document = match std::fs::read_to_string(&path) {
             Ok(text) => {
                 serde_json::from_str(&text).map_err(|source| TaskRepositoryError::Parse {
@@ -143,7 +180,11 @@ impl TaskRepository {
             Err(source) if source.kind() == std::io::ErrorKind::NotFound => TaskDocument::default(),
             Err(source) => return Err(TaskRepositoryError::Read { path, source }),
         };
-        Ok(Self { path, document })
+        Ok(Self {
+            path,
+            document,
+            _lock: Some(Arc::new(lock)),
+        })
     }
     /// Open `<home>/tasks.json`.
     pub fn in_home(home: impl AsRef<Path>) -> Result<Self, TaskRepositoryError> {
@@ -215,82 +256,11 @@ impl TaskRepository {
 pub fn now_timestamp() -> String {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs().to_string())
-        .unwrap_or_else(|_| "0".into())
+        .unwrap_or_default()
+        .as_secs()
+        .to_string()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    fn task(source: Option<TaskSourceRef>) -> Task {
-        Task {
-            id: "local".into(),
-            title: "local".into(),
-            description: "edit".into(),
-            status: TaskStatus::InProgress,
-            source,
-            recurrence: None,
-            created_at: "1".into(),
-            updated_at: "2".into(),
-            last_synced_at: None,
-            dispatch: serde_json::Value::Null,
-        }
-    }
-
-    #[test]
-    fn round_trip_and_missing_file_are_tolerant() {
-        let d = tempdir().unwrap();
-        let path = d.path().join("nested/tasks.json");
-        let mut r = TaskRepository::open(&path).unwrap();
-        r.document_mut().tasks.push(task(None));
-        r.save().unwrap();
-        assert_eq!(
-            TaskRepository::open(path).unwrap().document().tasks.len(),
-            1
-        );
-    }
-    #[test]
-    fn malformed_file_is_clear() {
-        let d = tempdir().unwrap();
-        let p = d.path().join("tasks.json");
-        std::fs::write(&p, "{").unwrap();
-        assert!(matches!(
-            TaskRepository::open(&p),
-            Err(TaskRepositoryError::Parse { .. })
-        ));
-    }
-    #[test]
-    fn sync_deduplicates_and_preserves_local_edits() {
-        let source = TaskSourceRef {
-            provider: "github".into(),
-            source_id: "repo#1".into(),
-            url: None,
-        };
-        let mut r = TaskRepository {
-            path: PathBuf::new(),
-            document: TaskDocument {
-                tasks: vec![task(Some(source.clone()))],
-                sources: vec![],
-            },
-        };
-        let mut incoming = task(Some(source));
-        incoming.title = "remote".into();
-        incoming.description = "remote body".into();
-        assert!(!r.upsert_synced(incoming));
-        assert_eq!(r.document.tasks[0].title, "local");
-    }
-    #[test]
-    fn recurring_instance_is_open_and_non_recurring() {
-        let mut t = task(None);
-        t.recurrence = Some(RecurringTask {
-            recurrence: Recurrence::Daily,
-            next_at: "tomorrow".into(),
-        });
-        let i = TaskRepository::recurring_instance(&t).unwrap();
-        assert_eq!(i.status, TaskStatus::Open);
-        assert!(i.recurrence.is_none());
-        assert_ne!(i.id, t.id);
-    }
-}
+#[path = "tasks/tests.rs"]
+mod tests;

@@ -5,7 +5,10 @@
 //! and a tiny.place address, so these pin the resolution rules rather than the
 //! transport — dispatch itself is covered in [`super::super::dispatch`].
 
+use super::super::roster::worker_for_strategy;
 use super::super::roster::{address_of, register_payload, HubWorker};
+use crate::runtime::RoutingStrategy;
+use crate::tinyplace::WorkerSystemInfo;
 
 fn worker(id: &str, addr: &str) -> HubWorker {
     HubWorker {
@@ -15,6 +18,79 @@ fn worker(id: &str, addr: &str) -> HubWorker {
         label: None,
         selected: false,
     }
+}
+
+fn details(cpu: u32, available_gib: u64) -> WorkerSystemInfo {
+    WorkerSystemInfo {
+        cpu_cores: cpu,
+        memory_total_bytes: None,
+        memory_available_bytes: Some(available_gib * 1024 * 1024 * 1024),
+        ip_address: "10.0.0.1".into(),
+    }
+}
+
+#[test]
+fn capacity_strategies_choose_different_workers() {
+    let workers = vec![worker("cpu", "addr-cpu"), worker("ram", "addr-ram")];
+    let details = std::collections::HashMap::from([
+        ("cpu".into(), details(16, 4)),
+        ("ram".into(), details(4, 64)),
+    ]);
+    assert_eq!(
+        worker_for_strategy(&workers, &details, RoutingStrategy::CpuFirst).as_deref(),
+        Some("cpu")
+    );
+    assert_eq!(
+        worker_for_strategy(&workers, &details, RoutingStrategy::MemoryFirst).as_deref(),
+        Some("ram")
+    );
+    assert_eq!(
+        worker_for_strategy(&workers, &details, RoutingStrategy::Balanced).as_deref(),
+        Some("cpu"),
+        "balanced routing is CPU-first even when another worker has much more RAM"
+    );
+    assert_eq!(
+        worker_for_strategy(&workers, &details, RoutingStrategy::Manual),
+        None
+    );
+}
+
+#[test]
+fn balanced_uses_memory_to_break_cpu_ties_while_cpu_first_does_not() {
+    let workers = vec![
+        worker("larger", "addr-large"),
+        worker("smaller", "addr-small"),
+    ];
+    let details = std::collections::HashMap::from([
+        (
+            "smaller".into(),
+            WorkerSystemInfo {
+                cpu_cores: 4,
+                memory_total_bytes: None,
+                memory_available_bytes: Some(128 * 1024 * 1024),
+                ip_address: "10.0.0.1".into(),
+            },
+        ),
+        (
+            "larger".into(),
+            WorkerSystemInfo {
+                cpu_cores: 4,
+                memory_total_bytes: None,
+                memory_available_bytes: Some(896 * 1024 * 1024),
+                ip_address: "10.0.0.2".into(),
+            },
+        ),
+    ]);
+
+    assert_eq!(
+        worker_for_strategy(&workers, &details, RoutingStrategy::Balanced).as_deref(),
+        Some("larger")
+    );
+    assert_eq!(
+        worker_for_strategy(&workers, &details, RoutingStrategy::CpuFirst).as_deref(),
+        Some("smaller"),
+        "CPU First ignores RAM, so a CPU tie follows roster order"
+    );
 }
 
 #[test]
@@ -150,9 +226,10 @@ fn one_peer_never_occupies_two_roster_slots() {
     // address in the TUI uses the address as the id. Same wallet, two names.
     let mut roster = vec![hw("alpha", "So1anaAddr")];
     let incoming = hw("So1anaAddr", "So1anaAddr");
-    remove_conflicting(&mut roster, &incoming);
+    let removed = remove_conflicting(&mut roster, &incoming);
     roster.push(incoming);
 
+    assert_eq!(removed, vec!["alpha"]);
     assert_eq!(roster.len(), 1, "one destination, one entry");
     assert_eq!(roster[0].id, "So1anaAddr", "the newest naming wins");
 }
@@ -163,9 +240,10 @@ fn re_adding_the_same_id_still_replaces() {
 
     let mut roster = vec![hw("w1", "addr-a")];
     let incoming = hw("w1", "addr-b");
-    remove_conflicting(&mut roster, &incoming);
+    let removed = remove_conflicting(&mut roster, &incoming);
     roster.push(incoming);
 
+    assert_eq!(removed, vec!["w1"]);
     assert_eq!(roster.len(), 1);
     assert_eq!(roster[0].address, "addr-b", "an id can be repointed");
 }
@@ -176,9 +254,10 @@ fn distinct_peers_are_left_alone() {
 
     let mut roster = vec![hw("w1", "addr-a"), hw("w2", "addr-b")];
     let incoming = hw("w3", "addr-c");
-    remove_conflicting(&mut roster, &incoming);
+    let removed = remove_conflicting(&mut roster, &incoming);
     roster.push(incoming);
 
+    assert!(removed.is_empty());
     assert_eq!(roster.len(), 3, "deduping must not collapse real peers");
 }
 

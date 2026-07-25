@@ -182,7 +182,7 @@ impl App {
                     return None;
                 }
                 let now = medulla::tasks::now_timestamp();
-                Some(Cmd::SaveTask(medulla::tasks::Task {
+                Some(Cmd::SaveTask(Box::new(medulla::tasks::Task {
                     id: uuid::Uuid::new_v4().to_string(),
                     title: text,
                     description: String::new(),
@@ -193,17 +193,21 @@ impl App {
                     updated_at: now,
                     last_synced_at: None,
                     dispatch: serde_json::Value::Null,
-                }))
+                })))
             }
             PromptKind::TaskEdit(id) => {
                 if text.is_empty() {
                     self.set_status("Tasks · title is required");
                     return None;
                 }
-                let mut task = self.tasks.tasks.iter().find(|task| task.id == id)?.clone();
+                let Some(mut task) = self.tasks.tasks.iter().find(|task| task.id == id).cloned()
+                else {
+                    self.set_status("Tasks · task no longer exists");
+                    return None;
+                };
                 task.title = text;
                 task.updated_at = medulla::tasks::now_timestamp();
-                Some(Cmd::SaveTask(task))
+                Some(Cmd::SaveTask(Box::new(task)))
             }
             PromptKind::SourceAdd => {
                 let repository = text.trim().to_string();
@@ -223,7 +227,7 @@ impl App {
                 };
                 let mut document = self.tasks.clone();
                 document.sources.push(source);
-                Some(Cmd::SaveTasks(document))
+                Some(Cmd::SaveTasks(Box::new(document)))
             }
             PromptKind::LaneClaim { lane_key } => {
                 self.submit_lane_claim(lane_key, &text);

@@ -8,9 +8,10 @@ use crate::client::{EventEnvelope as ClientEnvelope, SessionSummary};
 use crate::ui::events::TuiEvent;
 
 use super::fold::summary_from_session;
-use super::runtime::hub_worker_to_info;
 use super::types::{State, Thread, CHAT_CAP, EVENT_CAP};
+use super::worker_ops::{hub_worker_to_info, label_from_patch};
 use crate::hub::HubWorker;
+use crate::tinyplace::WorkerSystemInfo;
 
 fn client_env(session: &str, seq: Option<u64>, event: Value) -> ClientEnvelope {
     let mut raw = json!({
@@ -226,7 +227,7 @@ fn hub_worker(address: &str) -> HubWorker {
 
 #[test]
 fn a_plain_address_maps_to_a_row_without_a_handle() {
-    let info = hub_worker_to_info(hub_worker("GRV1worker"));
+    let info = hub_worker_to_info(hub_worker("GRV1worker"), None);
 
     assert_eq!(info.id, "w1");
     assert_eq!(info.address, "GRV1worker");
@@ -241,7 +242,7 @@ fn a_plain_address_maps_to_a_row_without_a_handle() {
 #[test]
 fn an_at_handle_address_is_surfaced_as_the_handle_too() {
     // `@name` addresses are shown in both columns so the roster reads naturally.
-    let info = hub_worker_to_info(hub_worker("@builder"));
+    let info = hub_worker_to_info(hub_worker("@builder"), None);
 
     assert_eq!(info.address, "@builder");
     assert_eq!(info.handle.as_deref(), Some("@builder"));
@@ -253,7 +254,43 @@ fn selection_carries_through_to_the_row() {
     w.selected = true;
     w.label = None;
 
-    let info = hub_worker_to_info(w);
+    let info = hub_worker_to_info(w, None);
     assert!(info.selected);
     assert_eq!(info.label, None);
+}
+
+#[test]
+fn captured_worker_details_map_to_the_runtime_row() {
+    let details = WorkerSystemInfo {
+        cpu_cores: 12,
+        memory_total_bytes: Some(32 * 1024 * 1024 * 1024),
+        memory_available_bytes: Some(19 * 1024 * 1024 * 1024),
+        ip_address: "10.0.0.24".to_string(),
+    };
+
+    let info = hub_worker_to_info(hub_worker("GRV1worker"), Some(details));
+
+    assert_eq!(info.cpu_cores, Some(12));
+    assert_eq!(info.memory_total_bytes, Some(32 * 1024 * 1024 * 1024));
+    assert_eq!(info.memory_available_bytes, Some(19 * 1024 * 1024 * 1024));
+    assert_eq!(info.ip_address.as_deref(), Some("10.0.0.24"));
+}
+
+#[test]
+fn worker_label_patches_require_the_supported_string_field() {
+    let label = json!({"label": "builder"});
+    assert_eq!(
+        label_from_patch(label.as_object().unwrap()).unwrap(),
+        Some("builder".into())
+    );
+    let clear = json!({"label": ""});
+    assert_eq!(label_from_patch(clear.as_object().unwrap()).unwrap(), None);
+    for patch in [json!({}), json!({"other": "value"}), json!({"label": 3})] {
+        assert_eq!(
+            label_from_patch(patch.as_object().unwrap())
+                .unwrap_err()
+                .to_string(),
+            "worker update requires a string label"
+        );
+    }
 }
