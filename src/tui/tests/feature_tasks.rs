@@ -197,6 +197,35 @@ fn selected_task_status_uses_one_continuous_highlight() {
 }
 
 #[test]
+fn all_tasks_panel_uses_the_active_theme() {
+    let mut app = app();
+    focus_tasks(&mut app);
+
+    let buffer = render(&mut app);
+    let text: String = buffer.content().iter().map(|cell| cell.symbol()).collect();
+    let title = text
+        .find("All Tasks · a add")
+        .expect("All Tasks panel title");
+    assert_eq!(
+        buffer.content()[title].fg,
+        Color::Cyan,
+        "the panel title should use the theme primary color"
+    );
+    let width = buffer.area.width as usize;
+    let row_start = title / width * width;
+    let corner = buffer.content()[row_start..title]
+        .iter()
+        .rev()
+        .find(|cell| cell.symbol() == "╭")
+        .expect("rounded panel corner");
+    assert_eq!(
+        corner.fg,
+        Color::DarkGray,
+        "the panel border should use the theme border color"
+    );
+}
+
+#[test]
 fn task_details_open_in_a_popup_instead_of_a_sidebar() {
     let mut app = app();
     focus_tasks(&mut app);

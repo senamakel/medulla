@@ -3,7 +3,7 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+use ratatui::widgets::{Clear, Paragraph, Wrap};
 use ratatui::Frame;
 
 use super::super::types::{TASKS_SUBPAGES, TP_SOURCES, TP_TASKS};
@@ -63,11 +63,8 @@ impl App {
             ]));
         }
         frame.render_widget(
-            Paragraph::new(list).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("All Tasks · a add · e edit · d delete · Enter details"),
-            ),
+            Paragraph::new(list)
+                .block(self.panel("All Tasks · a add · e edit · d delete · Enter details")),
             area,
         );
     }
@@ -107,11 +104,7 @@ impl App {
             )));
         }
         frame.render_widget(
-            Paragraph::new(rows).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Sources · a add · s sync · Enter details"),
-            ),
+            Paragraph::new(rows).block(self.panel("Sources · a add · s sync · Enter details")),
             area,
         );
     }
