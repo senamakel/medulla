@@ -172,6 +172,17 @@ fn routing_nav_exposes_all_four_subpages() {
 }
 
 #[test]
+fn routing_nav_has_no_redundant_fleet_heading() {
+    let mut app = app_with_roster(Vec::new(), None);
+    tab(&mut app, "Routing");
+    let out = render(&mut app, 120, 40);
+    assert!(
+        !out.contains("FLEET"),
+        "single group heading is redundant: {out}"
+    );
+}
+
+#[test]
 fn routing_menu_enters_leaves_and_jumps_between_content_panes() {
     let mut app = app_with_workers(None);
     tab(&mut app, "Routing");

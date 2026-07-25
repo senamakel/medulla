@@ -16,7 +16,7 @@ impl App {
             self.panel("Routing"),
             &self.theme,
             &ROUTING_SUBPAGES,
-            &[("FLEET", 0)],
+            &[],
             self.routing_index,
             self.routing_focused,
         );

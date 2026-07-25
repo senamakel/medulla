@@ -1,6 +1,4 @@
-//! The Memory tab: the persona-memory status header, the directives/facets or
-//! search-hit list, and the selected entry's detail pane. When memory is not
-//! enabled it renders a single hint panel instead.
+//! The Memory tab's overview, search, and maintenance pages.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -8,15 +6,38 @@ use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
+use crate::ui::multi_pane;
 use crate::ui::util::clip;
 use medulla::memory::MemoryStatus;
 
-use super::super::types::{App, MemoryEntry};
+use super::super::types::{
+    App, MemoryEntry, MEMORY_SUBPAGES, MP_MAINTENANCE, MP_OVERVIEW, MP_SEARCH,
+};
 
 impl App {
-    /// Draw the Memory tab: status header, entry list, and detail pane (or a
-    /// disabled-state hint when persona memory is off).
+    /// Draw the Memory menu and its active content page.
     pub(super) fn draw_memory(&mut self, f: &mut Frame, area: Rect) {
+        let (nav, content) = multi_pane::split(area);
+        multi_pane::draw_nav(
+            f,
+            nav,
+            self.panel("Memory"),
+            &self.theme,
+            &MEMORY_SUBPAGES,
+            &[],
+            self.memory_subpage_index,
+            self.memory_focused,
+        );
+        match self.memory_subpage_index {
+            MP_OVERVIEW => self.draw_memory_overview(f, content),
+            MP_SEARCH => self.draw_memory_search(f, content),
+            MP_MAINTENANCE => self.draw_memory_maintenance(f, content),
+            _ => self.draw_memory_overview(f, content),
+        }
+    }
+
+    /// Draw persona status plus the distilled directives and facet summaries.
+    fn draw_memory_overview(&mut self, f: &mut Frame, area: Rect) {
         // Disabled / not wired: a single helpful hint panel.
         let enabled = self
             .memory_status
@@ -80,19 +101,10 @@ impl App {
                 "{} observation(s) · {} directive(s)",
                 st.entry_count, st.directives_count
             )),
-            // A backfill can run for minutes with no other visible sign, so the
-            // in-flight state gets its own line rather than only a status flash.
-            if self.memory_ingesting {
-                TLine::from(Span::styled(
-                    "● ingesting… (this can take a while)",
-                    Style::default().fg(Color::Yellow),
-                ))
-            } else {
-                TLine::from(Span::styled(
-                    "b backfill · i ingest new · r refresh",
-                    Style::default().add_modifier(Modifier::DIM),
-                ))
-            },
+            TLine::from(Span::styled(
+                "r refresh · maintenance controls live on page 3",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
         ];
         let facets = if st.facet_counts.is_empty() {
             "facets: (none)".to_string()
@@ -122,14 +134,9 @@ impl App {
             .constraints([Constraint::Percentage(38), Constraint::Percentage(62)])
             .split(rows[1]);
 
-        let entries = self.memory_entries();
+        let entries = self.memory_overview_entries();
         let idx = self.memory_index.min(entries.len().saturating_sub(1));
-        let searching = self.memory_query.is_some();
-        let left_title = match &self.memory_query {
-            Some(q) => format!("Search “{}” · {} hit(s)", clip(q, 18), entries.len()),
-            None => "Directives & facets".to_string(),
-        };
-        let block = self.panel(left_title);
+        let block = self.panel("Directives & facets");
         let inner = block.inner(cols[0]);
         f.render_widget(block, cols[0]);
         let vis = (inner.height as usize).max(1);
@@ -159,13 +166,8 @@ impl App {
             lines.push(TLine::from(Span::styled(label, style)));
         }
         if entries.is_empty() {
-            let hint = if searching {
-                "No hits for that query."
-            } else {
-                "No directives or observations yet. Run `medulla memory backfill`."
-            };
             lines.push(TLine::from(Span::styled(
-                hint,
+                "No directives or observations yet. Open Maintenance to backfill.",
                 Style::default().add_modifier(Modifier::DIM),
             )));
         }
@@ -178,6 +180,148 @@ impl App {
                 .wrap(Wrap { trim: false })
                 .block(self.panel(title)),
             cols[1],
+        );
+    }
+
+    /// Draw ranked memory-search results and an explicit query affordance.
+    fn draw_memory_search(&mut self, f: &mut Frame, area: Rect) {
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(4), Constraint::Min(0)])
+            .split(area);
+        let query = self.memory_query.as_deref().unwrap_or("(none yet)");
+        let header = vec![
+            TLine::from(format!("query: {}", clip(query, 64))),
+            TLine::from(Span::styled(
+                "Enter, /, or q opens a new search · ↑↓ browse results",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
+        ];
+        f.render_widget(
+            Paragraph::new(Text::from(header))
+                .wrap(Wrap { trim: true })
+                .block(self.panel("Search memory")),
+            rows[0],
+        );
+
+        let cols = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(38), Constraint::Percentage(62)])
+            .split(rows[1]);
+        let entries: Vec<MemoryEntry> = self
+            .memory_hits
+            .iter()
+            .cloned()
+            .map(MemoryEntry::Hit)
+            .collect();
+        let idx = self.memory_index.min(entries.len().saturating_sub(1));
+        let block = self.panel(format!("Results · {} hit(s)", entries.len()));
+        let inner = block.inner(cols[0]);
+        f.render_widget(block, cols[0]);
+        let mut lines = Vec::new();
+        for (index, entry) in entries.iter().enumerate() {
+            let MemoryEntry::Hit(hit) = entry else {
+                continue;
+            };
+            let style = if index == idx {
+                self.theme.selection()
+            } else {
+                Style::default().fg(Color::Magenta)
+            };
+            lines.push(TLine::from(Span::styled(
+                format!("{} · {} · {:.2}", hit.facet, hit.tier, hit.score),
+                style,
+            )));
+        }
+        if entries.is_empty() {
+            lines.push(TLine::from(Span::styled(
+                if self.memory_query.is_some() {
+                    "No hits for that query."
+                } else {
+                    "Run a search to rank observations across facets."
+                },
+                Style::default().add_modifier(Modifier::DIM),
+            )));
+        }
+        f.render_widget(Paragraph::new(Text::from(lines)), inner);
+        let (title, body) = self.memory_detail(entries.get(idx));
+        f.render_widget(
+            Paragraph::new(Text::from(body))
+                .wrap(Wrap { trim: false })
+                .block(self.panel(title)),
+            cols[1],
+        );
+    }
+
+    /// Draw memory workspace state and the paid ingest controls in one place.
+    fn draw_memory_maintenance(&mut self, f: &mut Frame, area: Rect) {
+        let Some(status) = self.memory_status.as_ref() else {
+            self.draw_memory_disabled(f, area);
+            return;
+        };
+        let state = if status.enabled {
+            Span::styled("● enabled", Style::default().fg(Color::Green))
+        } else {
+            Span::styled("○ disabled", Style::default().fg(Color::Yellow))
+        };
+        let progress = if self.memory_ingesting {
+            TLine::from(Span::styled(
+                "● ingesting… this can take a while",
+                Style::default().fg(Color::Yellow),
+            ))
+        } else {
+            TLine::from(Span::styled(
+                "b backfill everything · i ingest new activity · r refresh",
+                Style::default().add_modifier(Modifier::DIM),
+            ))
+        };
+        let lines = vec![
+            TLine::from(state),
+            TLine::from(format!("workspace: {}", status.workspace)),
+            TLine::from(format!(
+                "persona pack: {}",
+                if status.pack_exists {
+                    status.pack_path.as_str()
+                } else {
+                    "absent"
+                }
+            )),
+            TLine::from(format!(
+                "{} observation(s) · {} directive(s)",
+                status.entry_count, status.directives_count
+            )),
+            TLine::from(""),
+            progress,
+            TLine::from(Span::styled(
+                "Backfill and ingest may call a paid provider; duplicate runs are blocked.",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
+        ];
+        f.render_widget(
+            Paragraph::new(Text::from(lines))
+                .wrap(Wrap { trim: false })
+                .block(self.panel("Maintenance")),
+            area,
+        );
+    }
+
+    /// Explain how to enable persona memory when no status is available.
+    fn draw_memory_disabled(&self, f: &mut Frame, area: Rect) {
+        let lines = vec![
+            TLine::from(Span::styled(
+                "Persona memory is not enabled.",
+                Style::default().fg(Color::Yellow),
+            )),
+            TLine::from(Span::styled(
+                "Enable memory.enabled in config and provide an OpenRouter key.",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
+        ];
+        f.render_widget(
+            Paragraph::new(Text::from(lines))
+                .wrap(Wrap { trim: true })
+                .block(self.panel("Persona memory")),
+            area,
         );
     }
 

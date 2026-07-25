@@ -87,6 +87,9 @@ fn memory_tab_renders_status_and_directives() {
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
     let out = render(&mut app, 110, 32);
+    assert!(out.contains("Overview"), "subpage menu: {out}");
+    assert!(out.contains("Search"), "subpage menu: {out}");
+    assert!(out.contains("Maintenance"), "subpage menu: {out}");
     assert!(out.contains("enabled"), "status header: {out}");
     assert!(out.contains("observation"), "counts line: {out}");
     assert!(out.contains("coding_style"), "facet summary: {out}");
@@ -101,6 +104,7 @@ fn memory_index_navigation_clamps() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
+    app.on_event(key(KeyCode::Enter));
     // Entries = 2 directives + 2 facets = 4 (max index 3).
     assert_eq!(app.memory_index(), 0);
     for _ in 0..10 {
@@ -191,6 +195,7 @@ fn memory_tab_facet_detail_renders_on_selection() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
+    app.on_event(key(KeyCode::Enter));
     // Entries = 1 directive + 2 facets. Move onto the first facet row.
     app.on_event(key(KeyCode::Down));
     let out = render(&mut app, 110, 32);
@@ -236,6 +241,8 @@ fn b_and_i_request_backfill_and_incremental_ingest() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
+    app.on_event(key(KeyCode::Char('3')));
+    assert_eq!(app.memory_subpage(), "Maintenance");
 
     let cmd = app.on_event(key(KeyCode::Char('b')));
     assert!(
@@ -262,6 +269,7 @@ fn a_second_ingest_cannot_start_while_one_is_running() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
+    app.on_event(key(KeyCode::Char('3')));
 
     assert!(
         app.on_event(key(KeyCode::Char('b'))).is_some(),
@@ -288,6 +296,7 @@ fn the_memory_header_advertises_the_ingest_keys_and_progress() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
+    app.on_event(key(KeyCode::Char('3')));
 
     let out = render(&mut app, 110, 32);
     assert!(out.contains("b backfill"), "keys are discoverable: {out}");
@@ -298,4 +307,23 @@ fn the_memory_header_advertises_the_ingest_keys_and_progress() {
         out.contains("ingesting"),
         "a long run stays visible in the header: {out}"
     );
+}
+
+#[test]
+fn memory_search_page_opens_a_query_prompt() {
+    let rt = Arc::new(MockRuntime::empty());
+    rt.set_memory_status(scripted_status());
+    let mut app = App::new(rt.clone(), loaded());
+    app.tab_index = memory_tab();
+    apply_load(&mut app, &rt);
+
+    assert!(app.on_event(key(KeyCode::Char('2'))).is_none());
+    assert_eq!(app.memory_subpage(), "Search");
+    assert!(app.memory_focused());
+    assert!(app.on_event(key(KeyCode::Enter)).is_none());
+    type_str(&mut app, "commit style");
+    assert!(matches!(
+        app.on_event(key(KeyCode::Enter)),
+        Some(Cmd::SearchMemory(query)) if query == "commit style"
+    ));
 }

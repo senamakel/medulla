@@ -37,6 +37,7 @@ fn task(id: &str, title: &str) -> Task {
 
 fn focus_tasks(app: &mut App) {
     app.tab_index = TABS.iter().position(|tab| *tab == "Tasks").unwrap();
+    app.on_event(key(KeyCode::Enter));
 }
 
 fn type_text(app: &mut App, text: &str) {
@@ -107,6 +108,8 @@ fn selection_delete_and_sync_follow_the_visible_task_state() {
         app.on_event(key(KeyCode::Char('d'))),
         Some(Cmd::DeleteTask(id)) if id == "second"
     ));
+    assert!(app.on_event(key(KeyCode::Esc)).is_none());
+    assert!(app.on_event(key(KeyCode::Char('2'))).is_none());
     assert!(app.on_event(key(KeyCode::Char('s'))).is_none());
     assert_eq!(app.status(), "Sources · none configured");
 
@@ -134,7 +137,10 @@ fn source_prompt_persists_a_github_configuration() {
     let mut app = app();
     focus_tasks(&mut app);
 
-    assert!(app.on_event(key(KeyCode::Char('S'))).is_none());
+    assert!(app.on_event(key(KeyCode::Esc)).is_none());
+    assert!(app.on_event(key(KeyCode::Char('2'))).is_none());
+    assert_eq!(app.tasks_subpage(), "Sources");
+    assert!(app.on_event(key(KeyCode::Char('a'))).is_none());
     type_text(&mut app, "tinyhumansai/medulla");
     let Some(Cmd::SaveTasks(document)) = app.on_event(key(KeyCode::Enter)) else {
         panic!("source prompt should save the task document");
@@ -142,4 +148,19 @@ fn source_prompt_persists_a_github_configuration() {
     assert_eq!(document.sources.len(), 1);
     assert_eq!(document.sources[0].repository, "tinyhumansai/medulla");
     assert_eq!(document.sources[0].provider, "github");
+}
+
+#[test]
+fn tasks_use_the_shared_subpage_menu() {
+    let mut app = app();
+    app.tab_index = TABS.iter().position(|tab| *tab == "Tasks").unwrap();
+
+    assert_eq!(app.tasks_subpage(), "All Tasks");
+    assert!(!app.tasks_focused());
+    assert!(app.on_event(key(KeyCode::Down)).is_none());
+    assert_eq!(app.tasks_subpage(), "Sources");
+    assert!(app.on_event(key(KeyCode::Enter)).is_none());
+    assert!(app.tasks_focused());
+    assert!(app.on_event(key(KeyCode::Esc)).is_none());
+    assert!(!app.tasks_focused());
 }

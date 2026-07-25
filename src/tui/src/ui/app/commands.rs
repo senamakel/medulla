@@ -11,8 +11,8 @@ use crate::ui::theme::{color_to_string, THEME_ROLES};
 use medulla::runtime::{WorkerInfo, WorkerOp};
 
 use super::types::{
-    tab_pos, App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES, SP_APPEARANCE, SP_CONFIG,
-    SP_FEEDBACK, SP_HELP, SP_USAGE,
+    tab_pos, App, Cmd, Prompt, PromptKind, MP_OVERVIEW, MP_SEARCH, SETTINGS_SUBPAGES,
+    SP_APPEARANCE, SP_CONFIG, SP_FEEDBACK, SP_HELP, SP_USAGE,
 };
 
 impl App {
@@ -137,6 +137,16 @@ impl App {
                 let mut document = self.tasks.clone();
                 document.sources.push(source);
                 Some(Cmd::SaveTasks(Box::new(document)))
+            }
+            PromptKind::MemorySearch => {
+                if text.is_empty() {
+                    self.set_status("Memory · search query is required");
+                    return None;
+                }
+                self.memory_subpage_index = MP_SEARCH;
+                self.memory_focused = true;
+                self.set_status(format!("Memory · searching “{text}”…"));
+                Some(Cmd::SearchMemory(text))
             }
             PromptKind::WorkerAdd => match WorkerOp::parse_add(&text) {
                 Some(op) => {
@@ -323,10 +333,14 @@ impl App {
                 self.tab_index = tab_pos("Memory");
                 match query {
                     None => {
+                        self.memory_subpage_index = MP_OVERVIEW;
+                        self.memory_focused = false;
                         self.set_status("Memory · loading persona…");
                         return Some(Cmd::LoadMemory);
                     }
                     Some(query) => {
+                        self.memory_subpage_index = MP_SEARCH;
+                        self.memory_focused = true;
                         self.set_status(format!("Memory · searching “{query}”…"));
                         return Some(Cmd::SearchMemory(query));
                     }

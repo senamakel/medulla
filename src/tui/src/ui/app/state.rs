@@ -15,8 +15,8 @@ use medulla::memory::{MemoryHit, MemoryStatus};
 use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
-    App, Cmd, MemoryEntry, ResumePicker, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, SP_CONTEXT,
-    SP_FEEDBACK, SP_USAGE, TABS,
+    App, Cmd, MemoryEntry, ResumePicker, MEMORY_SUBPAGES, ROUTING_SUBPAGES, SETTINGS_SUBPAGES,
+    SP_CONTEXT, SP_FEEDBACK, SP_USAGE, TABS, TASKS_SUBPAGES,
 };
 
 impl App {
@@ -46,6 +46,9 @@ impl App {
             routing_focused: false,
             routing_strategy_index: 0,
             credential_status: super::credentials::detect_credential_status(),
+            tasks_index: 0,
+            tasks_focused: false,
+            task_source_index: 0,
             memory_status: None,
             memory_hits: Vec::new(),
             memory_directives: Vec::new(),
@@ -53,6 +56,8 @@ impl App {
             memory_query: None,
             memory_service: None,
             memory_ingesting: false,
+            memory_subpage_index: 0,
+            memory_focused: false,
             feedback: Default::default(),
             tasks: medulla::tasks::TaskDocument::default(),
             decision_open: false,
@@ -110,6 +115,26 @@ impl App {
     pub fn set_tasks(&mut self, document: medulla::tasks::TaskDocument) {
         self.tasks = document;
         self.selected = self.selected.min(self.tasks.tasks.len().saturating_sub(1));
+    }
+
+    /// The active Tasks subpage name. Test/inspection seam.
+    pub fn tasks_subpage(&self) -> &'static str {
+        TASKS_SUBPAGES[self.tasks_index.min(TASKS_SUBPAGES.len() - 1)]
+    }
+
+    /// Whether Tasks focus is inside the active content pane.
+    pub fn tasks_focused(&self) -> bool {
+        self.tasks_focused
+    }
+
+    /// The active Memory subpage name. Test/inspection seam.
+    pub fn memory_subpage(&self) -> &'static str {
+        MEMORY_SUBPAGES[self.memory_subpage_index.min(MEMORY_SUBPAGES.len() - 1)]
+    }
+
+    /// Whether Memory focus is inside the active content pane.
+    pub fn memory_focused(&self) -> bool {
+        self.memory_focused
     }
 
     /// The active Settings subpage name. Test/inspection seam.
@@ -272,6 +297,8 @@ impl App {
         self.memory_hits = hits;
         self.memory_query = Some(query);
         self.memory_index = 0;
+        self.memory_subpage_index = super::types::MP_SEARCH;
+        self.memory_focused = true;
     }
 
     /// The active persona-memory selection index. Test/inspection seam.
@@ -371,17 +398,8 @@ impl App {
         changed
     }
 
-    /// The current Memory-tab left-pane rows: directives + facet overview with no
-    /// active search, or the ranked hits after a `/memory <query>` search.
-    pub(super) fn memory_entries(&self) -> Vec<MemoryEntry> {
-        if self.memory_query.is_some() {
-            return self
-                .memory_hits
-                .iter()
-                .cloned()
-                .map(MemoryEntry::Hit)
-                .collect();
-        }
+    /// Persona directives and facet summaries shown on Memory Overview.
+    pub(super) fn memory_overview_entries(&self) -> Vec<MemoryEntry> {
         let mut out: Vec<MemoryEntry> = self
             .memory_directives
             .iter()
@@ -399,8 +417,8 @@ impl App {
         out
     }
 
-    /// The number of selectable Memory-tab rows.
-    pub(super) fn memory_entry_count(&self) -> usize {
-        self.memory_entries().len()
+    /// The number of selectable Memory Overview rows.
+    pub(super) fn memory_overview_entry_count(&self) -> usize {
+        self.memory_overview_entries().len()
     }
 }

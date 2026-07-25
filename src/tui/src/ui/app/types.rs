@@ -38,6 +38,19 @@ pub(super) const RP_ADD_WORKER: usize = 1;
 pub(super) const RP_KEYS: usize = 2;
 pub(super) const RP_STRATEGIES: usize = 3;
 
+/// The Tasks tab's left-nav pages.
+pub const TASKS_SUBPAGES: [&str; 2] = ["All Tasks", "Sources"];
+
+pub(super) const TP_TASKS: usize = 0;
+pub(super) const TP_SOURCES: usize = 1;
+
+/// The Memory tab's left-nav pages.
+pub const MEMORY_SUBPAGES: [&str; 3] = ["Overview", "Search", "Maintenance"];
+
+pub(super) const MP_OVERVIEW: usize = 0;
+pub(super) const MP_SEARCH: usize = 1;
+pub(super) const MP_MAINTENANCE: usize = 2;
+
 /// Display metadata coupled to the routing strategy it applies.
 #[derive(Clone, Copy)]
 pub(super) struct RoutingStrategyOption {
@@ -213,6 +226,8 @@ pub(super) enum PromptKind {
     TaskEdit(String),
     /// Add a GitHub source from `owner/repository`.
     SourceAdd,
+    /// Search local persona memory with a natural-language query.
+    MemorySearch,
     /// Add a worker from an address/@handle line.
     WorkerAdd,
     /// Edit the label of the worker with the given id.
@@ -346,6 +361,12 @@ pub struct App {
     pub(super) routing_strategy_index: usize,
     /// Credential presence captured on startup and refreshed when its pane opens.
     pub(super) credential_status: CredentialStatus,
+    /// The active Tasks subpage (index into [`TASKS_SUBPAGES`]).
+    pub(super) tasks_index: usize,
+    /// Whether keyboard focus is inside the Tasks content pane.
+    pub(super) tasks_focused: bool,
+    /// Selected provider row on the Tasks Sources page.
+    pub(super) task_source_index: usize,
     // Persona-memory tab state (lazily loaded on tab entry / search).
     pub(super) memory_status: Option<MemoryStatus>,
     pub(super) memory_hits: Vec<MemoryHit>,
@@ -363,6 +384,10 @@ pub struct App {
     /// Ingest calls a paid provider, so a second run must not be startable while
     /// one is in flight.
     pub(super) memory_ingesting: bool,
+    /// The active Memory subpage (index into [`MEMORY_SUBPAGES`]).
+    pub(super) memory_subpage_index: usize,
+    /// Whether keyboard focus is inside the Memory content pane.
+    pub(super) memory_focused: bool,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
     pub(super) feedback: FeedbackState,
     /// Durable local task document displayed by the Tasks tab.
