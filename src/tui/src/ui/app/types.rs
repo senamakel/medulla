@@ -45,11 +45,14 @@ pub(super) const TP_TASKS: usize = 0;
 pub(super) const TP_SOURCES: usize = 1;
 
 /// The Memory tab's left-nav pages.
-pub const MEMORY_SUBPAGES: [&str; 3] = ["Overview", "Search", "Maintenance"];
+pub const MEMORY_SUBPAGES: [&str; 5] =
+    ["Overview", "Directives", "Facets", "Search", "Maintenance"];
 
 pub(super) const MP_OVERVIEW: usize = 0;
-pub(super) const MP_SEARCH: usize = 1;
-pub(super) const MP_MAINTENANCE: usize = 2;
+pub(super) const MP_DIRECTIVES: usize = 1;
+pub(super) const MP_FACETS: usize = 2;
+pub(super) const MP_SEARCH: usize = 3;
+pub(super) const MP_MAINTENANCE: usize = 4;
 
 /// Display metadata coupled to the routing strategy it applies.
 #[derive(Clone, Copy)]
@@ -204,6 +207,7 @@ pub(super) struct ResumePicker {
 
 /// One selectable row in the Memory tab's left pane: either the directive/facet
 /// overview (no active search) or a ranked search hit.
+#[derive(Clone)]
 pub(super) enum MemoryEntry {
     /// A persona directive line.
     Directive(String),
@@ -388,6 +392,8 @@ pub struct App {
     pub(super) memory_subpage_index: usize,
     /// Whether keyboard focus is inside the Memory content pane.
     pub(super) memory_focused: bool,
+    /// Whether the selected Memory entry's detail modal is visible.
+    pub(super) memory_detail_open: bool,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
     pub(super) feedback: FeedbackState,
     /// Durable local task document displayed by the Tasks tab.

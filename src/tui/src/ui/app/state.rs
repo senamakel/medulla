@@ -58,6 +58,7 @@ impl App {
             memory_ingesting: false,
             memory_subpage_index: 0,
             memory_focused: false,
+            memory_detail_open: false,
             feedback: Default::default(),
             tasks: medulla::tasks::TaskDocument::default(),
             decision_open: false,
@@ -135,6 +136,11 @@ impl App {
     /// Whether Memory focus is inside the active content pane.
     pub fn memory_focused(&self) -> bool {
         self.memory_focused
+    }
+
+    /// Whether a selected Memory entry is open in the detail modal.
+    pub fn memory_detail_open(&self) -> bool {
+        self.memory_detail_open
     }
 
     /// The active Settings subpage name. Test/inspection seam.
@@ -398,14 +404,18 @@ impl App {
         changed
     }
 
-    /// Persona directives and facet summaries shown on Memory Overview.
-    pub(super) fn memory_overview_entries(&self) -> Vec<MemoryEntry> {
-        let mut out: Vec<MemoryEntry> = self
-            .memory_directives
+    /// Persona directives shown on the dedicated Directives page.
+    pub(super) fn memory_directive_entries(&self) -> Vec<MemoryEntry> {
+        self.memory_directives
             .iter()
             .cloned()
             .map(MemoryEntry::Directive)
-            .collect();
+            .collect()
+    }
+
+    /// Facet summaries shown on the dedicated Facets page.
+    pub(super) fn memory_facet_entries(&self) -> Vec<MemoryEntry> {
+        let mut out = Vec::new();
         if let Some(st) = &self.memory_status {
             for (name, count) in &st.facet_counts {
                 out.push(MemoryEntry::Facet {
@@ -417,8 +427,26 @@ impl App {
         out
     }
 
-    /// The number of selectable Memory Overview rows.
-    pub(super) fn memory_overview_entry_count(&self) -> usize {
-        self.memory_overview_entries().len()
+    /// Entries displayed by the active Memory list page.
+    pub(super) fn memory_page_entries(&self) -> Vec<MemoryEntry> {
+        match self.memory_subpage_index {
+            super::types::MP_DIRECTIVES => self.memory_directive_entries(),
+            super::types::MP_FACETS => self.memory_facet_entries(),
+            super::types::MP_SEARCH => self
+                .memory_hits
+                .iter()
+                .cloned()
+                .map(MemoryEntry::Hit)
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// The selected entry on the active Memory list page.
+    pub(super) fn selected_memory_entry(&self) -> Option<MemoryEntry> {
+        let entries = self.memory_page_entries();
+        entries
+            .get(self.memory_index.min(entries.len().saturating_sub(1)))
+            .cloned()
     }
 }

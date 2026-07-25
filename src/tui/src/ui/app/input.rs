@@ -49,11 +49,7 @@ impl App {
                 ("Chat", _) => self.chat_scroll = self.chat_scroll.saturating_sub(3),
                 ("Agents", _) => self.agent_scroll = self.agent_scroll.saturating_sub(3),
                 ("Memory", _) if self.memory_focused => {
-                    let max = if self.memory_subpage() == "Search" {
-                        self.memory_hits.len().saturating_sub(1)
-                    } else {
-                        self.memory_overview_entry_count().saturating_sub(1)
-                    };
+                    let max = self.memory_page_entries().len().saturating_sub(1);
                     self.memory_index = (self.memory_index + 1).min(max);
                 }
                 ("Settings", "Trace") => self.selected += 3,

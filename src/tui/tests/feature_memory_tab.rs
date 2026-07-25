@@ -88,11 +88,15 @@ fn memory_tab_renders_status_and_directives() {
     apply_load(&mut app, &rt);
     let out = render(&mut app, 110, 32);
     assert!(out.contains("Overview"), "subpage menu: {out}");
+    assert!(out.contains("Directives"), "subpage menu: {out}");
+    assert!(out.contains("Facets"), "subpage menu: {out}");
     assert!(out.contains("Search"), "subpage menu: {out}");
     assert!(out.contains("Maintenance"), "subpage menu: {out}");
     assert!(out.contains("enabled"), "status header: {out}");
     assert!(out.contains("observation"), "counts line: {out}");
     assert!(out.contains("coding_style"), "facet summary: {out}");
+    app.on_event(key(KeyCode::Char('2')));
+    let out = render(&mut app, 110, 32);
     assert!(out.contains("Always branch"), "directive listed: {out}");
 }
 
@@ -104,13 +108,13 @@ fn memory_index_navigation_clamps() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
-    app.on_event(key(KeyCode::Enter));
-    // Entries = 2 directives + 2 facets = 4 (max index 3).
+    app.on_event(key(KeyCode::Char('2')));
+    // Two directives (max index 1).
     assert_eq!(app.memory_index(), 0);
     for _ in 0..10 {
         app.on_event(key(KeyCode::Down));
     }
-    assert_eq!(app.memory_index(), 3, "Down clamps at the last entry");
+    assert_eq!(app.memory_index(), 1, "Down clamps at the last entry");
     for _ in 0..10 {
         app.on_event(key(KeyCode::Up));
     }
@@ -166,8 +170,8 @@ fn slash_memory_with_query_triggers_search() {
 
 #[test]
 fn memory_tab_enabled_but_pack_absent_and_no_facets() {
-    // Enabled, but nothing compiled yet: the "pack absent" line, the "(none)"
-    // facet summary, and the empty detail placeholder all render.
+    // Enabled, but nothing compiled yet: Overview reports the absent pack and
+    // empty facet summary, while the Facets page explains its empty list.
     let rt = Arc::new(MockRuntime::empty());
     rt.set_memory_status(MemoryStatus {
         enabled: true,
@@ -184,7 +188,9 @@ fn memory_tab_enabled_but_pack_absent_and_no_facets() {
     let out = render(&mut app, 110, 32);
     assert!(out.contains("absent"), "pack absent line: {out}");
     assert!(out.contains("(none)"), "facets none: {out}");
-    assert!(out.contains("Select an entry"), "empty detail hint: {out}");
+    app.on_event(key(KeyCode::Char('3')));
+    let out = render(&mut app, 110, 32);
+    assert!(out.contains("No facets yet"), "empty facets hint: {out}");
 }
 
 #[test]
@@ -195,15 +201,18 @@ fn memory_tab_facet_detail_renders_on_selection() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
+    app.on_event(key(KeyCode::Char('3')));
+    assert_eq!(app.memory_subpage(), "Facets");
     app.on_event(key(KeyCode::Enter));
-    // Entries = 1 directive + 2 facets. Move onto the first facet row.
-    app.on_event(key(KeyCode::Down));
+    assert!(app.memory_detail_open());
     let out = render(&mut app, 110, 32);
-    // The facet detail pane reports the observation count for the selected facet.
     assert!(
         out.contains("observation(s) in this facet"),
-        "facet detail: {out}"
+        "facet detail popup: {out}"
     );
+    assert!(out.contains("Esc close"), "popup controls: {out}");
+    app.on_event(key(KeyCode::Esc));
+    assert!(!app.memory_detail_open());
 }
 
 #[test]
@@ -241,7 +250,7 @@ fn b_and_i_request_backfill_and_incremental_ingest() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
-    app.on_event(key(KeyCode::Char('3')));
+    app.on_event(key(KeyCode::Char('5')));
     assert_eq!(app.memory_subpage(), "Maintenance");
 
     let cmd = app.on_event(key(KeyCode::Char('b')));
@@ -269,7 +278,7 @@ fn a_second_ingest_cannot_start_while_one_is_running() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
-    app.on_event(key(KeyCode::Char('3')));
+    app.on_event(key(KeyCode::Char('5')));
 
     assert!(
         app.on_event(key(KeyCode::Char('b'))).is_some(),
@@ -296,7 +305,7 @@ fn the_memory_header_advertises_the_ingest_keys_and_progress() {
     let mut app = App::new(rt.clone(), loaded());
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
-    app.on_event(key(KeyCode::Char('3')));
+    app.on_event(key(KeyCode::Char('5')));
 
     let out = render(&mut app, 110, 32);
     assert!(out.contains("b backfill"), "keys are discoverable: {out}");
@@ -317,7 +326,7 @@ fn memory_search_page_opens_a_query_prompt() {
     app.tab_index = memory_tab();
     apply_load(&mut app, &rt);
 
-    assert!(app.on_event(key(KeyCode::Char('2'))).is_none());
+    assert!(app.on_event(key(KeyCode::Char('4'))).is_none());
     assert_eq!(app.memory_subpage(), "Search");
     assert!(app.memory_focused());
     assert!(app.on_event(key(KeyCode::Enter)).is_none());
@@ -326,4 +335,34 @@ fn memory_search_page_opens_a_query_prompt() {
         app.on_event(key(KeyCode::Enter)),
         Some(Cmd::SearchMemory(query)) if query == "commit style"
     ));
+}
+
+#[test]
+fn search_enter_opens_result_detail_and_q_opens_query_prompt() {
+    let rt = Arc::new(MockRuntime::empty());
+    rt.set_memory_status(scripted_status());
+    let mut app = App::new(rt.clone(), loaded());
+    app.tab_index = memory_tab();
+    apply_load(&mut app, &rt);
+    app.set_memory_results(
+        vec![MemoryHit {
+            facet: "workflow".into(),
+            tier: "t0".into(),
+            text: "Commit small and often".into(),
+            quote: None,
+            timestamp: "2026-01-01T00:00:00+00:00".into(),
+            score: 0.92,
+        }],
+        "commit".into(),
+    );
+
+    assert!(app.on_event(key(KeyCode::Enter)).is_none());
+    assert!(app.memory_detail_open());
+    let out = render(&mut app, 110, 32);
+    assert!(out.contains("Commit small and often"), "popup body: {out}");
+    app.on_event(key(KeyCode::Esc));
+    assert!(!app.memory_detail_open());
+
+    assert!(app.on_event(key(KeyCode::Char('q'))).is_none());
+    assert!(app.prompt_state().is_some(), "q opens the search prompt");
 }
