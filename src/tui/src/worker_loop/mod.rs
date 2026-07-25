@@ -59,6 +59,7 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
         startup_status,
         transport,
         endpoint,
+        theme,
         trust_workspace,
         skip_permissions,
     } = config;
@@ -117,6 +118,7 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
         config_path,
         credential_dir,
         endpoint: endpoint.clone(),
+        theme,
     });
 
     // The guard restores the terminal even on a panic — a worker TUI that dies

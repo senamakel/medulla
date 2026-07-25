@@ -14,3 +14,52 @@ pub struct Draft {
     pub text: String,
     pub cursor: usize,
 }
+
+/// A domain-tagged single-line text prompt.
+///
+/// `K` describes what submitting the text means; editing and rendering remain
+/// shared regardless of whether the caller is the main or daemon TUI.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextPrompt<K> {
+    /// Domain action performed when the prompt is submitted.
+    pub kind: K,
+    /// Human-facing panel title.
+    pub title: String,
+    /// Editable text and caret.
+    pub draft: Draft,
+}
+
+impl<K> TextPrompt<K> {
+    /// Create an empty prompt for `kind`.
+    pub fn new(kind: K, title: impl Into<String>) -> Self {
+        Self {
+            kind,
+            title: title.into(),
+            draft: Draft::new(),
+        }
+    }
+
+    /// Create a prompt whose caret starts after `text`.
+    pub fn with_text(kind: K, title: impl Into<String>, text: impl Into<String>) -> Self {
+        let text = text.into();
+        Self {
+            kind,
+            title: title.into(),
+            draft: Draft {
+                cursor: text.chars().count(),
+                text,
+            },
+        }
+    }
+}
+
+/// Result of routing a key through [`super::edit_prompt`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromptAction {
+    /// The key was consumed as an edit or intentionally ignored.
+    Editing,
+    /// The caller should close the prompt without submitting.
+    Cancel,
+    /// The caller should consume and submit the prompt.
+    Submit,
+}

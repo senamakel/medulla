@@ -27,4 +27,6 @@ pub struct WorkerWiring {
     pub credential_dir: std::path::PathBuf,
     /// Relay endpoint resolved at startup.
     pub endpoint: Option<String>,
+    /// Shared visual theme used by the main and daemon TUIs.
+    pub theme: Theme,
 }
