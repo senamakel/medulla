@@ -17,7 +17,6 @@ use crate::ui::util::{clip, clock, wrap};
 use super::types::{App, TABS};
 
 mod agents;
-mod chat;
 mod decisions;
 mod feedback;
 mod memory;
@@ -26,6 +25,7 @@ mod prompt;
 mod routing;
 mod settings;
 mod tasks;
+mod template_modal;
 
 /// Map a named color from the agent-lane model to a ratatui [`Color`].
 pub(super) fn color(name: &str) -> Color {
@@ -242,11 +242,14 @@ impl App {
     /// composer/prompt/resume overlay when applicable, and the footer.
     pub fn draw(&mut self, f: &mut Frame) {
         self.area = f.area();
-        let chat = self.tab() == "Chat";
+        // The composer now lives inside the Agents pane, so the only things that
+        // still claim a row of their own below the content are the inline prompt
+        // and the resume picker.
         let has_prompt = self.prompt.is_some();
+        let picking = self.resume_picker.is_some();
         let extra = if has_prompt {
             3
-        } else if chat {
+        } else if picking {
             self.extra_height()
         } else {
             0
@@ -268,14 +271,13 @@ impl App {
         if self.decision_open {
             self.draw_decisions(f, rows[2]);
         }
+        if self.template_modal {
+            self.draw_template_modal(f, rows[2]);
+        }
         if has_prompt {
             self.draw_prompt(f, rows[3]);
-        } else if chat {
-            if self.resume_picker.is_some() {
-                self.draw_resume(f, rows[3]);
-            } else {
-                self.draw_composer(f, rows[3]);
-            }
+        } else if picking {
+            self.draw_resume(f, rows[3]);
         }
         self.draw_footer(f, rows[4]);
     }
@@ -315,19 +317,6 @@ impl App {
             ),
             Span::raw("  "),
         ];
-        if self.snapshot.async_mode {
-            spans.push(Span::styled(
-                "⚡ ASYNC ON",
-                Style::default()
-                    .fg(Color::Magenta)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        } else {
-            spans.push(Span::styled(
-                "async off",
-                Style::default().add_modifier(Modifier::DIM),
-            ));
-        }
         if let Some(notice) = &self.update_notice {
             spans.push(Span::raw("  "));
             spans.push(Span::styled(
@@ -388,9 +377,8 @@ impl App {
     /// Draw the footer hint line.
     pub(super) fn draw_footer(&mut self, f: &mut Frame, area: Rect) {
         let text = format!(
-            "Tab views · ↑↓ history/nav · ⇧⏎ newline · ^Y copy · ^F fork · ^↑↓ thread · ^X abort · ^O mouse {} · /async {} · /help",
+            "Tab views · ⌥↑↓ rail · ⇧⏎ newline · ⌥X cancel · ⌥A answer · ^N thread · ^↑↓ switch · ^Y copy · ^X abort · ^O mouse {} · /help",
             if self.mouse_capture { "●" } else { "○" },
-            if self.snapshot.async_mode { "on" } else { "off" },
         );
         f.render_widget(
             Paragraph::new(TLine::from(Span::styled(
@@ -411,7 +399,6 @@ impl App {
     pub(super) fn draw_content(&mut self, f: &mut Frame, area: Rect) {
         match self.tab() {
             "Overview" => self.draw_overview(f, area),
-            "Chat" => self.draw_chat(f, area),
             "Agents" => self.draw_agents(f, area),
             "Tasks" => self.draw_tasks(f, area),
             "Routing" => self.draw_routing(f, area),

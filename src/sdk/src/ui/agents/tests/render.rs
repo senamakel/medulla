@@ -37,9 +37,9 @@ fn agent_role_color_and_function() {
     assert_eq!(AgentRole::Orchestrator.color(), "yellow");
     assert_eq!(AgentRole::Reasoning.color(), "yellow");
     assert_eq!(AgentRole::Compress.color(), "blue");
-    assert_eq!(AgentRole::Worker.color(), "magenta");
+    assert_eq!(AgentRole::Agent.color(), "magenta");
     assert!(AgentRole::Compress.is_function());
-    assert!(!AgentRole::Worker.is_function());
+    assert!(!AgentRole::Agent.is_function());
     assert!(!AgentRole::Orchestrator.is_function());
 }
 
@@ -155,7 +155,7 @@ fn lane_lines_agent_task_with_no_turns_shows_placeholder() {
     let lane = AgentLane {
         key: "agent:dev".into(),
         label: "Dev".into(),
-        role: AgentRole::Worker,
+        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: vec![TaskState {
@@ -168,6 +168,7 @@ fn lane_lines_agent_task_with_no_turns_shows_placeholder() {
             question_id: None,
         }],
         context_tokens: None,
+        usage: Default::default(),
         harness_label: None,
         agent_id: Some("dev".into()),
         session_id: None,

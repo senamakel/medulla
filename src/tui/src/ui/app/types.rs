@@ -26,17 +26,41 @@ use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
 /// Trace, Context, and Feedback used to live here. They are secondary surfaces —
 /// two of them diagnostic — so they now sit under Settings, keeping the tab bar
 /// to the views a session is actually driven from.
-pub const TABS: [&str; 7] = [
-    "Overview", "Chat", "Agents", "Tasks", "Routing", "Memory", "Settings",
+///
+/// Chat used to live here too, and is now the Agents tab: talking to the
+/// orchestrator *is* selecting its lane and typing. Splitting them meant reading
+/// what an operation was doing on one tab and steering it on another, with two
+/// scroll positions and no way to answer an agent's question from where the
+/// question was visible.
+pub const TABS: [&str; 6] = [
+    "Overview", "Agents", "Tasks", "Routing", "Memory", "Settings",
 ];
 
 /// The Routing tab's left-nav pages.
-pub const ROUTING_SUBPAGES: [&str; 4] = ["List Workers", "Add Worker", "Manage Keys", "Strategies"];
+///
+/// Ordered by the containment chain. `Hosts` is the machine level the operator
+/// registers and steers by hand; `Harnesses` is the runtime level, which is
+/// where credentials live — a subscription or an API key is a property of the
+/// CLI runtime that spends it, not of the machine it happens to sit on;
+/// `Agent Templates` is the catalog of what may be provisioned onto any of it.
+/// `Add Host` and `Strategies` are the two actions that belong to no level.
+///
+/// There is no `Fleet` page: the whole declared tree lives in the Agents rail,
+/// beside the lanes running on it. These pages are the *management* surfaces —
+/// what you register, authenticate, and choose — not the picture.
+pub const ROUTING_SUBPAGES: [&str; 5] = [
+    "Hosts",
+    "Harnesses",
+    "Agent Templates",
+    "Add Host",
+    "Strategies",
+];
 
-pub(super) const RP_WORKERS: usize = 0;
-pub(super) const RP_ADD_WORKER: usize = 1;
-pub(super) const RP_KEYS: usize = 2;
-pub(super) const RP_STRATEGIES: usize = 3;
+pub(super) const RP_HOSTS: usize = 0;
+pub(super) const RP_HARNESSES: usize = 1;
+pub(super) const RP_TEMPLATES: usize = 2;
+pub(super) const RP_ADD_HOST: usize = 3;
+pub(super) const RP_STRATEGIES: usize = 4;
 
 /// The Tasks tab's left-nav pages.
 pub const TASKS_SUBPAGES: [&str; 2] = ["All Tasks", "Sources"];
@@ -70,7 +94,7 @@ pub(super) const ROUTING_STRATEGIES: [RoutingStrategyOption; 4] = [
     RoutingStrategyOption {
         strategy: RoutingStrategy::Manual,
         label: "Manual",
-        description: "Keep the worker explicitly selected in List Workers.",
+        description: "Keep the host explicitly selected on the Hosts page.",
     },
     RoutingStrategyOption {
         strategy: RoutingStrategy::Balanced,
@@ -80,12 +104,12 @@ pub(super) const ROUTING_STRATEGIES: [RoutingStrategyOption; 4] = [
     RoutingStrategyOption {
         strategy: RoutingStrategy::CpuFirst,
         label: "CPU First",
-        description: "Choose the worker with the most logical CPU cores.",
+        description: "Choose the host with the most logical CPU cores.",
     },
     RoutingStrategyOption {
         strategy: RoutingStrategy::MemoryFirst,
         label: "Memory First",
-        description: "Choose the worker with the most currently available RAM.",
+        description: "Choose the host with the most currently available RAM.",
     },
 ];
 
@@ -186,6 +210,8 @@ pub enum Cmd {
         /// The comment text.
         body: String,
     },
+    /// Re-read the declared fleet (roster + capacity) from the runtime.
+    RefreshFleet,
     /// Submit new feedback to the board.
     SubmitFeedback {
         /// Feature request or bug report.
@@ -222,7 +248,7 @@ pub(super) enum MemoryEntry {
     Hit(MemoryHit),
 }
 
-/// The action a small inline prompt (Workers add/edit, Agents answer) submits.
+/// The action a small inline prompt (Hosts add/edit, Agents answer) submits.
 pub(super) enum PromptKind {
     /// Create a task from a title line.
     TaskCreate,
@@ -233,9 +259,9 @@ pub(super) enum PromptKind {
     /// Search local persona memory with a natural-language query.
     MemorySearch,
     /// Add a worker from an address/@handle line.
-    WorkerAdd,
+    HostAdd,
     /// Edit the label of the worker with the given id.
-    WorkerEditLabel(String),
+    HostEditLabel(String),
     /// Answer a pending sub-agent question.
     AnswerQuestion {
         /// The cycle the question belongs to.
@@ -348,7 +374,16 @@ pub struct App {
     pub(super) agent_index: usize,
     pub(super) agent_scroll: usize,
     pub(super) chat_scroll: usize,
-    pub(super) worker_index: usize,
+    /// Selected row in the command peek, while it is open.
+    pub(super) command_index: usize,
+    /// Selected row on the Routing Hosts page.
+    pub(super) host_index: usize,
+    /// Selected row on the Routing Agent Templates page.
+    pub(super) template_index: usize,
+    /// Scroll offset inside the open agent-template popup.
+    pub(super) template_scroll: usize,
+    /// Whether the agent-template popup is open over the catalog.
+    pub(super) template_modal: bool,
     /// The active Routing subpage (index into [`ROUTING_SUBPAGES`]).
     pub(super) routing_index: usize,
     /// Whether keyboard focus is inside the Routing content pane.
@@ -447,8 +482,9 @@ pub struct App {
     pub(super) hit_tabs: Vec<(u16, u16)>,
     pub(super) hit_tabs_row: u16,
     pub(super) hit_agents: Option<(Rect, usize)>,
-    pub(super) hit_context: Option<Rect>,
+    /// The threads strip's hit box and its first visible row, for click-to-switch.
     pub(super) hit_threads: Option<(Rect, usize)>,
+    pub(super) hit_context: Option<Rect>,
     pub(super) last_events_len: usize,
 
     // Test-only clipboard capture: when set, `copy_chat` records the copied text

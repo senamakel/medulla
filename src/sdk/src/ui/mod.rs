@@ -9,6 +9,10 @@ pub mod chat_store;
 pub mod command;
 pub mod decisions;
 pub mod events;
+pub mod fleet;
 pub mod harness;
+pub mod meters;
+#[cfg(test)]
+mod meters_tests;
 pub mod stream;
 pub mod util;

@@ -6,9 +6,11 @@ use std::sync::Arc;
 use ratatui::layout::Rect;
 
 use crate::ui::agents::{
-    derive_agent_lanes, merge_worker_activity, merge_worker_roster, AgentLane,
+    derive_agent_lanes, merge_host_activity, merge_host_roster, AgentLane, AgentRole,
 };
+use crate::ui::command::CommandSpec;
 use crate::ui::composer::Draft;
+use crate::ui::fleet::{fleet_rows, merge_capacity, registry_capacity, FleetNode};
 use crate::ui::theme::Theme;
 use medulla::config::LoadedConfig;
 use medulla::memory::{MemoryHit, MemoryStatus};
@@ -52,7 +54,11 @@ impl App {
             agent_index: 0,
             agent_scroll: 0,
             chat_scroll: 0,
-            worker_index: 0,
+            command_index: 0,
+            host_index: 0,
+            template_index: 0,
+            template_scroll: 0,
+            template_modal: false,
             routing_index: 0,
             routing_focused: false,
             routing_strategy_index,
@@ -95,8 +101,8 @@ impl App {
             hit_tabs: Vec::new(),
             hit_tabs_row: 0,
             hit_agents: None,
-            hit_context: None,
             hit_threads: None,
+            hit_context: None,
             last_events_len: 0,
             tinyplace_obs: None,
             copy_capture: None,
@@ -238,8 +244,8 @@ impl App {
     }
 
     /// The active worker-selection index. Test/inspection seam.
-    pub fn worker_index(&self) -> usize {
-        self.worker_index
+    pub fn host_index(&self) -> usize {
+        self.host_index
     }
 
     /// The active Routing subpage name. Test/inspection seam.
@@ -395,13 +401,155 @@ impl App {
     /// the registry — which is what resolves a delegated task's address — so
     /// reading the snapshot alone left a live, dispatchable worker off this tab.
     pub(super) fn lanes(&self) -> Vec<AgentLane> {
-        let roster = merge_worker_roster(&self.snapshot.roster, &self.runtime.workers());
+        let roster = merge_host_roster(&self.fleet_roster(), &self.runtime.workers());
         let mut lanes = derive_agent_lanes(&self.snapshot.events, &self.loaded.harness(), &roster);
         // The snapshot's events come from the backend, whose vocabulary says
-        // nothing about delegated tasks — so a busy worker renders idle unless
+        // nothing about delegated tasks — so a busy agent renders idle unless
         // the activity the hub observed locally is folded in.
-        merge_worker_activity(&mut lanes, &self.runtime.worker_activity());
+        merge_host_activity(&mut lanes, &self.runtime.worker_activity());
         lanes
+    }
+
+    /// The commands offered for the current draft, or `None` when the peek is
+    /// closed.
+    ///
+    /// Open only on the conversation surface: the composer is the only place a
+    /// command can be typed, so offering the catalog anywhere else would be
+    /// advertising an input that is not there.
+    pub(super) fn command_suggestions(&self) -> Option<Vec<&'static CommandSpec>> {
+        if self.tab() != "Agents" || self.prompt.is_some() {
+            return None;
+        }
+        crate::ui::command::suggestions(&self.draft.text)
+    }
+
+    /// The highlighted command's name, while the peek is open.
+    /// Test/inspection seam.
+    pub fn selected_command(&self) -> Option<String> {
+        self.peeked_command().map(|spec| spec.name.to_string())
+    }
+
+    /// The command the peek would complete to, if it is open on a match.
+    pub(super) fn peeked_command(&self) -> Option<&'static CommandSpec> {
+        let specs = self.command_suggestions()?;
+        specs
+            .get(self.command_index.min(specs.len().saturating_sub(1)))
+            .copied()
+    }
+
+    /// Move the peek's cursor, wrapping at both ends so a short list is quick to
+    /// walk in either direction.
+    pub(super) fn move_command_index(&mut self, up: bool) {
+        let Some(len) = self.command_suggestions().map(|s| s.len()) else {
+            return;
+        };
+        if len == 0 {
+            return;
+        }
+        self.command_index = if up {
+            (self.command_index + len - 1) % len
+        } else {
+            (self.command_index + 1) % len
+        };
+    }
+
+    /// Replace the draft with the peeked command, ready for its argument.
+    ///
+    /// A command that takes an argument gets a trailing space — which also
+    /// closes the peek, since the choice has been made.
+    pub(super) fn complete_command(&mut self) {
+        let Some(spec) = self.peeked_command() else {
+            return;
+        };
+        let text = if spec.args.is_empty() {
+            format!("/{}", spec.name)
+        } else {
+            format!("/{} ", spec.name)
+        };
+        self.draft = Draft {
+            cursor: text.chars().count(),
+            text,
+        };
+        self.command_index = 0;
+    }
+
+    /// Whether the Agents cursor sits on the orchestrator lane.
+    ///
+    /// That lane is the conversation with the operator, so it scrolls the chat
+    /// transcript and its composer submits an instruction; every other lane
+    /// shows an agent's own turns and answers its questions.
+    pub fn on_orchestrator_lane(&self) -> bool {
+        let lanes = self.lanes();
+        let rows = self.agent_rows();
+        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+            .and_then(|row| row.lane_index())
+            .and_then(|index| lanes.get(index))
+            .map(|lane| lane.role == AgentRole::Orchestrator)
+            // An empty lane list means the orchestrator lane is all there is.
+            .unwrap_or(true)
+    }
+
+    /// Scroll whichever transcript the Agents cursor is reading.
+    pub(super) fn scroll_transcript(&mut self, up: bool, step: usize) {
+        let target = if self.on_orchestrator_lane() {
+            &mut self.chat_scroll
+        } else {
+            &mut self.agent_scroll
+        };
+        *target = if up {
+            target.saturating_add(step)
+        } else {
+            target.saturating_sub(step)
+        };
+    }
+
+    /// The flattened fleet tree for the Routing › Fleet page.
+    ///
+    /// Reads the same merged roster the Agents lanes do, so an agent the local
+    /// registry knows about but the backend has not advertised still appears —
+    /// in the `unplaced agents` group, since nothing declares where it runs.
+    pub(crate) fn fleet_rows(&self) -> Vec<FleetNode> {
+        fleet_rows(&self.fleet_capacity(), &self.fleet_roster())
+    }
+
+    /// The capacity the fleet surfaces render.
+    ///
+    /// The runtime's own declaration wins; the operator's `[fleet]` config is
+    /// the fallback, so a declared chain is still visible on a runtime that
+    /// reports none (the mock, or a backend that has not answered yet). They are
+    /// not merged: two half-descriptions of one fleet interleaved would be
+    /// harder to trust than whichever one is authoritative.
+    pub(super) fn fleet_capacity(&self) -> medulla::runtime::CapacitySnapshot {
+        let mut declared = if self.snapshot.capacity.is_empty() {
+            self.loaded.config.fleet.capacity()
+        } else {
+            self.snapshot.capacity.clone()
+        };
+        // Last resort, and opt-in only: with `MEDULLA_DEMO_FLEET` set and nothing
+        // real declared, stand in a small fake fleet so the surfaces can be
+        // exercised without a backend. It never overrides a real reading.
+        if declared.is_empty() && medulla::runtime::demo_fleet_requested() {
+            declared = medulla::runtime::demo_capacity();
+        }
+        // The locally registered peers are hosts too, and they are frequently
+        // the only capacity a hub-backed session has. Declared records win on a
+        // collision; the registry only ever adds machines nothing else named.
+        merge_capacity(&declared, &registry_capacity(&self.runtime.workers()))
+    }
+
+    /// The agent identities the fleet surfaces place.
+    ///
+    /// The snapshot roster, or the stand-in one when `MEDULLA_DEMO_FLEET` is set
+    /// and the runtime has none. Locally registered peers are deliberately *not*
+    /// merged in here: a peer is a *host*, and it reaches these surfaces through
+    /// [`fleet_capacity`](App::fleet_capacity) as one. Listing it here too would
+    /// show the same machine twice — once as capacity, once as an agent with
+    /// nowhere to live.
+    pub(super) fn fleet_roster(&self) -> Vec<medulla::runtime::AgentDescriptor> {
+        if self.snapshot.roster.is_empty() && medulla::runtime::demo_fleet_requested() {
+            return medulla::runtime::demo_agents();
+        }
+        self.snapshot.roster.clone()
     }
 
     /// The index of the active thread in the snapshot's thread list.

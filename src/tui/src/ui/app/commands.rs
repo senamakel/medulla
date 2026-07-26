@@ -17,12 +17,12 @@ use super::types::{
 
 impl App {
     /// The worker under the Workers-list cursor, if the fleet is non-empty.
-    pub(super) fn selected_worker(&self) -> Option<WorkerInfo> {
+    pub(super) fn selected_host(&self) -> Option<WorkerInfo> {
         let ws = self.runtime.workers();
         if ws.is_empty() {
             return None;
         }
-        ws.get(self.worker_index.min(ws.len() - 1)).cloned()
+        ws.get(self.host_index.min(ws.len() - 1)).cloned()
     }
 
     /// The task under the Agents-list cursor, when a `Sub` (task) row is selected.
@@ -52,6 +52,31 @@ impl App {
     }
 
     /// Open the answer prompt for the selected task's pending question.
+    /// Send the composer's text as an answer when the cursor sits on a task with
+    /// an open question, consuming the draft.
+    ///
+    /// Returns `Some(None)` when it handled the key (an answer was sent, or the
+    /// draft was empty and there was nothing to send) and `None` when the caller
+    /// should treat the text as an ordinary instruction instead. The distinction
+    /// matters: typing into an agent's lane must not silently start a new
+    /// orchestrator cycle.
+    pub(super) fn answer_from_composer(&mut self, text: &str) -> Option<Option<Cmd>> {
+        let task = self.selected_agent_task()?;
+        let question_id = task.question_id.clone()?;
+        let cycle_id = crate::ui::agents::parse_task_key(&task.task_id)
+            .0?
+            .to_string();
+        if text.trim().is_empty() {
+            self.set_status("Type an answer for the pending question");
+            return Some(None);
+        }
+        self.runtime
+            .answer_question(cycle_id, question_id, text.to_string());
+        self.draft = Draft::new();
+        self.set_status(format!("Answer sent to {}", task.task_id));
+        Some(None)
+    }
+
     pub(super) fn answer_selected_task(&mut self) {
         match self.selected_agent_task() {
             Some(t) => match (
@@ -148,7 +173,7 @@ impl App {
                 self.set_status(format!("Memory · searching “{text}”…"));
                 Some(Cmd::SearchMemory(text))
             }
-            PromptKind::WorkerAdd => match WorkerOp::parse_add(&text) {
+            PromptKind::HostAdd => match WorkerOp::parse_add(&text) {
                 Some(op) => {
                     self.set_status("Adding worker…");
                     Some(Cmd::WorkerOp(op))
@@ -158,7 +183,7 @@ impl App {
                     None
                 }
             },
-            PromptKind::WorkerEditLabel(id) => {
+            PromptKind::HostEditLabel(id) => {
                 let mut patch = serde_json::Map::new();
                 patch.insert("label".into(), serde_json::Value::String(text));
                 self.set_status("Updating label…");
@@ -297,13 +322,7 @@ impl App {
         match command {
             SlashCommand::Quit => self.should_quit = true,
             SlashCommand::NewSession => {
-                self.runtime.new_session();
-                self.refresh_snapshot();
-                self.set_status("Started a fresh conversation session");
-            }
-            SlashCommand::Fork(name) => {
-                self.fork_thread(name);
-                self.tab_index = tab_pos("Chat");
+                self.new_thread();
             }
             SlashCommand::Resume => return Some(Cmd::ListChats),
             SlashCommand::Abort => {
@@ -348,16 +367,6 @@ impl App {
             }
             SlashCommand::ToggleMouse => self.toggle_mouse(),
             SlashCommand::Copy(scope) => self.copy_chat(scope),
-            SlashCommand::Async(setting) => {
-                let on = setting.unwrap_or(!self.snapshot.async_mode);
-                self.runtime.set_async_mode(on);
-                self.refresh_snapshot();
-                self.set_status(if on {
-                    "async ON — delegations detach; chat stays free while sub-agents work"
-                } else {
-                    "async OFF — delegations await their results before the reply"
-                });
-            }
             SlashCommand::BadUsage(usage) => self.set_status(usage),
             SlashCommand::Unknown(input) => self.set_status(format!("Unknown command: {input}")),
         }
