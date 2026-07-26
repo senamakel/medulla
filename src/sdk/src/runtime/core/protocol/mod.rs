@@ -40,6 +40,7 @@ pub(super) fn parse_line(line: &str) -> Option<Inbound> {
         "call" => Some(Inbound::Call {
             id: str_field(&value, "id")?,
             port: str_field(&value, "port").unwrap_or_default(),
+            method: str_field(&value, "method").unwrap_or_default(),
         }),
         "event" => Some(Inbound::Event {
             seq: value.get("seq").and_then(Value::as_u64).unwrap_or(0),
@@ -78,14 +79,24 @@ pub(super) fn port_unavailable_ret(id: &str, port: &str) -> String {
     format!("{frame}\n")
 }
 
-/// Build the `hello` params (serve-protocol §3): the negotiated protocol, host
-/// identity, and the ports the host offers to answer.
-pub(super) fn hello_params() -> Value {
+/// Build the `hello` params (serve-protocol §3): the negotiated protocol, client
+/// identity, and the ports the client offers to answer.
+pub(super) fn hello_params(declarations: &super::types::CoreDeclarations) -> Value {
     json!({
         "protocol": PROTOCOL_VERSION,
-        "host": format!("medulla-public/{}", env!("CARGO_PKG_VERSION")),
+        "client": format!("medulla-public/{}", env!("CARGO_PKG_VERSION")),
         "ports": HOST_PORTS,
+        "roster": declarations.agents,
+        "templates": declarations.agent_templates,
     })
+}
+
+/// Serialize a successful host→serve reverse-RPC return.
+pub(super) fn success_ret(id: &str, result: Value) -> String {
+    format!(
+        "{}\n",
+        json!({ "t": "ret", "id": id, "ok": true, "result": result })
+    )
 }
 
 /// Fold one `event.event` payload into `state`, returning `true` when a

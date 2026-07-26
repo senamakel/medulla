@@ -7,12 +7,14 @@ use serde_json::{json, Value};
 use super::super::protocol::{
     check_ready, hello_params, parse_line, port_unavailable_ret, req_line, Inbound, ReadyCheck,
 };
+use super::super::types::CoreDeclarations;
 use super::super::types::PROTOCOL_VERSION;
+use crate::runtime::AgentDescriptor;
 
 #[test]
 fn parse_line_decodes_each_serve_to_host_frame() {
     match parse_line(
-        r#"{"t":"ready","protocol":1,"serve":"3.12.0","sessionId":"agent","error":null}"#,
+        r#"{"t":"ready","protocol":2,"serve":"3.14.1","sessionId":"agent","error":null}"#,
     ) {
         Some(Inbound::Ready {
             protocol,
@@ -20,8 +22,8 @@ fn parse_line_decodes_each_serve_to_host_frame() {
             session_id,
             error,
         }) => {
-            assert_eq!(protocol, 1);
-            assert_eq!(serve.as_deref(), Some("3.12.0"));
+            assert_eq!(protocol, 2);
+            assert_eq!(serve.as_deref(), Some("3.14.1"));
             assert_eq!(session_id.as_deref(), Some("agent"));
             assert!(error.is_none());
         }
@@ -53,9 +55,12 @@ fn parse_line_decodes_each_serve_to_host_frame() {
         other => panic!("expected failed Res, got {other:?}"),
     }
     match parse_line(r#"{"t":"call","id":"c1","port":"inference","method":"invoke"}"#) {
-        Some(Inbound::Call { id, port }) => {
+        Some(Inbound::Call {
+            id, port, method, ..
+        }) => {
             assert_eq!(id, "c1");
             assert_eq!(port, "inference");
+            assert_eq!(method, "invoke");
         }
         other => panic!("expected Call, got {other:?}"),
     }
@@ -92,7 +97,7 @@ fn check_ready_flags_mismatch_and_startup_error() {
         ReadyCheck::Ok { .. }
     ));
     assert!(matches!(
-        check_ready(2, None, None, None),
+        check_ready(1, None, None, None),
         ReadyCheck::Fatal(_)
     ));
     assert!(matches!(
@@ -116,9 +121,9 @@ fn outbound_frames_are_well_formed() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["error"]["code"], "port_unavailable");
 
-    let hello = hello_params();
+    let hello = hello_params(&CoreDeclarations::default());
     assert_eq!(hello["protocol"], PROTOCOL_VERSION);
-    assert!(hello["host"]
+    assert!(hello["client"]
         .as_str()
         .unwrap()
         .starts_with("medulla-public/"));
@@ -127,4 +132,41 @@ fn outbound_frames_are_well_formed() {
         .unwrap()
         .iter()
         .any(|p| p == "inference"));
+    assert!(hello["ports"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|p| p == "hosts"));
+}
+
+#[test]
+fn hello_carries_static_roster_and_agent_templates() {
+    let declarations = CoreDeclarations {
+        agents: vec![AgentDescriptor {
+            id: "reviewer-1".into(),
+            workspace_id: Some("workspace-1".into()),
+            template_id: Some("reviewer".into()),
+            ..AgentDescriptor::default()
+        }],
+        agent_templates: vec![super::super::types::AgentTemplate {
+            id: "reviewer".into(),
+            name: Some("Reviewer".into()),
+            description: "Reviews diffs without writing.".into(),
+            instructions: Some("Report concrete findings.".into()),
+            tools: Some(vec!["read".into(), "grep".into()]),
+            model: Some("reasoning".into()),
+            effort: Some("high".into()),
+            params: Default::default(),
+            tags: vec!["review".into()],
+            metadata: Default::default(),
+            harnesses: Default::default(),
+        }],
+        ..CoreDeclarations::default()
+    };
+
+    let hello = hello_params(&declarations);
+    assert_eq!(hello["roster"][0]["workspaceId"], "workspace-1");
+    assert_eq!(hello["roster"][0]["templateId"], "reviewer");
+    assert_eq!(hello["templates"][0]["id"], "reviewer");
+    assert_eq!(hello["templates"][0]["model"], "reasoning");
 }
