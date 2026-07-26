@@ -38,6 +38,15 @@ impl App {
                     .position(|option| option.strategy == strategy)
             })
             .unwrap_or(0);
+        let subscription_strategy_index = loaded
+            .config
+            .subscription_routing_strategy
+            .and_then(|strategy| {
+                super::types::SUBSCRIPTION_STRATEGIES
+                    .iter()
+                    .position(|option| option.strategy == strategy)
+            })
+            .unwrap_or(0);
         App {
             runtime,
             loaded,
@@ -52,6 +61,7 @@ impl App {
             contexts: Vec::new(),
             context_index: 0,
             agent_index: 0,
+            agents_focus: super::types::AgentsFocus::default(),
             agent_scroll: 0,
             chat_scroll: 0,
             command_index: 0,
@@ -62,6 +72,8 @@ impl App {
             routing_index: 0,
             routing_focused: false,
             routing_strategy_index,
+            subscription_strategy_index,
+            subscription_strategy_focused: false,
             credential_status: super::credentials::detect_credential_status(),
             tasks_index: 0,
             tasks_focused: false,
@@ -105,6 +117,7 @@ impl App {
             hit_context: None,
             last_events_len: 0,
             tinyplace_obs: None,
+            host_obs: None,
             copy_capture: None,
         }
     }
@@ -209,6 +222,11 @@ impl App {
         self.update_notice.as_deref()
     }
 
+    /// Where the Agents rail cursor is. Test/inspection seam.
+    pub fn agent_index(&self) -> usize {
+        self.agent_index
+    }
+
     /// The current composer draft text. Test/inspection seam.
     pub fn draft_text(&self) -> &str {
         &self.draft.text
@@ -285,6 +303,17 @@ impl App {
     ) {
         self.tinyplace_obs = Some(obs);
         self.refresh_snapshot();
+    }
+
+    /// Attach the read-only view of the host running on this device, so the
+    /// Overview tab can say what this machine is doing with the work it is sent.
+    pub fn set_host_observation(&mut self, host: medulla::daemon::embedded::HostObservation) {
+        self.host_obs = Some(host);
+    }
+
+    /// The host running on this device, if any.
+    pub fn host_observation(&self) -> Option<&medulla::daemon::embedded::HostObservation> {
+        self.host_obs.as_ref()
     }
 
     /// Re-read the runtime snapshot and merge in the tiny.place observation.

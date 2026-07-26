@@ -18,8 +18,8 @@ use crate::ui::theme::Theme;
 use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery, FeedbackType};
 use medulla::config::LoadedConfig;
 use medulla::memory::{MemoryHit, MemoryStatus};
-use medulla::runtime::RoutingStrategy;
 use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
+use medulla::runtime::{RoutingStrategy, SubscriptionRoutingStrategy};
 
 /// The ordered top-level tab names. The tab index selects into this array.
 ///
@@ -113,6 +113,36 @@ pub(super) const ROUTING_STRATEGIES: [RoutingStrategyOption; 4] = [
     },
 ];
 
+/// Display metadata for one subscription-level selection rule.
+#[derive(Clone, Copy)]
+pub(super) struct SubscriptionStrategyOption {
+    /// Runtime strategy sent when the option is applied.
+    pub(super) strategy: SubscriptionRoutingStrategy,
+    /// Short label rendered in the strategy chooser.
+    pub(super) label: &'static str,
+    /// Operator-facing explanation of the budget comparison.
+    pub(super) description: &'static str,
+}
+
+/// Subscription strategy options in the order shown by the chooser.
+pub(super) const SUBSCRIPTION_STRATEGIES: [SubscriptionStrategyOption; 3] = [
+    SubscriptionStrategyOption {
+        strategy: SubscriptionRoutingStrategy::Manual,
+        label: "Manual",
+        description: "Keep the requested provider or the host's configured default.",
+    },
+    SubscriptionStrategyOption {
+        strategy: SubscriptionRoutingStrategy::Balanced,
+        label: "Balanced",
+        description: "Choose the ready subscription with the most remaining percentage.",
+    },
+    SubscriptionStrategyOption {
+        strategy: SubscriptionRoutingStrategy::MostAvailableBudget,
+        label: "Most Available Budget",
+        description: "Choose the ready subscription with the most remaining tokens.",
+    },
+];
+
 /// The Settings tab's left-nav subpages, in order (number keys 1-8 jump to them).
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
@@ -153,6 +183,27 @@ pub(super) const SP_HELP: usize = 7;
 /// list grows.
 pub(super) fn tab_pos(name: &str) -> usize {
     TABS.iter().position(|t| *t == name).unwrap_or(0)
+}
+
+/// Which half of the Agents tab the keyboard is driving.
+///
+/// The tab merges a list (the rail) with a text input (the composer), and a
+/// terminal has one keyboard for both. Typing has to work the instant the tab
+/// opens — that is the point of folding chat in here — so the composer holds
+/// focus by default and the bare arrows belong to the caret.
+///
+/// That left the rail reachable only by `Alt`+`↑`/`↓`, which most macOS
+/// terminals do not send at all unless the user has rebound the Option key.
+/// Focus is therefore explicit and movable, matching the menu/content model
+/// Settings and Routing already use: `Esc` steps out to the rail, `Enter` (or
+/// simply typing) steps back in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AgentsFocus {
+    /// The composer has the keyboard: arrows move the caret, Enter submits.
+    #[default]
+    Composer,
+    /// The rail has the keyboard: arrows walk the rows, Enter returns below.
+    Rail,
 }
 
 /// An async action the event loop must run on the app's behalf.
@@ -372,6 +423,8 @@ pub struct App {
     pub(super) contexts: Vec<ContextItem>,
     pub(super) context_index: usize,
     pub(super) agent_index: usize,
+    /// Which half of the Agents tab the keyboard is driving.
+    pub(super) agents_focus: AgentsFocus,
     pub(super) agent_scroll: usize,
     pub(super) chat_scroll: usize,
     /// Selected row in the command peek, while it is open.
@@ -390,6 +443,10 @@ pub struct App {
     pub(super) routing_focused: bool,
     /// Selected row on the Routing strategy page.
     pub(super) routing_strategy_index: usize,
+    /// Selected subscription rule on the Routing strategy page.
+    pub(super) subscription_strategy_index: usize,
+    /// Whether the subscription group, rather than the host group, has focus.
+    pub(super) subscription_strategy_focused: bool,
     /// Credential presence captured on startup and refreshed when its pane opens.
     pub(super) credential_status: CredentialStatus,
     /// The active Tasks subpage (index into [`TASKS_SUBPAGES`]).
@@ -497,4 +554,9 @@ pub struct App {
     // up without the runtime having to know about tiny.place.
     pub(super) tinyplace_obs:
         Option<Arc<std::sync::Mutex<medulla::tinyplace::service::TinyplaceObservation>>>,
+    // A read-only view of the task host running on this device, when one is.
+    // Read live at render rather than merged into the snapshot: its counters
+    // move on the host's own schedule, and the snapshot is the *runtime's*
+    // picture of the world — the host is a peer to it, not part of it.
+    pub(super) host_obs: Option<medulla::daemon::embedded::HostObservation>,
 }
