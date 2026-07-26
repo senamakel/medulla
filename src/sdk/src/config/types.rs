@@ -543,7 +543,7 @@ pub struct OnboardingConfig {
 /// when no backend supplies a fleet of its own. An empty section (the default)
 /// changes nothing: the handshake declares no capacity and the Fleet page shows
 /// its empty state.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FleetConfig {
     /// Machines this client declares.
@@ -563,6 +563,18 @@ pub struct FleetConfig {
     pub agent_templates: Vec<AgentTemplate>,
 }
 
+impl Default for FleetConfig {
+    fn default() -> Self {
+        Self {
+            hosts: Vec::new(),
+            harnesses: Vec::new(),
+            workspaces: Vec::new(),
+            agents: Vec::new(),
+            agent_templates: crate::runtime::fleet::coding_agent_templates(),
+        }
+    }
+}
+
 impl FleetConfig {
     /// Whether the operator declared nothing at all.
     pub fn is_empty(&self) -> bool {
@@ -571,6 +583,18 @@ impl FleetConfig {
             && self.workspaces.is_empty()
             && self.agents.is_empty()
             && self.agent_templates.is_empty()
+    }
+
+    /// Whether this config contains only the built-in coding catalog.
+    ///
+    /// This lets opt-in demonstrations replace the seed with their own complete
+    /// fleet while ordinary runtimes still advertise the useful defaults.
+    pub fn has_only_coding_defaults(&self) -> bool {
+        self.hosts.is_empty()
+            && self.harnesses.is_empty()
+            && self.workspaces.is_empty()
+            && self.agents.is_empty()
+            && self.agent_templates == crate::runtime::fleet::coding_agent_templates()
     }
 
     /// The declared chain as the UI-facing roll-up (agents excluded — they reach
