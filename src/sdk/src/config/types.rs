@@ -540,9 +540,9 @@ pub struct OnboardingConfig {
 ///
 /// Declared, never probed — this is what the client *offers* the orchestrator
 /// when it attaches to `medulla-serve`, and what the TUI's Fleet page renders
-/// when no backend supplies a fleet of its own. An empty section (the default)
-/// changes nothing: the handshake declares no capacity and the Fleet page shows
-/// its empty state.
+/// when no backend supplies a fleet of its own. The default declares only the
+/// built-in coding template catalog; it provisions no agents and advertises no
+/// host capacity. An explicit empty template list opts out of that catalog.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FleetConfig {
