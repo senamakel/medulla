@@ -558,7 +558,9 @@ impl App {
         // Last resort, and opt-in only: with `MEDULLA_DEMO_FLEET` set and nothing
         // real declared, stand in a small fake fleet so the surfaces can be
         // exercised without a backend. It never overrides a real reading.
-        if declared.is_empty() && medulla::runtime::demo_fleet_requested() {
+        if (declared.is_empty() || self.loaded.config.fleet.has_only_coding_defaults())
+            && medulla::runtime::demo_fleet_requested()
+        {
             declared = medulla::runtime::demo_capacity();
         }
         // The locally registered peers are hosts too, and they are frequently
