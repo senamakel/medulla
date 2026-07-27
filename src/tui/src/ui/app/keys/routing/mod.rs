@@ -173,7 +173,17 @@ impl App {
                 self.template_scroll = 0;
                 RoutingKey::Handled(None)
             }
+            // Install the built-in catalog into the `.medulla/agents` store, so
+            // the roles become files the operator can edit rather than
+            // constants they cannot. Never overwrites what is already there.
+            KeyCode::Char('i') => {
+                self.install_default_templates();
+                RoutingKey::Handled(None)
+            }
             KeyCode::Char('r') => {
+                // Re-read the store first: the operator's own editor is the
+                // usual way a template changes, and it leaves nothing to poll.
+                self.reload_templates();
                 self.set_status("Refreshing fleet…");
                 RoutingKey::Handled(Some(Cmd::RefreshFleet))
             }

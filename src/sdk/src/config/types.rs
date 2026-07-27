@@ -580,7 +580,7 @@ impl Default for FleetConfig {
             harnesses: Vec::new(),
             workspaces: Vec::new(),
             agents: Vec::new(),
-            agent_templates: crate::runtime::fleet::coding_agent_templates(),
+            agent_templates: crate::agents::default_templates(),
         }
     }
 }
@@ -595,16 +595,19 @@ impl FleetConfig {
             && self.agent_templates.is_empty()
     }
 
-    /// Whether this config contains only the built-in coding catalog.
+    /// Whether a catalog is all this config declares — no hosts, harnesses,
+    /// workspaces, or agents.
     ///
-    /// This lets opt-in demonstrations replace the seed with their own complete
-    /// fleet while ordinary runtimes still advertise the useful defaults.
-    pub fn has_only_coding_defaults(&self) -> bool {
+    /// A template catalog says what *may* be provisioned, never where. So a
+    /// config carrying only one has declared no fleet, and the opt-in demo
+    /// fleet may still stand in: this is what lets the built-in catalog (or an
+    /// installed `.medulla/agents` store) coexist with `MEDULLA_DEMO_FLEET`
+    /// instead of suppressing it.
+    pub fn declares_only_templates(&self) -> bool {
         self.hosts.is_empty()
             && self.harnesses.is_empty()
             && self.workspaces.is_empty()
             && self.agents.is_empty()
-            && self.agent_templates == crate::runtime::fleet::coding_agent_templates()
     }
 
     /// The declared chain as the UI-facing roll-up (agents excluded — they reach

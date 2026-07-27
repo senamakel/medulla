@@ -434,18 +434,30 @@ fn an_absent_fleet_section_seeds_the_coding_catalog() {
     assert_eq!(
         ids,
         [
-            "coding-agent",
+            "plan-writer",
+            "implementer",
+            "test-writer",
             "code-reviewer",
+            "debugger",
+            "verifier",
+            "doc-writer",
+            "refactorer",
+            "merge-resolver",
             "pr-manager",
-            "repo-orchestrator"
+            "triager",
+            "repo-orchestrator",
         ]
     );
+    // Every seeded role declares what it may use and how hard to think, and
+    // none of them restricts itself to a harness kind.
     assert!(cfg
         .fleet
         .agent_templates
         .iter()
-        .all(|template| template.model.is_none() && template.tools.is_none()));
-    assert!(cfg.fleet.has_only_coding_defaults());
+        .all(|template| template.model.is_some()
+            && template.tools.is_some()
+            && template.harnesses.is_empty()));
+    assert!(cfg.fleet.declares_only_templates());
     assert!(serde_json::to_string(&cfg)
         .unwrap()
         .contains("\"agentTemplates\""));
@@ -456,7 +468,7 @@ fn an_explicit_empty_template_catalog_opts_out_of_coding_defaults() {
     let cfg: TuiConfig = serde_json::from_str(r#"{"fleet":{"agentTemplates":[]}}"#).unwrap();
 
     assert!(cfg.fleet.is_empty());
-    assert!(!cfg.fleet.has_only_coding_defaults());
+    assert!(cfg.fleet.declares_only_templates());
     assert!(cfg.fleet.capacity().is_empty());
     assert!(!serde_json::to_string(&cfg).unwrap().contains("fleet"));
 }
