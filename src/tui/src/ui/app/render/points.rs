@@ -1,4 +1,4 @@
-//! The dummy Points experience: season progress, daily bounties, and the
+//! The dummy TokenMaxxing experience: season progress, daily bounties, and the
 //! current daily leaderboard.
 //!
 //! Every value is intentionally local sample data. This keeps the design
@@ -126,7 +126,7 @@ const LEADERBOARD: [LeaderboardEntry; 7] = [
 ];
 
 impl App {
-    /// Draw the offline-first points program concept.
+    /// Draw the offline-first TokenMaxxing program concept.
     pub(super) fn draw_points(&mut self, f: &mut Frame, area: Rect) {
         let rows = Layout::default()
             .direction(Direction::Vertical)
@@ -180,7 +180,7 @@ impl App {
             )),
         ]);
         f.render_widget(
-            Paragraph::new(body).block(self.panel("Points · Season 01 · 18 days left")),
+            Paragraph::new(body).block(self.panel("TokenMaxxing · Season 01 · 18 days left")),
             area,
         );
     }

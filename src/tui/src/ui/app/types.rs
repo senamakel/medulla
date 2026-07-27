@@ -44,7 +44,7 @@ pub const TABS: [&str; 8] = [
     "Agents",
     "Tasks",
     "Workflows",
-    "Points",
+    "TokenMaxxing",
     "Routing",
     "Memory",
     "Settings",
@@ -54,7 +54,13 @@ pub const TABS: [&str; 8] = [
 /// draw anything.
 #[cfg(not(feature = "workflows"))]
 pub const TABS: [&str; 7] = [
-    "Overview", "Agents", "Tasks", "Points", "Routing", "Memory", "Settings",
+    "Overview",
+    "Agents",
+    "Tasks",
+    "TokenMaxxing",
+    "Routing",
+    "Memory",
+    "Settings",
 ];
 
 /// The Routing tab's left-nav pages.

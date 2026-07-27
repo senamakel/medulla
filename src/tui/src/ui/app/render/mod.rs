@@ -424,7 +424,11 @@ impl App {
             ""
         };
         for (i, name) in TABS.iter().enumerate() {
-            let label = format!(" {name} ");
+            let label = if gap.is_empty() {
+                format!("{name} ")
+            } else {
+                format!(" {name} ")
+            };
             let w = label.chars().count() as u16;
             self.hit_tabs.push((col, col + w - 1));
             let mut style = Style::default();
@@ -478,7 +482,7 @@ impl App {
             "Tasks" => self.draw_tasks(f, area),
             #[cfg(feature = "workflows")]
             "Workflows" => self.draw_workflows_tab(f, area),
-            "Points" => self.draw_points(f, area),
+            "TokenMaxxing" => self.draw_points(f, area),
             "Routing" => self.draw_routing(f, area),
             "Memory" => self.draw_memory(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.
