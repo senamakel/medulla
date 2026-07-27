@@ -17,10 +17,26 @@ default = ["workflows"]
 # because the shipped TUI exposes workflows.
 workflows = ["dep:tinyflows"]
 
+# Embed the OpenHuman core. Default-OFF while the migration is in flight: the
+# shipped build stays byte-identical, and the ~3x compile cost plus the
+# feature-unification hazards (git2's native build, TLS provider selection,
+# reqwest feature union) are shaken out behind an explicit opt-in first.
+#
+# The dependency lives on the SDK rather than the app crate because the SDK
+# already owns every vendored-crate seam; a second, unmanaged seam in the app
+# crate is what AGENTS.md's "keep engine coupling in the seam" rule forbids.
+openhuman-core = ["dep:openhuman"]
+
 [dependencies]
 tinyplace = { workspace = true }
 tinyflows = { workspace = true, optional = true }
 tinycortex = { workspace = true }
+# default-features = false is LOAD-BEARING, not tidiness: OpenHuman's defaults
+# include its own `tui` gate on ratatui 0.30 / crossterm 0.29 against this
+# workspace's 0.29 / 0.28. Those are semver-incompatible at 0.x, so Cargo would
+# link BOTH — two raw-mode state machines and two background reader threads on
+# one tty fd. That is not a compile error; it is a wrecked terminal.
+openhuman = { workspace = true, optional = true, default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
