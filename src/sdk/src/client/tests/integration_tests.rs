@@ -240,6 +240,32 @@ async fn me_carries_bearer_and_unwraps() {
 }
 
 #[tokio::test]
+async fn waitlist_status_decodes_rank_and_boosts() {
+    let data = json!({
+        "status": "WAITING",
+        "hasMedullaAccess": false,
+        "position": 7,
+        "priorityScore": 75,
+        "joinedAt": "2026-07-27T00:00:00.000Z",
+        "boosts": {
+            "paid": { "applied": false },
+            "powerUser": { "applied": true, "appliedAt": "2026-07-27T00:01:00.000Z" },
+            "githubStar": { "applied": true }
+        }
+    });
+    let (base, req) = spawn_stub_capture(ok_envelope("HTTP/1.1 200 OK", data)).await;
+    let client = MedullaClient::new(base, "jwt-abc");
+    let status = client.waitlist_status().await.unwrap();
+    assert_eq!(status.status, WaitlistState::Waiting);
+    assert_eq!(status.position, Some(7));
+    assert_eq!(status.priority_score, 75);
+    assert!(status.boosts.power_user.applied);
+    let sent = req.await.unwrap();
+    assert!(sent.starts_with("GET /waitlist/status"), "{sent}");
+    assert!(sent.contains("authorization: Bearer jwt-abc"), "{sent}");
+}
+
+#[tokio::test]
 async fn team_usage_fetches_and_unwraps() {
     let data = json!({
         "plan": "pro",

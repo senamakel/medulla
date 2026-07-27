@@ -22,5 +22,6 @@ pub(crate) mod multi_pane;
 pub mod onboarding;
 pub(crate) mod selection;
 pub mod theme;
+pub mod waitlist;
 pub mod welcome;
 pub(crate) mod widgets;

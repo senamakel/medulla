@@ -129,6 +129,32 @@ impl MedullaClient {
         self.send(req).await
     }
 
+    /// Fetch or create the authenticated user's ranked Medulla waitlist entry.
+    pub async fn waitlist_status(&self) -> Result<WaitlistStatus> {
+        let req = self.authed(self.http.get(self.url("/waitlist/status")));
+        self.send(req).await
+    }
+
+    /// Redeem a dedicated Medulla invite code and return the resulting status.
+    pub async fn redeem_medulla_invite(&self, code: impl Into<String>) -> Result<WaitlistStatus> {
+        let req = self
+            .authed(self.http.post(self.url("/waitlist/invite/redeem")))
+            .json(&serde_json::json!({ "code": code.into() }));
+        self.send(req).await
+    }
+
+    /// Start an authenticated GitHub account-link flow for star verification.
+    pub async fn connect_waitlist_github(&self) -> Result<WaitlistGithubConnect> {
+        let req = self.authed(self.http.post(self.url("/waitlist/github/connect")));
+        self.send(req).await
+    }
+
+    /// Verify the linked account's star and return the updated queue state.
+    pub async fn verify_waitlist_github_star(&self) -> Result<WaitlistStatus> {
+        let req = self.authed(self.http.post(self.url("/waitlist/github-star/verify")));
+        self.send(req).await
+    }
+
     /// Account-level token usage for the active team/user
     /// (`GET /teams/me/usage`): cycle window, spend, per-model breakdown,
     /// remaining budget, plan. Returned as raw JSON — the shape is rendered

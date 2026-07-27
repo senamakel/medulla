@@ -21,7 +21,8 @@ use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
 use medulla_tui::cli::parse_tui_args;
 use medulla_tui::ui::login::LoginOutcome;
-use medulla_tui::ui::welcome::{format_usd, run_welcome_ui};
+use medulla_tui::ui::waitlist::{run_waitlist_ui, WaitlistOutcome};
+use medulla_tui::ui::welcome::run_welcome_ui;
 
 use crate::commands::{run_login_screen, save_credentials};
 use crate::event_loop::{run, SessionExit, SessionWiring};
@@ -66,6 +67,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // backend directly. `None` whenever we end up on the mock, which is exactly
     // when the welcome flow must not run.
     let mut backend_client: Option<MedullaClient> = None;
+    let mut waitlist_client: Option<MedullaClient> = None;
 
     // Shared hub roster slot: filled after the hub connects (backend runtime),
     // read by `BackendRuntime::workers()`/`worker_op()` so the Workers tab manages
@@ -172,26 +174,39 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             Some(tok) => {
                 let client = MedullaClient::new(backend.base_url.clone(), tok);
                 match client.me().await {
-                    Ok(_) => {
-                        match BackendRuntime::connect_with_workspaces(
-                            client.clone(),
-                            hub_slot.clone(),
-                            workspace_roots.clone(),
-                        )
-                        .await
-                        {
-                            Ok(rt) => {
-                                backend_client = Some(client);
-                                (Some(Arc::new(rt)), None)
+                    Ok(_) => match client.waitlist_status().await {
+                        Ok(status) if status.has_medulla_access => {
+                            match BackendRuntime::connect_with_workspaces(
+                                client.clone(),
+                                hub_slot.clone(),
+                                workspace_roots.clone(),
+                            )
+                            .await
+                            {
+                                Ok(rt) => {
+                                    backend_client = Some(client);
+                                    (Some(Arc::new(rt)), None)
+                                }
+                                Err(e) => (
+                                    Some(Arc::new(MockRuntime::demo())),
+                                    Some(format!(
+                                        "backend connect failed ({e}) — running with mock runtime"
+                                    )),
+                                ),
                             }
-                            Err(e) => (
-                                Some(Arc::new(MockRuntime::demo())),
-                                Some(format!(
-                                    "backend connect failed ({e}) — running with mock runtime"
-                                )),
-                            ),
                         }
-                    }
+                        Ok(_) => {
+                            waitlist_client = Some(client);
+                            (None, None)
+                        }
+                        Err(e) => {
+                            waitlist_client = Some(client);
+                            (
+                                None,
+                                Some(format!("waitlist unavailable ({e}) — retrying in gate")),
+                            )
+                        }
+                    },
                     Err(e) if e.is_auth_error() => {
                         need_login = Some(backend.base_url.clone());
                         (None, None)
@@ -234,35 +249,70 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             }
             LoginOutcome::Token(jwt) => {
                 let client = MedullaClient::new(base_url.clone(), jwt.clone());
-                match BackendRuntime::connect_with_workspaces(
-                    client.clone(),
-                    hub_slot.clone(),
-                    workspace_roots.clone(),
-                )
-                .await
-                {
-                    Ok(rt) => {
-                        runtime = Some(Arc::new(rt));
-                        backend_client = Some(client);
-                        startup_status = save_credentials(&home, &base_url, &jwt);
+                match client.waitlist_status().await {
+                    Ok(status) if status.has_medulla_access => {
+                        match BackendRuntime::connect_with_workspaces(
+                            client.clone(),
+                            hub_slot.clone(),
+                            workspace_roots.clone(),
+                        )
+                        .await
+                        {
+                            Ok(rt) => {
+                                runtime = Some(Arc::new(rt));
+                                backend_client = Some(client);
+                                startup_status = save_credentials(&home, &base_url, &jwt);
+                            }
+                            Err(e) => {
+                                runtime = Some(Arc::new(MockRuntime::demo()));
+                                startup_status = Some(format!(
+                                    "backend connect failed ({e}) — running with mock runtime"
+                                ));
+                            }
+                        }
+                    }
+                    Ok(_) => {
+                        let _ = save_credentials(&home, &base_url, &jwt);
+                        waitlist_client = Some(client);
                     }
                     Err(e) => {
-                        runtime = Some(Arc::new(MockRuntime::demo()));
-                        startup_status = Some(format!(
-                            "backend connect failed ({e}) — running with mock runtime"
-                        ));
+                        drop(guard);
+                        anyhow::bail!("could not load Medulla waitlist: {e}");
                     }
                 }
             }
         }
     }
 
+    if runtime.is_none() {
+        if let Some(client) = waitlist_client.take() {
+            loop {
+                match run_waitlist_ui(&mut terminal, &client).await? {
+                    WaitlistOutcome::Approved => break,
+                    WaitlistOutcome::PowerUser => {
+                        let _ = run_welcome_ui(&mut terminal, &client, env.clone()).await;
+                    }
+                    WaitlistOutcome::Quit => {
+                        drop(guard);
+                        return Ok(());
+                    }
+                }
+            }
+            let connected = BackendRuntime::connect_with_workspaces(
+                client.clone(),
+                hub_slot.clone(),
+                workspace_roots.clone(),
+            )
+            .await?;
+            runtime = Some(Arc::new(connected));
+            backend_client = Some(client);
+        }
+    }
+
     let mut runtime = runtime.expect("a runtime is always selected");
 
-    // First-run welcome: offer promotional credit for sharing coding-agent
-    // history. Gated locally by `[onboarding] welcomeCompleted` so a returning
-    // user is never re-prompted; the backend independently refuses a second
-    // grant. Only runs against a real authenticated backend — never on the mock.
+    // The old automatic history-reward welcome is replaced by the authenticated
+    // waitlist gate. Its scanner remains available from the gate's `p` action.
     let home_config_path = home.join("config.toml");
     // Every write-back (onboarding flag, routing strategy, …) must target the
     // file whose value *wins on the next launch*, or the change is silently lost —
@@ -278,36 +328,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         .map(std::path::PathBuf::from)
         .or_else(|| loaded.sources.last().map(std::path::PathBuf::from))
         .unwrap_or_else(|| home_config_path.clone());
-    // A consented upload outlives the welcome screen; the event loop reports its
-    // progress and result on the status line while the user works.
     let mut sharing = None;
-    if !loaded.config.onboarding.welcome_completed {
-        if let Some(client) = &backend_client {
-            if let Ok(session) = run_welcome_ui(&mut terminal, client, env.clone()).await {
-                // Which outcomes settle onboarding is decided by the outcome
-                // itself (and unit-tested there) — getting it wrong either nags
-                // a user who declined or silently burns an unclaimed offer.
-                if session.outcome.settles_onboarding() {
-                    if let Err(e) =
-                        medulla::config::persist_welcome_completed(&active_config_path, true)
-                    {
-                        startup_status = Some(format!("could not save onboarding state ({e})"));
-                    }
-                }
-                if let Some(awarded) = session.outcome.granted_usd() {
-                    startup_status = Some(format!(
-                        "{} in free credits added to your balance",
-                        format_usd(awarded)
-                    ));
-                }
-                if session.sharing.is_some() {
-                    startup_status =
-                        Some("sharing your history in the background — thanks!".to_string());
-                }
-                sharing = session.sharing;
-            }
-        }
-    }
 
     // Optional background tiny.place presence service (observational only): keep
     // the identity online, auto-accept peer contacts, and poll peer presence,

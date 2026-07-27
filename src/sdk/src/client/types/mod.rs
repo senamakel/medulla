@@ -25,6 +25,54 @@ pub enum Audience {
     Dashboard,
 }
 
+/// Medulla waitlist lifecycle returned by `GET /waitlist/status`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum WaitlistState {
+    Waiting,
+    Approved,
+    Rejected,
+}
+
+/// One durable waitlist priority signal.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaitlistBoost {
+    pub applied: bool,
+    #[serde(default)]
+    pub applied_at: Option<String>,
+}
+
+/// Additive waitlist signals.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaitlistBoosts {
+    pub paid: WaitlistBoost,
+    pub power_user: WaitlistBoost,
+    pub github_star: WaitlistBoost,
+}
+
+/// Authenticated user's ranked Medulla waitlist snapshot.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaitlistStatus {
+    pub status: WaitlistState,
+    pub has_medulla_access: bool,
+    #[serde(default)]
+    pub position: Option<u64>,
+    pub priority_score: u64,
+    pub joined_at: String,
+    pub boosts: WaitlistBoosts,
+}
+
+/// OAuth URL returned by the waitlist GitHub connect endpoint.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaitlistGithubConnect {
+    pub oauth_url: String,
+    pub state: String,
+}
+
 // ---------------------------------------------------------------------------
 // Sessions (/medulla/v1)
 // ---------------------------------------------------------------------------
