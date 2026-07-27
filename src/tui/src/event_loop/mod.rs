@@ -92,7 +92,7 @@ pub(crate) async fn run(
             maybe_event = reader.next() => {
                 if let Some(Ok(ev)) = maybe_event {
                     if let Some(cmd) = app.on_event(ev) {
-                        run_cmd(cmd, &runtime, app.memory_service(), &msg_tx);
+                        run_cmd(cmd, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
                     }
                 }
             }
@@ -100,7 +100,7 @@ pub(crate) async fn run(
                 if recv.is_ok() {
                     app.refresh_snapshot();
                     if should_refresh_context(&mut app) {
-                        run_cmd(Cmd::InspectContext, &runtime, app.memory_service(), &msg_tx);
+                        run_cmd(Cmd::InspectContext, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
                     }
                 }
             }
@@ -122,6 +122,20 @@ pub(crate) async fn run(
                         app.set_memory_ingest_done(status);
                     }
                     AppMsg::TasksLoaded(document) => app.set_tasks(document),
+                    #[cfg(feature = "workflows")]
+                    AppMsg::CopilotStatus { workflow, line } => {
+                        app.copilot_status(&workflow, line);
+                    }
+                    #[cfg(feature = "workflows")]
+                    AppMsg::CopilotDone {
+                        workflow,
+                        reply,
+                        changes,
+                    } => app.copilot_finished(&workflow, reply, changes),
+                    #[cfg(feature = "workflows")]
+                    AppMsg::CopilotFailed { workflow, error } => {
+                        app.copilot_failed(&workflow, error);
+                    }
                     AppMsg::MemoryResults { hits, query } => {
                         let n = hits.len();
                         app.set_memory_results(hits, query);
@@ -131,7 +145,7 @@ pub(crate) async fn run(
                         app.set_feedback_page(page);
                         // Pull the newly selected row's comments in the same beat.
                         if let Some(cmd) = app.feedback_detail_cmd() {
-                            run_cmd(cmd, &runtime, app.memory_service(), &msg_tx);
+                            run_cmd(cmd, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
                         }
                     }
                     AppMsg::FeedbackComments { id, comments } => {
@@ -145,7 +159,7 @@ pub(crate) async fn run(
                         app.set_status(status);
                         // A comment or submission changes the board, so re-pull
                         // it rather than patching state locally.
-                        run_cmd(Cmd::LoadFeedback(app.feedback_query()), &runtime, app.memory_service(), &msg_tx);
+                        run_cmd(Cmd::LoadFeedback(app.feedback_query()), &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
                     }
                     AppMsg::UpdateAvailable(notice) => {
                         app.set_update_notice(notice.clone());

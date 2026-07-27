@@ -1,4 +1,4 @@
-//! The UI-facing view of installed workflows and their runs.
+//! Listing rows for installed workflows and their runs.
 //!
 //! Neutral rows rather than ratatui widgets, matching the rest of
 //! [`crate::ui`]: the SDK decides *what* a surface shows and the app crate
@@ -102,6 +102,22 @@ pub fn status_label(status: RunStatus) -> &'static str {
     }
 }
 
+/// A run id shortened to something a narrow pane has room for.
+///
+/// Run ids are `run-<uuid>`, which no sidebar or panel title can show whole. The
+/// trailing segment is the random part, so the last few characters of it are
+/// what distinguish two runs — and they are enough to find the run again with
+/// `medulla workflow get-run`, which matches on a prefix of nothing but still
+/// gives an operator something to search their history for.
+pub fn short_run_id(id: &str) -> String {
+    id.rsplit('-')
+        .next()
+        .unwrap_or(id)
+        .chars()
+        .take(8)
+        .collect()
+}
+
 /// A colour name for a run status, in the vocabulary the app crate maps to a
 /// theme.
 pub fn status_color(status: RunStatus) -> &'static str {
@@ -115,5 +131,5 @@ pub fn status_color(status: RunStatus) -> &'static str {
 }
 
 #[cfg(test)]
-#[path = "workflows_tests.rs"]
+#[path = "rows_tests.rs"]
 mod tests;

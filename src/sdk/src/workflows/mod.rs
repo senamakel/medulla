@@ -20,6 +20,7 @@
 //! trait, so a remote catalog is a new implementation rather than a rewrite.
 
 pub mod authoring;
+pub mod copilot;
 pub mod local;
 pub mod mcp;
 pub mod node_contracts;
@@ -35,6 +36,7 @@ mod tests;
 pub use authoring::{
     apply_workflow_ops, create_workflow, preview_workflow_ops, validate_handle, GraphHandle,
 };
+pub use copilot::{CopilotOutcome, CopilotSession};
 pub use local::{LocalWorkflowHost, LOCAL_WORKER_ADDRESS};
 pub use node_contracts::{all_node_kind_contracts, node_kind_contract};
 pub use ops::discover_store;
@@ -44,6 +46,11 @@ pub use store::{
     new_run_record, parse_workflow, require, require_run, validate_graph, FileWorkflowStore,
     LoadReport, WorkflowStore,
 };
+// The engine's own graph model, re-exported so hosts above this crate (the TUI)
+// can name a workflow's graph without taking a direct dependency on the engine.
+// The type is the shared contract, not a Medulla type, so re-exporting it is the
+// alternative to a parallel copy that would drift.
+pub use tinyflows::model::WorkflowGraph;
 pub use types::{
     RunId, RunRecord, RunStatus, RunStep, WorkflowError, WorkflowId, WorkflowRecord,
     WorkflowSummary,

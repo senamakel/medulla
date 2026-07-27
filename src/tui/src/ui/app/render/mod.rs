@@ -28,6 +28,8 @@ mod settings;
 mod tasks;
 mod template_modal;
 mod tool_call;
+#[cfg(feature = "workflows")]
+pub(super) mod workflows;
 
 /// Map a named color from the agent-lane model to a ratatui [`Color`].
 pub(super) fn color(name: &str) -> Color {
@@ -428,11 +430,21 @@ impl App {
 
     /// Draw the keyboard-shortcut hint line that heads the screen.
     ///
-    /// Only keys that act on the surface in front of you. `^O` and `/help` are
-    /// still bound — they are just discoverable elsewhere, and a hint line long
-    /// enough to wrap stops being read at all.
+    /// Only keys that act on the surface in front of you — which is also why it
+    /// differs per tab: the Agents steering chords do nothing on Workflows, and
+    /// advertising them there teaches keys that are not bound. `^O` and `/help`
+    /// are still bound; they are just discoverable elsewhere, and a hint line
+    /// long enough to wrap stops being read at all.
     pub(super) fn draw_shortcuts(&mut self, f: &mut Frame, area: Rect) {
-        let text = "Tab views · Esc/↑↓ rail · ⇧⏎ newline · ⌥X cancel · ⌥A answer · ^N thread · ^↑↓ switch · ^Y copy · ^X abort";
+        #[cfg(feature = "workflows")]
+        let workflows = self.tab() == "Workflows";
+        #[cfg(not(feature = "workflows"))]
+        let workflows = false;
+        let text = if workflows {
+            "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ lanes · i inspect · c copilot · x run · d dry-run · r refresh"
+        } else {
+            "Tab views · Esc/↑↓ rail · ⇧⏎ newline · ⌥X cancel · ⌥A answer · ^N thread · ^↑↓ switch · ^Y copy · ^X abort"
+        };
         f.render_widget(
             Paragraph::new(TLine::from(Span::styled(
                 text,
@@ -454,6 +466,8 @@ impl App {
             "Overview" => self.draw_overview(f, area),
             "Agents" => self.draw_agents(f, area),
             "Tasks" => self.draw_tasks(f, area),
+            #[cfg(feature = "workflows")]
+            "Workflows" => self.draw_workflows_tab(f, area),
             "Routing" => self.draw_routing(f, area),
             "Memory" => self.draw_memory(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.
