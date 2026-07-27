@@ -67,6 +67,7 @@ fn new_agent_lane(key: String, label: String) -> AgentLane {
         parent_agent_id: None,
         descriptor: None,
         active_tasks: 0,
+        work: None,
     }
 }
 
@@ -84,6 +85,7 @@ fn touch_task(lane: &mut AgentLane, task_id: &str, at: i64, block: Option<TurnBl
                 turn_blocks: Vec::new(),
                 attention: None,
                 question_id: None,
+                work: None,
             });
             lane.tasks.len() - 1
         }
@@ -113,6 +115,8 @@ pub fn derive_agent_lanes(
     let mut tier_usage: HashMap<usize, crate::ui::meters::LaneUsage> = HashMap::new();
     let mut workers = Lanes::new();
     let mut task_agent: HashMap<String, String> = HashMap::new();
+    // Per-task work folds, applied onto the tasks once the lanes are built.
+    let mut task_work: HashMap<String, crate::harness_work::WorkFold> = HashMap::new();
 
     // Seed one lane per connected roster agent (roster order).
     for agent in roster {
@@ -247,6 +251,28 @@ pub fn derive_agent_lanes(
             } => {
                 let key = lane_key_for(task_id, &task_agent);
                 ensure_lane(&mut workers, &key, task_id, &task_agent, at);
+                // A structured work event carries its payload as the event's
+                // JSON content. Folding it here is what lets a backend that
+                // forwards a harness's todo list reach the same panel a
+                // locally-hosted worker fills — one surface, either route.
+                //
+                // It is folded *instead of* being appended to the transcript:
+                // rendered as a turn it is a wall of raw JSON, and the panel is
+                // where that same content is legible.
+                if crate::harness_work::kinds::is_work_kind(event_kind) {
+                    if let Ok(payload) = serde_json::from_str::<serde_json::Value>(content) {
+                        task_work
+                            .entry(task_id.clone())
+                            .or_default()
+                            .apply(event_kind, &payload, at);
+                        let lane = workers.get_mut(&key).unwrap();
+                        lane.last_at = at;
+                        // The task must still exist for the fold to attach to,
+                        // and its clock must move — work is activity.
+                        touch_task(lane, task_id, at, None);
+                        continue;
+                    }
+                }
                 let lane = workers.get_mut(&key).unwrap();
                 let block = TurnBlock {
                     at,
@@ -394,12 +420,27 @@ pub fn derive_agent_lanes(
             parent_agent_id: None,
             descriptor: None,
             active_tasks: 0,
+            work: None,
         });
     }
 
-    // Tag worker lanes with their harness.
+    // Tag worker lanes with their harness, and attach each task's folded work
+    // to the task it belongs to — plus the freshest of them to the lane, so a
+    // rail row can show progress without the operator opening anything.
     let mut worker_lanes = workers.into_ordered();
     for lane in &mut worker_lanes {
+        for task in lane.tasks.iter_mut() {
+            let snapshot = task_work.get(&task.task_id).map(|fold| fold.snapshot());
+            if let Some(snapshot) = snapshot.filter(|snapshot| !snapshot.is_empty()) {
+                task.work = Some(Box::new(snapshot.clone()));
+            }
+        }
+        lane.work = lane
+            .tasks
+            .iter()
+            .filter(|task| task.work.is_some())
+            .max_by_key(|task| task.last_at)
+            .and_then(|task| task.work.clone());
         let tag = lane
             .harness_label
             .clone()
