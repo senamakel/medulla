@@ -13,6 +13,12 @@ use medulla::ui::workflows::{run_rows, workflow_rows, WorkflowRow};
 
 use super::super::types::App;
 
+/// What the row that starts a new workflow says.
+///
+/// Shared with the renderer so the row's width and its text cannot disagree —
+/// a sidebar sized to one label and drawn with another clips itself.
+pub(in crate::ui::app) const NEW_LABEL: &str = "+ New workflow";
+
 /// One row of the rail.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkflowRailRow {
@@ -32,6 +38,10 @@ pub enum WorkflowRailRow {
     },
     /// A non-selectable line under a selected workflow that has no history.
     Note(&'static str),
+    /// The row that starts a new workflow: a copilot thread with nothing behind
+    /// it yet. Always last, because it is an action rather than an entry and a
+    /// catalogue that opened with one reads as though it were empty.
+    New,
 }
 
 impl App {
@@ -63,16 +73,50 @@ impl App {
                 rows.push(WorkflowRailRow::Run { index, row });
             }
         }
+        rows.push(WorkflowRailRow::New);
         rows
+    }
+
+    /// The columns `row` wants, so the sidebar can be sized to its content.
+    ///
+    /// Counts the marker and the indent as well as the text, because those are
+    /// what a row is actually drawn with — sizing to the label alone clips every
+    /// row by the width of its own decoration.
+    pub(in crate::ui::app) fn workflow_rail_width(&self, row: &WorkflowRailRow) -> usize {
+        const MARKER: usize = 1;
+        const RUN_INDENT: usize = 2;
+        let (text, indent) = match row {
+            WorkflowRailRow::Workflow { index, row } => (
+                // The jump digit is drawn ahead of the label.
+                format!("{} {} · {}", index + 1, row.label, row.detail),
+                0,
+            ),
+            WorkflowRailRow::Run { row, .. } => (
+                format!(
+                    "{} {}",
+                    medulla::ui::workflows::rows::short_run_id(&row.label),
+                    row.detail
+                ),
+                RUN_INDENT,
+            ),
+            WorkflowRailRow::Note(note) => ((*note).to_string(), RUN_INDENT),
+            WorkflowRailRow::New => (NEW_LABEL.to_string(), 0),
+        };
+        MARKER + indent + text.chars().count()
     }
 
     /// Whether the rail cursor is on `row`.
     pub(in crate::ui::app) fn workflow_rail_selected(&self, row: &WorkflowRailRow) -> bool {
         match row {
+            // The New row owns the cursor outright when it has it: no workflow
+            // is selected while it does.
             WorkflowRailRow::Workflow { index, .. } => {
-                *index == self.workflow_index && self.wf.run_index.is_none()
+                !self.wf.creating && *index == self.workflow_index && self.wf.run_index.is_none()
             }
-            WorkflowRailRow::Run { index, .. } => self.wf.run_index == Some(*index),
+            WorkflowRailRow::Run { index, .. } => {
+                !self.wf.creating && self.wf.run_index == Some(*index)
+            }
+            WorkflowRailRow::New => self.wf.creating,
             WorkflowRailRow::Note(_) => false,
         }
     }
@@ -85,9 +129,34 @@ impl App {
     pub(in crate::ui::app) fn move_workflow_rail(&mut self, up: bool) {
         let runs = self.workflow_runs().len();
         let workflows = self.workflows.len();
-        if workflows == 0 {
+
+        // The New row sits below the whole catalogue, so it is where Down from
+        // the bottom lands and Up from it comes back. With no workflows at all
+        // it is the only row there is, and the cursor stays on it.
+        if self.wf.creating {
+            if up && workflows > 0 {
+                self.wf.creating = false;
+                self.select_workflow(workflows - 1);
+                self.wf.run_index = self.workflow_runs().len().checked_sub(1);
+                self.sync_workflow_overlay();
+            }
             return;
         }
+        if workflows == 0 {
+            self.wf.creating = !up;
+            return;
+        }
+        // Down from the last row of the last workflow steps onto New.
+        let on_last = self.workflow_index + 1 >= workflows
+            && self
+                .wf
+                .run_index
+                .map_or(runs == 0, |index| index + 1 >= runs);
+        if !up && on_last {
+            self.wf.creating = true;
+            return;
+        }
+
         match (up, self.wf.run_index) {
             // Up from the first run, or from a workflow with none above it,
             // lands on the workflow itself.
@@ -116,7 +185,11 @@ impl App {
     }
 
     /// Select workflow `index`, reloading everything that hangs off it.
+    ///
+    /// Leaves the New row, since a workflow and "no workflow yet" cannot both
+    /// be selected.
     pub(in crate::ui::app) fn select_workflow(&mut self, index: usize) {
+        self.wf.creating = false;
         self.workflow_index = index;
         self.wf.run_index = None;
         self.wf.overlay = None;

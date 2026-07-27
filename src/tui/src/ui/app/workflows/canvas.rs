@@ -89,24 +89,35 @@ impl App {
 
     /// How many layers the canvas can show at the current terminal width.
     ///
-    /// The rail and the copilot take fixed shares of the width, and a node box
-    /// plus the gutter between columns is a known number of cells, so this is
-    /// arithmetic rather than a measurement — which means the key handler can
-    /// scroll without waiting for a frame to have been drawn.
+    /// A node box plus the gutter between columns is a known number of cells, so
+    /// this is arithmetic rather than a measurement — which means the key
+    /// handler can scroll without waiting for a frame to have been drawn. The
+    /// sidebar is measured exactly the way the layout measures it; everything
+    /// left of the panel's own borders is canvas, because the content pane now
+    /// holds one view rather than sharing the row with a copilot column.
     pub(in crate::ui::app) fn visible_layers(&self) -> usize {
+        const BORDERS: usize = 2;
+        let rail = crate::ui::multi_pane::sidebar_width(
+            self.area.width,
+            self.workflow_rail_rows()
+                .iter()
+                .map(|row| self.workflow_rail_width(row))
+                .max()
+                .unwrap_or(0),
+        );
         let canvas = (self.area.width as usize)
-            .saturating_sub(super::super::render::workflows::RAIL_WIDTH as usize)
-            .saturating_sub(super::super::render::workflows::COPILOT_WIDTH as usize)
-            .saturating_sub(2);
+            .saturating_sub(rail as usize)
+            .saturating_sub(BORDERS);
         (canvas / super::super::render::workflows::LAYER_STRIDE).max(1)
     }
 
     /// How many lanes the canvas can show at the current terminal height.
     pub(in crate::ui::app) fn visible_lanes(&self) -> usize {
-        // Header, tab bar, footer, the panel's own borders, and the inspector
-        // strip below the canvas.
-        let rows =
-            (self.area.height as usize).saturating_sub(if self.wf.inspector_open { 18 } else { 9 });
+        // Header, tab bar, hint row, footer, and the panel's own borders. No
+        // inspector term: it is a view of its own now, so when it is showing
+        // there is no canvas under it to size.
+        const CHROME: usize = 9;
+        let rows = (self.area.height as usize).saturating_sub(CHROME);
         (rows / super::super::render::workflows::LANE_STRIDE).max(1)
     }
 }

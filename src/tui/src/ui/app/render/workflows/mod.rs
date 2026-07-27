@@ -1,14 +1,20 @@
-//! The Workflows tab: the catalogue, the graph, and the copilot.
+//! The Workflows tab: a catalogue sidebar beside one content pane.
 //!
-//! Three panes across, because the three questions an operator has about a
-//! workflow are asked together: *which* plan (the rail), *what it does* (the
-//! canvas, with the last run overlaid on it), and *change it* (the copilot).
-//! Splitting them across subpages meant reading a graph on one screen and
-//! editing it on another, with no way to see the edit land.
+//! The same two-pane shape as Routing and Settings — a narrow selector on the
+//! left, one thing being looked at on the right. It began as four panes at once
+//! (catalogue, canvas, inspector strip, copilot column) on the theory that an
+//! operator's three questions are asked together. In practice that put four
+//! bordered boxes and two independent transcripts on screen at all times, and
+//! the graph — the thing actually being read — got whatever was left.
 //!
-//! The canvas keeps the middle and the largest share, because it is the thing
-//! being read. The rail and the copilot are fixed-width: both hold short lines,
-//! and a percentage split gives them half a wide terminal for no benefit.
+//! So the content pane shows exactly one [`WorkflowView`] at a time and the
+//! keys that switch views are the same ones that used to move focus between
+//! panes: `c` for the copilot, `i` for the node's declaration, `Esc` back
+//! towards the graph and then the list. Nothing that was reachable before is
+//! unreachable now; it is one keystroke away instead of permanently on screen.
+//!
+//! The sidebar is sized to the catalogue it holds, via the same
+//! [`crate::ui::multi_pane::sidebar_width`] the Agents rail uses.
 //!
 //! - [`rail`] — the catalogue and the selected workflow's runs.
 //! - [`canvas`] — the laid-out graph. [`paint`] is the character grid under it.
@@ -18,7 +24,7 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
 
-use super::super::types::App;
+use super::super::types::{App, WorkflowFocus, WorkflowView};
 
 mod canvas;
 mod copilot;
@@ -28,12 +34,6 @@ mod rail;
 
 #[cfg(test)]
 mod tests;
-
-/// Width of the catalogue rail, in columns.
-pub(in crate::ui::app) const RAIL_WIDTH: u16 = 30;
-
-/// Width of the copilot pane, in columns.
-pub(in crate::ui::app) const COPILOT_WIDTH: u16 = 38;
 
 /// Width of one node's box, in columns.
 pub(in crate::ui::app) const NODE_WIDTH: usize = 18;
@@ -53,46 +53,54 @@ pub(in crate::ui::app) const LAYER_STRIDE: usize = NODE_WIDTH + 10;
 /// two stacked boxes do not share a border line.
 pub(in crate::ui::app) const LANE_STRIDE: usize = NODE_HEIGHT + 1;
 
-/// Rows the inspector takes when it is open.
-const INSPECTOR_HEIGHT: u16 = 10;
-
-/// Rows the inspector takes when it is closed — a one-line summary of the
-/// selected node, which is enough to know what the cursor is on.
-const INSPECTOR_STRIP: u16 = 3;
-
 impl App {
     /// Draw the Workflows tab.
     pub(super) fn draw_workflows_tab(&mut self, f: &mut Frame, area: Rect) {
+        // Sized to the catalogue it holds rather than a fixed width, the same
+        // way the Agents rail is sized — so a machine with short workflow names
+        // does not give a third of the screen to whitespace, and one with long
+        // names can still read them.
+        let widest = self
+            .workflow_rail_rows()
+            .iter()
+            .map(|row| self.workflow_rail_width(row))
+            .max()
+            .unwrap_or(0);
+        let rail = crate::ui::multi_pane::sidebar_width(area.width, widest);
         let columns = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(RAIL_WIDTH),
-                Constraint::Min(0),
-                Constraint::Length(COPILOT_WIDTH),
-            ])
+            .constraints([Constraint::Length(rail), Constraint::Min(0)])
             .split(area);
 
-        let inspector = if self.wf.inspector_open {
-            INSPECTOR_HEIGHT
-        } else {
-            INSPECTOR_STRIP
-        };
-        let middle = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(0), Constraint::Length(inspector)])
-            .split(columns[1]);
-
         // Each pane is noted so a pointer drag reads one of them rather than
-        // splicing three columns' text into every row. The canvas especially:
-        // its rows are box-drawing characters interleaved with two neighbours'
-        // prose, and a selection across all three is unreadable.
-        for pane in [columns[0], middle[0], middle[1], columns[2]] {
-            self.note_pane(pane);
-        }
+        // splicing two columns' text into every row. The canvas especially: its
+        // rows are box-drawing characters, and a selection that also caught the
+        // sidebar's prose is unreadable.
+        self.note_pane(columns[0]);
+        self.note_pane(columns[1]);
 
         self.draw_workflow_rail(f, columns[0]);
-        self.draw_workflow_canvas(f, middle[0]);
-        self.draw_workflow_inspector(f, middle[1]);
-        self.draw_workflow_copilot(f, columns[2]);
+        match self.workflow_view() {
+            WorkflowView::Graph => self.draw_workflow_canvas(f, columns[1]),
+            WorkflowView::Inspector => self.draw_workflow_inspector(f, columns[1]),
+            WorkflowView::Copilot => self.draw_workflow_copilot(f, columns[1]),
+        }
+    }
+
+    /// What the content pane is showing.
+    ///
+    /// Derived from focus and the inspector toggle rather than stored, so there
+    /// is no third piece of state that can disagree with the two that already
+    /// decide it. The copilot wins over the inspector because it is the one you
+    /// step *into*; the graph is what everything else falls back to, being the
+    /// thing the tab is for.
+    pub(in crate::ui::app) fn workflow_view(&self) -> WorkflowView {
+        if self.wf.focus == WorkflowFocus::Copilot {
+            WorkflowView::Copilot
+        } else if self.wf.inspector_open {
+            WorkflowView::Inspector
+        } else {
+            WorkflowView::Graph
+        }
     }
 }
