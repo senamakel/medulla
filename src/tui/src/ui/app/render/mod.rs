@@ -21,6 +21,7 @@ mod decisions;
 mod feedback;
 mod memory;
 mod overview;
+mod points;
 mod prompt;
 mod routing;
 mod selection;
@@ -413,6 +414,15 @@ impl App {
         self.hit_tabs_row = area.y;
         let mut spans = Vec::new();
         let mut col = area.x;
+        let roomy_width = TABS
+            .iter()
+            .map(|name| name.chars().count() + 3)
+            .sum::<usize>();
+        let gap = if roomy_width <= area.width as usize {
+            " "
+        } else {
+            ""
+        };
         for (i, name) in TABS.iter().enumerate() {
             let label = format!(" {name} ");
             let w = label.chars().count() as u16;
@@ -422,8 +432,8 @@ impl App {
                 style = self.theme.selection();
             }
             spans.push(Span::styled(label, style));
-            spans.push(Span::raw(" "));
-            col += w + 1;
+            spans.push(Span::raw(gap));
+            col += w + gap.len() as u16;
         }
         f.render_widget(Paragraph::new(TLine::from(spans)), area);
     }
@@ -468,6 +478,7 @@ impl App {
             "Tasks" => self.draw_tasks(f, area),
             #[cfg(feature = "workflows")]
             "Workflows" => self.draw_workflows_tab(f, area),
+            "Points" => self.draw_points(f, area),
             "Routing" => self.draw_routing(f, area),
             "Memory" => self.draw_memory(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.

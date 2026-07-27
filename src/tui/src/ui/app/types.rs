@@ -39,11 +39,12 @@ use medulla::runtime::{RoutingStrategy, SubscriptionRoutingStrategy};
 /// graph to navigate and a copilot to edit it by. Three panes' worth of surface
 /// does not fit in a subpage of something else.
 #[cfg(feature = "workflows")]
-pub const TABS: [&str; 7] = [
+pub const TABS: [&str; 8] = [
     "Overview",
     "Agents",
     "Tasks",
     "Workflows",
+    "Points",
     "Routing",
     "Memory",
     "Settings",
@@ -52,8 +53,8 @@ pub const TABS: [&str; 7] = [
 /// Without the workflow engine. A slim build must not offer a tab that cannot
 /// draw anything.
 #[cfg(not(feature = "workflows"))]
-pub const TABS: [&str; 6] = [
-    "Overview", "Agents", "Tasks", "Routing", "Memory", "Settings",
+pub const TABS: [&str; 7] = [
+    "Overview", "Agents", "Tasks", "Points", "Routing", "Memory", "Settings",
 ];
 
 /// The Routing tab's left-nav pages.
