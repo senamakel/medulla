@@ -171,7 +171,7 @@ impl App {
                 Span::styled(bar, Style::default().fg(self.theme.accent)),
                 Span::styled(
                     "  520 pts to Level 8",
-                    Style::default().add_modifier(Modifier::DIM),
+                    Style::default().fg(self.theme.dim_border),
                 ),
             ]),
             Line::from(Span::styled(
@@ -179,8 +179,20 @@ impl App {
                 Style::default().fg(Color::Yellow),
             )),
         ]);
+        let title = Line::from(vec![
+            Span::styled(
+                "TokenMaxxing",
+                Style::default()
+                    .fg(self.theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                " · Season 01 · 18 days left",
+                Style::default().fg(self.theme.dim_border),
+            ),
+        ]);
         f.render_widget(
-            Paragraph::new(body).block(self.panel("TokenMaxxing · Season 01 · 18 days left")),
+            Paragraph::new(body).block(self.panel("").title(title)),
             area,
         );
     }
@@ -188,7 +200,19 @@ impl App {
     /// Draw three daily earning opportunities, collapsing to a compact list on
     /// terminals too narrow to give each bounty its own card.
     fn draw_daily_bounties(&self, f: &mut Frame, area: Rect) {
-        let block = self.panel("Daily bounties · 1/3 claimed · refreshes in 08h 42m");
+        let title = Line::from(vec![
+            Span::styled(
+                "Daily bounties",
+                Style::default()
+                    .fg(self.theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                " · 1/3 claimed · refreshes in 08h 42m",
+                Style::default().fg(self.theme.dim_border),
+            ),
+        ]);
+        let block = self.panel("").title(title);
         let inner = block.inner(area);
         f.render_widget(block, area);
 
@@ -251,7 +275,7 @@ impl App {
                 )),
                 Line::from(Span::styled(
                     bounty.detail,
-                    Style::default().add_modifier(Modifier::DIM),
+                    Style::default().fg(self.theme.dim_border),
                 )),
                 Line::from(vec![
                     Span::styled(bounty.reward, Style::default().fg(self.theme.accent)),
@@ -269,11 +293,11 @@ impl App {
             Line::from(vec![
                 Span::styled(
                     format!("{:<4}{:<18}", "#", "PLAYER"),
-                    Style::default().add_modifier(Modifier::DIM),
+                    Style::default().fg(self.theme.dim_border),
                 ),
                 Span::styled(
                     "TODAY     TOTAL",
-                    Style::default().add_modifier(Modifier::DIM),
+                    Style::default().fg(self.theme.dim_border),
                 ),
             ])
         } else {
@@ -282,7 +306,7 @@ impl App {
                     "{:<5}{:<22}{:>8}{:>10}{:>12}   {}",
                     "#", "PLAYER", "TODAY", "STREAK", "TOTAL", "DAILY PRIZE"
                 ),
-                Style::default().add_modifier(Modifier::DIM),
+                Style::default().fg(self.theme.dim_border),
             )])
         }];
 
@@ -317,7 +341,7 @@ impl App {
             ),
             Span::styled(
                 " · closes at 00:00 UTC · prize pool 1,750 pts + $25",
-                Style::default().add_modifier(Modifier::DIM),
+                Style::default().fg(self.theme.dim_border),
             ),
         ]);
         let block = self.panel("").title(title);
