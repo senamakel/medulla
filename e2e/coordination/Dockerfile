@@ -13,7 +13,7 @@
 # Stage 1: compile medulla + examples (release)
 # ---------------------------------------------------------------------------
 # Debian (glibc) base so the resulting binaries match the glibc runtime stage.
-FROM rust:1.96-bookworm AS build
+FROM rust:1.96.1-bookworm AS build
 
 WORKDIR /build
 
