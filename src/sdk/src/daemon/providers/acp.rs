@@ -7,6 +7,7 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use agent_client_protocol::schema::v1::{
     CancelNotification, ContentBlock, Error as AcpError, InitializeRequest, LoadSessionRequest,
@@ -44,6 +45,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     let prompt = options.prompt.clone();
     let abort = options.abort.clone();
     let provider = options.provider;
+    let timeout = Duration::from_millis(options.timeout_ms);
 
     agent_client_protocol::Client
         .builder()
@@ -102,7 +104,20 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                     vec![ContentBlock::from(prompt)],
                 ))
                 .block_task();
+            let idle_state = state.clone();
+            let idle = async move {
+                loop {
+                    let deadline = idle_state.lock().unwrap().last_activity + timeout;
+                    tokio::time::sleep_until(deadline.into()).await;
+                    if Instant::now().duration_since(idle_state.lock().unwrap().last_activity)
+                        >= timeout
+                    {
+                        break;
+                    }
+                }
+            };
             tokio::pin!(request);
+            tokio::pin!(idle);
             tokio::select! {
                 result = &mut request => {
                     result?;
@@ -112,6 +127,13 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                         .send_notification(CancelNotification::new(session_id.clone()))
                         ?;
                     return Err(AcpError::request_cancelled());
+                }
+                _ = &mut idle => {
+                    connection.send_notification(CancelNotification::new(session_id.clone()))?;
+                    return Err(AcpError::new(
+                        -32603,
+                        format!("ACP task idle for {}ms (no updates)", timeout.as_millis()),
+                    ));
                 }
             }
 
@@ -150,6 +172,7 @@ pub(super) struct FoldState {
     text: String,
     events: usize,
     on_event: Option<OnEvent>,
+    last_activity: Instant,
 }
 
 impl FoldState {
@@ -158,11 +181,13 @@ impl FoldState {
             text: String::new(),
             events: 0,
             on_event,
+            last_activity: Instant::now(),
         }
     }
 
     /// Fold a standard ACP update into Medulla's existing semantic event model.
     pub(super) fn fold(&mut self, update: SessionUpdate) {
+        self.last_activity = Instant::now();
         let value = serde_json::to_value(&update).unwrap_or(Value::Null);
         let kind = value
             .get("sessionUpdate")
