@@ -45,27 +45,24 @@ The `mock` feature is a normal dependency feature, not a dev-only one: the
 authoring surface dry-runs graphs against the engine's deterministic capability
 stand-ins in ordinary builds, not just in tests.
 
-### Two `tinyagents` copies is deliberate — *until the OpenHuman repoint lands*
+### One `tinyagents`, and the patch entry is mandatory
 
-Today the dependency graph resolves **two** distinct `tinyagents` packages:
+This section used to say the opposite. Before the OpenHuman repoint the graph
+resolved **two** distinct `tinyagents` packages:
 
 - `2.0.0` — a path dependency vendored inside `vendor/tinycortex/vendor/tinyagents`
 - `2.1.0` — from crates.io, required by `tinyflows`
 
-They are separate packages to Cargo, so their traits are separate identities.
-That is correct while it lasts: no value crosses between the persona stack and
-the workflow engine, and `tinyflows` needs `2.1` APIs the vendored `2.0.0` copy
-does not have.
+and the guidance was "do not add a `[patch.crates-io]` entry for `tinyagents`".
 
-> **This section inverts once `vendor/openhuman` becomes the source of the
-> `tiny*` crates.** OpenHuman's `vendor/tinycortex` already requires
-> `tinyagents = "2.1"`, so pointing `tinycortex` there collapses the graph to a
-> single `tinyagents` and the `[patch.crates-io]` entry becomes **mandatory**,
-> not forbidden. Omitting it does not fail loudly: `tinyagents 2.1.0` is
-> published on crates.io, so the build silently resolves the registry copy
-> instead of the vendored tree (which is ~14 commits ahead). Verify with
-> `cargo tree -i tinyagents` — the source must read `path+file://…`, never
-> `registry+…`.
+That is now **inverted**. OpenHuman's `vendor/tinycortex` requires
+`tinyagents = "2.1"`, so sourcing `tinycortex` from there collapses the graph to
+a single `tinyagents` and the patch entry is **mandatory**. Omitting it does not
+fail loudly: `tinyagents 2.1.0` is published on crates.io, so the build silently
+resolves the registry copy instead of the vendored tree (~14 commits ahead).
+
+Verify with `cargo tree -i tinyagents` — the source must read `path+file://…`,
+never `registry+…`. And `cargo tree -d` must report no duplicate `tiny*`.
 
 ## Vendored OpenHuman core
 

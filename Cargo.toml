@@ -13,8 +13,18 @@ repository = "https://github.com/tinyhumansai/medulla"
 
 [workspace.dependencies]
 medulla = { path = "src/sdk", default-features = false }
-tinyplace = { path = "vendor/tinyplace/sdk/rust" }
-tinycortex = { path = "vendor/tinycortex", features = ["persona", "providers-http"] }
+# The embedded OpenHuman core. A path dependency, never patched — it has no
+# registry coordinate. The package is `openhuman`; the library is `openhuman_core`.
+# Default features are heavy (whisper-rs, cpal, axum, socketioxide, sentry, and
+# its own ratatui 0.30 / crossterm 0.29 TUI), so consumers must opt in
+# explicitly — see docs/vendoring.md.
+openhuman = { path = "vendor/openhuman", default-features = false }
+# Redirected to vendor/openhuman/vendor/* by [patch.crates-io] below. Declared
+# as registry coordinates rather than path deps so each crate has exactly ONE
+# declaration style: mixing the two yields two PackageIds for one crate and an
+# E0308 where the types look identical.
+tinyplace = "2.0"
+tinycortex = { version = "0.1", features = ["persona", "providers-http"] }
 # The workflow engine. Declared as a registry dependency and redirected to the
 # vendored submodule by `[patch.crates-io]` below, matching how the sibling
 # openhuman host consumes it — one shared pin, one shared upgrade cadence.
@@ -51,9 +61,32 @@ regex = "1"
 sha2 = "0.10"
 tempfile = "3"
 
-# `tinyflows` is not published at the version we track (crates.io lags the
-# branch we pin), so the registry coordinate above is redirected to the vendored
-# submodule. Vendored code stays out of `members` via `exclude`, so it keeps its
-# own lints and tests instead of joining this workspace's CI gates.
+# `[patch.crates-io]` applies ONLY from the workspace root. Once OpenHuman is a
+# path dependency its own patch table is ignored, as is
+# vendor/openhuman/vendor/tinycortex/.cargo/config.toml (CWD-scoped). This table
+# therefore reproduces OpenHuman's, rebased onto vendor/openhuman/vendor/*, and
+# it is load-bearing: drop an entry and Cargo silently resolves the published
+# crate instead of the vendored tree rather than failing.
+#
+# Keep this list in lockstep with scripts/init-submodules.sh.
+#
+# Vendored code stays out of `members` via `exclude`, so it keeps its own lints
+# and tests instead of joining this workspace's CI gates.
 [patch.crates-io]
-tinyflows = { path = "vendor/tinyflows" }
+tinyagents = { path = "vendor/openhuman/vendor/tinyagents" }
+tinychannels = { path = "vendor/openhuman/vendor/tinychannels" }
+tinycortex = { path = "vendor/openhuman/vendor/tinycortex" }
+tinyflows = { path = "vendor/openhuman/vendor/tinyflows" }
+tinyjuice = { path = "vendor/openhuman/vendor/tinyjuice" }
+tinyplace = { path = "vendor/openhuman/vendor/tinyplace/sdk/rust" }
+# NOT copied from OpenHuman: its whisper-rs-sys git patch. Cargo fetches a git
+# patch source during resolution even when the patched crate is absent from the
+# graph, which would put a network fetch in the critical path of every
+# --offline build and of the --network none e2e image. medulla never enables
+# OpenHuman's `inference` feature, so whisper-rs is not in the graph.
+
+# Copied from vendor/openhuman/Cargo.toml, where profiles are ignored because
+# they only apply from a workspace root. The graph is now ~500 packages, so
+# dependency DWARF dominates target/ size and link time.
+[profile.dev.package."*"]
+debug = false
