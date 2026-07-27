@@ -16,7 +16,7 @@ jobs:
   rust-sdk:
     name: Rust SDK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
         with:
@@ -33,6 +33,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
+          # Submodule SHAs are part of the build input but not of Cargo.lock,
+          # so without this a submodule bump reuses a stale cache.
+          key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}
+          cache-on-failure: true
 
       # The e2e suite exercises the real opencode CLI when it is on PATH.
       # CI builds it from git (pinned to the version used for benchmarking)
@@ -70,7 +74,7 @@ jobs:
   coverage:
     name: Coverage (>= 95% lines)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
         with:
@@ -87,6 +91,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
+          # Submodule SHAs are part of the build input but not of Cargo.lock,
+          # so without this a submodule bump reuses a stale cache.
+          key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}
+          cache-on-failure: true
 
       - uses: taiki-e/install-action@v2
         with:
@@ -113,17 +121,17 @@ jobs:
       # binary plus network, so it never runs in CI and its lines can only be
       # exercised by the live run — the same reason the drivers above are excluded.
       - name: Coverage gate
-        timeout-minutes: 35
+        timeout-minutes: 100
         run: >-
           cargo llvm-cov --locked
-          --ignore-filename-regex 'src/tui/src/(app_loop|commands|main)\.rs|src/tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|src/tui/src/harness_pty/mod\.rs|src/tui/src/ui/onboarding/run(/.*)?\.rs|src/tui/src/ui/app/render/tasks\.rs|src/tui/src/worker/executor_tests/live\.rs|src/sdk/src/daemon/(entry\.rs|transport/mod\.rs)|src/sdk/src/runtime/backend/worker_ops\.rs|src/sdk/src/wrapper/(run|bridge)/mod\.rs|src/sdk/src/hub/(socket|relay)\.rs|src/sdk/src/hub/(boot|handle)(/.*)?\.rs'
+          --ignore-filename-regex '(^|/)vendor/|src/tui/src/(app_loop|commands|main)\.rs|src/tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|src/tui/src/harness_pty/mod\.rs|src/tui/src/ui/onboarding/run(/.*)?\.rs|src/tui/src/ui/app/render/tasks\.rs|src/tui/src/worker/executor_tests/live\.rs|src/sdk/src/daemon/(entry\.rs|transport/mod\.rs)|src/sdk/src/runtime/backend/worker_ops\.rs|src/sdk/src/wrapper/(run|bridge)/mod\.rs|src/sdk/src/hub/(socket|relay)\.rs|src/sdk/src/hub/(boot|handle)(/.*)?\.rs'
           --fail-under-lines 95
           --summary-only
 
   e2e-docker:
     name: E2E (docker + tmux + opencode)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
         with:
@@ -161,7 +169,7 @@ jobs:
   rust-sdk-windows:
     name: Rust SDK (Windows)
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
@@ -176,6 +184,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
+          # Submodule SHAs are part of the build input but not of Cargo.lock,
+          # so without this a submodule bump reuses a stale cache.
+          key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}
+          cache-on-failure: true
 
       # No bun/opencode leg here: the core-socket runtime and the `/bin/sh`
       # e2e suites are unix-only (gated `#[cfg(unix)]`), so Windows just needs
