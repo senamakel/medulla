@@ -19,7 +19,12 @@ mod hosts;
 mod nav;
 mod strategies;
 mod templates;
+#[cfg(feature = "workflows")]
+mod workflows;
 mod workspaces;
+
+#[cfg(feature = "workflows")]
+use super::super::types::RP_WORKFLOWS;
 
 impl App {
     /// Draw the Routing nav and active content pane.
@@ -31,6 +36,8 @@ impl App {
             RP_HARNESSES => self.draw_harnesses(f, content),
             RP_WORKSPACES => self.draw_workspaces(f, content),
             RP_TEMPLATES => self.draw_templates(f, content),
+            #[cfg(feature = "workflows")]
+            RP_WORKFLOWS => self.draw_workflows(f, content),
             RP_ADD_HOST => self.draw_add_host(f, content),
             RP_STRATEGIES => self.draw_strategies(f, content),
             _ => self.draw_hosts(f, content),

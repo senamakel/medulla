@@ -12,6 +12,8 @@ pub mod clock;
 pub mod config;
 pub mod contacts;
 pub mod daemon;
+#[cfg(feature = "workflows")]
+pub mod flow_engine;
 pub mod harness_contract;
 pub mod harness_work;
 pub mod history_upload;
@@ -30,4 +32,6 @@ pub mod tinyplace;
 pub mod ui;
 pub mod update;
 pub mod worker_profile;
+#[cfg(feature = "workflows")]
+pub mod workflows;
 pub mod wrapper;

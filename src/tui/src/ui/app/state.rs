@@ -70,6 +70,14 @@ impl App {
             template_index: 0,
             template_scroll: 0,
             template_modal: false,
+            #[cfg(feature = "workflows")]
+            workflow_index: 0,
+            #[cfg(feature = "workflows")]
+            workflows: Vec::new(),
+            #[cfg(feature = "workflows")]
+            workflow_runs: Vec::new(),
+            #[cfg(feature = "workflows")]
+            workflow_runs_error: None,
             routing_index: 0,
             routing_focused: false,
             routing_strategy_index,

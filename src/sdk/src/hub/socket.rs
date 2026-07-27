@@ -335,6 +335,16 @@ async fn handle_task_run(
         worker_address,
         provider,
         model,
+        // Forwarded rather than dropped: a worker advertises the workflows it
+        // has installed, so the orchestrator naming one here is the other half
+        // of that conversation. Blank is treated as absent so an emitter that
+        // always writes the key still dispatches an ordinary instruction.
+        workflow: obj
+            .get("workflow")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string),
     };
 
     let outcome = runner.run(req, Some(tx)).await;

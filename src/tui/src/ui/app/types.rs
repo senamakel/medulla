@@ -50,6 +50,20 @@ pub const TABS: [&str; 6] = [
 /// There is no `Fleet` page: the whole declared tree lives in the Agents rail,
 /// beside the lanes running on it. These pages are the *management* surfaces —
 /// what you register, authenticate, and choose — not the picture.
+/// With the workflow engine compiled in.
+#[cfg(feature = "workflows")]
+pub const ROUTING_SUBPAGES: [&str; 7] = [
+    "Hosts",
+    "Harnesses",
+    "Workspaces",
+    "Agent Templates",
+    "Workflows",
+    "Add Host",
+    "Strategies",
+];
+
+/// Without it. A slim build must not offer a page that cannot draw anything.
+#[cfg(not(feature = "workflows"))]
 pub const ROUTING_SUBPAGES: [&str; 6] = [
     "Hosts",
     "Harnesses",
@@ -63,7 +77,16 @@ pub(super) const RP_HOSTS: usize = 0;
 pub(super) const RP_HARNESSES: usize = 1;
 pub(super) const RP_WORKSPACES: usize = 2;
 pub(super) const RP_TEMPLATES: usize = 3;
+#[cfg(feature = "workflows")]
+pub(super) const RP_WORKFLOWS: usize = 4;
+// The two trailing pages shift down when Workflows is not compiled in.
+#[cfg(feature = "workflows")]
+pub(super) const RP_ADD_HOST: usize = 5;
+#[cfg(feature = "workflows")]
+pub(super) const RP_STRATEGIES: usize = 6;
+#[cfg(not(feature = "workflows"))]
 pub(super) const RP_ADD_HOST: usize = 4;
+#[cfg(not(feature = "workflows"))]
 pub(super) const RP_STRATEGIES: usize = 5;
 
 /// The Tasks tab's left-nav pages.
@@ -267,6 +290,16 @@ pub enum Cmd {
     },
     /// Re-read the declared fleet (roster + capacity) from the runtime.
     RefreshFleet,
+    /// Run an installed workflow on this machine.
+    ///
+    /// Off-thread like every other filesystem/process command: a workflow run
+    /// dispatches real harness sessions and takes minutes, so doing it on the
+    /// render thread would freeze the app for the whole run.
+    #[cfg(feature = "workflows")]
+    RunWorkflow {
+        /// The workflow to run.
+        id: String,
+    },
     /// Submit new feedback to the board.
     SubmitFeedback {
         /// Feature request or bug report.
@@ -445,6 +478,22 @@ pub struct App {
     pub(super) template_scroll: usize,
     /// Whether the agent-template popup is open over the catalog.
     pub(super) template_modal: bool,
+    /// Selected row on the Routing Workflows page.
+    #[cfg(feature = "workflows")]
+    pub(super) workflow_index: usize,
+    /// The installed workflows, as last read from disk.
+    ///
+    /// Cached rather than re-read every frame: the store is files, and a render
+    /// pass should not do I/O. `r` re-reads it, as it does for templates.
+    #[cfg(feature = "workflows")]
+    pub(super) workflows: Vec<medulla::workflows::WorkflowSummary>,
+    /// The selected workflow's runs, read when the selection changes rather
+    /// than on every frame.
+    #[cfg(feature = "workflows")]
+    pub(super) workflow_runs: Vec<medulla::workflows::RunRecord>,
+    /// Why the run history could not be read, if it could not.
+    #[cfg(feature = "workflows")]
+    pub(super) workflow_runs_error: Option<String>,
     /// The active Routing subpage (index into [`ROUTING_SUBPAGES`]).
     pub(super) routing_index: usize,
     /// Whether keyboard focus is inside the Routing content pane.

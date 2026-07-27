@@ -6,11 +6,15 @@
 //! runtime. Each runner parses its own args, loads config, performs its work,
 //! and returns an `anyhow::Result`.
 //!
-//! [`workspace`] owns the registry verbs, which are large enough to warrant
-//! their own file; everything else lives here.
+//! [`workspace`] and [`workflow`] own the registry and workflow verbs, which are
+//! large enough to warrant their own files; everything else lives here.
 
+#[cfg(feature = "workflows")]
+pub(crate) mod workflow;
 pub(crate) mod workspace;
 
+#[cfg(feature = "workflows")]
+pub(crate) use workflow::run_workflow_cmd;
 pub(crate) use workspace::run_workspace;
 
 use std::io::Stdout;
