@@ -44,7 +44,7 @@ pub const TABS: [&str; 8] = [
     "Agents",
     "Tasks",
     "Workflows",
-    "TokenMaxxing",
+    "TokenMaxxxing",
     "Routing",
     "Memory",
     "Settings",
@@ -57,7 +57,7 @@ pub const TABS: [&str; 7] = [
     "Overview",
     "Agents",
     "Tasks",
-    "TokenMaxxing",
+    "TokenMaxxxing",
     "Routing",
     "Memory",
     "Settings",
@@ -100,7 +100,7 @@ pub const TASKS_SUBPAGES: [&str; 2] = ["All Tasks", "Sources"];
 pub(super) const TP_TASKS: usize = 0;
 pub(super) const TP_SOURCES: usize = 1;
 
-/// The TokenMaxxing tab's sidebar pages.
+/// The TokenMaxxxing tab's sidebar pages.
 pub(super) const TOKENMAXXING_SUBPAGES: [&str; 3] = ["Overview", "Bounties", "Leaderboard"];
 
 pub(super) const TM_OVERVIEW: usize = 0;
@@ -623,9 +623,9 @@ pub struct App {
     pub(super) task_source_index: usize,
     /// Whether the selected task or source's detail modal is visible.
     pub(super) tasks_detail_open: bool,
-    /// The active TokenMaxxing sidebar page.
+    /// The active TokenMaxxxing sidebar page.
     pub(super) tokenmaxxing_index: usize,
-    /// Whether keyboard focus is inside the TokenMaxxing content pane.
+    /// Whether keyboard focus is inside the TokenMaxxxing content pane.
     pub(super) tokenmaxxing_focused: bool,
     // Persona-memory tab state (lazily loaded on tab entry / search).
     pub(super) memory_status: Option<MemoryStatus>,

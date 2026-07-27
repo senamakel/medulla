@@ -1,4 +1,4 @@
-//! TokenMaxxing leaderboard rendering: token burn, active days, rewards, and
+//! TokenMaxxxing leaderboard rendering: token burn, active days, rewards, and
 //! previous daily winners.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -99,7 +99,7 @@ impl App {
                     "Season token champion",
                     Style::default().fg(self.theme.primary),
                 ),
-                Span::raw("  $250 + TokenMaxxer badge"),
+                Span::raw("  $250 + TokenMaxxxer badge"),
             ]),
             Line::from(vec![
                 Span::styled("Most days on Medulla", Style::default().fg(Color::Green)),

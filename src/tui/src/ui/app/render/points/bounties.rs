@@ -1,4 +1,4 @@
-//! TokenMaxxing bounty rendering: progress, daily cards, and payout rules.
+//! TokenMaxxxing bounty rendering: progress, daily cards, and payout rules.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};

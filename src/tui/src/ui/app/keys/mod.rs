@@ -34,7 +34,7 @@ use memory::MemoryKey;
 use routing::RoutingKey;
 use settings::SettingsKey;
 use tasks::TasksKey;
-use tokenmaxxing::TokenMaxxingKey;
+use tokenmaxxing::TokenMaxxxingKey;
 #[cfg(feature = "workflows")]
 use workflows::WorkflowsKey;
 
@@ -166,8 +166,8 @@ impl App {
                 return cmd;
             }
         }
-        if tab == "TokenMaxxing" {
-            if let TokenMaxxingKey::Handled(cmd) = self.on_tokenmaxxing_key(k.code) {
+        if tab == "TokenMaxxxing" {
+            if let TokenMaxxxingKey::Handled(cmd) = self.on_tokenmaxxing_key(k.code) {
                 return cmd;
             }
         }

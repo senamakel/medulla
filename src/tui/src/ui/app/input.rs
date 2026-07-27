@@ -116,7 +116,7 @@ impl App {
         };
         match self.tab() {
             "Tasks" => self.tasks_index = step(self.tasks_index, TASKS_SUBPAGES.len()),
-            "TokenMaxxing" => {
+            "TokenMaxxxing" => {
                 self.tokenmaxxing_index =
                     step(self.tokenmaxxing_index, TOKENMAXXING_SUBPAGES.len());
             }
@@ -168,7 +168,7 @@ impl App {
         if let Some(page) = self.hit_nav.page_at(x, y) {
             match tab {
                 "Tasks" => (self.tasks_index, self.tasks_focused) = (page, true),
-                "TokenMaxxing" => {
+                "TokenMaxxxing" => {
                     (self.tokenmaxxing_index, self.tokenmaxxing_focused) = (page, true);
                 }
                 "Routing" => (self.routing_index, self.routing_focused) = (page, true),

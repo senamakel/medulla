@@ -1,4 +1,4 @@
-//! The dummy TokenMaxxing experience.
+//! The dummy TokenMaxxxing experience.
 //!
 //! The sidebar separates season progress, daily bounties, and the full
 //! leaderboard. Every value is intentionally local sample data so program
@@ -17,7 +17,7 @@ mod overview;
 mod types;
 
 impl App {
-    /// Draw the sidebar-driven TokenMaxxing program concept.
+    /// Draw the sidebar-driven TokenMaxxxing program concept.
     pub(super) fn draw_points(&mut self, frame: &mut Frame, area: Rect) {
         let (nav, content) = multi_pane::split(area);
         self.note_pane(nav);
@@ -25,7 +25,7 @@ impl App {
         self.hit_nav = multi_pane::draw_nav(
             frame,
             nav,
-            self.panel("TokenMaxxing"),
+            self.panel("TokenMaxxxing"),
             &self.theme,
             &TOKENMAXXING_SUBPAGES,
             &[],

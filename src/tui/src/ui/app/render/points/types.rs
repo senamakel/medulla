@@ -1,4 +1,4 @@
-//! Dummy data records used by the TokenMaxxing design.
+//! Dummy data records used by the TokenMaxxxing design.
 
 /// One deterministic daily challenge rendered on the bounty page.
 pub(super) struct DailyBounty {
@@ -39,7 +39,7 @@ pub(super) const DAILY_BOUNTIES: [DailyBounty; 3] = [
     },
 ];
 
-/// One GitHub user in the TokenMaxxing season standings.
+/// One GitHub user in the TokenMaxxxing season standings.
 pub(super) struct LeaderboardEntry {
     /// Current season rank.
     pub(super) rank: &'static str,
@@ -124,7 +124,7 @@ pub(super) const LEADERBOARD: [LeaderboardEntry; 7] = [
     },
 ];
 
-/// One completed daily TokenMaxxing competition.
+/// One completed daily TokenMaxxxing competition.
 pub(super) struct PreviousWinner {
     /// Day the leaderboard closed.
     pub(super) day: &'static str,

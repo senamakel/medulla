@@ -1,4 +1,4 @@
-//! TokenMaxxing overview rendering: personal season progress plus standings.
+//! TokenMaxxxing overview rendering: personal season progress plus standings.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -58,7 +58,7 @@ impl App {
         ]);
         let title = Line::from(vec![
             Span::styled(
-                "TokenMaxxing",
+                "TokenMaxxxing",
                 Style::default()
                     .fg(self.theme.primary)
                     .add_modifier(Modifier::BOLD),

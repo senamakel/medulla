@@ -454,7 +454,7 @@ impl App {
         let workflows = self.tab() == "Workflows";
         #[cfg(not(feature = "workflows"))]
         let workflows = false;
-        let text = if self.tab() == "TokenMaxxing" {
+        let text = if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
         } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ lanes · i inspect · c copilot · x run · d dry-run · r refresh"
@@ -484,7 +484,7 @@ impl App {
             "Tasks" => self.draw_tasks(f, area),
             #[cfg(feature = "workflows")]
             "Workflows" => self.draw_workflows_tab(f, area),
-            "TokenMaxxing" => self.draw_points(f, area),
+            "TokenMaxxxing" => self.draw_points(f, area),
             "Routing" => self.draw_routing(f, area),
             "Memory" => self.draw_memory(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.

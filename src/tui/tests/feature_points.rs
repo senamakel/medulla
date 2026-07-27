@@ -1,4 +1,4 @@
-//! Feature coverage for the dummy TokenMaxxing, daily bounty, and leaderboard UI.
+//! Feature coverage for the dummy TokenMaxxxing, daily bounty, and leaderboard UI.
 
 use std::sync::Arc;
 
@@ -16,14 +16,14 @@ fn key(code: KeyCode) -> Event {
     Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
 }
 
-/// Build an app already positioned on TokenMaxxing.
+/// Build an app already positioned on TokenMaxxxing.
 fn tokenmaxxing_app() -> App {
     let runtime = Arc::new(MockRuntime::empty());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.tab_index = TABS
         .iter()
-        .position(|name| *name == "TokenMaxxing")
-        .expect("TokenMaxxing tab");
+        .position(|name| *name == "TokenMaxxxing")
+        .expect("TokenMaxxxing tab");
     app
 }
 
@@ -34,7 +34,7 @@ fn render(app: &mut App, width: u16, height: u16) -> Buffer {
     terminal.backend().buffer().clone()
 }
 
-/// Draw one numbered TokenMaxxing sidebar page.
+/// Draw one numbered TokenMaxxxing sidebar page.
 fn render_tokenmaxxing(page: char, width: u16, height: u16) -> Buffer {
     let mut app = tokenmaxxing_app();
     if page != '1' {
@@ -68,7 +68,7 @@ fn overview_page_shows_progress_and_season_leaderboard() {
     let screen = screen_text(&render_tokenmaxxing('1', 140, 40));
 
     for signature in [
-        "TokenMaxxing",
+        "TokenMaxxxing",
         "2,480 pts",
         "9.8M tokens burned",
         "520 pts to Level 8",
@@ -110,7 +110,7 @@ fn dedicated_leaderboard_page_reuses_the_daily_standings() {
     assert!(screen.contains("@mira-dev"), "{screen}");
     assert!(screen.contains("Rewards"), "{screen}");
     assert!(screen.contains("Daily token burner"), "{screen}");
-    assert!(screen.contains("$250 + TokenMaxxer badge"), "{screen}");
+    assert!(screen.contains("$250 + TokenMaxxxer badge"), "{screen}");
     assert!(screen.contains("Previous daily winners"), "{screen}");
     assert!(screen.contains("Jul 26"), "{screen}");
     assert!(screen.contains("$25 + 1,000 pts"), "{screen}");
@@ -128,7 +128,7 @@ fn sidebar_navigation_switches_pages_and_focus() {
     assert!(app.on_event(key(KeyCode::Enter)).is_none());
     assert!(app.status().contains("Bounties · Esc"));
     assert!(app.on_event(key(KeyCode::Esc)).is_none());
-    assert_eq!(app.status(), "TokenMaxxing · menu");
+    assert_eq!(app.status(), "TokenMaxxxing · menu");
 }
 
 #[test]
