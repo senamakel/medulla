@@ -10,6 +10,7 @@ use crate::ui::composer::Draft;
 
 use super::types::{
     App, Cmd, MEMORY_SUBPAGES, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, TASKS_SUBPAGES,
+    TOKENMAXXING_SUBPAGES,
 };
 
 impl App {
@@ -115,6 +116,10 @@ impl App {
         };
         match self.tab() {
             "Tasks" => self.tasks_index = step(self.tasks_index, TASKS_SUBPAGES.len()),
+            "TokenMaxxing" => {
+                self.tokenmaxxing_index =
+                    step(self.tokenmaxxing_index, TOKENMAXXING_SUBPAGES.len());
+            }
             "Routing" => self.routing_index = step(self.routing_index, ROUTING_SUBPAGES.len()),
             "Memory" => {
                 self.memory_subpage_index = step(self.memory_subpage_index, MEMORY_SUBPAGES.len());
@@ -163,6 +168,9 @@ impl App {
         if let Some(page) = self.hit_nav.page_at(x, y) {
             match tab {
                 "Tasks" => (self.tasks_index, self.tasks_focused) = (page, true),
+                "TokenMaxxing" => {
+                    (self.tokenmaxxing_index, self.tokenmaxxing_focused) = (page, true);
+                }
                 "Routing" => (self.routing_index, self.routing_focused) = (page, true),
                 "Memory" => (self.memory_subpage_index, self.memory_focused) = (page, true),
                 "Settings" => (self.settings_index, self.settings_focused) = (page, true),

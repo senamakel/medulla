@@ -454,7 +454,9 @@ impl App {
         let workflows = self.tab() == "Workflows";
         #[cfg(not(feature = "workflows"))]
         let workflows = false;
-        let text = if workflows {
+        let text = if self.tab() == "TokenMaxxing" {
+            "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
+        } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ lanes · i inspect · c copilot · x run · d dry-run · r refresh"
         } else {
             "Tab views · Esc/↑↓ rail · ⇧⏎ newline · ⌥X cancel · ⌥A answer · ^N thread · ^↑↓ switch · ^Y copy · ^X abort"

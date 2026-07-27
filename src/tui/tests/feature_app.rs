@@ -258,7 +258,7 @@ fn each_tab_renders_its_signature() {
     let signatures = [
         ("Agents", "Agents ·"),
         ("Agents", "orchestrator"),
-        ("TokenMaxxing", "Daily leaderboard"),
+        ("TokenMaxxing", "Season leaderboard"),
         ("Routing", "Routing"),
         ("Settings", "Settings"),
     ];
