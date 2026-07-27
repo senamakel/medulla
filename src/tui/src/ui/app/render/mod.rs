@@ -21,6 +21,7 @@ mod decisions;
 mod feedback;
 mod memory;
 mod overview;
+mod points;
 mod prompt;
 mod routing;
 mod selection;
@@ -413,8 +414,21 @@ impl App {
         self.hit_tabs_row = area.y;
         let mut spans = Vec::new();
         let mut col = area.x;
+        let roomy_width = TABS
+            .iter()
+            .map(|name| name.chars().count() + 3)
+            .sum::<usize>();
+        let gap = if roomy_width <= area.width as usize {
+            " "
+        } else {
+            ""
+        };
         for (i, name) in TABS.iter().enumerate() {
-            let label = format!(" {name} ");
+            let label = if gap.is_empty() {
+                format!("{name} ")
+            } else {
+                format!(" {name} ")
+            };
             let w = label.chars().count() as u16;
             self.hit_tabs.push((col, col + w - 1));
             let mut style = Style::default();
@@ -422,8 +436,8 @@ impl App {
                 style = self.theme.selection();
             }
             spans.push(Span::styled(label, style));
-            spans.push(Span::raw(" "));
-            col += w + 1;
+            spans.push(Span::raw(gap));
+            col += w + gap.len() as u16;
         }
         f.render_widget(Paragraph::new(TLine::from(spans)), area);
     }
@@ -440,7 +454,11 @@ impl App {
         let workflows = self.tab() == "Workflows";
         #[cfg(not(feature = "workflows"))]
         let workflows = false;
-        let text = if workflows {
+        let text = if self.tab() == "TokenMaxxxing" && self.tokenmaxxxing_is_production() {
+            "Tab views · TokenMaxxxing coming soon"
+        } else if self.tab() == "TokenMaxxxing" {
+            "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
+        } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ lanes · i inspect · c copilot · x run · d dry-run · r refresh"
         } else {
             "Tab views · Esc/↑↓ rail · ⇧⏎ newline · ⌥X cancel · ⌥A answer · ^N thread · ^↑↓ switch · ^Y copy · ^X abort"
@@ -468,6 +486,7 @@ impl App {
             "Tasks" => self.draw_tasks(f, area),
             #[cfg(feature = "workflows")]
             "Workflows" => self.draw_workflows_tab(f, area),
+            "TokenMaxxxing" => self.draw_points(f, area),
             "Routing" => self.draw_routing(f, area),
             "Memory" => self.draw_memory(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.

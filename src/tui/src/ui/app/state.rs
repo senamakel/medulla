@@ -92,6 +92,8 @@ impl App {
             tasks_focused: false,
             task_source_index: 0,
             tasks_detail_open: false,
+            tokenmaxxing_index: 0,
+            tokenmaxxing_focused: false,
             memory_status: None,
             memory_hits: Vec::new(),
             memory_directives: Vec::new(),

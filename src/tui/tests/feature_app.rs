@@ -258,6 +258,7 @@ fn each_tab_renders_its_signature() {
     let signatures = [
         ("Agents", "Agents ·"),
         ("Agents", "orchestrator"),
+        ("TokenMaxxxing", "Coming soon"),
         ("Routing", "Routing"),
         ("Settings", "Settings"),
     ];
