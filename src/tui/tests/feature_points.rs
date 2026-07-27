@@ -19,7 +19,22 @@ fn key(code: KeyCode) -> Event {
 /// Build an app already positioned on TokenMaxxxing.
 fn tokenmaxxing_app() -> App {
     let runtime = Arc::new(MockRuntime::empty());
-    let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.backend.base_url = "https://staging-api.tinyhumans.ai".into();
+    let mut app = App::new(runtime, loaded);
+    app.tab_index = TABS
+        .iter()
+        .position(|name| *name == "TokenMaxxxing")
+        .expect("TokenMaxxxing tab");
+    app
+}
+
+/// Build a production-configured app already positioned on TokenMaxxxing.
+fn production_tokenmaxxing_app(base_url: &str) -> App {
+    let runtime = Arc::new(MockRuntime::empty());
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.backend.base_url = base_url.into();
+    let mut app = App::new(runtime, loaded);
     app.tab_index = TABS
         .iter()
         .position(|name| *name == "TokenMaxxxing")
@@ -81,6 +96,23 @@ fn overview_page_shows_progress_and_season_leaderboard() {
             screen.contains(signature),
             "missing {signature:?}: {screen}"
         );
+    }
+}
+
+#[test]
+fn production_backend_hides_the_prototype_behind_coming_soon() {
+    for base_url in [
+        medulla::config::PROD_BACKEND_BASE_URL,
+        "https://api.tinyhumans.ai/v1",
+    ] {
+        let mut app = production_tokenmaxxing_app(base_url);
+        let screen = screen_text(&render(&mut app, 120, 32));
+        assert!(screen.contains("TokenMaxxxing coming soon"), "{screen}");
+        assert!(screen.contains("TokenMaxxxing · Coming soon"), "{screen}");
+        assert!(screen.contains("Burn tokens. Build streaks."), "{screen}");
+        assert!(screen.contains("not live yet"), "{screen}");
+        assert!(!screen.contains("@mira-dev"), "{screen}");
+        assert!(!screen.contains("Dummy rewards"), "{screen}");
     }
 }
 

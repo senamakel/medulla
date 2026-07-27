@@ -12,13 +12,23 @@ use crate::ui::multi_pane;
 use super::super::types::{App, TM_BOUNTIES, TM_LEADERBOARD, TM_OVERVIEW, TOKENMAXXING_SUBPAGES};
 
 mod bounties;
+mod coming_soon;
 mod leaderboard;
 mod overview;
 mod types;
 
 impl App {
+    /// Whether the configured backend is the public production service.
+    pub(super) fn tokenmaxxxing_is_production(&self) -> bool {
+        medulla::config::display_host(&self.loaded.config.backend.base_url) == "api.tinyhumans.ai"
+    }
+
     /// Draw the sidebar-driven TokenMaxxxing program concept.
     pub(super) fn draw_points(&mut self, frame: &mut Frame, area: Rect) {
+        if self.tokenmaxxxing_is_production() {
+            self.draw_tokenmaxxxing_coming_soon(frame, area);
+            return;
+        }
         let (nav, content) = multi_pane::split(area);
         self.note_pane(nav);
         self.note_pane(content);
