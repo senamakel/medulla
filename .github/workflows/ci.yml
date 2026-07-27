@@ -128,6 +128,58 @@ jobs:
           --fail-under-lines 95
           --summary-only
 
+  embedded-core:
+    name: Embedded OpenHuman core (opt-in feature)
+    runs-on: ubuntu-latest
+    # The vendored core roughly triples compile wall-clock on a cold cache.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: false
+
+      - name: Initialize submodules
+        run: bash scripts/init-submodules.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+          key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}-embedded
+          cache-on-failure: true
+
+      # openssl-sys links the system libssl, reached via native-tls <- hyper-tls
+      # <- reqwest, which an OpenHuman dependency enables. libgit2-sys vendors
+      # its own C and needs nothing beyond the toolchain's cc.
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libssl-dev
+
+      # `openhuman-core` is default-OFF, so the other lanes never compile the
+      # embedded core. Without this lane the opt-in path could break silently
+      # and no CI job would notice.
+      - name: Check with the embedded core enabled
+        run: cargo check --locked --features openhuman-core
+
+      # Guards the failure modes that do not announce themselves: two copies of
+      # a vendored crate (an E0308 where the types look identical), a tinyagents
+      # that silently resolved from the registry instead of the vendored tree,
+      # and duplicate ratatui/crossterm (two raw-mode state machines on one tty).
+      - name: Guard against duplicate and misresolved vendored crates
+        run: |
+          set -euo pipefail
+          dupes=$(cargo tree -d --features openhuman-core | grep -E '^(tiny[a-z]+|ratatui|crossterm|rustls|ring|aws-lc-rs) v' || true)
+          if [ -n "$dupes" ]; then
+            echo "Duplicate packages that must be unified:"; echo "$dupes"; exit 1
+          fi
+          if ! cargo tree -i tinyagents --features openhuman-core | head -1 | grep -q 'vendor/openhuman/vendor/tinyagents'; then
+            echo "tinyagents did not resolve to the vendored tree:"
+            cargo tree -i tinyagents --features openhuman-core | head -1
+            exit 1
+          fi
+          echo "OK: one copy of each vendored crate, resolved from vendor/openhuman."
+
   e2e-docker:
     name: E2E (docker + tmux + opencode)
     runs-on: ubuntu-latest
