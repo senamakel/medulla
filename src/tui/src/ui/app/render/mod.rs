@@ -19,7 +19,6 @@ use super::types::{App, TABS};
 
 mod agents;
 mod decisions;
-mod feedback;
 mod memory;
 mod overview;
 mod points;

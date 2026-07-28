@@ -142,26 +142,6 @@ pub(crate) async fn run(
                         app.set_memory_results(hits, query);
                         app.set_status(format!("Memory · {n} hit(s)"));
                     }
-                    AppMsg::FeedbackLoaded(page) => {
-                        app.set_feedback_page(page);
-                        // Pull the newly selected row's comments in the same beat.
-                        if let Some(cmd) = app.feedback_detail_cmd() {
-                            run_cmd(cmd, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
-                        }
-                    }
-                    AppMsg::FeedbackComments { id, comments } => {
-                        app.set_feedback_comments(id, comments);
-                    }
-                    AppMsg::FeedbackItemUpdated(item) => {
-                        app.apply_feedback_item(item);
-                        app.set_status("Feedback · vote recorded");
-                    }
-                    AppMsg::FeedbackChanged(status) => {
-                        app.set_status(status);
-                        // A comment or submission changes the board, so re-pull
-                        // it rather than patching state locally.
-                        run_cmd(Cmd::LoadFeedback(app.feedback_query()), &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
-                    }
                     AppMsg::UpdateAvailable(notice) => {
                         app.set_update_notice(notice.clone());
                         app.set_status(notice);

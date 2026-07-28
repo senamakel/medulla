@@ -15,7 +15,6 @@ use ratatui::layout::Rect;
 
 use crate::ui::composer::{Draft, TextPrompt};
 use crate::ui::theme::Theme;
-use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery, FeedbackType};
 use medulla::config::LoadedConfig;
 use medulla::memory::{MemoryHit, MemoryStatus};
 use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
@@ -23,7 +22,7 @@ use medulla::runtime::{RoutingStrategy, SubscriptionRoutingStrategy};
 
 /// The ordered top-level tab names. The tab index selects into this array.
 ///
-/// Trace, Context, and Feedback used to live here. They are secondary surfaces —
+/// Trace and Context used to live here. They are secondary surfaces —
 /// two of them diagnostic — so they now sit under Settings, keeping the tab bar
 /// to the views a session is actually driven from.
 ///
@@ -182,15 +181,14 @@ pub(super) const SUBSCRIPTION_STRATEGIES: [SubscriptionStrategyOption; 3] = [
     },
 ];
 
-/// The Settings tab's left-nav subpages, in order (number keys 1-8 jump to them).
+/// The Settings tab's left-nav subpages, in order (number keys 1-7 jump to them).
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 8] = [
+pub const SETTINGS_SUBPAGES: [&str; 7] = [
     "Usage",
     "Appearance",
     "Config",
-    "Feedback",
     "Trace",
     "Context",
     "Account",
@@ -212,11 +210,10 @@ pub const SETTINGS_GROUPS: [(&str, usize); 3] = [
 pub(super) const SP_USAGE: usize = 0;
 pub(super) const SP_APPEARANCE: usize = 1;
 pub(super) const SP_CONFIG: usize = 2;
-pub(super) const SP_FEEDBACK: usize = 3;
-pub(super) const SP_TRACE: usize = 4;
-pub(super) const SP_CONTEXT: usize = 5;
-pub(super) const SP_ACCOUNT: usize = 6;
-pub(super) const SP_HELP: usize = 7;
+pub(super) const SP_TRACE: usize = 3;
+pub(super) const SP_CONTEXT: usize = 4;
+pub(super) const SP_ACCOUNT: usize = 5;
+pub(super) const SP_HELP: usize = 6;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
@@ -382,24 +379,6 @@ pub enum Cmd {
     DeleteTask(String),
     /// Synchronize one configured task source.
     SyncTasks(String),
-    /// Load a page of the feedback board for the Feedback tab.
-    LoadFeedback(FeedbackQuery),
-    /// Load one board item's comments for the detail pane.
-    LoadFeedbackDetail(String),
-    /// Cast, change, or retract a vote on a board item.
-    VoteFeedback {
-        /// The item being voted on.
-        id: String,
-        /// `1` upvote, `-1` downvote, `0` retract.
-        value: i8,
-    },
-    /// Post a comment on a board item.
-    CommentFeedback {
-        /// The item being commented on.
-        id: String,
-        /// The comment text.
-        body: String,
-    },
     /// Re-read the declared fleet (roster + capacity) from the runtime.
     RefreshFleet,
     /// Run an installed workflow on this machine.
@@ -445,15 +424,6 @@ pub enum Cmd {
     DryRunWorkflow {
         /// The workflow to simulate.
         id: String,
-    },
-    /// Submit new feedback to the board.
-    SubmitFeedback {
-        /// Feature request or bug report.
-        kind: FeedbackType,
-        /// The submission's title.
-        title: String,
-        /// The submission's body.
-        body: String,
     },
 }
 
@@ -514,64 +484,6 @@ pub(super) enum PromptKind {
         /// Harness question id.
         question_id: String,
     },
-    /// Comment on the given feedback board item.
-    FeedbackComment {
-        /// The item being commented on.
-        id: String,
-    },
-    /// Step one of submitting feedback: the title. Submitting advances to
-    /// [`PromptKind::FeedbackBody`] rather than sending anything.
-    FeedbackTitle {
-        /// Feature request or bug report, chosen by which key opened the prompt.
-        kind: FeedbackType,
-    },
-    /// Step two of submitting feedback: the body. Submitting sends it.
-    FeedbackBody {
-        /// Feature request or bug report.
-        kind: FeedbackType,
-        /// The title captured in step one.
-        title: String,
-    },
-}
-
-/// The Feedback tab's state: the loaded page, the selected row, that row's
-/// comments, and the active query.
-pub(super) struct FeedbackState {
-    /// The current page of board items.
-    pub(super) items: Vec<FeedbackItem>,
-    /// Total items matching the query across all pages.
-    pub(super) total: i64,
-    /// The highlighted row.
-    pub(super) index: usize,
-    /// Comments for [`FeedbackState::detail_id`], loaded lazily on selection.
-    pub(super) comments: Vec<FeedbackComment>,
-    /// Which item [`FeedbackState::comments`] belongs to.
-    pub(super) detail_id: Option<String>,
-    /// Scroll offset within the detail pane.
-    pub(super) detail_scroll: usize,
-    /// The active filter/sort/pagination.
-    pub(super) query: FeedbackQuery,
-    /// Whether the runtime serves a board at all. `false` renders a sign-in
-    /// hint instead of an empty list.
-    pub(super) supported: bool,
-    /// Whether a board load is in flight (drives the header's "loading…").
-    pub(super) loading: bool,
-}
-
-impl Default for FeedbackState {
-    fn default() -> Self {
-        Self {
-            items: Vec::new(),
-            total: 0,
-            index: 0,
-            comments: Vec::new(),
-            detail_id: None,
-            detail_scroll: 0,
-            query: FeedbackQuery::default(),
-            supported: true,
-            loading: false,
-        }
-    }
 }
 
 /// A single-line inline input overlay shared with daemon controls.
@@ -708,7 +620,6 @@ pub struct App {
     /// Whether the selected Memory entry's detail modal is visible.
     pub(super) memory_detail_open: bool,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
-    pub(super) feedback: FeedbackState,
     /// Durable local task document displayed by the Tasks tab.
     pub(super) tasks: medulla::tasks::TaskDocument,
     /// Whether the prepared-decision modal is visible.

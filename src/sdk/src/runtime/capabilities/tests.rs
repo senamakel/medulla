@@ -1,9 +1,6 @@
 //! Contract tests for narrow runtime capability adapters.
 
-use super::{
-    FeedbackCapability, FleetCapability, MemoryCapability, SteeringCapability, UsageCapability,
-};
-use crate::client::{FeedbackQuery, FeedbackType};
+use super::{FleetCapability, MemoryCapability, SteeringCapability, UsageCapability};
 use crate::runtime::mock::MockRuntime;
 use crate::runtime::WorkerOp;
 
@@ -35,29 +32,6 @@ fn blanket_adapter_exposes_narrow_capabilities() {
             WorkerOp::Select {
                 id: "worker".into(),
             },
-        )
-        .await
-        .unwrap();
-
-        let page = FeedbackCapability::list_feedback(&runtime, FeedbackQuery::default())
-            .await
-            .unwrap()
-            .unwrap();
-        let id = page.items[0].id.clone();
-        FeedbackCapability::feedback_detail(&runtime, id.clone())
-            .await
-            .unwrap();
-        FeedbackCapability::vote_feedback(&runtime, id.clone(), 1)
-            .await
-            .unwrap();
-        FeedbackCapability::comment_feedback(&runtime, id, "useful".into())
-            .await
-            .unwrap();
-        FeedbackCapability::submit_feedback(
-            &runtime,
-            FeedbackType::Bug,
-            "Unexpected behavior".into(),
-            "Steps to reproduce".into(),
         )
         .await
         .unwrap();

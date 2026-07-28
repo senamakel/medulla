@@ -18,7 +18,7 @@ use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
     App, Cmd, MemoryEntry, ResumePicker, MEMORY_SUBPAGES, ROUTING_SUBPAGES, SETTINGS_SUBPAGES,
-    SP_CONTEXT, SP_FEEDBACK, SP_USAGE, TABS, TASKS_SUBPAGES,
+    SP_CONTEXT, SP_USAGE, TABS, TASKS_SUBPAGES,
 };
 
 impl App {
@@ -105,7 +105,6 @@ impl App {
             memory_subpage_index: 0,
             memory_focused: false,
             memory_detail_open: false,
-            feedback: Default::default(),
             tasks: medulla::tasks::TaskDocument::default(),
             decision_open: false,
             decision_index: 0,
@@ -444,7 +443,6 @@ impl App {
             "Settings" => match self.settings_index {
                 SP_USAGE => Some(Cmd::LoadUsage),
                 SP_CONTEXT => Some(Cmd::InspectContext),
-                SP_FEEDBACK => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
                 _ => None,
             },
             _ => None,

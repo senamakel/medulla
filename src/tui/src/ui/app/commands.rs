@@ -12,7 +12,7 @@ use medulla::runtime::{WorkerInfo, WorkerOp};
 
 use super::types::{
     tab_pos, App, Cmd, Prompt, PromptKind, MP_OVERVIEW, MP_SEARCH, SETTINGS_SUBPAGES,
-    SP_APPEARANCE, SP_CONFIG, SP_FEEDBACK, SP_HELP, SP_USAGE,
+    SP_APPEARANCE, SP_CONFIG, SP_HELP, SP_USAGE,
 };
 
 impl App {
@@ -219,36 +219,6 @@ impl App {
                 self.set_status("Decision answered");
                 None
             }
-            PromptKind::FeedbackComment { id } => {
-                if text.is_empty() {
-                    self.set_status("Comment cancelled (empty)");
-                    return None;
-                }
-                self.set_status("Posting comment…");
-                Some(Cmd::CommentFeedback { id, body: text })
-            }
-            // Step one captures the title and re-opens the prompt for the body;
-            // nothing is sent until step two.
-            PromptKind::FeedbackTitle { kind } => {
-                if text.is_empty() {
-                    self.set_status("New feedback cancelled (empty title)");
-                    return None;
-                }
-                self.open_feedback_body(kind, text);
-                None
-            }
-            PromptKind::FeedbackBody { kind, title } => {
-                if text.is_empty() {
-                    self.set_status("New feedback cancelled (empty description)");
-                    return None;
-                }
-                self.set_status("Submitting feedback…");
-                Some(Cmd::SubmitFeedback {
-                    kind,
-                    title,
-                    body: text,
-                })
-            }
         }
     }
 
@@ -375,11 +345,6 @@ impl App {
                 self.enter_settings_subpage(SP_APPEARANCE);
             }
             SlashCommand::Usage => return self.set_settings_subpage(SP_USAGE),
-            SlashCommand::Feedback => {
-                self.enter_settings_subpage(SP_FEEDBACK);
-                self.set_status("Feedback · loading the board…");
-                return self.reload_feedback();
-            }
             SlashCommand::Memory(query) => {
                 self.tab_index = tab_pos("Memory");
                 match query {

@@ -18,11 +18,10 @@ use crossterm::event::KeyCode;
 
 use crate::ui::multi_pane::{self, NavAction};
 use crate::ui::theme::THEME_ROLES;
-use medulla::client::FeedbackType;
 
 use super::super::types::{
-    App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK,
-    SP_TRACE, SP_USAGE,
+    App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_TRACE,
+    SP_USAGE,
 };
 
 impl App {
@@ -71,7 +70,6 @@ impl App {
             SP_USAGE => self.usage_key(code),
             SP_APPEARANCE => self.appearance_key(code),
             SP_CONFIG => self.config_key(code),
-            SP_FEEDBACK => self.feedback_key(code),
             SP_TRACE => self.trace_key(code),
             SP_CONTEXT => self.context_key(code),
             SP_ACCOUNT => self.account_key(code),
@@ -97,7 +95,6 @@ impl App {
                 self.move_config_index(up);
                 SettingsKey::handled(None)
             }
-            SP_FEEDBACK => SettingsKey::handled(self.move_feedback_index(up)),
             SP_TRACE => {
                 self.selected = if up {
                     self.selected.saturating_sub(1)
@@ -168,35 +165,6 @@ impl App {
                 let status = self.adjust_setting(delta);
                 self.set_status(status);
                 SettingsKey::handled(None)
-            }
-            _ => SettingsKey::Unhandled,
-        }
-    }
-
-    /// Feedback: browse the board, vote, comment, and submit.
-    fn feedback_key(&mut self, code: KeyCode) -> SettingsKey {
-        match code {
-            KeyCode::Char('k') => SettingsKey::handled(self.move_feedback_index(true)),
-            KeyCode::Char('j') => SettingsKey::handled(self.move_feedback_index(false)),
-            KeyCode::Char('u') => SettingsKey::handled(self.vote_selected_feedback(1)),
-            KeyCode::Char('d') => SettingsKey::handled(self.vote_selected_feedback(-1)),
-            KeyCode::Char('c') => {
-                self.open_feedback_comment();
-                SettingsKey::handled(None)
-            }
-            KeyCode::Char('n') => {
-                self.open_feedback_submit(FeedbackType::Feature);
-                SettingsKey::handled(None)
-            }
-            KeyCode::Char('b') => {
-                self.open_feedback_submit(FeedbackType::Bug);
-                SettingsKey::handled(None)
-            }
-            KeyCode::Char('s') => SettingsKey::handled(self.cycle_feedback_sort()),
-            KeyCode::Char('f') => SettingsKey::handled(self.cycle_feedback_filter()),
-            KeyCode::Char('r') | KeyCode::Enter => {
-                self.set_status("Feedback · refreshing…");
-                SettingsKey::handled(self.reload_feedback())
             }
             _ => SettingsKey::Unhandled,
         }

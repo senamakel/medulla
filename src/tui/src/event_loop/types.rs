@@ -32,19 +32,6 @@ pub(super) enum AppMsg {
     },
     /// A newer release was detected by the background update checker.
     UpdateAvailable(String),
-    /// A page of the feedback board. `None` = this runtime has no board.
-    FeedbackLoaded(Option<medulla::client::FeedbackPage>),
-    /// Comments for one board item.
-    FeedbackComments {
-        /// The item the comments belong to.
-        id: String,
-        /// The item's comments, oldest first.
-        comments: Vec<medulla::client::FeedbackComment>,
-    },
-    /// A board item the server re-tallied after a vote.
-    FeedbackItemUpdated(medulla::client::FeedbackItem),
-    /// A feedback action finished; reload the board and report `status`.
-    FeedbackChanged(String),
     /// A memory ingest finished; clear the in-flight flag and report the outcome.
     MemoryIngestDone(String),
     /// Current local task document.

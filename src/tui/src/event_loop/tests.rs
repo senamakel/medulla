@@ -3,7 +3,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use medulla::client::{FeedbackQuery, FeedbackType};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::{Runtime, WorkerOp};
@@ -76,93 +75,11 @@ fn context_refresh_tracks_the_nested_settings_page() {
 }
 
 #[tokio::test]
-async fn dispatches_every_feedback_action() {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let cfg = medulla::config::WorkflowsConfig::default();
-
-    run_cmd(
-        Cmd::LoadFeedback(FeedbackQuery::default()),
-        &runtime,
-        None,
-        &cfg,
-        &tx,
-    );
-    assert!(
-        matches!(next(&mut rx).await, AppMsg::FeedbackLoaded(Some(page)) if !page.items.is_empty())
-    );
-
-    run_cmd(
-        Cmd::LoadFeedbackDetail("fb-2".into()),
-        &runtime,
-        None,
-        &cfg,
-        &tx,
-    );
-    assert!(matches!(
-        next(&mut rx).await,
-        AppMsg::FeedbackComments { id, comments } if id == "fb-2" && !comments.is_empty()
-    ));
-
-    run_cmd(
-        Cmd::VoteFeedback {
-            id: "fb-2".into(),
-            value: 1,
-        },
-        &runtime,
-        None,
-        &cfg,
-        &tx,
-    );
-    assert!(matches!(next(&mut rx).await, AppMsg::FeedbackItemUpdated(item) if item.id == "fb-2"));
-
-    run_cmd(
-        Cmd::CommentFeedback {
-            id: "fb-2".into(),
-            body: "Useful".into(),
-        },
-        &runtime,
-        None,
-        &cfg,
-        &tx,
-    );
-    assert!(matches!(next(&mut rx).await, AppMsg::FeedbackChanged(s) if s.contains("comment")));
-
-    run_cmd(
-        Cmd::SubmitFeedback {
-            kind: FeedbackType::Feature,
-            title: "New feature".into(),
-            body: "Please add it".into(),
-        },
-        &runtime,
-        None,
-        &cfg,
-        &tx,
-    );
-    assert!(matches!(next(&mut rx).await, AppMsg::FeedbackChanged(s) if s.contains("submitted")));
-}
-
-#[tokio::test]
-async fn dispatcher_surfaces_feedback_and_resume_errors() {
+async fn dispatcher_surfaces_resume_errors() {
     let concrete = Arc::new(MockRuntime::demo());
     let runtime: Arc<dyn Runtime> = concrete.clone();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let cfg = medulla::config::WorkflowsConfig::default();
-
-    for cmd in [
-        Cmd::LoadFeedbackDetail("missing".into()),
-        Cmd::VoteFeedback {
-            id: "missing".into(),
-            value: 1,
-        },
-        Cmd::CommentFeedback {
-            id: "missing".into(),
-            body: "nope".into(),
-        },
-    ] {
-        run_cmd(cmd, &runtime, None, &cfg, &tx);
-        assert!(matches!(next(&mut rx).await, AppMsg::Status(s) if s.contains("not found")));
-    }
 
     concrete.set_running(true);
     run_cmd(Cmd::Resume("any".into()), &runtime, None, &cfg, &tx);

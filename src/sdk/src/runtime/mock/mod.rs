@@ -11,7 +11,6 @@
 //!
 //! [`Runtime`]: crate::runtime::Runtime
 
-mod feedback;
 mod runtime_impl;
 mod scenario;
 mod types;

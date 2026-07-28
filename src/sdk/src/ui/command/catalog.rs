@@ -113,12 +113,6 @@ pub const COMMANDS: &[CommandSpec] = &[
         description: "Show the loaded configuration",
     },
     CommandSpec {
-        name: "feedback",
-        aliases: &["fb"],
-        args: "",
-        description: "Open the feedback board",
-    },
-    CommandSpec {
         name: "mouse",
         aliases: &[],
         args: "",

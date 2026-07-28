@@ -9,16 +9,11 @@
 //! are surfaced as [`ClientError::Api`], preserving the `errorCode`.
 
 pub mod error;
-pub mod feedback;
-mod program;
+pub mod program;
 pub mod sse;
 pub mod types;
 
 pub use error::{ClientError, Result};
-pub use feedback::{
-    FeedbackComment, FeedbackDetail, FeedbackGithub, FeedbackItem, FeedbackPage, FeedbackQuery,
-    FeedbackSort, FeedbackStatus, FeedbackSubmission, FeedbackType,
-};
 pub use program::*;
 pub use types::*;
 

@@ -143,14 +143,6 @@ fn refresh_keys_emit_their_subpage_command() {
         "Context · r re-inspects"
     );
     assert!(app.status().contains("refreshing"), "{}", app.status());
-
-    let mut app = app_on("Feedback");
-    let cmd = app.on_event(key(KeyCode::Char('r')));
-    assert!(
-        matches!(cmd, Some(Cmd::LoadFeedback(_))),
-        "Feedback · r reloads the board"
-    );
-    assert!(app.status().contains("refreshing"), "{}", app.status());
 }
 
 #[test]
