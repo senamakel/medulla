@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use medulla::auth::Credentials;
 use medulla::hub::{start_hub, HubConfig, HubHandle, HubSession, WorkerSpec};
 
 /// Default inbox poll interval when `MEDULLA_HUB_POLL_MS` is unset.
@@ -165,15 +166,16 @@ fn hub_enabled(env: &HashMap<String, String>) -> bool {
     }
 }
 
-/// Build a [`HubConfig`] from the environment + saved credentials, or `None`
-/// when the hub should not run ([`hub_enabled`]) or the user is not logged in
-/// (the hub needs a backend JWT for the Socket.IO handshake).
+/// Build a [`HubConfig`] from the environment + the signed-in session, or `None`
+/// when the hub should not run ([`hub_enabled`]) or nobody is signed in (the hub
+/// needs a backend JWT for the Socket.IO handshake).
 pub(crate) fn build_hub_config_with_log(
     env: &HashMap<String, String>,
     home: &Path,
     log: medulla::hub::HubLog,
+    session: Option<&Credentials>,
 ) -> Option<HubConfig> {
-    build_hub_config_with_host(env, home, log, None)
+    build_hub_config_with_host(env, home, log, None, session)
 }
 
 /// Like [`build_hub_config_with_log`], additionally dispatching over `local` —
@@ -189,6 +191,7 @@ pub(crate) fn build_hub_config_with_host(
     home: &Path,
     log: medulla::hub::HubLog,
     local: Option<LocalDispatch>,
+    session: Option<&Credentials>,
 ) -> Option<HubConfig> {
     if !hub_enabled(env) {
         return None;
@@ -216,7 +219,10 @@ pub(crate) fn build_hub_config_with_host(
         }
         None => (None, String::new()),
     };
-    let creds = medulla::auth::CredentialStore::at_home(home).load_or_legacy()?;
+    // Passed in rather than read from disk: the embedded core holds the only
+    // session, and a second lookup here could disagree with the runtime about
+    // whether this process is signed in.
+    let creds = session?.clone();
     let identity_dir = env
         .get("MEDULLA_HUB_IDENTITY_DIR")
         .map(PathBuf::from)
@@ -253,12 +259,13 @@ pub(crate) async fn start(
     slot: HubSlot,
     logs: medulla_tui::log::LogBuffer,
     local: Option<LocalDispatch>,
+    session: Option<&Credentials>,
 ) -> Option<HubSession> {
     // The hub must never write to the terminal here: the TUI owns the alternate
     // screen, and ratatui only repaints the cells it manages, so a stray line
     // lands on top of the UI and is never cleared. Capturing them keeps the
     // screen intact and the diagnostics readable.
-    let config = build_hub_config_with_host(env, home, logs.sink(), local)?;
+    let config = build_hub_config_with_host(env, home, logs.sink(), local, session)?;
     match start_hub(config).await {
         Ok(session) => {
             *slot.lock().expect("hub slot") = Some(session.handle.clone());

@@ -345,6 +345,8 @@ pub enum Cmd {
     ListChats,
     /// Re-inspect the runtime's context chunks for the Context tab.
     InspectContext,
+    /// Clear the session this host is signed in with.
+    Logout,
     /// Apply a worker fleet mutation.
     WorkerOp(WorkerOp),
     /// Retarget the live screen subscription: stop watching one task, start
@@ -658,6 +660,8 @@ pub struct App {
     /// exit. Set by a successful logout so the caller tears the session down and
     /// returns to the login screen instead of returning to the shell.
     pub(super) relogin_requested: bool,
+    /// Who the embedded core is signed in as, for the Account subpage.
+    pub(super) account: Option<medulla::core_host::auth::AuthState>,
     /// The Medulla home directory, used to locate the credential store the
     /// Account subpage clears. Injectable so feature tests never touch the real
     /// home; `None` disables logout.

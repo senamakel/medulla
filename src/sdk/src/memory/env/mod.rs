@@ -218,22 +218,24 @@ pub fn resolve(
 /// Resolve [`MemorySettings`] and attach the backend inference target when a
 /// backend token is available.
 ///
-/// Extends [`resolve`] by loading stored credentials from the credential store
-/// under `medulla_home` and applying the same precedence as
-/// [`crate::auth::resolve_backend_token`] (inline config token → `tokenEnv` →
-/// matching stored credentials). When a token resolves, summarization syncs
-/// through the backend; otherwise the settings are returned unchanged (an
-/// explicit `OPENROUTER_API_KEY` still wins inside the service). Reads the
-/// credential file from disk.
+/// Extends [`resolve`] with [`crate::auth::resolve_backend_token`]'s precedence
+/// (inline config token → `tokenEnv` → `session`). When a token resolves,
+/// summarization syncs through the backend; otherwise the settings are returned
+/// unchanged (an explicit `OPENROUTER_API_KEY` still wins inside the service).
+///
+/// `session` is the embedded core's app session, which the caller reads via
+/// [`crate::core_host::auth::session_token`]. Passed in rather than read here:
+/// the core owns the only session, and reaching for it needs a booted core that
+/// a pure settings resolver has no business holding.
 pub fn resolve_with_backend(
     section: Option<&MemoryConfigSection>,
     backend: &crate::config::BackendConfig,
     env: &HashMap<String, String>,
     medulla_home: &Path,
+    session: Option<&str>,
 ) -> MemorySettings {
     let settings = resolve(section, env, medulla_home);
-    let stored = crate::auth::CredentialStore::at_home(medulla_home).load_or_legacy();
-    match crate::auth::resolve_backend_token(env, backend, stored.as_ref()) {
+    match crate::auth::resolve_backend_token(env, backend, session) {
         Some(jwt) => settings.with_backend(backend.base_url.clone(), jwt),
         None => settings,
     }

@@ -41,6 +41,8 @@ use openhuman_core::{CoreBuilder, DomainSet, HostKind, ServiceSet, TokenSource};
 pub mod auth;
 
 #[cfg(test)]
+mod auth_tests;
+#[cfg(test)]
 mod tests;
 
 /// The embed facade, re-exported so a host can name what [`boot`] returns
@@ -139,6 +141,34 @@ pub async fn boot() -> anyhow::Result<Core> {
         .build()
         .await?;
     tracing::debug!("[core_host] boot ok services={:?}", runtime.services());
+    Ok(Core::from_runtime(Arc::new(runtime)))
+}
+
+/// Boot a core with nothing running but the surface auth needs.
+///
+/// The CLI verbs (`medulla login`, `logout`, `memory`, `hub`) need the core only
+/// to read or write the app session, and paying for [`boot`]'s full composition
+/// — cron, heartbeat, the memory queue, harness init — to answer one question
+/// would make every one of them slow to start and leave background work running
+/// for the length of a `--help`-sized command.
+///
+/// `platform` is the family the `auth` controllers are registered under; every
+/// other domain and every service is off. Callers must still have bound the
+/// workspace first — see [`bind_workspace`].
+///
+/// # Errors
+///
+/// Propagates any failure from [`CoreBuilder::build`], same as [`boot`].
+pub async fn boot_for_auth() -> anyhow::Result<Core> {
+    let mut domains = DomainSet::none();
+    domains.platform = true;
+    tracing::debug!("[core_host] boot_for_auth start");
+    let runtime = CoreBuilder::new(HostKind::detect_standalone())
+        .domains(domains)
+        .services(ServiceSet::none())
+        .token(TokenSource::EnvOrFile)
+        .build()
+        .await?;
     Ok(Core::from_runtime(Arc::new(runtime)))
 }
 

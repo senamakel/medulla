@@ -1,5 +1,5 @@
-//! Unit tests for token resolution, the pure URL/query helpers, the loopback
-//! request classifier, and the credential store.
+//! Unit tests for token resolution, the pure URL/query helpers, and the
+//! loopback request classifier.
 
 use super::loopback::{classify_request, RequestOutcome};
 use super::url::{parse_target, percent_decode, percent_encode};
@@ -37,45 +37,25 @@ fn backend_token_ignores_empty_env_value() {
 }
 
 #[test]
-fn backend_token_uses_stored_credentials_when_baseurl_matches() {
+fn backend_token_falls_back_to_the_cores_session() {
     let empty = HashMap::new();
     let backend = BackendConfig::default();
-    let matching = Credentials {
-        base_url: backend.base_url.clone(),
-        jwt: "stored-jwt".into(),
-    };
-    // Config token and env absent → stored credentials are used.
+    // Config token and env absent → the core's app session is used.
     assert_eq!(
-        resolve_backend_token(&empty, &backend, Some(&matching)).as_deref(),
-        Some("stored-jwt")
+        resolve_backend_token(&empty, &backend, Some("session-jwt")).as_deref(),
+        Some("session-jwt")
     );
 
-    // A mismatched baseUrl is ignored.
-    let mismatched = Credentials {
-        base_url: "http://other:9999".into(),
-        jwt: "stored-jwt".into(),
-    };
-    assert_eq!(
-        resolve_backend_token(&empty, &backend, Some(&mismatched)),
-        None
-    );
+    // A blank session is treated as absent, like a blank env value.
+    assert_eq!(resolve_backend_token(&empty, &backend, Some("  ")), None);
 
-    // Config token and env still win over stored credentials.
+    // Config token and env still win over the session.
     let mut env = HashMap::new();
     env.insert("MEDULLA_TOKEN".to_string(), "from-env".to_string());
     assert_eq!(
-        resolve_backend_token(&env, &backend, Some(&matching)).as_deref(),
+        resolve_backend_token(&env, &backend, Some("session-jwt")).as_deref(),
         Some("from-env")
     );
-}
-
-#[test]
-fn missing_token_note_names_the_env_var() {
-    let backend = BackendConfig::default();
-    let note = missing_token_note(&backend);
-    assert!(note.contains("MEDULLA_TOKEN"));
-    assert!(note.contains("mock runtime"));
-    assert!(note.contains("medulla login"));
 }
 
 #[test]
@@ -235,42 +215,6 @@ fn describe_me_variants() {
     assert_eq!(describe_me(&empty), "Logged in.");
 }
 
-#[test]
-fn credential_store_roundtrip_corrupt_and_clear() {
-    let dir = std::env::temp_dir().join(format!("medulla-cred-{}", std::process::id()));
-    let _ = std::fs::create_dir_all(&dir);
-    let path = dir.join("credentials.json");
-    let store = CredentialStore::new(&path);
-
-    assert!(store.load().is_none());
-    let creds = Credentials {
-        base_url: "http://localhost:5000".into(),
-        jwt: "jwt-123".into(),
-    };
-    store.save(&creds).unwrap();
-    assert_eq!(store.load(), Some(creds));
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
-        assert_eq!(mode & 0o777, 0o600);
-    }
-
-    // Corrupt file → treated as absent.
-    std::fs::write(&path, "{ not json").unwrap();
-    assert!(store.load().is_none());
-
-    store.clear().unwrap();
-    assert!(store.load().is_none());
-    // Clearing a missing file is a no-op.
-    store.clear().unwrap();
-
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-// --- loopback listener: drive the real accept loop over 127.0.0.1 ------------
-
 async fn send_request(port: u16, request: &str) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let mut sock = tokio::net::TcpStream::connect(("127.0.0.1", port))
@@ -397,51 +341,4 @@ async fn run_login_flow_opens_the_url_and_returns_the_token() {
     let token = flow.await.unwrap().unwrap();
     assert_eq!(token, "flow-jwt");
     assert!(opened.load(std::sync::atomic::Ordering::SeqCst));
-}
-
-#[test]
-fn at_home_uses_home_credentials_json() {
-    let home = std::path::Path::new("/tmp/some-medulla-home");
-    let store = CredentialStore::at_home(home);
-    assert_eq!(store.path(), home.join("credentials.json"));
-}
-
-#[test]
-fn load_or_legacy_prefers_home_then_falls_back() {
-    let base = std::env::temp_dir().join(format!("medulla-cred-fb-{}", std::process::id()));
-    let home = base.join("home");
-    let legacy = base.join("legacy");
-    std::fs::create_dir_all(&home).unwrap();
-    std::fs::create_dir_all(&legacy).unwrap();
-
-    let home_store = CredentialStore::at_home(&home);
-    let legacy_store = CredentialStore::new(legacy.join("credentials.json"));
-
-    // Only the legacy file exists → fallback reads it (simulated by calling
-    // the store's own load, since the real config-dir isn't writable here).
-    legacy_store
-        .save(&Credentials {
-            base_url: "http://legacy".into(),
-            jwt: "legacy-jwt".into(),
-        })
-        .unwrap();
-    assert!(home_store.load().is_none());
-    assert_eq!(
-        legacy_store.load().map(|c| c.jwt),
-        Some("legacy-jwt".to_string())
-    );
-
-    // Once the home file exists it wins over any legacy file.
-    home_store
-        .save(&Credentials {
-            base_url: "http://home".into(),
-            jwt: "home-jwt".into(),
-        })
-        .unwrap();
-    assert_eq!(
-        home_store.load_or_legacy().map(|c| c.jwt),
-        Some("home-jwt".to_string())
-    );
-
-    let _ = std::fs::remove_dir_all(&base);
 }

@@ -19,7 +19,7 @@ pub(crate) use login_screen::run_login_screen;
 pub(crate) use workflow::run_workflow_cmd;
 pub(crate) use workspace::run_workspace;
 
-use medulla::auth::{open_browser, run_login_flow, CredentialStore, Credentials, LoopbackConfig};
+use medulla::auth::{open_browser, run_login_flow, Credentials, LoopbackConfig};
 use medulla::client::MedullaClient;
 use medulla::config::load_config;
 use medulla_tui::cli::{
@@ -27,7 +27,12 @@ use medulla_tui::cli::{
 };
 
 /// `medulla login`: obtain a JWT (loopback OAuth or a one-time token), verify it
-/// with `/auth/me`, and persist it to the credential store.
+/// with `/auth/me`, and hand it to the embedded core as its app session.
+///
+/// The core is the only credential store. This used to write a Medulla-owned
+/// `credentials.json` beside it, which meant `medulla login` could report
+/// success while the core — whose session actually drives the runtime — stayed
+/// signed out, and the TUI would still open its login screen.
 pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     let parsed: LoginArgs = match parse_login_args(args) {
         Ok(p) => p,
@@ -68,29 +73,95 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
         Err(e) => return Err(anyhow::anyhow!("token verification failed: {e}")),
     }
 
-    let store = CredentialStore::at_home(&medulla::home::medulla_home(&env));
-    store.save(&Credentials { base_url, jwt })?;
-    println!("Credentials saved to {}", store.path().display());
+    // Boot last: the flow above can take minutes of browser round-trip, and a
+    // core sitting open across it buys nothing.
+    let core = auth_core(&env).await?;
+    medulla::core_host::auth::store_session(&core, &jwt)
+        .await
+        .map_err(|e| anyhow::anyhow!("the core rejected the session: {e}"))?;
+    sweep_retired_credentials(&env);
+    println!("Signed in to {base_url}.");
     Ok(())
 }
 
-/// `medulla logout`: clear stored credentials.
-pub(crate) fn run_logout() -> anyhow::Result<()> {
+/// Boot the minimal core the auth verbs need, with its workspace bound.
+///
+/// Binding first is not optional: the core resolves its state directory from
+/// `OPENHUMAN_WORKSPACE`, and an unbound run would write the session into the
+/// developer's real `~/.openhuman` instead of the one this process's
+/// `MEDULLA_HOME` implies — so `medulla login` would sign in a workspace the TUI
+/// never reads.
+async fn auth_core(
+    env: &std::collections::HashMap<String, String>,
+) -> anyhow::Result<medulla::core_host::EmbeddedCore> {
+    let home = medulla::home::medulla_home(env);
+    medulla::core_host::bind_workspace(env, &home);
+    medulla::core_host::boot_for_auth()
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to start the embedded OpenHuman core: {e}"))
+}
+
+/// The core's app session as a `(base_url, jwt)` pair, or `None` when signed out.
+///
+/// `base_url` comes from the loaded Medulla config rather than the core: the two
+/// address the same deployment by construction, and the core exposes no RPC for
+/// the URL it resolved. A failure to reach the core reads as signed out — every
+/// caller degrades to "no backend" rather than failing outright.
+async fn session_credentials(
+    env: &std::collections::HashMap<String, String>,
+    base_url: &str,
+) -> Option<Credentials> {
+    let core = auth_core(env).await.ok()?;
+    let jwt = medulla::core_host::auth::session_token(&core)
+        .await
+        .ok()??;
+    Some(Credentials {
+        base_url: base_url.to_string(),
+        jwt,
+    })
+}
+
+/// `medulla logout`: forget the core's app session.
+///
+/// Idempotent — logging out when already signed out succeeds, so a user who is
+/// unsure of their state can always run it.
+pub(crate) async fn run_logout() -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-    let store = CredentialStore::at_home(&medulla::home::medulla_home(&env));
-    store.clear()?;
-    println!("Logged out ({} cleared).", store.path().display());
+    let core = auth_core(&env).await?;
+    medulla::core_host::auth::clear_session(&core)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to clear the session: {e}"))?;
+    sweep_retired_credentials(&env);
+    println!("Logged out.");
     Ok(())
+}
+
+/// Delete any credential file left by a pre-cutover install, and say so.
+///
+/// Those files are no longer read, so nothing else would ever remove them —
+/// and each one holds a real bearer token that no logout could invalidate.
+fn sweep_retired_credentials(env: &std::collections::HashMap<String, String>) {
+    let home = medulla::home::medulla_home(env);
+    for path in medulla::auth::remove_retired_credentials(&home) {
+        println!("Removed a retired credential file at {}.", path.display());
+    }
 }
 
 /// `medulla hub`: run the orchestrator hub — bridge the hosted backend brain to
-/// tiny.place worker daemons. Reads the backend JWT from saved credentials and
-/// the worker roster from `MEDULLA_TINYPLACE_PEER` / `MEDULLA_HUB_WORKERS`.
+/// tiny.place worker daemons. Takes the backend JWT from the core's app session
+/// and the worker roster from `MEDULLA_TINYPLACE_PEER` / `MEDULLA_HUB_WORKERS`.
 pub(crate) async fn run_hub(_args: &[String]) -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
     let home = medulla::home::medulla_home(&env);
+    let loaded = load_config(None, &env, &home)?;
+    let session = session_credentials(&env, &loaded.config.backend.base_url).await;
     // The standalone `medulla hub` owns its terminal, so stderr is right there.
-    match crate::hub_relay::build_hub_config_with_log(&env, &home, medulla::hub::stderr_log()) {
+    match crate::hub_relay::build_hub_config_with_log(
+        &env,
+        &home,
+        medulla::hub::stderr_log(),
+        session.as_ref(),
+    ) {
         Some(config) => medulla::hub::run_hub(config).await,
         None => anyhow::bail!(
             "hub: nothing to run — set MEDULLA_TINYPLACE_PEER (or MEDULLA_HUB_WORKERS) and run \
@@ -114,11 +185,13 @@ pub(crate) async fn run_memory(args: &[String]) -> anyhow::Result<()> {
     let loaded = load_config(parsed.config.as_deref(), &env, &cwd)?;
     // Summarization syncs through the backend when a token is available (an
     // explicit OPENROUTER_API_KEY still wins inside the service).
+    let session = session_credentials(&env, &loaded.config.backend.base_url).await;
     let settings = medulla::memory::env::resolve_with_backend(
         loaded.config.memory.as_ref(),
         &loaded.config.backend,
         &env,
         &medulla::home::medulla_home(&env),
+        session.as_ref().map(|c| c.jwt.as_str()),
     );
     let service = medulla::memory::MemoryService::open(settings)?;
 
@@ -183,11 +256,13 @@ pub(crate) async fn run_init(args: &[String]) -> anyhow::Result<()> {
     // Resolve the same backend/model settings memory ingest uses, so one login
     // (or one OPENROUTER_API_KEY) serves both surfaces.
     let loaded = load_config(parsed.config.as_deref(), &env, &cwd)?;
+    let session = session_credentials(&env, &loaded.config.backend.base_url).await;
     let settings = medulla::memory::env::resolve_with_backend(
         loaded.config.memory.as_ref(),
         &loaded.config.backend,
         &env,
         &medulla::home::medulla_home(&env),
+        session.as_ref().map(|c| c.jwt.as_str()),
     );
 
     if !parsed.offline && !medulla::init::model_available(&settings) {

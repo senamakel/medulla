@@ -46,6 +46,7 @@ pub(crate) async fn run(
         tinyplace_obs,
         config_path,
         medulla_home,
+        account,
         memory_service,
         mut sharing,
         onboarding_path,
@@ -54,6 +55,7 @@ pub(crate) async fn run(
     let mut app = App::new(runtime.clone(), loaded);
     app.set_config_path(config_path);
     app.set_medulla_home(medulla_home);
+    app.set_account(account);
     if let Some(svc) = memory_service {
         app.set_memory_service(svc);
     }
@@ -110,6 +112,10 @@ pub(crate) async fn run(
                     AppMsg::Contexts(c) => app.set_contexts(c),
                     AppMsg::UsageLoaded(data) => app.set_account_usage(data),
                     AppMsg::OpenResume(chats) => app.open_resume(chats),
+                    AppMsg::LoggedOut => {
+                        app.set_status("Account · logged out. Returning to the login screen…");
+                        app.logged_out();
+                    }
                     AppMsg::Resumed(s) => {
                         app.tab_index = TABS.iter().position(|t| *t == "Chat").unwrap_or(1);
                         app.refresh_snapshot();

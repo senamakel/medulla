@@ -52,7 +52,11 @@ fn version_help_and_sessions_are_available_without_a_tty() {
 }
 
 #[test]
-fn logout_clears_the_isolated_credential_store() {
+fn logout_sweeps_a_retired_credential_file() {
+    // The session itself lives in the embedded core, which this offline test
+    // has no way to seed. What it can pin is the migration half: a JWT left by
+    // a pre-cutover install is read by nothing, so logging out is the last
+    // chance anything has to remove it.
     let dir = TempDir::new().unwrap();
     let credentials = dir.path().join("credentials.json");
     std::fs::write(
@@ -64,8 +68,10 @@ fn logout_clears_the_isolated_credential_store() {
     let output = run(&["logout"], dir.path(), dir.path());
 
     assert!(output.status.success());
-    assert!(!credentials.exists());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Logged out"));
+    assert!(!credentials.exists(), "the retired file is gone");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Logged out"), "{stdout}");
+    assert!(stdout.contains("retired credential file"), "{stdout}");
 }
 
 #[test]

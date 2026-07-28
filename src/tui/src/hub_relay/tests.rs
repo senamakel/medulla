@@ -196,12 +196,10 @@ fn a_roster_remembered_from_a_hosting_run_is_dropped_when_hosting_is_off() {
     ]);
     assert_eq!(super::workers_from_config(home).len(), 2, "seeded");
 
-    medulla::auth::CredentialStore::at_home(home)
-        .save(&medulla::auth::Credentials {
-            base_url: "https://api.example".into(),
-            jwt: "jwt".into(),
-        })
-        .expect("seed credentials so the hub config builds");
+    let session = medulla::auth::Credentials {
+        base_url: "https://api.example".into(),
+        jwt: "jwt".into(),
+    };
 
     let config = super::build_hub_config_with_host(
         &env(&[]),
@@ -214,8 +212,9 @@ fn a_roster_remembered_from_a_hosting_run_is_dropped_when_hosting_is_off() {
             // Hosting is off: nothing is bound at `this-device` this run.
             host: None,
         }),
+        Some(&session),
     )
-    .expect("the hub config builds with credentials present");
+    .expect("the hub config builds with a session present");
 
     assert!(
         !config.workers.iter().any(|w| w.address == "this-device"),

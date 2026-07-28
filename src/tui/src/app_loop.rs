@@ -45,6 +45,36 @@ async fn core_runtime(core: medulla::core_host::EmbeddedCore) -> Arc<dyn Runtime
     rt
 }
 
+/// Read the core's session once: the bearer for backend-facing services, and
+/// who it belongs to for the Account subpage.
+///
+/// `base_url` comes from the loaded Medulla config rather than the core — they
+/// address the same deployment by construction, and the core exposes no RPC for
+/// the URL it resolved. A failed read degrades to signed out: the surfaces that
+/// take this simply go without a backend, which is exactly what they do for a
+/// signed-out host.
+#[cfg(feature = "openhuman-core")]
+async fn session_of(
+    core: &medulla::core_host::EmbeddedCore,
+    base_url: &str,
+) -> (
+    Option<medulla::auth::Credentials>,
+    Option<medulla::core_host::auth::AuthState>,
+) {
+    // A failed read is indistinguishable from signed out for every consumer, and
+    // this runs before the terminal guard is up — printing here would land on
+    // the screen the login flow is about to take over.
+    let jwt = medulla::core_host::auth::session_token(core)
+        .await
+        .unwrap_or_default();
+    let account = medulla::core_host::auth::state(core).await.ok();
+    let session = jwt.map(|jwt| medulla::auth::Credentials {
+        base_url: base_url.to_string(),
+        jwt,
+    });
+    (session, account)
+}
+
 /// Parse TUI args, select a runtime, set up the terminal, optionally run the
 /// login screen, start background services, and drive the event loop to exit.
 pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
@@ -86,6 +116,12 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let mut pending_core: Option<medulla::core_host::EmbeddedCore> = None;
     #[cfg(feature = "openhuman-core")]
     let mut need_login: Option<String> = None;
+    // The signed-in session, resolved once from the core. Everything that needs
+    // a backend bearer — the hub uplink, the memory service's sync target, the
+    // Account subpage — takes it from here rather than looking it up again, so
+    // no two surfaces can disagree about whether this process is signed in.
+    let mut session: Option<medulla::auth::Credentials> = None;
+    let mut account: Option<medulla::core_host::auth::AuthState> = None;
 
     // Shared hub roster slot: filled after the hub connects, read by the
     // runtime's worker surface so the Workers tab manages the hub's tiny.place
@@ -123,27 +159,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         .attach_file(&log_dir, "orchestrator")
         .map(|path| format!("logging to {}", path.display()));
 
-    // Persona-memory service (tinycortex), on by default. Wired into the app
-    // itself, which reads it for the Memory tab, so memory works on the backend
-    // and mock paths alike.
-    let memory_settings = medulla::memory::env::resolve_with_backend(
-        loaded.config.memory.as_ref(),
-        &loaded.config.backend,
-        &env,
-        &medulla::home::medulla_home(&env),
-    );
-    let memory_service: Option<Arc<medulla::memory::MemoryService>> = if memory_settings.enabled {
-        match medulla::memory::MemoryService::open(memory_settings) {
-            Ok(svc) => Some(Arc::new(svc)),
-            Err(e) => {
-                startup_status = Some(format!("memory service failed to open ({e})"));
-                None
-            }
-        }
-    } else {
-        None
-    };
-
     if args.mock {
         // Explicit offline demo: skip the token lookup and the login screen
         // entirely so the TUI is drivable with no backend at all.
@@ -166,6 +181,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         match medulla::core_host::boot().await {
             Ok(core) => match medulla::core_host::probe_medulla(&core).await {
                 medulla::core_host::Readiness::Ready => {
+                    (session, account) = session_of(&core, &loaded.config.backend.base_url).await;
                     runtime = Some(core_runtime(core).await);
                 }
                 // Signed out is an expected state with an obvious remedy, so it
@@ -227,6 +243,8 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 }
                 match medulla::core_host::probe_medulla(&core).await {
                     medulla::core_host::Readiness::Ready => {
+                        (session, account) =
+                            session_of(&core, &loaded.config.backend.base_url).await;
                         runtime = Some(core_runtime(core).await);
                     }
                     // Stored and still unusable: the token was for a different
@@ -242,6 +260,29 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     }
 
     let runtime = runtime.expect("a runtime is always selected");
+
+    // Persona-memory service (tinycortex), on by default. Wired into the app
+    // itself, which reads it for the Memory tab, so memory works whichever
+    // runtime backs the session. Built after selection because its backend sync
+    // target is the session the core holds, which is not known before then.
+    let memory_settings = medulla::memory::env::resolve_with_backend(
+        loaded.config.memory.as_ref(),
+        &loaded.config.backend,
+        &env,
+        &medulla::home::medulla_home(&env),
+        session.as_ref().map(|c| c.jwt.as_str()),
+    );
+    let memory_service: Option<Arc<medulla::memory::MemoryService>> = if memory_settings.enabled {
+        match medulla::memory::MemoryService::open(memory_settings) {
+            Ok(svc) => Some(Arc::new(svc)),
+            Err(e) => {
+                startup_status = Some(format!("memory service failed to open ({e})"));
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     // First-run welcome: offer promotional credit for sharing coding-agent
     // history. Gated locally by `[onboarding] welcomeCompleted` so a returning
@@ -357,6 +398,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         hub_slot.clone(),
         hub_logs.clone(),
         Some(local_dispatch.clone()),
+        session.as_ref(),
     )
     .await;
 
@@ -375,6 +417,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             tinyplace_obs: tinyplace_obs.clone(),
             config_path: active_config_path.clone(),
             medulla_home: home.clone(),
+            account: account.clone(),
             memory_service: memory_service.clone(),
             sharing,
             onboarding_path: active_config_path.clone(),

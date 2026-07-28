@@ -147,6 +147,7 @@ fn resolve_with_backend_attaches_token_from_env() {
         &backend,
         &env(&[(&backend.token_env, "jwt-from-env")]),
         &home,
+        None,
     );
     let attached = s.backend.expect("backend attached");
     assert_eq!(attached.base_url, backend.base_url);
@@ -156,10 +157,27 @@ fn resolve_with_backend_attaches_token_from_env() {
 #[test]
 fn resolve_with_backend_leaves_backend_none_without_token() {
     use crate::config::BackendConfig;
-    // A temp home with no credentials file and no env token → no backend.
+    // No env token and a signed-out core → no backend.
     let home = tempfile::tempdir().unwrap();
-    let s = resolve_with_backend(None, &BackendConfig::default(), &env(&[]), home.path());
+    let s = resolve_with_backend(
+        None,
+        &BackendConfig::default(),
+        &env(&[]),
+        home.path(),
+        None,
+    );
     assert_eq!(s.backend, None);
+}
+
+#[test]
+fn resolve_with_backend_attaches_the_cores_session() {
+    use crate::config::BackendConfig;
+    // Signed in, no env token → the core's session becomes the backend bearer.
+    let home = tempfile::tempdir().unwrap();
+    let backend = BackendConfig::default();
+    let s = resolve_with_backend(None, &backend, &env(&[]), home.path(), Some("session-jwt"));
+    let attached = s.backend.expect("backend attached");
+    assert_eq!(attached.jwt, "session-jwt");
 }
 
 #[test]

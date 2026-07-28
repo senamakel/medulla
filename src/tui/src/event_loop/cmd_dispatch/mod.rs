@@ -60,6 +60,20 @@ pub(super) fn run_cmd(
                 let _ = tx.send(AppMsg::Status(status));
             });
         }
+        Cmd::Logout => {
+            let rt = runtime.clone();
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                // Only a clear that actually landed ends the session: reporting
+                // success early would drop the operator back at the login screen
+                // still signed in.
+                let msg = match rt.logout().await {
+                    Ok(()) => AppMsg::LoggedOut,
+                    Err(e) => AppMsg::Status(format!("Account · logout failed: {e}")),
+                };
+                let _ = tx.send(msg);
+            });
+        }
         Cmd::Resume(id) => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();

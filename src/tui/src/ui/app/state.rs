@@ -119,6 +119,7 @@ impl App {
             config_index: 0,
             logout_armed: false,
             relogin_requested: false,
+            account: None,
             medulla_home: None,
             theme,
             config_path: None,
@@ -151,6 +152,11 @@ impl App {
     /// so feature tests avoid the real home.
     pub fn set_config_path(&mut self, path: std::path::PathBuf) {
         self.config_path = Some(path);
+    }
+
+    /// Record who the core is signed in as, for the Account subpage.
+    pub fn set_account(&mut self, account: Option<medulla::core_host::auth::AuthState>) {
+        self.account = account;
     }
 
     /// Configure Account logout with a testable home; without it, logout reports no writable location.

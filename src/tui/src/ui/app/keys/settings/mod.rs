@@ -209,9 +209,9 @@ impl App {
     fn account_key(&mut self, code: KeyCode) -> SettingsKey {
         match code {
             KeyCode::Enter => {
-                let status = self.confirm_logout();
+                let (status, cmd) = self.confirm_logout();
                 self.set_status(status);
-                SettingsKey::handled(None)
+                SettingsKey::handled(cmd)
             }
             KeyCode::Esc => {
                 self.disarm_logout();

@@ -118,6 +118,18 @@ pub trait Runtime: Send + Sync {
         Box::pin(async move { fut.await.map(|_| None) })
     }
     fn abort(&self);
+    /// Forget this host's stored session, so the next start asks for a sign-in.
+    ///
+    /// The default reports that there is nothing to log out of, which is the
+    /// honest answer for a runtime that holds no credential of its own (the
+    /// mock, a socket attachment). Only a runtime backed by a credential store
+    /// overrides it — and it is the runtime's job rather than the UI's precisely
+    /// because the UI has no way to know where the session lives.
+    fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
+        Box::pin(std::future::ready(Err(anyhow::anyhow!(
+            "this runtime holds no session to log out of"
+        ))))
+    }
     fn new_session(&self);
     fn set_active_thread(&self, id: String);
     fn list_main_chats(&self) -> BoxFuture<'static, anyhow::Result<Vec<MainChatSummary>>>;

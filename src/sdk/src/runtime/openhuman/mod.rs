@@ -323,6 +323,17 @@ impl Runtime for OpenHumanRuntime {
         });
     }
 
+    fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
+        let core = Arc::clone(&self.core);
+        // Through the core, not a file: it owns the keychain entry as well as
+        // the profile on disk, so anything less leaves the real credential in
+        // place and the next start signed in again.
+        Box::pin(async move {
+            crate::core_host::auth::clear_session(&core).await?;
+            Ok(())
+        })
+    }
+
     fn new_session(&self) {
         let session = self.session_handle();
         // Clear rather than mint: the next submit mints one. Minting here would

@@ -14,6 +14,8 @@ pub(super) enum AppMsg {
     OpenResume(Vec<medulla::ui::chat_store::MainChatSummary>),
     /// Confirmation that a chat was resumed.
     Resumed(String),
+    /// The session was cleared; quit back to the login screen.
+    LoggedOut,
     /// Memory overview data loaded off the UI thread.
     MemoryLoaded {
         /// Current memory status, when a service is attached.
@@ -97,8 +99,13 @@ pub(crate) struct SessionWiring {
         Option<Arc<std::sync::Mutex<medulla::tinyplace::service::TinyplaceObservation>>>,
     /// Where appearance/config edits are persisted.
     pub config_path: std::path::PathBuf,
-    /// The Medulla home, used to locate the credential store.
+    /// The Medulla home: where local task/appearance state is kept.
     pub medulla_home: std::path::PathBuf,
+    /// The account the embedded core is signed in as, when it is.
+    ///
+    /// Resolved once at startup rather than polled: the session cannot change
+    /// under a running app — logging out quits it.
+    pub account: Option<medulla::core_host::auth::AuthState>,
     /// The persona-memory service backing the Memory tab.
     pub memory_service: Option<Arc<medulla::memory::MemoryService>>,
     /// Live events from a history share the welcome flow left running.
