@@ -14,6 +14,8 @@ pub mod fleet;
 /// The non-interactive one-instruction driver for scripting / e2e automation.
 pub mod headless;
 pub mod mock;
+#[cfg(feature = "openhuman-core")]
+pub mod openhuman;
 
 use std::collections::HashMap;
 

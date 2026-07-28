@@ -36,7 +36,13 @@ tinycortex = { workspace = true }
 # workspace's 0.29 / 0.28. Those are semver-incompatible at 0.x, so Cargo would
 # link BOTH — two raw-mode state machines and two background reader threads on
 # one tty fd. That is not a compile error; it is a wrecked terminal.
-openhuman = { workspace = true, optional = true, default-features = false }
+# `default-features = false` is load-bearing (see below), but an EMPTY feature
+# list compiles a core with no Medulla domain at all — `openhuman::medulla` and
+# the `embed::Medulla` facade are both behind its `medulla` gate. Without this,
+# the embedded core builds fine and simply has nothing this host can call.
+openhuman = { workspace = true, optional = true, default-features = false, features = [
+    "medulla",
+] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
