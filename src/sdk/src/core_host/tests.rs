@@ -110,9 +110,9 @@ fn action_dir_keeps_an_explicit_override() {
 // ── Medulla readiness classification ─────────────────────────────────────────
 
 #[test]
-fn a_missing_backend_url_reads_as_unconfigured() {
-    // The credential-free start: nothing to dial, so the host must reach the
-    // offline demo rather than a UI where every action returns this error.
+fn a_missing_backend_url_is_unusable_not_a_login_prompt() {
+    // Nothing to dial. A login screen cannot fix it, so the host must stop and
+    // say so rather than asking the operator to sign in to nowhere.
     let err = CoreError::Domain {
         method: "medulla.listSessions",
         message: "no Medulla backend configured".into(),
@@ -122,12 +122,12 @@ fn a_missing_backend_url_reads_as_unconfigured() {
     };
     assert_eq!(
         classify(Err(err)),
-        Readiness::Unconfigured("no Medulla backend configured".into())
+        Readiness::Unusable("no Medulla backend configured".into())
     );
 }
 
 #[test]
-fn being_signed_out_reads_as_unconfigured() {
+fn being_signed_out_routes_to_the_login_screen() {
     let err = CoreError::Domain {
         method: "medulla.listSessions",
         message: "not signed in; no session token available".into(),
@@ -135,22 +135,23 @@ fn being_signed_out_reads_as_unconfigured() {
         data: None,
         expected_user_state: true,
     };
-    assert!(matches!(classify(Err(err)), Readiness::Unconfigured(_)));
+    assert_eq!(classify(Err(err)), Readiness::SignedOut);
 }
 
 #[test]
-fn a_compiled_out_surface_reads_as_unconfigured() {
-    // `Unavailable` is a build fact, not a fault — degrade the surface.
+fn a_compiled_out_surface_is_unusable() {
+    // `Unavailable` is a build fact, not a fault, but signing in cannot conjure
+    // a controller that was never registered.
     let err = CoreError::Unavailable {
         method: "medulla.listSessions",
     };
-    assert!(matches!(classify(Err(err)), Readiness::Unconfigured(_)));
+    assert!(matches!(classify(Err(err)), Readiness::Unusable(_)));
 }
 
 #[test]
-fn a_transient_failure_does_not_downgrade_the_runtime() {
-    // Swapping a configured operator's real runtime for a scripted demo because
-    // one call failed is worse than showing the failure.
+fn a_transient_failure_does_not_read_as_signed_out() {
+    // Sending a signed-in operator back to the login screen because one call
+    // failed is worse than showing the failure.
     let err = CoreError::Rpc {
         method: "medulla.listSessions",
         message: "connection reset".into(),
@@ -159,7 +160,7 @@ fn a_transient_failure_does_not_downgrade_the_runtime() {
 }
 
 #[test]
-fn another_domain_rejection_does_not_downgrade_the_runtime() {
+fn another_domain_rejection_does_not_read_as_signed_out() {
     // A rejection that named some other `kind` is a real error about a real
     // backend, not an absent one.
     let err = CoreError::Domain {

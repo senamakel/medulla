@@ -16,7 +16,8 @@ This repository is a two-crate Cargo workspace: the `medulla` SDK library at `sr
 
 ## Build, Test, and Development Commands
 
-- `cargo run` starts the TUI with the mock runtime when no credentials are set.
+- `cargo run` starts the TUI on the embedded OpenHuman core; with no app session it opens the login screen first.
+- `cargo run -- --mock` runs the offline demo runtime — the only way to reach it, and what the test suites use.
 - `cargo run --release` runs an optimized build.
 - `cargo install --path src/tui` installs the `medulla` binary.
 - `cargo test` runs unit, feature, and mocked end-to-end tests for both crates without live network access.

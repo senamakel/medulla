@@ -9,10 +9,12 @@
 //! [`workspace`] and [`workflow`] own the registry and workflow verbs, which are
 //! large enough to warrant their own files; everything else lives here.
 
+pub(crate) mod login_screen;
 #[cfg(feature = "workflows")]
 pub(crate) mod workflow;
 pub(crate) mod workspace;
 
+pub(crate) use login_screen::run_login_screen;
 #[cfg(feature = "workflows")]
 pub(crate) use workflow::run_workflow_cmd;
 pub(crate) use workspace::run_workspace;

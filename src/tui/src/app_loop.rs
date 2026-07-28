@@ -2,8 +2,8 @@
 //! pre-app login screen, and background-service wiring before handing off to the
 //! [`crate::event_loop::run`] loop.
 //!
-//! [`run_tui`] selects a runtime — the embedded OpenHuman core when compiled
-//! in, otherwise the pre-cutover backend-token → login-screen → mock chain —
+//! [`run_tui`] selects a runtime — the embedded OpenHuman core, signing the
+//! operator in through the pre-app login screen when the core has no session —
 //! installs the panic-safe terminal guard, starts
 //! the optional tiny.place presence service, runs the event loop, and tears
 //! everything down on exit.
@@ -19,8 +19,31 @@ use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
 use medulla_tui::cli::parse_tui_args;
 
+#[cfg(feature = "openhuman-core")]
+use crate::commands::run_login_screen;
 use crate::event_loop::{run, SessionWiring};
 use crate::terminal::{restore, TermGuard};
+#[cfg(feature = "openhuman-core")]
+use medulla_tui::ui::login::LoginOutcome;
+
+/// Wrap a signed-in core in its [`Runtime`] and start it producing.
+///
+/// Both the already-signed-in path and the just-logged-in path need the same
+/// two priming steps, and getting either wrong is invisible until the UI sits
+/// empty or inert.
+#[cfg(feature = "openhuman-core")]
+async fn core_runtime(core: medulla::core_host::EmbeddedCore) -> Arc<dyn Runtime> {
+    let rt = medulla::runtime::openhuman::OpenHumanRuntime::new(Arc::new(core));
+    // First fetch before the UI paints, so the initial frame shows real state
+    // rather than an empty one that fills in a beat later.
+    rt.refresh().await;
+    let rt = Arc::new(rt);
+    // Start replaying events before the UI paints. Without this a submitted turn
+    // is accepted and nothing ever returns to the transcript, which reads as a
+    // hang rather than a missing loop.
+    rt.spawn_poll_loop();
+    rt
+}
 
 /// Parse TUI args, select a runtime, set up the terminal, optionally run the
 /// login screen, start background services, and drive the event loop to exit.
@@ -48,14 +71,21 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
 
     // Runtime selection.
     //
-    // Built with `openhuman-core`, the embedded core is THE runtime: there is
-    // no token lookup, no login screen, and no mock fallback, because there is
-    // nothing to fall back from — the core runs in this process. `--mock` is
-    // still honoured ahead of it, since that is an explicit operator request
-    // for the offline demo rather than a fallback.
-    //
+    // Built with `openhuman-core`, the embedded core is THE runtime: no token
+    // lookup, no fallback chain, because there is nothing to fall back from —
+    // the core runs in this process. A core with no app session is not a reason
+    // to run something else, it is a reason to sign in, so it routes to the
+    // pre-app login screen below. `--mock` is still honoured ahead of all of
+    // this: the demo runtime exists for tests and offline demos, and reaching it
+    // requires asking for it.
     let mut runtime: Option<Arc<dyn Runtime>> = None;
     let mut startup_status: Option<String> = None;
+    // A booted-but-signed-out core, held across terminal setup: the login screen
+    // needs the alt screen, which is not up yet at selection time.
+    #[cfg(feature = "openhuman-core")]
+    let mut pending_core: Option<medulla::core_host::EmbeddedCore> = None;
+    #[cfg(feature = "openhuman-core")]
+    let mut need_login: Option<String> = None;
 
     // Shared hub roster slot: filled after the hub connects, read by the
     // runtime's worker surface so the Workers tab manages the hub's tiny.place
@@ -134,25 +164,24 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     #[cfg(feature = "openhuman-core")]
     if runtime.is_none() {
         match medulla::core_host::boot().await {
-            Ok(core) => 'core: {
-                if let medulla::core_host::Readiness::Unconfigured(why) =
-                    medulla::core_host::probe_medulla(&core).await
-                {
-                    runtime = Some(Arc::new(MockRuntime::demo()));
-                    startup_status = Some(format!("{why} — running the offline mock runtime"));
-                    break 'core;
+            Ok(core) => match medulla::core_host::probe_medulla(&core).await {
+                medulla::core_host::Readiness::Ready => {
+                    runtime = Some(core_runtime(core).await);
                 }
-                let rt = medulla::runtime::openhuman::OpenHumanRuntime::new(Arc::new(core));
-                // First fetch before the UI paints, so the initial frame shows
-                // real state rather than an empty one that fills in a beat later.
-                rt.refresh().await;
-                let rt = Arc::new(rt);
-                // Start replaying events before the UI paints. Without this a
-                // submitted turn is accepted and nothing ever returns to the
-                // transcript, which reads as a hang rather than a missing loop.
-                rt.spawn_poll_loop();
-                runtime = Some(rt);
-            }
+                // Signed out is an expected state with an obvious remedy, so it
+                // is the one thing that does not end here: the core is held and
+                // the login screen runs once the terminal is up.
+                medulla::core_host::Readiness::SignedOut => {
+                    pending_core = Some(core);
+                    need_login = Some(loaded.config.backend.base_url.clone());
+                }
+                // No backend to reach, or the surface compiled out. Neither is
+                // fixable from inside the app, and neither is a reason to start
+                // a different runtime that would quietly behave differently.
+                medulla::core_host::Readiness::Unusable(why) => {
+                    anyhow::bail!("the embedded OpenHuman core cannot reach Medulla: {why}");
+                }
+            },
             Err(e) => {
                 // Boot failure is fatal rather than a downgrade. The core is
                 // in-process, so a failure here means a broken workspace or
@@ -176,6 +205,41 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
 
     let guard = TermGuard::setup(args.alt_screen)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
+
+    // Pre-app login screen: the core booted but has no app session. Runs inside
+    // the alt-screen session already set up, and resolves to a signed-in core or
+    // a clean quit — there is no third option, because a TUI with no runtime has
+    // nothing to show.
+    #[cfg(feature = "openhuman-core")]
+    if let Some(base_url) = need_login.take() {
+        let core = pending_core.take().expect("a core is held for the login");
+        match run_login_screen(&mut terminal, base_url).await? {
+            LoginOutcome::Quit => {
+                drop(guard);
+                return Ok(());
+            }
+            LoginOutcome::Token(jwt) => {
+                // The core validates the JWT against the backend before writing
+                // it, so a rejected token fails here rather than after startup.
+                if let Err(e) = medulla::core_host::auth::store_session(&core, &jwt).await {
+                    drop(guard);
+                    anyhow::bail!("signed in, but the core rejected the session: {e}");
+                }
+                match medulla::core_host::probe_medulla(&core).await {
+                    medulla::core_host::Readiness::Ready => {
+                        runtime = Some(core_runtime(core).await);
+                    }
+                    // Stored and still unusable: the token was for a different
+                    // deployment than the one the core resolves, or the backend
+                    // withdrew it between the two calls.
+                    other => {
+                        drop(guard);
+                        anyhow::bail!("signed in, but Medulla is still unreachable: {other:?}");
+                    }
+                }
+            }
+        }
+    }
 
     let runtime = runtime.expect("a runtime is always selected");
 

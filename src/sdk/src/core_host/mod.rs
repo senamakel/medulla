@@ -38,8 +38,14 @@ use std::sync::Arc;
 use openhuman_core::embed::{Core, CoreError};
 use openhuman_core::{CoreBuilder, DomainSet, HostKind, ServiceSet, TokenSource};
 
+pub mod auth;
+
 #[cfg(test)]
 mod tests;
+
+/// The embed facade, re-exported so a host can name what [`boot`] returns
+/// without depending on `openhuman-core` directly.
+pub use openhuman_core::embed::Core as EmbeddedCore;
 
 /// Environment variable OpenHuman reads for its state directory.
 pub const OPENHUMAN_WORKSPACE_ENV: &str = "OPENHUMAN_WORKSPACE";
@@ -137,44 +143,49 @@ pub async fn boot() -> anyhow::Result<Core> {
 }
 
 /// Whether a booted core can actually reach a Medulla backend.
+///
+/// Three outcomes rather than two, because a host answers each differently:
+/// run, sign in, or stop. Collapsing the last two would either send an operator
+/// to a login screen that cannot fix a missing URL, or refuse to start over a
+/// state one keystroke resolves.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Readiness {
     /// The Medulla surface answered — the core is usable as a runtime.
     Ready,
-    /// The core booted, but Medulla is unconfigured or signed out.
-    ///
-    /// Carries the core's own operator-safe message (no URLs, no tokens), so
-    /// the host can name the missing piece rather than inventing wording that
-    /// drifts from the core's.
-    Unconfigured(String),
+    /// Reachable, but nobody is signed in. The host should run its login flow.
+    SignedOut,
+    /// The core cannot reach Medulla at all: no base URL, or the surface was
+    /// compiled out. Carries the core's own operator-safe message (no URLs, no
+    /// tokens) rather than wording that would drift from the core's.
+    Unusable(String),
 }
 
-/// Stable `data.kind` values the core uses for "Medulla is not set up here".
-///
-/// Matched rather than parsed from prose: the message is operator-facing text
-/// and free to be reworded, whereas these discriminators are contract.
-const UNCONFIGURED_KINDS: [&str; 2] = ["MedullaNoBaseUrl", "MedullaNoSessionToken"];
+/// Stable `data.kind` for "nobody is signed in on this host".
+const SIGNED_OUT_KIND: &str = "MedullaNoSessionToken";
 
-/// Classify a Medulla call's outcome as ready or not-configured.
+/// Stable `data.kind` for "there is no Medulla backend to talk to".
+const NO_BASE_URL_KIND: &str = "MedullaNoBaseUrl";
+
+/// Classify a Medulla call's outcome.
 ///
 /// Only the two "not set up" discriminators — and `Unavailable`, which means the
-/// surface was compiled out — count as unconfigured. Everything else
+/// surface was compiled out — are treated as anything but ready. Everything else
 /// ([`CoreError::Rpc`], a decode failure, a rejected call that named some other
-/// `kind`) reads as *ready*: those are transient or genuine faults, and treating
-/// a flaky network as "not configured" would silently swap the operator's real
-/// runtime for a demo.
+/// `kind`) reads as *ready*: those are transient or genuine faults, and a flaky
+/// network must not read as "sign in again".
 pub fn classify(outcome: Result<(), CoreError>) -> Readiness {
     match outcome {
         Ok(()) => Readiness::Ready,
-        Err(CoreError::Domain { kind, message, .. })
-            if kind
-                .as_deref()
-                .is_some_and(|k| UNCONFIGURED_KINDS.contains(&k)) =>
-        {
-            Readiness::Unconfigured(message)
-        }
+        Err(CoreError::Domain { kind, message, .. }) => match kind.as_deref() {
+            Some(SIGNED_OUT_KIND) => Readiness::SignedOut,
+            Some(NO_BASE_URL_KIND) => Readiness::Unusable(message),
+            _ => {
+                tracing::debug!("[core_host] readiness probe rejected, assuming ready: {message}");
+                Readiness::Ready
+            }
+        },
         Err(CoreError::Unavailable { method }) => {
-            Readiness::Unconfigured(format!("{method} is not available in this build"))
+            Readiness::Unusable(format!("{method} is not available in this build"))
         }
         Err(err) => {
             tracing::debug!("[core_host] readiness probe failed, assuming ready: {err}");
@@ -183,14 +194,13 @@ pub fn classify(outcome: Result<(), CoreError>) -> Readiness {
     }
 }
 
-/// Ask the core whether its Medulla surface is configured.
+/// Ask the core whether its Medulla surface is usable.
 ///
 /// Uses the session list because it is the cheapest read that goes through the
 /// same client resolution every drive method does — a host that can list
-/// sessions can submit to one. Called once at startup: booting successfully is
-/// not the same as being usable, and the difference is the whole reason a
-/// credential-free run still has to reach the offline demo instead of a TUI
-/// where every action returns the same error.
+/// sessions can submit to one. Booting successfully is not the same as being
+/// usable, and the difference is what tells a host whether to start, to ask the
+/// operator to sign in, or to stop.
 pub async fn probe_medulla(core: &Core) -> Readiness {
     classify(core.medulla().list_sessions().await.map(|_| ()))
 }
