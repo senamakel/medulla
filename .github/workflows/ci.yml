@@ -26,6 +26,8 @@ jobs:
       - name: Initialize submodules
         run: bash scripts/init-submodules.sh
 
+      - uses: ./.github/actions/native-deps
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -84,6 +86,8 @@ jobs:
       - name: Initialize submodules
         run: bash scripts/init-submodules.sh
 
+      - uses: ./.github/actions/native-deps
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
@@ -124,12 +128,12 @@ jobs:
         timeout-minutes: 100
         run: >-
           cargo llvm-cov --locked
-          --ignore-filename-regex '(^|/)vendor/|src/tui/src/(app_loop|commands|main)\.rs|src/tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|src/tui/src/harness_pty/mod\.rs|src/tui/src/ui/onboarding/run(/.*)?\.rs|src/tui/src/ui/app/render/tasks\.rs|src/tui/src/worker/executor_tests/live\.rs|src/sdk/src/daemon/(entry\.rs|transport/mod\.rs)|src/sdk/src/runtime/backend/worker_ops\.rs|src/sdk/src/wrapper/(run|bridge)/mod\.rs|src/sdk/src/hub/(socket|relay)\.rs|src/sdk/src/hub/(boot|handle)(/.*)?\.rs'
+          --ignore-filename-regex '(^|/)vendor/|src/tui/src/(app_loop|commands|main)\.rs|src/tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|src/tui/src/harness_pty/mod\.rs|src/tui/src/ui/onboarding/run(/.*)?\.rs|src/tui/src/ui/app/render/tasks\.rs|src/tui/src/worker/executor_tests/live\.rs|src/sdk/src/daemon/(entry\.rs|transport/mod\.rs)|src/sdk/src/wrapper/(run|bridge)/mod\.rs|src/sdk/src/hub/(socket|relay)\.rs|src/sdk/src/hub/(boot|handle)(/.*)?\.rs'
           --fail-under-lines 80
           --summary-only
 
   embedded-core:
-    name: Embedded OpenHuman core (opt-in feature)
+    name: Vendored core resolution
     runs-on: ubuntu-latest
     # The vendored core roughly triples compile wall-clock on a cold cache.
     timeout-minutes: 120
@@ -150,23 +154,11 @@ jobs:
           key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}-embedded
           cache-on-failure: true
 
-      # Native libraries the vendored core's build scripts link against:
-      #   - libssl: openssl-sys, reached via native-tls <- hyper-tls <- reqwest,
-      #     which an OpenHuman dependency enables.
-      #   - X11 set: `rdev`, `enigo` and `arboard` are NON-optional OpenHuman
-      #     dependencies (input events, synthetic input, clipboard), so they are
-      #     in the graph on a headless build too and their build scripts fail
-      #     without these. Not needed by medulla itself.
-      #   - libgit2 needs nothing: libgit2-sys builds vendored C via cc.
-      - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config libssl-dev libx11-dev libxi-dev libxtst-dev libxdo-dev
+      - uses: ./.github/actions/native-deps
 
-      # `openhuman-core` is default-OFF, so the other lanes never compile the
-      # embedded core. Without this lane the opt-in path could break silently
-      # and no CI job would notice.
+      # The core is default-ON now, so this check duplicates what every other
+      # lane compiles. It stays because the guards below are what this lane is
+      # really for, and they need a resolved graph to inspect.
       - name: Check with the embedded core enabled
         run: cargo check --locked --features openhuman-core
 
