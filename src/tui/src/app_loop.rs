@@ -57,6 +57,15 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let loaded = load_config(args.config.as_deref(), &env, &cwd)?;
     let home = medulla::home::medulla_home(&env);
 
+    // Bind the embedded core's state directory to this process's Medulla home
+    // BEFORE anything can construct the core. Both resolve state independently
+    // otherwise, which would silently route memory, flows, and credentials into
+    // the developer's real `~/.openhuman` even on a `MEDULLA_HOME=$(mktemp -d)`
+    // scratch run — the recipe that exists precisely to avoid that. Cheap, and
+    // a no-op when the operator set `OPENHUMAN_WORKSPACE` themselves.
+    #[cfg(feature = "openhuman-core")]
+    medulla::core_host::bind_workspace(&env, &home);
+
     // Runtime selection order (spec §5):
     //   1. a backend token (inline or via `backend.tokenEnv`) → BackendRuntime
     //   2. otherwise                                          → login screen → mock
@@ -81,6 +90,12 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         .iter()
         .map(std::path::PathBuf::from)
         .collect();
+    // The agent's read/write root. OpenHuman defaults this to
+    // `~/OpenHuman/projects`, which a Medulla operator has never used — their
+    // repos are the configured workspace roots. Binding the first keeps the
+    // agent writing where the operator actually works. Also non-overriding.
+    #[cfg(feature = "openhuman-core")]
+    medulla::core_host::bind_action_dir(&env, workspace_roots.first().map(|p| p.as_path()));
     // The hub narrates itself; those lines must not reach the terminal while the
     // TUI owns the screen, so they are captured here instead.
     let hub_logs = medulla_tui::log::LogBuffer::new();
