@@ -147,3 +147,116 @@ fn active_thread_survives_a_refresh() {
     cell.apply(Vec::new(), vec![thread("t1")]);
     assert_eq!(cell.snapshot().active_thread_id, "thread-7");
 }
+
+// ── event translation ────────────────────────────────────────────────────────
+
+use openhuman_core::embed::EventEnvelope as CoreEnvelope;
+
+fn core_event(seq: Option<u64>, kind: &str, body: &str) -> CoreEnvelope {
+    CoreEnvelope {
+        seq,
+        at: 1_700_000_000,
+        session_id: "s1".into(),
+        cycle_id: Some("c1".into()),
+        event: serde_json::json!({ "kind": kind, "body": body }),
+    }
+}
+
+#[test]
+fn events_decode_and_preserve_seq_and_time() {
+    let folded = fold::events(vec![core_event(Some(7), "assistant", "hi")]);
+    assert_eq!(folded.len(), 1);
+    assert_eq!(folded[0].seq, 7);
+    assert_eq!(folded[0].at, 1_700_000_000);
+}
+
+#[test]
+fn events_without_a_seq_are_dropped_not_zeroed() {
+    // Mapping `None` to 0 would make the event sort to the top of the stream
+    // and defeat the replay cursor, so a reconnect would re-show it forever.
+    let folded = fold::events(vec![
+        core_event(None, "assistant", "no seq"),
+        core_event(Some(3), "assistant", "has seq"),
+    ]);
+    assert_eq!(folded.len(), 1, "the seqless envelope must be dropped");
+    assert_eq!(folded[0].seq, 3);
+}
+
+#[test]
+fn an_unrecognized_kind_survives_as_unknown() {
+    // A newer backend must not cause an older host to drop rows.
+    let folded = fold::events(vec![core_event(Some(1), "some_future_kind", "x")]);
+    assert_eq!(folded.len(), 1);
+    assert!(matches!(
+        folded[0].event,
+        crate::ui::events::TuiEvent::Unknown { .. }
+    ));
+}
+
+#[test]
+fn max_seq_is_none_for_an_empty_batch() {
+    // The caller reads `None` as "cursor unchanged", never "reset to start".
+    assert_eq!(fold::max_seq(&[]), None);
+}
+
+#[test]
+fn max_seq_takes_the_highest_not_the_last() {
+    // Out-of-order delivery must not rewind the cursor.
+    let folded = fold::events(vec![
+        core_event(Some(9), "assistant", "a"),
+        core_event(Some(4), "assistant", "b"),
+    ]);
+    assert_eq!(fold::max_seq(&folded), Some(9));
+}
+
+// ── snapshot event application ───────────────────────────────────────────────
+
+fn render_event(seq: u64, kind: &str) -> crate::ui::events::EventEnvelope {
+    fold::events(vec![core_event(Some(seq), kind, "x")])
+        .pop()
+        .expect("one envelope")
+}
+
+#[test]
+fn appended_events_accumulate_rather_than_replace() {
+    // Events are a growing log; the caller only fetches past its cursor.
+    let cell = SnapshotCell::new();
+    cell.append_events(vec![render_event(1, "assistant")], true);
+    cell.append_events(vec![render_event(2, "assistant")], true);
+    assert_eq!(cell.snapshot().events.len(), 2);
+}
+
+#[test]
+fn only_conversational_rows_reach_the_chat_view() {
+    // Trace rows in the transcript would read as something that was said.
+    let cell = SnapshotCell::new();
+    cell.append_events(
+        vec![
+            render_event(1, "assistant"),
+            render_event(2, "tool_call_start"),
+            render_event(3, "user"),
+        ],
+        true,
+    );
+    let snap = cell.snapshot();
+    assert_eq!(snap.events.len(), 3, "the trace keeps everything");
+    assert_eq!(snap.chat_events.len(), 2, "the transcript keeps only turns");
+}
+
+#[test]
+fn an_empty_batch_still_records_a_settled_turn() {
+    // A turn can settle without emitting a final event; the spinner has to stop.
+    let cell = SnapshotCell::new();
+    cell.append_events(vec![render_event(1, "assistant")], true);
+    assert!(cell.snapshot().running);
+    cell.append_events(Vec::new(), false);
+    assert!(!cell.snapshot().running);
+}
+
+#[tokio::test]
+async fn appending_events_notifies_subscribers() {
+    let cell = SnapshotCell::new();
+    let mut rx = cell.subscribe();
+    cell.append_events(vec![render_event(1, "assistant")], true);
+    assert!(rx.recv().await.is_ok());
+}

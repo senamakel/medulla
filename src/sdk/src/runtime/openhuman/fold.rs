@@ -6,9 +6,10 @@
 //! be tested exhaustively against hand-written inputs, which is the only way
 //! that class of bug gets caught.
 
-use openhuman_core::embed::{RosterWorker, SessionSummary};
+use openhuman_core::embed::{EventEnvelope as CoreEnvelope, RosterWorker, SessionSummary};
 
 use crate::runtime::types::{AgentDescriptor, ThreadSummary};
+use crate::ui::events::{EventEnvelope, TuiEvent};
 
 /// Fold the core's worker roster into render descriptors.
 pub fn roster(workers: Vec<RosterWorker>) -> Vec<AgentDescriptor> {
@@ -44,4 +45,58 @@ pub fn threads(sessions: Vec<SessionSummary>) -> Vec<ThreadSummary> {
             attention: 0,
         })
         .collect()
+}
+
+/// Translate the core's wire envelopes into render envelopes.
+///
+/// The two `EventEnvelope` types are genuinely different: the core carries a
+/// raw `serde_json::Value` payload plus session/cycle routing, while the render
+/// layer wants a decoded [`TuiEvent`] and nothing else. `TuiEvent` accepts any
+/// `{kind, ...}` object and keeps unrecognized kinds as
+/// [`TuiEvent::Unknown`], so a newer backend never drops rows on an older host.
+///
+/// # Envelopes without a `seq` are dropped, deliberately
+///
+/// The render layer keys ordering and de-duplication off `seq`. The core's is
+/// `Option<u64>`, and mapping `None` to `0` would make every such event look
+/// like the oldest in the stream — it would sort to the top and defeat the
+/// replay cursor, so a reconnect would re-show it forever. Dropping is the
+/// lesser failure and it is logged; a well-behaved backend always sends one on
+/// a cursor replay.
+pub fn events(envelopes: Vec<CoreEnvelope>) -> Vec<EventEnvelope> {
+    let mut out = Vec::with_capacity(envelopes.len());
+    for env in envelopes {
+        let Some(seq) = env.seq else {
+            tracing::debug!(
+                "[openhuman_runtime] dropping event with no seq (session={} cycle={:?})",
+                env.session_id,
+                env.cycle_id
+            );
+            continue;
+        };
+        // Infallible in practice: TuiEvent's deserializer falls back to
+        // `Unknown` for any object it does not recognize. A failure here means
+        // the payload was not an object at all.
+        let event: TuiEvent = match serde_json::from_value(env.event) {
+            Ok(event) => event,
+            Err(err) => {
+                tracing::debug!("[openhuman_runtime] undecodable event at seq {seq}: {err}");
+                continue;
+            }
+        };
+        out.push(EventEnvelope {
+            seq,
+            at: env.at as i64,
+            event,
+        });
+    }
+    out
+}
+
+/// The highest `seq` in a batch, for advancing the replay cursor.
+///
+/// `None` for an empty batch, which the caller reads as "cursor unchanged"
+/// rather than "reset to the start".
+pub fn max_seq(events: &[EventEnvelope]) -> Option<u64> {
+    events.iter().map(|e| e.seq).max()
 }

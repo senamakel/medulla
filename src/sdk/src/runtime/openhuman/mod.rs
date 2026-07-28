@@ -40,7 +40,13 @@ use futures::future::BoxFuture;
 use openhuman_core::embed::{Core, CoreError};
 use tokio::sync::broadcast;
 
-use super::types::{ContextItem, RuntimeSnapshot};
+use super::types::{ContextItem, RuntimeSnapshot, StreamState};
+
+/// Poll delay while a turn is actively producing events.
+const POLL_ACTIVE: std::time::Duration = std::time::Duration::from_millis(120);
+
+/// Ceiling the poll delay backs off to once a session goes quiet.
+const POLL_IDLE: std::time::Duration = std::time::Duration::from_millis(1_000);
 use super::Runtime;
 use crate::ui::chat_store::MainChatSummary;
 
@@ -69,6 +75,11 @@ pub struct OpenHumanRuntime {
     /// not create a durable session on the backend for a host that only ever
     /// reads, and a failed boot should leave no trace behind.
     session: SessionSlot,
+    /// Replay cursor: the highest event `seq` already folded in.
+    ///
+    /// Shared so the poll loop can advance it from its own task. Starts at
+    /// `None`, which the backend reads as "replay from the beginning".
+    cursor: Arc<tokio::sync::Mutex<Option<i64>>>,
 }
 
 /// Shared handle to the active session id.
@@ -88,6 +99,7 @@ impl OpenHumanRuntime {
             core,
             cell: SnapshotCell::new(),
             session: SessionSlot::default(),
+            cursor: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
 
@@ -144,6 +156,76 @@ impl OpenHumanRuntime {
         self.cell.apply(roster, threads);
     }
 
+    /// Fetch events past the cursor and fold them into the snapshot.
+    ///
+    /// Returns the number folded, so a caller can back off when a stream is
+    /// idle instead of polling at a fixed rate regardless of traffic.
+    ///
+    /// Best-effort like [`refresh`](Self::refresh): a rejected fetch leaves the
+    /// snapshot and the cursor untouched rather than blanking the transcript or
+    /// replaying it from the start.
+    pub async fn poll_events(&self) -> usize {
+        let Some(session) = self.session.lock().await.clone() else {
+            return 0;
+        };
+        let after = *self.cursor.lock().await;
+
+        let fetched = match self.core.medulla().list_events(&session, after).await {
+            Ok(events) => events,
+            Err(err) => {
+                tracing::debug!("[openhuman_runtime] event poll failed: {err}");
+                return 0;
+            }
+        };
+
+        let events = fold::events(fetched);
+        if events.is_empty() {
+            return 0;
+        }
+
+        // Advance the cursor BEFORE folding, so a panic mid-fold cannot leave
+        // the cursor behind and replay the same batch forever.
+        if let Some(max) = fold::max_seq(&events) {
+            *self.cursor.lock().await = Some(max as i64);
+        }
+        let count = events.len();
+        tracing::debug!("[openhuman_runtime] folded {count} events after {after:?}");
+        // `running` stays true here: a batch arriving means the turn is still
+        // producing. The settle signal comes from the session detail, not the
+        // event log, so claiming settled here would flicker the spinner off
+        // between batches.
+        self.cell.append_events(events, true);
+        count
+    }
+
+    /// Drive [`poll_events`](Self::poll_events) in the background until dropped.
+    ///
+    /// Returns immediately; the caller keeps the returned handle only if it
+    /// wants to stop the loop early. Takes `Arc<Self>` because the loop outlives
+    /// the call and the runtime is already shared with the UI.
+    ///
+    /// The cadence adapts: a batch means the turn is producing, so poll again
+    /// promptly; an empty fetch backs off toward [`POLL_IDLE`]. A fixed fast
+    /// tick would spend most of its life querying an idle session, and a fixed
+    /// slow one would make streaming replies arrive in visible steps.
+    pub fn spawn_poll_loop(self: &Arc<Self>) -> tokio::task::JoinHandle<()> {
+        let rt = Arc::clone(self);
+        tokio::spawn(async move {
+            let mut delay = POLL_IDLE;
+            loop {
+                tokio::time::sleep(delay).await;
+                delay = if rt.poll_events().await > 0 {
+                    POLL_ACTIVE
+                } else {
+                    // Ease back rather than snapping to idle: a turn often has
+                    // gaps between batches, and snapping would add the full
+                    // idle delay to the very next token.
+                    (delay * 2).min(POLL_IDLE)
+                };
+            }
+        })
+    }
+
     /// The facade, for callers needing something the trait does not model.
     pub fn core(&self) -> &Arc<Core> {
         &self.core
@@ -173,6 +255,13 @@ impl Runtime for OpenHumanRuntime {
             core.medulla().send_message(&id, &input, false).await?;
             Ok(())
         })
+    }
+
+    fn stream_state(&self) -> Option<StreamState> {
+        // Polled replay rather than a live stream, so "Live" would overstate
+        // it. Reporting the honest state keeps the header from claiming a
+        // push connection this runtime does not hold.
+        Some(StreamState::Resyncing)
     }
 
     fn abort(&self) {

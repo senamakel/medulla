@@ -164,7 +164,12 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 // First fetch before the UI paints, so the initial frame shows
                 // real state rather than an empty one that fills in a beat later.
                 rt.refresh().await;
-                runtime = Some(Arc::new(rt));
+                let rt = Arc::new(rt);
+                // Start replaying events before the UI paints. Without this a
+                // submitted turn is accepted and nothing ever returns to the
+                // transcript, which reads as a hang rather than a missing loop.
+                rt.spawn_poll_loop();
+                runtime = Some(rt);
             }
             Err(e) => {
                 // Boot failure is fatal rather than a downgrade. The core is
