@@ -150,11 +150,19 @@ jobs:
           key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}-embedded
           cache-on-failure: true
 
-      # openssl-sys links the system libssl, reached via native-tls <- hyper-tls
-      # <- reqwest, which an OpenHuman dependency enables. libgit2-sys vendors
-      # its own C and needs nothing beyond the toolchain's cc.
+      # Native libraries the vendored core's build scripts link against:
+      #   - libssl: openssl-sys, reached via native-tls <- hyper-tls <- reqwest,
+      #     which an OpenHuman dependency enables.
+      #   - X11 set: `rdev`, `enigo` and `arboard` are NON-optional OpenHuman
+      #     dependencies (input events, synthetic input, clipboard), so they are
+      #     in the graph on a headless build too and their build scripts fail
+      #     without these. Not needed by medulla itself.
+      #   - libgit2 needs nothing: libgit2-sys builds vendored C via cc.
       - name: Install native build dependencies
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libssl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libssl-dev libx11-dev libxi-dev libxtst-dev libxdo-dev
 
       # `openhuman-core` is default-OFF, so the other lanes never compile the
       # embedded core. Without this lane the opt-in path could break silently

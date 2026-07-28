@@ -23,10 +23,15 @@ WORKDIR /build
 #   - libssl-dev + pkg-config: openssl-sys links the SYSTEM libssl
 #     (-lssl -lcrypto), reached via native-tls <- hyper-tls <- reqwest, which an
 #     OpenHuman dependency turns on. It is NOT vendored.
+#   - X11 set: `rdev`, `enigo` and `arboard` are NON-optional OpenHuman
+#     dependencies (input events, synthetic input, clipboard), so they are in
+#     the graph even on a headless build and their build scripts fail without
+#     these. Not needed by medulla itself.
 #   - libgit2 needs nothing: libgit2-sys builds its own C (libgit2_vendored)
 #     using cc, which the rust image already provides.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends pkg-config libssl-dev \
+ && apt-get install -y --no-install-recommends \
+      pkg-config libssl-dev libx11-dev libxi-dev libxtst-dev libxdo-dev \
  && rm -rf /var/lib/apt/lists/*
 
 # The workspace's vendored path deps all live under vendor/openhuman/vendor/*
