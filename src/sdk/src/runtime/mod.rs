@@ -1,13 +1,13 @@
 //! The `Runtime` trait the UI drives, plus its snapshot contract. Concrete
-//! implementations live alongside: [`backend`] (HTTP/SSE), [`mock`] (tests and
-//! demos), and [`core`] (the unix-socket `medulla-serve` attach, unix-only). The
-//! UI depends only on the trait and its types.
+//! implementations live alongside: [`openhuman`] (the embedded core, which the
+//! product runs on) and [`mock`] (tests and demos). The UI depends only on the
+//! trait and its types.
+//!
+//! The HTTP/SSE cloud-backend runtime and the unix-socket `medulla-serve`
+//! runtime both lived here until the core was embedded; neither had a caller
+//! afterwards.
 
-pub mod backend;
 pub mod capabilities;
-/// The `medulla-serve` NDJSON socket runtime (attach-only, unix-only).
-#[cfg(unix)]
-pub mod core;
 mod event_log;
 /// The declared-capacity containment chain and agent-template catalog.
 pub mod fleet;
