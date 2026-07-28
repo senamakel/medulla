@@ -297,11 +297,6 @@ pub fn parse_tui_args(args: &[String]) -> TuiArgs {
                     out.config = Some(v.clone());
                 }
             }
-            "--core-socket" => {
-                if let Some(v) = it.next() {
-                    out.core_socket = Some(v.clone());
-                }
-            }
             "--no-alt-screen" => out.alt_screen = false,
             "--mock" => out.mock = true,
             _ => {}
@@ -310,9 +305,10 @@ pub fn parse_tui_args(args: &[String]) -> TuiArgs {
     out
 }
 
-/// Parse `medulla run [flags] <instruction...>`. `--config` / `--core-socket`
-/// take a value; every other non-flag token is part of the instruction, joined
-/// by spaces. Returns a usage error when no instruction text is supplied.
+/// Parse `medulla run [flags] <instruction...>`. `--config` takes a value;
+/// every other non-flag token is part of the instruction, joined by spaces.
+/// Returns a usage error when no instruction text is supplied, or when the
+/// retired `--core-socket` flag is passed.
 pub fn parse_run_args(args: &[String]) -> Result<RunArgs, String> {
     let mut out = RunArgs::default();
     let mut instruction: Vec<String> = Vec::new();
@@ -324,10 +320,13 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs, String> {
                     out.config = Some(v.clone());
                 }
             }
+            // Rejected rather than ignored: an unrecognized token here joins
+            // the instruction, so quietly dropping this arm would submit
+            // "--core-socket /path ..." to the agent as prompt text.
             "--core-socket" => {
-                if let Some(v) = it.next() {
-                    out.core_socket = Some(v.clone());
-                }
+                return Err(
+                    "run: --core-socket is gone; the core is embedded in this process".to_string(),
+                )
             }
             other => instruction.push(other.to_string()),
         }
@@ -405,11 +404,9 @@ Workspace flags:\n  \
 --json                  Emit JSON instead of human-readable output (list)\n  \
 --config <path>         Explicit config file (.toml or .json) holding the registry\n\n\
 Run flags:\n  \
---core-socket <path>    medulla-serve unix socket to attach (else MEDULLA_CORE_SOCKET / [core] config)\n  \
---config <path>         Explicit config file (.toml or .json) for the [core] section\n\n\
+--config <path>         Explicit config file (.toml or .json)\n\n\
 TUI flags:\n  \
 --config <path>         Explicit config file (.toml or .json); bypasses layered discovery\n  \
---core-socket <path>    Attach the core medulla-serve runtime at this socket instead of the backend\n  \
 --mock                  Run the offline demo runtime (no backend, no login)\n  \
 --no-alt-screen         Do not switch to the alternate screen\n",
         version = env!("CARGO_PKG_VERSION"),
