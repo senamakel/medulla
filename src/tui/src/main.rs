@@ -23,8 +23,17 @@ mod run;
 mod terminal;
 mod worker_loop;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+/// Build the runtime explicitly rather than via `#[tokio::main]`, which offers
+/// no way to set the worker stack size.
+///
+/// The tuning lives in [`medulla::tokio_tuning`] because the embedded OpenHuman
+/// core is a dependency of the SDK, not of this crate — so that is the only
+/// place able to source the values from it rather than restating them.
+fn main() -> anyhow::Result<()> {
+    Ok(medulla::tokio_tuning::build_runtime()?.block_on(async_main())?)
+}
+
+async fn async_main() -> anyhow::Result<()> {
     // Load a cwd `.env` into the process env before anything reads it (this is
     // how local dev opts into `MEDULLA_DEV=1`). Never overrides existing vars.
     medulla::home::load_dotenv_from_cwd();
