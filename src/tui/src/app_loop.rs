@@ -302,7 +302,8 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         }
     }
 
-    let runtime = runtime.expect("a runtime is always selected");
+    // `mut` because a relogin rebuilds it around the same core.
+    let mut runtime = runtime.expect("a runtime is always selected");
 
     // Persona-memory service (tinycortex), on by default. Wired into the app
     // itself, which reads it for the Memory tab, so memory works whichever
@@ -344,7 +345,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // backend, which the embedded core replaces; it returns with the auth
     // migration rather than being reconstructed against a core that has no
     // notion of a Medulla account.
-    let sharing = None;
+    let mut sharing = None;
     let active_config_path = args
         .config
         .as_deref()
@@ -451,9 +452,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // would contradict both the message it shows and the no-session startup path
     // they would then have to trigger by relaunching.
     let mut status = startup_status.or(tinyplace_status).or(log_note);
-    let mut sharing = sharing;
-    let mut runtime = runtime;
-    let mut account = account;
     let result = loop {
         let exit = run(
             &mut terminal,
