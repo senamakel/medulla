@@ -106,3 +106,73 @@ fn action_dir_keeps_an_explicit_override() {
     assert_eq!(bound, Some(PathBuf::from("/explicit")));
     clear();
 }
+
+// ── Medulla readiness classification ─────────────────────────────────────────
+
+#[test]
+fn a_missing_backend_url_reads_as_unconfigured() {
+    // The credential-free start: nothing to dial, so the host must reach the
+    // offline demo rather than a UI where every action returns this error.
+    let err = CoreError::Domain {
+        method: "medulla.listSessions",
+        message: "no Medulla backend configured".into(),
+        kind: Some("MedullaNoBaseUrl".into()),
+        data: None,
+        expected_user_state: true,
+    };
+    assert_eq!(
+        classify(Err(err)),
+        Readiness::Unconfigured("no Medulla backend configured".into())
+    );
+}
+
+#[test]
+fn being_signed_out_reads_as_unconfigured() {
+    let err = CoreError::Domain {
+        method: "medulla.listSessions",
+        message: "not signed in; no session token available".into(),
+        kind: Some("MedullaNoSessionToken".into()),
+        data: None,
+        expected_user_state: true,
+    };
+    assert!(matches!(classify(Err(err)), Readiness::Unconfigured(_)));
+}
+
+#[test]
+fn a_compiled_out_surface_reads_as_unconfigured() {
+    // `Unavailable` is a build fact, not a fault — degrade the surface.
+    let err = CoreError::Unavailable {
+        method: "medulla.listSessions",
+    };
+    assert!(matches!(classify(Err(err)), Readiness::Unconfigured(_)));
+}
+
+#[test]
+fn a_transient_failure_does_not_downgrade_the_runtime() {
+    // Swapping a configured operator's real runtime for a scripted demo because
+    // one call failed is worse than showing the failure.
+    let err = CoreError::Rpc {
+        method: "medulla.listSessions",
+        message: "connection reset".into(),
+    };
+    assert_eq!(classify(Err(err)), Readiness::Ready);
+}
+
+#[test]
+fn another_domain_rejection_does_not_downgrade_the_runtime() {
+    // A rejection that named some other `kind` is a real error about a real
+    // backend, not an absent one.
+    let err = CoreError::Domain {
+        method: "medulla.listSessions",
+        message: "rate limited".into(),
+        kind: Some("RateLimited".into()),
+        data: None,
+        expected_user_state: false,
+    };
+    assert_eq!(classify(Err(err)), Readiness::Ready);
+}
+
+#[test]
+fn a_successful_call_reads_as_ready() {
+    assert_eq!(classify(Ok(())), Readiness::Ready);
+}

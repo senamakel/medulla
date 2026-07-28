@@ -160,7 +160,10 @@ fn switching_threads_drops_the_previous_transcript() {
     assert_eq!(snap.active_thread_id, "thread-2");
     assert!(snap.events.is_empty(), "the old thread's trace is gone");
     assert!(snap.chat_events.is_empty(), "and its transcript with it");
-    assert!(!snap.running, "the old thread's liveness does not carry over");
+    assert!(
+        !snap.running,
+        "the old thread's liveness does not carry over"
+    );
 }
 
 // ── event translation ────────────────────────────────────────────────────────
@@ -275,7 +278,10 @@ fn a_batch_with_no_liveness_answer_leaves_the_flag_alone() {
     let cell = SnapshotCell::new();
     cell.append_events(vec![render_event(1, "assistant")], Some(false));
     cell.append_events(vec![render_event(2, "assistant")], None);
-    assert!(!cell.snapshot().running, "a straggler must not revive a turn");
+    assert!(
+        !cell.snapshot().running,
+        "a straggler must not revive a turn"
+    );
     assert_eq!(cell.snapshot().events.len(), 2, "it is still recorded");
 }
 

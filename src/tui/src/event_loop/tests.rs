@@ -178,14 +178,13 @@ impl Runtime for AcceptsWithoutSettling {
     }
     fn list_main_chats(
         &self,
-    ) -> futures::future::BoxFuture<'static, anyhow::Result<Vec<medulla::ui::chat_store::MainChatSummary>>>
-    {
+    ) -> futures::future::BoxFuture<
+        'static,
+        anyhow::Result<Vec<medulla::ui::chat_store::MainChatSummary>>,
+    > {
         self.0.list_main_chats()
     }
-    fn resume_chat(
-        &self,
-        id: String,
-    ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
+    fn resume_chat(&self, id: String) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
         self.0.resume_chat(id)
     }
     fn inspect_context(

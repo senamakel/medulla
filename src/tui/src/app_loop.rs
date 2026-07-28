@@ -120,15 +120,28 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         runtime = Some(Arc::new(MockRuntime::demo()));
         startup_status = Some("running the offline mock runtime (--mock)".to_string());
     }
-    // The embedded core, whenever it is compiled in. Deliberately unconditional:
-    // a host that ships the core has no reason to dial a remote backend, and
-    // leaving the old chain in place as a "fallback" would mean a
+    // The embedded core, whenever it is compiled in. Deliberately ahead of the
+    // old token/login chain: a host that ships the core has no reason to dial a
+    // remote backend, and keeping that chain as a general fallback would mean a
     // misconfiguration silently downgrades to a different runtime with
     // different behaviour instead of surfacing itself.
+    //
+    // The one exception is a core that booted but has no Medulla backend to
+    // talk to — no configured URL, or nobody signed in. That is not a
+    // misconfiguration to surface, it is the documented credential-free start,
+    // and every drive method would otherwise return the same error behind a UI
+    // that looks live. It takes the offline demo, exactly as `--mock` does.
     #[cfg(feature = "openhuman-core")]
     if runtime.is_none() {
         match medulla::core_host::boot().await {
-            Ok(core) => {
+            Ok(core) => 'core: {
+                if let medulla::core_host::Readiness::Unconfigured(why) =
+                    medulla::core_host::probe_medulla(&core).await
+                {
+                    runtime = Some(Arc::new(MockRuntime::demo()));
+                    startup_status = Some(format!("{why} — running the offline mock runtime"));
+                    break 'core;
+                }
                 let rt = medulla::runtime::openhuman::OpenHumanRuntime::new(Arc::new(core));
                 // First fetch before the UI paints, so the initial frame shows
                 // real state rather than an empty one that fills in a beat later.
