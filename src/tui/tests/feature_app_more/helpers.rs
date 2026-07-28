@@ -44,6 +44,10 @@ pub struct FleetRuntime {
 }
 
 impl medulla::runtime::Runtime for FleetRuntime {
+    fn describe(&self) -> String {
+        "FleetRuntime (test)".into()
+    }
+
     fn snapshot(&self) -> medulla::runtime::RuntimeSnapshot {
         self.inner.snapshot()
     }

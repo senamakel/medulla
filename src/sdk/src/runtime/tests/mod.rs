@@ -226,6 +226,10 @@ fn worker_op_is_debug_clone() {
 // default rather than an implementation.
 
 impl Runtime for BareRuntime {
+    fn describe(&self) -> String {
+        "bare".into()
+    }
+
     fn snapshot(&self) -> RuntimeSnapshot {
         RuntimeSnapshot::default()
     }
@@ -269,7 +273,13 @@ fn steering_and_fleet_defaults_are_inert() {
         None,
         "no lossy stream to report by default"
     );
-    assert!(!runtime.describe().is_empty(), "describe has a default");
+    // `describe` is required, not defaulted: an impl that says nothing cannot
+    // compile, so it can never inherit another runtime's identity.
+    assert_eq!(
+        runtime.describe(),
+        "bare",
+        "describe reports this impl, not a shared default"
+    );
 }
 
 #[tokio::test]

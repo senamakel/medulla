@@ -84,9 +84,12 @@ impl StreamState {
 /// async where it may touch the backend.
 pub trait Runtime: Send + Sync {
     /// Human-readable description of what backs this runtime, for the Overview.
-    fn describe(&self) -> String {
-        "mock (scripted)".into()
-    }
+    ///
+    /// Required rather than defaulted: the default was `"mock (scripted)"`, so
+    /// an impl that forgot to override it told the operator their real runtime
+    /// was a scripted demo. A wrong answer here is worse than no answer, and the
+    /// compiler can insist on one.
+    fn describe(&self) -> String;
     /// Account-level usage from the backend, when this runtime has one.
     /// `Ok(None)` = not supported by this runtime.
     fn team_usage(&self) -> BoxFuture<'static, anyhow::Result<Option<serde_json::Value>>> {
@@ -187,9 +190,11 @@ pub trait Runtime: Send + Sync {
         None
     }
 
-    // --- persona memory (additive; core runtime with an attached service) --------
-    // Default: no memory surface. The core runtime overrides these from its
-    // attached `MemoryService`; the mock runtime serves scripted values.
+    // --- persona memory (additive) -----------------------------------------
+    // Default: no memory surface. Only the mock overrides these today; the
+    // embedded-core runtime reaches memory through the `MemoryService` wired
+    // into `App` directly, not through this trait. These move onto the typed
+    // facade when the memory surface migrates.
 
     /// The persona-memory health snapshot, when a memory service is attached.
     /// `None` when memory is disabled / not wired.

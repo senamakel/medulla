@@ -20,6 +20,10 @@ use super::types::{gen_id, now_millis, MockRuntime, Thread};
 use crate::runtime::event_log::ThreadEventLog;
 
 impl Runtime for MockRuntime {
+    fn describe(&self) -> String {
+        "mock (scripted)".into()
+    }
+
     fn snapshot(&self) -> RuntimeSnapshot {
         let s = self.state.lock().unwrap();
         let threads = Self::thread_summaries(&s);
