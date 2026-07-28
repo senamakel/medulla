@@ -11,7 +11,7 @@ name = "medulla"
 path = "src/lib.rs"
 
 [features]
-default = ["workflows"]
+default = ["workflows", "openhuman-core"]
 # The workflow engine and everything built on it. Kept behind a feature so a
 # slim build can drop the engine and its jq expression stack; on by default
 # because the shipped TUI exposes workflows.
