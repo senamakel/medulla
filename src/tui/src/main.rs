@@ -30,7 +30,7 @@ mod worker_loop;
 /// core is a dependency of the SDK, not of this crate — so that is the only
 /// place able to source the values from it rather than restating them.
 fn main() -> anyhow::Result<()> {
-    Ok(medulla::tokio_tuning::build_runtime()?.block_on(async_main())?)
+    medulla::tokio_tuning::build_runtime()?.block_on(async_main())
 }
 
 async fn async_main() -> anyhow::Result<()> {
