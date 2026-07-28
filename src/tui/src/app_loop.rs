@@ -2,8 +2,9 @@
 //! pre-app login screen, and background-service wiring before handing off to the
 //! [`crate::event_loop::run`] loop.
 //!
-//! [`run_tui`] implements the runtime-selection order (backend token → login
-//! screen → mock), installs the panic-safe terminal guard, starts
+//! [`run_tui`] selects a runtime — the embedded OpenHuman core when compiled
+//! in, otherwise the pre-cutover backend-token → login-screen → mock chain —
+//! installs the panic-safe terminal guard, starts
 //! the optional tiny.place presence service, runs the event loop, and tears
 //! everything down on exit.
 
@@ -66,7 +67,15 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     #[cfg(feature = "openhuman-core")]
     medulla::core_host::bind_workspace(&env, &home);
 
-    // Runtime selection order (spec §5):
+    // Runtime selection.
+    //
+    // Built with `openhuman-core`, the embedded core is THE runtime: there is
+    // no token lookup, no login screen, and no mock fallback, because there is
+    // nothing to fall back from — the core runs in this process. `--mock` is
+    // still honoured ahead of it, since that is an explicit operator request
+    // for the offline demo rather than a fallback.
+    //
+    // Without the feature, the pre-cutover chain applies:
     //   1. a backend token (inline or via `backend.tokenEnv`) → BackendRuntime
     //   2. otherwise                                          → login screen → mock
     let mut runtime: Option<Arc<dyn Runtime>> = None;
@@ -142,6 +151,34 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         runtime = Some(Arc::new(MockRuntime::demo()));
         startup_status = Some("running the offline mock runtime (--mock)".to_string());
     }
+    // The embedded core, whenever it is compiled in. Deliberately unconditional:
+    // a host that ships the core has no reason to dial a remote backend, and
+    // leaving the old chain in place as a "fallback" would mean a
+    // misconfiguration silently downgrades to a different runtime with
+    // different behaviour instead of surfacing itself.
+    #[cfg(feature = "openhuman-core")]
+    if runtime.is_none() {
+        match medulla::core_host::boot().await {
+            Ok(core) => {
+                let rt = medulla::runtime::openhuman::OpenHumanRuntime::new(Arc::new(core));
+                // First fetch before the UI paints, so the initial frame shows
+                // real state rather than an empty one that fills in a beat later.
+                rt.refresh().await;
+                runtime = Some(Arc::new(rt));
+            }
+            Err(e) => {
+                // Boot failure is fatal rather than a downgrade. The core is
+                // in-process, so a failure here means a broken workspace or
+                // config — conditions the operator must see and fix, not have
+                // papered over by a mock that then behaves differently.
+                //
+                // No terminal teardown needed: this runs before `TermGuard`
+                // takes over the screen, so the error reaches a normal stdout.
+                anyhow::bail!("failed to start the embedded OpenHuman core: {e}");
+            }
+        }
+    }
+
     // Core (`medulla-serve`) runtime: selected only when explicitly requested via
     // `--core-socket`, `MEDULLA_CORE_SOCKET`, or a `[core]` config section — the
     // backend stays the default. Unix-only, so this is gated; on other platforms
