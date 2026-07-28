@@ -34,6 +34,7 @@
 //! silent no-op reads as a hung backend and sends someone debugging the
 //! network; an explicit error names the layer that is actually missing.
 
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
@@ -41,6 +42,13 @@ use openhuman_core::embed::{Core, CoreError};
 use tokio::sync::broadcast;
 
 use super::types::{ContextItem, RuntimeSnapshot, StreamState};
+
+/// Consecutive poll failures tolerated before the header reports `Stalled`.
+///
+/// At [`POLL_IDLE`] the delay has backed off to one second, so this is roughly
+/// five seconds of silence — long enough to ride out a restart, short enough
+/// that an operator is not left reading a stale screen.
+const STALLED_AFTER: usize = 5;
 
 /// Poll delay while a turn is actively producing events.
 const POLL_ACTIVE: std::time::Duration = std::time::Duration::from_millis(120);
@@ -80,6 +88,11 @@ pub struct OpenHumanRuntime {
     /// Shared so the poll loop can advance it from its own task. Starts at
     /// `None`, which the backend reads as "replay from the beginning".
     cursor: Arc<tokio::sync::Mutex<Option<i64>>>,
+    /// Consecutive failed polls, for [`stream_state`](Runtime::stream_state).
+    ///
+    /// An `AtomicUsize` rather than a lock: it is written from the poll task and
+    /// read from the render path, which must never block on the poller.
+    poll_failures: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 /// Shared handle to the active session id.
@@ -100,6 +113,7 @@ impl OpenHumanRuntime {
             cell: SnapshotCell::new(),
             session: SessionSlot::default(),
             cursor: Arc::new(tokio::sync::Mutex::new(None)),
+            poll_failures: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
     }
 
@@ -173,10 +187,15 @@ impl OpenHumanRuntime {
         let fetched = match self.core.medulla().list_events(&session, after).await {
             Ok(events) => events,
             Err(err) => {
-                tracing::debug!("[openhuman_runtime] event poll failed: {err}");
+                // Count it rather than only logging. A backend that is
+                // unreachable otherwise leaves the transcript inert forever
+                // with no signal beyond a debug line nobody is watching.
+                let n = self.poll_failures.fetch_add(1, Ordering::Relaxed) + 1;
+                tracing::debug!("[openhuman_runtime] event poll failed ({n}): {err}");
                 return 0;
             }
         };
+        self.poll_failures.store(0, Ordering::Relaxed);
 
         let events = fold::events(fetched);
         if events.is_empty() {
@@ -258,10 +277,16 @@ impl Runtime for OpenHumanRuntime {
     }
 
     fn stream_state(&self) -> Option<StreamState> {
-        // Polled replay rather than a live stream, so "Live" would overstate
-        // it. Reporting the honest state keeps the header from claiming a
-        // push connection this runtime does not hold.
-        Some(StreamState::Resyncing)
+        // Derived from real poll health, not hardcoded. `Live` is honest here
+        // even though this polls rather than streams: the glyph answers "is
+        // state arriving?", and a succeeding poll means it is.
+        //
+        // The threshold is >1 rather than >0 so a single blip — a restart, a
+        // dropped connection — does not flap the header on and off.
+        Some(fold::stream_state(
+            self.poll_failures.load(Ordering::Relaxed),
+            STALLED_AFTER,
+        ))
     }
 
     fn abort(&self) {

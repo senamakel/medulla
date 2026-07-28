@@ -5,6 +5,7 @@
 //! integration test: the core uses process globals (a `OnceLock` context, a
 //! singleton event bus), so it cannot be stood up and torn down per test.
 
+use crate::runtime::types::StreamState;
 use openhuman_core::embed::{RosterWorker, SessionSummary};
 
 use super::cell::SnapshotCell;
@@ -259,4 +260,25 @@ async fn appending_events_notifies_subscribers() {
     let mut rx = cell.subscribe();
     cell.append_events(vec![render_event(1, "assistant")], true);
     assert!(rx.recv().await.is_ok());
+}
+
+// ── stream health ────────────────────────────────────────────────────────────
+
+#[test]
+fn a_succeeding_poll_reads_as_live() {
+    assert_eq!(fold::stream_state(0, 5), StreamState::Live);
+}
+
+#[test]
+fn a_single_blip_resyncs_rather_than_stalling() {
+    // One failed poll is a restart or a dropped connection, not an outage;
+    // flipping straight to `Stalled` would flap the header on every hiccup.
+    assert_eq!(fold::stream_state(1, 5), StreamState::Resyncing);
+    assert_eq!(fold::stream_state(5, 5), StreamState::Resyncing);
+}
+
+#[test]
+fn sustained_failure_reports_stalled() {
+    // Past the threshold the screen is stale and must say so.
+    assert_eq!(fold::stream_state(6, 5), StreamState::Stalled);
 }

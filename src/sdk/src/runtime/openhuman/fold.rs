@@ -8,7 +8,7 @@
 
 use openhuman_core::embed::{EventEnvelope as CoreEnvelope, RosterWorker, SessionSummary};
 
-use crate::runtime::types::{AgentDescriptor, ThreadSummary};
+use crate::runtime::types::{AgentDescriptor, StreamState, ThreadSummary};
 use crate::ui::events::{EventEnvelope, TuiEvent};
 
 /// Fold the core's worker roster into render descriptors.
@@ -99,4 +99,16 @@ pub fn events(envelopes: Vec<CoreEnvelope>) -> Vec<EventEnvelope> {
 /// rather than "reset to the start".
 pub fn max_seq(events: &[EventEnvelope]) -> Option<u64> {
     events.iter().map(|e| e.seq).max()
+}
+
+/// Map consecutive poll failures onto the header's stream indicator.
+///
+/// Pure and free-standing so the thresholds are testable without a core; the
+/// runtime holds only the counter.
+pub fn stream_state(failures: usize, stalled_after: usize) -> StreamState {
+    match failures {
+        0 => StreamState::Live,
+        n if n <= stalled_after => StreamState::Resyncing,
+        _ => StreamState::Stalled,
+    }
 }
