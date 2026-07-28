@@ -76,8 +76,6 @@ fn app_on(subpage: &str) -> App {
 fn arrows_scroll_the_content_of_every_scrollable_subpage() {
     // Entering a page must hand `↑↓` to that page: the selection moves and the
     // subpage itself stays put. This is the whole point of the focus model.
-    // Feedback's own arrow behaviour is covered in `feature_feedback_tab.rs`,
-    // where a board is already seeded.
     for subpage in ["Appearance", "Config", "Trace", "Context"] {
         let mut app = app_on(subpage);
         assert!(app.settings_focused(), "{subpage} opens focused");
@@ -183,7 +181,6 @@ fn keys_a_subpage_does_not_bind_fall_through_to_the_global_bindings() {
         "Usage",
         "Appearance",
         "Config",
-        "Feedback",
         "Trace",
         "Context",
         "Account",

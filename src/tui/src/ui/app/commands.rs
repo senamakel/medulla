@@ -371,7 +371,7 @@ impl App {
     }
 
     /// Land on the Settings tab at subpage `index`, returning its lazy-load
-    /// command (Usage, Context, and Feedback each fetch on entry).
+    /// command (Usage and Context each fetch on entry).
     pub(super) fn set_settings_subpage(&mut self, index: usize) -> Option<Cmd> {
         self.tab_index = tab_pos("Settings");
         self.settings_index = index.min(SETTINGS_SUBPAGES.len() - 1);

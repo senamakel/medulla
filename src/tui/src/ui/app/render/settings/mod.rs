@@ -1,7 +1,7 @@
 //! The Settings tab: the grouped left-nav plus every subpage it selects.
 //!
 //! Settings is where the secondary surfaces live. Alongside the settings proper
-//! (Usage, Appearance, Config) it hosts Feedback, the two diagnostic views
+//! (Usage, Appearance, Config) it hosts the two diagnostic views
 //! (Trace, Context), and Account — all of which used to be top-level tabs. The
 //! nav groups them so the diagnostic pages read as diagnostics rather than as
 //! peers of the everyday settings.

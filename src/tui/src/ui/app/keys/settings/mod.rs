@@ -7,7 +7,7 @@
 //!
 //! An earlier design split by key rather than by mode — `↑↓` always drove the
 //! nav, `j/k` and the subpage's letters drove the content. It avoided a focus
-//! toggle, but it did not survive Feedback: that page binds nine single letters
+//! toggle, but it did not survive the letter-bound pages: they bind single letters
 //! as actions, so the keys you would reach for to get around instead voted,
 //! commented, or opened a submission, and the arrow keys jumped you off the page
 //! entirely. Making entry explicit is what makes those letters deliberate.
