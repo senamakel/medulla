@@ -14,6 +14,8 @@ pub(super) enum AppMsg {
     OpenResume(Vec<medulla::ui::chat_store::MainChatSummary>),
     /// Confirmation that a chat was resumed.
     Resumed(String),
+    /// The session was cleared; quit back to the login screen.
+    LoggedOut,
     /// Memory overview data loaded off the UI thread.
     MemoryLoaded {
         /// Current memory status, when a service is attached.
@@ -32,19 +34,6 @@ pub(super) enum AppMsg {
     },
     /// A newer release was detected by the background update checker.
     UpdateAvailable(String),
-    /// A page of the feedback board. `None` = this runtime has no board.
-    FeedbackLoaded(Option<medulla::client::FeedbackPage>),
-    /// Comments for one board item.
-    FeedbackComments {
-        /// The item the comments belong to.
-        id: String,
-        /// The item's comments, oldest first.
-        comments: Vec<medulla::client::FeedbackComment>,
-    },
-    /// A board item the server re-tallied after a vote.
-    FeedbackItemUpdated(medulla::client::FeedbackItem),
-    /// A feedback action finished; reload the board and report `status`.
-    FeedbackChanged(String),
     /// A memory ingest finished; clear the in-flight flag and report the outcome.
     MemoryIngestDone(String),
     /// Current local task document.
@@ -110,8 +99,13 @@ pub(crate) struct SessionWiring {
         Option<Arc<std::sync::Mutex<medulla::tinyplace::service::TinyplaceObservation>>>,
     /// Where appearance/config edits are persisted.
     pub config_path: std::path::PathBuf,
-    /// The Medulla home, used to locate the credential store.
+    /// The Medulla home: where local task/appearance state is kept.
     pub medulla_home: std::path::PathBuf,
+    /// The account the embedded core is signed in as, when it is.
+    ///
+    /// Resolved once at startup rather than polled: the session cannot change
+    /// under a running app — logging out quits it.
+    pub account: Option<medulla::core_host::auth::AuthState>,
     /// The persona-memory service backing the Memory tab.
     pub memory_service: Option<Arc<medulla::memory::MemoryService>>,
     /// Live events from a history share the welcome flow left running.

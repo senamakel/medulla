@@ -15,7 +15,6 @@ mod account;
 mod commands;
 mod credentials;
 mod decisions;
-mod feedback;
 mod input;
 mod keys;
 mod memory;

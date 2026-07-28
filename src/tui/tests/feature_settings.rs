@@ -2,7 +2,7 @@
 //! arrow navigation, that every subpage renders, the Appearance theme editor
 //! (live-applies + persists), and the unified themed selection highlight.
 //!
-//! Settings also hosts what used to be the Trace, Context, and Feedback tabs,
+//! Settings also hosts what used to be the Trace and Context tabs,
 //! so the tab bar's shrinking is asserted here too.
 
 use std::sync::Arc;
@@ -57,7 +57,6 @@ fn settings_tab_renders_nav_and_default_usage_subpage() {
         "Usage",
         "Appearance",
         "Config",
-        "Feedback",
         "Trace",
         "Context",
         "Account",
@@ -77,7 +76,8 @@ fn number_keys_jump_subpages() {
     assert_eq!(app.settings_subpage(), "Appearance");
     let _ = key(&mut app, KeyCode::Char('3'));
     assert_eq!(app.settings_subpage(), "Config");
-    let _ = key(&mut app, KeyCode::Char('8'));
+    // Help is the last subpage; the nav lost Feedback, so it is now 7 not 8.
+    let _ = key(&mut app, KeyCode::Char('7'));
     assert_eq!(app.settings_subpage(), "Help");
     let out = text_of(&draw(&mut app, 140, 40));
     assert!(out.contains("Commands"), "help subpage: {out}");
@@ -165,7 +165,7 @@ fn selection_rows_use_theme_primary_background() {
 
 #[test]
 fn each_settings_subpage_renders_its_signature() {
-    // Trace and Context moved under Settings > DEBUG; Feedback under GENERAL.
+    // Trace and Context moved under Settings > DEBUG.
     let signatures = [
         ("Usage", "This session"),
         ("Appearance", "Appearance"),
@@ -253,8 +253,8 @@ fn the_settings_nav_groups_its_subpages() {
 }
 
 #[test]
-fn trace_context_and_feedback_are_no_longer_top_level_tabs() {
-    for gone in ["Trace", "Context", "Feedback"] {
+fn trace_and_context_are_no_longer_top_level_tabs() {
+    for gone in ["Trace", "Context"] {
         assert!(
             !TABS.contains(&gone),
             "{gone} should live under Settings, not the tab bar"

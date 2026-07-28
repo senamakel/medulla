@@ -1,19 +1,21 @@
 //! The `Runtime` trait the UI drives, plus its snapshot contract. Concrete
-//! implementations live alongside: [`backend`] (HTTP/SSE), [`mock`] (tests and
-//! demos), and [`core`] (the unix-socket `medulla-serve` attach, unix-only). The
-//! UI depends only on the trait and its types.
+//! implementations live alongside: [`openhuman`] (the embedded core, which the
+//! product runs on) and [`mock`] (tests and demos). The UI depends only on the
+//! trait and its types.
+//!
+//! The HTTP/SSE cloud-backend runtime and the unix-socket `medulla-serve`
+//! runtime both lived here until the core was embedded; neither had a caller
+//! afterwards.
 
-pub mod backend;
 pub mod capabilities;
-/// The `medulla-serve` NDJSON socket runtime (attach-only, unix-only).
-#[cfg(unix)]
-pub mod core;
 mod event_log;
 /// The declared-capacity containment chain and agent-template catalog.
 pub mod fleet;
 /// The non-interactive one-instruction driver for scripting / e2e automation.
 pub mod headless;
 pub mod mock;
+#[cfg(feature = "openhuman-core")]
+pub mod openhuman;
 
 use std::collections::HashMap;
 
@@ -22,10 +24,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tokio::sync::broadcast;
 
-use crate::client::{
-    FeedbackComment, FeedbackDetail, FeedbackItem, FeedbackPage, FeedbackQuery, FeedbackSubmission,
-    FeedbackType,
-};
 use crate::ui::chat_store::{ChatMessage, MainChatSummary};
 use crate::ui::events::{EventEnvelope, TaskDigest};
 
@@ -82,9 +80,12 @@ impl StreamState {
 /// async where it may touch the backend.
 pub trait Runtime: Send + Sync {
     /// Human-readable description of what backs this runtime, for the Overview.
-    fn describe(&self) -> String {
-        "mock (scripted)".into()
-    }
+    ///
+    /// Required rather than defaulted: the default was `"mock (scripted)"`, so
+    /// an impl that forgot to override it told the operator their real runtime
+    /// was a scripted demo. A wrong answer here is worse than no answer, and the
+    /// compiler can insist on one.
+    fn describe(&self) -> String;
     /// Account-level usage from the backend, when this runtime has one.
     /// `Ok(None)` = not supported by this runtime.
     fn team_usage(&self) -> BoxFuture<'static, anyhow::Result<Option<serde_json::Value>>> {
@@ -94,6 +95,16 @@ pub trait Runtime: Send + Sync {
     /// A change notification channel — a ping fires after every event/mutation.
     fn subscribe(&self) -> broadcast::Receiver<()>;
     fn submit(&self, input: String) -> BoxFuture<'static, anyhow::Result<()>>;
+    /// Whether a resolved [`submit`](Runtime::submit) means the cycle finished.
+    ///
+    /// True for every wire that answers only once the turn is done, which is
+    /// what lets a caller report completion the moment the future resolves.
+    /// A runtime whose submit returns on *acceptance* — the reply arriving
+    /// later over the event stream — answers false, so the UI says the work was
+    /// accepted instead of claiming a completion that has not happened yet.
+    fn submit_settles_cycle(&self) -> bool {
+        true
+    }
     /// Like [`submit`](Runtime::submit), but returns the wire's correlation
     /// receipt when it carries one, so a caller waiting on the submitted
     /// cycle's end (the headless driver) can ignore other cycles' ends. The
@@ -107,6 +118,18 @@ pub trait Runtime: Send + Sync {
         Box::pin(async move { fut.await.map(|_| None) })
     }
     fn abort(&self);
+    /// Forget this host's stored session, so the next start asks for a sign-in.
+    ///
+    /// The default reports that there is nothing to log out of, which is the
+    /// honest answer for a runtime that holds no credential of its own (the
+    /// mock, a socket attachment). Only a runtime backed by a credential store
+    /// overrides it — and it is the runtime's job rather than the UI's precisely
+    /// because the UI has no way to know where the session lives.
+    fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
+        Box::pin(std::future::ready(Err(anyhow::anyhow!(
+            "this runtime holds no session to log out of"
+        ))))
+    }
     fn new_session(&self);
     fn set_active_thread(&self, id: String);
     fn list_main_chats(&self) -> BoxFuture<'static, anyhow::Result<Vec<MainChatSummary>>>;
@@ -122,6 +145,18 @@ pub trait Runtime: Send + Sync {
     /// Answer a pending `task_attention` question (`question.answer`). Fire-and-forget,
     /// like [`abort`](Runtime::abort).
     fn answer_question(&self, _cycle_id: String, _question_id: String, _body: String) {}
+
+    /// Whether [`answer_question`](Runtime::answer_question) and
+    /// [`cancel_task`](Runtime::cancel_task) actually reach the backend.
+    ///
+    /// Both are fire-and-forget and cannot report failure, so a runtime that
+    /// inherits their no-op defaults would have the UI announce "Answer sent"
+    /// over a question that stays blocked forever. This is what a surface checks
+    /// before claiming either happened. Defaults to `true` — the wires that
+    /// model steering are the ones that carried this trait first.
+    fn steering_reaches_backend(&self) -> bool {
+        true
+    }
 
     /// Cancel a running task lane (`task.cancel`). Fire-and-forget.
     fn cancel_task(&self, _cycle_id: String, _task_id: String) {}
@@ -185,9 +220,11 @@ pub trait Runtime: Send + Sync {
         None
     }
 
-    // --- persona memory (additive; core runtime with an attached service) --------
-    // Default: no memory surface. The core runtime overrides these from its
-    // attached `MemoryService`; the mock runtime serves scripted values.
+    // --- persona memory (additive) -----------------------------------------
+    // Default: no memory surface. Only the mock overrides these today; the
+    // embedded-core runtime reaches memory through the `MemoryService` wired
+    // into `App` directly, not through this trait. These move onto the typed
+    // facade when the memory surface migrates.
 
     /// The persona-memory health snapshot, when a memory service is attached.
     /// `None` when memory is disabled / not wired.
@@ -210,61 +247,6 @@ pub trait Runtime: Send + Sync {
     fn memory_directives(&self) -> Vec<String> {
         Vec::new()
     }
-
-    // --- feedback board (additive; backend runtime only) -------------------
-    // The board lives on the cloud backend, so only `BackendRuntime` overrides
-    // these. `list_feedback` returning `Ok(None)` means "this runtime has no
-    // board", which the UI renders as a sign-in hint rather than an empty list;
-    // the mutating calls fail loudly for the same case.
-
-    /// A page of the public feedback board. `Ok(None)` = this runtime has no
-    /// backend to serve one.
-    fn list_feedback(
-        &self,
-        _query: FeedbackQuery,
-    ) -> BoxFuture<'static, anyhow::Result<Option<FeedbackPage>>> {
-        Box::pin(std::future::ready(Ok(None)))
-    }
-
-    /// One board item with its comments.
-    fn feedback_detail(&self, _id: String) -> BoxFuture<'static, anyhow::Result<FeedbackDetail>> {
-        Box::pin(std::future::ready(Err(no_feedback_backend())))
-    }
-
-    /// Cast, change, or retract a vote (`1`, `-1`, `0`). Returns the item with
-    /// recomputed tallies.
-    fn vote_feedback(
-        &self,
-        _id: String,
-        _value: i8,
-    ) -> BoxFuture<'static, anyhow::Result<FeedbackItem>> {
-        Box::pin(std::future::ready(Err(no_feedback_backend())))
-    }
-
-    /// Post a comment on a board item.
-    fn comment_feedback(
-        &self,
-        _id: String,
-        _body: String,
-    ) -> BoxFuture<'static, anyhow::Result<FeedbackComment>> {
-        Box::pin(std::future::ready(Err(no_feedback_backend())))
-    }
-
-    /// Submit new feedback. A moderation rejection is a successful call with
-    /// [`FeedbackSubmission::accepted`] false — not an error.
-    fn submit_feedback(
-        &self,
-        _kind: FeedbackType,
-        _title: String,
-        _body: String,
-    ) -> BoxFuture<'static, anyhow::Result<FeedbackSubmission>> {
-        Box::pin(std::future::ready(Err(no_feedback_backend())))
-    }
-}
-
-/// The error every feedback mutation returns on a runtime with no backend.
-fn no_feedback_backend() -> anyhow::Error {
-    anyhow::anyhow!("the feedback board requires a signed-in backend connection")
 }
 
 #[cfg(test)]

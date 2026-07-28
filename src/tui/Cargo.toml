@@ -15,11 +15,14 @@ name = "medulla"
 path = "src/main.rs"
 
 [features]
-default = ["workflows"]
+default = ["workflows", "openhuman-core"]
 # Mirrors the SDK's feature so the app's workflow page and command compile in
 # and out with the engine behind them. Without this the `cfg` blocks here would
 # silently evaluate false, since a crate only sees its *own* features.
 workflows = ["medulla/workflows"]
+# Forwarded so the app crate can turn the embedded core on; a crate only sees
+# its own features, so without this the gate would be unreachable from here.
+openhuman-core = ["medulla/openhuman-core"]
 
 [dependencies]
 medulla = { workspace = true, default-features = false }

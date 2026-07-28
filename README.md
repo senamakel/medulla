@@ -23,7 +23,7 @@ medulla login   # browser OAuth; stores a verified JWT
 medulla         # bare invocation starts the TUI
 ```
 
-With no credentials, `medulla` opens a login screen. Press `m` there to explore offline against the mock runtime. See [For developers](#for-developers) to build from source or embed the SDK.
+With no session, `medulla` opens a login screen — signing in is how you get in. `medulla --mock` runs the offline demo runtime instead. See [For developers](#for-developers) to build from source or embed the SDK.
 
 To offer this machine as a worker, run:
 

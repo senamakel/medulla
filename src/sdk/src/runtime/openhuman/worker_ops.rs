@@ -1,4 +1,10 @@
-//! Adapting hub workers and worker mutations to the backend runtime surface.
+//! Adapting hub workers and worker mutations to the embedded runtime surface.
+//!
+//! Restored verbatim from the deleted backend runtime. The mapping is a
+//! property of the hub's roster shape and the UI's `WorkerInfo`, not of whoever
+//! is asking: when the backend runtime went away it took the only implementation
+//! with it, which is how the Workers tab ended up empty and its mutations
+//! silently successful on the embedded path.
 
 use anyhow::anyhow;
 

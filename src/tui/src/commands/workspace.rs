@@ -67,11 +67,13 @@ async fn add(
 ) -> anyhow::Result<()> {
     // The same backend/model settings memory ingest uses, so one login (or one
     // OPENROUTER_API_KEY) serves both surfaces.
+    let session = super::session_credentials(env, &loaded.config.backend.base_url).await;
     let settings = medulla::memory::env::resolve_with_backend(
         loaded.config.memory.as_ref(),
         &loaded.config.backend,
         env,
         &medulla::home::medulla_home(env),
+        session.as_ref().map(|c| c.jwt.as_str()),
     );
     if !parsed.offline && !medulla::init::model_available(&settings) {
         eprintln!(

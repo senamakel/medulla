@@ -12,7 +12,7 @@ Everything Medulla persists lives under one home directory:
 
 Under the home:
 
-* `credentials.json` — saved by [`medulla login`](authentication.md), mode `0600`.
+* `openhuman/` — the embedded core's workspace, including the app session [`medulla login`](authentication.md) stores.
 * `config.toml` — the user-global config file.
 * `state/` — the default `stateDir`, holding chat history under `chats/` and the resolved `core.sock`.
 * `tinyplace/` — the default [tiny.place](https://tiny.place) identity directory.

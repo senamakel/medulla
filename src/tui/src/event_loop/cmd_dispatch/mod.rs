@@ -47,12 +47,31 @@ pub(super) fn run_cmd(
         Cmd::Submit(input) => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();
+            // What a resolved submit means is the runtime's to say: a blocking
+            // wire has finished the cycle, a non-blocking one has only accepted
+            // the message and is still producing.
+            let settles = rt.submit_settles_cycle();
             tokio::spawn(async move {
                 let status = match rt.submit(input).await {
-                    Ok(()) => "Cycle complete".to_string(),
+                    Ok(()) if settles => "Cycle complete".to_string(),
+                    Ok(()) => "Sent — waiting for the reply".to_string(),
                     Err(e) => e.to_string(),
                 };
                 let _ = tx.send(AppMsg::Status(status));
+            });
+        }
+        Cmd::Logout => {
+            let rt = runtime.clone();
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                // Only a clear that actually landed ends the session: reporting
+                // success early would drop the operator back at the login screen
+                // still signed in.
+                let msg = match rt.logout().await {
+                    Ok(()) => AppMsg::LoggedOut,
+                    Err(e) => AppMsg::Status(format!("Account · logout failed: {e}")),
+                };
+                let _ = tx.send(msg);
             });
         }
         Cmd::Resume(id) => {
@@ -95,87 +114,6 @@ pub(super) fn run_cmd(
                         let _ = tx.send(AppMsg::Status(e.to_string()));
                     }
                 }
-            });
-        }
-        // --- feedback board ---------------------------------------------
-        Cmd::LoadFeedback(query) => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                match rt.list_feedback(query).await {
-                    Ok(page) => {
-                        let _ = tx.send(AppMsg::FeedbackLoaded(page));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(AppMsg::Status(e.to_string()));
-                    }
-                }
-            });
-        }
-        Cmd::LoadFeedbackDetail(id) => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                match rt.feedback_detail(id.clone()).await {
-                    Ok(detail) => {
-                        let _ = tx.send(AppMsg::FeedbackComments {
-                            id,
-                            comments: detail.comments,
-                        });
-                    }
-                    Err(e) => {
-                        let _ = tx.send(AppMsg::Status(e.to_string()));
-                    }
-                }
-            });
-        }
-        Cmd::VoteFeedback { id, value } => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                match rt.vote_feedback(id, value).await {
-                    Ok(item) => {
-                        let _ = tx.send(AppMsg::FeedbackItemUpdated(item));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(AppMsg::Status(e.to_string()));
-                    }
-                }
-            });
-        }
-        Cmd::CommentFeedback { id, body } => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                let msg = match rt.comment_feedback(id, body).await {
-                    Ok(_) => AppMsg::FeedbackChanged("Feedback · comment posted".into()),
-                    Err(e) => AppMsg::Status(e.to_string()),
-                };
-                let _ = tx.send(msg);
-            });
-        }
-        Cmd::SubmitFeedback { kind, title, body } => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                let msg = match rt.submit_feedback(kind, title, body).await {
-                    // A moderation rejection is a successful call, not an error,
-                    // so it must be surfaced explicitly — otherwise the
-                    // submission looks like it silently vanished.
-                    Ok(result) if result.accepted => {
-                        AppMsg::FeedbackChanged("Feedback · submitted, thank you!".into())
-                    }
-                    Ok(result) => AppMsg::Status(format!(
-                        "Feedback not published: {}",
-                        if result.reason.is_empty() {
-                            "rejected by moderation".into()
-                        } else {
-                            result.reason
-                        }
-                    )),
-                    Err(e) => AppMsg::Status(e.to_string()),
-                };
-                let _ = tx.send(msg);
             });
         }
         Cmd::WatchTask { stop, start } => {

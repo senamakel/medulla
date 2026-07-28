@@ -153,7 +153,7 @@ fn up_and_down_follow_focus_between_the_nav_and_the_page() {
     // Back on the nav, the same keys walk the subpage list again.
     key(&mut app, KeyCode::Esc);
     key(&mut app, KeyCode::Down);
-    assert_eq!(app.settings_subpage(), "Feedback");
+    assert_eq!(app.settings_subpage(), "Trace");
     key(&mut app, KeyCode::Up);
     assert_eq!(app.settings_subpage(), "Config");
 }

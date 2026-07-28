@@ -100,16 +100,10 @@ fn parses_tui_flags() {
             config: Some("c.json".into()),
             alt_screen: false,
             mock: false,
-            core_socket: None,
         }
     );
     // A dangling --config keeps the default (None → layered discovery).
     assert_eq!(parse_tui_args(&argv(&["--config"])).config, None);
-    // `--core-socket` selects the core runtime at an explicit socket path.
-    assert_eq!(
-        parse_tui_args(&argv(&["--core-socket", "/run/serve.sock"])).core_socket,
-        Some("/run/serve.sock".into())
-    );
 }
 
 #[test]
@@ -361,17 +355,8 @@ fn worker_flag_values_parse_in_both_spellings() {
 
 #[test]
 fn run_args_join_the_instruction_and_read_flags() {
-    let a = parse_run_args(&argv(&[
-        "--core-socket",
-        "/run/serve.sock",
-        "--config",
-        "c.toml",
-        "reconcile",
-        "the",
-        "world",
-    ]))
-    .expect("a run with an instruction parses");
-    assert_eq!(a.core_socket.as_deref(), Some("/run/serve.sock"));
+    let a = parse_run_args(&argv(&["--config", "c.toml", "reconcile", "the", "world"]))
+        .expect("a run with an instruction parses");
     assert_eq!(a.config.as_deref(), Some("c.toml"));
     assert_eq!(a.instruction, "reconcile the world");
 }
@@ -379,7 +364,7 @@ fn run_args_join_the_instruction_and_read_flags() {
 #[test]
 fn run_args_require_an_instruction() {
     // Only flags, no instruction text → a usage error rather than an empty run.
-    let err = parse_run_args(&argv(&["--core-socket", "/run/serve.sock"]))
+    let err = parse_run_args(&argv(&["--config", "c.toml"]))
         .expect_err("a flags-only run is a usage error");
     assert!(err.contains("instruction"), "{err}");
     // A dangling value-flag consumes the following token, so this is empty too.
@@ -390,7 +375,15 @@ fn run_args_require_an_instruction() {
 fn help_text_documents_the_run_command() {
     let help = help_text();
     assert!(help.contains("medulla run"));
-    assert!(help.contains("--core-socket"));
+}
+
+#[test]
+fn run_rejects_the_retired_core_socket_flag() {
+    // Loudly, not silently: an unrecognized token joins the instruction, so a
+    // quiet removal would submit the flag to the agent as prompt text.
+    let err = parse_run_args(&argv(&["--core-socket", "/run/serve.sock", "hello"]))
+        .expect_err("the retired flag is a usage error");
+    assert!(err.contains("--core-socket"), "{err}");
 }
 
 #[test]

@@ -11,6 +11,8 @@ pub mod clipboard;
 pub mod clock;
 pub mod config;
 pub mod contacts;
+#[cfg(feature = "openhuman-core")]
+pub mod core_host;
 pub mod daemon;
 #[cfg(feature = "workflows")]
 pub mod flow_engine;
@@ -29,6 +31,7 @@ pub mod session_history;
 pub mod sessions;
 pub mod tasks;
 pub mod tinyplace;
+pub mod tokio_tuning;
 pub mod ui;
 pub mod update;
 pub mod worker_profile;
