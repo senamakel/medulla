@@ -100,6 +100,15 @@ impl SnapshotCell {
         let _ = self.tx.send(());
     }
 
+    /// The thread currently selected, or empty when none has been.
+    pub fn active_thread_id(&self) -> String {
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .active_thread_id
+            .clone()
+    }
+
     /// Record the operator's active thread.
     pub fn set_active_thread(&self, id: String) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());

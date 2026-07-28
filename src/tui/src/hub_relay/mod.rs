@@ -12,11 +12,11 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use medulla::auth::Credentials;
-use medulla::hub::{start_hub, HubConfig, HubHandle, HubSession, WorkerSpec};
+use medulla::hub::{start_hub, HubConfig, HubSession, WorkerSpec};
 
 /// Default inbox poll interval when `MEDULLA_HUB_POLL_MS` is unset.
 const DEFAULT_POLL_MS: u64 = 1500;

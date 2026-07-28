@@ -166,6 +166,31 @@ fn switching_threads_drops_the_previous_transcript() {
     );
 }
 
+#[test]
+fn a_new_thread_starts_from_an_empty_transcript() {
+    // Ctrl-N from a populated conversation: the old rows must not sit under the
+    // new session, and the liveness of the old turn says nothing about it.
+    let cell = SnapshotCell::new();
+    cell.append_events(vec![render_event(1, "assistant")], Some(true));
+    cell.set_active_thread("thread-1".into());
+    cell.switch_thread(String::new());
+    let snap = cell.snapshot();
+    assert!(snap.events.is_empty(), "the old transcript is gone");
+    assert!(snap.chat_events.is_empty());
+    assert!(!snap.running);
+    assert_eq!(snap.active_thread_id, "", "and nothing is selected yet");
+}
+
+#[test]
+fn the_cell_reports_whether_a_thread_is_selected() {
+    // Startup reads this to decide whether to adopt the first thread: an empty
+    // id means the UI is rendering index 0 as active with nothing behind it.
+    let cell = SnapshotCell::new();
+    assert_eq!(cell.active_thread_id(), "");
+    cell.set_active_thread("thread-3".into());
+    assert_eq!(cell.active_thread_id(), "thread-3");
+}
+
 // ── event translation ────────────────────────────────────────────────────────
 
 use openhuman_core::embed::EventEnvelope as CoreEnvelope;

@@ -60,6 +60,7 @@ use crate::ui::chat_store::MainChatSummary;
 
 pub mod cell;
 pub mod fold;
+mod worker_ops;
 
 #[cfg(test)]
 mod tests;
@@ -93,7 +94,21 @@ pub struct OpenHumanRuntime {
     /// An `AtomicUsize` rather than a lock: it is written from the poll task and
     /// read from the render path, which must never block on the poller.
     poll_failures: Arc<std::sync::atomic::AtomicUsize>,
+    /// The tiny.place hub handle, once the hub has connected.
+    ///
+    /// The worker surface — the roster, its activity, the watched screens and
+    /// every mutation — is the hub's, not the core's: tiny.place peers are this
+    /// device's business and never reach the orchestration backend. Without it
+    /// the Workers tab reads empty and, worse, its mutations inherit the trait's
+    /// no-op success.
+    hub: HubSlot,
 }
+
+/// Shared slot the hub fills with its handle once connected.
+///
+/// A `std::sync::Mutex` because every read happens on the render path, which
+/// must not await; the guard is never held across one.
+pub type HubSlot = Arc<std::sync::Mutex<Option<crate::hub::HubHandle>>>;
 
 /// Shared handle to the active session id.
 ///
@@ -108,13 +123,31 @@ impl OpenHumanRuntime {
     /// first fetch are separate so a host can paint its UI before the first
     /// round trip lands.
     pub fn new(core: Arc<Core>) -> Self {
+        Self::with_hub(core, HubSlot::default())
+    }
+
+    /// Wrap a core and share the slot the tiny.place hub fills once connected.
+    ///
+    /// The slot is passed empty at construction and filled later: the hub needs
+    /// a signed-in session to connect, which is only established after the
+    /// runtime exists.
+    pub fn with_hub(core: Arc<Core>, hub: HubSlot) -> Self {
         Self {
             core,
             cell: SnapshotCell::new(),
             session: SessionSlot::default(),
             cursor: Arc::new(tokio::sync::Mutex::new(None)),
             poll_failures: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            hub,
         }
+    }
+
+    /// The hub handle, if one has connected.
+    ///
+    /// Cloned out rather than borrowed so no caller holds the lock across an
+    /// await — the render path reads this slot on every frame.
+    fn hub(&self) -> Option<crate::hub::HubHandle> {
+        self.hub.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// A clone of the shared session slot, for moving into a `'static` future.
@@ -167,7 +200,24 @@ impl OpenHumanRuntime {
             roster.len(),
             threads.len()
         );
+        // Adopt the first thread when nothing is selected yet. The UI falls back
+        // to rendering index 0 as active regardless, so leaving the slot empty
+        // does not mean "nothing selected" on screen — it means the header names
+        // a conversation that `submit` would not send to and `poll_events` would
+        // not load. Only on the way *in*: a later refresh must never move the
+        // operator's own selection.
+        let adopt = self
+            .cell
+            .active_thread_id()
+            .is_empty()
+            .then(|| threads.first().map(|t| t.id.clone()))
+            .flatten();
         self.cell.apply(roster, threads);
+        if let Some(id) = adopt {
+            tracing::debug!("[openhuman_runtime] adopting initial session {id}");
+            self.cell.set_active_thread(id.clone());
+            *self.session.lock().await = Some(id);
+        }
     }
 
     /// Fetch events past the cursor and fold them into the snapshot.
@@ -287,6 +337,14 @@ impl Runtime for OpenHumanRuntime {
         })
     }
 
+    fn steering_reaches_backend(&self) -> bool {
+        // The core models a session abort but has no RPC for answering a
+        // question or cancelling one delegated task, so both would be silent
+        // no-ops. Saying so lets the UI report the gap instead of announcing an
+        // answer that was never delivered.
+        false
+    }
+
     fn submit_settles_cycle(&self) -> bool {
         // `send_message(.., false)` returns on acceptance; the reply arrives
         // over the polled event stream. Reporting completion here would tell
@@ -323,6 +381,68 @@ impl Runtime for OpenHumanRuntime {
         });
     }
 
+    fn workers(&self) -> Vec<crate::runtime::WorkerInfo> {
+        let Some(hub) = self.hub() else {
+            return Vec::new();
+        };
+        hub.list()
+            .into_iter()
+            .map(|worker| {
+                let details = hub.system_info(&worker.id);
+                worker_ops::hub_worker_to_info(worker, details)
+            })
+            .collect()
+    }
+
+    fn worker_activity(&self) -> Vec<crate::hub::WorkerActivity> {
+        self.hub()
+            .map(|hub| hub.activity().snapshot())
+            .unwrap_or_default()
+    }
+
+    fn worker_screens(&self) -> Vec<crate::hub::WatchedScreen> {
+        self.hub()
+            .map(|hub| hub.screens().snapshot())
+            .unwrap_or_default()
+    }
+
+    fn watch_task(
+        &self,
+        worker: String,
+        task_id: String,
+        watch: bool,
+    ) -> BoxFuture<'static, anyhow::Result<()>> {
+        let hub = self.hub();
+        Box::pin(async move {
+            let Some(hub) = hub else {
+                return Ok(());
+            };
+            let result = if watch {
+                hub.watch(&worker, &task_id).await
+            } else {
+                hub.unwatch(&worker, &task_id).await
+            };
+            result.map_err(|e| anyhow::anyhow!(e))
+        })
+    }
+
+    fn worker_op(&self, op: crate::runtime::WorkerOp) -> BoxFuture<'static, anyhow::Result<()>> {
+        let hub = self.hub();
+        Box::pin(async move {
+            match hub {
+                Some(hub) => worker_ops::apply_worker_op(&hub, op).await,
+                // Reading an empty roster is honest; silently succeeding at a
+                // *mutation* that did not happen is not. Without a hub there is
+                // nothing to add a worker to, and reporting "updated" leaves the
+                // operator watching for a peer that was never registered.
+                None => Err(anyhow::anyhow!(
+                    "no orchestrator hub is attached — sign in and restart, or set \
+                     MEDULLA_HUB_WORKERS"
+                )),
+            }
+        })
+    }
+
     fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
         let core = Arc::clone(&self.core);
         // Through the core, not a file: it owns the keychain entry as well as
@@ -336,10 +456,17 @@ impl Runtime for OpenHumanRuntime {
 
     fn new_session(&self) {
         let session = self.session_handle();
+        let cursor = Arc::clone(&self.cursor);
+        // The transcript is per-session, so it goes with the session slot. Left
+        // behind, the old rows would sit under a brand-new conversation and the
+        // stale cursor would make the new session's opening events look already
+        // seen — the same coupling `set_active_thread` maintains, in reverse.
+        self.cell.switch_thread(String::new());
         // Clear rather than mint: the next submit mints one. Minting here would
         // create a durable session the operator may never use.
         tokio::spawn(async move {
             *session.lock().await = None;
+            *cursor.lock().await = None;
             tracing::debug!("[openhuman_runtime] active session cleared");
         });
     }

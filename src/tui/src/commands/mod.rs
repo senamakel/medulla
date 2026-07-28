@@ -96,6 +96,11 @@ async fn auth_core(
 ) -> anyhow::Result<medulla::core_host::EmbeddedCore> {
     let home = medulla::home::medulla_home(env);
     medulla::core_host::bind_workspace(env, &home);
+    // The session must be stored against the backend this host is configured
+    // for, or `medulla login` signs into one deployment and the TUI probes
+    // another.
+    let loaded = load_config(None, env, &home)?;
+    medulla::core_host::bind_medulla_base_url(env, &loaded.config.backend.base_url);
     medulla::core_host::boot_for_auth()
         .await
         .map_err(|e| anyhow::anyhow!("failed to start the embedded OpenHuman core: {e}"))

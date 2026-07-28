@@ -146,6 +146,18 @@ pub trait Runtime: Send + Sync {
     /// like [`abort`](Runtime::abort).
     fn answer_question(&self, _cycle_id: String, _question_id: String, _body: String) {}
 
+    /// Whether [`answer_question`](Runtime::answer_question) and
+    /// [`cancel_task`](Runtime::cancel_task) actually reach the backend.
+    ///
+    /// Both are fire-and-forget and cannot report failure, so a runtime that
+    /// inherits their no-op defaults would have the UI announce "Answer sent"
+    /// over a question that stays blocked forever. This is what a surface checks
+    /// before claiming either happened. Defaults to `true` — the wires that
+    /// model steering are the ones that carried this trait first.
+    fn steering_reaches_backend(&self) -> bool {
+        true
+    }
+
     /// Cancel a running task lane (`task.cancel`). Fire-and-forget.
     fn cancel_task(&self, _cycle_id: String, _task_id: String) {}
 

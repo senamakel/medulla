@@ -41,6 +41,10 @@ impl App {
                 let (cycle, task) = crate::ui::agents::parse_task_key(&t.task_id);
                 match cycle {
                     Some(c) => {
+                        if !self.runtime.steering_reaches_backend() {
+                            self.set_status("Cancelling a task is not wired to this runtime yet");
+                            return;
+                        }
                         self.runtime.cancel_task(c.to_string(), task.to_string());
                         self.set_status(format!("Cancel requested · {task}"));
                     }
@@ -68,6 +72,10 @@ impl App {
             .to_string();
         if text.trim().is_empty() {
             self.set_status("Type an answer for the pending question");
+            return Some(None);
+        }
+        if !self.runtime.steering_reaches_backend() {
+            self.set_status("Answering a question is not wired to this runtime yet");
             return Some(None);
         }
         self.runtime
@@ -201,6 +209,10 @@ impl App {
                     self.set_status("Answer cancelled (empty)");
                     return None;
                 }
+                if !self.runtime.steering_reaches_backend() {
+                    self.set_status("Answering a question is not wired to this runtime yet");
+                    return None;
+                }
                 self.runtime.answer_question(cycle_id, question_id, text);
                 self.set_status("Answer sent");
                 None
@@ -212,6 +224,10 @@ impl App {
             } => {
                 if text.is_empty() {
                     self.set_status("Answer cancelled (empty)");
+                    return None;
+                }
+                if !self.runtime.steering_reaches_backend() {
+                    self.set_status("Answering a question is not wired to this runtime yet");
                     return None;
                 }
                 self.runtime.answer_question(cycle_id, question_id, text);

@@ -1,9 +1,14 @@
 //! Data types for the `hub_relay` module.
 #[allow(unused_imports)]
 use super::*;
-/// The shared slot a [`BackendRuntime`](medulla::runtime::backend::BackendRuntime)
-/// reads for its live worker roster; filled once the hub connects.
-pub(crate) type HubSlot = Arc<Mutex<Option<HubHandle>>>;
+/// The shared slot the runtime reads for its live worker roster; filled once the
+/// hub connects.
+///
+/// Re-exported from the SDK rather than declared again here: the runtime and the
+/// relay have to name the *same* type for the handle to reach the Workers tab,
+/// and two structurally-identical aliases in two crates is exactly how it ended
+/// up unattached.
+pub(crate) use medulla::runtime::openhuman::HubSlot;
 
 /// The device-local half of a hub's dispatch: the in-process bus, the address
 /// the hub binds on it, and the host (if any) already listening there.

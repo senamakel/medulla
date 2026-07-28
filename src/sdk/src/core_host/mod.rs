@@ -55,6 +55,9 @@ pub const OPENHUMAN_WORKSPACE_ENV: &str = "OPENHUMAN_WORKSPACE";
 /// Environment variable OpenHuman reads for the agent's read/write root.
 pub const OPENHUMAN_ACTION_DIR_ENV: &str = "OPENHUMAN_ACTION_DIR";
 
+/// Environment variable OpenHuman reads for the Medulla backend it dials.
+pub const OPENHUMAN_MEDULLA_BASE_URL_ENV: &str = "OPENHUMAN_MEDULLA_BASE_URL";
+
 /// The core's state directory for a given Medulla home.
 ///
 /// Nested under the Medulla home rather than beside it so that removing a
@@ -120,6 +123,39 @@ pub fn bind_action_dir(env: &HashMap<String, String>, root: Option<&Path>) -> Op
     std::env::set_var(OPENHUMAN_ACTION_DIR_ENV, root);
     tracing::debug!("[core_host] action_dir bound to {}", root.display());
     Some(root.to_path_buf())
+}
+
+/// Point the core's Medulla client at the backend this host is configured for.
+///
+/// The core resolves its own backend URL from OpenHuman's config chain, which
+/// on a default install lands on the same hosted deployment Medulla's
+/// `backend.baseUrl` names. On a staging or self-hosted install it does not: the
+/// login screen would verify a token against the configured endpoint while the
+/// core probed and stored it against a different one — the readiness probe fails
+/// or the backend rejects a freshly verified token, and neither failure names
+/// the mismatch that caused it.
+///
+/// Non-overriding, like [`bind_workspace`]: an operator who exported
+/// `OPENHUMAN_MEDULLA_BASE_URL` themselves is aiming the core somewhere on
+/// purpose. Returns the URL in effect either way.
+///
+/// Call before [`boot`]; the core reads the variable when it resolves a client.
+pub fn bind_medulla_base_url(env: &HashMap<String, String>, base_url: &str) -> String {
+    if let Some(explicit) = env
+        .get(OPENHUMAN_MEDULLA_BASE_URL_ENV)
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+    {
+        tracing::debug!("[core_host] medulla base url from the operator's override");
+        return explicit.to_string();
+    }
+    let base_url = base_url.trim().trim_end_matches('/');
+    if base_url.is_empty() {
+        return String::new();
+    }
+    std::env::set_var(OPENHUMAN_MEDULLA_BASE_URL_ENV, base_url);
+    tracing::debug!("[core_host] medulla base url bound from the Medulla config");
+    base_url.to_string()
 }
 
 /// Build the embedded core and wrap it in the typed facade.

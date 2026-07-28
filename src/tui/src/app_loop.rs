@@ -21,7 +21,7 @@ use medulla_tui::cli::parse_tui_args;
 
 #[cfg(feature = "openhuman-core")]
 use crate::commands::run_login_screen;
-use crate::event_loop::{run, SessionWiring};
+use crate::event_loop::{run, SessionExit, SessionWiring};
 use crate::terminal::{restore, TermGuard};
 #[cfg(feature = "openhuman-core")]
 use medulla_tui::ui::login::LoginOutcome;
@@ -32,8 +32,11 @@ use medulla_tui::ui::login::LoginOutcome;
 /// two priming steps, and getting either wrong is invisible until the UI sits
 /// empty or inert.
 #[cfg(feature = "openhuman-core")]
-async fn core_runtime(core: medulla::core_host::EmbeddedCore) -> Arc<dyn Runtime> {
-    let rt = medulla::runtime::openhuman::OpenHumanRuntime::new(Arc::new(core));
+async fn core_runtime(
+    core: Arc<medulla::core_host::EmbeddedCore>,
+    hub: crate::hub_relay::HubSlot,
+) -> Arc<dyn Runtime> {
+    let rt = medulla::runtime::openhuman::OpenHumanRuntime::with_hub(core, hub);
     // First fetch before the UI paints, so the initial frame shows real state
     // rather than an empty one that fills in a beat later.
     rt.refresh().await;
@@ -75,6 +78,33 @@ async fn session_of(
     (session, account)
 }
 
+/// Run the login screen again for an already-booted core and store the result.
+///
+/// `Ok(true)` when a new session was stored and the app should start another
+/// session; `Ok(false)` when the operator quit from the screen. A core that
+/// rejects the freshly verified token is an error rather than a silent return to
+/// the screen: the token passed `/auth/me`, so a refusal here means the core and
+/// the login flow disagree about which deployment they are talking to, and
+/// looping would just ask for the same token again.
+#[cfg(feature = "openhuman-core")]
+async fn relogin(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    core: &medulla::core_host::EmbeddedCore,
+    base_url: &str,
+) -> anyhow::Result<bool> {
+    match run_login_screen(terminal, base_url.to_string()).await? {
+        LoginOutcome::Quit => Ok(false),
+        LoginOutcome::Token(jwt) => {
+            medulla::core_host::auth::store_session(core, &jwt)
+                .await
+                .map_err(|e| {
+                    anyhow::anyhow!("signed in, but the core rejected the session: {e}")
+                })?;
+            Ok(true)
+        }
+    }
+}
+
 /// Parse TUI args, select a runtime, set up the terminal, optionally run the
 /// login screen, start background services, and drive the event loop to exit.
 pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
@@ -98,6 +128,11 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // a no-op when the operator set `OPENHUMAN_WORKSPACE` themselves.
     #[cfg(feature = "openhuman-core")]
     medulla::core_host::bind_workspace(&env, &home);
+    // Same binding discipline for the backend: the core must dial the endpoint
+    // this host was configured for, or a staging/self-hosted install verifies a
+    // token against one deployment and stores it against another.
+    #[cfg(feature = "openhuman-core")]
+    medulla::core_host::bind_medulla_base_url(&env, &loaded.config.backend.base_url);
 
     // Runtime selection.
     //
@@ -127,6 +162,10 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // runtime's worker surface so the Workers tab manages the hub's tiny.place
     // peers live.
     let hub_slot: crate::hub_relay::HubSlot = Arc::new(Mutex::new(None));
+    // Cloned before the core is consumed: a relogin rebuilds the runtime around
+    // the same in-process core rather than booting a second one.
+    #[cfg(feature = "openhuman-core")]
+    let mut core_arc: Option<Arc<medulla::core_host::EmbeddedCore>> = None;
     // Active workspace roots whose `MEDULLA.md` profiles ride every backend
     // session mint (`workspaceProfiles`). Roots without a profile are skipped by
     // the collector, so passing every configured workspace is safe.
@@ -182,7 +221,9 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             Ok(core) => match medulla::core_host::probe_medulla(&core).await {
                 medulla::core_host::Readiness::Ready => {
                     (session, account) = session_of(&core, &loaded.config.backend.base_url).await;
-                    runtime = Some(core_runtime(core).await);
+                    let core = Arc::new(core);
+                    core_arc = Some(Arc::clone(&core));
+                    runtime = Some(core_runtime(core, hub_slot.clone()).await);
                 }
                 // Signed out is an expected state with an obvious remedy, so it
                 // is the one thing that does not end here: the core is held and
@@ -245,7 +286,9 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                     medulla::core_host::Readiness::Ready => {
                         (session, account) =
                             session_of(&core, &loaded.config.backend.base_url).await;
-                        runtime = Some(core_runtime(core).await);
+                        let core = Arc::new(core);
+                        core_arc = Some(Arc::clone(&core));
+                        runtime = Some(core_runtime(core, hub_slot.clone()).await);
                     }
                     // Stored and still unusable: the token was for a different
                     // deployment than the one the core resolves, or the backend
@@ -402,33 +445,61 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     )
     .await;
 
-    // One session, not a loop. The loop existed to re-authenticate after a
-    // logout by returning to the login screen; the embedded core has no account
-    // to log out of, so a relogin request has nowhere to go and is reported as a
-    // quit rather than silently restarting an identical session. The Account
-    // page's logout returns when auth itself migrates into the core.
-    let status = startup_status.or(tinyplace_status).or(log_note);
-    let result = run(
-        &mut terminal,
-        runtime.clone(),
-        SessionWiring {
-            loaded: loaded.clone(),
-            startup_status: status,
-            tinyplace_obs: tinyplace_obs.clone(),
-            config_path: active_config_path.clone(),
-            medulla_home: home.clone(),
-            account: account.clone(),
-            memory_service: memory_service.clone(),
-            sharing,
-            onboarding_path: active_config_path.clone(),
-            host: local_host.as_ref().map(|host| host.observation()),
-        },
-    )
-    .await;
+    // A session, and another after every logout. `run` reports `Relogin` when
+    // the Account page's logout landed, and the whole point of that logout is to
+    // reach the login screen — dropping the operator back to the shell instead
+    // would contradict both the message it shows and the no-session startup path
+    // they would then have to trigger by relaunching.
+    let mut status = startup_status.or(tinyplace_status).or(log_note);
+    let mut sharing = sharing;
+    let mut runtime = runtime;
+    let mut account = account;
+    let result = loop {
+        let exit = run(
+            &mut terminal,
+            runtime.clone(),
+            SessionWiring {
+                loaded: loaded.clone(),
+                startup_status: status.take(),
+                tinyplace_obs: tinyplace_obs.clone(),
+                config_path: active_config_path.clone(),
+                medulla_home: home.clone(),
+                account: account.clone(),
+                memory_service: memory_service.clone(),
+                sharing: sharing.take(),
+                onboarding_path: active_config_path.clone(),
+                host: local_host.as_ref().map(|host| host.observation()),
+            },
+        )
+        .await;
+
+        match exit {
+            Ok(SessionExit::Relogin) => {
+                // Only the embedded core can be signed back in; every other
+                // runtime reports that it holds no session, so its logout never
+                // succeeds and this arm is unreachable for it.
+                #[cfg(feature = "openhuman-core")]
+                if let Some(core) = core_arc.clone() {
+                    match relogin(&mut terminal, &core, &loaded.config.backend.base_url).await {
+                        Ok(true) => {
+                            (_, account) = session_of(&core, &loaded.config.backend.base_url).await;
+                            runtime = core_runtime(core, hub_slot.clone()).await;
+                            continue;
+                        }
+                        // Quit from the login screen: the operator asked to
+                        // leave, having already logged out.
+                        Ok(false) => break Ok(()),
+                        Err(e) => break Err(e),
+                    }
+                }
+                break Ok(());
+            }
+            Ok(SessionExit::Quit) => break Ok(()),
+            Err(e) => break Err(e),
+        }
+    };
 
     runtime.shutdown().await.ok();
-    let result = result.map(|_| ());
-
     // Explicit teardown (the guard also runs on drop / panic).
     drop(guard);
     drop(tinyplace_service); // aborts the background loops.
