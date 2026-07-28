@@ -1,6 +1,8 @@
-//! Feature tests for two paths that had no coverage: copying the chat to the
-//! real clipboard (as opposed to the injected capture sink used elsewhere), and
-//! the feedback submission prompt's empty-input cancels.
+//! Feature tests for copying the chat to the real clipboard, as opposed to the
+//! injected capture sink used elsewhere.
+//!
+//! This file also covered the feedback submission prompt's empty-input cancels
+//! until the feedback board was removed.
 
 use std::sync::Arc;
 
@@ -11,18 +13,8 @@ use medulla::runtime::mock::MockRuntime;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::events::TuiEvent;
 
-fn key(code: KeyCode) -> Event {
-    Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
-}
-
 fn ctrl(c: char) -> Event {
     Event::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL))
-}
-
-fn type_str(app: &mut App, s: &str) {
-    for ch in s.chars() {
-        app.on_event(key(KeyCode::Char(ch)));
-    }
 }
 
 fn chat_app() -> App {
