@@ -126,6 +126,13 @@ jobs:
       - name: Initialize submodules
         run: bash scripts/init-submodules.sh
 
+      # The core is a default feature, so both Linux lanes compile it and its
+      # build scripts need the same system libraries every CI Linux lane
+      # installs. Guarded on the OS because the step is apt-based; macOS and
+      # Windows link schannel/Security instead and need nothing.
+      - uses: ./.github/actions/native-deps
+        if: runner.os == 'Linux'
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
