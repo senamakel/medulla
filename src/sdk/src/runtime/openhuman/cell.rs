@@ -67,9 +67,18 @@ impl SnapshotCell {
     /// A `running` flag rides along because it is derived from the same fetch:
     /// the caller knows whether the turn settled, and splitting it into a
     /// second call would let the two disagree between locks.
-    pub fn append_events(&self, events: Vec<EventEnvelope>, running: bool) {
+    ///
+    /// `None` means "the fetch said nothing about liveness" and leaves the flag
+    /// alone. Most batches are mid-turn output that carries no cycle boundary,
+    /// and forcing a `bool` there would make every such batch re-assert
+    /// `running = true` — which is how a settled turn ends up spinning forever
+    /// once a late event arrives behind its `cycle_end`.
+    pub fn append_events(&self, events: Vec<EventEnvelope>, running: Option<bool>) {
         if events.is_empty() {
             // Still record liveness — a turn can settle without new events.
+            let Some(running) = running else {
+                return;
+            };
             let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
             if state.running == running {
                 return;
@@ -84,7 +93,9 @@ impl SnapshotCell {
             state
                 .chat_events
                 .extend(events.into_iter().filter(is_chat_row));
-            state.running = running;
+            if let Some(running) = running {
+                state.running = running;
+            }
         }
         let _ = self.tx.send(());
     }
@@ -93,6 +104,24 @@ impl SnapshotCell {
     pub fn set_active_thread(&self, id: String) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         state.active_thread_id = id;
+    }
+
+    /// Point the snapshot at a different thread and drop the previous one's log.
+    ///
+    /// The transcript is per-thread, so keeping the old rows would render two
+    /// conversations as one — and the incoming thread replays from its own
+    /// start, which would interleave them by arrival rather than by thread.
+    /// `running` resets too: the previous thread's liveness says nothing about
+    /// this one, and the first batch re-establishes it.
+    pub fn switch_thread(&self, id: String) {
+        {
+            let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            state.active_thread_id = id;
+            state.events.clear();
+            state.chat_events.clear();
+            state.running = false;
+        }
+        let _ = self.tx.send(());
     }
 }
 

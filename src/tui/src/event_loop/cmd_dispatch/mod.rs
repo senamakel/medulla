@@ -47,9 +47,14 @@ pub(super) fn run_cmd(
         Cmd::Submit(input) => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();
+            // What a resolved submit means is the runtime's to say: a blocking
+            // wire has finished the cycle, a non-blocking one has only accepted
+            // the message and is still producing.
+            let settles = rt.submit_settles_cycle();
             tokio::spawn(async move {
                 let status = match rt.submit(input).await {
-                    Ok(()) => "Cycle complete".to_string(),
+                    Ok(()) if settles => "Cycle complete".to_string(),
+                    Ok(()) => "Sent — waiting for the reply".to_string(),
                     Err(e) => e.to_string(),
                 };
                 let _ = tx.send(AppMsg::Status(status));

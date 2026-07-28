@@ -95,6 +95,16 @@ pub trait Runtime: Send + Sync {
     /// A change notification channel — a ping fires after every event/mutation.
     fn subscribe(&self) -> broadcast::Receiver<()>;
     fn submit(&self, input: String) -> BoxFuture<'static, anyhow::Result<()>>;
+    /// Whether a resolved [`submit`](Runtime::submit) means the cycle finished.
+    ///
+    /// True for every wire that answers only once the turn is done, which is
+    /// what lets a caller report completion the moment the future resolves.
+    /// A runtime whose submit returns on *acceptance* — the reply arriving
+    /// later over the event stream — answers false, so the UI says the work was
+    /// accepted instead of claiming a completion that has not happened yet.
+    fn submit_settles_cycle(&self) -> bool {
+        true
+    }
     /// Like [`submit`](Runtime::submit), but returns the wire's correlation
     /// receipt when it carries one, so a caller waiting on the submitted
     /// cycle's end (the headless driver) can ignore other cycles' ends. The

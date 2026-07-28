@@ -197,6 +197,16 @@ impl OpenHumanRuntime {
         };
         self.poll_failures.store(0, Ordering::Relaxed);
 
+        // The operator can switch threads while a fetch is in flight. Folding
+        // the outgoing thread's batch into the incoming thread's transcript
+        // would render one conversation inside another, so a batch that
+        // outlived its session is dropped; the new session replays from its own
+        // cursor on the next tick.
+        if self.session.lock().await.as_deref() != Some(session.as_str()) {
+            tracing::debug!("[openhuman_runtime] dropping a batch from a superseded session");
+            return 0;
+        }
+
         let events = fold::events(fetched);
         if events.is_empty() {
             return 0;
@@ -209,11 +219,12 @@ impl OpenHumanRuntime {
         }
         let count = events.len();
         tracing::debug!("[openhuman_runtime] folded {count} events after {after:?}");
-        // `running` stays true here: a batch arriving means the turn is still
-        // producing. The settle signal comes from the session detail, not the
-        // event log, so claiming settled here would flicker the spinner off
-        // between batches.
-        self.cell.append_events(events, true);
+        // Liveness comes from the batch's cycle boundaries, not from the fact
+        // that a batch arrived at all. A batch with no boundary leaves the flag
+        // alone, so the spinner neither flickers off between batches nor keeps
+        // turning after the `cycle_end` that ended the turn.
+        let running = fold::running_after(&events);
+        self.cell.append_events(events, running);
         count
     }
 
@@ -276,6 +287,13 @@ impl Runtime for OpenHumanRuntime {
         })
     }
 
+    fn submit_settles_cycle(&self) -> bool {
+        // `send_message(.., false)` returns on acceptance; the reply arrives
+        // over the polled event stream. Reporting completion here would tell
+        // the operator the turn is done while it is still producing.
+        false
+    }
+
     fn stream_state(&self) -> Option<StreamState> {
         // Derived from real poll health, not hardcoded. `Live` is honest here
         // even though this polls rather than streams: the glyph answers "is
@@ -316,7 +334,25 @@ impl Runtime for OpenHumanRuntime {
     }
 
     fn set_active_thread(&self, id: String) {
-        self.cell.set_active_thread(id);
+        // Switching the *display* selection without switching the session the
+        // drive methods act on is how a prompt ends up in the thread the
+        // operator just navigated away from, under a header naming the one they
+        // chose. The two move together or not at all.
+        self.cell.switch_thread(id.clone());
+        let session = self.session_handle();
+        let cursor = Arc::clone(&self.cursor);
+        tokio::spawn(async move {
+            // Session first, then cursor: `poll_events` reads them in that
+            // order and re-checks the session before folding, so the worst
+            // interleaving drops one in-flight batch rather than replaying the
+            // outgoing thread's log into the incoming thread's transcript.
+            *session.lock().await = Some(id.clone());
+            // From the start: the incoming thread's rows were just cleared, so
+            // the old cursor would skip the whole transcript the operator
+            // switched over to read.
+            *cursor.lock().await = None;
+            tracing::debug!("[openhuman_runtime] active session switched to {id}");
+        });
     }
 
     fn list_main_chats(&self) -> BoxFuture<'static, anyhow::Result<Vec<MainChatSummary>>> {

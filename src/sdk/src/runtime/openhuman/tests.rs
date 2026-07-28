@@ -149,6 +149,20 @@ fn active_thread_survives_a_refresh() {
     assert_eq!(cell.snapshot().active_thread_id, "thread-7");
 }
 
+#[test]
+fn switching_threads_drops_the_previous_transcript() {
+    // Per-thread transcripts: keeping the old rows would render two
+    // conversations as one once the incoming thread replays from its start.
+    let cell = SnapshotCell::new();
+    cell.append_events(vec![render_event(1, "assistant")], Some(true));
+    cell.switch_thread("thread-2".into());
+    let snap = cell.snapshot();
+    assert_eq!(snap.active_thread_id, "thread-2");
+    assert!(snap.events.is_empty(), "the old thread's trace is gone");
+    assert!(snap.chat_events.is_empty(), "and its transcript with it");
+    assert!(!snap.running, "the old thread's liveness does not carry over");
+}
+
 // ── event translation ────────────────────────────────────────────────────────
 
 use openhuman_core::embed::EventEnvelope as CoreEnvelope;
@@ -222,8 +236,8 @@ fn render_event(seq: u64, kind: &str) -> crate::ui::events::EventEnvelope {
 fn appended_events_accumulate_rather_than_replace() {
     // Events are a growing log; the caller only fetches past its cursor.
     let cell = SnapshotCell::new();
-    cell.append_events(vec![render_event(1, "assistant")], true);
-    cell.append_events(vec![render_event(2, "assistant")], true);
+    cell.append_events(vec![render_event(1, "assistant")], Some(true));
+    cell.append_events(vec![render_event(2, "assistant")], Some(true));
     assert_eq!(cell.snapshot().events.len(), 2);
 }
 
@@ -237,7 +251,7 @@ fn only_conversational_rows_reach_the_chat_view() {
             render_event(2, "tool_call_start"),
             render_event(3, "user"),
         ],
-        true,
+        Some(true),
     );
     let snap = cell.snapshot();
     assert_eq!(snap.events.len(), 3, "the trace keeps everything");
@@ -248,17 +262,77 @@ fn only_conversational_rows_reach_the_chat_view() {
 fn an_empty_batch_still_records_a_settled_turn() {
     // A turn can settle without emitting a final event; the spinner has to stop.
     let cell = SnapshotCell::new();
-    cell.append_events(vec![render_event(1, "assistant")], true);
+    cell.append_events(vec![render_event(1, "assistant")], Some(true));
     assert!(cell.snapshot().running);
-    cell.append_events(Vec::new(), false);
+    cell.append_events(Vec::new(), Some(false));
     assert!(!cell.snapshot().running);
+}
+
+#[test]
+fn a_batch_with_no_liveness_answer_leaves_the_flag_alone() {
+    // Most batches are mid-turn output. Re-asserting `running` on each one is
+    // what keeps the spinner turning after the turn has already ended.
+    let cell = SnapshotCell::new();
+    cell.append_events(vec![render_event(1, "assistant")], Some(false));
+    cell.append_events(vec![render_event(2, "assistant")], None);
+    assert!(!cell.snapshot().running, "a straggler must not revive a turn");
+    assert_eq!(cell.snapshot().events.len(), 2, "it is still recorded");
+}
+
+// ── liveness from cycle boundaries ───────────────────────────────────────────
+
+fn cycle_event(seq: u64, kind: &str) -> crate::ui::events::EventEnvelope {
+    fold::events(vec![CoreEnvelope {
+        seq: Some(seq),
+        at: 1_700_000_000,
+        session_id: "s1".into(),
+        cycle_id: Some("c1".into()),
+        event: serde_json::json!({ "kind": kind, "cycleId": "c1" }),
+    }])
+    .pop()
+    .expect("one envelope")
+}
+
+#[test]
+fn a_batch_without_a_cycle_boundary_says_nothing_about_liveness() {
+    assert_eq!(
+        fold::running_after(&[render_event(1, "assistant")]),
+        None,
+        "output alone is not a liveness signal"
+    );
+    assert_eq!(fold::running_after(&[]), None);
+}
+
+#[test]
+fn a_cycle_end_settles_the_turn() {
+    // The finding this guards: a batch containing the terminal event used to
+    // report `running = true`, so the orchestrator rendered busy forever.
+    assert_eq!(
+        fold::running_after(&[render_event(1, "assistant"), cycle_event(2, "cycle_end")]),
+        Some(false)
+    );
+}
+
+#[test]
+fn a_cycle_start_marks_the_turn_running() {
+    assert_eq!(
+        fold::running_after(&[cycle_event(1, "cycle_start")]),
+        Some(true)
+    );
+}
+
+#[test]
+fn the_highest_seq_boundary_wins_not_the_last_in_the_vec() {
+    // Out-of-order delivery must not settle a turn that has since restarted.
+    let out_of_order = vec![cycle_event(9, "cycle_start"), cycle_event(4, "cycle_end")];
+    assert_eq!(fold::running_after(&out_of_order), Some(true));
 }
 
 #[tokio::test]
 async fn appending_events_notifies_subscribers() {
     let cell = SnapshotCell::new();
     let mut rx = cell.subscribe();
-    cell.append_events(vec![render_event(1, "assistant")], true);
+    cell.append_events(vec![render_event(1, "assistant")], Some(true));
     assert!(rx.recv().await.is_ok());
 }
 

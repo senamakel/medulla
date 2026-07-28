@@ -93,6 +93,28 @@ pub fn events(envelopes: Vec<CoreEnvelope>) -> Vec<EventEnvelope> {
     out
 }
 
+/// Whether a batch says the turn is running, or nothing at all.
+///
+/// Cycle boundaries are the only settle signal the event log carries, so the
+/// highest-`seq` boundary in the batch decides: `cycle_start` means a turn is
+/// producing, `cycle_end` means it finished. A batch with no boundary is
+/// mid-turn output and answers `None` — "leave the flag where it was" — rather
+/// than `true`. Answering `true` there is what keeps a spinner turning forever
+/// after the terminal event, because any straggler behind a `cycle_end`
+/// re-asserts a turn that is already over.
+pub fn running_after(events: &[EventEnvelope]) -> Option<bool> {
+    events
+        .iter()
+        .filter(|e| {
+            matches!(
+                e.event,
+                TuiEvent::CycleStart { .. } | TuiEvent::CycleEnd { .. }
+            )
+        })
+        .max_by_key(|e| e.seq)
+        .map(|e| matches!(e.event, TuiEvent::CycleStart { .. }))
+}
+
 /// The highest `seq` in a batch, for advancing the replay cursor.
 ///
 /// `None` for an empty batch, which the caller reads as "cursor unchanged"
