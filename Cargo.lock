@@ -3220,7 +3220,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "medulla"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -3249,7 +3249,7 @@ dependencies = [
 
 [[package]]
 name = "medulla-tui"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
