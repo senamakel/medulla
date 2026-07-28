@@ -22,19 +22,22 @@
 //! what lets the contract be unit-tested: the core uses process globals and
 //! cannot be built per test.
 //!
-//! # Current scope: reads are real, writes are not
+//! # Current scope
 //!
-//! The read path folds live roster and session data from the core. The drive
-//! path — submit, abort, resume — returns a typed not-yet-migrated error rather
-//! than doing nothing. A silent no-op `submit` reads as a hung backend and
-//! sends someone debugging the network; an explicit error names the layer that
-//! is actually missing. These land as the core's Medulla RPC surface grows
-//! beyond status/sessions/roster.
+//! Reads fold live roster and session data. Submit, abort and new-session drive
+//! the backend through the facade. What remains unwired is chat-tree resume —
+//! `medulla_chat` lives in the core but has no RPC surface yet — and the event
+//! stream, so a submitted turn is accepted but its reply does not yet flow back
+//! into the snapshot.
+//!
+//! The still-unwired paths return a typed error rather than doing nothing. A
+//! silent no-op reads as a hung backend and sends someone debugging the
+//! network; an explicit error names the layer that is actually missing.
 
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use openhuman_core::embed::Core;
+use openhuman_core::embed::{Core, CoreError};
 use tokio::sync::broadcast;
 
 use super::types::{ContextItem, RuntimeSnapshot};
@@ -60,7 +63,19 @@ pub const NOT_YET_WIRED: &str =
 pub struct OpenHumanRuntime {
     core: Arc<Core>,
     cell: SnapshotCell,
+    /// The session `submit`/`abort` act on.
+    ///
+    /// Minted lazily on first submit rather than at construction: booting must
+    /// not create a durable session on the backend for a host that only ever
+    /// reads, and a failed boot should leave no trace behind.
+    session: SessionSlot,
 }
+
+/// Shared handle to the active session id.
+///
+/// An `Arc` because `submit` and `abort` move it into `'static` futures — the
+/// trait's futures outlive the borrow of `&self`.
+type SessionSlot = Arc<tokio::sync::Mutex<Option<String>>>;
 
 impl OpenHumanRuntime {
     /// Wrap an already-booted core.
@@ -72,7 +87,30 @@ impl OpenHumanRuntime {
         Self {
             core,
             cell: SnapshotCell::new(),
+            session: SessionSlot::default(),
         }
+    }
+
+    /// A clone of the shared session slot, for moving into a `'static` future.
+    fn session_handle(&self) -> SessionSlot {
+        Arc::clone(&self.session)
+    }
+
+    /// The active session, minting one if there is none yet.
+    ///
+    /// The lock is held across the mint so two concurrent submits cannot each
+    /// create a session and leave one orphaned on the backend. Static rather
+    /// than a method because the trait's futures are `'static` and cannot
+    /// borrow `&self`.
+    async fn session_for(core: &Core, slot: &SessionSlot) -> Result<String, CoreError> {
+        let mut guard = slot.lock().await;
+        if let Some(id) = guard.as_ref() {
+            return Ok(id.clone());
+        }
+        let created = core.medulla().create_session(None).await?;
+        tracing::debug!("[openhuman_runtime] minted session {}", created.session_id);
+        *guard = Some(created.session_id.clone());
+        Ok(created.session_id)
     }
 
     /// Pull the roster and session list, fold them in, and notify.
@@ -125,16 +163,42 @@ impl Runtime for OpenHumanRuntime {
         self.cell.subscribe()
     }
 
-    fn submit(&self, _input: String) -> BoxFuture<'static, anyhow::Result<()>> {
-        Box::pin(async { Err(anyhow::anyhow!(NOT_YET_WIRED)) })
+    fn submit(&self, input: String) -> BoxFuture<'static, anyhow::Result<()>> {
+        let core = Arc::clone(&self.core);
+        let session = self.session_handle();
+        Box::pin(async move {
+            let id = Self::session_for(&core, &session).await?;
+            // Non-blocking: the reply arrives over the event stream, so the UI
+            // can render progress instead of freezing until the turn finishes.
+            core.medulla().send_message(&id, &input, false).await?;
+            Ok(())
+        })
     }
 
     fn abort(&self) {
-        tracing::debug!("[openhuman_runtime] abort ignored: {NOT_YET_WIRED}");
+        let core = Arc::clone(&self.core);
+        let session = self.session_handle();
+        // Fire-and-forget: the trait is sync, and an abort that has not landed
+        // yet is still better than blocking the UI thread on a round trip.
+        tokio::spawn(async move {
+            let Some(id) = session.lock().await.clone() else {
+                tracing::debug!("[openhuman_runtime] abort with no active session");
+                return;
+            };
+            if let Err(err) = core.medulla().abort(&id).await {
+                tracing::debug!("[openhuman_runtime] abort failed: {err}");
+            }
+        });
     }
 
     fn new_session(&self) {
-        tracing::debug!("[openhuman_runtime] new_session ignored: {NOT_YET_WIRED}");
+        let session = self.session_handle();
+        // Clear rather than mint: the next submit mints one. Minting here would
+        // create a durable session the operator may never use.
+        tokio::spawn(async move {
+            *session.lock().await = None;
+            tracing::debug!("[openhuman_runtime] active session cleared");
+        });
     }
 
     fn set_active_thread(&self, id: String) {
