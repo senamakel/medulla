@@ -1,7 +1,7 @@
 ---
 description: >-
   A local, operator-owned task ledger and the external sources that feed it.
-  Separate from persona memory and from a repository's MEDULLA.md.
+  Separate from OpenHuman session state and from a repository's MEDULLA.md.
 ---
 
 # Tasks and Sources
@@ -64,7 +64,7 @@ UI.
 
 The task ledger is deliberately small and deliberately local. It does not try to
 be a project tracker, and it does not reach into your repositories the way
-`MEDULLA.md` describes them or the way persona memory learns your habits. It is
+`MEDULLA.md` describes them or OpenHuman's hosted session state. It is
 the short list of what you mean to get done, kept somewhere the orchestrator can
 see it and somewhere you can edit it by hand.
 

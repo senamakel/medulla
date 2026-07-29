@@ -16,7 +16,7 @@ The [product overview](../) is the high-level story; these pages are the hands-o
 * [CLI Reference](cli-reference.md) — every `medulla` subcommand: the TUI, the headless daemon, the harness wrappers, and self-update.
 * [Configuration](configuration.md) — the Medulla home directory, the layered config system, and the three runtimes.
 * [Authentication](authentication.md) — the browser loopback login flow, tokens, and how credentials are stored and hardened.
-* [Architecture](architecture.md) — how the SDK and TUI fit together, the runtime adapters, the RLM-backed orchestration loop, and the tiny.place bridge.
+* [Architecture](architecture.md) — how the SDK and TUI fit together, the OpenHuman runtime boundary, workflows, and the tiny.place bridge.
 * [Contributing](contributing.md) — build, test, lint, coverage, and the release process.
 
 ## The 60-second version

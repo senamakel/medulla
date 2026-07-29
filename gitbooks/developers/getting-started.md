@@ -64,7 +64,7 @@ Add the SDK as a git dependency (the repo vendors its path deps, so no extra set
 medulla = { git = "https://github.com/tinyhumansai/medulla", tag = "v0.3.0" }
 ```
 
-The [`medulla` SDK crate](../../src/sdk/) is a UI-free logic library: the HTTP/SSE client for the backend API, the runtime adapters, persona memory, and the tiny.place integration. See [Architecture](architecture.md) for how the pieces fit together.
+The [`medulla` SDK crate](../../src/sdk/) is a UI-free logic library: the OpenHuman HTTP/SSE client, runtime adapters, local task and workflow stores, daemon, and tiny.place integration. See [Architecture](architecture.md) for how the pieces fit together.
 
 ## Platform support
 

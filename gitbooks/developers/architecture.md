@@ -1,21 +1,21 @@
 # Architecture
 
-Medulla is an **orchestrator model** — see [Why an Orchestrator Model](../why-an-orchestrator-model.md) for the product argument. This page is about the code: how the open-source SDK and TUI are put together, how they talk to the backend, and how the pieces named in the product story map onto modules you can read.
+Medulla is the open-source client side of the Medulla and OpenHuman system. This page describes the code: how the SDK and TUI fit together, how they talk to OpenHuman, and how workers and workflows reach real harnesses.
 
 ## Two crates
 
 The public repository is a two-crate [Cargo](https://doc.rust-lang.org/cargo/) workspace with a strict separation between logic and rendering:
 
-* [`src/sdk/`](../../src/sdk/) — the `medulla` SDK crate: a **UI-free logic library**. The backend HTTP/SSE client, the runtime adapters, persona memory, and the tiny.place integration. Reusable from any Rust program.
+* [`src/sdk/`](../../src/sdk/) — the `medulla` SDK crate: a **UI-free logic library**. It contains the OpenHuman HTTP/SSE client, runtime adapters, local stores, workflows, daemon, and tiny.place integration. Reusable from any Rust program.
 * [`src/tui/`](../../src/tui/) — the `medulla-tui` crate, shipping the `medulla` binary: a [ratatui](https://ratatui.rs/) terminal UI over the SDK. It owns state, rendering, input, and theming, and re-exports the SDK's UI-facing data modules.
 
-The rule of thumb: reusable APIs live in the SDK; rendering and process wiring live in the app crate. The SDK depends only on its own traits and types — never on the TUI.
+The rule of thumb: reusable APIs live in the SDK; rendering and process wiring live in the app crate. The SDK depends only on its own traits and types, never on the TUI.
 
 ## The `Runtime` trait
 
 The UI drives everything through one trait, `Runtime`, plus its snapshot contract. The UI depends only on that trait — not on any concrete backend — which is what makes the three runtimes interchangeable and the whole thing testable offline. Three implementations live alongside it:
 
-* **`backend`** — the [HTTP/SSE](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) client, for the production orchestrator.
+* **`backend`** — the [HTTP/SSE](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) client, for OpenHuman-hosted sessions.
 * **`core`** — a locally running core-js orchestration server over a [NDJSON](https://ndjson.org/) Unix socket (via `core_client`).
 * **`mock`** — a scripted runtime for tests and demos, with no network.
 
@@ -32,19 +32,17 @@ The [`client`](../../src/sdk/src/client/) module is the HTTP/SSE client for the 
 
 Every response is wrapped in a `{ "success": true, "data": ... }` envelope; errors arrive as `{ "success": false, "error": ..., "errorCode": ... }` and are surfaced as a typed `ClientError::Api` that preserves the `errorCode`.
 
-## RLM: keeping the reasoning surface small
+## OpenHuman session boundary
 
-The reason an orchestrator can command up to 1,000 harnesses without drowning in their transcripts is that it does **not** read raw fleet traffic into one context window. Medulla applies **RLM (Recursive Language Model)** techniques — treating the workload as an external environment the model examines, decomposes, and recurses over, rather than a single mega-prompt — so it manages workloads reaching 10 million tokens while keeping its own reasoning surface small and precise.
-
-RLM is a published inference paradigm from MIT CSAIL (Zhang, Kraska & Khattab, 2025); see the [paper](https://arxiv.org/abs/2512.24601) and [Alex Zhang's write-up](https://alexzhang13.github.io/blog/2025/rlm/) for the technique, and [RLM: Context Scaling Without Collapse](../rlm-context-scaling.md) for what it buys Medulla in accuracy and cost. The RLM machinery itself is server-side; the SDK's job is to stream the distilled, high-signal slice to and from the UI.
+The SDK's backend runtime speaks the current OpenHuman session and message contract. It creates and resumes sessions, sends instructions, receives event streams, and reports aborts and pending interaction through the `Runtime` surface. Older steering-directive and controller contracts are not part of this client.
 
 ## The UI data surface
 
 The SDK's [`ui`](../../src/sdk/src/ui/) module is the UI-facing data surface shared with the terminal app: the folded event log and `TuiEvent`, agent-lane folding, token/thread stream derivations, the chat store, and small helpers. Rendering-heavy screens (app, login, composer, theme) live in the `medulla-tui` crate, which re-exports these data modules — so the data model and the rendering stay on opposite sides of the crate boundary.
 
-## Persona memory
+## Local state
 
-The [`memory`](../../src/sdk/src/memory/) module is a thin, medulla-owned wrapper over a persona-memory layer. It turns local coding-agent history into a durable, prompt-ready persona pack and exposes a small offline query surface (`status` / `search` / `directives` / `overview`) plus an LLM-backed ingest path. Vendor types never cross the module boundary: every result is translated into a serde-friendly, medulla-owned type so the UI and protocol layers stay decoupled.
+The SDK owns small local stores for tasks, workspace registration, workflow definitions, session history, configuration, and worker identity. These stores are separate from OpenHuman's hosted session state. Task documents use locking and atomic replacement; workflow stores keep definitions, run records, and checkpoints. The CLI and TUI expose the stores that are currently supported rather than treating every backend record as local data.
 
 ## tiny.place integration
 
@@ -64,4 +62,5 @@ Because the UI depends only on the `Runtime` trait and the client speaks a small
 
 * [Configuration](configuration.md) — how the runtime is selected and configured.
 * [CLI Reference](cli-reference.md) — the daemon and wrappers in operational detail.
-* [Open Benchmarks, Open SDKs](../open-benchmarks-open-sdks.md) — the model is gated; this code is not.
+* [Workflows](../../docs/workflows.md) — durable graphs and their MCP authoring surface.
+* [Contributing](contributing.md) — local validation and release work.
