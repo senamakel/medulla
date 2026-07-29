@@ -1,13 +1,12 @@
 # Tests
 
-Unit tests for workspace initialisation. Every test is offline and deterministic: the drafting path is exercised through a stub `ChatProvider` rather than a live model.
+Unit tests for workspace initialisation. Every test is offline and deterministic; the profile body starts as an operator-editable stub.
 
 ## Contents
 
 - [`layout.rs`](./layout.rs) — Unit tests for the workspace layout scan. Every test builds a real scratch tree — the scan's whole job is reading a filesystem, so faking that away would test nothing.
-- [`mod.rs`](./mod.rs) — Unit tests for workspace initialisation. Every test is offline and deterministic: the drafting path is exercised through a stub `ChatProvider` rather than a live model.
+- [`mod.rs`](./mod.rs) — Unit tests for workspace initialisation and its deterministic profile scaffold.
 - [`registry.rs`](./registry.rs) — Unit tests for workspace registration: what `medulla init` writes into the operator's config so the orchestrator can see and place a workspace.
-- [`types.rs`](./types.rs) — Test-only data types for workspace initialisation.
 
 ## Maintenance
 
