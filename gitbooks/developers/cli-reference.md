@@ -115,14 +115,23 @@ Daemon flags:
 | `--no-onboard` | Skip key publishing and directory registration. |
 | `--reonboard` | Replace the stored worker registration. |
 | `--no-pair` | Do not print the pairing block or copy the address. |
-| `--dangerously-skip-permissions` | Pass the provider's unsafe permission switch. |
-| `--no-trust-workspace` | Do not pre-trust a Claude workspace in the TUI path. |
+| `--dangerously-skip-permissions` | Headless path: pass the provider's unsafe permission switch. |
+| `--no-skip-permissions` | Operator-screen path: *keep* the provider's permission prompts. |
+| `--no-trust-workspace` | Do not pre-trust a Claude workspace in the operator-screen path. |
 | `--config <path>` | Explicit config file. |
 
 The primary `--workspace` is the execution directory; any additional advertised
-roots are capability metadata, not per-task working directories. Skip-permission
-mode is opt-in and visibly named for a reason — it hands the harness the
-provider's unsafe switch.
+roots are capability metadata, not per-task working directories.
+
+The two permission flags point opposite ways, which is deliberate. In the
+headless path the bypass is opt-in and visibly named: `--dangerously-skip-permissions`
+hands the harness the provider's unsafe switch. On the operator screen peer
+sessions run **unattended and with the bypass on by default**, because nobody is
+in the pane to answer a prompt and a task that stops on one has hung until it
+times out; `--no-skip-permissions` turns that off. For the same reason the
+operator path clears Claude's fresh-directory trust dialog up front — naming the
+workspace at launch is taken as the decision to run peer work there — and
+`--no-trust-workspace` declines on your behalf instead.
 
 ### Pairing a worker to an orchestrator
 
