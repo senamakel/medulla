@@ -9,19 +9,43 @@ Medulla ships as a single binary, `medulla`: a [ratatui](https://ratatui.rs/) te
 
 ## Install the prebuilt binary
 
-The install script downloads the release asset for your platform, verifies its SHA-256 against the [release](https://github.com/tinyhumansai/medulla/releases) manifest when a checksum tool (`sha256sum`, `shasum`, or `openssl`) is available — otherwise it warns and skips the check — and installs to `~/.medulla/bin`:
+Both installers do the same thing: resolve the release manifest, download the asset for your platform, verify its SHA-256, and install to `~/.medulla/bin`. If no prebuilt asset ships for your platform, they fall back to `cargo install`.
+
+**macOS and Linux** — `install.sh`, POSIX `sh`, needs `curl` or `wget` plus `tar`:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/tinyhumansai/medulla/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/tinyhumansai/medulla/main/install.sh | sh -s -- 0.5.3   # pin a version
 ```
 
-If the installer updated your `PATH`, reload your shell (`exec $SHELL`, or open a new terminal) so the `medulla` command resolves; otherwise invoke it directly as `~/.medulla/bin/medulla`.
+The checksum is verified when `sha256sum`, `shasum`, or `openssl` is available; with none of them it warns and skips the check rather than failing.
 
-* Pin a version: `| sh -s -- X.Y.Z`.
-* Change the install prefix: set `MEDULLA_HOME`.
-* On a platform without a prebuilt asset the script falls back to `cargo install`.
+**Windows** — `install.ps1`, works in PowerShell 7 (`pwsh`) and in the Windows PowerShell 5.1 that ships in the box:
 
-Prebuilt binaries ship for Linux (x86\_64, aarch64), macOS (Apple Silicon), and Windows (x86\_64). See [platform support](getting-started.md#platform-support) for what's unix-only.
+```powershell
+irm https://raw.githubusercontent.com/tinyhumansai/medulla/main/install.ps1 | iex
+```
+
+Installs to `%USERPROFILE%\.medulla\bin` and appends it to your **user** `PATH`, so no elevation is needed. Verification is always on — `Get-FileHash` is built in. To pin a version, the script needs to be on disk so it can take an argument:
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/tinyhumansai/medulla/main/install.ps1 -OutFile install.ps1
+.\install.ps1 -Version 0.5.3
+```
+
+If a running `medulla.exe` holds a lock on its own image, the installer moves it aside as `medulla.exe.old` rather than failing.
+
+Both scripts honour the same environment variables:
+
+| Variable | Effect |
+| --- | --- |
+| `MEDULLA_HOME` | Install prefix (default `~/.medulla`). |
+| `MEDULLA_NO_MODIFY_PATH=1` | Do not touch shell profiles or the user `PATH`. |
+| `MEDULLA_UPDATE_URL` | Override the release manifest URL (for testing). |
+
+If the installer updated your `PATH`, open a new terminal — or run `exec $SHELL` — so the `medulla` command resolves; otherwise invoke it directly from the install prefix.
+
+Prebuilt binaries ship for Linux (x86\_64, aarch64), macOS (Apple Silicon), and Windows (x86\_64). See [platform support](#platform-support) for what is unix-only. Every installer is exercised on each of those platforms — plus Fedora, Debian, and Rocky — by the `Install scripts` CI workflow, which installs from the real published release and then runs the binary.
 
 ## Build from source
 

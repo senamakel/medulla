@@ -253,6 +253,20 @@ try {
     Write-Host ''
     Write-Info 'Without credentials, medulla opens a login screen; press m to look around offline.'
     Write-Info 'Update anytime with medulla update.'
+
+    # Explicit, or the exit code is whatever the cleanup below happened to leave
+    # behind. Windows PowerShell 5.1 maps a trailing failed statement to exit 1,
+    # and `powershell -command ". 'install.ps1'"` then reports a completed
+    # install as a failure. `exit` still runs the `finally` block.
+    exit 0
 } finally {
-    if (Test-Path $workDir) { Remove-Item -Recurse -Force $workDir -ErrorAction SilentlyContinue }
+    # Best-effort: a leftover temp directory is not worth failing an install
+    # that already succeeded, and must not colour the exit code.
+    if (Test-Path $workDir) {
+        try {
+            Remove-Item -Recurse -Force $workDir -ErrorAction Stop
+        } catch {
+            Write-Verbose "could not remove $($workDir): $($_.Exception.Message)"
+        }
+    }
 }

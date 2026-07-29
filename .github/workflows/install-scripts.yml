@@ -88,13 +88,17 @@ jobs:
           - image: fedora:latest
             label: fedora
             # Fedora's base image has no tar or a usable download client.
-            deps: dnf install -y curl tar findutils
+            # --allowerasing: these images ship curl-minimal, which conflicts
+            # with the full curl package rather than satisfying it.
+            deps: dnf install -y --allowerasing curl tar findutils
           - image: debian:stable-slim
             label: debian
             deps: apt-get update && apt-get install -y curl tar findutils
           - image: rockylinux:9
             label: rocky 9
-            deps: dnf install -y curl tar findutils
+            # --allowerasing: these images ship curl-minimal, which conflicts
+            # with the full curl package rather than satisfying it.
+            deps: dnf install -y --allowerasing curl tar findutils
     container:
       image: ${{ matrix.image }}
     steps:
