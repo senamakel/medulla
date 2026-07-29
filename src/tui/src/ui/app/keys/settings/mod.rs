@@ -192,8 +192,26 @@ impl App {
     /// bindings is how the two drift apart.
     pub(super) fn feedback_key(&mut self, code: KeyCode) -> SettingsKey {
         match code {
-            KeyCode::Char('k') => SettingsKey::handled(self.move_feedback_index(true)),
-            KeyCode::Char('j') => SettingsKey::handled(self.move_feedback_index(false)),
+            // The arrows are bound here as well as by the Settings nav wrapper,
+            // which never reaches this function with one: on the top-level tab
+            // there is no wrapper, and the board's own header advertises `↑/↓`.
+            KeyCode::Char('k') | KeyCode::Up => {
+                SettingsKey::handled(self.move_feedback_index(true))
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                SettingsKey::handled(self.move_feedback_index(false))
+            }
+            // The detail pane holds the whole body plus every comment, so it
+            // outgrows its height routinely; the list keeps the arrows, so
+            // paging keys scroll the text.
+            KeyCode::PageUp => {
+                self.scroll_feedback_detail(false);
+                SettingsKey::handled(None)
+            }
+            KeyCode::PageDown => {
+                self.scroll_feedback_detail(true);
+                SettingsKey::handled(None)
+            }
             KeyCode::Char('u') => SettingsKey::handled(self.vote_selected_feedback(1)),
             KeyCode::Char('d') => SettingsKey::handled(self.vote_selected_feedback(-1)),
             KeyCode::Char('c') => {

@@ -21,7 +21,12 @@ pub(super) enum AppMsg {
     /// A newer release was detected by the background update checker.
     UpdateAvailable(String),
     /// A page of the feedback board. `None` = this runtime has no board.
-    FeedbackLoaded(Option<medulla::client::FeedbackPage>),
+    FeedbackLoaded {
+        /// The query that produced it, so a superseded load can be dropped.
+        query: medulla::client::FeedbackQuery,
+        /// The page itself.
+        page: Option<medulla::client::FeedbackPage>,
+    },
     /// Comments for one board item.
     FeedbackComments {
         /// The item the comments belong to.

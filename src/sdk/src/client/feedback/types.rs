@@ -216,7 +216,10 @@ impl FeedbackSort {
 }
 
 /// A board query: filters, ordering, and pagination.
-#[derive(Debug, Clone)]
+///
+/// Comparable so a caller with several loads in flight can tell whether a
+/// response still answers the query it is showing.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeedbackQuery {
     /// Restrict to one item type; `None` lists both.
     pub kind: Option<FeedbackType>,

@@ -22,9 +22,16 @@ pub(super) fn run_feedback_cmd(
         Cmd::LoadFeedback(query) => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();
+            // The query rides back with the answer: filter and sort changes can
+            // overtake each other, and a response is only worth applying while
+            // it still describes what the header says is on screen.
+            let echoed = query.clone();
             tokio::spawn(async move {
                 let msg = match rt.list_feedback(query).await {
-                    Ok(page) => AppMsg::FeedbackLoaded(page),
+                    Ok(page) => AppMsg::FeedbackLoaded {
+                        query: echoed,
+                        page,
+                    },
                     Err(e) => AppMsg::Status(e.to_string()),
                 };
                 let _ = tx.send(msg);

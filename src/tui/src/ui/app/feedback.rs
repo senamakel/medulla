@@ -142,7 +142,16 @@ impl App {
 
     /// Store a freshly loaded board page. `None` means this runtime has no
     /// board, which the tab renders as a sign-in hint.
-    pub fn set_feedback_page(&mut self, page: Option<FeedbackPage>) {
+    ///
+    /// `query` is the query that produced `page`. A response for a query the
+    /// operator has already moved on from is dropped and reported as `false`:
+    /// sort and filter changes each issue their own load, they can complete out
+    /// of order, and the older answer landing last would leave the previous
+    /// query's rows sitting under the new header.
+    pub fn set_feedback_page(&mut self, query: FeedbackQuery, page: Option<FeedbackPage>) -> bool {
+        if query != self.feedback.query {
+            return false;
+        }
         self.feedback.loading = false;
         match page {
             None => {
@@ -171,6 +180,31 @@ impl App {
                 }
             }
         }
+        true
+    }
+
+    /// Forget which item's comments are loaded, so the next board load fetches
+    /// them again.
+    ///
+    /// Used after a comment is posted: the item is still on the page, so
+    /// [`set_feedback_page`](Self::set_feedback_page) would keep `detail_id` and
+    /// [`feedback_detail_cmd`](Self::feedback_detail_cmd) would then conclude
+    /// the comments are current — leaving the operator's own comment invisible
+    /// until they navigated away and back.
+    pub fn invalidate_feedback_detail(&mut self) {
+        self.feedback.detail_id = None;
+        self.feedback.comments.clear();
+        self.feedback.detail_scroll = 0;
+    }
+
+    /// Scroll the detail pane, which holds the full body and every comment and
+    /// so routinely runs past the pane's height.
+    pub(super) fn scroll_feedback_detail(&mut self, down: bool) {
+        self.feedback.detail_scroll = if down {
+            self.feedback.detail_scroll.saturating_add(1)
+        } else {
+            self.feedback.detail_scroll.saturating_sub(1)
+        };
     }
 
     /// Store the comments loaded for `id`, unless the selection has moved on.
