@@ -26,18 +26,18 @@ a **host**, are surfaced through a **harness**, and are listed in `agent_list`.
 Each agent has a set of **tools**, an MCP server inventory, and a health snapshot
 (consecutive-ok / consecutive-failed). An agent is **idle** when it has no running
 tasks and **busy** otherwise. The orchestrator delegates to agents; a manager
-*manages* them.
+_manages_ them.
 
 ## Harness
 
 A runtime environment adapter — the layer that boots, supervises, and
 communicates with a coding assistant CLI. Medulla supports several harness kinds:
 
-| Harness | Transport |
-|---|---|
+| Harness     | Transport                                               |
+| ----------- | ------------------------------------------------------- |
 | Claude Code | ACP (Agent Client Protocol) over stdio, or legacy JSONL |
-| Codex | ACP over stdio |
-| OpenCode | ACP over stdio |
+| Codex       | ACP over stdio                                          |
+| OpenCode    | ACP over stdio                                          |
 
 A harness surfaces a **status** (idle / running / stopped), a **task board**
 (tracked tasks with status open → active → blocked → done / cancelled), and an
@@ -60,7 +60,7 @@ Host → Harness → Workspace → Agent
 A filesystem directory exposed by a **harness** on a **host**. A workspace is
 where agents read, write, and run code. Each workspace can carry a `MEDULLA.md`
 **profile** — a short frontmatter + prose summary that tells the orchestrator
-what the directory *is* and how to route work over it. Workspaces are registered
+what the directory _is_ and how to route work over it. Workspaces are registered
 in the fleet configuration; without a registration entry the orchestrator cannot
 place work there.
 
@@ -127,7 +127,7 @@ read with care — a chunk another manager wrote may not be yours to interpret.
 
 ## Capability Probing
 
-Asking an **agent** what it can *actually* do before routing work to it. A probe
+Asking an **agent** what it can _actually_ do before routing work to it. A probe
 returns the agent's working directory, accessible directories, git project and
 branch, available tools, MCP servers, and provider backends. The result is cached
 and shown under the agent in `agent_list`. Probing once per agent lets the
@@ -171,7 +171,7 @@ than teaching the orchestration layer each harness's private JSONL format.
 A **workspace profile** file at a repository root. It carries a short summary
 (~100–200 tokens) and optional frontmatter preferences (harnesses, models,
 routing hints, file layout). The orchestrator reads it on every cycle to
-understand what the directory *is* and how to decompose work within it. Created
+understand what the directory _is_ and how to decompose work within it. Created
 with `medulla init` and registered with `medulla workspace add`.
 
 ## Provider
