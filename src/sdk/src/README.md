@@ -20,7 +20,6 @@ The Rust module tree for the `medulla` SDK crate. `lib.rs` defines the public su
 - [`hub/`](./hub/) — The task-sender hub — the outbound half of the harness plane.
 - [`init/`](./init/) — Workspace initialisation: registering a directory and authoring its `MEDULLA.md`.
 - [`logging/`](./logging/) — The one line-sink type every subsystem narrates through.
-- [`memory/`](./memory/) — Memory service: a thin, medulla-owned wrapper over tinycortex's persona memory layer (doc 06). It turns local coding-agent history into a durable, prompt-ready persona pack and exposes a small offline query surface (`status`/`search`/`directives`/`overview`) plus an LLM-backed ingest path.
 - [`onboarding/`](./onboarding/) — First-run worker registration orchestration.
 - [`runtime/`](./runtime/) — The `Runtime` trait the UI drives, plus its snapshot contract. Concrete implementations live alongside: `openhuman` (the embedded core, which the product runs on) and `mock` (tests and demos). The UI depends only on the trait and its types.
 - [`session_history/`](./session_history/) — Recent-session history for local harness sessions.

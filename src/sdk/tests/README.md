@@ -20,7 +20,6 @@ Cross-module integration, feature, and mocked end-to-end coverage for the SDK.
 - [`e2e_wrapper.rs`](./e2e_wrapper.rs) — (Unix-only: exercises Unix-domain-socket cores and/or spawned `/bin/sh` mock scripts.)
 - [`feature_history_upload.rs`](./feature_history_upload.rs) — Feature tests for history sharing against realistic transcripts.
 - [`feature_init.rs`](./feature_init.rs) — End-to-end workspace-initialisation tests: the full `medulla init` flow over a real directory tree, from reading instruction files through drafting, writing, reading back, and building the run-request payload.
-- [`feature_memory.rs`](./feature_memory.rs) — End-to-end memory-service tests over a real tinycortex persona workspace.
 - [`feature_status.rs`](./feature_status.rs) — Coverage for the derived session-status machine branches that the inline `tinyplace::status` tests do not reach: agent thinking/message derivations, the lifecycle phase ladder, and the empty-call-id path.
 - [`feature_workflow_dispatch.rs`](./feature_workflow_dispatch.rs) — An orchestrator dispatching a *workflow* to a worker, end to end.
 - [`feature_workflow_examples.rs`](./feature_workflow_examples.rs) — The shipped example workflows must stay valid.
