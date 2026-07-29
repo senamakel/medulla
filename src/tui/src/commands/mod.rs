@@ -101,6 +101,9 @@ async fn auth_core(
     // another.
     let loaded = load_config(None, env, &home)?;
     medulla::core_host::bind_medulla_base_url(env, &loaded.config.backend.base_url);
+    // And the core's own backend client with it: storing a session validates it
+    // against `/auth/me` there, not on the Medulla base above.
+    medulla::core_host::bind_backend_api_url(env, &loaded.config.backend.base_url);
     medulla::core_host::boot_for_auth()
         .await
         .map_err(|e| anyhow::anyhow!("failed to start the embedded OpenHuman core: {e}"))

@@ -133,6 +133,12 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // token against one deployment and stores it against another.
     #[cfg(feature = "openhuman-core")]
     medulla::core_host::bind_medulla_base_url(&env, &loaded.config.backend.base_url);
+    // The core's own backend client needs the same treatment: it resolves
+    // `/auth/me` from `BACKEND_URL`, which defaults to production and knows
+    // nothing about `MEDULLA_STAGING`, so the in-app login screen would verify a
+    // staging token and then have the core hand it to production to validate.
+    #[cfg(feature = "openhuman-core")]
+    medulla::core_host::bind_backend_api_url(&env, &loaded.config.backend.base_url);
 
     // Runtime selection.
     //
