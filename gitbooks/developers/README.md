@@ -12,22 +12,29 @@ The [product overview](../) is the high-level story; these pages are the hands-o
 
 ## What's here
 
-* [Getting Started](getting-started.md) — install the prebuilt binary or build from source, log in, and run your first session.
-* [CLI Reference](cli-reference.md) — every `medulla` subcommand: the TUI, the headless daemon, the harness wrappers, and self-update.
-* [Configuration](configuration.md) — the Medulla home directory, the layered config system, and the runtimes.
+* [Getting Started](getting-started.md) — install the prebuilt binary on any platform or build from source, log in, and run your first session.
+* [The TUI](the-tui.md) — the tabs, hosting work on this device, adding another machine, and steering a running fleet.
+* [CLI Reference](cli-reference.md) — every `medulla` subcommand: the TUI, the worker daemon, workflows, the harness wrappers, and self-update.
+* [Configuration](configuration.md) — the Medulla home directory, the layered config system, local state, and the runtimes.
 * [Authentication](authentication.md) — the browser loopback login flow, tokens, and how credentials are stored and hardened.
-* [Architecture](architecture.md) — how the SDK and TUI fit together, the runtime adapters, the RLM-backed orchestration loop, and the tiny.place bridge.
+* [Architecture](architecture.md) — how the SDK and TUI fit together, the runtime adapters, sessions, workflows, and the tiny.place bridge.
 * [Contributing](contributing.md) — build, test, lint, coverage, and the release process.
 
 ## The 60-second version
 
-Install the prebuilt binary (it downloads the release asset for your platform, verifies its SHA-256 against the release manifest when a checksum tool is available, and installs to `~/.medulla/bin`):
+Install the prebuilt binary. It downloads the release asset for your platform, verifies its SHA-256 against the release manifest, and installs to `~/.medulla/bin`:
 
 ```sh
+# macOS and Linux
 curl -fsSL https://raw.githubusercontent.com/tinyhumansai/medulla/main/install.sh | sh
 ```
 
-If the installer updated your `PATH`, reload your shell (`exec $SHELL`, or open a new terminal) so `medulla` resolves. Then log in and start the TUI:
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/tinyhumansai/medulla/main/install.ps1 | iex
+```
+
+If the installer updated your `PATH`, open a new terminal — or run `exec $SHELL` — so `medulla` resolves. Then log in and start the TUI:
 
 ```sh
 medulla login   # browser OAuth; stores a verified JWT

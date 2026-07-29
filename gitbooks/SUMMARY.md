@@ -20,6 +20,7 @@
 
 * [Overview](developers/README.md)
 * [Getting Started](developers/getting-started.md)
+* [The TUI](developers/the-tui.md)
 * [CLI Reference](developers/cli-reference.md)
 * [Configuration](developers/configuration.md)
 * [Authentication](developers/authentication.md)
