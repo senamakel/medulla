@@ -47,7 +47,6 @@ pub(crate) async fn run(
         config_path,
         medulla_home,
         account,
-        memory_service,
         mut sharing,
         onboarding_path,
         host,
@@ -56,9 +55,6 @@ pub(crate) async fn run(
     app.set_config_path(config_path);
     app.set_medulla_home(medulla_home);
     app.set_account(account);
-    if let Some(svc) = memory_service {
-        app.set_memory_service(svc);
-    }
     if let Some(obs) = tinyplace_obs {
         app.set_tinyplace_observation(obs);
     }
@@ -94,7 +90,7 @@ pub(crate) async fn run(
             maybe_event = reader.next() => {
                 if let Some(Ok(ev)) = maybe_event {
                     if let Some(cmd) = app.on_event(ev) {
-                        run_cmd(cmd, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
+                        run_cmd(cmd, &runtime, &app.loaded.config.workflows, &msg_tx);
                     }
                 }
             }
@@ -102,7 +98,7 @@ pub(crate) async fn run(
                 if recv.is_ok() {
                     app.refresh_snapshot();
                     if should_refresh_context(&mut app) {
-                        run_cmd(Cmd::InspectContext, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
+                        run_cmd(Cmd::InspectContext, &runtime, &app.loaded.config.workflows, &msg_tx);
                     }
                 }
             }
@@ -121,12 +117,6 @@ pub(crate) async fn run(
                         app.refresh_snapshot();
                         app.set_status(s);
                     }
-                    AppMsg::MemoryLoaded { status, directives } => {
-                        app.set_memory_loaded(status, directives);
-                    }
-                    AppMsg::MemoryIngestDone(status) => {
-                        app.set_memory_ingest_done(status);
-                    }
                     AppMsg::TasksLoaded(document) => app.set_tasks(document),
                     #[cfg(feature = "workflows")]
                     AppMsg::CopilotStatus { workflow, line } => {
@@ -142,11 +132,6 @@ pub(crate) async fn run(
                     #[cfg(feature = "workflows")]
                     AppMsg::CopilotFailed { workflow, error } => {
                         app.copilot_failed(&workflow, error);
-                    }
-                    AppMsg::MemoryResults { hits, query } => {
-                        let n = hits.len();
-                        app.set_memory_results(hits, query);
-                        app.set_status(format!("Memory · {n} hit(s)"));
                     }
                     AppMsg::UpdateAvailable(notice) => {
                         app.set_update_notice(notice.clone());

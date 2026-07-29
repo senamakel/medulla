@@ -405,9 +405,12 @@ impl UpdateConfig {
     }
 }
 
-/// The optional `memory` section: tinycortex persona memory integration. All
-/// fields are optional overrides; consumers resolve effective settings against
-/// the environment.
+/// The optional `memory` section: persona-memory integration.
+///
+/// Kept in the schema while the memory layer itself is out of the build, so an
+/// operator's existing `[memory]` block survives a load/save round-trip rather
+/// than being silently dropped from their config file. Nothing reads these
+/// fields today.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MemoryConfigSection {

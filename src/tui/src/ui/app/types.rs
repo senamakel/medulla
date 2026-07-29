@@ -1,7 +1,7 @@
 //! The data model for the interactive TUI screen: the tab list, multi-pane
 //! navigation constants, the [`Cmd`] the event loop runs on the app's behalf, the
 //! small overlay/state types ([`ResumePicker`], [`Prompt`], [`PromptKind`],
-//! [`MemoryEntry`]), and the central [`App`] struct itself.
+//! and the central [`App`] struct itself.
 //!
 //! Behaviour lives in the sibling modules ([`super::state`], [`super::input`],
 //! [`super::keys`], [`super::commands`], and [`super::render`]), each of which
@@ -16,7 +16,6 @@ use ratatui::layout::Rect;
 use crate::ui::composer::{Draft, TextPrompt};
 use crate::ui::theme::Theme;
 use medulla::config::LoadedConfig;
-use medulla::memory::{MemoryHit, MemoryStatus};
 use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
 use medulla::runtime::{RoutingStrategy, SubscriptionRoutingStrategy};
 
@@ -105,16 +104,6 @@ pub(super) const TOKENMAXXING_SUBPAGES: [&str; 3] = ["Overview", "Bounties", "Le
 pub(super) const TM_OVERVIEW: usize = 0;
 pub(super) const TM_BOUNTIES: usize = 1;
 pub(super) const TM_LEADERBOARD: usize = 2;
-
-/// The Memory tab's left-nav pages.
-pub const MEMORY_SUBPAGES: [&str; 5] =
-    ["Overview", "Directives", "Facets", "Search", "Maintenance"];
-
-pub(super) const MP_OVERVIEW: usize = 0;
-pub(super) const MP_DIRECTIVES: usize = 1;
-pub(super) const MP_FACETS: usize = 2;
-pub(super) const MP_SEARCH: usize = 3;
-pub(super) const MP_MAINTENANCE: usize = 4;
 
 /// Display metadata coupled to the routing strategy it applies.
 #[derive(Clone, Copy)]
@@ -359,18 +348,8 @@ pub enum Cmd {
         /// The `(worker address, task id)` to start streaming, if any.
         start: Option<(String, String)>,
     },
-    /// Load the persona-memory status + directives for the Memory tab.
-    LoadMemory,
     /// Fetch account-level usage from the backend for the Usage tab.
     LoadUsage,
-    /// Run a persona-memory search and land on the Memory tab.
-    SearchMemory(String),
-    /// Run a persona-memory ingest, then reload the Memory tab. `backfill` walks
-    /// everything oldest-first; otherwise only changed files/repos are visited.
-    IngestMemory {
-        /// Whether to walk everything rather than resuming from the cursor.
-        backfill: bool,
-    },
     /// Reload the local task document.
     LoadTasks,
     /// Persist a new or edited local task.
@@ -437,23 +416,6 @@ pub(super) struct ResumePicker {
     pub(super) index: usize,
 }
 
-/// One selectable row in the Memory tab's left pane: either the directive/facet
-/// overview (no active search) or a ranked search hit.
-#[derive(Clone)]
-pub(super) enum MemoryEntry {
-    /// A persona directive line.
-    Directive(String),
-    /// A facet name with its observation count.
-    Facet {
-        /// The facet name.
-        name: String,
-        /// The number of observations in the facet.
-        count: usize,
-    },
-    /// A ranked search hit.
-    Hit(MemoryHit),
-}
-
 /// The action a small inline prompt (Hosts add/edit, Agents answer) submits.
 pub(super) enum PromptKind {
     /// Create a task from a title line.
@@ -462,8 +424,6 @@ pub(super) enum PromptKind {
     TaskEdit(String),
     /// Add a GitHub source from `owner/repository`.
     SourceAdd,
-    /// Search local persona memory with a natural-language query.
-    MemorySearch,
     /// Add a worker from an address/@handle line.
     HostAdd,
     /// Edit the label of the worker with the given id.
@@ -598,29 +558,6 @@ pub struct App {
     pub(super) tokenmaxxing_index: usize,
     /// Whether keyboard focus is inside the TokenMaxxxing content pane.
     pub(super) tokenmaxxing_focused: bool,
-    // Persona-memory tab state (lazily loaded on tab entry / search).
-    pub(super) memory_status: Option<MemoryStatus>,
-    pub(super) memory_hits: Vec<MemoryHit>,
-    pub(super) memory_directives: Vec<String>,
-    pub(super) memory_index: usize,
-    pub(super) memory_query: Option<String>,
-    /// The persona-memory service, attached directly rather than through the
-    /// runtime seam. Memory is a local, on-disk surface that has nothing to do
-    /// with which runtime drives chat, so attaching it here keeps the Memory tab
-    /// working on the backend and mock paths — not just on core, which is the
-    /// only runtime that also *serves* memory as a toolset. `None` falls back to
-    /// the runtime seam (how the mock scripts memory in tests).
-    pub(super) memory_service: Option<Arc<medulla::memory::MemoryService>>,
-    /// Whether a memory ingest (backfill or incremental) is currently running.
-    /// Ingest calls a paid provider, so a second run must not be startable while
-    /// one is in flight.
-    pub(super) memory_ingesting: bool,
-    /// The active Memory subpage (index into [`MEMORY_SUBPAGES`]).
-    pub(super) memory_subpage_index: usize,
-    /// Whether keyboard focus is inside the Memory content pane.
-    pub(super) memory_focused: bool,
-    /// Whether the selected Memory entry's detail modal is visible.
-    pub(super) memory_detail_open: bool,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
     /// Durable local task document displayed by the Tasks tab.
     pub(super) tasks: medulla::tasks::TaskDocument,

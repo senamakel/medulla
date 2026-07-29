@@ -148,8 +148,8 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let mut pending_core: Option<medulla::core_host::EmbeddedCore> = None;
     let mut need_login: Option<String> = None;
     // The signed-in session, resolved once from the core. Everything that needs
-    // a backend bearer — the hub uplink, the memory service's sync target, the
-    // Account subpage — takes it from here rather than looking it up again, so
+    // a backend bearer — the hub uplink, the Account subpage — takes it from
+    // here rather than looking it up again, so
     // no two surfaces can disagree about whether this process is signed in.
     let mut session: Option<medulla::auth::Credentials> = None;
     let mut account: Option<medulla::core_host::auth::AuthState> = None;
@@ -297,29 +297,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // `mut` because a relogin rebuilds it around the same core.
     let mut runtime = runtime.expect("a runtime is always selected");
 
-    // Persona-memory service (tinycortex), on by default. Wired into the app
-    // itself, which reads it for the Memory tab, so memory works whichever
-    // runtime backs the session. Built after selection because its backend sync
-    // target is the session the core holds, which is not known before then.
-    let memory_settings = medulla::memory::env::resolve_with_backend(
-        loaded.config.memory.as_ref(),
-        &loaded.config.backend,
-        &env,
-        &medulla::home::medulla_home(&env),
-        session.as_ref().map(|c| c.jwt.as_str()),
-    );
-    let memory_service: Option<Arc<medulla::memory::MemoryService>> = if memory_settings.enabled {
-        match medulla::memory::MemoryService::open(memory_settings) {
-            Ok(svc) => Some(Arc::new(svc)),
-            Err(e) => {
-                startup_status = Some(format!("memory service failed to open ({e})"));
-                None
-            }
-        }
-    } else {
-        None
-    };
-
     // First-run welcome: offer promotional credit for sharing coding-agent
     // history. Gated locally by `[onboarding] welcomeCompleted` so a returning
     // user is never re-prompted; the backend independently refuses a second
@@ -455,7 +432,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 config_path: active_config_path.clone(),
                 medulla_home: home.clone(),
                 account: account.clone(),
-                memory_service: memory_service.clone(),
                 sharing: sharing.take(),
                 onboarding_path: active_config_path.clone(),
                 host: local_host.as_ref().map(|host| host.observation()),

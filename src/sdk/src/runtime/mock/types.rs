@@ -165,7 +165,6 @@ impl MockRuntime {
         }
     }
 
-
     /// Record a runtime method invocation in the call log.
     pub(super) fn record(&self, name: &str) {
         self.calls.lock().unwrap().push(name.to_string());

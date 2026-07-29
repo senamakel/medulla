@@ -10,8 +10,7 @@ use crate::ui::agents::{agent_row_model, AgentRole, AgentRow};
 use crate::ui::composer::Draft;
 
 use super::types::{
-    App, Cmd, MEMORY_SUBPAGES, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, TASKS_SUBPAGES,
-    TOKENMAXXING_SUBPAGES,
+    App, Cmd, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, TASKS_SUBPAGES, TOKENMAXXING_SUBPAGES,
 };
 
 impl App {
@@ -75,13 +74,6 @@ impl App {
                 Some((rail, _)) if rail.contains((x, y).into()) => self.move_agent_index(up),
                 _ => self.scroll_transcript(up, 3),
             },
-            "Memory" if self.memory_focused => {
-                self.memory_index = if up {
-                    self.memory_index.saturating_sub(1)
-                } else {
-                    (self.memory_index + 1).min(self.memory_page_entries().len().saturating_sub(1))
-                };
-            }
             // Trace and Context are Settings subpages, not tabs, so they are
             // matched on the subpage rather than on the tab — which is always
             // "Settings" for both.
@@ -122,9 +114,6 @@ impl App {
                     step(self.tokenmaxxing_index, TOKENMAXXING_SUBPAGES.len());
             }
             "Routing" => self.routing_index = step(self.routing_index, ROUTING_SUBPAGES.len()),
-            "Memory" => {
-                self.memory_subpage_index = step(self.memory_subpage_index, MEMORY_SUBPAGES.len());
-            }
             "Settings" => self.settings_index = step(self.settings_index, SETTINGS_SUBPAGES.len()),
             _ => {}
         }
@@ -173,7 +162,6 @@ impl App {
                     (self.tokenmaxxing_index, self.tokenmaxxing_focused) = (page, true);
                 }
                 "Routing" => (self.routing_index, self.routing_focused) = (page, true),
-                "Memory" => (self.memory_subpage_index, self.memory_focused) = (page, true),
                 "Settings" => (self.settings_index, self.settings_focused) = (page, true),
                 _ => {}
             }

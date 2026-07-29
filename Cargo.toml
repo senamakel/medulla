@@ -24,7 +24,6 @@ openhuman = { path = "vendor/openhuman", default-features = false }
 # declaration style: mixing the two yields two PackageIds for one crate and an
 # E0308 where the types look identical.
 tinyplace = "2.0"
-tinycortex = { version = "0.1", features = ["persona", "providers-http"] }
 # The workflow engine. Declared as a registry dependency and redirected to the
 # vendored submodule by `[patch.crates-io]` below, matching how the sibling
 # openhuman host consumes it — one shared pin, one shared upgrade cadence.

@@ -1,6 +1,6 @@
 [package]
 name = "medulla"
-description = "Medulla client SDK: backend HTTP/SSE client, runtimes, persona memory, and the coding-agent daemon"
+description = "Medulla client SDK: backend HTTP/SSE client, runtimes, and the coding-agent daemon"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -20,7 +20,6 @@ workflows = ["dep:tinyflows"]
 [dependencies]
 tinyplace = { workspace = true }
 tinyflows = { workspace = true, optional = true }
-tinycortex = { workspace = true }
 # default-features = false is LOAD-BEARING, not tidiness: OpenHuman's defaults
 # include its own `tui` gate on ratatui 0.30 / crossterm 0.29 against this
 # workspace's 0.29 / 0.28. Those are semver-incompatible at 0.x, so Cargo would

@@ -21,7 +21,6 @@ use crate::ui::composer::{
 };
 
 mod agents;
-mod memory;
 mod routing;
 mod settings;
 mod tasks;
@@ -30,7 +29,6 @@ mod tokenmaxxing;
 mod workflows;
 
 use agents::AgentsKey;
-use memory::MemoryKey;
 use routing::RoutingKey;
 use settings::SettingsKey;
 use tasks::TasksKey;
@@ -168,11 +166,6 @@ impl App {
         }
         if tab == "TokenMaxxxing" {
             if let TokenMaxxxingKey::Handled(cmd) = self.on_tokenmaxxing_key(k.code) {
-                return cmd;
-            }
-        }
-        if tab == "Memory" {
-            if let MemoryKey::Handled(cmd) = self.on_memory_key(k.code) {
                 return cmd;
             }
         }

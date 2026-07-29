@@ -11,7 +11,7 @@ use medulla_tui::cli::{parse_command, sessions_json, Command};
 use crate::app_loop::run_tui;
 #[cfg(feature = "workflows")]
 use crate::commands::run_workflow_cmd;
-use crate::commands::{run_hub, run_init, run_login, run_logout, run_memory, run_workspace};
+use crate::commands::{run_hub, run_init, run_login, run_logout, run_workspace};
 use crate::run::run_core;
 
 mod app_loop;
@@ -67,7 +67,6 @@ async fn async_main() -> anyhow::Result<()> {
         }
         Command::Login => run_login(&raw[1..]).await,
         Command::Logout => run_logout().await,
-        Command::Memory => run_memory(&raw[1..]).await,
         Command::Init => run_init(&raw[1..]).await,
         Command::Workspace => run_workspace(&raw[1..]).await,
         Command::Hub => run_hub(&raw[1..]).await,
