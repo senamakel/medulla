@@ -17,7 +17,7 @@ use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
     App, Cmd, HandbackPolicy, ResumePicker, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, SP_CONTEXT,
-    SP_FEEDBACK, SP_USAGE, TABS, TASKS_SUBPAGES,
+    SP_FEEDBACK, SP_USAGE, TABS,
 };
 
 impl App {
@@ -71,6 +71,8 @@ impl App {
             host_index: 0,
             workspace_index: 0,
             template_index: 0,
+            custom_harnesses: Vec::new(),
+            custom_harness_index: 0,
             template_scroll: 0,
             template_modal: false,
             #[cfg(feature = "workflows")]
@@ -91,14 +93,9 @@ impl App {
             subscription_strategy_index,
             subscription_strategy_focused: false,
             credential_status: super::credentials::detect_credential_status(),
-            tasks_index: 0,
-            tasks_focused: false,
-            task_source_index: 0,
-            tasks_detail_open: false,
             tokenmaxxing_index: 0,
             tokenmaxxing_focused: false,
             feedback: Default::default(),
-            tasks: medulla::tasks::TaskDocument::default(),
             decision_open: false,
             decision_index: 0,
             dismissed_decisions: Default::default(),
@@ -155,6 +152,7 @@ impl App {
     /// so feature tests avoid the real home.
     pub fn set_config_path(&mut self, path: std::path::PathBuf) {
         self.config_path = Some(path);
+        self.reload_custom_harnesses();
     }
 
     /// Record who the core is signed in as, for the Account subpage.
@@ -165,32 +163,6 @@ impl App {
     /// Configure Account logout with a testable home; without it, logout reports no writable location.
     pub fn set_medulla_home(&mut self, home: std::path::PathBuf) {
         self.medulla_home = Some(home);
-        if let Some(home) = &self.medulla_home {
-            if let Ok(repository) = medulla::tasks::TaskRepository::in_home(home) {
-                self.tasks = repository.document().clone();
-            }
-        }
-    }
-
-    /// Replace the task document returned by background persistence/sync work.
-    pub fn set_tasks(&mut self, document: medulla::tasks::TaskDocument) {
-        self.tasks = document;
-        self.selected = self.selected.min(self.tasks.tasks.len().saturating_sub(1));
-    }
-
-    /// The active Tasks subpage name. Test/inspection seam.
-    pub fn tasks_subpage(&self) -> &'static str {
-        TASKS_SUBPAGES[self.tasks_index.min(TASKS_SUBPAGES.len() - 1)]
-    }
-
-    /// Whether Tasks focus is inside the active content pane.
-    pub fn tasks_focused(&self) -> bool {
-        self.tasks_focused
-    }
-
-    /// Whether a selected task or source is open in the detail modal.
-    pub fn tasks_detail_open(&self) -> bool {
-        self.tasks_detail_open
     }
 
     /// The active Settings subpage name. Test/inspection seam.
@@ -406,7 +378,6 @@ impl App {
     pub(super) fn tab_enter_cmd(&mut self) -> Option<Cmd> {
         match self.tab() {
             "Feedback" => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
-            "Tasks" => Some(Cmd::LoadTasks),
             // The workflow store is files on this machine, so entering the tab
             // reads them rather than asking the runtime for anything — which is
             // why this arm returns no command and does the work here.

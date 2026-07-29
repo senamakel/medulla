@@ -86,6 +86,7 @@ fn runtime_serving(session_id: String) -> DaemonRuntime {
         skip_permissions: false,
         accessible_dirs: Vec::new(),
         router: None,
+        custom_harnesses: Vec::new(),
         budget: None,
     };
     let run_task = Arc::new(move |options: medulla::daemon::providers::RunTaskOptions| {
@@ -114,6 +115,7 @@ async fn start_task(runtime: &DaemonRuntime, from: &str, task_id: &str) {
         correlation_id: Some(format!("cyc/{task_id}/0")),
         harness: None,
         provider: Some(HarnessProvider::Codex),
+        custom_harness: None,
         model: None,
         workflow: None,
         conversation: None,

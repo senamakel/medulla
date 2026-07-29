@@ -66,6 +66,7 @@ fn harnesses(sessions: PtyManager) -> LocalHarnesses {
         extra_args: Vec::new(),
         skip_permissions: false,
         router: None,
+        custom_harnesses: Vec::new(),
         budget: None,
     };
     let run_task: medulla::daemon::providers::RunTaskFn =

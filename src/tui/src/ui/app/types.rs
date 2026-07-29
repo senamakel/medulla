@@ -38,10 +38,9 @@ use medulla::runtime::{RoutingStrategy, SubscriptionRoutingStrategy};
 /// graph to navigate and a copilot to edit it by. Three panes' worth of surface
 /// does not fit in a subpage of something else.
 #[cfg(feature = "workflows")]
-pub const TABS: [&str; 8] = [
+pub const TABS: [&str; 7] = [
     "Overview",
     "Agents",
-    "Tasks",
     "Workflows",
     "TokenMaxxxing",
     "Routing",
@@ -52,10 +51,9 @@ pub const TABS: [&str; 8] = [
 /// Without the workflow engine. A slim build must not offer a tab that cannot
 /// draw anything.
 #[cfg(not(feature = "workflows"))]
-pub const TABS: [&str; 7] = [
+pub const TABS: [&str; 6] = [
     "Overview",
     "Agents",
-    "Tasks",
     "TokenMaxxxing",
     "Routing",
     "Feedback",
@@ -92,12 +90,6 @@ pub(super) const RP_WORKSPACES: usize = 2;
 pub(super) const RP_TEMPLATES: usize = 3;
 pub(super) const RP_ADD_HOST: usize = 4;
 pub(super) const RP_STRATEGIES: usize = 5;
-
-/// The Tasks tab's left-nav pages.
-pub const TASKS_SUBPAGES: [&str; 2] = ["All Tasks", "Sources"];
-
-pub(super) const TP_TASKS: usize = 0;
-pub(super) const TP_SOURCES: usize = 1;
 
 /// The TokenMaxxxing tab's sidebar pages.
 pub(super) const TOKENMAXXING_SUBPAGES: [&str; 3] = ["Overview", "Bounties", "Leaderboard"];
@@ -353,16 +345,6 @@ pub enum Cmd {
     },
     /// Fetch account-level usage from the backend for the Usage tab.
     LoadUsage,
-    /// Reload the local task document.
-    LoadTasks,
-    /// Persist a new or edited local task.
-    SaveTask(Box<medulla::tasks::Task>),
-    /// Persist the complete local task document.
-    SaveTasks(Box<medulla::tasks::TaskDocument>),
-    /// Remove a local task by id.
-    DeleteTask(String),
-    /// Synchronize one configured task source.
-    SyncTasks(String),
     /// Load a page of the feedback board for the Feedback surface.
     LoadFeedback(FeedbackQuery),
     /// Load one board item's comments for the detail pane.
@@ -530,18 +512,16 @@ impl HandbackPolicy {
 
 /// The action a small inline prompt (Hosts add/edit, Agents answer) submits.
 pub(super) enum PromptKind {
-    /// Create a task from a title line.
-    TaskCreate,
-    /// Edit the selected task title.
-    TaskEdit(String),
-    /// Add a GitHub source from `owner/repository`.
-    SourceAdd,
     /// Add a worker from an address/@handle line.
     HostAdd,
     /// Edit the label of the worker with the given id.
     HostEditLabel(String),
     /// Declare another directory this device may work in.
     WorkspaceAdd,
+    /// Add a named OpenRouter-backed coding harness.
+    CustomHarnessAdd,
+    /// Edit the custom harness with the given stable id.
+    CustomHarnessEdit(String),
     /// Set the directory the harness picker will start its harness in.
     HarnessCwd,
     /// Answer a pending sub-agent question.
@@ -672,6 +652,10 @@ pub struct App {
     pub(super) workspace_index: usize,
     /// Selected row on the Routing Agent Templates page.
     pub(super) template_index: usize,
+    /// OpenRouter-backed harness presets loaded from the active config.
+    pub(super) custom_harnesses: Vec<medulla::config::CustomHarnessConfig>,
+    /// Selected row on the Routing Harnesses page.
+    pub(super) custom_harness_index: usize,
     /// Scroll offset inside the open agent-template popup.
     pub(super) template_scroll: usize,
     /// Whether the agent-template popup is open over the catalog.
@@ -718,14 +702,6 @@ pub struct App {
     pub(super) subscription_strategy_focused: bool,
     /// Credential presence captured on startup and refreshed when its pane opens.
     pub(super) credential_status: CredentialStatus,
-    /// The active Tasks subpage (index into [`TASKS_SUBPAGES`]).
-    pub(super) tasks_index: usize,
-    /// Whether keyboard focus is inside the Tasks content pane.
-    pub(super) tasks_focused: bool,
-    /// Selected provider row on the Tasks Sources page.
-    pub(super) task_source_index: usize,
-    /// Whether the selected task or source's detail modal is visible.
-    pub(super) tasks_detail_open: bool,
     /// The active TokenMaxxxing sidebar page.
     pub(super) tokenmaxxing_index: usize,
     /// Whether keyboard focus is inside the TokenMaxxxing content pane.
@@ -733,8 +709,6 @@ pub struct App {
     /// Feedback-board state (lazily loaded on entry / refresh).
     pub(super) feedback: FeedbackState,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
-    /// Durable local task document displayed by the Tasks tab.
-    pub(super) tasks: medulla::tasks::TaskDocument,
     /// Whether the prepared-decision modal is visible.
     pub(super) decision_open: bool,
     /// Highlighted decision row.
@@ -800,8 +774,7 @@ pub struct App {
     pub(super) hit_threads: Option<(Rect, usize)>,
     pub(super) hit_context: Option<Rect>,
     /// Where the active tab's subpage nav drew its page rows. Only one nav is on
-    /// screen at a time, so one field serves Tasks, Routing, Memory, and
-    /// Settings.
+    /// screen at a time, so one field serves Routing and Settings.
     pub(super) hit_nav: crate::ui::multi_pane::NavHits,
     /// Every pane drawn this frame, in draw order. A pointer selection is
     /// clamped to whichever of these it started in, so a drag reads one pane's

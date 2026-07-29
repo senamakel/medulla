@@ -126,6 +126,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let loaded = load_config(args.config.as_deref(), &env, &cwd)?;
+    prompt_for_update(&loaded.config.update, &env).await;
     let home = medulla::home::medulla_home(&env);
 
     // Bind the embedded core's state directory to this process's Medulla home
@@ -384,12 +385,18 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // A bad `[host]` section is reported exactly like a failed start: this
     // machine does not host, and the operator is told why. `and_then` keeps the
     // two failure kinds — unparseable config, unstartable host — on one path.
-    let local_host = match crate::local_host::options_from_config(
+    let custom_harnesses = medulla::config::load_layered_custom_harnesses(&loaded.sources)
+        .unwrap_or_else(|error| {
+            hub_logs.push(format!("custom harnesses: cannot load ({error})"));
+            Vec::new()
+        });
+    let local_host = match crate::local_host::options_from_config_with_custom(
         &loaded.config.host,
         &env,
         loaded.config.router.clone(),
         loaded.config.budget.clone(),
         Some(hub_logs.sink()),
+        &custom_harnesses,
     )
     .and_then(|options| {
         crate::local_host::start(
@@ -529,4 +536,32 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     drop(guard);
     drop(tinyplace_service); // aborts the background loops.
     result
+}
+
+/// Offer an available release before the interactive session starts, so an
+/// accepted update never interrupts an active turn or terminal session.
+async fn prompt_for_update(
+    config: &medulla::config::UpdateConfig,
+    env: &std::collections::HashMap<String, String>,
+) {
+    if !config.enabled(env) {
+        return;
+    }
+    let current = env!("CARGO_PKG_VERSION");
+    let Ok(Some(info)) =
+        medulla::update::check_for_update(&medulla::update::update_url(), current).await
+    else {
+        return;
+    };
+    println!(
+        "medulla {} is available (current {}). Install now? [y/N]",
+        info.version, current
+    );
+    let mut answer = String::new();
+    if std::io::stdin().read_line(&mut answer).is_ok() && answer.trim().eq_ignore_ascii_case("y") {
+        match medulla::update::install_update(&info).await {
+            Ok(()) => println!("updated successfully; starting medulla {}.", info.version),
+            Err(error) => eprintln!("update failed; continuing with medulla {current}: {error}"),
+        }
+    }
 }
