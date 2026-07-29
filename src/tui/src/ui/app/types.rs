@@ -618,6 +618,10 @@ pub struct App {
     pub(super) hit_tabs: Vec<(u16, u16)>,
     pub(super) hit_tabs_row: u16,
     pub(super) hit_agents: Option<(Rect, usize)>,
+    // Where the embedded harness screen landed, and whose it is. Recorded so a
+    // wheel event can be routed to the terminal under the pointer and given
+    // coordinates relative to *its* origin rather than the screen's.
+    pub(super) hit_harness: Option<(Rect, String)>,
     /// The threads strip's hit box and its first visible row, for click-to-switch.
     pub(super) hit_threads: Option<(Rect, usize)>,
     pub(super) hit_context: Option<Rect>,
@@ -655,4 +659,17 @@ pub struct App {
     // move on the host's own schedule, and the snapshot is the *runtime's*
     // picture of the world — the host is a peer to it, not part of it.
     pub(super) host_obs: Option<medulla::daemon::embedded::HostObservation>,
+    // The live harness sessions this device is running. `None` when this machine
+    // does not host, in which case the Agents tab has no local screen to show
+    // and falls back to a remote worker's streamed one, or to the transcript.
+    pub(super) harnesses: Option<crate::ui::harness_pane::LocalHarnesses>,
+    // Which of the TUI and the selected harness owns the keyboard. Reset to
+    // `Chrome` whenever the attached session stops being the selected one, so
+    // the operator's keys can never land in a harness they are not looking at.
+    pub(super) harness_focus: crate::ui::harness_pane::HarnessFocus,
+    // The harness session the Agents pane resolved on the last draw, and the
+    // only one the attach chord can act on. Recorded during render because that
+    // is where the rail cursor is turned into a selection; cleared at the top of
+    // every draw so it can never name a pane that is no longer on screen.
+    pub(super) harness_pane_session: Option<String>,
 }

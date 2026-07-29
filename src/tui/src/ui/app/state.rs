@@ -118,6 +118,7 @@ impl App {
             hit_tabs: Vec::new(),
             hit_tabs_row: 0,
             hit_agents: None,
+            hit_harness: None,
             hit_threads: None,
             hit_context: None,
             hit_nav: Default::default(),
@@ -128,6 +129,9 @@ impl App {
             last_events_len: 0,
             tinyplace_obs: None,
             host_obs: None,
+            harnesses: None,
+            harness_focus: crate::ui::harness_pane::HarnessFocus::default(),
+            harness_pane_session: None,
             copy_capture: None,
         }
     }
@@ -314,6 +318,24 @@ impl App {
     /// The host running on this device, if any.
     pub fn host_observation(&self) -> Option<&medulla::daemon::embedded::HostObservation> {
         self.host_obs.as_ref()
+    }
+
+    /// Attach the live harness sessions this device is running.
+    ///
+    /// Only called when this machine hosts: without a host nothing runs here, so
+    /// there is no screen to render and no PTY to type into.
+    pub fn set_local_harnesses(&mut self, harnesses: crate::ui::harness_pane::LocalHarnesses) {
+        self.harnesses = Some(harnesses);
+    }
+
+    /// The live harness sessions this device is running, if it hosts.
+    pub fn local_harnesses(&self) -> Option<&crate::ui::harness_pane::LocalHarnesses> {
+        self.harnesses.as_ref()
+    }
+
+    /// The harness session currently receiving the operator's keystrokes.
+    pub fn attached_harness(&self) -> Option<&str> {
+        self.harness_focus.attached_to()
     }
 
     /// Re-read the runtime snapshot and merge in the tiny.place observation.
