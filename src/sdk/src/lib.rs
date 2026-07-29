@@ -4,6 +4,7 @@
 //! app that consumes this crate is the sibling `medulla-tui` crate.
 
 pub mod agents;
+pub mod attribution;
 pub mod auth;
 pub mod bridge;
 pub mod client;

@@ -4,7 +4,6 @@ tinyplace protocol + agent-runtime layer for the medulla TUI/daemon.
 
 ## Contents
 
-- [`attribution/`](./attribution/) — Git commit attribution for Medulla-launched harnesses.
 - [`config/`](./config/) — CLI config-file model and endpoint resolution.
 - [`consumer/`](./consumer/) — Receiver-side fold of the SDK's v2 harness stream.
 - [`control/`](./control/) — Owner-to-machine control frames for the harness session bus.
