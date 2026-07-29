@@ -13,7 +13,7 @@
 //! into the in-memory struct, so a round-trip would pin those as if the user had
 //! typed them.
 
-use medulla::config::{MedullaConfig, MemoryConfigSection, OpencodeConfig};
+use medulla::config::{MedullaConfig, OpencodeConfig};
 
 use super::types::App;
 
@@ -42,22 +42,13 @@ impl App {
     /// offering peer discovery when tiny.place is switched off entirely would
     /// suggest a setting that does nothing.
     pub(crate) fn config_rows(&self) -> Vec<SettingRow> {
-        let mut rows = vec![
-            SettingRow {
-                label: "Persona memory",
-                section: "memory",
-                key: "enabled",
-                kind: SettingKind::Toggle,
-                help: "Recall facts and directives across sessions.",
-            },
-            SettingRow {
-                label: "Update check",
-                section: "update",
-                key: "check",
-                kind: SettingKind::Toggle,
-                help: "Check for a newer Medulla release on startup.",
-            },
-        ];
+        let mut rows = vec![SettingRow {
+            label: "Update check",
+            section: "update",
+            key: "check",
+            kind: SettingKind::Toggle,
+            help: "Check for a newer Medulla release on startup.",
+        }];
         if self.loaded.config.tinyplace.is_some() {
             rows.push(SettingRow {
                 label: "Auto-discover peers",
@@ -126,13 +117,6 @@ impl App {
     pub(crate) fn read_setting(&self, row: &SettingRow) -> SettingValue {
         let cfg = &self.loaded.config;
         match (row.section, row.key) {
-            ("memory", "enabled") => SettingValue::Flag(
-                cfg.memory
-                    .as_ref()
-                    .and_then(|m| m.enabled)
-                    // Memory is opt-in: an absent section means off.
-                    .unwrap_or(false),
-            ),
             ("update", "check") => SettingValue::Flag(cfg.update.check),
             ("tinyplace", "autoDiscoverPeers") => SettingValue::Flag(
                 cfg.tinyplace
@@ -210,11 +194,6 @@ impl App {
     fn write_setting(&mut self, row: &SettingRow, value: SettingValue) {
         let cfg = &mut self.loaded.config;
         match (row.section, row.key, value) {
-            ("memory", "enabled", SettingValue::Flag(on)) => {
-                cfg.memory
-                    .get_or_insert_with(MemoryConfigSection::default)
-                    .enabled = Some(on);
-            }
             ("update", "check", SettingValue::Flag(on)) => cfg.update.check = on,
             ("tinyplace", "autoDiscoverPeers", SettingValue::Flag(on)) => {
                 if let Some(tp) = cfg.tinyplace.as_mut() {

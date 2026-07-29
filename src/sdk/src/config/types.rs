@@ -405,41 +405,6 @@ impl UpdateConfig {
     }
 }
 
-/// The optional `memory` section: persona-memory integration.
-///
-/// Kept in the schema while the memory layer itself is out of the build, so an
-/// operator's existing `[memory]` block survives a load/save round-trip rather
-/// than being silently dropped from their config file. Nothing reads these
-/// fields today.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct MemoryConfigSection {
-    /// On/off switch (also settable via `MEDULLA_MEMORY`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled: Option<bool>,
-    /// Workspace root for the chunk store / facet trees / `persona/` outputs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workspace: Option<String>,
-    /// Identity line for the compiled pack header.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub identity: Option<String>,
-    /// Claude Code transcript root override.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub claude_root: Option<String>,
-    /// Codex rollout root override.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub codex_root: Option<String>,
-    /// Project roots walked for instruction files + git history.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub project_roots: Vec<String>,
-    /// Chat/digest model id override.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    /// Per-run provider spend ceiling, USD.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_cost_usd: Option<f64>,
-}
-
 /// The optional `core` section: the NDJSON `medulla-serve` orchestration socket.
 ///
 /// When configured, the core runtime attaches to a long-lived `medulla-serve`
@@ -743,9 +708,6 @@ pub struct TuiConfig {
     /// Optional embedded-core socket configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub core: Option<CoreConfig>,
-    /// Optional persona-memory integration configuration.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memory: Option<MemoryConfigSection>,
     /// Release update-check configuration.
     #[serde(default)]
     pub update: UpdateConfig,
@@ -798,7 +760,6 @@ impl Default for TuiConfig {
             state_dir: d_state_dir(),
             backend: BackendConfig::default(),
             core: None,
-            memory: None,
             update: UpdateConfig::default(),
             theme: ThemeConfig::default(),
             onboarding: OnboardingConfig::default(),

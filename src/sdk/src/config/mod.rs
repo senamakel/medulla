@@ -35,9 +35,9 @@ pub use persist::{
 };
 pub use types::{
     BackendConfig, BudgetConfig, CoreConfig, FleetConfig, HostSection, HubSection, HubWorkerConfig,
-    LoadedConfig, MedullaConfig, MemoryConfigSection, OnboardingConfig, OpencodeConfig, Peer,
-    ProviderBudgetConfig, RouterConfig, RouterProviderConfig, ThemeConfig, TinyplaceConfig,
-    TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
+    LoadedConfig, MedullaConfig, OnboardingConfig, OpencodeConfig, Peer, ProviderBudgetConfig,
+    RouterConfig, RouterProviderConfig, ThemeConfig, TinyplaceConfig, TuiConfig, UpdateConfig,
+    WorkflowConfig, WorkflowsConfig,
 };
 pub use urls::{
     default_backend_base_url, default_tinyplace_base_url, display_host, is_staging,

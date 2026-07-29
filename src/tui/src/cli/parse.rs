@@ -300,7 +300,6 @@ medulla claude [args]   Run Claude Code in your terminal, bridged to tiny.place\
 medulla opencode [args] Run OpenCode in your terminal, bridged to tiny.place\n  \
 medulla login [flags]   Log in to the backend and store credentials\n  \
 medulla logout          Clear stored credentials\n  \
-medulla memory <cmd>    Persona memory: status|ingest|backfill|compile|search <query>\n  \
 medulla init [dir]      Write a MEDULLA.md workspace profile for a directory\n  \
 medulla workspace <cmd> Workspace registry: add [dir]|list|remove <dir|id>\n  \
 medulla workflow <cmd>  Workflows: list|get|create|apply-ops|validate|dry-run|run|resume|cancel|catalog\n  \

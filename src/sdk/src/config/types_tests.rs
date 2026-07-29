@@ -148,24 +148,6 @@ fn unknown_fields_are_ignored() {
 }
 
 #[test]
-fn memory_section_parses_camel_case() {
-    let cfg: TuiConfig = serde_json::from_str(
-        r#"{"memory":{"enabled":true,"workspace":"/ws","identity":"a@b","projectRoots":["/x","/y"],"model":"m","maxCostUsd":3.0}}"#,
-    )
-    .unwrap();
-    let mem = cfg.memory.unwrap();
-    assert_eq!(mem.enabled, Some(true));
-    assert_eq!(mem.workspace.as_deref(), Some("/ws"));
-    assert_eq!(mem.identity.as_deref(), Some("a@b"));
-    assert_eq!(mem.project_roots, vec!["/x".to_string(), "/y".to_string()]);
-    assert_eq!(mem.model.as_deref(), Some("m"));
-    assert_eq!(mem.max_cost_usd, Some(3.0));
-    // Absent by default.
-    let bare: TuiConfig = serde_json::from_str("{}").unwrap();
-    assert!(bare.memory.is_none());
-}
-
-#[test]
 fn peer_protocol_defaults_to_task() {
     let peer: Peer = serde_json::from_str(r#"{"id":"p1"}"#).unwrap();
     assert_eq!(peer.protocol, "task");
