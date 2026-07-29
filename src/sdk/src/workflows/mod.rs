@@ -42,7 +42,7 @@ pub use authoring::{
 };
 pub use bridge::{cancel_task_workflow, run_task_workflow, StoreWorkflowBridge};
 pub use copilot::{CopilotOutcome, CopilotRequest, CopilotSession, FailedRun};
-pub use local::{LocalWorkflowHost, LOCAL_WORKER_ADDRESS};
+pub use local::{LocalCopilotDispatch, LocalWorkflowHost, LOCAL_WORKER_ADDRESS};
 pub use node_contracts::{all_node_kind_contracts, node_kind_contract};
 pub use ops::discover_store;
 pub use registry::StoreWorkflowResolver;
