@@ -94,6 +94,14 @@ The [`medulla` SDK crate](../../src/sdk/) is a UI-free logic library: the HTTP/S
 
 Linux (x86\_64, aarch64), macOS (Apple Silicon), and Windows (x86\_64) all build and ship prebuilt binaries. The [daemon's](cli-reference.md#medulla-daemon) provider-spawn paths and the [harness wrappers](cli-reference.md#harness-wrappers) are unix-only; the interactive TUI, `medulla run`, and `medulla update` work everywhere, since the core is embedded rather than reached over a Unix socket.
 
+### The Linux glibc floor
+
+The prebuilt Linux binaries are built on Ubuntu 24.04 and therefore need **glibc 2.39 or newer**. That covers Ubuntu 24.04+, Debian 13+, and current Fedora, but *not* the long-term enterprise distributions — RHEL 9 and its rebuilds (Rocky, AlmaLinux), Debian 12, or Amazon Linux 2023, which ship glibc 2.34-2.36.
+
+On those systems the download would succeed and every later invocation would die on a missing symbol version, so `install.sh` runs the binary once immediately after installing it. If it cannot start, the installer removes it, says why, and falls back to building from source — which works anywhere Rust does. Install Rust from [rustup.rs](https://rustup.rs/) first and re-run; with no `cargo` present the installer stops with that explanation rather than leaving a file that only fails when you try to use it.
+
+Verified continuously: the `Install scripts` workflow runs the supported matrix end to end, and separately asserts on Rocky 9 that the installer refuses and explains itself.
+
 ## Next steps
 
 * [CLI Reference](cli-reference.md) — the daemon, harness wrappers, and self-update.

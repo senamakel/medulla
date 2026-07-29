@@ -148,7 +148,7 @@ manifest_version() {
 
 build_from_source() {
     warn "falling back to building from source"
-    have cargo || die "no prebuilt binary for this platform and cargo is not installed — install Rust from https://rustup.rs then re-run"
+    have cargo || die "no usable prebuilt binary for this system and cargo is not installed — install Rust from https://rustup.rs then re-run, or use a distribution with a newer C library"
     if [ -f "src/tui/Cargo.toml" ]; then
         info "building from the local checkout (cargo install --path src/tui)"
         cargo install --path src/tui --root "$MEDULLA_HOME" --locked
@@ -269,6 +269,24 @@ main() {
     install -m 0755 "$binpath" "${BIN_DIR}/${BIN_NAME}" 2>/dev/null \
         || { cp "$binpath" "${BIN_DIR}/${BIN_NAME}" && chmod 0755 "${BIN_DIR}/${BIN_NAME}"; }
     ok "installed ${BIN_NAME} to ${C_BOLD}${BIN_DIR}/${BIN_NAME}${C_RESET}"
+
+    # A binary on disk is not a working install. The release is built against a
+    # newer glibc than long-term distributions ship (RHEL 9 and its rebuilds,
+    # Debian 12, Amazon Linux 2023), and there the download succeeds and every
+    # later invocation dies on a missing symbol version. Catch that here, while
+    # we still have the source-build path, rather than leaving the user a file
+    # that only fails when they try to use it.
+    if ! smoke_output="$("${BIN_DIR}/${BIN_NAME}" version 2>&1)"; then
+        warn "the downloaded binary does not run on this system:"
+        printf '    %s\n' "$smoke_output" >&2
+        case "$smoke_output" in
+            *GLIBC*|*libc*)
+                warn "this is a C library too old for the prebuilt Linux build"
+                ;;
+        esac
+        rm -f "${BIN_DIR}/${BIN_NAME}"
+        build_from_source
+    fi
 
     finish
 }

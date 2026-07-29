@@ -94,11 +94,6 @@ jobs:
           - image: debian:stable-slim
             label: debian
             deps: apt-get update && apt-get install -y curl tar findutils
-          - image: rockylinux:9
-            label: rocky 9
-            # --allowerasing: these images ship curl-minimal, which conflicts
-            # with the full curl package rather than satisfying it.
-            deps: dnf install -y --allowerasing curl tar findutils
     container:
       image: ${{ matrix.image }}
     steps:
@@ -123,6 +118,65 @@ jobs:
           test -x "$bin" || { echo "::error::${bin} is missing or not executable"; exit 1; }
           "$bin" version
           "$bin" help > /dev/null
+
+  # Distributions whose C library is older than the one the release is built
+  # against (RHEL 9 and its rebuilds). The prebuilt binary cannot run there, so
+  # what is under test is the *diagnosis*: the installer must refuse to leave a
+  # binary that only fails later, and must say why. Asserting this keeps the
+  # failure mode honest — if the release ever starts targeting an older glibc,
+  # this job goes red and tells us to promote the distro to the matrix above.
+  linux-old-glibc:
+    name: install.sh (${{ matrix.label }}, unsupported libc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: rockylinux:9
+            label: rocky 9
+            # --allowerasing: these images ship curl-minimal, which conflicts
+            # with the full curl package rather than satisfying it.
+            deps: dnf install -y --allowerasing curl tar findutils
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Install prerequisites
+        run: ${{ matrix.deps }}
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+
+      - name: The installer diagnoses the incompatibility
+        env:
+          MEDULLA_HOME: /tmp/medulla
+          MEDULLA_NO_MODIFY_PATH: '1'
+        run: |
+          set -u
+          # No cargo in this image, so the source-build fallback cannot rescue
+          # it: the installer is expected to fail, loudly and specifically.
+          out="$(sh ./install.sh 2>&1)" && status=0 || status=$?
+          printf '%s\n' "$out"
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::install.sh reported success on a system the binary cannot run on"
+            exit 1
+          fi
+          if ! printf '%s' "$out" | grep -q 'does not run on this system'; then
+            echo "::error::install.sh failed without explaining that the binary cannot run here"
+            exit 1
+          fi
+          if ! printf '%s' "$out" | grep -q 'C library'; then
+            echo "::error::install.sh did not identify the C library as the cause"
+            exit 1
+          fi
+          # And it must not leave the unusable binary behind.
+          if [ -e /tmp/medulla/bin/medulla ]; then
+            echo "::error::install.sh left a binary that cannot run"
+            exit 1
+          fi
+          echo "installer correctly refused and explained why"
 
   windows:
     name: install.ps1 (windows x86_64)
