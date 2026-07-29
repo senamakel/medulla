@@ -122,6 +122,27 @@ fn selecting_a_row_requests_its_comments_once() {
 }
 
 #[test]
+fn a_late_detail_response_for_another_row_is_ignored() {
+    // Detail loads race: moving the selection while one is in flight must not
+    // let the old row's comments land on the new one. If they did, `detail_id`
+    // would name the wrong item and nothing would ever re-request the right
+    // ones — the pane would sit on another item's comments for good.
+    let mut app = board();
+    app.on_event(key(KeyCode::Char('j'))); // now on f2
+    app.set_feedback_comments("f1".into(), vec![comment("stale", Some("bob"))]);
+
+    let out = render(&mut app, 120, 32);
+    assert!(
+        !out.contains("stale"),
+        "the stale answer was dropped: {out}"
+    );
+    match app.feedback_detail_cmd() {
+        Some(Cmd::LoadFeedbackDetail(id)) => assert_eq!(id, "f2", "still awaiting the right row"),
+        other => panic!("expected f2's detail load, got {other:?}"),
+    }
+}
+
+#[test]
 fn navigation_moves_the_selection_and_clamps_at_both_ends() {
     let mut app = board();
     assert_eq!(app.feedback_index(), 0);

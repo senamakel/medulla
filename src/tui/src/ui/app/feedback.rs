@@ -173,8 +173,18 @@ impl App {
         }
     }
 
-    /// Store the comments loaded for `id`.
+    /// Store the comments loaded for `id`, unless the selection has moved on.
+    ///
+    /// Detail loads are one request per selected row and can land out of order,
+    /// so a late response for a row the operator has already left would replace
+    /// the current row's comments with another item's — and, because
+    /// `detail_id` would then name the wrong item, nothing would ever schedule
+    /// the load that fixes it. Dropping the stale answer leaves the pending
+    /// request for the row actually selected to arrive.
     pub fn set_feedback_comments(&mut self, id: String, comments: Vec<FeedbackComment>) {
+        if self.feedback_selected().map(|item| item.id.as_str()) != Some(id.as_str()) {
+            return;
+        }
         self.feedback.detail_id = Some(id);
         self.feedback.comments = comments;
         self.feedback.detail_scroll = 0;
