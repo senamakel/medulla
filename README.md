@@ -1,3 +1,5 @@
+![Medulla terminal UI](./docs/screen.png)
+
 # Medulla
 
 Medulla is an open-source Rust client and terminal UI for running work through OpenHuman and local coding-agent harnesses. It gives you one place to chat with an orchestrator, follow live harness sessions, manage workers and workspaces, keep a local task list, and run durable multi-step workflows.
