@@ -339,7 +339,12 @@ impl MedullaClient {
         after: Option<i64>,
     ) -> Result<Vec<Message>> {
         let query: [QueryParam; 1] = [("after", after.map(|a| a.to_string()))];
-        convert(self.sdk.medulla().session_messages(session_id, &query).await?)
+        convert(
+            self.sdk
+                .medulla()
+                .session_messages(session_id, &query)
+                .await?,
+        )
     }
 
     /// Replay events after `after` (`GET .../events?after=`).
@@ -349,7 +354,12 @@ impl MedullaClient {
         after: Option<i64>,
     ) -> Result<Vec<EventEnvelope>> {
         let query: [QueryParam; 1] = [("after", after.map(|a| a.to_string()))];
-        convert(self.sdk.medulla().session_events(session_id, &query).await?)
+        convert(
+            self.sdk
+                .medulla()
+                .session_events(session_id, &query)
+                .await?,
+        )
     }
 
     /// Abort the running cycle (`POST /medulla/v1/sessions/:id/abort`).
