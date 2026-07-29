@@ -157,6 +157,10 @@ impl App {
             }
         }
 
+        if tab == "Feedback" {
+            return self.feedback_key(k.code);
+        }
+
         // Settings owns a nav plus seven subpages; it gets first refusal on
         // every key so its subpage bindings are not shadowed by the global ones.
         if tab == "Settings" {

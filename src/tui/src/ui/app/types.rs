@@ -1,7 +1,7 @@
 //! The data model for the interactive TUI screen: the tab list, multi-pane
 //! navigation constants, the [`Cmd`] the event loop runs on the app's behalf, the
 //! small overlay/state types ([`ResumePicker`], [`Prompt`], [`PromptKind`],
-//! and the central [`App`] struct itself.
+//! [`MemoryEntry`]), and the central [`App`] struct itself.
 //!
 //! Behaviour lives in the sibling modules ([`super::state`], [`super::input`],
 //! [`super::keys`], [`super::commands`], and [`super::render`]), each of which
@@ -15,13 +15,15 @@ use ratatui::layout::Rect;
 
 use crate::ui::composer::{Draft, TextPrompt};
 use crate::ui::theme::Theme;
+use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery, FeedbackType};
 use medulla::config::LoadedConfig;
+use medulla::memory::{MemoryHit, MemoryStatus};
 use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
 use medulla::runtime::{RoutingStrategy, SubscriptionRoutingStrategy};
 
 /// The ordered top-level tab names. The tab index selects into this array.
 ///
-/// Trace and Context used to live here. They are secondary surfaces —
+/// Trace, Context, and Feedback used to live here. They are secondary surfaces —
 /// two of them diagnostic — so they now sit under Settings, keeping the tab bar
 /// to the views a session is actually driven from.
 ///
@@ -44,7 +46,7 @@ pub const TABS: [&str; 8] = [
     "Workflows",
     "TokenMaxxxing",
     "Routing",
-    "Memory",
+    "Feedback",
     "Settings",
 ];
 
@@ -57,7 +59,7 @@ pub const TABS: [&str; 7] = [
     "Tasks",
     "TokenMaxxxing",
     "Routing",
-    "Memory",
+    "Feedback",
     "Settings",
 ];
 
@@ -104,6 +106,16 @@ pub(super) const TOKENMAXXING_SUBPAGES: [&str; 3] = ["Overview", "Bounties", "Le
 pub(super) const TM_OVERVIEW: usize = 0;
 pub(super) const TM_BOUNTIES: usize = 1;
 pub(super) const TM_LEADERBOARD: usize = 2;
+
+/// The Memory tab's left-nav pages.
+pub const MEMORY_SUBPAGES: [&str; 5] =
+    ["Overview", "Directives", "Facets", "Search", "Maintenance"];
+
+pub(super) const MP_OVERVIEW: usize = 0;
+pub(super) const MP_DIRECTIVES: usize = 1;
+pub(super) const MP_FACETS: usize = 2;
+pub(super) const MP_SEARCH: usize = 3;
+pub(super) const MP_MAINTENANCE: usize = 4;
 
 /// Display metadata coupled to the routing strategy it applies.
 #[derive(Clone, Copy)]
@@ -170,14 +182,15 @@ pub(super) const SUBSCRIPTION_STRATEGIES: [SubscriptionStrategyOption; 3] = [
     },
 ];
 
-/// The Settings tab's left-nav subpages, in order (number keys 1-7 jump to them).
+/// The Settings tab's left-nav subpages, in order (number keys 1-8 jump to them).
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 7] = [
+pub const SETTINGS_SUBPAGES: [&str; 8] = [
     "Usage",
     "Appearance",
     "Config",
+    "Feedback",
     "Trace",
     "Context",
     "Account",
@@ -199,10 +212,11 @@ pub const SETTINGS_GROUPS: [(&str, usize); 3] = [
 pub(super) const SP_USAGE: usize = 0;
 pub(super) const SP_APPEARANCE: usize = 1;
 pub(super) const SP_CONFIG: usize = 2;
-pub(super) const SP_TRACE: usize = 3;
-pub(super) const SP_CONTEXT: usize = 4;
-pub(super) const SP_ACCOUNT: usize = 5;
-pub(super) const SP_HELP: usize = 6;
+pub(super) const SP_FEEDBACK: usize = 3;
+pub(super) const SP_TRACE: usize = 4;
+pub(super) const SP_CONTEXT: usize = 5;
+pub(super) const SP_ACCOUNT: usize = 6;
+pub(super) const SP_HELP: usize = 7;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
@@ -334,8 +348,6 @@ pub enum Cmd {
     ListChats,
     /// Re-inspect the runtime's context chunks for the Context tab.
     InspectContext,
-    /// Clear the session this host is signed in with.
-    Logout,
     /// Apply a worker fleet mutation.
     WorkerOp(WorkerOp),
     /// Retarget the live screen subscription: stop watching one task, start
@@ -348,8 +360,18 @@ pub enum Cmd {
         /// The `(worker address, task id)` to start streaming, if any.
         start: Option<(String, String)>,
     },
+    /// Load the persona-memory status + directives for the Memory tab.
+    LoadMemory,
     /// Fetch account-level usage from the backend for the Usage tab.
     LoadUsage,
+    /// Run a persona-memory search and land on the Memory tab.
+    SearchMemory(String),
+    /// Run a persona-memory ingest, then reload the Memory tab. `backfill` walks
+    /// everything oldest-first; otherwise only changed files/repos are visited.
+    IngestMemory {
+        /// Whether to walk everything rather than resuming from the cursor.
+        backfill: bool,
+    },
     /// Reload the local task document.
     LoadTasks,
     /// Persist a new or edited local task.
@@ -360,6 +382,24 @@ pub enum Cmd {
     DeleteTask(String),
     /// Synchronize one configured task source.
     SyncTasks(String),
+    /// Load a page of the feedback board for the Feedback tab.
+    LoadFeedback(FeedbackQuery),
+    /// Load one board item's comments for the detail pane.
+    LoadFeedbackDetail(String),
+    /// Cast, change, or retract a vote on a board item.
+    VoteFeedback {
+        /// The item being voted on.
+        id: String,
+        /// `1` upvote, `-1` downvote, `0` retract.
+        value: i8,
+    },
+    /// Post a comment on a board item.
+    CommentFeedback {
+        /// The item being commented on.
+        id: String,
+        /// The comment text.
+        body: String,
+    },
     /// Re-read the declared fleet (roster + capacity) from the runtime.
     RefreshFleet,
     /// Run an installed workflow on this machine.
@@ -406,6 +446,15 @@ pub enum Cmd {
         /// The workflow to simulate.
         id: String,
     },
+    /// Submit new feedback to the board.
+    SubmitFeedback {
+        /// Feature request or bug report.
+        kind: FeedbackType,
+        /// The submission's title.
+        title: String,
+        /// The submission's body.
+        body: String,
+    },
 }
 
 /// The modal state for the "resume a chat" picker overlay.
@@ -416,6 +465,23 @@ pub(super) struct ResumePicker {
     pub(super) index: usize,
 }
 
+/// One selectable row in the Memory tab's left pane: either the directive/facet
+/// overview (no active search) or a ranked search hit.
+#[derive(Clone)]
+pub(super) enum MemoryEntry {
+    /// A persona directive line.
+    Directive(String),
+    /// A facet name with its observation count.
+    Facet {
+        /// The facet name.
+        name: String,
+        /// The number of observations in the facet.
+        count: usize,
+    },
+    /// A ranked search hit.
+    Hit(MemoryHit),
+}
+
 /// The action a small inline prompt (Hosts add/edit, Agents answer) submits.
 pub(super) enum PromptKind {
     /// Create a task from a title line.
@@ -424,6 +490,8 @@ pub(super) enum PromptKind {
     TaskEdit(String),
     /// Add a GitHub source from `owner/repository`.
     SourceAdd,
+    /// Search local persona memory with a natural-language query.
+    MemorySearch,
     /// Add a worker from an address/@handle line.
     HostAdd,
     /// Edit the label of the worker with the given id.
@@ -446,6 +514,64 @@ pub(super) enum PromptKind {
         /// Harness question id.
         question_id: String,
     },
+    /// Comment on the given feedback board item.
+    FeedbackComment {
+        /// The item being commented on.
+        id: String,
+    },
+    /// Step one of submitting feedback: the title. Submitting advances to
+    /// [`PromptKind::FeedbackBody`] rather than sending anything.
+    FeedbackTitle {
+        /// Feature request or bug report, chosen by which key opened the prompt.
+        kind: FeedbackType,
+    },
+    /// Step two of submitting feedback: the body. Submitting sends it.
+    FeedbackBody {
+        /// Feature request or bug report.
+        kind: FeedbackType,
+        /// The title captured in step one.
+        title: String,
+    },
+}
+
+/// The Feedback tab's state: the loaded page, the selected row, that row's
+/// comments, and the active query.
+pub(super) struct FeedbackState {
+    /// The current page of board items.
+    pub(super) items: Vec<FeedbackItem>,
+    /// Total items matching the query across all pages.
+    pub(super) total: i64,
+    /// The highlighted row.
+    pub(super) index: usize,
+    /// Comments for [`FeedbackState::detail_id`], loaded lazily on selection.
+    pub(super) comments: Vec<FeedbackComment>,
+    /// Which item [`FeedbackState::comments`] belongs to.
+    pub(super) detail_id: Option<String>,
+    /// Scroll offset within the detail pane.
+    pub(super) detail_scroll: usize,
+    /// The active filter/sort/pagination.
+    pub(super) query: FeedbackQuery,
+    /// Whether the runtime serves a board at all. `false` renders a sign-in
+    /// hint instead of an empty list.
+    pub(super) supported: bool,
+    /// Whether a board load is in flight (drives the header's "loading…").
+    pub(super) loading: bool,
+}
+
+impl Default for FeedbackState {
+    fn default() -> Self {
+        Self {
+            items: Vec::new(),
+            total: 0,
+            index: 0,
+            comments: Vec::new(),
+            detail_id: None,
+            detail_scroll: 0,
+            query: FeedbackQuery::default(),
+            supported: true,
+            loading: false,
+        }
+    }
 }
 
 /// A single-line inline input overlay shared with daemon controls.
@@ -558,7 +684,31 @@ pub struct App {
     pub(super) tokenmaxxing_index: usize,
     /// Whether keyboard focus is inside the TokenMaxxxing content pane.
     pub(super) tokenmaxxing_focused: bool,
+    // Persona-memory tab state (lazily loaded on tab entry / search).
+    pub(super) memory_status: Option<MemoryStatus>,
+    pub(super) memory_hits: Vec<MemoryHit>,
+    pub(super) memory_directives: Vec<String>,
+    pub(super) memory_index: usize,
+    pub(super) memory_query: Option<String>,
+    /// The persona-memory service, attached directly rather than through the
+    /// runtime seam. Memory is a local, on-disk surface that has nothing to do
+    /// with which runtime drives chat, so attaching it here keeps the Memory tab
+    /// working on the backend and mock paths — not just on core, which is the
+    /// only runtime that also *serves* memory as a toolset. `None` falls back to
+    /// the runtime seam (how the mock scripts memory in tests).
+    pub(super) memory_service: Option<Arc<medulla::memory::MemoryService>>,
+    /// Whether a memory ingest (backfill or incremental) is currently running.
+    /// Ingest calls a paid provider, so a second run must not be startable while
+    /// one is in flight.
+    pub(super) memory_ingesting: bool,
+    /// The active Memory subpage (index into [`MEMORY_SUBPAGES`]).
+    pub(super) memory_subpage_index: usize,
+    /// Whether keyboard focus is inside the Memory content pane.
+    pub(super) memory_focused: bool,
+    /// Whether the selected Memory entry's detail modal is visible.
+    pub(super) memory_detail_open: bool,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
+    pub(super) feedback: FeedbackState,
     /// Durable local task document displayed by the Tasks tab.
     pub(super) tasks: medulla::tasks::TaskDocument,
     /// Whether the prepared-decision modal is visible.
@@ -597,8 +747,6 @@ pub struct App {
     /// exit. Set by a successful logout so the caller tears the session down and
     /// returns to the login screen instead of returning to the shell.
     pub(super) relogin_requested: bool,
-    /// Who the embedded core is signed in as, for the Account subpage.
-    pub(super) account: Option<medulla::core_host::auth::AuthState>,
     /// The Medulla home directory, used to locate the credential store the
     /// Account subpage clears. Injectable so feature tests never touch the real
     /// home; `None` disables logout.
@@ -618,10 +766,6 @@ pub struct App {
     pub(super) hit_tabs: Vec<(u16, u16)>,
     pub(super) hit_tabs_row: u16,
     pub(super) hit_agents: Option<(Rect, usize)>,
-    // Where the embedded harness screen landed, and whose it is. Recorded so a
-    // wheel event can be routed to the terminal under the pointer and given
-    // coordinates relative to *its* origin rather than the screen's.
-    pub(super) hit_harness: Option<(Rect, String)>,
     /// The threads strip's hit box and its first visible row, for click-to-switch.
     pub(super) hit_threads: Option<(Rect, usize)>,
     pub(super) hit_context: Option<Rect>,
@@ -659,17 +803,4 @@ pub struct App {
     // move on the host's own schedule, and the snapshot is the *runtime's*
     // picture of the world — the host is a peer to it, not part of it.
     pub(super) host_obs: Option<medulla::daemon::embedded::HostObservation>,
-    // The live harness sessions this device is running. `None` when this machine
-    // does not host, in which case the Agents tab has no local screen to show
-    // and falls back to a remote worker's streamed one, or to the transcript.
-    pub(super) harnesses: Option<crate::ui::harness_pane::LocalHarnesses>,
-    // Which of the TUI and the selected harness owns the keyboard. Reset to
-    // `Chrome` whenever the attached session stops being the selected one, so
-    // the operator's keys can never land in a harness they are not looking at.
-    pub(super) harness_focus: crate::ui::harness_pane::HarnessFocus,
-    // The harness session the Agents pane resolved on the last draw, and the
-    // only one the attach chord can act on. Recorded during render because that
-    // is where the rail cursor is turned into a selection; cleared at the top of
-    // every draw so it can never name a pane that is no longer on screen.
-    pub(super) harness_pane_session: Option<String>,
 }

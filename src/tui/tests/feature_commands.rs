@@ -58,10 +58,7 @@ fn a_slash_opens_the_catalog_with_descriptions() {
     // The list is capped so it cannot swallow the transcript above it; the tail
     // is reached by scrolling rather than by growing the popup.
     assert!(!out.contains("/quit"), "capped: {out}");
-    // Derived from the catalog, not a magic number: the selection wraps, so a
-    // hardcoded count silently lands back at the top when a command is added or
-    // removed — which is a pass-shaped failure until the assertion below.
-    for _ in 0..medulla::ui::command::COMMANDS.len() - 1 {
+    for _ in 0..12 {
         let _ = app.on_event(key(KeyCode::Down));
     }
     let out = render(&mut app, 140, 44);

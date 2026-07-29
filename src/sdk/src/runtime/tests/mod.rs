@@ -299,6 +299,58 @@ async fn worker_ops_and_usage_default_to_success_and_none() {
 }
 
 #[test]
+fn memory_defaults_report_no_attached_service() {
+    let runtime = BareRuntime;
+
+    assert!(runtime.memory_status().is_none());
+    assert!(runtime.memory_search("anything".into(), None, 5).is_empty());
+    assert!(runtime
+        .memory_search("anything".into(), Some("facet".into()), 5)
+        .is_empty());
+    assert!(runtime.memory_directives().is_empty());
+}
+
+#[tokio::test]
+async fn listing_feedback_without_a_backend_is_none_not_an_error() {
+    // `Ok(None)` is the signal the UI renders as a sign-in hint. An error here
+    // would surface as a failure banner instead.
+    let page = BareRuntime
+        .list_feedback(FeedbackQuery::default())
+        .await
+        .expect("listing must not error");
+
+    assert!(page.is_none(), "no board on a backend-less runtime");
+}
+
+#[tokio::test]
+async fn every_feedback_mutation_fails_loudly_without_a_backend() {
+    // The mutations deliberately differ from listing: silently pretending a vote
+    // or a submission succeeded would lose the user's input.
+    let runtime = BareRuntime;
+
+    let errors = vec![
+        runtime.feedback_detail("id".into()).await.err(),
+        runtime.vote_feedback("id".into(), 1).await.err(),
+        runtime
+            .comment_feedback("id".into(), "body".into())
+            .await
+            .err(),
+        runtime
+            .submit_feedback(FeedbackType::Bug, "title".into(), "body".into())
+            .await
+            .err(),
+    ];
+
+    for error in errors {
+        let error = error.expect("mutation must fail without a backend");
+        assert!(
+            error.to_string().contains("signed-in backend"),
+            "the message should tell the user what to do: {error}"
+        );
+    }
+}
+
+#[test]
 fn routing_strategy_wire_round_trips_and_reconciles() {
     use crate::runtime::RoutingStrategy;
 

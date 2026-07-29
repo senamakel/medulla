@@ -11,8 +11,8 @@ use crate::ui::theme::{color_to_string, THEME_ROLES};
 use medulla::runtime::{WorkerInfo, WorkerOp};
 
 use super::types::{
-    tab_pos, App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES, SP_APPEARANCE, SP_CONFIG, SP_HELP,
-    SP_USAGE,
+    tab_pos, App, Cmd, Prompt, PromptKind, MP_OVERVIEW, MP_SEARCH, SETTINGS_SUBPAGES,
+    SP_APPEARANCE, SP_CONFIG, SP_FEEDBACK, SP_HELP, SP_USAGE,
 };
 
 impl App {
@@ -41,10 +41,6 @@ impl App {
                 let (cycle, task) = crate::ui::agents::parse_task_key(&t.task_id);
                 match cycle {
                     Some(c) => {
-                        if !self.runtime.steering_reaches_backend() {
-                            self.set_status("Cancelling a task is not wired to this runtime yet");
-                            return;
-                        }
                         self.runtime.cancel_task(c.to_string(), task.to_string());
                         self.set_status(format!("Cancel requested · {task}"));
                     }
@@ -72,10 +68,6 @@ impl App {
             .to_string();
         if text.trim().is_empty() {
             self.set_status("Type an answer for the pending question");
-            return Some(None);
-        }
-        if !self.runtime.steering_reaches_backend() {
-            self.set_status("Answering a question is not wired to this runtime yet");
             return Some(None);
         }
         self.runtime
@@ -171,6 +163,16 @@ impl App {
                 document.sources.push(source);
                 Some(Cmd::SaveTasks(Box::new(document)))
             }
+            PromptKind::MemorySearch => {
+                if text.is_empty() {
+                    self.set_status("Memory · search query is required");
+                    return None;
+                }
+                self.memory_subpage_index = MP_SEARCH;
+                self.memory_focused = true;
+                self.set_status(format!("Memory · searching “{text}”…"));
+                Some(Cmd::SearchMemory(text))
+            }
             PromptKind::HostAdd => match WorkerOp::parse_add(&text) {
                 Some(op) => {
                     self.set_status("Adding worker…");
@@ -199,10 +201,6 @@ impl App {
                     self.set_status("Answer cancelled (empty)");
                     return None;
                 }
-                if !self.runtime.steering_reaches_backend() {
-                    self.set_status("Answering a question is not wired to this runtime yet");
-                    return None;
-                }
                 self.runtime.answer_question(cycle_id, question_id, text);
                 self.set_status("Answer sent");
                 None
@@ -216,14 +214,40 @@ impl App {
                     self.set_status("Answer cancelled (empty)");
                     return None;
                 }
-                if !self.runtime.steering_reaches_backend() {
-                    self.set_status("Answering a question is not wired to this runtime yet");
-                    return None;
-                }
                 self.runtime.answer_question(cycle_id, question_id, text);
                 self.dismissed_decisions.insert(decision_id);
                 self.set_status("Decision answered");
                 None
+            }
+            PromptKind::FeedbackComment { id } => {
+                if text.is_empty() {
+                    self.set_status("Comment cancelled (empty)");
+                    return None;
+                }
+                self.set_status("Posting comment…");
+                Some(Cmd::CommentFeedback { id, body: text })
+            }
+            // Step one captures the title and re-opens the prompt for the body;
+            // nothing is sent until step two.
+            PromptKind::FeedbackTitle { kind } => {
+                if text.is_empty() {
+                    self.set_status("New feedback cancelled (empty title)");
+                    return None;
+                }
+                self.open_feedback_body(kind, text);
+                None
+            }
+            PromptKind::FeedbackBody { kind, title } => {
+                if text.is_empty() {
+                    self.set_status("New feedback cancelled (empty description)");
+                    return None;
+                }
+                self.set_status("Submitting feedback…");
+                Some(Cmd::SubmitFeedback {
+                    kind,
+                    title,
+                    body: text,
+                })
             }
         }
     }
@@ -351,11 +375,27 @@ impl App {
                 self.enter_settings_subpage(SP_APPEARANCE);
             }
             SlashCommand::Usage => return self.set_settings_subpage(SP_USAGE),
-            // The persona-memory layer is out of the build; the tab it lands
-            // on says so rather than the command silently doing nothing.
-            SlashCommand::Memory(_) => {
+            SlashCommand::Feedback => {
+                self.tab_index = tab_pos("Feedback");
+                self.set_status("Feedback · loading the board…");
+                return self.reload_feedback();
+            }
+            SlashCommand::Memory(query) => {
                 self.tab_index = tab_pos("Memory");
-                self.set_status("Memory · coming soon");
+                match query {
+                    None => {
+                        self.memory_subpage_index = MP_OVERVIEW;
+                        self.memory_focused = false;
+                        self.set_status("Memory · loading persona…");
+                        return Some(Cmd::LoadMemory);
+                    }
+                    Some(query) => {
+                        self.memory_subpage_index = MP_SEARCH;
+                        self.memory_focused = true;
+                        self.set_status(format!("Memory · searching “{query}”…"));
+                        return Some(Cmd::SearchMemory(query));
+                    }
+                }
             }
             SlashCommand::ToggleMouse => self.toggle_mouse(),
             SlashCommand::Copy(scope) => self.copy_chat(scope),
@@ -366,7 +406,7 @@ impl App {
     }
 
     /// Land on the Settings tab at subpage `index`, returning its lazy-load
-    /// command (Usage and Context each fetch on entry).
+    /// command (Usage, Context, and Feedback each fetch on entry).
     pub(super) fn set_settings_subpage(&mut self, index: usize) -> Option<Cmd> {
         self.tab_index = tab_pos("Settings");
         self.settings_index = index.min(SETTINGS_SUBPAGES.len() - 1);

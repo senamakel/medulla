@@ -1,5 +1,5 @@
 //! Unit tests for the scripted mock runtime: demo population, thread forking,
-//! the submit/abort/session lifecycle, and change
+//! the submit/abort/session lifecycle, the memory surface, and change
 //! notifications.
 
 use super::*;
@@ -132,9 +132,150 @@ fn thread_summaries_count_running_tasks_and_attention() {
 }
 
 #[test]
+fn memory_surface_defaults_empty_and_is_scriptable() {
+    use crate::memory::{MemoryHit, MemoryStatus};
+    let rt = MockRuntime::empty();
+    // No scripted memory → the seam is inert.
+    assert!(rt.memory_status().is_none());
+    assert!(rt.memory_search("q".into(), None, 5).is_empty());
+    assert!(rt.memory_directives().is_empty());
+
+    rt.set_memory_status(MemoryStatus {
+        enabled: true,
+        workspace: "/ws".into(),
+        pack_exists: false,
+        pack_path: "/ws/persona/PERSONA.md".into(),
+        entry_count: 2,
+        directives_count: 1,
+        facet_counts: Default::default(),
+    });
+    rt.set_memory_directives(vec!["Always branch first".into()]);
+    rt.set_memory_hits(vec![MemoryHit {
+        facet: "workflow".into(),
+        tier: "t0".into(),
+        text: "Commit small and often".into(),
+        quote: None,
+        timestamp: "2020-01-01T00:00:00+00:00".into(),
+        score: 1.0,
+    }]);
+    assert!(rt.memory_status().unwrap().enabled);
+    assert_eq!(rt.memory_directives(), vec!["Always branch first"]);
+    // `k` caps the scripted hits.
+    assert_eq!(rt.memory_search("q".into(), None, 0).len(), 0);
+    assert_eq!(rt.memory_search("q".into(), None, 5).len(), 1);
+}
+
+#[test]
 fn subscribe_receives_a_ping_on_mutation() {
     let rt = MockRuntime::empty();
     let mut rx = rt.subscribe();
     rt.new_session();
     assert!(rx.try_recv().is_ok());
+}
+
+// --- scripted feedback board ------------------------------------------------
+
+#[tokio::test]
+async fn mock_board_lists_and_filters_by_type() {
+    let rt = MockRuntime::demo();
+    let all = rt
+        .list_feedback(crate::client::FeedbackQuery::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(all.total, 3);
+    // `hot` orders by score, so the 24-upvote item leads.
+    assert_eq!(all.items[0].id, "fb-1");
+
+    let bugs = rt
+        .list_feedback(crate::client::FeedbackQuery {
+            kind: Some(crate::client::FeedbackType::Bug),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(bugs.total, 1);
+    assert_eq!(bugs.items[0].id, "fb-2");
+}
+
+#[tokio::test]
+async fn mock_vote_retallies_without_double_counting() {
+    let rt = MockRuntime::demo();
+    // fb-2 starts at 11/0 with no vote from us.
+    let up = rt.vote_feedback("fb-2".into(), 1).await.unwrap();
+    assert_eq!((up.upvote_count, up.downvote_count, up.score), (12, 0, 12));
+
+    // Voting up again must not stack.
+    let again = rt.vote_feedback("fb-2".into(), 1).await.unwrap();
+    assert_eq!(again.upvote_count, 12);
+
+    // Switching to a downvote moves the tally across, not just adds.
+    let down = rt.vote_feedback("fb-2".into(), -1).await.unwrap();
+    assert_eq!(
+        (down.upvote_count, down.downvote_count, down.score),
+        (11, 1, 10)
+    );
+
+    // Retracting restores the original tallies.
+    let none = rt.vote_feedback("fb-2".into(), 0).await.unwrap();
+    assert_eq!(
+        (none.upvote_count, none.downvote_count, none.my_vote),
+        (11, 0, 0)
+    );
+}
+
+#[tokio::test]
+async fn mock_comment_appends_and_bumps_count() {
+    let rt = MockRuntime::demo();
+    let before = rt.feedback_detail("fb-2".into()).await.unwrap();
+    assert_eq!(before.comments.len(), 1);
+
+    rt.comment_feedback("fb-2".into(), "me too".into())
+        .await
+        .unwrap();
+
+    let after = rt.feedback_detail("fb-2".into()).await.unwrap();
+    assert_eq!(after.comments.len(), 2);
+    assert_eq!(after.comments[1].body, "me too");
+    assert_eq!(
+        after.feedback.comment_count,
+        before.feedback.comment_count + 1
+    );
+}
+
+#[tokio::test]
+async fn mock_submit_prepends_an_accepted_item() {
+    let rt = MockRuntime::demo();
+    let result = rt
+        .submit_feedback(
+            crate::client::FeedbackType::Bug,
+            "Tab bar overflows".into(),
+            "At 80 columns the tab bar wraps.".into(),
+        )
+        .await
+        .unwrap();
+    assert!(result.accepted);
+
+    let page = rt
+        .list_feedback(crate::client::FeedbackQuery {
+            sort: crate::client::FeedbackSort::New,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(page.total, 4);
+    assert_eq!(page.items[0].title, "Tab bar overflows");
+}
+
+#[tokio::test]
+async fn mock_board_reports_missing_items() {
+    let rt = MockRuntime::demo();
+    assert!(rt.feedback_detail("nope".into()).await.is_err());
+    assert!(rt.vote_feedback("nope".into(), 1).await.is_err());
+    assert!(rt
+        .comment_feedback("nope".into(), "hi".into())
+        .await
+        .is_err());
 }

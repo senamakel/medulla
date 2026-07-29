@@ -92,7 +92,7 @@ pub const COMMANDS: &[CommandSpec] = &[
         name: "memory",
         aliases: &["mem"],
         args: "[query]",
-        description: "Persona memory (coming soon)",
+        description: "Load persona memory, or search it",
     },
     CommandSpec {
         name: "usage",
@@ -111,6 +111,12 @@ pub const COMMANDS: &[CommandSpec] = &[
         aliases: &[],
         args: "",
         description: "Show the loaded configuration",
+    },
+    CommandSpec {
+        name: "feedback",
+        aliases: &["fb"],
+        args: "",
+        description: "Open the feedback board",
     },
     CommandSpec {
         name: "mouse",

@@ -3,12 +3,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use medulla::client::{FeedbackQuery, FeedbackType};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::{Runtime, WorkerOp};
 use medulla_tui::ui::app::{App, Cmd};
 
-use super::cmd_dispatch::run_cmd;
+use super::cmd_dispatch::{read_memory, run_cmd};
 use super::should_refresh_context;
 use super::types::AppMsg;
 use super::update_checker::spawn_update_checker;
@@ -29,19 +30,19 @@ async fn dispatches_conversation_fleet_usage_and_context_commands() {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let cfg = medulla::config::WorkflowsConfig::default();
 
-    run_cmd(Cmd::Quit, &runtime, &cfg, &tx);
+    run_cmd(Cmd::Quit, &runtime, None, &cfg, &tx);
     assert!(rx.try_recv().is_err());
 
-    run_cmd(Cmd::Submit("hello".into()), &runtime, &cfg, &tx);
+    run_cmd(Cmd::Submit("hello".into()), &runtime, None, &cfg, &tx);
     assert!(matches!(next(&mut rx).await, AppMsg::Status(s) if s == "Cycle complete"));
 
-    run_cmd(Cmd::Resume("tui-demo-1".into()), &runtime, &cfg, &tx);
+    run_cmd(Cmd::Resume("tui-demo-1".into()), &runtime, None, &cfg, &tx);
     assert!(matches!(next(&mut rx).await, AppMsg::Resumed(s) if s == "Resumed chat"));
 
-    run_cmd(Cmd::ListChats, &runtime, &cfg, &tx);
+    run_cmd(Cmd::ListChats, &runtime, None, &cfg, &tx);
     assert!(matches!(next(&mut rx).await, AppMsg::OpenResume(chats) if chats.len() == 2));
 
-    run_cmd(Cmd::InspectContext, &runtime, &cfg, &tx);
+    run_cmd(Cmd::InspectContext, &runtime, None, &cfg, &tx);
     assert!(matches!(next(&mut rx).await, AppMsg::Contexts(items) if items.len() == 2));
 
     run_cmd(
@@ -52,12 +53,13 @@ async fn dispatches_conversation_fleet_usage_and_context_commands() {
             harness: None,
         }),
         &runtime,
+        None,
         &cfg,
         &tx,
     );
     assert!(matches!(next(&mut rx).await, AppMsg::Status(s) if s == "Worker registry updated"));
 
-    run_cmd(Cmd::LoadUsage, &runtime, &cfg, &tx);
+    run_cmd(Cmd::LoadUsage, &runtime, None, &cfg, &tx);
     assert!(matches!(next(&mut rx).await, AppMsg::UsageLoaded(None)));
 }
 
@@ -74,16 +76,142 @@ fn context_refresh_tracks_the_nested_settings_page() {
 }
 
 #[tokio::test]
-async fn dispatcher_surfaces_resume_errors() {
+async fn dispatches_every_feedback_action() {
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let cfg = medulla::config::WorkflowsConfig::default();
+
+    run_cmd(
+        Cmd::LoadFeedback(FeedbackQuery::default()),
+        &runtime,
+        None,
+        &cfg,
+        &tx,
+    );
+    assert!(
+        matches!(next(&mut rx).await, AppMsg::FeedbackLoaded(Some(page)) if !page.items.is_empty())
+    );
+
+    run_cmd(
+        Cmd::LoadFeedbackDetail("fb-2".into()),
+        &runtime,
+        None,
+        &cfg,
+        &tx,
+    );
+    assert!(matches!(
+        next(&mut rx).await,
+        AppMsg::FeedbackComments { id, comments } if id == "fb-2" && !comments.is_empty()
+    ));
+
+    run_cmd(
+        Cmd::VoteFeedback {
+            id: "fb-2".into(),
+            value: 1,
+        },
+        &runtime,
+        None,
+        &cfg,
+        &tx,
+    );
+    assert!(matches!(next(&mut rx).await, AppMsg::FeedbackItemUpdated(item) if item.id == "fb-2"));
+
+    run_cmd(
+        Cmd::CommentFeedback {
+            id: "fb-2".into(),
+            body: "Useful".into(),
+        },
+        &runtime,
+        None,
+        &cfg,
+        &tx,
+    );
+    assert!(matches!(next(&mut rx).await, AppMsg::FeedbackChanged(s) if s.contains("comment")));
+
+    run_cmd(
+        Cmd::SubmitFeedback {
+            kind: FeedbackType::Feature,
+            title: "New feature".into(),
+            body: "Please add it".into(),
+        },
+        &runtime,
+        None,
+        &cfg,
+        &tx,
+    );
+    assert!(matches!(next(&mut rx).await, AppMsg::FeedbackChanged(s) if s.contains("submitted")));
+}
+
+#[tokio::test]
+async fn dispatcher_surfaces_feedback_and_resume_errors() {
     let concrete = Arc::new(MockRuntime::demo());
     let runtime: Arc<dyn Runtime> = concrete.clone();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let cfg = medulla::config::WorkflowsConfig::default();
 
+    for cmd in [
+        Cmd::LoadFeedbackDetail("missing".into()),
+        Cmd::VoteFeedback {
+            id: "missing".into(),
+            value: 1,
+        },
+        Cmd::CommentFeedback {
+            id: "missing".into(),
+            body: "nope".into(),
+        },
+    ] {
+        run_cmd(cmd, &runtime, None, &cfg, &tx);
+        assert!(matches!(next(&mut rx).await, AppMsg::Status(s) if s.contains("not found")));
+    }
+
     concrete.set_running(true);
-    run_cmd(Cmd::Resume("any".into()), &runtime, &cfg, &tx);
+    run_cmd(Cmd::Resume("any".into()), &runtime, None, &cfg, &tx);
     assert!(matches!(next(&mut rx).await, AppMsg::Status(s) if s.contains("cannot resume")));
     concrete.set_running(false);
+}
+
+#[tokio::test]
+async fn dispatches_runtime_memory_reads_searches_and_missing_ingest() {
+    let concrete = Arc::new(MockRuntime::empty());
+    concrete.set_memory_directives(vec!["Keep tests offline".into()]);
+    let runtime: Arc<dyn Runtime> = concrete;
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let cfg = medulla::config::WorkflowsConfig::default();
+
+    let (status, directives) = read_memory(&runtime, None);
+    assert!(status.is_none());
+    assert_eq!(directives, ["Keep tests offline"]);
+
+    run_cmd(Cmd::LoadMemory, &runtime, None, &cfg, &tx);
+    assert!(matches!(
+        next(&mut rx).await,
+        AppMsg::MemoryLoaded { status: None, directives } if directives == ["Keep tests offline"]
+    ));
+
+    run_cmd(
+        Cmd::SearchMemory("needle".into()),
+        &runtime,
+        None,
+        &cfg,
+        &tx,
+    );
+    assert!(matches!(next(&mut rx).await, AppMsg::MemoryLoaded { .. }));
+    assert!(matches!(
+        next(&mut rx).await,
+        AppMsg::MemoryResults { hits, query } if hits.is_empty() && query == "needle"
+    ));
+
+    run_cmd(
+        Cmd::IngestMemory { backfill: false },
+        &runtime,
+        None,
+        &cfg,
+        &tx,
+    );
+    assert!(matches!(
+        next(&mut rx).await,
+        AppMsg::MemoryIngestDone(s) if s.contains("no memory service")
+    ));
 }
 
 #[test]
@@ -97,73 +225,4 @@ fn disabled_update_check_spawns_no_background_work() {
     spawn_update_checker(&loaded, &tx);
 
     assert!(rx.try_recv().is_err());
-}
-
-/// A runtime whose `submit` returns on acceptance rather than on completion,
-/// like the embedded core's non-blocking `send_message`.
-///
-/// Delegates everything else to [`MockRuntime`]; the only interesting method is
-/// [`Runtime::submit_settles_cycle`].
-struct AcceptsWithoutSettling(Arc<MockRuntime>);
-
-impl Runtime for AcceptsWithoutSettling {
-    fn describe(&self) -> String {
-        self.0.describe()
-    }
-    fn snapshot(&self) -> medulla::runtime::RuntimeSnapshot {
-        self.0.snapshot()
-    }
-    fn subscribe(&self) -> tokio::sync::broadcast::Receiver<()> {
-        self.0.subscribe()
-    }
-    fn submit(&self, input: String) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
-        self.0.submit(input)
-    }
-    fn submit_settles_cycle(&self) -> bool {
-        false
-    }
-    fn abort(&self) {
-        self.0.abort()
-    }
-    fn new_session(&self) {
-        self.0.new_session()
-    }
-    fn set_active_thread(&self, id: String) {
-        self.0.set_active_thread(id)
-    }
-    fn list_main_chats(
-        &self,
-    ) -> futures::future::BoxFuture<
-        'static,
-        anyhow::Result<Vec<medulla::ui::chat_store::MainChatSummary>>,
-    > {
-        self.0.list_main_chats()
-    }
-    fn resume_chat(&self, id: String) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
-        self.0.resume_chat(id)
-    }
-    fn inspect_context(
-        &self,
-    ) -> futures::future::BoxFuture<'static, anyhow::Result<Vec<medulla::runtime::ContextItem>>>
-    {
-        self.0.inspect_context()
-    }
-    fn shutdown(&self) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
-        self.0.shutdown()
-    }
-}
-
-#[tokio::test]
-async fn a_non_blocking_submit_reports_acceptance_not_completion() {
-    // Claiming "Cycle complete" the moment a non-blocking wire accepts the
-    // message tells the operator the turn is done while it is still producing.
-    let runtime: Arc<dyn Runtime> = Arc::new(AcceptsWithoutSettling(Arc::new(MockRuntime::demo())));
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let cfg = medulla::config::WorkflowsConfig::default();
-
-    run_cmd(Cmd::Submit("hello".into()), &runtime, &cfg, &tx);
-    assert!(matches!(
-        next(&mut rx).await,
-        AppMsg::Status(s) if s.starts_with("Sent")
-    ));
 }

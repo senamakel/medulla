@@ -102,7 +102,7 @@ fn every_parseable_command_is_catalogued() {
     // undiscoverable — it exists only for whoever read the source.
     for name in [
         "new", "resume", "abort", "clear", "copy", "memory", "mem", "usage", "settings", "theme",
-        "config", "mouse", "help", "quit", "exit", "q",
+        "config", "feedback", "fb", "mouse", "help", "quit", "exit", "q",
     ] {
         assert!(
             lookup(name).is_some(),
