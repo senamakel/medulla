@@ -17,8 +17,8 @@ use medulla::memory::{MemoryHit, MemoryStatus};
 use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
-    App, Cmd, MemoryEntry, ResumePicker, MEMORY_SUBPAGES, ROUTING_SUBPAGES, SETTINGS_SUBPAGES,
-    SP_CONTEXT, SP_FEEDBACK, SP_USAGE, TABS, TASKS_SUBPAGES,
+    App, Cmd, HandbackPolicy, MemoryEntry, ResumePicker, MEMORY_SUBPAGES, ROUTING_SUBPAGES,
+    SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_USAGE, TABS, TASKS_SUBPAGES,
 };
 
 impl App {
@@ -47,6 +47,9 @@ impl App {
                     .position(|option| option.strategy == strategy)
             })
             .unwrap_or(0);
+        // Read before `loaded` is moved into the struct below.
+        let handback_policy = HandbackPolicy::from_config(&loaded.config.harness.handback);
+        let harness_skip_permissions = loaded.config.harness.skip_permissions;
         App {
             runtime,
             loaded,
@@ -139,6 +142,15 @@ impl App {
             last_events_len: 0,
             tinyplace_obs: None,
             host_obs: None,
+            harnesses: None,
+            harness_focus: crate::ui::harness_pane::HarnessFocus::default(),
+            harness_pane_session: None,
+            harness_picker: None,
+            handback_prompt: None,
+            help_scroll: 0,
+            handback_policy,
+            harness_took_control: false,
+            harness_skip_permissions,
             copy_capture: None,
         }
     }
@@ -335,6 +347,33 @@ impl App {
     /// The host running on this device, if any.
     pub fn host_observation(&self) -> Option<&medulla::daemon::embedded::HostObservation> {
         self.host_obs.as_ref()
+    }
+
+    /// Attach the live harness sessions this device is running.
+    ///
+    /// Only called when this machine hosts: without a host nothing runs here, so
+    /// there is no screen to render and no PTY to type into.
+    pub fn set_local_harnesses(&mut self, harnesses: crate::ui::harness_pane::LocalHarnesses) {
+        self.harnesses = Some(harnesses);
+    }
+
+    /// The live harness sessions this device is running, if it hosts.
+    pub fn local_harnesses(&self) -> Option<&crate::ui::harness_pane::LocalHarnesses> {
+        self.harnesses.as_ref()
+    }
+
+    /// The harness session the last draw resolved for the rail cursor.
+    ///
+    /// Inspection seam: it is set during render, so a test that wants to act on
+    /// "the selected harness" has to be able to see when the cursor has reached
+    /// one rather than counting rows it does not control.
+    pub fn harness_pane_session_for_test(&self) -> Option<&str> {
+        self.harness_pane_session.as_deref()
+    }
+
+    /// The harness session currently receiving the operator's keystrokes.
+    pub fn attached_harness(&self) -> Option<&str> {
+        self.harness_focus.attached_to()
     }
 
     /// Re-read the runtime snapshot and merge in the tiny.place observation.

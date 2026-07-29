@@ -22,6 +22,7 @@ use medulla::client::FeedbackType;
 
 use super::super::types::{
     App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK,
+    SP_HELP,
     SP_TRACE, SP_USAGE,
 };
 
@@ -111,6 +112,18 @@ impl App {
                     self.context_index.saturating_sub(1)
                 } else {
                     (self.context_index + 1).min(self.contexts.len().saturating_sub(1))
+                };
+                SettingsKey::handled(None)
+            }
+            // Help is a single long page rather than a list, so it scrolls by
+            // the line. It outgrew a short terminal once the harness bindings
+            // and commands landed on it, and a reference you cannot reach the
+            // bottom of is not one.
+            SP_HELP => {
+                self.help_scroll = if up {
+                    self.help_scroll.saturating_sub(1)
+                } else {
+                    self.help_scroll.saturating_add(1)
                 };
                 SettingsKey::handled(None)
             }
