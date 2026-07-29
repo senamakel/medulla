@@ -512,6 +512,10 @@ pub(super) enum PromptKind {
     HostEditLabel(String),
     /// Declare another directory this device may work in.
     WorkspaceAdd,
+    /// Add a named OpenRouter-backed coding harness.
+    CustomHarnessAdd,
+    /// Edit the custom harness with the given stable id.
+    CustomHarnessEdit(String),
     /// Set the directory the harness picker will start its harness in.
     HarnessCwd,
     /// Answer a pending sub-agent question.
@@ -584,6 +588,10 @@ pub struct App {
     pub(super) workspace_index: usize,
     /// Selected row on the Routing Agent Templates page.
     pub(super) template_index: usize,
+    /// OpenRouter-backed harness presets loaded from the active config.
+    pub(super) custom_harnesses: Vec<medulla::config::CustomHarnessConfig>,
+    /// Selected row on the Routing Harnesses page.
+    pub(super) custom_harness_index: usize,
     /// Scroll offset inside the open agent-template popup.
     pub(super) template_scroll: usize,
     /// Whether the agent-template popup is open over the catalog.

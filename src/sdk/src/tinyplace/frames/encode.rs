@@ -41,6 +41,7 @@ fn build(
         correlation_id: input.correlation_id,
         harness: input.harness,
         provider: input.provider,
+        custom_harness: input.custom_harness.map(String::into_boxed_str),
         model: input.model,
         workflow: input.workflow,
         conversation: input.conversation,

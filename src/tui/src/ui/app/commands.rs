@@ -185,6 +185,14 @@ impl App {
                 self.add_workspace(&text);
                 None
             }
+            PromptKind::CustomHarnessAdd => {
+                self.save_custom_harness(None, &text);
+                None
+            }
+            PromptKind::CustomHarnessEdit(id) => {
+                self.save_custom_harness(Some(&id), &text);
+                None
+            }
             // Back to the picker with the new directory, rather than spawning
             // straight from here: the operator has still not said *which*
             // harness, and the picker is where that choice lives.

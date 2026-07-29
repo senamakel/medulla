@@ -49,6 +49,12 @@ Prebuilt binaries ship for Linux (x86\_64, aarch64), macOS (Apple Silicon), and 
 
 ## Documentation
 
+**Routing › Harnesses** also manages named OpenRouter-backed presets that reuse
+Claude Code or Codex as the coding harness. Presets select an OpenRouter model
+and fleet host while referring to `OPENROUTER_API_KEY` by environment-variable
+name only; restart the local host after saving one. See
+[`config.example.toml`](config.example.toml) for the complete shape.
+
 Full documentation: **[tinyhumans.gitbook.io/medulla](https://tinyhumans.gitbook.io/medulla)**
 
 * [Workers and Sessions](https://tinyhumans.gitbook.io/medulla/features/workers-and-sessions) — capacity, threads, and what survives.

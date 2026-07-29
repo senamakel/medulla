@@ -71,6 +71,8 @@ impl App {
             host_index: 0,
             workspace_index: 0,
             template_index: 0,
+            custom_harnesses: Vec::new(),
+            custom_harness_index: 0,
             template_scroll: 0,
             template_modal: false,
             #[cfg(feature = "workflows")]
@@ -154,6 +156,7 @@ impl App {
     /// so feature tests avoid the real home.
     pub fn set_config_path(&mut self, path: std::path::PathBuf) {
         self.config_path = Some(path);
+        self.reload_custom_harnesses();
     }
 
     /// Record who the core is signed in as, for the Account subpage.

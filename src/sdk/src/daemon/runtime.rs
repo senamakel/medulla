@@ -271,6 +271,7 @@ impl DaemonRuntime {
                 correlation_id: correlation.map(str::to_string),
                 harness,
                 provider: None,
+                custom_harness: None,
                 model: None,
                 workflow: None,
                 // Inbound-only, like `provider`, `model`, and `workflow`: this
