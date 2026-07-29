@@ -12,13 +12,6 @@ the work, delegates to managers, and produces the final reply. The orchestrator 
 the only component that talks directly to the user; every other agent in the
 system works on its behalf.
 
-## Manager
-
-A sub-agent **deployed** by the orchestrator into a **workspace** on a **host**.
-A manager owns a strand of work — it receives an objective, picks a **harness**,
-spawns **agents**, delegates **tasks**, and reports back. Managers are the bridge
-between the orchestrator's high-level plan and the concrete tool execution.
-
 ## Agent
 
 A connected worker that executes **tasks**. Agents live inside a **workspace** on
