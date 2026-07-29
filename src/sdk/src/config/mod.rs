@@ -2,11 +2,11 @@
 //! `backend` section for the HTTP runtime. Permissive: missing fields take
 //! defaults, unknown fields are ignored.
 //!
-//! The module is split by responsibility: [`urls`] holds the endpoint base-URL
-//! constants and their env-aware resolvers, [`types`] the config data model,
-//! [`load`] the layered discovery/parse/merge that produces a [`LoadedConfig`],
-//! [`persist`] writes back the few sections the app owns as state, and
-//! [`core_socket`] resolves and validates the core (`medulla-serve`) socket path.
+//! The module is split by responsibility: `urls` holds the endpoint base-URL
+//! constants and their env-aware resolvers, `types` the config data model,
+//! `load` the layered discovery/parse/merge that produces a [`LoadedConfig`],
+//! `persist` writes back the few sections the app owns as state, and
+//! `core_socket` resolves and validates the core (`medulla-serve`) socket path.
 //! All public items are re-exported here so callers use `medulla::config::*`.
 
 mod core_socket;

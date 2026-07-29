@@ -1,8 +1,7 @@
 //! HTTP/SSE client for the Medulla orchestration backend.
 //!
 //! Surfaces: auth (`/auth`), durable sessions (`/medulla/v1`), SSE event
-//! streaming, one-shot orchestration (`/orchestration/v1`), and the public
-//! feedback board (`/feedback`, in [`feedback`]).
+//! streaming, and one-shot orchestration (`/orchestration/v1`).
 //!
 //! Every response is wrapped in a `{ "success": true, "data": ... }` envelope;
 //! errors arrive as `{ "success": false, "error": ..., "errorCode": ... }` and

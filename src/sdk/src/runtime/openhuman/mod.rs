@@ -285,7 +285,7 @@ impl OpenHumanRuntime {
     /// the call and the runtime is already shared with the UI.
     ///
     /// The cadence adapts: a batch means the turn is producing, so poll again
-    /// promptly; an empty fetch backs off toward [`POLL_IDLE`]. A fixed fast
+    /// promptly; an empty fetch backs off toward `POLL_IDLE`. A fixed fast
     /// tick would spend most of its life querying an idle session, and a fixed
     /// slow one would make streaming replies arrive in visible steps.
     pub fn spawn_poll_loop(self: &Arc<Self>) -> tokio::task::JoinHandle<()> {

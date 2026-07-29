@@ -1,5 +1,5 @@
 //! The embedded host: a [`DaemonRuntime`] driven over any
-//! [`Bridge`](crate::bridge::Bridge), inside someone else's process.
+//! [`Bridge`], inside someone else's process.
 //!
 //! [`super::entry::run_daemon`] is the standalone `medulla daemon` — it owns a
 //! tiny.place identity, publishes pre-keys, registers a directory card, and

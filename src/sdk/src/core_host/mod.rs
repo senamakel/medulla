@@ -1,6 +1,6 @@
 //! Boot the embedded OpenHuman core in this process.
 //!
-//! One place builds the [`CoreRuntime`], so there is exactly one answer to
+//! One place builds the [`EmbeddedCore`], so there is exactly one answer to
 //! "which workspace does the core write to" and one place to change the domain
 //! and service composition.
 //!
