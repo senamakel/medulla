@@ -53,7 +53,7 @@ If you start `medulla` with no working credentials, the TUI shows an in-terminal
 cargo run       # or: medulla, with no token configured
 ```
 
-With no token and no core socket, `medulla` opens a login screen; press `m` to continue offline against the mock runtime — a scripted demo with no credentials and no network, and the fastest way to explore the interface. Open the Settings tab (its Help subpage) or run `/help` for keybindings. Usage, effective config, and the color-theme editor live under Settings as well (`/usage`, `/config`, `/theme`).
+With nobody signed in, `medulla` opens a login screen; press `m` to continue offline against the mock runtime — a scripted demo with no credentials and no network, and the fastest way to explore the interface. Open the Settings tab (its Help subpage) or run `/help` for keybindings. Usage, effective config, and the color-theme editor live under Settings as well (`/usage`, `/config`, `/theme`).
 
 ## Use the SDK from your own crate
 
@@ -64,11 +64,11 @@ Add the SDK as a git dependency (the repo vendors its path deps, so no extra set
 medulla = { git = "https://github.com/tinyhumansai/medulla", tag = "v0.3.0" }
 ```
 
-The [`medulla` SDK crate](../../src/sdk/) is a UI-free logic library: the HTTP/SSE client for the backend API, the runtime adapters, persona memory, and the tiny.place integration. See [Architecture](architecture.md) for how the pieces fit together.
+The [`medulla` SDK crate](../../src/sdk/) is a UI-free logic library: the HTTP/SSE client for the backend API, the runtime adapters over the embedded core, sessions, workflows, and the tiny.place integration. See [Architecture](architecture.md) for how the pieces fit together.
 
 ## Platform support
 
-Linux (x86\_64, aarch64), macOS (Apple Silicon), and Windows (x86\_64) all build and ship prebuilt binaries. The [core-socket runtime](configuration.md#core-socket), the headless [daemon's](cli-reference.md#medulla-daemon) provider-spawn paths, and the [harness wrappers](cli-reference.md#harness-wrappers) are unix-only; the interactive TUI over the backend and mock runtimes, and `medulla update`, work everywhere.
+Linux (x86\_64, aarch64), macOS (Apple Silicon), and Windows (x86\_64) all build and ship prebuilt binaries. The [daemon's](cli-reference.md#medulla-daemon) provider-spawn paths and the [harness wrappers](cli-reference.md#harness-wrappers) are unix-only; the interactive TUI, `medulla run`, and `medulla update` work everywhere, since the core is embedded rather than reached over a Unix socket.
 
 ## Next steps
 
