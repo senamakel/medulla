@@ -46,7 +46,7 @@ mod auth_tests;
 mod tests;
 
 /// The embed facade, re-exported so a host can name what [`boot`] returns
-/// without depending on `openhuman-core` directly.
+/// without depending on the `openhuman` crate directly.
 pub use openhuman_core::embed::Core as EmbeddedCore;
 
 /// Environment variable OpenHuman reads for its state directory.

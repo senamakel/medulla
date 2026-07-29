@@ -19,11 +19,9 @@ use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
 use medulla_tui::cli::parse_tui_args;
 
-#[cfg(feature = "openhuman-core")]
 use crate::commands::run_login_screen;
 use crate::event_loop::{run, SessionExit, SessionWiring};
 use crate::terminal::{restore, TermGuard};
-#[cfg(feature = "openhuman-core")]
 use medulla_tui::ui::login::LoginOutcome;
 
 /// Wrap a signed-in core in its [`Runtime`] and start it producing.
@@ -31,7 +29,6 @@ use medulla_tui::ui::login::LoginOutcome;
 /// Both the already-signed-in path and the just-logged-in path need the same
 /// two priming steps, and getting either wrong is invisible until the UI sits
 /// empty or inert.
-#[cfg(feature = "openhuman-core")]
 async fn core_runtime(
     core: Arc<medulla::core_host::EmbeddedCore>,
     hub: crate::hub_relay::HubSlot,
@@ -56,7 +53,6 @@ async fn core_runtime(
 /// the URL it resolved. A failed read degrades to signed out: the surfaces that
 /// take this simply go without a backend, which is exactly what they do for a
 /// signed-out host.
-#[cfg(feature = "openhuman-core")]
 async fn session_of(
     core: &medulla::core_host::EmbeddedCore,
     base_url: &str,
@@ -86,7 +82,6 @@ async fn session_of(
 /// the screen: the token passed `/auth/me`, so a refusal here means the core and
 /// the login flow disagree about which deployment they are talking to, and
 /// looping would just ask for the same token again.
-#[cfg(feature = "openhuman-core")]
 async fn relogin(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     core: &medulla::core_host::EmbeddedCore,
@@ -126,23 +121,20 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // the developer's real `~/.openhuman` even on a `MEDULLA_HOME=$(mktemp -d)`
     // scratch run — the recipe that exists precisely to avoid that. Cheap, and
     // a no-op when the operator set `OPENHUMAN_WORKSPACE` themselves.
-    #[cfg(feature = "openhuman-core")]
     medulla::core_host::bind_workspace(&env, &home);
     // Same binding discipline for the backend: the core must dial the endpoint
     // this host was configured for, or a staging/self-hosted install verifies a
     // token against one deployment and stores it against another.
-    #[cfg(feature = "openhuman-core")]
     medulla::core_host::bind_medulla_base_url(&env, &loaded.config.backend.base_url);
     // The core's own backend client needs the same treatment: it resolves
     // `/auth/me` from `BACKEND_URL`, which defaults to production and knows
     // nothing about `MEDULLA_STAGING`, so the in-app login screen would verify a
     // staging token and then have the core hand it to production to validate.
-    #[cfg(feature = "openhuman-core")]
     medulla::core_host::bind_backend_api_url(&env, &loaded.config.backend.base_url);
 
     // Runtime selection.
     //
-    // Built with `openhuman-core`, the embedded core is THE runtime: no token
+    // The embedded core is THE runtime: no token
     // lookup, no fallback chain, because there is nothing to fall back from —
     // the core runs in this process. A core with no app session is not a reason
     // to run something else, it is a reason to sign in, so it routes to the
@@ -153,9 +145,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let mut startup_status: Option<String> = None;
     // A booted-but-signed-out core, held across terminal setup: the login screen
     // needs the alt screen, which is not up yet at selection time.
-    #[cfg(feature = "openhuman-core")]
     let mut pending_core: Option<medulla::core_host::EmbeddedCore> = None;
-    #[cfg(feature = "openhuman-core")]
     let mut need_login: Option<String> = None;
     // The signed-in session, resolved once from the core. Everything that needs
     // a backend bearer — the hub uplink, the memory service's sync target, the
@@ -170,7 +160,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let hub_slot: crate::hub_relay::HubSlot = Arc::new(Mutex::new(None));
     // Cloned before the core is consumed: a relogin rebuilds the runtime around
     // the same in-process core rather than booting a second one.
-    #[cfg(feature = "openhuman-core")]
     let mut core_arc: Option<Arc<medulla::core_host::EmbeddedCore>> = None;
     // Active workspace roots whose `MEDULLA.md` profiles ride every backend
     // session mint (`workspaceProfiles`). Roots without a profile are skipped by
@@ -186,7 +175,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // `~/OpenHuman/projects`, which a Medulla operator has never used — their
     // repos are the configured workspace roots. Binding the first keeps the
     // agent writing where the operator actually works. Also non-overriding.
-    #[cfg(feature = "openhuman-core")]
     medulla::core_host::bind_action_dir(&env, workspace_roots.first().map(|p| p.as_path()));
     // The hub narrates itself; those lines must not reach the terminal while the
     // TUI owns the screen, so they are captured here instead.
@@ -221,7 +209,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // misconfiguration to surface, it is the documented credential-free start,
     // and every drive method would otherwise return the same error behind a UI
     // that looks live. It takes the offline demo, exactly as `--mock` does.
-    #[cfg(feature = "openhuman-core")]
     if runtime.is_none() {
         match medulla::core_host::boot().await {
             Ok(core) => match medulla::core_host::probe_medulla(&core).await {
@@ -273,7 +260,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // the alt-screen session already set up, and resolves to a signed-in core or
     // a clean quit — there is no third option, because a TUI with no runtime has
     // nothing to show.
-    #[cfg(feature = "openhuman-core")]
     if let Some(base_url) = need_login.take() {
         let core = pending_core.take().expect("a core is held for the login");
         match run_login_screen(&mut terminal, base_url).await? {
@@ -482,7 +468,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 // Only the embedded core can be signed back in; every other
                 // runtime reports that it holds no session, so its logout never
                 // succeeds and this arm is unreachable for it.
-                #[cfg(feature = "openhuman-core")]
                 if let Some(core) = core_arc.clone() {
                     match relogin(&mut terminal, &core, &loaded.config.backend.base_url).await {
                         Ok(true) => {
