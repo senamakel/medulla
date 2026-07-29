@@ -60,6 +60,7 @@ impl WorkerOp {
 }
 
 impl StreamState {
+    /// Compact symbol suitable for status bars.
     pub fn glyph(self) -> char {
         match self {
             StreamState::Live => '●',
@@ -67,6 +68,7 @@ impl StreamState {
             StreamState::Stalled => '✕',
         }
     }
+    /// Stable human-readable state label.
     pub fn label(self) -> &'static str {
         match self {
             StreamState::Live => "live",
@@ -91,9 +93,11 @@ pub trait Runtime: Send + Sync {
     fn team_usage(&self) -> BoxFuture<'static, anyhow::Result<Option<serde_json::Value>>> {
         Box::pin(std::future::ready(Ok(None)))
     }
+    /// Return the current UI-facing state snapshot.
     fn snapshot(&self) -> RuntimeSnapshot;
     /// A change notification channel — a ping fires after every event/mutation.
     fn subscribe(&self) -> broadcast::Receiver<()>;
+    /// Submit one user instruction to the active session.
     fn submit(&self, input: String) -> BoxFuture<'static, anyhow::Result<()>>;
     /// Whether a resolved [`submit`](Runtime::submit) means the cycle finished.
     ///
@@ -117,6 +121,7 @@ pub trait Runtime: Send + Sync {
         let fut = self.submit(input);
         Box::pin(async move { fut.await.map(|_| None) })
     }
+    /// Request cancellation of the active cycle.
     fn abort(&self);
     /// Forget this host's stored session, so the next start asks for a sign-in.
     ///
@@ -130,11 +135,17 @@ pub trait Runtime: Send + Sync {
             "this runtime holds no session to log out of"
         ))))
     }
+    /// Reset the runtime to a new main session.
     fn new_session(&self);
+    /// Select the chat thread that receives subsequent input.
     fn set_active_thread(&self, id: String);
+    /// List resumable top-level chats.
     fn list_main_chats(&self) -> BoxFuture<'static, anyhow::Result<Vec<MainChatSummary>>>;
+    /// Resume a persisted top-level chat and its thread tree.
     fn resume_chat(&self, main_session_id: String) -> BoxFuture<'static, anyhow::Result<()>>;
+    /// Return the context chunks currently visible to the model.
     fn inspect_context(&self) -> BoxFuture<'static, anyhow::Result<Vec<ContextItem>>>;
+    /// Flush state and stop background runtime work.
     fn shutdown(&self) -> BoxFuture<'static, anyhow::Result<()>>;
 
     // --- operator steering & fleet ops (additive; core runtime only) -------------
