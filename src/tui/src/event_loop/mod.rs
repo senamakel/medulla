@@ -47,22 +47,24 @@ pub(crate) async fn run(
         tinyplace_obs,
         config_path,
         medulla_home,
-        memory_service,
+        account,
         mut sharing,
         onboarding_path,
         host,
+        harnesses,
     } = wiring;
     let mut app = App::new(runtime.clone(), loaded);
     app.set_config_path(config_path);
     app.set_medulla_home(medulla_home);
-    if let Some(svc) = memory_service {
-        app.set_memory_service(svc);
-    }
+    app.set_account(account);
     if let Some(obs) = tinyplace_obs {
         app.set_tinyplace_observation(obs);
     }
     if let Some(host) = host {
         app.set_host_observation(host);
+    }
+    if let Some(harnesses) = harnesses {
+        app.set_local_harnesses(harnesses);
     }
     if let Some(status) = startup_status {
         app.set_status(status);
@@ -93,7 +95,7 @@ pub(crate) async fn run(
             maybe_event = reader.next() => {
                 if let Some(Ok(ev)) = maybe_event {
                     if let Some(cmd) = app.on_event(ev) {
-                        run_cmd(cmd, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
+                        run_cmd(cmd, &runtime, &app.loaded.config.workflows, &msg_tx);
                     }
                 }
             }
@@ -101,7 +103,7 @@ pub(crate) async fn run(
                 if recv.is_ok() {
                     app.refresh_snapshot();
                     if should_refresh_context(&mut app) {
-                        run_cmd(Cmd::InspectContext, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
+                        run_cmd(Cmd::InspectContext, &runtime, &app.loaded.config.workflows, &msg_tx);
                     }
                 }
             }
@@ -111,16 +113,14 @@ pub(crate) async fn run(
                     AppMsg::Contexts(c) => app.set_contexts(c),
                     AppMsg::UsageLoaded(data) => app.set_account_usage(data),
                     AppMsg::OpenResume(chats) => app.open_resume(chats),
+                    AppMsg::LoggedOut => {
+                        app.set_status("Account · logged out. Returning to the login screen…");
+                        app.logged_out();
+                    }
                     AppMsg::Resumed(s) => {
                         app.tab_index = TABS.iter().position(|t| *t == "Chat").unwrap_or(1);
                         app.refresh_snapshot();
                         app.set_status(s);
-                    }
-                    AppMsg::MemoryLoaded { status, directives } => {
-                        app.set_memory_loaded(status, directives);
-                    }
-                    AppMsg::MemoryIngestDone(status) => {
-                        app.set_memory_ingest_done(status);
                     }
                     AppMsg::TasksLoaded(document) => app.set_tasks(document),
                     #[cfg(feature = "workflows")]
@@ -160,16 +160,13 @@ pub(crate) async fn run(
                     AppMsg::CopilotFailed { workflow, error } => {
                         app.copilot_failed(&workflow, error);
                     }
-                    AppMsg::MemoryResults { hits, query } => {
-                        let n = hits.len();
-                        app.set_memory_results(hits, query);
-                        app.set_status(format!("Memory · {n} hit(s)"));
-                    }
+                    #[cfg(feature = "workflows")]
+                    AppMsg::WorkflowsChanged => app.reload_workflows(),
                     AppMsg::FeedbackLoaded(page) => {
                         app.set_feedback_page(page);
                         // Pull the newly selected row's comments in the same beat.
                         if let Some(cmd) = app.feedback_detail_cmd() {
-                            run_cmd(cmd, &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
+                            run_cmd(cmd, &runtime, &app.loaded.config.workflows, &msg_tx);
                         }
                     }
                     AppMsg::FeedbackComments { id, comments } => {
@@ -183,10 +180,13 @@ pub(crate) async fn run(
                         app.set_status(status);
                         // A comment or submission changes the board, so re-pull
                         // it rather than patching state locally.
-                        run_cmd(Cmd::LoadFeedback(app.feedback_query()), &runtime, app.memory_service(), &app.loaded.config.workflows, &msg_tx);
+                        run_cmd(
+                            Cmd::LoadFeedback(app.feedback_query()),
+                            &runtime,
+                            &app.loaded.config.workflows,
+                            &msg_tx,
+                        );
                     }
-                    #[cfg(feature = "workflows")]
-                    AppMsg::WorkflowsChanged => app.reload_workflows(),
                     AppMsg::UpdateAvailable(notice) => {
                         app.set_update_notice(notice.clone());
                         app.set_status(notice);

@@ -22,8 +22,7 @@ use medulla::client::FeedbackType;
 
 use super::super::types::{
     App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK,
-    SP_HELP,
-    SP_TRACE, SP_USAGE,
+    SP_HELP, SP_TRACE, SP_USAGE,
 };
 
 impl App {
@@ -187,6 +186,10 @@ impl App {
     }
 
     /// Feedback: browse the board, vote, comment, and submit.
+    ///
+    /// `pub(super)` because the top-level Feedback tab routes its keys here
+    /// too — the board is the same surface in both places, and duplicating the
+    /// bindings is how the two drift apart.
     pub(super) fn feedback_key(&mut self, code: KeyCode) -> SettingsKey {
         match code {
             KeyCode::Char('k') => SettingsKey::handled(self.move_feedback_index(true)),
@@ -254,9 +257,9 @@ impl App {
     fn account_key(&mut self, code: KeyCode) -> SettingsKey {
         match code {
             KeyCode::Enter => {
-                let status = self.confirm_logout();
+                let (status, cmd) = self.confirm_logout();
                 self.set_status(status);
-                SettingsKey::handled(None)
+                SettingsKey::handled(cmd)
             }
             KeyCode::Esc => {
                 self.disarm_logout();

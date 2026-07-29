@@ -298,18 +298,6 @@ async fn worker_ops_and_usage_default_to_success_and_none() {
     );
 }
 
-#[test]
-fn memory_defaults_report_no_attached_service() {
-    let runtime = BareRuntime;
-
-    assert!(runtime.memory_status().is_none());
-    assert!(runtime.memory_search("anything".into(), None, 5).is_empty());
-    assert!(runtime
-        .memory_search("anything".into(), Some("facet".into()), 5)
-        .is_empty());
-    assert!(runtime.memory_directives().is_empty());
-}
-
 #[tokio::test]
 async fn listing_feedback_without_a_backend_is_none_not_an_error() {
     // `Ok(None)` is the signal the UI renders as a sign-in hint. An error here

@@ -19,7 +19,6 @@ mod feedback;
 mod harness_control;
 mod input;
 mod keys;
-mod memory;
 mod rail;
 mod render;
 mod settings_edit;

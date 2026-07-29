@@ -10,15 +10,14 @@ use crate::ui::agents::{
 };
 use crate::ui::command::CommandSpec;
 use crate::ui::composer::Draft;
-use crate::ui::fleet::{fleet_rows, merge_capacity, registry_capacity, FleetNode};
+use crate::ui::fleet::{merge_capacity, registry_capacity};
 use crate::ui::theme::Theme;
 use medulla::config::LoadedConfig;
-use medulla::memory::{MemoryHit, MemoryStatus};
 use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
-    App, Cmd, HandbackPolicy, MemoryEntry, ResumePicker, MEMORY_SUBPAGES, ROUTING_SUBPAGES,
-    SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_USAGE, TABS, TASKS_SUBPAGES,
+    App, Cmd, HandbackPolicy, ResumePicker, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, SP_CONTEXT,
+    SP_FEEDBACK, SP_USAGE, TABS, TASKS_SUBPAGES,
 };
 
 impl App {
@@ -98,16 +97,6 @@ impl App {
             tasks_detail_open: false,
             tokenmaxxing_index: 0,
             tokenmaxxing_focused: false,
-            memory_status: None,
-            memory_hits: Vec::new(),
-            memory_directives: Vec::new(),
-            memory_index: 0,
-            memory_query: None,
-            memory_service: None,
-            memory_ingesting: false,
-            memory_subpage_index: 0,
-            memory_focused: false,
-            memory_detail_open: false,
             feedback: Default::default(),
             tasks: medulla::tasks::TaskDocument::default(),
             decision_open: false,
@@ -123,6 +112,7 @@ impl App {
             config_index: 0,
             logout_armed: false,
             relogin_requested: false,
+            account: None,
             medulla_home: None,
             theme,
             config_path: None,
@@ -132,6 +122,7 @@ impl App {
             hit_tabs: Vec::new(),
             hit_tabs_row: 0,
             hit_agents: None,
+            hit_harness: None,
             hit_threads: None,
             hit_context: None,
             hit_nav: Default::default(),
@@ -166,6 +157,11 @@ impl App {
         self.config_path = Some(path);
     }
 
+    /// Record who the core is signed in as, for the Account subpage.
+    pub fn set_account(&mut self, account: Option<medulla::core_host::auth::AuthState>) {
+        self.account = account;
+    }
+
     /// Configure Account logout with a testable home; without it, logout reports no writable location.
     pub fn set_medulla_home(&mut self, home: std::path::PathBuf) {
         self.medulla_home = Some(home);
@@ -195,21 +191,6 @@ impl App {
     /// Whether a selected task or source is open in the detail modal.
     pub fn tasks_detail_open(&self) -> bool {
         self.tasks_detail_open
-    }
-
-    /// The active Memory subpage name. Test/inspection seam.
-    pub fn memory_subpage(&self) -> &'static str {
-        MEMORY_SUBPAGES[self.memory_subpage_index.min(MEMORY_SUBPAGES.len() - 1)]
-    }
-
-    /// Whether Memory focus is inside the active content pane.
-    pub fn memory_focused(&self) -> bool {
-        self.memory_focused
-    }
-
-    /// Whether a selected Memory entry is open in the detail modal.
-    pub fn memory_detail_open(&self) -> bool {
-        self.memory_detail_open
     }
 
     /// The active Settings subpage name. Test/inspection seam.
@@ -401,52 +382,6 @@ impl App {
         self.contexts = c;
     }
 
-    /// Store the loaded persona-memory status + directives and drop back to the
-    /// directive/facet overview (no active search).
-    pub fn set_memory_loaded(&mut self, status: Option<MemoryStatus>, directives: Vec<String>) {
-        self.memory_status = status;
-        self.memory_directives = directives;
-        self.memory_query = None;
-        self.memory_index = 0;
-    }
-
-    /// Store persona-memory search results for `query` and select the first hit.
-    pub fn set_memory_results(&mut self, hits: Vec<MemoryHit>, query: String) {
-        self.memory_hits = hits;
-        self.memory_query = Some(query);
-        self.memory_index = 0;
-        self.memory_subpage_index = super::types::MP_SEARCH;
-        self.memory_focused = true;
-    }
-
-    /// The active persona-memory selection index. Test/inspection seam.
-    pub fn memory_index(&self) -> usize {
-        self.memory_index
-    }
-
-    /// Attach the persona-memory service, making the Memory tab work on every
-    /// runtime path rather than only on core.
-    pub fn set_memory_service(&mut self, service: Arc<medulla::memory::MemoryService>) {
-        self.memory_service = Some(service);
-    }
-
-    /// The attached persona-memory service, if any. The event loop prefers it
-    /// over the runtime seam when serving Memory-tab commands.
-    pub fn memory_service(&self) -> Option<Arc<medulla::memory::MemoryService>> {
-        self.memory_service.clone()
-    }
-
-    /// Whether a memory ingest is in flight. Render/test seam.
-    pub fn memory_ingesting(&self) -> bool {
-        self.memory_ingesting
-    }
-
-    /// Record that an ingest finished, and report its outcome.
-    pub fn set_memory_ingest_done(&mut self, status: String) {
-        self.memory_ingesting = false;
-        self.set_status(status);
-    }
-
     /// Open the resume picker with `chats`, or report that there is nothing to
     /// resume.
     pub fn open_resume(&mut self, chats: Vec<crate::ui::chat_store::MainChatSummary>) {
@@ -600,15 +535,6 @@ impl App {
         };
     }
 
-    /// The flattened fleet tree for the Routing › Fleet page.
-    ///
-    /// Reads the same merged roster the Agents lanes do, so an agent the local
-    /// registry knows about but the backend has not advertised still appears —
-    /// in the `unplaced agents` group, since nothing declares where it runs.
-    pub(crate) fn fleet_rows(&self) -> Vec<FleetNode> {
-        fleet_rows(&self.fleet_capacity(), &self.fleet_roster())
-    }
-
     /// The capacity the fleet surfaces render.
     ///
     /// The runtime's own declaration wins; the operator's `[fleet]` config is
@@ -676,51 +602,5 @@ impl App {
         let changed = n != self.last_events_len;
         self.last_events_len = n;
         changed
-    }
-
-    /// Persona directives shown on the dedicated Directives page.
-    pub(super) fn memory_directive_entries(&self) -> Vec<MemoryEntry> {
-        self.memory_directives
-            .iter()
-            .cloned()
-            .map(MemoryEntry::Directive)
-            .collect()
-    }
-
-    /// Facet summaries shown on the dedicated Facets page.
-    pub(super) fn memory_facet_entries(&self) -> Vec<MemoryEntry> {
-        let mut out = Vec::new();
-        if let Some(st) = &self.memory_status {
-            for (name, count) in &st.facet_counts {
-                out.push(MemoryEntry::Facet {
-                    name: name.clone(),
-                    count: *count,
-                });
-            }
-        }
-        out
-    }
-
-    /// Entries displayed by the active Memory list page.
-    pub(super) fn memory_page_entries(&self) -> Vec<MemoryEntry> {
-        match self.memory_subpage_index {
-            super::types::MP_DIRECTIVES => self.memory_directive_entries(),
-            super::types::MP_FACETS => self.memory_facet_entries(),
-            super::types::MP_SEARCH => self
-                .memory_hits
-                .iter()
-                .cloned()
-                .map(MemoryEntry::Hit)
-                .collect(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// The selected entry on the active Memory list page.
-    pub(super) fn selected_memory_entry(&self) -> Option<MemoryEntry> {
-        let entries = self.memory_page_entries();
-        entries
-            .get(self.memory_index.min(entries.len().saturating_sub(1)))
-            .cloned()
     }
 }

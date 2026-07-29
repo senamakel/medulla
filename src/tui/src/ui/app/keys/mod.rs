@@ -199,11 +199,16 @@ impl App {
             }
         }
 
+        // The Feedback tab is the same board as Settings › Feedback, so it
+        // reuses that page's bindings; anything it does not bind still falls
+        // through to the global ones.
         if tab == "Feedback" {
-            return self.feedback_key(k.code);
+            if let SettingsKey::Handled(cmd) = self.feedback_key(k.code) {
+                return *cmd;
+            }
         }
 
-        // Settings owns a nav plus seven subpages; it gets first refusal on
+        // Settings owns a nav plus eight subpages; it gets first refusal on
         // every key so its subpage bindings are not shadowed by the global ones.
         if tab == "Settings" {
             if let SettingsKey::Handled(cmd) = self.on_settings_key(k.code) {

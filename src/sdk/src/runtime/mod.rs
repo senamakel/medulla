@@ -14,7 +14,6 @@ pub mod fleet;
 /// The non-interactive one-instruction driver for scripting / e2e automation.
 pub mod headless;
 pub mod mock;
-#[cfg(feature = "openhuman-core")]
 pub mod openhuman;
 
 use std::collections::HashMap;
@@ -64,6 +63,7 @@ impl WorkerOp {
 }
 
 impl StreamState {
+    /// Compact symbol suitable for status bars.
     pub fn glyph(self) -> char {
         match self {
             StreamState::Live => '●',
@@ -71,6 +71,7 @@ impl StreamState {
             StreamState::Stalled => '✕',
         }
     }
+    /// Stable human-readable state label.
     pub fn label(self) -> &'static str {
         match self {
             StreamState::Live => "live",
@@ -95,10 +96,22 @@ pub trait Runtime: Send + Sync {
     fn team_usage(&self) -> BoxFuture<'static, anyhow::Result<Option<serde_json::Value>>> {
         Box::pin(std::future::ready(Ok(None)))
     }
+    /// Return the current UI-facing state snapshot.
     fn snapshot(&self) -> RuntimeSnapshot;
     /// A change notification channel — a ping fires after every event/mutation.
     fn subscribe(&self) -> broadcast::Receiver<()>;
+    /// Submit one user instruction to the active session.
     fn submit(&self, input: String) -> BoxFuture<'static, anyhow::Result<()>>;
+    /// Whether a resolved [`submit`](Runtime::submit) means the cycle finished.
+    ///
+    /// True for every wire that answers only once the turn is done, which is
+    /// what lets a caller report completion the moment the future resolves.
+    /// A runtime whose submit returns on *acceptance* — the reply arriving
+    /// later over the event stream — answers false, so the UI says the work was
+    /// accepted instead of claiming a completion that has not happened yet.
+    fn submit_settles_cycle(&self) -> bool {
+        true
+    }
     /// Like [`submit`](Runtime::submit), but returns the wire's correlation
     /// receipt when it carries one, so a caller waiting on the submitted
     /// cycle's end (the headless driver) can ignore other cycles' ends. The
@@ -111,12 +124,31 @@ pub trait Runtime: Send + Sync {
         let fut = self.submit(input);
         Box::pin(async move { fut.await.map(|_| None) })
     }
+    /// Request cancellation of the active cycle.
     fn abort(&self);
+    /// Forget this host's stored session, so the next start asks for a sign-in.
+    ///
+    /// The default reports that there is nothing to log out of, which is the
+    /// honest answer for a runtime that holds no credential of its own (the
+    /// mock, a socket attachment). Only a runtime backed by a credential store
+    /// overrides it — and it is the runtime's job rather than the UI's precisely
+    /// because the UI has no way to know where the session lives.
+    fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
+        Box::pin(std::future::ready(Err(anyhow::anyhow!(
+            "this runtime holds no session to log out of"
+        ))))
+    }
+    /// Reset the runtime to a new main session.
     fn new_session(&self);
+    /// Select the chat thread that receives subsequent input.
     fn set_active_thread(&self, id: String);
+    /// List resumable top-level chats.
     fn list_main_chats(&self) -> BoxFuture<'static, anyhow::Result<Vec<MainChatSummary>>>;
+    /// Resume a persisted top-level chat and its thread tree.
     fn resume_chat(&self, main_session_id: String) -> BoxFuture<'static, anyhow::Result<()>>;
+    /// Return the context chunks currently visible to the model.
     fn inspect_context(&self) -> BoxFuture<'static, anyhow::Result<Vec<ContextItem>>>;
+    /// Flush state and stop background runtime work.
     fn shutdown(&self) -> BoxFuture<'static, anyhow::Result<()>>;
 
     // --- operator steering & fleet ops (additive; core runtime only) -------------
@@ -127,6 +159,18 @@ pub trait Runtime: Send + Sync {
     /// Answer a pending `task_attention` question (`question.answer`). Fire-and-forget,
     /// like [`abort`](Runtime::abort).
     fn answer_question(&self, _cycle_id: String, _question_id: String, _body: String) {}
+
+    /// Whether [`answer_question`](Runtime::answer_question) and
+    /// [`cancel_task`](Runtime::cancel_task) actually reach the backend.
+    ///
+    /// Both are fire-and-forget and cannot report failure, so a runtime that
+    /// inherits their no-op defaults would have the UI announce "Answer sent"
+    /// over a question that stays blocked forever. This is what a surface checks
+    /// before claiming either happened. Defaults to `true` — the wires that
+    /// model steering are the ones that carried this trait first.
+    fn steering_reaches_backend(&self) -> bool {
+        true
+    }
 
     /// Cancel a running task lane (`task.cancel`). Fire-and-forget.
     fn cancel_task(&self, _cycle_id: String, _task_id: String) {}
@@ -190,39 +234,11 @@ pub trait Runtime: Send + Sync {
         None
     }
 
-    // --- persona memory (additive) -----------------------------------------
-    // Default: no memory surface. Only the mock overrides these today; the
-    // embedded-core runtime reaches memory through the `MemoryService` wired
-    // into `App` directly, not through this trait. These move onto the typed
-    // facade when the memory surface migrates.
-
-    /// The persona-memory health snapshot, when a memory service is attached.
-    /// `None` when memory is disabled / not wired.
-    fn memory_status(&self) -> Option<crate::memory::MemoryStatus> {
-        None
-    }
-
-    /// Rank the persona corpus against `query`. Empty when no memory service is
-    /// attached. `facet` is a loose facet name; unrecognized facets are ignored.
-    fn memory_search(
-        &self,
-        _query: String,
-        _facet: Option<String>,
-        _k: usize,
-    ) -> Vec<crate::memory::MemoryHit> {
-        Vec::new()
-    }
-
-    /// The verbatim persona directives, when a memory service is attached.
-    fn memory_directives(&self) -> Vec<String> {
-        Vec::new()
-    }
-
-    // --- feedback board (additive; backend runtime only) -------------------
-    // The board lives on the cloud backend, so only `BackendRuntime` overrides
-    // these. `list_feedback` returning `Ok(None)` means "this runtime has no
-    // board", which the UI renders as a sign-in hint rather than an empty list;
-    // the mutating calls fail loudly for the same case.
+    // --- feedback board (additive; backend-backed runtimes only) -----------
+    // The board lives on the cloud backend, so only the runtimes that hold a
+    // backend client override these. `list_feedback` returning `Ok(None)` means
+    // "this runtime has no board", which the UI renders as a sign-in hint
+    // rather than an empty list; the mutating calls fail loudly for that case.
 
     /// A page of the public feedback board. `Ok(None)` = this runtime has no
     /// backend to serve one.

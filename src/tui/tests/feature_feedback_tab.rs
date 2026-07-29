@@ -308,11 +308,18 @@ fn type_and_status_labels_cover_every_variant() {
     assert_eq!(FeedbackType::Bug.label(), "bug");
     assert_eq!(FeedbackType::Other.label(), "misc");
 
-    // The wire value sent on submit; an unmodelled variant falls back to
-    // "feature" so a round-tripped item is still submittable.
-    assert_eq!(FeedbackType::Feature.as_str(), "feature");
-    assert_eq!(FeedbackType::Bug.as_str(), "bug");
-    assert_eq!(FeedbackType::Other.as_str(), "feature");
+    // The query value sent when filtering; an unmodelled variant filters by
+    // nothing rather than asking the backend for a type it cannot name.
+    assert_eq!(FeedbackType::Feature.wire(), Some("feature"));
+    assert_eq!(FeedbackType::Bug.wire(), Some("bug"));
+    assert_eq!(FeedbackType::Other.wire(), None);
+
+    // The status filter's wire value is the serialized enum, not the short
+    // display label: `completed` selects items the list renders as `done`.
+    assert_eq!(FeedbackStatus::Open.wire(), Some("open"));
+    assert_eq!(FeedbackStatus::Planned.wire(), Some("planned"));
+    assert_eq!(FeedbackStatus::Completed.wire(), Some("completed"));
+    assert_eq!(FeedbackStatus::Other.wire(), None);
 
     assert_eq!(FeedbackStatus::Open.label(), "open");
     assert_eq!(FeedbackStatus::Planned.label(), "planned");
