@@ -20,6 +20,24 @@ pub(super) enum AppMsg {
     UsageLoaded(Option<serde_json::Value>),
     /// A newer release was detected by the background update checker.
     UpdateAvailable(String),
+    /// A page of the feedback board. `None` = this runtime has no board.
+    FeedbackLoaded {
+        /// The query that produced it, so a superseded load can be dropped.
+        query: medulla::client::FeedbackQuery,
+        /// The page itself.
+        page: Option<medulla::client::FeedbackPage>,
+    },
+    /// Comments for one board item.
+    FeedbackComments {
+        /// The item the comments belong to.
+        id: String,
+        /// The item's comments, oldest first.
+        comments: Vec<medulla::client::FeedbackComment>,
+    },
+    /// A board item the server re-tallied after a vote.
+    FeedbackItemUpdated(medulla::client::FeedbackItem),
+    /// A feedback action finished; reload the board and report `status`.
+    FeedbackChanged(String),
     /// A progress line from a running copilot turn.
     ///
     /// Addressed by workflow rather than applied to whatever is selected: the
