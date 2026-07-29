@@ -406,8 +406,8 @@ impl UpdateConfig {
 }
 
 /// The optional `memory` section: tinycortex persona memory integration. All
-/// fields are optional overrides; the effective settings are resolved against
-/// the environment in [`crate::memory::env`].
+/// fields are optional overrides; consumers resolve effective settings against
+/// the environment.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MemoryConfigSection {
