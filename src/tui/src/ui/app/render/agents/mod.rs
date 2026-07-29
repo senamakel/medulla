@@ -130,7 +130,7 @@ impl App {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Min(3),
-                Constraint::Length(self.composer_height()),
+                Constraint::Length(self.composer_height(columns[1].width)),
             ])
             .split(columns[1]);
         // The work panel splits the transcript row, not the whole column: the
