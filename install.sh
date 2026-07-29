@@ -292,7 +292,7 @@ finish() {
         printf '  %s\n' "2. Launch the TUI:      ${C_BOLD}medulla${C_RESET}" >&2
     fi
     printf '\n' >&2
-    info "Without credentials, ${C_BOLD}medulla${C_RESET} runs against the mock runtime so you can look around."
+    info "Without credentials, ${C_BOLD}medulla${C_RESET} opens a login screen; press ${C_BOLD}m${C_RESET} to look around offline."
     info "Update anytime with ${C_BOLD}medulla update${C_RESET}."
 }
 
