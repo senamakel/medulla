@@ -41,8 +41,13 @@ pub fn status_detail(event: &HarnessEvent) -> Option<String> {
 fn tool_call_detail(payload: &ToolCallPayload) -> String {
     let input = &payload.input;
     let title = tool_title(payload);
-    let detail = scalar_at(input, &["command", "cmd", "script"])
-        .map(|command| format!("$ {}", safe_command(command)))
+    let detail = input
+        .as_str()
+        .map(|value| string_input_detail(value, &payload.tool_kind))
+        .or_else(|| {
+            scalar_at(input, &["command", "cmd", "script"])
+                .map(|command| format!("$ {}", safe_command(command)))
+        })
         .or_else(|| {
             scalar_at(input, &["file_path", "filePath", "path"])
                 .map(|path| one_line(path).to_string())
@@ -62,6 +67,19 @@ fn tool_call_detail(payload: &ToolCallPayload) -> String {
             cap(&format!("{title}: {}", one_line(&payload.display)), 180)
         }
         _ => title,
+    }
+}
+
+/// Interpret bare-string tool input without bypassing credential redaction.
+fn string_input_detail(value: &str, tool_kind: &str) -> String {
+    if tool_kind == "shell" {
+        format!("$ {}", safe_command(value))
+    } else if value.contains("://") {
+        safe_url(value)
+    } else if credential_shaped(value) {
+        "[credential redacted]".to_string()
+    } else {
+        one_line(value)
     }
 }
 

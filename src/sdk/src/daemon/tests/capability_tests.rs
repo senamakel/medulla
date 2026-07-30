@@ -168,6 +168,22 @@ async fn status_detail_maps_event_kinds() {
     assert_eq!(command_detail, "running Terminal · $ [credential redacted]");
     assert!(!command_detail.contains("top-secret"));
 
+    let string_command = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c3-string",
+            "tool_name": "shell",
+            "tool_kind": "shell",
+            "display": "curl -H 'Authorization: Bearer string-secret' https://example.test",
+            "input": "curl -H 'Authorization: Bearer string-secret' https://example.test"
+        }),
+        ..Default::default()
+    };
+    let string_detail =
+        status_detail(&string_command).expect("string command input has safe status");
+    assert_eq!(string_detail, "running Shell · $ [credential redacted]");
+    assert!(!string_detail.contains("string-secret"));
+
     let secret_url = HarnessEvent {
         kind: "tool_call".to_string(),
         payload: json!({
