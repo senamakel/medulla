@@ -10,6 +10,7 @@
 //! their workflow is selected.
 
 use medulla::ui::workflows::{run_rows, workflow_rows, WorkflowRow};
+use medulla::workflows::RunStatus;
 
 use super::super::types::App;
 
@@ -33,6 +34,8 @@ pub enum WorkflowRailRow {
     Run {
         /// Its position in the run history, newest first.
         index: usize,
+        /// Execution state, retained so the renderer can colour the row.
+        status: RunStatus,
         /// The listing row.
         row: WorkflowRow,
     },
@@ -83,7 +86,8 @@ impl App {
                 continue;
             }
             for (index, row) in runs.into_iter().enumerate() {
-                rows.push(WorkflowRailRow::Run { index, row });
+                let status = self.workflow_runs()[index].status;
+                rows.push(WorkflowRailRow::Run { index, status, row });
             }
         }
         rows.push(WorkflowRailRow::New);
@@ -101,7 +105,7 @@ impl App {
         let (text, indent) = match row {
             WorkflowRailRow::Workflow { index, row } => (
                 // The jump digit is drawn ahead of the label.
-                format!("{} {} · {}", index + 1, row.label, row.detail),
+                format!("{} {}", index + 1, row.label),
                 0,
             ),
             WorkflowRailRow::Run { row, .. } => (
@@ -194,6 +198,7 @@ impl App {
                 self.select_workflow(self.workflow_index + 1);
             }
         }
+        self.wf.preview_scroll = 0;
         self.sync_workflow_overlay();
     }
 
@@ -209,6 +214,7 @@ impl App {
         self.wf.node_index = 0;
         self.wf.canvas_layer = 0;
         self.wf.canvas_lane = 0;
+        self.wf.preview_scroll = 0;
         self.wf.copilot_scroll = 0;
         self.reload_workflow_runs();
         self.reload_workflow_graph();

@@ -132,6 +132,7 @@ impl App {
             hit_harness: None,
             hit_threads: None,
             hit_context: None,
+            hit_workflow_preview: None,
             hit_nav: Default::default(),
             panes: Vec::new(),
             drag_anchor: None,

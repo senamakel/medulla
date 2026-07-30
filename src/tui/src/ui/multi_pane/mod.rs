@@ -204,13 +204,17 @@ pub(crate) fn draw_rows(
             hits.push((inner.y + lines.len() as u16, selectable));
             selectable += 1;
         }
+        let base = row
+            .color
+            .map(|color| Style::default().fg(color))
+            .unwrap_or_default();
         let style = match (row.selected, nav_focused, row.dim) {
             (true, true, _) => theme.selection(),
             // Bold rather than the selection highlight: the cursor is still
             // here, but the keyboard is in the content pane beside it.
-            (true, false, _) => Style::default().add_modifier(Modifier::BOLD),
-            (false, _, true) => dim,
-            _ => Style::default(),
+            (true, false, _) => base.add_modifier(Modifier::BOLD),
+            (false, _, true) => base.add_modifier(Modifier::DIM),
+            _ => base,
         };
         let marker = if row.selected && nav_focused {
             "▸"

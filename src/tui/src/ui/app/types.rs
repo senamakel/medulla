@@ -347,6 +347,8 @@ pub struct WorkflowsState {
     pub(super) canvas_layer: usize,
     /// Vertical scroll of the canvas, in lanes.
     pub(super) canvas_lane: usize,
+    /// Top line of the rich selected-step preview.
+    pub(super) preview_scroll: usize,
     /// Whether the inspector below the canvas is expanded over it.
     pub(super) inspector_open: bool,
     /// The run being overlaid on the graph, when a run row is selected.
@@ -926,6 +928,8 @@ pub struct App {
     /// The threads strip's hit box and its first visible row, for click-to-switch.
     pub(super) hit_threads: Option<(Rect, usize)>,
     pub(super) hit_context: Option<Rect>,
+    /// The selected workflow step's preview, for pointer-wheel scrolling.
+    pub(super) hit_workflow_preview: Option<Rect>,
     /// Where the active tab's subpage nav drew its page rows. Only one nav is on
     /// screen at a time, so one field serves Routing and Settings.
     pub(super) hit_nav: crate::ui::multi_pane::NavHits,

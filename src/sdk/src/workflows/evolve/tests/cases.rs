@@ -95,6 +95,7 @@ pub(super) fn fixture(id: &str) -> (tempfile::TempDir, Arc<dyn WorkflowStore>, R
         node_id: "work".into(),
         status: "error".into(),
         duration_ms: 1,
+        output: None,
         diagnostics: Vec::new(),
     }];
     store.record_run(&run).expect("the run records");

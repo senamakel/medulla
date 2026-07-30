@@ -248,6 +248,7 @@ fn selecting_a_run_overlays_it_on_the_graph() {
         node_id: "t".into(),
         status: "success".into(),
         duration_ms: 4,
+        output: None,
         diagnostics: Vec::new(),
     }];
     store(home.path()).record_run(&record).expect("records");

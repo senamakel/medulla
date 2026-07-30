@@ -59,6 +59,7 @@ impl App {
     pub(in crate::ui::app) fn move_graph_cursor(&mut self, direction: Move) {
         if let Some(next) = self.wf.layout.moved(self.wf.node_index, direction) {
             self.wf.node_index = next;
+            self.wf.preview_scroll = 0;
             self.scroll_canvas_to_cursor();
         }
     }

@@ -186,6 +186,7 @@ impl RunObserver for WorkflowRunObserver {
                     StepStatus::Error => "error".to_string(),
                 },
                 duration_ms: step.duration_ms,
+                output: Some(step.output.clone()),
                 diagnostics: diagnostics.clone(),
             });
         self.raw.lock().expect("raw steps lock").push(step.clone());

@@ -163,6 +163,15 @@ impl App {
             KeyCode::Char('d') => WorkflowsKey::Handled(self.dry_run_selected_workflow()),
             KeyCode::Char('x') => WorkflowsKey::Handled(self.run_selected_workflow()),
             KeyCode::Char('u') => WorkflowsKey::Handled(self.undo_selected_workflow()),
+            KeyCode::Char('f') => WorkflowsKey::Handled(self.repair_selected_run()),
+            KeyCode::PageUp => {
+                self.wf.preview_scroll = self.wf.preview_scroll.saturating_sub(6);
+                WorkflowsKey::Handled(None)
+            }
+            KeyCode::PageDown => {
+                self.wf.preview_scroll = self.wf.preview_scroll.saturating_add(6);
+                WorkflowsKey::Handled(None)
+            }
             KeyCode::Char('a') => WorkflowsKey::Handled(self.accept_selected_proposal()),
             KeyCode::Char('n') => WorkflowsKey::Handled(self.reject_selected_proposal()),
             _ => WorkflowsKey::Unhandled,

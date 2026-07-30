@@ -293,6 +293,7 @@ impl App {
         // Same reasoning as above: a stale rect would route the wheel into a
         // terminal that is no longer on screen.
         self.hit_harness = None;
+        self.hit_workflow_preview = None;
         // Focus follows the pane, not the other way round. `agents_selection`
         // (called only while drawing the Agents tab) is what notices the cursor
         // moving off the attached session; it has nothing to say once the

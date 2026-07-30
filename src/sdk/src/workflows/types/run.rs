@@ -50,6 +50,12 @@ pub struct RunStep {
     pub status: String,
     /// Wall-clock duration in milliseconds.
     pub duration_ms: u128,
+    /// The items emitted by this activation, retained for run inspection.
+    ///
+    /// Absent on records written before step results were persisted and null
+    /// when the engine failed before producing an output.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<serde_json::Value>,
     /// Expressions that resolved to null, which are usually a wiring mistake
     /// rather than an intended value.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

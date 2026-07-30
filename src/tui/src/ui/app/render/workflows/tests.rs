@@ -158,6 +158,10 @@ fn the_graph_is_drawn_as_boxes_joined_by_wires() {
     assert!(screen.contains("▶ Start"), "the trigger box is missing");
     assert!(screen.contains("◆ Check"), "the condition box is missing");
     assert!(
+        screen.contains("Start · trigger") && screen.contains("wheel/Page scroll"),
+        "the selected step's persistent detail pane is missing: {screen}"
+    );
+    assert!(
         screen.contains('╭') && screen.contains('╯'),
         "nodes are drawn as boxes"
     );
@@ -202,6 +206,7 @@ fn the_selected_workflows_runs_are_listed_under_it_in_the_rail() {
             node_id: "start".into(),
             status: "success".into(),
             duration_ms: 3,
+            output: None,
             diagnostics: Vec::new(),
         }],
         pending_approvals: Vec::new(),
@@ -229,12 +234,14 @@ fn selecting_a_run_overlays_it_on_the_graph() {
                 node_id: "start".into(),
                 status: "success".into(),
                 duration_ms: 3,
+                output: Some(json!({ "started": true })),
                 diagnostics: Vec::new(),
             },
             RunStep {
                 node_id: "check".into(),
                 status: "failed".into(),
                 duration_ms: 4,
+                output: None,
                 diagnostics: Vec::new(),
             },
         ],
@@ -251,6 +258,14 @@ fn selecting_a_run_overlays_it_on_the_graph() {
     assert!(screen.contains("run "), "the title names the overlaid run");
     assert!(screen.contains('✓'), "a step that passed is marked");
     assert!(screen.contains('✗'), "the step that failed is marked");
+    assert!(
+        screen.contains("\"started\": true"),
+        "the selected step's recorded result is shown: {screen}"
+    );
+    assert!(
+        screen.contains("[f] Fix this run via agent"),
+        "a failed run offers the existing repair action: {screen}"
+    );
 }
 
 #[test]

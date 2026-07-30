@@ -18,6 +18,7 @@
 //!
 //! - [`rail`] — the catalogue and the selected workflow's runs.
 //! - [`canvas`] — the laid-out graph. [`paint`] is the character grid under it.
+//! - [`node_preview`] — a rich, persistent view of the selected step.
 //! - [`inspector`] — the selected node's declaration, and its run detail.
 //! - [`copilot`] — the conversation that edits the graph.
 
@@ -29,8 +30,12 @@ use super::super::types::{App, WorkflowFocus, WorkflowView};
 mod canvas;
 mod copilot;
 mod inspector;
+mod node_preview;
 mod paint;
 mod rail;
+
+#[cfg(test)]
+mod rail_tests;
 
 #[cfg(test)]
 mod tests;

@@ -82,6 +82,7 @@ fn run_records_use_camel_case_on_the_wire() {
             node_id: "start".into(),
             status: "ok".into(),
             duration_ms: 3,
+            output: None,
             diagnostics: Vec::new(),
         }],
         pending_approvals: Vec::new(),
