@@ -12,6 +12,7 @@ use ratatui::text::{Line as TLine, Span};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ui::app::App;
+use crate::worker::pty::{HarnessControl, PtyState, SessionRow};
 
 use super::wrap::{flow_path, short_home, wrap_line, wrap_path};
 
@@ -51,6 +52,52 @@ fn task(status: TaskStatus, attention: bool, at: i64) -> TaskState {
         question_id: attention.then(|| "question-1".to_string()),
         work: None,
     }
+}
+
+fn harness_row(cwd: &str) -> SessionRow {
+    SessionRow {
+        id: "w_1".into(),
+        label: "local".into(),
+        provider: medulla::tinyplace::HarnessProvider::Codex,
+        state: PtyState::Running,
+        cwd: cwd.into(),
+        session_id: None,
+        started_at: 1,
+        last_output_at: 1,
+        last_error: None,
+        busy: false,
+        control: HarnessControl::User,
+        user_spawned: true,
+    }
+}
+
+#[test]
+fn an_operator_harness_uses_one_compact_line_like_the_orchestrator() {
+    let app = app();
+    let lines = app.own_harness_lines(&harness_row("/workspace/medulla"), false, 48);
+
+    assert_eq!(lines.len(), 1, "a harness should consume one rail row");
+    assert_eq!(
+        lines[0].to_string(),
+        "● codex · unmanaged · /workspace/medulla"
+    );
+}
+
+#[test]
+fn a_long_harness_path_is_shortened_instead_of_adding_rows() {
+    let app = app();
+    let lines = app.own_harness_lines(
+        &harness_row("/workspace/tinyhumans/workflow-medulla/medulla-public"),
+        false,
+        36,
+    );
+
+    assert_eq!(lines.len(), 1, "a long path must still use one rail row");
+    assert!(lines[0].width() <= 36, "the compact row must fit the rail");
+    assert!(
+        lines[0].to_string().ends_with("public"),
+        "the path tail should survive even when the checkout name is shortened"
+    );
 }
 
 #[test]

@@ -13,6 +13,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
+use unicode_width::UnicodeWidthStr;
 
 use crate::ui::agents::{AgentLane, AgentRole, AgentRow, TaskStatus};
 use crate::ui::util::fmt_tokens;
@@ -236,11 +237,12 @@ impl App {
         ])
     }
 
-    /// Format one operator-started harness row over its lines.
+    /// Format one operator-started harness as one compact rail row.
     ///
     /// Says who holds it in words rather than only by colour: "unmanaged" is the
     /// whole reason the row exists, and an operator who hands one to the
-    /// orchestrator needs to see that it took effect.
+    /// orchestrator needs to see that it took effect. The working directory is
+    /// shortened to the remaining width rather than consuming another row.
     fn own_harness_lines(
         &self,
         row: &SessionRow,
@@ -258,33 +260,21 @@ impl App {
         } else {
             Style::default()
         };
-        const INDENT: &str = "   ";
-        const PATH_INDENT: &str = "     ";
-        // Not clipped here: the terminal truncates an over-long line at the
-        // pane edge anyway, and `clip` collapses whitespace — it would eat the
-        // indent that sets a harness row apart from the divider above it.
-        let head = format!(
-            "{INDENT}{} {}{control}",
-            row.state.glyph(),
-            row.provider.as_str()
-        );
-        let mut lines = vec![TLine::from(Span::styled(head, style))];
-        // The path is dimmed even under the cursor: it is the row's second
-        // fact, and giving it the same weight as the provider makes a selected
-        // harness read as two rows rather than one.
+        let head = format!("{} {}{control}", row.state.glyph(), row.provider.as_str());
         let path_style = if active {
             style
         } else {
             style.add_modifier(Modifier::DIM)
         };
-        let room = width.saturating_sub(PATH_INDENT.len()).max(6);
-        for part in wrap_path(&short_home(&row.cwd, home_dir().as_deref()), room, 2) {
-            lines.push(TLine::from(Span::styled(
-                format!("{PATH_INDENT}{part}"),
-                path_style,
-            )));
+        const SEPARATOR: &str = " · ";
+        let path_room = width.saturating_sub(head.width() + SEPARATOR.width());
+        let mut spans = vec![Span::styled(head, style)];
+        if path_room >= 4 {
+            let path = short_home(&row.cwd, home_dir().as_deref());
+            let path = wrap_path(&path, path_room, 1).concat();
+            spans.push(Span::styled(format!("{SEPARATOR}{path}"), path_style));
         }
-        lines
+        vec![TLine::from(spans)]
     }
 
     /// Format one Agents-list row (separator, "more", sub-task, or lane).
