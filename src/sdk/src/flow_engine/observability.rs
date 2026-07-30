@@ -185,7 +185,7 @@ impl RunObserver for WorkflowRunObserver {
                 },
                 duration_ms: step.duration_ms,
                 input: None,
-                output: Some(step.output.clone()),
+                output: Some(crate::workflows::bounded_evidence(&step.output)),
                 diagnostics: diagnostics.clone(),
             });
         self.raw.lock().expect("raw steps lock").push(step.clone());

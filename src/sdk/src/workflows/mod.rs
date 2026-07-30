@@ -58,6 +58,7 @@ pub use store::{
 // The type is the shared contract, not a Medulla type, so re-exporting it is the
 // alternative to a parallel copy that would drift.
 pub use tinyflows::model::WorkflowGraph;
+pub(crate) use types::bounded_evidence;
 pub use types::{
     fingerprint, NoteId, NoteKind, NoteSource, ProposalId, ProposalStatus, ProposalVerification,
     RunId, RunRecord, RunStatus, RunStep, WorkflowError, WorkflowId, WorkflowNote,

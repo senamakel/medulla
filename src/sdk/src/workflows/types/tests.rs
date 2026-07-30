@@ -129,6 +129,21 @@ fn a_run_file_written_before_evidence_existed_still_parses() {
 }
 
 #[test]
+fn durable_step_evidence_is_bounded_without_changing_small_values() {
+    let small = json!({ "answer": "still structured" });
+    assert_eq!(bounded_evidence(&small), small);
+
+    let large = json!({ "body": "x".repeat(run::MAX_EVIDENCE_BYTES * 2) });
+    let bounded = bounded_evidence(&large);
+    assert_eq!(bounded["_medullaTruncated"], true);
+    assert!(bounded["originalBytes"].as_u64().unwrap() > run::MAX_EVIDENCE_BYTES as u64);
+    assert!(
+        serde_json::to_vec(&bounded).unwrap().len() < run::MAX_EVIDENCE_BYTES + 256,
+        "the persisted summary itself must remain bounded"
+    );
+}
+
+#[test]
 fn run_evidence_is_omitted_from_the_wire_when_absent() {
     // The other half of the compatibility bargain: a record with no evidence
     // must not start writing null keys into files an older build reads.

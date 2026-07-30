@@ -10,6 +10,32 @@ use serde::{Deserialize, Serialize};
 use super::workflow::WorkflowId;
 use crate::workflows::run::diagnose::Diagnosis;
 
+/// Maximum serialized bytes retained for one step input or output.
+pub(crate) const MAX_EVIDENCE_BYTES: usize = 64 * 1024;
+
+/// Keep small evidence intact and summarize values that would bloat history.
+///
+/// Execution and diagnosis retain the engine's full in-memory value. Only the
+/// durable inspection copy is bounded, so one response cannot make every
+/// future history listing read an arbitrarily large file.
+pub(crate) fn bounded_evidence(value: &serde_json::Value) -> serde_json::Value {
+    let serialized = serde_json::to_string(value).unwrap_or_else(|_| value.to_string());
+    if serialized.len() <= MAX_EVIDENCE_BYTES {
+        return value.clone();
+    }
+    let end = serialized
+        .char_indices()
+        .map(|(index, _)| index)
+        .take_while(|index| *index <= MAX_EVIDENCE_BYTES)
+        .last()
+        .unwrap_or(0);
+    serde_json::json!({
+        "_medullaTruncated": true,
+        "originalBytes": serialized.len(),
+        "preview": &serialized[..end],
+    })
+}
+
 /// One run's identifier. Doubles as the engine checkpointer's `thread_id`, which
 /// is what makes a paused run resumable across process restarts.
 pub type RunId = String;

@@ -52,8 +52,11 @@ impl AgentEvidence {
                 .collect::<Vec<_>>();
             step.input = match values.len() {
                 0 => None,
-                1 => values.into_iter().next(),
-                _ => Some(Value::Array(values)),
+                1 => values
+                    .into_iter()
+                    .next()
+                    .map(|value| crate::workflows::bounded_evidence(&value)),
+                _ => Some(crate::workflows::bounded_evidence(&Value::Array(values))),
             };
             *steps_left -= 1;
         }
