@@ -200,6 +200,12 @@ tokenEnv = "MEDULLA_TOKEN"
 # selectionFg = "black"   # text drawn on top of the primary selection background
 # dimBorder = "darkgray"  # panel borders
 
+# Harness-row details shown in the Agents tab. Both default to true and can
+# also be toggled live from Settings › Appearance.
+# [appearance]
+# showHarnessBranch = true
+# showHarnessPath = true
+
 # ---------------------------------------------------------------------------
 # fleet — operator-declared capacity: the Host → Harness → Workspace → Agent
 # containment chain plus the agent templates that may be provisioned onto it.
