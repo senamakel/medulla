@@ -1,6 +1,7 @@
 //! Launching a harness on a fresh pty, and draining it into the emulator.
 
 use std::io::{Read, Write};
+use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Mutex};
@@ -21,6 +22,7 @@ impl PtyManager {
     /// the headless session model there is no lazy handle, because the whole
     /// point is to have a screen to look at.
     pub fn open(&self, spec: LaunchSpec) -> Result<String, String> {
+        let branch = git_branch(&spec.cwd);
         let size = PtySize {
             rows: DEFAULT_ROWS,
             cols: DEFAULT_COLS,
@@ -111,6 +113,7 @@ impl PtyManager {
                 provider: spec.provider,
                 state: PtyState::Running,
                 cwd: spec.cwd,
+                branch,
                 session_id,
                 started_at: now,
                 last_output_at: now,
@@ -227,4 +230,18 @@ impl PtyManager {
             }
         });
     }
+}
+
+/// Resolve the checked-out branch without treating a non-repository or
+/// detached `HEAD` as an error.
+fn git_branch(cwd: &str) -> Option<String> {
+    let output = Command::new("git")
+        .args(["-C", cwd, "symbolic-ref", "--quiet", "--short", "HEAD"])
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .filter(|branch| !branch.is_empty())
 }

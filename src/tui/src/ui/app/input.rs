@@ -198,6 +198,18 @@ impl App {
                     self.scroll_transcript(up, 3);
                 }
             }
+            "Workflows" => {
+                if self
+                    .hit_workflow_preview
+                    .is_some_and(|area| area.contains((x, y).into()))
+                {
+                    self.wf.preview_scroll = if up {
+                        self.wf.preview_scroll.saturating_sub(SCROLL_ROWS)
+                    } else {
+                        self.wf.preview_scroll.saturating_add(SCROLL_ROWS)
+                    };
+                }
+            }
             // Trace and Context are Settings subpages, not tabs, so they are
             // matched on the subpage rather than on the tab — which is always
             // "Settings" for both.

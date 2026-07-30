@@ -286,6 +286,14 @@ impl FoldState {
             .get("sessionUpdate")
             .and_then(Value::as_str)
             .unwrap_or("unknown");
+        if kind == "tool_call_update"
+            && !matches!(
+                value.get("status").and_then(Value::as_str),
+                Some("completed" | "failed")
+            )
+        {
+            return;
+        }
         let (event_kind, role, payload) = match kind {
             "agent_message_chunk" => {
                 let text = content_text(value.get("content"));
@@ -312,6 +320,8 @@ impl FoldState {
                 "tool",
                 json!({
                     "call_id": value.get("toolCallId"),
+                    "ok": value.get("status").and_then(Value::as_str) == Some("completed"),
+                    "is_error": value.get("status").and_then(Value::as_str) == Some("failed"),
                     "status": value.get("status"),
                     "output": value.get("rawOutput"),
                 }),

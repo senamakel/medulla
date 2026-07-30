@@ -153,11 +153,12 @@ an agent. Wiring a harness session to run a command that takes 200ms is the most
 common way a workflow becomes slow and expensive, and the graph reads as though
 it needed judgement it did not need.
 
-Both script paths are gated on `workflows.allowCode` and both are **off by
-default**, for a real reason: this host has no sandbox, so a workflow's script
-runs with the daemon's own privileges. Call `workflow_host` to see whether they
-are on. If they are not, say so rather than authoring a graph that cannot run —
-and do not silently fall back to an `agent` node without mentioning the swap.
+Both script paths are gated on `workflows.allowCode`, which defaults **on** for
+local workflows. This host has no sandbox, so a workflow's script runs with the
+daemon's own privileges; an operator handling untrusted definitions should set
+it to `false`. Call `workflow_host` to see whether code is available. If it is
+not, say so rather than authoring a graph that cannot run — and do not silently
+fall back to an `agent` node without mentioning the swap.
 
 The calling convention, which is the same for both and is **not** what the
 engine's generic catalogue example shows:

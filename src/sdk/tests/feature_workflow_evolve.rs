@@ -5,10 +5,9 @@
 //! accepting it changes the saved graph *through the ordinary edit path* so it
 //! is undoable, and the workflow then runs clean.
 //!
-//! Offline and process-free. The workflow fails because this host refuses to
-//! execute `code` nodes by default — a real, documented refusal rather than a
-//! contrived one, and one that needs no harness, no network, and no coding
-//! agent to reproduce.
+//! Offline and process-free. The workflow fails because this test explicitly
+//! opts out of `code` nodes — a real, documented operator policy rather than a
+//! contrived failure, and one that needs no harness, network, or coding agent.
 
 #![cfg(feature = "workflows")]
 
@@ -35,8 +34,7 @@ fn store_in(home: &std::path::Path) -> Arc<dyn WorkflowStore> {
 
 /// A workflow whose middle step this host will refuse to run.
 ///
-/// `code` nodes are denied unless an operator turns them on, so this fails the
-/// same way it would on a real machine with the default configuration.
+/// `code` nodes are denied by this test's explicit operator policy.
 fn install_failing(store: &Arc<dyn WorkflowStore>, id: &str) {
     let document = json!({
         "id": id,
@@ -56,9 +54,11 @@ fn install_failing(store: &Arc<dyn WorkflowStore>, id: &str) {
 
 /// Run the workflow with no harness available and code execution denied.
 async fn run_once(store: &Arc<dyn WorkflowStore>, home: &std::path::Path, id: &str) -> RunStatus {
+    let mut settings = CapabilitySettings::rooted_at(home.to_path_buf());
+    settings.allow_code = false;
     let context = RunContext {
         store: store.clone(),
-        settings: Arc::new(CapabilitySettings::rooted_at(home.to_path_buf())),
+        settings: Arc::new(settings),
         services: HostServices {
             dispatch: Arc::new(NoHarness),
             resolver: Arc::new(StoreWorkflowResolver::new(store.clone())),

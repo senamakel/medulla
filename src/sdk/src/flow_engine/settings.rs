@@ -31,9 +31,9 @@ pub struct CapabilitySettings {
     pub default_provider: Option<HarnessProvider>,
     /// The model hint passed with each dispatch, when the host pins one.
     pub default_model: Option<String>,
-    /// Whether `code` nodes may execute. Off by default: this host has no
-    /// sandbox, so running author-supplied code would run it with the daemon's
-    /// full privileges.
+    /// Whether `code` nodes may execute. On by default for local workflows,
+    /// though this host has no sandbox and runs scripts with the daemon's full
+    /// privileges.
     pub allow_code: bool,
     /// Tool slugs a `tool_call` node may invoke. Deny-by-default — an empty
     /// list permits only the built-in `medulla:` operations.
@@ -58,10 +58,10 @@ pub struct CapabilitySettings {
 pub const DEFAULT_RUN_TIMEOUT_SECS: u64 = 600;
 
 impl CapabilitySettings {
-    /// Settings rooted under a Medulla home, with every optional capability off.
+    /// Settings rooted under a Medulla home.
     ///
-    /// The defaults are the safe ones: no code execution, no outbound HTTP, no
-    /// third-party tools. A host that wants those turns them on explicitly.
+    /// Local code execution is available by default. Outbound HTTP and
+    /// third-party tools remain off until the operator allowlists them.
     pub fn rooted_at(home: impl Into<PathBuf>) -> Self {
         let home = home.into();
         let base = home.join("state").join("workflows");
@@ -72,12 +72,22 @@ impl CapabilitySettings {
             default_worker_address: String::new(),
             default_provider: None,
             default_model: None,
-            allow_code: false,
+            allow_code: true,
             tool_allowlist: Vec::new(),
             http_allowlist: Vec::new(),
             run_timeout_secs: DEFAULT_RUN_TIMEOUT_SECS,
             workspace: String::new(),
         }
+    }
+
+    /// Fallback policy for a host whose operator configuration could not load.
+    ///
+    /// This is deliberately stricter than the ordinary local default: a
+    /// malformed explicit opt-out must never turn code execution back on.
+    pub fn fail_closed_at(home: impl Into<PathBuf>) -> Self {
+        let mut settings = Self::rooted_at(home);
+        settings.allow_code = false;
+        settings
     }
 
     /// How long one script may run.

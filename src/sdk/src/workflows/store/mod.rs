@@ -7,10 +7,10 @@
 //! one: [`WorkflowStore`].
 //!
 //! The trait exists so the backing store is a decision, not a fact of the
-//! codebase. [`FileWorkflowStore`] — JSON documents under `.medulla/workflows`,
-//! matching how agent templates are already kept — is the only implementation
-//! today, but a remote catalog or a database is a new impl rather than a
-//! refactor.
+//! codebase. [`FileWorkflowStore`] — JSON documents under the Medulla home,
+//! optionally layered over repository-provided defaults — is the only
+//! implementation today, but a remote catalog or a database is a new impl
+//! rather than a refactor.
 
 mod file;
 

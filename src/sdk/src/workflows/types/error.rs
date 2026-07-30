@@ -34,6 +34,17 @@ pub enum WorkflowError {
     #[error("{0}")]
     Malformed(String),
 
+    /// A visible definition belongs to a read-only, lower-precedence layer.
+    #[error(
+        "workflow '{id}' comes from repository default {path}; save it to your Medulla home before deleting it"
+    )]
+    ReadOnlyDefinition {
+        /// The workflow the operator tried to delete.
+        id: WorkflowId,
+        /// The lower-precedence definition that remains untouched.
+        path: PathBuf,
+    },
+
     /// The filesystem refused an operation.
     #[error("{path}: {source}")]
     Io {

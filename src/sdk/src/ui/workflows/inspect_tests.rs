@@ -38,6 +38,8 @@ fn step(node_id: &str, status: &str) -> RunStep {
         node_id: node_id.into(),
         status: status.into(),
         duration_ms: 12,
+        input: None,
+        output: None,
         diagnostics: Vec::new(),
     }
 }

@@ -396,8 +396,7 @@ impl DaemonRuntime {
     ///
     /// Read from the operator's layered config so `workflows.enabled` and the
     /// allowlists mean the same thing here as they do on the CLI. A config that
-    /// cannot be loaded falls back to the safe defaults — no code execution, no
-    /// outbound HTTP, no third-party tools — rather than to permissive ones.
+    /// cannot be loaded fails closed, including code execution.
     fn workflow_settings(&self) -> Arc<CapabilitySettings> {
         let home = crate::home::medulla_home(&self.inner.config.env);
         let cwd = std::path::Path::new(&self.inner.config.workspace);
@@ -407,7 +406,10 @@ impl DaemonRuntime {
             cwd,
         )
         .map(|loaded| CapabilitySettings::from_config(&loaded.config.workflows, &home))
-        .unwrap_or_else(|_| CapabilitySettings::rooted_at(home));
+        .unwrap_or_else(|err| {
+            tracing::warn!("could not reload workflow policy; code execution disabled: {err}");
+            CapabilitySettings::fail_closed_at(home)
+        });
         // The daemon's own workspace, which is the directory it serves tasks
         // for — the same one an `agent` node's harness session runs in.
         settings.workspace = self.inner.config.workspace.clone();

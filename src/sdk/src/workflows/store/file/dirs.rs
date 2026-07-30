@@ -5,8 +5,12 @@ use std::path::{Path, PathBuf};
 
 use crate::home::medulla_home;
 
-/// The workflow directories, lowest precedence first: the user-global
-/// `<medulla home>/workflows`, then the project-local `<cwd>/.medulla/workflows`.
+/// The workflow directories, lowest precedence first: project-local
+/// `<cwd>/.medulla/workflows`, then user-global `<medulla home>/workflows`.
+///
+/// Project definitions remain readable as repository-provided defaults, while
+/// authored and edited definitions are written to the final, user-global layer
+/// beside the rest of Medulla's persistent data.
 ///
 /// The two collapse to one entry when they resolve to the same directory, the
 /// normal case under `MEDULLA_DEV=1` (whose home *is* `./.medulla`) — reading it
@@ -14,10 +18,11 @@ use crate::home::medulla_home;
 pub fn workflow_dirs(env: &HashMap<String, String>, cwd: &Path) -> Vec<PathBuf> {
     let home = medulla_home(env).join("workflows");
     let project = cwd.join(".medulla").join("workflows");
-    let mut dirs = vec![home.clone()];
+    let mut dirs = Vec::new();
     if !same_dir(&home, &project) {
         dirs.push(project);
     }
+    dirs.push(home);
     dirs
 }
 

@@ -53,6 +53,11 @@ async fn approving_the_gate_resumes_the_run_to_completion() {
 
     assert_eq!(resumed.status, RunStatus::Succeeded);
     assert!(resumed.pending_approvals.is_empty());
+    assert_eq!(
+        resumed.steps[0].input,
+        Some(json!("review it")),
+        "the resumed agent leg keeps its resolved prompt evidence"
+    );
 }
 
 #[tokio::test]

@@ -79,10 +79,10 @@ pub fn apply_host_overlay(mut contract: NodeKindContract) -> NodeKindContract {
                 .to_string(),
         ],
         "code" => vec![
-            "Code nodes are disabled on this host by default: there is no sandbox, so workflow \
-             code would run with the daemon's own privileges. `workflows.allowCode` enables \
-             them, out-of-process and time-bounded — an explicit decision to trust whoever \
-             wrote the workflow. Check `workflow_host` before authoring one."
+            "Code nodes are enabled by default and there is no sandbox, so workflow code runs \
+             with the daemon's own privileges. Set `workflows.allowCode = false` when definitions \
+             are not trusted; enabled code still runs out-of-process and time-bounded. Check \
+             `workflow_host` before authoring one."
                 .to_string(),
             // The engine's own example is written for a host that wraps the
             // source in a function. Medulla executes the file as-is, so that

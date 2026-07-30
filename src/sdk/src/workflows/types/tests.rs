@@ -82,6 +82,8 @@ fn run_records_use_camel_case_on_the_wire() {
             node_id: "start".into(),
             status: "ok".into(),
             duration_ms: 3,
+            input: Some(json!("inspect this")),
+            output: None,
             diagnostics: Vec::new(),
         }],
         pending_approvals: Vec::new(),
@@ -99,6 +101,7 @@ fn run_records_use_camel_case_on_the_wire() {
         "an absent error should not be written"
     );
     assert!(wire["steps"][0].get("nodeId").is_some());
+    assert_eq!(wire["steps"][0]["input"], json!("inspect this"));
 }
 
 #[test]
@@ -120,8 +123,32 @@ fn a_run_file_written_before_evidence_existed_still_parses() {
     .expect("a run record from before the evidence fields must still load");
 
     assert_eq!(parsed.status, RunStatus::Failed);
+    assert!(parsed.steps[0].input.is_none());
     assert!(parsed.summary.is_none());
     assert!(parsed.diagnosis.is_none());
+}
+
+#[test]
+fn durable_step_evidence_is_bounded_without_changing_small_values() {
+    let small = json!({ "answer": "still structured" });
+    assert_eq!(bounded_evidence(&small), small);
+
+    let large = json!({ "body": "x".repeat(run::MAX_EVIDENCE_BYTES * 2) });
+    let bounded = bounded_evidence(&large);
+    assert_eq!(bounded["_medullaTruncated"], true);
+    assert!(bounded["originalBytes"].as_u64().unwrap() > run::MAX_EVIDENCE_BYTES as u64);
+    assert!(
+        serde_json::to_vec(&bounded).unwrap().len() <= run::MAX_EVIDENCE_BYTES,
+        "the persisted summary itself must remain bounded"
+    );
+
+    let escaping = json!({ "body": "\\\"".repeat(run::MAX_EVIDENCE_BYTES) });
+    assert!(
+        serde_json::to_vec(&bounded_evidence(&escaping))
+            .unwrap()
+            .len()
+            <= run::MAX_EVIDENCE_BYTES
+    );
 }
 
 #[test]

@@ -69,12 +69,10 @@ pub struct WorkflowRunObserver {
     steps: Mutex<Vec<crate::workflows::RunStep>>,
     /// The same steps as the engine's own richer type.
     ///
-    /// [`crate::workflows::RunStep`] deliberately drops a step's `output`,
-    /// which is where an error swallowed by an `on_error` policy is recorded —
-    /// so a diagnosis built from the converted steps alone could never see one.
+    /// Diagnosis consumes the engine's status and diagnostic types directly.
     /// Accumulated here rather than taken from [`Run::steps`] on finish because
     /// a run that is cancelled or times out never reaches `on_run_finish`, and
-    /// its evidence is the evidence most worth keeping.
+    /// its partial evidence is the evidence most worth keeping.
     raw: Mutex<Vec<ExecutionStep>>,
     /// The one-line summary built when the run settled.
     ///
@@ -186,6 +184,8 @@ impl RunObserver for WorkflowRunObserver {
                     StepStatus::Error => "error".to_string(),
                 },
                 duration_ms: step.duration_ms,
+                input: None,
+                output: Some(crate::workflows::bounded_evidence(&step.output)),
                 diagnostics: diagnostics.clone(),
             });
         self.raw.lock().expect("raw steps lock").push(step.clone());

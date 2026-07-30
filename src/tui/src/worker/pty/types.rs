@@ -166,6 +166,11 @@ pub struct SessionRow {
     pub state: PtyState,
     /// The working directory the child runs in.
     pub cwd: String,
+    /// Git branch resolved from the working directory when the session opened.
+    ///
+    /// `None` means the directory is not in a repository or has a detached
+    /// `HEAD`.
+    pub branch: Option<String>,
     /// The harness session id, once known — minted for claude, read back from
     /// the rollout for codex. This is what pins the transcript tailer.
     pub session_id: Option<String>,

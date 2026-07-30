@@ -17,9 +17,9 @@
 use crossterm::event::KeyCode;
 
 use crate::ui::multi_pane::{self, NavAction};
-use crate::ui::theme::THEME_ROLES;
 use medulla::client::FeedbackType;
 
+use super::super::appearance::APPEARANCE_ROWS;
 use super::super::types::{
     App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK,
     SP_HELP, SP_TRACE, SP_USAGE,
@@ -89,7 +89,7 @@ impl App {
                 self.appearance_index = if up {
                     self.appearance_index.saturating_sub(1)
                 } else {
-                    (self.appearance_index + 1).min(THEME_ROLES.len() - 1)
+                    (self.appearance_index + 1).min(APPEARANCE_ROWS - 1)
                 };
                 SettingsKey::handled(None)
             }
@@ -152,12 +152,12 @@ impl App {
                 self.appearance_index = if up {
                     self.appearance_index.saturating_sub(1)
                 } else {
-                    (self.appearance_index + 1).min(THEME_ROLES.len() - 1)
+                    (self.appearance_index + 1).min(APPEARANCE_ROWS - 1)
                 };
                 SettingsKey::handled(None)
             }
             KeyCode::Left | KeyCode::Right | KeyCode::Enter => {
-                self.cycle_appearance_role(!matches!(code, KeyCode::Left));
+                self.cycle_appearance_row(!matches!(code, KeyCode::Left));
                 SettingsKey::handled(None)
             }
             _ => SettingsKey::Unhandled,

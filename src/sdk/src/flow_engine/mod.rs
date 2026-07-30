@@ -14,9 +14,11 @@
 //! host's `src/openhuman/tinyflows/`, but a crate-root module of that name would
 //! shadow the `tinyflows` crate in every path inside this crate.
 //!
-//! The whole surface is two functions — [`build_capabilities`] and
-//! [`open_checkpointer`] — plus the settings that govern them.
+//! The public surface stays narrow: capability assembly, checkpointer opening,
+//! and the settings that govern them. Agent prompt evidence is crate-private
+//! because it is a run-inspection concern rather than an engine capability.
 
+pub(crate) mod agent_evidence;
 pub mod caps;
 pub mod execute;
 pub mod observability;
@@ -30,6 +32,7 @@ mod tests;
 #[cfg(test)]
 mod shell_tests;
 
+pub(crate) use caps::build_capabilities_with_agent_evidence;
 pub use caps::{build_capabilities, build_dry_run_capabilities, open_checkpointer, HostServices};
 pub use execute::{Compiled, Outcome};
 pub use observability::{folding_sink, null_sink, WorkEventSink, WorkflowRunObserver};

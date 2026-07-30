@@ -94,8 +94,10 @@ fn the_tab_lists_the_workflows_installed_on_this_machine() {
     let screen = rendered(&mut app);
     assert!(screen.contains("Nightly sweep"), "{screen}");
     assert!(screen.contains("Triage"), "{screen}");
-    // The detail line should say enough to choose between them.
-    assert!(screen.contains("2 steps"), "{screen}");
+    assert!(
+        !screen.contains("2 steps"),
+        "the compact sidebar carries names only: {screen}"
+    );
 }
 
 #[test]
@@ -174,7 +176,7 @@ fn r_re_reads_the_store_so_a_workflow_written_while_the_app_is_open_appears() {
 }
 
 #[test]
-fn a_disabled_workflow_is_listed_and_says_why_it_will_not_run() {
+fn a_disabled_workflow_is_still_listed_by_name() {
     let home = tempfile::tempdir().unwrap();
     install(home.path(), "paused", "Paused sweep", false);
     let mut app = workflows_app(home.path());
@@ -184,8 +186,8 @@ fn a_disabled_workflow_is_listed_and_says_why_it_will_not_run() {
     let screen = rendered(&mut app);
     assert!(screen.contains("Paused sweep"), "{screen}");
     assert!(
-        screen.contains("disabled"),
-        "an operator should see why it will not run: {screen}"
+        !screen.contains("disabled"),
+        "the sidebar intentionally carries names only: {screen}"
     );
 }
 
@@ -248,6 +250,8 @@ fn selecting_a_run_overlays_it_on_the_graph() {
         node_id: "t".into(),
         status: "success".into(),
         duration_ms: 4,
+        input: None,
+        output: None,
         diagnostics: Vec::new(),
     }];
     store(home.path()).record_run(&record).expect("records");

@@ -211,6 +211,40 @@ fn sessions_keep_open_order_so_the_cursor_does_not_jump() {
 }
 
 #[test]
+fn a_session_records_its_worktrees_branch() {
+    let dir = tempfile::tempdir().unwrap();
+    let status = std::process::Command::new("git")
+        .args(["init", "--quiet", "--initial-branch", "visible-branch"])
+        .arg(dir.path())
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let manager = PtyManager::new();
+    let mut spec = sh("sleep 30");
+    spec.cwd = dir.path().to_string_lossy().into_owned();
+    let id = manager.open(spec).unwrap();
+
+    assert_eq!(
+        manager.row(&id).unwrap().branch.as_deref(),
+        Some("visible-branch")
+    );
+    manager.close(&id);
+}
+
+#[test]
+fn a_session_outside_git_has_no_branch() {
+    let dir = tempfile::tempdir().unwrap();
+    let manager = PtyManager::new();
+    let mut spec = sh("sleep 30");
+    spec.cwd = dir.path().to_string_lossy().into_owned();
+    let id = manager.open(spec).unwrap();
+
+    assert!(manager.row(&id).unwrap().branch.is_none());
+    manager.close(&id);
+}
+
+#[test]
 fn the_clock_is_injectable() {
     let manager = PtyManager::with_now(Arc::new(|| 4_242));
     let id = manager.open(sh("sleep 30")).unwrap();

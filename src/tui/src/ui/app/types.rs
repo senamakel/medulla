@@ -347,6 +347,13 @@ pub struct WorkflowsState {
     pub(super) canvas_layer: usize,
     /// Vertical scroll of the canvas, in lanes.
     pub(super) canvas_lane: usize,
+    /// Rows inside the graph panel during its most recent render.
+    ///
+    /// Navigation uses this measured viewport rather than the full terminal
+    /// height, because the selected-node preview shares the content column.
+    pub(super) graph_rows: usize,
+    /// Top line of the rich selected-step preview.
+    pub(super) preview_scroll: usize,
     /// Whether the inspector below the canvas is expanded over it.
     pub(super) inspector_open: bool,
     /// The run being overlaid on the graph, when a run row is selected.
@@ -850,12 +857,11 @@ pub struct App {
     /// A workflow store attached directly, overriding the layered one this
     /// client would otherwise resolve.
     ///
-    /// The layered store always includes the *current directory's*
-    /// `.medulla/workflows`, which is right in use — a workflow checked into the
-    /// repository you are working in should be listed — and wrong under test,
-    /// where it makes the catalogue depend on whatever happens to be in the
-    /// developer's checkout. `None` resolves the layered store, as a real
-    /// session does.
+    /// The layered store always reads the current directory's
+    /// `.medulla/workflows` as repository defaults, then overlays the
+    /// user-global workflow directory. That is useful in a real session and
+    /// wrong under test, where it makes the catalogue depend on the developer's
+    /// checkout. `None` resolves the layered store, as a real session does.
     #[cfg(feature = "workflows")]
     pub(super) workflow_store_override: Option<Arc<dyn medulla::workflows::WorkflowStore>>,
     /// Which kind of host the Add Host page is offering — a cursor into
@@ -953,6 +959,8 @@ pub struct App {
     /// The threads strip's hit box and its first visible row, for click-to-switch.
     pub(super) hit_threads: Option<(Rect, usize)>,
     pub(super) hit_context: Option<Rect>,
+    /// The selected workflow step's preview, for pointer-wheel scrolling.
+    pub(super) hit_workflow_preview: Option<Rect>,
     /// Where the active tab's subpage nav drew its page rows. Only one nav is on
     /// screen at a time, so one field serves Routing and Settings.
     pub(super) hit_nav: crate::ui::multi_pane::NavHits,

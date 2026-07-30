@@ -10,6 +10,40 @@ use serde::{Deserialize, Serialize};
 use super::workflow::WorkflowId;
 use crate::workflows::run::diagnose::Diagnosis;
 
+/// Maximum serialized bytes retained for one step input or output.
+pub(crate) const MAX_EVIDENCE_BYTES: usize = 64 * 1024;
+
+/// Keep small evidence intact and summarize values that would bloat history.
+///
+/// Execution and diagnosis retain the engine's full in-memory value. Only the
+/// durable inspection copy is bounded, so one response cannot make every
+/// future history listing read an arbitrarily large file.
+pub(crate) fn bounded_evidence(value: &serde_json::Value) -> serde_json::Value {
+    let serialized = serde_json::to_string(value).unwrap_or_else(|_| value.to_string());
+    if serialized.len() <= MAX_EVIDENCE_BYTES {
+        return value.clone();
+    }
+    // The preview is itself embedded in JSON, so reserve half the budget for
+    // escaping plus the wrapper metadata. Quotes and backslashes can nearly
+    // double when serialized a second time.
+    let preview_budget = MAX_EVIDENCE_BYTES / 2 - 256;
+    let end = serialized
+        .char_indices()
+        .map(|(index, _)| index)
+        .take_while(|index| *index <= preview_budget)
+        .last()
+        .unwrap_or(0);
+    let bounded = serde_json::json!({
+        "_medullaTruncated": true,
+        "originalBytes": serialized.len(),
+        "preview": &serialized[..end],
+    });
+    debug_assert!(serde_json::to_vec(&bounded)
+        .map(|body| body.len() <= MAX_EVIDENCE_BYTES)
+        .unwrap_or(false));
+    bounded
+}
+
 /// One run's identifier. Doubles as the engine checkpointer's `thread_id`, which
 /// is what makes a paused run resumable across process restarts.
 pub type RunId = String;
@@ -50,6 +84,18 @@ pub struct RunStep {
     pub status: String,
     /// Wall-clock duration in milliseconds.
     pub duration_ms: u128,
+    /// The resolved input this activation received.
+    ///
+    /// Currently recorded for agent nodes as their full prompt. Absent on
+    /// other node kinds and on records written before input evidence existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// The items emitted by this activation, retained for run inspection.
+    ///
+    /// Absent on records written before step results were persisted and null
+    /// when the engine failed before producing an output.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<serde_json::Value>,
     /// Expressions that resolved to null, which are usually a wiring mistake
     /// rather than an intended value.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

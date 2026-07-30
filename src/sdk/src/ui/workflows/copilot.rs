@@ -27,6 +27,10 @@ pub enum TurnRole {
     /// orchestrator's transcript has drawn tool calls this way since it existed;
     /// this is the copilot reading the same.
     Tool,
+    /// A tool call that completed successfully.
+    ToolSuccess,
+    /// A tool call that failed.
+    ToolFailure,
     /// A change the turn made to the graph.
     Change,
     /// The turn failed.
@@ -40,7 +44,9 @@ impl TurnRole {
             Self::User => "❯",
             Self::Agent => "⏺",
             Self::Status => "·",
-            Self::Tool => "⏺",
+            Self::Tool => "↻",
+            Self::ToolSuccess => "✓",
+            Self::ToolFailure => "✗",
             Self::Change => "±",
             Self::Error => "✗",
         }
@@ -52,7 +58,9 @@ impl TurnRole {
             Self::User => "cyan",
             Self::Agent => "green",
             Self::Status => "gray",
-            Self::Tool => "magenta",
+            Self::Tool => "yellow",
+            Self::ToolSuccess => "green",
+            Self::ToolFailure => "red",
             Self::Change => "yellow",
             Self::Error => "red",
         }
@@ -60,7 +68,7 @@ impl TurnRole {
 
     /// Whether the line is secondary — progress chatter rather than substance.
     pub fn dim(self) -> bool {
-        matches!(self, Self::Status | Self::Tool)
+        matches!(self, Self::Status)
     }
 }
 
@@ -71,6 +79,8 @@ pub struct CopilotTurn {
     pub role: TurnRole,
     /// The text, unwrapped — the renderer knows the pane width, this does not.
     pub text: String,
+    /// Provider tool-call identity used only to correlate settlement in place.
+    pub call_id: Option<String>,
 }
 
 impl CopilotTurn {
@@ -79,6 +89,7 @@ impl CopilotTurn {
         Self {
             role,
             text: text.into(),
+            call_id: None,
         }
     }
 }
@@ -204,6 +215,13 @@ impl CopilotState {
         self.turns.push(CopilotTurn::new(TurnRole::Tool, text));
     }
 
+    /// Record a tool call with the provider identity used by its result.
+    fn tool_with_id(&mut self, text: String, call_id: Option<String>) {
+        let mut turn = CopilotTurn::new(TurnRole::Tool, text);
+        turn.call_id = call_id;
+        self.turns.push(turn);
+    }
+
     /// Record a progress frame the harness reported, as the kind of line it is.
     ///
     /// The single entry point the app crate calls for anything arriving on the
@@ -211,8 +229,66 @@ impl CopilotState {
     /// once ([`super::progress::classify`]) rather than at each call site.
     pub fn progress(&mut self, frame: &str) {
         match super::progress::classify(frame) {
-            super::progress::Progress::Tool(text) => self.tool(text),
+            super::progress::Progress::Tool { call_id, text } => self.tool_with_id(text, call_id),
+            super::progress::Progress::ToolResult {
+                failed,
+                detail,
+                call_id,
+            } => self.settle_tool(failed, &detail, call_id.as_deref()),
             super::progress::Progress::Status(text) => self.status(text),
+        }
+    }
+
+    /// Settle a tool row only when there is exactly one possible match.
+    ///
+    /// The shared status channel does not carry call IDs. With overlapping
+    /// calls, choosing newest or oldest can attach another call's failure to
+    /// the wrong operation, so ambiguous results remain generic status lines.
+    fn settle_tool(&mut self, failed: bool, detail: &str, call_id: Option<&str>) {
+        let index = call_id
+            .and_then(|id| {
+                self.turns.iter().position(|turn| {
+                    turn.role == TurnRole::Tool && turn.call_id.as_deref() == Some(id)
+                })
+            })
+            .or_else(|| {
+                if call_id.is_some() {
+                    return None;
+                }
+                let unresolved = self
+                    .turns
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, turn)| (turn.role == TurnRole::Tool).then_some(index))
+                    .take(2)
+                    .collect::<Vec<_>>();
+                let [index] = unresolved.as_slice() else {
+                    return None;
+                };
+                Some(*index)
+            });
+        let Some(index) = index else {
+            let mut status = if failed {
+                "tool failed".to_string()
+            } else {
+                "tool completed".to_string()
+            };
+            if !detail.is_empty() {
+                status.push_str(" · ");
+                status.push_str(detail);
+            }
+            self.status(status);
+            return;
+        };
+        let turn = &mut self.turns[index];
+        turn.role = if failed {
+            TurnRole::ToolFailure
+        } else {
+            TurnRole::ToolSuccess
+        };
+        if !detail.is_empty() {
+            turn.text.push_str(" · ");
+            turn.text.push_str(detail);
         }
     }
 

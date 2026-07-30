@@ -167,6 +167,23 @@ fn clicking_a_context_chunk_selects_it() {
     assert_eq!(a.context_index, 1);
 }
 
+#[cfg(feature = "workflows")]
+#[test]
+fn the_wheel_scrolls_the_workflow_preview_only_when_the_pointer_is_over_it() {
+    let mut a = app();
+    a.tab_index = tab("Workflows");
+    a.hit_workflow_preview = Some(ratatui::layout::Rect::new(40, 10, 30, 12));
+
+    a.scroll_at(50, 15, false);
+    assert_eq!(a.wf.preview_scroll, 3);
+
+    a.scroll_at(10, 15, false);
+    assert_eq!(a.wf.preview_scroll, 3);
+
+    a.scroll_at(50, 15, true);
+    assert_eq!(a.wf.preview_scroll, 0);
+}
+
 #[test]
 fn routing_strategies_render_host_and_subscription_groups() {
     let mut a = app();

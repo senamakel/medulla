@@ -21,10 +21,10 @@
 //!
 //! Not a sandbox. The child inherits this process's environment and privileges,
 //! and the only boundary is a temporary working directory, which is not one.
-//! That is why `workflows.allowCode` is off by default: enabling it is an
-//! operator's explicit decision to trust whoever wrote the workflow. Everything
-//! here is about making a trusted script *work correctly*, not about containing
-//! an untrusted one.
+//! `workflows.allowCode` is on by default for locally authored workflows, but
+//! can be explicitly disabled when definitions come from an untrusted source.
+//! Everything here is about making a trusted script *work correctly*, not about
+//! containing an untrusted one.
 
 use std::time::Duration;
 

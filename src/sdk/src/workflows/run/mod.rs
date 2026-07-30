@@ -43,7 +43,10 @@ use serde_json::Value;
 
 use crate::flow_engine::execute;
 use crate::flow_engine::observability::{WorkEventSink, WorkflowRunObserver};
-use crate::flow_engine::{build_capabilities, open_checkpointer, CapabilitySettings, HostServices};
+use crate::flow_engine::{
+    agent_evidence, build_capabilities_with_agent_evidence, open_checkpointer, CapabilitySettings,
+    HostServices,
+};
 use crate::workflows::store::{new_run_record, require, require_run};
 use crate::workflows::{RunRecord, RunStatus, RunStep, WorkflowError, WorkflowStore};
 
@@ -124,7 +127,8 @@ pub async fn run_workflow(
         )));
     }
 
-    let compiled = execute::compile(&workflow.graph).map_err(WorkflowError::Engine)?;
+    let execution_graph = agent_evidence::instrumented(&workflow.graph);
+    let compiled = execute::compile(&execution_graph).map_err(WorkflowError::Engine)?;
 
     // Claimed before anything can await, so a cancel arriving during setup is
     // not dropped on the floor — and so two dispatches of the same run id
@@ -145,11 +149,13 @@ pub async fn run_workflow(
         &workflow.graph,
         context.sink,
     ));
-    let capabilities = build_capabilities(
+    let agent_evidence = Arc::new(agent_evidence::AgentEvidence::default());
+    let capabilities = build_capabilities_with_agent_evidence(
         context.settings.clone(),
         context.services,
         &format!("workflow:{workflow_id}"),
         run_id,
+        agent_evidence.clone(),
     );
     let as_observer = observer.clone() as Arc<dyn tinyflows::observability::RunObserver>;
 
@@ -182,6 +188,7 @@ pub async fn run_workflow(
 
     let mut record = record;
     record.steps = observer.steps();
+    agent_evidence.attach(&mut record.steps);
     record.finished_at = Some(crate::clock::now_millis() as u64);
     let terminal_engine_error = matches!(&settled, Err(Settle::Failed(_)));
     match settled {
@@ -295,7 +302,8 @@ pub async fn resume_workflow(
     }
 
     let workflow = require(context.store.as_ref(), &record.workflow_id)?;
-    let compiled = execute::compile(&workflow.graph).map_err(WorkflowError::Engine)?;
+    let execution_graph = agent_evidence::instrumented(&workflow.graph);
+    let compiled = execute::compile(&execution_graph).map_err(WorkflowError::Engine)?;
 
     let Some((_guard, cancelled)) = RunGuard::claim(run_id) else {
         return Err(WorkflowError::Engine(format!(
@@ -312,11 +320,13 @@ pub async fn resume_workflow(
         &workflow.graph,
         context.sink,
     ));
-    let capabilities = build_capabilities(
+    let agent_evidence = Arc::new(agent_evidence::AgentEvidence::default());
+    let capabilities = build_capabilities_with_agent_evidence(
         context.settings.clone(),
         context.services,
         &format!("workflow:{}", record.workflow_id),
         run_id,
+        agent_evidence.clone(),
     );
     let as_observer = observer.clone() as Arc<dyn tinyflows::observability::RunObserver>;
 
@@ -348,7 +358,9 @@ pub async fn resume_workflow(
     // Steps from this leg are appended: the record is the whole run's history,
     // not just its latest attempt.
     let earlier_steps = record.steps.len();
-    record.steps.extend(observer.steps());
+    let mut resumed_steps = observer.steps();
+    agent_evidence.attach(&mut resumed_steps);
+    record.steps.extend(resumed_steps);
     record.finished_at = Some(crate::clock::now_millis() as u64);
     let terminal_engine_error = matches!(&settled, Err(Settle::Failed(_)));
     match settled {

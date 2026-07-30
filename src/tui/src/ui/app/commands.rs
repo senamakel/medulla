@@ -7,7 +7,6 @@ use crate::ui::agents::{AgentRow, TaskState};
 use crate::ui::clipboard::{copy_for_operator, copy_to_clipboard, current_platform, OSC_52};
 use crate::ui::command::{self, CopyScope, SlashCommand};
 use crate::ui::composer::Draft;
-use crate::ui::theme::{color_to_string, THEME_ROLES};
 use medulla::runtime::{WorkerInfo, WorkerOp};
 
 use super::types::{
@@ -403,14 +402,6 @@ impl App {
         cmd
     }
 
-    /// Cycle the selected Appearance role's color, apply it to the live theme,
-    /// and persist the `[theme]` section.
-    pub(super) fn cycle_appearance_role(&mut self, forward: bool) {
-        let role = self.appearance_index.min(THEME_ROLES.len() - 1);
-        self.theme.cycle_role(role, forward);
-        self.persist_theme_now(THEME_ROLES[role]);
-    }
-
     /// Persist the operator's routing strategy to config and remember it on the
     /// loaded config, so the selection survives a restart and reloads highlighted.
     ///
@@ -457,19 +448,6 @@ impl App {
             None => self.set_status(format!(
                 "Applying {strategy:?} subscription strategy… (not persisted)"
             )),
-        }
-    }
-
-    /// Write the current theme to the injected config path, surfacing a status
-    /// note on success or failure. A `None` path applies live but does not save.
-    pub(super) fn persist_theme_now(&mut self, role: &str) {
-        let value = color_to_string(self.theme.role(self.appearance_index));
-        match &self.config_path {
-            Some(path) => match crate::ui::theme::persist_theme(path, &self.theme) {
-                Ok(()) => self.set_status(format!("Appearance · {role} → {value} (saved)")),
-                Err(e) => self.set_status(format!("Appearance · save failed: {e}")),
-            },
-            None => self.set_status(format!("Appearance · {role} → {value} (not persisted)")),
         }
     }
 }

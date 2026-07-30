@@ -39,9 +39,9 @@ use super::types::App;
 impl App {
     /// The workflow store this client reads.
     ///
-    /// Layered exactly as every other workflow surface resolves it: the
-    /// user-global directory, then the project-local one, so a workflow checked
-    /// into a repository shadows a personal one of the same id.
+    /// Layered exactly as every other workflow surface resolves it: checked-in
+    /// project defaults first, then the user-global directory where authored
+    /// workflows are saved.
     pub(in crate::ui::app) fn workflow_store(&self) -> Arc<dyn WorkflowStore> {
         if let Some(store) = &self.workflow_store_override {
             return store.clone();
@@ -54,8 +54,8 @@ impl App {
             // own workflows.
             Some(home) => Arc::new(medulla::workflows::FileWorkflowStore::with_workspace_state(
                 vec![
-                    home.join("workflows"),
                     cwd.join(".medulla").join("workflows"),
+                    home.join("workflows"),
                 ],
                 &home.join("state").join("workflows"),
                 &cwd,

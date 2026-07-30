@@ -146,6 +146,19 @@ tokenEnv = "MEDULLA_TOKEN"
 # stateDir = "/absolute/path/to/state"
 
 # ---------------------------------------------------------------------------
+# workflows — authored workflow capabilities (optional)
+# ---------------------------------------------------------------------------
+# Definitions are saved under <home>/workflows and runtime state under
+# <home>/state/workflows. Code execution is on by default but is not sandboxed;
+# set allowCode = false before loading workflows you do not trust. HTTP and
+# third-party tools remain deny-by-default.
+# [workflows]
+# allowCode = true
+# runTimeoutSecs = 600
+# toolAllowlist = []
+# httpAllowlist = []
+
+# ---------------------------------------------------------------------------
 # workflow — daemon worker workspace allowlist
 # ---------------------------------------------------------------------------
 # [workflow]
@@ -199,6 +212,12 @@ tokenEnv = "MEDULLA_TOKEN"
 # accent = "magenta"      # inline overlay borders (prompt / resume picker)
 # selectionFg = "black"   # text drawn on top of the primary selection background
 # dimBorder = "darkgray"  # panel borders
+
+# Harness-row details shown in the Agents tab. Both default to true and can
+# also be toggled live from Settings › Appearance.
+# [appearance]
+# showHarnessBranch = true
+# showHarnessPath = true
 
 # ---------------------------------------------------------------------------
 # fleet — operator-declared capacity: the Host → Harness → Workspace → Agent

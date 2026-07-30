@@ -34,7 +34,10 @@ fn a_tool_call_frame_is_recognised_as_the_call_it_describes() {
     };
     assert_eq!(
         round_trip(&event),
-        Progress::Tool("workflow_apply_ops: add node notify".to_string())
+        Progress::Tool {
+            call_id: Some("c1".to_string()),
+            text: "Workflow Apply Ops: add node notify".to_string(),
+        }
     );
 }
 
@@ -45,10 +48,6 @@ fn the_chatter_around_a_tool_call_stays_status() {
     for (kind, payload) in [
         ("agent_thinking", json!({ "text": "hmm" })),
         ("agent_message", json!({ "text": "done" })),
-        (
-            "tool_result",
-            json!({ "call_id": "c", "ok": true, "is_error": false, "output": "", "output_bytes": 0 }),
-        ),
     ] {
         let event = HarnessEvent {
             kind: kind.to_string(),
@@ -60,6 +59,31 @@ fn the_chatter_around_a_tool_call_stays_status() {
             "{kind} should not read as a tool call"
         );
     }
+}
+
+#[test]
+fn tool_settlement_is_promoted_so_the_call_can_update_in_place() {
+    let event = HarnessEvent {
+        kind: "tool_result".to_string(),
+        payload: json!({
+            "call_id": "c",
+            "ok": false,
+            "is_error": true,
+            "exit_code": 2,
+            "output": "",
+            "output_bytes": 0
+        }),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        round_trip(&event),
+        Progress::ToolResult {
+            failed: true,
+            detail: "exit 2".to_string(),
+            call_id: Some("c".to_string()),
+        }
+    );
 }
 
 #[test]

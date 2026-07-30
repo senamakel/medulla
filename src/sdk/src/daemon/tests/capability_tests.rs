@@ -135,8 +135,79 @@ async fn status_detail_maps_event_kinds() {
     let tool_call = tool_call_event().event;
     assert_eq!(
         status_detail(&tool_call).as_deref(),
-        Some("running Bash: ls -la")
+        Some("running Bash: ls -la\u{1f}c1")
     );
+    let terminal = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c2",
+            "tool_name": "execute",
+            "tool_kind": "shell",
+            "display": "Terminal",
+            "input": { "command": "cargo test --workspace\ncargo clippy" }
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        status_detail(&terminal).as_deref(),
+        Some("running Terminal · $ cargo test --workspace cargo clippy\u{1f}c2")
+    );
+    let secret_command = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c3",
+            "tool_name": "execute",
+            "tool_kind": "shell",
+            "input": {
+                "command": "curl -H 'Authorization: Bearer top-secret' https://example.test"
+            }
+        }),
+        ..Default::default()
+    };
+    let command_detail = status_detail(&secret_command).expect("secret command has safe status");
+    assert_eq!(
+        command_detail,
+        "running Terminal · $ [credential redacted]\u{1f}c3"
+    );
+    assert!(!command_detail.contains("top-secret"));
+
+    let string_command = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c3-string",
+            "tool_name": "shell",
+            "tool_kind": "shell",
+            "display": "curl -H 'Authorization: Bearer string-secret' https://example.test",
+            "input": "curl -H 'Authorization: Bearer string-secret' https://example.test"
+        }),
+        ..Default::default()
+    };
+    let string_detail =
+        status_detail(&string_command).expect("string command input has safe status");
+    assert_eq!(
+        string_detail,
+        "running Shell · $ [credential redacted]\u{1f}c3-string"
+    );
+    assert!(!string_detail.contains("string-secret"));
+
+    let secret_url = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c4",
+            "tool_name": "fetch",
+            "input": {
+                "url": "https://operator:password@example.test/hook?token=top-secret"
+            }
+        }),
+        ..Default::default()
+    };
+    let url_detail = status_detail(&secret_url).expect("secret URL has safe status");
+    assert_eq!(
+        url_detail,
+        "running Fetch · [credential redacted URL]\u{1f}c4"
+    );
+    assert!(!url_detail.contains("operator"));
+    assert!(!url_detail.contains("top-secret"));
 
     let thinking = HarnessEvent {
         kind: "agent_thinking".to_string(),
@@ -158,14 +229,20 @@ async fn status_detail_maps_event_kinds() {
         payload: json!({ "call_id": "c", "ok": false, "is_error": true, "output": "", "output_bytes": 0 }),
         ..Default::default()
     };
-    assert_eq!(status_detail(&failed_tool).as_deref(), Some("tool failed"));
+    assert_eq!(
+        status_detail(&failed_tool).as_deref(),
+        Some("tool failed\u{1f}c")
+    );
 
     let ok_tool = HarnessEvent {
         kind: "tool_result".to_string(),
         payload: json!({ "call_id": "c", "ok": true, "is_error": false, "output": "", "output_bytes": 0 }),
         ..Default::default()
     };
-    assert_eq!(status_detail(&ok_tool).as_deref(), Some("tool completed"));
+    assert_eq!(
+        status_detail(&ok_tool).as_deref(),
+        Some("tool completed\u{1f}c")
+    );
 
     // Status: a non-empty detail wins over the state.
     let status_detailed = HarnessEvent {

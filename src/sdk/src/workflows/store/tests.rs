@@ -129,17 +129,35 @@ fn a_proposal_is_not_published_after_its_base_graph_moves() {
 }
 
 #[test]
-fn the_directories_are_home_then_project_lowest_precedence_first() {
+fn the_directories_are_project_then_home_with_home_as_the_write_layer() {
     let env = HashMap::from([("MEDULLA_HOME".to_string(), "/somewhere/home".to_string())]);
     let dirs = workflow_dirs(&env, Path::new("/repo"));
 
     assert_eq!(
         dirs,
         vec![
-            PathBuf::from("/somewhere/home/workflows"),
             PathBuf::from("/repo/.medulla/workflows"),
+            PathBuf::from("/somewhere/home/workflows"),
         ]
     );
+}
+
+#[test]
+fn a_discovered_store_saves_new_definitions_under_medulla_home() {
+    let root = tempfile::tempdir().unwrap();
+    let home = root.path().join("home");
+    let project = root.path().join("project");
+    let env = HashMap::from([(
+        "MEDULLA_HOME".to_string(),
+        home.to_string_lossy().into_owned(),
+    )]);
+    let store = FileWorkflowStore::discover(&env, &project);
+    let record = parse_workflow(&valid_document("home-save"), "home-save").unwrap();
+
+    store.save(&record).unwrap();
+
+    assert!(home.join("workflows/home-save.json").is_file());
+    assert!(!project.join(".medulla/workflows/home-save.json").exists());
 }
 
 #[test]
@@ -221,17 +239,17 @@ fn validation_reports_every_failure_not_only_the_first() {
 }
 
 #[test]
-fn a_project_directory_overrides_a_home_workflow_of_the_same_id_in_place() {
+fn a_home_workflow_overrides_a_project_default_of_the_same_id_in_place() {
     let root = tempfile::tempdir().unwrap();
     let home = root.path().join("home");
     let project = root.path().join("project");
 
-    write(&home.join("first.json"), &valid_document("first"));
-    write(&home.join("shared.json"), &valid_document("shared"));
-    let overridden = valid_document("shared").replace("\"Greet\"", "\"Project greet\"");
-    write(&project.join("shared.json"), &overridden);
+    write(&project.join("first.json"), &valid_document("first"));
+    write(&project.join("shared.json"), &valid_document("shared"));
+    let overridden = valid_document("shared").replace("\"Greet\"", "\"Personal greet\"");
+    write(&home.join("shared.json"), &overridden);
 
-    let store = FileWorkflowStore::new(vec![home, project], root.path().join("runs"));
+    let store = FileWorkflowStore::new(vec![project, home], root.path().join("runs"));
     let report = store.load();
 
     assert!(report.errors.is_empty(), "unexpected: {:?}", report.errors);
@@ -241,7 +259,7 @@ fn a_project_directory_overrides_a_home_workflow_of_the_same_id_in_place() {
         vec!["first", "shared"],
         "an override should keep the position of what it overrides"
     );
-    assert_eq!(report.workflows[1].name, "Project greet");
+    assert_eq!(report.workflows[1].name, "Personal greet");
 }
 
 #[test]
@@ -330,6 +348,49 @@ fn deleting_removes_the_file_the_workflow_was_actually_read_from() {
         .delete("gone")
         .expect_err("deleting twice is an error");
     assert!(matches!(err, WorkflowError::NotFound(_)), "got {err:?}");
+}
+
+#[test]
+fn deleting_a_repository_default_never_modifies_the_checkout() {
+    let root = tempfile::tempdir().unwrap();
+    let repository_dir = root.path().join("repo/.medulla/workflows");
+    let home_dir = root.path().join("home/workflows");
+    let repository_file = repository_dir.join("shared.json");
+    write(&repository_file, &valid_document("shared"));
+    let store = FileWorkflowStore::new(
+        vec![repository_dir, home_dir],
+        root.path().join("state/runs"),
+    );
+
+    let err = store
+        .delete("shared")
+        .expect_err("repository defaults are read-only");
+
+    assert!(
+        matches!(err, WorkflowError::ReadOnlyDefinition { .. }),
+        "got {err:?}"
+    );
+    assert!(
+        repository_file.exists(),
+        "the checkout must remain untouched"
+    );
+    assert!(store.get("shared").unwrap().is_some());
+}
+
+#[test]
+fn deleting_a_home_definition_uses_its_actual_filename() {
+    let root = tempfile::tempdir().unwrap();
+    let home_dir = root.path().join("home/workflows");
+    let alias_file = home_dir.join("alias.json");
+    write(&alias_file, &valid_document("shared"));
+    let store = FileWorkflowStore::new(vec![home_dir], root.path().join("state/runs"));
+
+    store
+        .delete("shared")
+        .expect("home definitions are writable");
+
+    assert!(!alias_file.exists());
+    assert!(store.get("shared").unwrap().is_none());
 }
 
 #[test]
@@ -579,16 +640,16 @@ fn history_does_not_show_up_in_the_workflow_listing() {
 }
 
 #[test]
-fn shadowing_a_home_workflow_with_a_project_one_snapshots_what_it_shadowed() {
+fn shadowing_a_project_default_with_a_home_workflow_snapshots_what_it_shadowed() {
     let root = tempfile::tempdir().unwrap();
     let home = root.path().join("home");
     let project = root.path().join("project");
-    write(&home.join("greet.json"), &valid_document("greet"));
-    let store = FileWorkflowStore::new(vec![home, project], root.path().join("runs"));
+    write(&project.join("greet.json"), &valid_document("greet"));
+    let store = FileWorkflowStore::new(vec![project, home], root.path().join("runs"));
 
-    // The first project-level save writes a file that did not exist, so nothing
+    // The first home-level save writes a file that did not exist, so nothing
     // in the write directory is overwritten — but the operator *does* see the
-    // graph change, because the project copy now shadows the home one.
+    // graph change, because the home copy now shadows the project default.
     let mut record = require(&store, "greet").unwrap();
     record.description = "edited in this project".into();
     store.save(&record).unwrap();

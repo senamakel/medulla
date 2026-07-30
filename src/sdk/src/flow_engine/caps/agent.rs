@@ -27,6 +27,7 @@ use serde_json::{json, Value};
 use tinyflows::caps::{AgentRunner, LlmProvider};
 use tinyflows::error::{EngineError, Result};
 
+use crate::flow_engine::agent_evidence::AgentEvidence;
 use crate::flow_engine::settings::CapabilitySettings;
 use crate::hub::{RunError, TaskRequest};
 
@@ -108,6 +109,8 @@ pub struct HarnessAgentRunner {
     /// worker dedupes on `sender + taskId`. One of the two would be rejected as
     /// a duplicate of the other.
     sequence: AtomicU64,
+    /// Resolved prompts captured for the durable run inspector.
+    evidence: Option<Arc<AgentEvidence>>,
 }
 
 impl HarnessAgentRunner {
@@ -123,6 +126,30 @@ impl HarnessAgentRunner {
             settings,
             run_id: run_id.into(),
             sequence: AtomicU64::new(0),
+            evidence: None,
+        }
+    }
+
+    /// Build a runner that records resolved prompts for run inspection.
+    pub(crate) fn recording(
+        dispatch: Arc<dyn HarnessDispatch>,
+        settings: Arc<CapabilitySettings>,
+        run_id: impl Into<String>,
+        evidence: Arc<AgentEvidence>,
+    ) -> Self {
+        Self {
+            dispatch,
+            settings,
+            run_id: run_id.into(),
+            sequence: AtomicU64::new(0),
+            evidence: Some(evidence),
+        }
+    }
+
+    /// Capture a resolved prompt when this request came from a tagged agent node.
+    fn record_prompt(&self, request: &Value, instruction: &str) {
+        if let Some(evidence) = &self.evidence {
+            evidence.record(request, instruction);
         }
     }
 
@@ -198,6 +225,7 @@ impl AgentRunner for HarnessAgentRunner {
         _conn: Option<&str>,
     ) -> Result<Value> {
         let instruction = instruction_of(&request)?;
+        self.record_prompt(&request, &instruction);
         self.run_on_harness(route_for_agent_ref(Some(agent_ref)), instruction)
             .await
     }
@@ -225,12 +253,25 @@ impl HarnessLlm {
             inner: HarnessAgentRunner::new(dispatch, settings, run_id),
         }
     }
+
+    /// A provider that records resolved agent prompts for run inspection.
+    pub(crate) fn recording(
+        dispatch: Arc<dyn HarnessDispatch>,
+        settings: Arc<CapabilitySettings>,
+        run_id: impl Into<String>,
+        evidence: Arc<AgentEvidence>,
+    ) -> Self {
+        Self {
+            inner: HarnessAgentRunner::recording(dispatch, settings, run_id, evidence),
+        }
+    }
 }
 
 #[async_trait]
 impl LlmProvider for HarnessLlm {
     async fn complete(&self, request: Value, _conn: Option<&str>) -> Result<Value> {
         let instruction = instruction_of(&request)?;
+        self.inner.record_prompt(&request, &instruction);
         self.inner
             .run_on_harness(AgentRoute::Default, instruction)
             .await
