@@ -150,6 +150,15 @@ fn each_view_takes_the_content_pane_in_turn() {
 }
 
 #[test]
+fn long_workflow_names_cannot_widen_the_rail_past_the_agents_cap() {
+    let mut workflow = diamond("nightly");
+    workflow.name = "an extremely long workflow name ".repeat(8);
+    let (_home, app) = app_with(&[workflow], &[]);
+
+    assert_eq!(app.workflow_sidebar_width(200), 38);
+}
+
+#[test]
 fn the_graph_is_drawn_as_boxes_joined_by_wires() {
     let (_home, mut app) = app_with(&[diamond("nightly")], &[]);
 

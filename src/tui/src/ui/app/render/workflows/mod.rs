@@ -61,6 +61,13 @@ pub(in crate::ui::app) const LAYER_STRIDE: usize = NODE_WIDTH + 10;
 /// two stacked boxes do not share a border line.
 pub(in crate::ui::app) const LANE_STRIDE: usize = NODE_HEIGHT + 1;
 
+/// The most content columns the workflow rail may claim.
+///
+/// Mirrors the Agents rail: labels may influence the width up to this point,
+/// but an unusually long workflow name or run detail is clipped instead of
+/// shrinking the graph, inspector, or copilot beside it.
+const RAIL_MAX_CONTENT: usize = 36;
+
 impl App {
     /// Draw the Workflows tab.
     pub(super) fn draw_workflows_tab(&mut self, f: &mut Frame, area: Rect) {
@@ -68,13 +75,7 @@ impl App {
         // way the Agents rail is sized — so a machine with short workflow names
         // does not give a third of the screen to whitespace, and one with long
         // names can still read them.
-        let widest = self
-            .workflow_rail_rows()
-            .iter()
-            .map(|row| self.workflow_rail_width(row))
-            .max()
-            .unwrap_or(0);
-        let rail = crate::ui::multi_pane::sidebar_width(area.width, widest);
+        let rail = self.workflow_sidebar_width(area.width);
         let columns = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Length(rail), Constraint::Min(0)])
@@ -93,6 +94,18 @@ impl App {
             WorkflowView::Inspector => self.draw_workflow_inspector(f, columns[1]),
             WorkflowView::Copilot => self.draw_workflow_copilot(f, columns[1]),
         }
+    }
+
+    /// Size the workflow rail from its content, bounded like the Agents rail.
+    pub(in crate::ui::app) fn workflow_sidebar_width(&self, total: u16) -> u16 {
+        let widest = self
+            .workflow_rail_rows()
+            .iter()
+            .map(|row| self.workflow_rail_width(row))
+            .max()
+            .unwrap_or(0)
+            .min(RAIL_MAX_CONTENT);
+        crate::ui::multi_pane::sidebar_width(total, widest)
     }
 
     /// What the content pane is showing.

@@ -98,14 +98,7 @@ impl App {
     /// holds one view rather than sharing the row with a copilot column.
     pub(in crate::ui::app) fn visible_layers(&self) -> usize {
         const BORDERS: usize = 2;
-        let rail = crate::ui::multi_pane::sidebar_width(
-            self.area.width,
-            self.workflow_rail_rows()
-                .iter()
-                .map(|row| self.workflow_rail_width(row))
-                .max()
-                .unwrap_or(0),
-        );
+        let rail = self.workflow_sidebar_width(self.area.width);
         let canvas = (self.area.width as usize)
             .saturating_sub(rail as usize)
             .saturating_sub(BORDERS);
