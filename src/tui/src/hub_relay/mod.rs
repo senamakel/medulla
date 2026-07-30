@@ -86,19 +86,21 @@ fn subscription_strategy_from_config(home: &Path) -> medulla::runtime::Subscript
 fn roster_sink(
     home: &Path,
     log: medulla::hub::HubLog,
-    local_address: String,
+    local_addresses: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
 ) -> medulla::hub::RosterSink {
     let path = roster_path(home);
     Arc::new(move |workers: &[medulla::hub::HubWorker]| {
+        let local_addresses = local_addresses.lock().expect("host addresses").clone();
         let rows: Vec<medulla::config::HubWorkerConfig> = workers
             .iter()
-            .filter(|w| w.address != local_address)
+            .filter(|w| !local_addresses.contains(&w.address))
             .map(|w| medulla::config::HubWorkerConfig {
                 id: w.id.clone(),
                 address: w.address.clone(),
                 harness: w.harness.clone(),
                 label: w.label.clone(),
                 selected: w.selected,
+                roles: w.roles.clone(),
             })
             .collect();
         if let Err(e) = medulla::config::persist_hub_workers(&path, &rows) {
@@ -258,7 +260,9 @@ pub(crate) fn build_hub_config_with_log(
     log: medulla::hub::HubLog,
     session: Option<&Credentials>,
 ) -> Option<HubConfig> {
-    build_hub_config_with_host(env, home, log, None, session)
+    // No catalog: this builder is the no-host path used by probes and tests,
+    // where nothing is advertised for a role.
+    build_hub_config_with_host(env, home, log, None, session, Vec::new())
 }
 
 /// Like [`build_hub_config_with_log`], additionally dispatching over `local` —
@@ -275,6 +279,7 @@ pub(crate) fn build_hub_config_with_host(
     log: medulla::hub::HubLog,
     local: Option<LocalDispatch>,
     session: Option<&Credentials>,
+    agent_templates: Vec<medulla::runtime::AgentTemplate>,
 ) -> Option<HubConfig> {
     if !hub_enabled(env) {
         return None;
@@ -293,8 +298,13 @@ pub(crate) fn build_hub_config_with_host(
     // heard the name.
     let (local_network, local_address) = match &local {
         Some(dispatch) => {
-            workers.retain(|worker| worker.address != dispatch.host_address);
-            if let Some(host) = &dispatch.host {
+            {
+                let local_addresses = dispatch.host_addresses.lock().expect("host addresses");
+                workers.retain(|worker| !local_addresses.contains(&worker.address));
+            }
+            // Inserted in declaration order, so the primary leads and the
+            // extras follow it the way they read in the config.
+            for host in dispatch.hosts.iter().rev() {
                 workers.retain(|worker| worker.address != host.address);
                 workers.insert(0, host.clone());
             }
@@ -314,11 +324,14 @@ pub(crate) fn build_hub_config_with_host(
         .get("MEDULLA_HUB_POLL_MS")
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_POLL_MS);
+    // The handle, not a copy of its contents: the sink reads it at save time,
+    // which is the only moment that knows which hosts this device is binding.
     let persisted_local = local
         .as_ref()
-        .map(|dispatch| dispatch.host_address.clone())
+        .map(|dispatch| dispatch.host_addresses.clone())
         .unwrap_or_default();
     Some(HubConfig {
+        agent_templates,
         persist: Some(roster_sink(home, log.clone(), persisted_local)),
         log,
         backend_url: creds.base_url,
@@ -344,12 +357,14 @@ pub(crate) async fn start(
     logs: medulla_tui::log::LogBuffer,
     local: Option<LocalDispatch>,
     session: Option<&Credentials>,
+    agent_templates: Vec<medulla::runtime::AgentTemplate>,
 ) -> Option<HubSession> {
     // The hub must never write to the terminal here: the TUI owns the alternate
     // screen, and ratatui only repaints the cells it manages, so a stray line
     // lands on top of the UI and is never cleared. Capturing them keeps the
     // screen intact and the diagnostics readable.
-    let config = build_hub_config_with_host(env, home, logs.sink(), local, session)?;
+    let config =
+        build_hub_config_with_host(env, home, logs.sink(), local, session, agent_templates)?;
     match start_hub(config).await {
         Ok(session) => {
             *slot.lock().expect("hub slot") = Some(session.handle.clone());

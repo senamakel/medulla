@@ -90,6 +90,7 @@ pub(super) async fn connect_harness(
 ) -> anyhow::Result<Client> {
     let HarnessWiring {
         roster,
+        catalog,
         runner,
         subscription_strategy,
         log,
@@ -97,6 +98,8 @@ pub(super) async fn connect_harness(
         workflows: workflow_plane,
     } = wiring;
     let connect_roster = roster.clone();
+    let connect_catalog = catalog.clone();
+    let cap_catalog = catalog.clone();
     let connect_relay = runner.relay();
     let connect_log = log.clone();
     let connect_workflows = workflow_plane.clone();
@@ -134,6 +137,7 @@ pub(super) async fn connect_harness(
         // connect.
         .on(Event::Connect, move |_payload, socket| {
             let roster = connect_roster.clone();
+            let catalog = connect_catalog.clone();
             let relay = connect_relay.clone();
             let connect_log = connect_log.clone();
             let workflows = connect_workflows.clone();
@@ -175,7 +179,8 @@ pub(super) async fn connect_harness(
                         format!(" — withholding {} from agent_list", withheld.len())
                     }
                 ));
-                let payload = { register_payload(&roster.lock().expect("roster lock"), &online) };
+                let payload =
+                    { register_payload(&roster.lock().expect("roster lock"), &online, &catalog) };
                 let _ = socket.emit("medulla:register_agents", payload).await;
                 // Beside the roster, not instead of it: the backend keys a
                 // workflow advert to the socket that sent it and drops the whole
@@ -273,9 +278,12 @@ pub(super) async fn connect_harness(
         // every later delegation while this process still looks alive.
         .on("medulla:capabilities_request", move |payload, socket| {
             let roster = cap_roster.clone();
+            let catalog = cap_catalog.clone();
             let runner = cap_runner.clone();
             async move {
-                tokio::spawn(handle_capabilities(payload, socket, roster, runner));
+                tokio::spawn(handle_capabilities(
+                    payload, socket, roster, catalog, runner,
+                ));
             }
             .boxed()
         })
@@ -585,6 +593,7 @@ async fn handle_capabilities(
     payload: Payload,
     socket: Client,
     roster: SharedRoster,
+    catalog: Arc<Vec<crate::runtime::AgentTemplate>>,
     runner: Arc<TaskRunner>,
 ) {
     let Some(obj) = first_obj(payload) else {
@@ -606,10 +615,11 @@ async fn handle_capabilities(
         };
         found.cloned()
     };
-    let (harness, address) = match &worker {
-        Some(w) => (w.harness.clone(), Some(w.address.clone())),
-        None => (String::new(), None),
+    let (harness, address, roles) = match &worker {
+        Some(w) => (w.harness.clone(), Some(w.address.clone()), w.roles.clone()),
+        None => (String::new(), None, Vec::new()),
     };
+    let allowed_tools = super::probe::role_tool_allowlist(&roles, &catalog);
     // Ask the worker what it can actually do, and answer with that. Fails open:
     // a transport error, timeout, or malformed reply leaves only the static
     // facts the roster already knows. See [`super::probe`].
@@ -617,7 +627,12 @@ async fn handle_capabilities(
         Some(address) => runner.capabilities(&address).await.ok(),
         None => None,
     };
-    let capabilities = super::probe::capabilities_payload(&harness, caps.as_ref());
+    let capabilities = super::probe::capabilities_payload(
+        &harness,
+        caps.as_ref(),
+        allowed_tools.as_deref(),
+        &roles,
+    );
     let _ = socket
         .emit(
             "medulla:capabilities_result",

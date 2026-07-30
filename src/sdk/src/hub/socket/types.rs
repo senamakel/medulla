@@ -19,6 +19,9 @@ pub(in super::super) struct HarnessWiring {
     /// The shared roster advertised on every (re)connect and resolved against on
     /// every task frame.
     pub roster: SharedRoster,
+    /// Agent-role definitions used to decorate roster adverts and constrain
+    /// capability replies.
+    pub catalog: Arc<Vec<crate::runtime::AgentTemplate>>,
     /// Where a delegated task is dispatched.
     pub runner: Arc<TaskRunner>,
     /// How an untargeted task chooses among a worker's provider subscriptions.

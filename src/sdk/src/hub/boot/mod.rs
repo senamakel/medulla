@@ -116,6 +116,9 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
                 harness: w.harness.clone(),
                 label: (w.name != "tinyplace-worker").then(|| w.name.clone()),
                 selected: false,
+                // A spec describes a host this process just started; roles are
+                // an operator choice made later, on the Hosts page.
+                roles: Vec::new(),
                 workspace: w.workspace.clone(),
             })
             .collect(),
@@ -127,11 +130,13 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
         config.backend_url,
         config.workers.len()
     ));
+    let catalog = Arc::new(config.agent_templates.clone());
     let socket = connect_harness(
         &config.backend_url,
         &config.jwt,
         super::socket::HarnessWiring {
             roster: roster.clone(),
+            catalog: catalog.clone(),
             runner: runner.clone(),
             subscription_strategy: subscription_strategy.clone(),
             log: config.log.clone(),
@@ -151,6 +156,7 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
         address: hub_address,
         public_key: hub_public_key,
         relay,
+        catalog,
         runner: runner.clone(),
         log: config.log.clone(),
         persist: config.persist.clone(),

@@ -253,6 +253,7 @@ fn the_hub_roster_round_trips_through_the_config_file() {
 
     let workers = vec![
         crate::config::HubWorkerConfig {
+            roles: Vec::new(),
             id: "alpha".into(),
             address: "3Hob1FxUwsy1K2rweppbmCkuPef6unAr5Amj6kQ2fM3A".into(),
             harness: "claude".into(),
@@ -260,6 +261,7 @@ fn the_hub_roster_round_trips_through_the_config_file() {
             selected: true,
         },
         crate::config::HubWorkerConfig {
+            roles: Vec::new(),
             id: "beta".into(),
             address: "@someone".into(),
             harness: "codex".into(),
@@ -290,6 +292,7 @@ fn removing_the_last_worker_is_remembered_as_removal() {
     super::persist_hub_workers(
         &path,
         &[crate::config::HubWorkerConfig {
+            roles: Vec::new(),
             id: "alpha".into(),
             address: "addr".into(),
             harness: "claude".into(),
@@ -391,4 +394,57 @@ fn daemon_master_roster_persists_public_peer_data_without_identity_secrets() {
     );
     assert!(!text.contains("private"));
     assert!(!text.contains("token"));
+}
+
+#[test]
+fn a_local_host_that_named_no_address_is_written_without_one() {
+    // Loading fills `address` from the section default, so persisting the
+    // in-memory value verbatim turns "derive one for me" into "bind the
+    // primary's address" — and every extra collides on the next launch.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("medulla.tui.json.toml");
+    let hosts = vec![
+        crate::config::HostSection {
+            name: "backend".to_string(),
+            workspace: "/tmp/backend".to_string(),
+            ..crate::config::HostSection::default()
+        },
+        crate::config::HostSection {
+            address: "chosen-by-hand".to_string(),
+            workspace: "/tmp/other".to_string(),
+            ..crate::config::HostSection::default()
+        },
+    ];
+
+    super::persist_local_hosts(&path, &hosts).expect("write");
+    let written = std::fs::read_to_string(&path).expect("read back");
+
+    assert!(
+        !written.contains(&crate::config::HostSection::default().address),
+        "the default address must not be written back: {written}"
+    );
+    // An address the operator actually picked still survives.
+    assert!(written.contains("chosen-by-hand"), "{written}");
+    assert!(written.contains("backend"), "{written}");
+}
+
+#[test]
+fn persisting_hosts_leaves_every_other_section_alone() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("cfg.toml");
+    std::fs::write(&path, "[onboarding]\nwelcomeCompleted = true\n").expect("seed");
+
+    super::persist_local_hosts(
+        &path,
+        &[crate::config::HostSection {
+            name: "api".to_string(),
+            workspace: "/tmp/api".to_string(),
+            ..crate::config::HostSection::default()
+        }],
+    )
+    .expect("write");
+
+    let written = std::fs::read_to_string(&path).expect("read back");
+    assert!(written.contains("welcomeCompleted"), "{written}");
+    assert!(written.contains("[[hosts]]"), "{written}");
 }
