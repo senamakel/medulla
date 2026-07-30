@@ -97,7 +97,10 @@ fn generic_detail_redacts_credential_shaped_fields_recursively() {
                 "Authorization": "Bearer private",
                 "X-Trace": "visible"
             },
-            "api_key": "private"
+            "api_key": "private",
+            "nested": {
+                "apiKey": "camel-private"
+            }
         }),
         80,
         &AgentDefaults::default(),
@@ -108,6 +111,7 @@ fn generic_detail_redacts_credential_shaped_fields_recursively() {
     assert!(preview.contains("visible"), "{preview}");
     assert!(!preview.contains("Bearer private"), "{preview}");
     assert!(!preview.contains("\"private\""), "{preview}");
+    assert!(!preview.contains("camel-private"), "{preview}");
     assert!(preview.contains("••••"), "{preview}");
 }
 

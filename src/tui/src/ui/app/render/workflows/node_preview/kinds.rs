@@ -315,9 +315,16 @@ fn redact(value: &Value) -> Value {
             map.iter()
                 .map(|(key, value)| {
                     let lower = key.to_ascii_lowercase();
-                    let secret = ["token", "secret", "password", "api_key", "authorization"]
-                        .iter()
-                        .any(|needle| lower.contains(needle));
+                    let secret = [
+                        "token",
+                        "secret",
+                        "password",
+                        "api_key",
+                        "apikey",
+                        "authorization",
+                    ]
+                    .iter()
+                    .any(|needle| lower.contains(needle));
                     (
                         key.clone(),
                         if secret {
