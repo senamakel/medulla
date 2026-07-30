@@ -88,7 +88,7 @@ fn an_operator_harness_uses_one_compact_line_like_the_orchestrator() {
 fn a_long_harness_path_is_shortened_instead_of_adding_rows() {
     let app = app();
     let lines = app.own_harness_lines(
-        &harness_row("/workspace/tinyhumans/workflow-medulla/medulla-public"),
+        &harness_row("/workspace/tinyhumans/products/medulla-public"),
         false,
         36,
     );

@@ -127,7 +127,7 @@ impl Language {
         match name.to_ascii_lowercase().as_str() {
             "sh" | "shell" | "bash" | "zsh" => Self::Shell,
             "py" | "python" | "python3" => Self::Python,
-            "js" | "jsx" | "javascript" | "ts" | "tsx" | "typescript" => Self::JavaScript,
+            "js" | "jsx" | "javascript" | "ts" | "tsx" => Self::JavaScript,
             "rs" | "rust" => Self::Rust,
             "json" | "jsonc" | "toml" | "yaml" | "yml" => Self::Data,
             _ => Self::Unknown,
