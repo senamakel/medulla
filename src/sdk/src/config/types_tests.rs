@@ -45,6 +45,19 @@ fn defaults_are_applied() {
     );
     assert_eq!(cfg.medulla.context_window(), 1_000_000);
     assert!(cfg.workflow.workspaces.is_empty());
+    assert!(cfg.appearance.show_harness_branch);
+    assert!(cfg.appearance.show_harness_path);
+}
+
+#[test]
+fn appearance_harness_details_parse_independently() {
+    let cfg: TuiConfig = serde_json::from_str(
+        r#"{"appearance":{"showHarnessBranch":false,"showHarnessPath":true}}"#,
+    )
+    .unwrap();
+
+    assert!(!cfg.appearance.show_harness_branch);
+    assert!(cfg.appearance.show_harness_path);
 }
 
 #[test]

@@ -28,6 +28,9 @@ pub struct TuiConfig {
     /// TUI color overrides.
     #[serde(default)]
     pub theme: ThemeConfig,
+    /// TUI display preferences.
+    #[serde(default)]
+    pub appearance: AppearanceConfig,
     /// Persisted welcome-flow state.
     #[serde(default)]
     pub onboarding: OnboardingConfig,
@@ -91,6 +94,7 @@ impl Default for TuiConfig {
             core: None,
             update: UpdateConfig::default(),
             theme: ThemeConfig::default(),
+            appearance: AppearanceConfig::default(),
             onboarding: OnboardingConfig::default(),
             workflow: WorkflowConfig::default(),
             workflows: WorkflowsConfig::default(),
