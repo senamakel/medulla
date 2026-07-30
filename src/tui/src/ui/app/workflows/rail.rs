@@ -108,12 +108,8 @@ impl App {
                 format!("{} {}", index + 1, row.label),
                 0,
             ),
-            WorkflowRailRow::Run { row, .. } => (
-                format!(
-                    "{} {}",
-                    medulla::ui::workflows::rows::short_run_id(&row.label),
-                    row.detail
-                ),
+            WorkflowRailRow::Run { .. } => (
+                crate::ui::app::render::workflows::rail::rail_label(row),
                 RUN_INDENT,
             ),
             WorkflowRailRow::Hint(hint) => (hint.clone(), RUN_INDENT),

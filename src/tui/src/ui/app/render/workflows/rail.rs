@@ -77,7 +77,7 @@ impl App {
 }
 
 /// The text of one rail row, without marker, digit, or indent.
-pub(super) fn rail_label(row: &WorkflowRailRow) -> String {
+pub(in crate::ui::app) fn rail_label(row: &WorkflowRailRow) -> String {
     match row {
         WorkflowRailRow::Workflow { row, .. } => row.label.clone(),
         // Led by enough of the run's id to find it again with

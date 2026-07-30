@@ -32,7 +32,7 @@ mod copilot;
 mod inspector;
 mod node_preview;
 mod paint;
-mod rail;
+pub(in crate::ui::app) mod rail;
 
 #[cfg(test)]
 mod copilot_tests;
