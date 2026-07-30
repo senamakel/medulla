@@ -317,6 +317,31 @@ fn workspace_picker_autocompletes_folders_and_remembers_successful_choices() {
 }
 
 #[test]
+fn workspace_picker_keeps_recent_workspaces_newest_first() {
+    let root = tempfile::tempdir().unwrap();
+    let newest = root.path().join("zeta-workspace");
+    let older = root.path().join("alpha-workspace");
+    std::fs::create_dir(&newest).unwrap();
+    std::fs::create_dir(&older).unwrap();
+    let sessions = PtyManager::new();
+    let mut app = app_with_workspace(sessions.clone(), root.path().to_str().unwrap());
+    app.loaded.config.harness.recent_workspaces = vec![
+        newest.to_string_lossy().into_owned(),
+        older.to_string_lossy().into_owned(),
+    ];
+
+    let _ = app.on_event(ctrl('t'));
+    let _ = app.on_event(key(KeyCode::Enter));
+    let out = render(&mut app, 140, 44);
+
+    assert!(
+        out.find("zeta-workspace") < out.find("alpha-workspace"),
+        "newest recent workspace must remain first: {out}"
+    );
+    sessions.shutdown();
+}
+
+#[test]
 fn ctrl_g_hands_a_harness_over_and_back() {
     let sessions = PtyManager::new();
     let mut app = app_with_harnesses(sessions.clone());

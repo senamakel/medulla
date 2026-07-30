@@ -1,6 +1,6 @@
 //! Focused tests for bounded folder completion and fuzzy ranking.
 
-use super::harness_workspace::{folder_completions, fuzzy_subsequence_score};
+use super::harness_workspace::{folder_completions, fuzzy_subsequence_score, match_score};
 
 #[test]
 fn fuzzy_matching_accepts_tight_subsequences_and_rejects_missing_characters() {
@@ -26,4 +26,23 @@ fn folder_completion_lists_matching_children_but_never_files() {
 
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].1, beta.to_string_lossy());
+}
+
+#[test]
+fn known_workspace_basename_prefixes_beat_filesystem_duplicates() {
+    assert_eq!(match_score("/work/project-beta", "project-b"), Some(1));
+}
+
+#[test]
+fn folder_completion_keeps_only_the_best_bounded_set() {
+    let root = tempfile::tempdir().unwrap();
+    for index in 0..20 {
+        std::fs::create_dir(root.path().join(format!("project-{index:02}"))).unwrap();
+    }
+
+    let query = root.path().join("project").to_string_lossy().into_owned();
+    let results = folder_completions(&query);
+
+    assert_eq!(results.len(), 10);
+    assert!(results.windows(2).all(|pair| pair[0] <= pair[1]));
 }

@@ -1,13 +1,14 @@
 //! Workspace discovery, completion, and recent-history persistence for the
 //! manual harness launcher.
 
-use std::collections::HashSet;
+use std::collections::{BinaryHeap, HashSet};
 use std::path::Path;
 
 use super::types::{App, HarnessPickerStep, WorkspaceChoice};
 
 const MAX_WORKSPACE_CHOICES: usize = 10;
 const MAX_RECENT_WORKSPACES: usize = 12;
+const FOLDER_SCORE_OFFSET: usize = 5;
 
 impl App {
     /// Advance the launcher to its workspace step and populate the first list.
@@ -115,11 +116,14 @@ impl App {
             }
         }
 
+        let folder_order = known.len();
         let mut ranked = known
             .into_iter()
-            .filter(|(path, _)| Path::new(path).is_dir())
-            .filter_map(|(path, source)| {
-                match_score(&path, query).map(|score| (score, WorkspaceChoice { path, source }))
+            .enumerate()
+            .filter(|(_, (path, _))| Path::new(path).is_dir())
+            .filter_map(|(order, (path, source))| {
+                match_score(&path, query)
+                    .map(|score| (score, order, WorkspaceChoice { path, source }))
             })
             .collect::<Vec<_>>();
 
@@ -127,9 +131,11 @@ impl App {
             ranked.extend(
                 folder_completions(&resolved_query)
                     .into_iter()
-                    .map(|(score, path)| {
+                    .enumerate()
+                    .map(|(index, (score, path))| {
                         (
-                            score,
+                            score + FOLDER_SCORE_OFFSET,
+                            folder_order + index,
                             WorkspaceChoice {
                                 path,
                                 source: "folder",
@@ -138,16 +144,18 @@ impl App {
                     }),
             );
         }
-        ranked.sort_by(|(left_score, left), (right_score, right)| {
-            left_score
-                .cmp(right_score)
-                .then_with(|| left.path.cmp(&right.path))
-        });
+        ranked.sort_by(
+            |(left_score, left_order, _), (right_score, right_order, _)| {
+                left_score
+                    .cmp(right_score)
+                    .then_with(|| left_order.cmp(right_order))
+            },
+        );
 
         let mut seen = HashSet::new();
         ranked
             .into_iter()
-            .map(|(_, choice)| choice)
+            .map(|(_, _, choice)| choice)
             .filter(|choice| seen.insert(choice.path.clone()))
             .take(MAX_WORKSPACE_CHOICES)
             .collect()
@@ -165,7 +173,7 @@ fn absolute(path: &str, base: &Path) -> String {
 }
 
 /// Rank an existing path against the query; lower scores are better.
-fn match_score(path: &str, query: &str) -> Option<usize> {
+pub(super) fn match_score(path: &str, query: &str) -> Option<usize> {
     let query = query.trim();
     if query.is_empty() {
         return Some(0);
@@ -182,6 +190,12 @@ fn match_score(path: &str, query: &str) -> Option<usize> {
         .file_name()
         .map(|name| name.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
+    if name == query_lower {
+        return Some(0);
+    }
+    if name.starts_with(&query_lower) {
+        return Some(1);
+    }
     fuzzy_subsequence_score(&name, &query_lower)
         .or_else(|| fuzzy_subsequence_score(&path_lower, &query_lower))
         .map(|score| score + 10)
@@ -203,19 +217,28 @@ pub(super) fn folder_completions(query: &str) -> Vec<(usize, String)> {
     let Ok(entries) = std::fs::read_dir(parent) else {
         return Vec::new();
     };
-    entries
-        .flatten()
-        .filter_map(|entry| {
-            let file_type = entry.file_type().ok()?;
-            if !file_type.is_dir() {
-                return None;
-            }
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let score =
-                fuzzy_subsequence_score(&name.to_ascii_lowercase(), &needle.to_ascii_lowercase())?;
-            Some((score, entry.path().to_string_lossy().into_owned()))
-        })
-        .collect()
+    let mut matches = BinaryHeap::new();
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(score) =
+            fuzzy_subsequence_score(&name.to_ascii_lowercase(), &needle.to_ascii_lowercase())
+        else {
+            continue;
+        };
+        matches.push((score, entry.path().to_string_lossy().into_owned()));
+        if matches.len() > MAX_WORKSPACE_CHOICES {
+            matches.pop();
+        }
+    }
+    let mut matches = matches.into_vec();
+    matches.sort();
+    matches
 }
 
 /// Subsequence matcher that rewards prefixes and tightly grouped characters.
