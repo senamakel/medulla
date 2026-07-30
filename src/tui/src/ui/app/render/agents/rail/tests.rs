@@ -102,6 +102,15 @@ fn a_long_harness_path_is_shortened_instead_of_adding_rows() {
 }
 
 #[test]
+fn a_harness_prefix_never_exceeds_the_available_width() {
+    let app = app();
+    for width in [0, 1, 4, 8] {
+        let line = &app.own_harness_lines(&harness_row("/workspace/medulla"), false, width)[0];
+        assert!(line.width() <= width, "width {width}: {line:?}");
+    }
+}
+
+#[test]
 fn harness_branch_and_path_can_be_hidden_independently() {
     let mut app = app();
     let row = harness_row("/workspace/medulla");

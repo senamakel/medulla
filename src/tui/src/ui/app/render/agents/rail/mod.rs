@@ -261,6 +261,11 @@ impl App {
             Style::default()
         };
         let head = format!("{} {}{control}", row.state.glyph(), row.provider.as_str());
+        let head = if width == 0 {
+            String::new()
+        } else {
+            clip(&head, width)
+        };
         let detail_style = if active {
             style
         } else {
