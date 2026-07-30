@@ -69,6 +69,7 @@ impl App {
         );
         let block = crate::ui::widgets::panel(&self.theme, self.canvas_title(), focused);
         let inner = block.inner(area);
+        self.wf.graph_rows = inner.height as usize;
         f.render_widget(block, area);
         if inner.width == 0 || inner.height == 0 {
             return;

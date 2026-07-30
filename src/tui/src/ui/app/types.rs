@@ -347,6 +347,11 @@ pub struct WorkflowsState {
     pub(super) canvas_layer: usize,
     /// Vertical scroll of the canvas, in lanes.
     pub(super) canvas_lane: usize,
+    /// Rows inside the graph panel during its most recent render.
+    ///
+    /// Navigation uses this measured viewport rather than the full terminal
+    /// height, because the selected-node preview shares the content column.
+    pub(super) graph_rows: usize,
     /// Top line of the rich selected-step preview.
     pub(super) preview_scroll: usize,
     /// Whether the inspector below the canvas is expanded over it.

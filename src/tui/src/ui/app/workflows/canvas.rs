@@ -107,9 +107,13 @@ impl App {
 
     /// How many lanes the canvas can show at the current terminal height.
     pub(in crate::ui::app) fn visible_lanes(&self) -> usize {
+        if self.wf.graph_rows > 0 {
+            return (self.wf.graph_rows / super::super::render::workflows::LANE_STRIDE).max(1);
+        }
         // Header, tab bar, hint row, footer, and the panel's own borders. No
-        // inspector term: it is a view of its own now, so when it is showing
-        // there is no canvas under it to size.
+        // measured graph exists before the first frame, so this fallback keeps
+        // pre-render navigation safe. Every later move uses the exact inner
+        // graph rectangle recorded by the renderer.
         const CHROME: usize = 9;
         let rows = (self.area.height as usize).saturating_sub(CHROME);
         (rows / super::super::render::workflows::LANE_STRIDE).max(1)

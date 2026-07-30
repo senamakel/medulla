@@ -49,6 +49,39 @@ fn diamond(id: &str) -> WorkflowRecord {
     }
 }
 
+/// A workflow with enough parallel lanes to require vertical graph scrolling.
+fn fanout(id: &str) -> WorkflowRecord {
+    let nodes = std::iter::once(json!({
+        "id": "start", "kind": "trigger", "name": "Start",
+        "config": { "trigger_kind": "manual" }
+    }))
+    .chain((0..8).map(|index| {
+        json!({
+            "id": format!("agent-{index}"),
+            "kind": "agent",
+            "name": format!("Agent {index}"),
+            "config": { "prompt": "go" }
+        })
+    }))
+    .collect::<Vec<_>>();
+    let edges = (0..8)
+        .map(|index| json!({ "from_node": "start", "to_node": format!("agent-{index}") }))
+        .collect::<Vec<_>>();
+    WorkflowRecord {
+        id: id.to_string(),
+        name: format!("{id} fanout"),
+        description: String::new(),
+        enabled: true,
+        graph: serde_json::from_value(json!({
+            "name": id,
+            "nodes": nodes,
+            "edges": edges,
+        }))
+        .expect("graph parses"),
+        source_path: None,
+    }
+}
+
 /// An app on the Workflows tab, with `workflows` installed and `runs` recorded.
 fn app_with(workflows: &[WorkflowRecord], runs: &[RunRecord]) -> (tempfile::TempDir, App) {
     let home = tempfile::tempdir().expect("tempdir");
@@ -125,6 +158,31 @@ fn the_tab_is_a_sidebar_beside_one_content_pane() {
     // One view at a time: the copilot is a keystroke away, not a third column
     // competing with the graph for the width.
     assert!(!screen.contains("Copilot"), "{screen}");
+}
+
+#[test]
+fn canvas_navigation_uses_the_split_graph_panes_measured_height() {
+    let (_home, mut app) = app_with(&[fanout("parallel")], &[]);
+
+    render_sized(&mut app, 140, 34);
+    let measured_lanes = app.visible_lanes();
+    assert_eq!(
+        measured_lanes,
+        (app.wf.graph_rows / super::LANE_STRIDE).max(1)
+    );
+
+    app.move_graph_cursor(Move::Forward);
+    for _ in 0..7 {
+        app.move_graph_cursor(Move::LaneDown);
+    }
+    let selected_lane = app.selected_graph_node().expect("selected node").lane;
+    assert!(
+        selected_lane < app.wf.canvas_lane + measured_lanes,
+        "lane {selected_lane} must remain inside {}..{}",
+        app.wf.canvas_lane,
+        app.wf.canvas_lane + measured_lanes
+    );
+    assert!(app.wf.canvas_lane > 0, "the reduced pane must scroll");
 }
 
 #[test]
