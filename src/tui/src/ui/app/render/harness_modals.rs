@@ -14,6 +14,8 @@ use ratatui::Frame;
 
 use super::super::types::{App, HarnessPickerStep};
 
+const HARNESS_TRAILER_LINES: usize = 3;
+
 impl App {
     /// Draw the "start a harness" picker.
     pub(super) fn draw_harness_picker(&mut self, f: &mut Frame, area: Rect) {
@@ -50,23 +52,27 @@ impl App {
 
         let mut lines =
             match picker.step {
-                HarnessPickerStep::Harness => picker
-                    .choices
-                    .iter()
-                    .enumerate()
-                    .map(|(index, choice)| {
-                        let marker = if index == picker.index { "❯ " } else { "  " };
-                        let style = if index == picker.index {
-                            self.theme.selection()
-                        } else {
-                            Style::default()
-                        };
-                        TLine::from(Span::styled(
-                            format!("{marker}{}", choice.display_name()),
-                            style,
-                        ))
-                    })
-                    .collect(),
+                HarnessPickerStep::Harness => {
+                    let capacity = (inner.height as usize).saturating_sub(HARNESS_TRAILER_LINES);
+                    let range = harness_choice_window(picker.choices.len(), picker.index, capacity);
+                    picker.choices[range.clone()]
+                        .iter()
+                        .enumerate()
+                        .map(|(offset, choice)| {
+                            let index = range.start + offset;
+                            let marker = if index == picker.index { "❯ " } else { "  " };
+                            let style = if index == picker.index {
+                                self.theme.selection()
+                            } else {
+                                Style::default()
+                            };
+                            TLine::from(Span::styled(
+                                format!("{marker}{}", choice.display_name()),
+                                style,
+                            ))
+                        })
+                        .collect()
+                }
                 HarnessPickerStep::Workspace => {
                     let selected_harness = picker
                         .choices
@@ -175,6 +181,20 @@ impl App {
         ];
         f.render_widget(Paragraph::new(Text::from(lines)), inner);
     }
+}
+
+/// Window a long harness list so the selected row always remains visible.
+pub(super) fn harness_choice_window(
+    total: usize,
+    selected: usize,
+    capacity: usize,
+) -> std::ops::Range<usize> {
+    let capacity = capacity.max(1).min(total);
+    let selected = selected.min(total.saturating_sub(1));
+    let start = selected
+        .saturating_sub(capacity / 2)
+        .min(total.saturating_sub(capacity));
+    start..start + capacity
 }
 
 /// A `width` × `height` box centered in `area`, clamped to fit.

@@ -561,7 +561,7 @@ pub(super) struct HarnessPicker {
     pub(super) index: usize,
     /// Which half of the two-step picker owns the keyboard.
     pub(super) step: HarnessPickerStep,
-    /// Where the harness will be started when no filtered row is selected.
+    /// Default directory used to seed the editable workspace query.
     pub(super) cwd: String,
     /// Inline fuzzy-completion text on the workspace step.
     pub(super) workspace_query: String,
