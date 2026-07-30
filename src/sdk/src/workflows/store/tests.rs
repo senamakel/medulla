@@ -378,6 +378,22 @@ fn deleting_a_repository_default_never_modifies_the_checkout() {
 }
 
 #[test]
+fn deleting_a_home_definition_uses_its_actual_filename() {
+    let root = tempfile::tempdir().unwrap();
+    let home_dir = root.path().join("home/workflows");
+    let alias_file = home_dir.join("alias.json");
+    write(&alias_file, &valid_document("shared"));
+    let store = FileWorkflowStore::new(vec![home_dir], root.path().join("state/runs"));
+
+    store
+        .delete("shared")
+        .expect("home definitions are writable");
+
+    assert!(!alias_file.exists());
+    assert!(store.get("shared").unwrap().is_none());
+}
+
+#[test]
 fn an_id_containing_a_dot_does_not_collide_on_its_temporary_file() {
     // The temp name is appended, not substituted for the extension, so
     // `a.b.json` and `a.json` cannot fight over one scratch path.

@@ -408,11 +408,12 @@ impl WorkflowStore for FileWorkflowStore {
                 .into_iter()
                 .find(|w| w.id == id)
                 .ok_or_else(|| WorkflowError::NotFound(id.to_string()))?;
-            let path = self.definition_path(id)?;
-            if existing.source_path.as_deref() != Some(path.as_path()) {
+            let default_path = self.definition_path(id)?;
+            let path = existing.source_path.clone().unwrap_or(default_path);
+            if path.parent() != Some(self.write_dir()) {
                 return Err(WorkflowError::ReadOnlyDefinition {
                     id: id.to_string(),
-                    path: existing.source_path.unwrap_or(path),
+                    path,
                 });
             }
             // Snapshot before removing. A delete is the one edit that leaves
