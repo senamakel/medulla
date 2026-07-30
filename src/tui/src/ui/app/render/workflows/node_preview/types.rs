@@ -13,6 +13,15 @@ pub(super) struct AgentDefaults {
     pub(super) model: String,
 }
 
+/// A readable rendering of a prompt assembled by a workflow expression.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct PromptTemplate {
+    /// Literal prompt text with escaped newlines decoded and bindings inserted.
+    pub(super) text: String,
+    /// Short descriptions of the workflow values appended to the prompt.
+    pub(super) inputs: Vec<String>,
+}
+
 impl AgentDefaults {
     /// Build human-facing effective values from workflow configuration.
     pub(super) fn from_config(config: &WorkflowsConfig) -> Self {

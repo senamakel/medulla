@@ -6,6 +6,7 @@ use serde_json::{Map, Value};
 
 use super::syntax;
 use super::types::AgentDefaults;
+use super::{prompt, types::PromptTemplate};
 
 /// Render a node according to the semantics of its kind.
 pub(super) fn kind_lines(
@@ -184,6 +185,9 @@ fn task_lines(prompt: &Value) -> Vec<Line<'static>> {
     if !dynamic {
         return labelled_value("task", prompt);
     }
+    if let Some(template) = prompt::decode_expression(text) {
+        return prompt_template_lines(template);
+    }
 
     let explanation = text
         .strip_prefix("=item.")
@@ -203,6 +207,33 @@ fn task_lines(prompt: &Value) -> Vec<Line<'static>> {
             Span::styled(text.to_string(), Style::default().fg(Color::Magenta)),
         ]),
     ]
+}
+
+/// Render decoded prompt prose with compact names for its dynamic inputs.
+fn prompt_template_lines(template: PromptTemplate) -> Vec<Line<'static>> {
+    let mut lines = vec![Line::from(Span::styled(
+        "prompt template",
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    ))];
+    lines.extend(
+        template
+            .text
+            .lines()
+            .map(|line| Line::from(Span::raw(format!("  {line}")))),
+    );
+    lines.push(Line::from(vec![
+        Span::styled(
+            "dynamic input  ",
+            Style::default().add_modifier(Modifier::DIM),
+        ),
+        Span::styled(
+            template.inputs.join(", "),
+            Style::default().fg(Color::Magenta),
+        ),
+    ]));
+    lines
 }
 
 /// Render an HTTP request without exposing stored credential-shaped values.

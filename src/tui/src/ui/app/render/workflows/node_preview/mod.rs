@@ -17,6 +17,7 @@ use medulla::workflows::{RunRecord, RunStatus};
 use super::super::super::types::App;
 
 mod kinds;
+mod prompt;
 mod syntax;
 mod types;
 

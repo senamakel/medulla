@@ -139,6 +139,33 @@ fn agent_steps_explain_the_effective_worker_harness_and_dynamic_task() {
 }
 
 #[test]
+fn concatenated_agent_prompt_is_unescaped_and_names_its_dynamic_input() {
+    let preview = text(kind_lines(
+        "agent",
+        &json!({
+            "agent_ref": "reviewer",
+            "prompt": "=(\"Review each PR in order.\\n\\nFinish with one line per PR.\" + .nodes.collect.item.json.output.report)"
+        }),
+        100,
+        &AgentDefaults::default(),
+    ));
+
+    assert!(preview.contains("prompt template"), "{preview}");
+    assert!(preview.contains("Review each PR in order.\n"), "{preview}");
+    assert!(
+        preview.contains("Finish with one line per PR."),
+        "{preview}"
+    );
+    assert!(preview.contains("${collect.report}"), "{preview}");
+    assert!(
+        preview.contains("dynamic input  collect → report"),
+        "{preview}"
+    );
+    assert!(!preview.contains("\\n"), "{preview}");
+    assert!(!preview.contains("=(\""), "{preview}");
+}
+
+#[test]
 fn agent_run_detail_shows_the_resolved_prompt_and_plain_reply() {
     let run = RunRecord {
         id: "run-1".into(),
