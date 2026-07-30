@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
 use crate::harness_work::{WorkFold, WorkSnapshot};
-use crate::tinyplace::{TaskFrame, TaskFrameKind};
+use crate::tinyplace::{HarnessEventKind, TaskFrame, TaskFrameKind};
 
 use super::super::mappers;
 use super::super::providers::{Abort, RunTaskOptions};
@@ -242,7 +242,12 @@ impl DaemonRuntime {
                 let snapshot = fold.snapshot().clone();
                 drop(fold);
                 let current = now();
-                if current.saturating_sub(last_status_at) < throttle {
+                // A settlement closes a running tool row in the copilot. It is
+                // terminal state, not periodic progress, so dropping it behind
+                // the chatter throttle would leave quick tools running forever.
+                let settles_tool =
+                    matches!(semantic.event.decoded(), HarnessEventKind::ToolResult(_));
+                if !settles_tool && current.saturating_sub(last_status_at) < throttle {
                     return;
                 }
                 last_status_at = current;
