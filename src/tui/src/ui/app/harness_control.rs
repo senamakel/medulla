@@ -346,6 +346,8 @@ impl App {
 
 /// Only printable text belongs in the workspace query; modifier chords must
 /// never be mistaken for their underlying character.
-fn is_text_input(modifiers: KeyModifiers) -> bool {
-    modifiers == KeyModifiers::NONE || modifiers == KeyModifiers::SHIFT
+pub(super) fn is_text_input(modifiers: KeyModifiers) -> bool {
+    modifiers == KeyModifiers::NONE
+        || modifiers == KeyModifiers::SHIFT
+        || modifiers == (KeyModifiers::CONTROL | KeyModifiers::ALT)
 }
