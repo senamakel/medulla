@@ -44,3 +44,23 @@ fn a_settled_tool_keeps_its_action_and_shows_the_result() {
     assert!(visible.contains("✓ Read"), "{visible}");
     assert!(visible.contains("src/sdk/Cargo.toml · 2.4 KiB output"));
 }
+
+#[test]
+fn tool_summary_supports_title_only_and_colon_fallback_forms() {
+    let title_only = turn_lines(&CopilotTurn::new(TurnRole::Tool, "Terminal"), 80)
+        .iter()
+        .map(text)
+        .collect::<Vec<_>>();
+    assert_eq!(title_only, ["↻ Terminal"]);
+
+    let colon = turn_lines(
+        &CopilotTurn::new(TurnRole::ToolSuccess, "Read: src/main.rs"),
+        80,
+    )
+    .iter()
+    .map(text)
+    .collect::<Vec<_>>()
+    .join("\n");
+    assert!(colon.contains("✓ Read"), "{colon}");
+    assert!(colon.contains("src/main.rs"), "{colon}");
+}
