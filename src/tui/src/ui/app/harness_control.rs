@@ -11,7 +11,7 @@
 //! the operator gets an answer on the status line in the same keystroke, which
 //! is the whole point of a control handover being *explicit*.
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::tinyplace::HarnessProvider;
 
 use crate::ui::harness_pane::HarnessChoice;
@@ -219,14 +219,15 @@ impl App {
     /// The first step chooses a registered harness. The second step owns text
     /// input directly so filtering and filesystem completion update as the
     /// operator types.
-    pub(super) fn handle_harness_picker_key(&mut self, code: KeyCode) {
+    pub(super) fn handle_harness_picker_key(&mut self, event: KeyEvent) {
+        let code = event.code;
         let step = self
             .harness_picker
             .as_ref()
             .map(|picker| picker.step)
             .unwrap_or(HarnessPickerStep::Harness);
         if step == HarnessPickerStep::Workspace {
-            self.handle_harness_workspace_key(code);
+            self.handle_harness_workspace_key(event);
             return;
         }
         match code {
@@ -244,7 +245,7 @@ impl App {
                     picker.index = (picker.index + 1).min(picker.choices.len().saturating_sub(1));
                 }
             }
-            KeyCode::Char('e') => {
+            KeyCode::Char('e') if is_text_input(event.modifiers) => {
                 self.open_harness_workspace_step(true);
             }
             KeyCode::Enter => {
@@ -255,8 +256,8 @@ impl App {
     }
 
     /// Route a key while choosing and completing the workspace directory.
-    fn handle_harness_workspace_key(&mut self, code: KeyCode) {
-        match code {
+    fn handle_harness_workspace_key(&mut self, event: KeyEvent) {
+        match event.code {
             KeyCode::Esc | KeyCode::BackTab => {
                 if let Some(picker) = &mut self.harness_picker {
                     picker.step = HarnessPickerStep::Harness;
@@ -282,7 +283,7 @@ impl App {
                 }
                 self.refresh_harness_workspace_choices();
             }
-            KeyCode::Char(character) => {
+            KeyCode::Char(character) if is_text_input(event.modifiers) => {
                 if let Some(picker) = &mut self.harness_picker {
                     picker.workspace_query.push(character);
                     picker.workspace_index = 0;
@@ -341,4 +342,10 @@ impl App {
             _ => {}
         }
     }
+}
+
+/// Only printable text belongs in the workspace query; modifier chords must
+/// never be mistaken for their underlying character.
+fn is_text_input(modifiers: KeyModifiers) -> bool {
+    modifiers == KeyModifiers::NONE || modifiers == KeyModifiers::SHIFT
 }

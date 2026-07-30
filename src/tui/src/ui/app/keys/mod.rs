@@ -86,7 +86,7 @@ impl App {
             if ctrl && k.code == KeyCode::Char('c') {
                 self.should_quit = true;
             } else {
-                self.handle_harness_picker_key(k.code);
+                self.handle_harness_picker_key(k);
             }
             return None;
         }

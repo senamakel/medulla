@@ -253,6 +253,23 @@ fn the_picker_directory_can_be_edited_before_starting() {
 }
 
 #[test]
+fn workspace_picker_does_not_insert_modifier_chords_into_the_query() {
+    let sessions = PtyManager::new();
+    let mut app = app_with_harnesses(sessions.clone());
+
+    let _ = app.on_event(ctrl('t'));
+    let _ = app.on_event(key(KeyCode::Enter));
+    let _ = app.on_event(ctrl('x'));
+
+    let out = render(&mut app, 140, 44);
+    assert!(out.contains("search › ▌"), "{out}");
+    assert!(!out.contains("search › x▌"), "{out}");
+    assert!(sessions.rows().is_empty());
+
+    sessions.shutdown();
+}
+
+#[test]
 fn workspace_picker_autocompletes_folders_and_remembers_successful_choices() {
     let root = tempfile::tempdir().unwrap();
     let alpha = root.path().join("project-alpha");
