@@ -1,6 +1,7 @@
 //! Data model for PTY-backed harness sessions: how one is launched, what the
 //! operator watches about it, and the handle the UI holds.
 
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 
 use medulla::tinyplace::HarnessProvider;
@@ -205,8 +206,33 @@ pub(super) struct PtySession {
     pub(super) screen: Arc<Mutex<vt100::Parser>>,
     /// The PTY master — the write side (keystrokes in) and the resize handle.
     pub(super) master: Box<dyn MasterPty + Send>,
-    /// A writer onto the master, kept open for input injection.
-    pub(super) writer: Box<dyn std::io::Write + Send>,
+    /// Queue onto this session's writer thread, which owns the master's write
+    /// half.
+    ///
+    /// The writer itself is deliberately **not** held here. A pty write parks in
+    /// the kernel for as long as the child leaves its stdin undrained — a harness
+    /// still loading, or sitting on a startup dialog, does exactly that — and
+    /// every path that reaches a session, including the render pass on every
+    /// frame, goes through the manager's single lock. Holding the writer here
+    /// meant [`PtyManager::write`](super::manager::PtyManager::write) performed
+    /// that blocking write with the lock held, so one unread paste froze the
+    /// whole TUI.
+    ///
+    /// The channel itself is unbounded, because a bounded one blocks its sender
+    /// once full — the very failure being removed. The bound lives in
+    /// [`queued_bytes`](Self::queued_bytes) instead, where it can be enforced by
+    /// refusing rather than by waiting.
+    pub(super) writes: std::sync::mpsc::Sender<Vec<u8>>,
+    /// How many bytes sit in [`writes`](Self::writes) still unwritten.
+    ///
+    /// The budget a caller is admitted against, so a child that never drains its
+    /// stdin cannot make the queue grow without limit. Reserved before queueing
+    /// and released as each write leaves, so two concurrent writers cannot both
+    /// see room and both take it.
+    ///
+    /// Counted in bytes rather than messages: one write is an arbitrarily long
+    /// paste, so a message count would bound nothing that matters.
+    pub(super) queued_bytes: Arc<AtomicUsize>,
     /// The child handle, for signalling and reaping.
     ///
     /// `Option` so the reaper can take it out and block on `wait()` *without*

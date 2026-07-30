@@ -1,7 +1,8 @@
 //! Launching a harness on a fresh pty, and draining it into the emulator.
 
-use std::io::Read;
-use std::sync::atomic::Ordering;
+use std::io::{Read, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Mutex};
 
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
@@ -95,6 +96,11 @@ impl PtyManager {
             DEFAULT_COLS,
             SCROLLBACK,
         )));
+        // The write half moves onto its own thread below; the session holds only
+        // the queue, so no caller can block on the child while holding the
+        // manager's lock. See `PtySession::writes`.
+        let (writes, queued) = channel::<Vec<u8>>();
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
         let now = self.now();
         let id = format!("w_{}", self.inner.next_id.fetch_add(1, Ordering::SeqCst));
 
@@ -123,15 +129,19 @@ impl PtyManager {
             },
             screen: screen.clone(),
             master: pty.master,
-            writer,
+            writes,
+            queued_bytes: queued_bytes.clone(),
             child: Some(child),
         });
 
         // Only now: the reader `touch`es the session on every read, and a child
         // that greets the pty immediately would otherwise have its first output
         // land before there is a session to record it against — losing the
-        // `last_output_at` that idle detection reads.
+        // `last_output_at` that idle detection reads. The writer records its
+        // failures against the row, so it needs the record to exist for the same
+        // reason.
         self.spawn_reader(id.clone(), reader, screen);
+        self.spawn_writer(id.clone(), writer, queued, queued_bytes);
 
         Ok(id)
     }
@@ -158,6 +168,63 @@ impl PtyManager {
                 }
             }
             manager.mark_finished(&id);
+        });
+    }
+
+    /// Drain queued bytes onto the PTY master on a blocking thread.
+    ///
+    /// The mirror of [`spawn_reader`](Self::spawn_reader), and a thread for a
+    /// stronger reason than symmetry: a pty write parks in the kernel until the
+    /// child drains its stdin, so on the async runtime it would occupy a worker,
+    /// and on a caller holding the manager's lock it froze every render frame.
+    /// Here it may park as long as it likes with nobody waiting on it.
+    ///
+    /// Ends when the session's queue is dropped — which removing the session
+    /// record does. A thread parked mid-write instead unblocks when the child is
+    /// killed and the pty closes, which is what `close` and `shutdown` do.
+    fn spawn_writer(
+        &self,
+        id: String,
+        mut writer: Box<dyn Write + Send>,
+        queued: Receiver<Vec<u8>>,
+        queued_bytes: Arc<AtomicUsize>,
+    ) {
+        let manager = self.clone();
+        std::thread::spawn(move || {
+            let mut failure = None;
+            // `recv` rather than `for`, so the receiver survives the loop and the
+            // bytes still waiting can be accounted for below.
+            while let Ok(bytes) = queued.recv() {
+                let wrote = writer.write_all(&bytes).and_then(|()| writer.flush());
+                // Released whether or not it landed: the budget counts what is
+                // *waiting*, and these bytes are not waiting any more.
+                queued_bytes.fetch_sub(bytes.len(), Ordering::AcqRel);
+                if let Err(err) = wrote {
+                    failure = Some(err.to_string());
+                    break;
+                }
+            }
+            // Whatever is still queued will never reach the child. Counted, not
+            // dropped in silence: every one of those bytes had a caller that was
+            // told `Ok`, and "your paste was slow" and "your paste was lost" are
+            // different problems with different fixes.
+            let abandoned: usize = queued.try_iter().map(|bytes| bytes.len()).sum();
+            // A queue nothing will ever drain must not keep occupying the budget,
+            // or a later write would be refused as "full" against bytes that are
+            // already gone. Racing a concurrent reservation can only leave this
+            // permissive, which is safe: writes to a dead session fail anyway.
+            queued_bytes.store(0, Ordering::Release);
+            // Only a real failure is worth recording. A session closed normally
+            // drops its sender to end this loop, and its record is usually gone
+            // by now anyway.
+            if let Some(err) = failure {
+                let lost = if abandoned > 0 {
+                    format!(" ({abandoned} queued byte(s) never written)")
+                } else {
+                    String::new()
+                };
+                manager.record_write_error(&id, &format!("{id}: {err}{lost}"));
+            }
         });
     }
 }

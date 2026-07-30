@@ -294,6 +294,115 @@ fn closing_or_recording_against_an_unknown_session_is_harmless() {
 }
 
 #[test]
+fn writing_to_a_harness_that_never_reads_does_not_stall_the_render() {
+    // Regression: `write` used to perform the blocking pty write while holding
+    // the manager's lock. A child that has stopped draining its stdin — a harness
+    // still loading its MCP servers, or sitting on a startup dialog — fills the
+    // tty input buffer, the write parks in the kernel, and every render frame
+    // then blocked on that same lock. In the TUI it was a total freeze: no
+    // repaint, no keys, no navigation, with the process still alive.
+    let manager = PtyManager::new();
+    // `sleep` never reads its stdin, so nothing drains what we write, and it
+    // holds the pty slave open so the buffer stays full.
+    let id = manager.open(sh("sleep 30")).unwrap();
+    wait_for("the session to be recorded", || manager.row(&id).is_some());
+
+    // Comfortably past any tty input buffer (BSD caps at 8 KiB) so the underlying
+    // `write_all` cannot run to completion while we look, and comfortably under
+    // the queue budget so this measures the lock rather than the bound.
+    let paste = vec![b'x'; 256 * 1024];
+    let writing = {
+        let manager = manager.clone();
+        let id = id.clone();
+        std::thread::spawn(move || manager.write(&id, &paste))
+    };
+
+    // The render path must keep answering throughout. Checked on a deadline
+    // rather than by joining first: a regression makes the write never return, so
+    // joining up front would hang the suite instead of failing it.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut samples = 0;
+    while !writing.is_finished() && Instant::now() < deadline {
+        samples += 1;
+        let call = Instant::now();
+        let rows = manager.rows();
+        let _ = manager.screen_rows(&id);
+        assert!(
+            call.elapsed() < Duration::from_millis(500),
+            "reads blocked for {:?} — the writer is holding the manager's lock again",
+            call.elapsed()
+        );
+        assert_eq!(rows.len(), 1, "the session is still listed while writing");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    assert!(
+        writing.is_finished(),
+        "write never returned — it is performing the pty write inline again"
+    );
+    // Without this the loop above proves nothing on a run where the write
+    // finished before the first condition check: the body never executes, no
+    // responsiveness sample is taken, and the test passes vacuously.
+    assert!(
+        samples > 0,
+        "the write completed before the render path could be sampled"
+    );
+    writing
+        .join()
+        .expect("the writing thread did not panic")
+        .expect("the bytes are queued even though the child will not read them");
+
+    manager.close(&id);
+}
+
+#[test]
+fn a_write_larger_than_the_whole_queue_is_refused_outright() {
+    // No amount of draining makes room for this one, so it is rejected before a
+    // byte is copied rather than reserved against a budget it can never fit.
+    let manager = PtyManager::new();
+    let id = manager.open(sh("sleep 30")).unwrap();
+    wait_for("the session to be recorded", || manager.row(&id).is_some());
+
+    let error = manager
+        .write(&id, &vec![b'x'; (1024 * 1024) + 1])
+        .expect_err("an oversized write cannot be queued");
+    assert!(error.contains("write queue holds"), "got: {error}");
+    manager.close(&id);
+}
+
+#[test]
+fn a_queue_full_of_bytes_the_harness_will_not_read_refuses_further_writes() {
+    // The bound that keeps a wedged harness from growing the queue without
+    // limit. It has to refuse rather than wait: blocking the caller is the freeze
+    // this whole design removes, so "full" is an error, not back-pressure.
+    let manager = PtyManager::new();
+    let id = manager.open(sh("sleep 30")).unwrap();
+    wait_for("the session to be recorded", || manager.row(&id).is_some());
+
+    // 256 KiB a time against a 1 MiB budget: a handful of writes fill it, and the
+    // loop is bounded well above that so a failure reads as "never refused"
+    // rather than hanging.
+    let chunk = vec![b'x'; 256 * 1024];
+    let mut refusal = None;
+    for _ in 0..40 {
+        if let Err(error) = manager.write(&id, &chunk) {
+            refusal = Some(error);
+            break;
+        }
+    }
+    let refusal = refusal.expect("the queue must refuse once its budget is spent");
+    assert!(
+        refusal.contains("write queue is full"),
+        "the refusal must name the cause, got: {refusal}"
+    );
+    assert!(
+        refusal.contains("not reading"),
+        "the refusal must say why it happened, got: {refusal}"
+    );
+    manager.close(&id);
+}
+
+#[test]
 fn many_sessions_exiting_at_once_are_all_reaped_without_stalling_reads() {
     // Regression: the reaper used to hold the manager's lock across a blocking
     // `child.wait()`. EOF on the pty master and the child's exit are not
