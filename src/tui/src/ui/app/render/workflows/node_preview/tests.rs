@@ -116,6 +116,24 @@ fn generic_detail_redacts_credential_shaped_fields_recursively() {
 }
 
 #[test]
+fn http_preview_strips_url_credentials_query_and_fragment() {
+    let preview = text(kind_lines(
+        "http_request",
+        &json!({
+            "method": "POST",
+            "url": "https://user:pass@example.test/hook?access_token=secret#private"
+        }),
+        80,
+        &AgentDefaults::default(),
+    ));
+
+    assert!(preview.contains("https://example.test/hook"), "{preview}");
+    for secret in ["user", "pass", "access_token", "secret", "private"] {
+        assert!(!preview.contains(secret), "{preview}");
+    }
+}
+
+#[test]
 fn agent_steps_explain_the_effective_worker_harness_and_dynamic_task() {
     let preview = text(kind_lines(
         "agent",

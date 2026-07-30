@@ -245,7 +245,8 @@ fn request_lines(config: &Value) -> Vec<Line<'static>> {
     let url = config
         .get("url")
         .and_then(Value::as_str)
-        .unwrap_or("no URL");
+        .map(safe_preview_url)
+        .unwrap_or_else(|| "no URL".to_string());
     let mut lines = vec![Line::from(vec![
         Span::styled(
             format!(" {method} "),
@@ -261,6 +262,30 @@ fn request_lines(config: &Value) -> Vec<Line<'static>> {
         lines.extend(labelled_value("request", &Value::Object(rest)));
     }
     lines
+}
+
+/// Strip URL components that commonly carry credentials before rendering.
+fn safe_preview_url(raw: &str) -> String {
+    let visible_end = raw.find(['?', '#']).unwrap_or(raw.len());
+    let base = &raw[..visible_end];
+    let Some(scheme_end) = base.find("://") else {
+        return base.to_string();
+    };
+    let authority_start = scheme_end + 3;
+    let authority_end = base[authority_start..]
+        .find('/')
+        .map(|offset| authority_start + offset)
+        .unwrap_or(base.len());
+    let authority = &base[authority_start..authority_end];
+    let Some((_, host)) = authority.rsplit_once('@') else {
+        return base.to_string();
+    };
+    format!(
+        "{}{}{}",
+        &base[..authority_start],
+        host,
+        &base[authority_end..]
+    )
 }
 
 /// Render a non-shell tool invocation with its slug and arguments.
