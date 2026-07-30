@@ -80,6 +80,16 @@ impl CapabilitySettings {
         }
     }
 
+    /// Fallback policy for a host whose operator configuration could not load.
+    ///
+    /// This is deliberately stricter than the ordinary local default: a
+    /// malformed explicit opt-out must never turn code execution back on.
+    pub fn fail_closed_at(home: impl Into<PathBuf>) -> Self {
+        let mut settings = Self::rooted_at(home);
+        settings.allow_code = false;
+        settings
+    }
+
     /// How long one script may run.
     ///
     /// A fraction of the run's own bound, so a wedged script fails as a *script*

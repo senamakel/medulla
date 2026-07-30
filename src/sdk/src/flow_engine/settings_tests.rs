@@ -36,6 +36,15 @@ fn an_explicit_config_opt_out_disables_code_execution() {
 }
 
 #[test]
+fn unreadable_config_fallback_disables_code_execution() {
+    let settings = CapabilitySettings::fail_closed_at("/home");
+
+    assert!(!settings.allow_code);
+    assert!(settings.tool_allowlist.is_empty());
+    assert!(settings.http_allowlist.is_empty());
+}
+
+#[test]
 fn state_and_checkpoints_live_under_the_medulla_home() {
     let settings = CapabilitySettings::rooted_at(Path::new("/home/.medulla"));
 
