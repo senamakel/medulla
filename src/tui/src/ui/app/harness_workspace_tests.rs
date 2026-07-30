@@ -4,12 +4,12 @@ use super::harness_workspace::{folder_completions, fuzzy_subsequence_score};
 
 #[test]
 fn fuzzy_matching_accepts_tight_subsequences_and_rejects_missing_characters() {
-    assert!(fuzzy_subsequence_score("workflow-medulla", "wfm").is_some());
+    assert!(fuzzy_subsequence_score("workspace-manager", "wsm").is_some());
     assert!(
-        fuzzy_subsequence_score("workflow-medulla", "workflow")
-            < fuzzy_subsequence_score("workflow-medulla", "wfm")
+        fuzzy_subsequence_score("workspace-manager", "workspace")
+            < fuzzy_subsequence_score("workspace-manager", "wsm")
     );
-    assert_eq!(fuzzy_subsequence_score("workflow-medulla", "xyz"), None);
+    assert_eq!(fuzzy_subsequence_score("workspace-manager", "xyz"), None);
 }
 
 #[test]
