@@ -334,8 +334,14 @@ fn workspace_picker_keeps_recent_workspaces_newest_first() {
     let _ = app.on_event(key(KeyCode::Enter));
     let out = render(&mut app, 140, 44);
 
+    let newest = out
+        .find("zeta-workspace")
+        .expect("newest workspace missing");
+    let older = out
+        .find("alpha-workspace")
+        .expect("older workspace missing");
     assert!(
-        out.find("zeta-workspace") < out.find("alpha-workspace"),
+        newest < older,
         "newest recent workspace must remain first: {out}"
     );
     sessions.shutdown();
