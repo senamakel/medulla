@@ -1,11 +1,153 @@
 //! Tests for the Agents rail's line layout: the width cap, how a row that does
 //! not fit is re-flowed, and what a working directory keeps when it cannot.
 
-use ratatui::style::{Modifier, Style};
+use std::sync::Arc;
+
+use medulla::config::LoadedConfig;
+use medulla::runtime::mock::MockRuntime;
+use medulla::runtime::Runtime;
+use medulla::ui::agents::{AgentLane, AgentRole, AgentRow, TaskState, TaskStatus};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line as TLine, Span};
 use unicode_width::UnicodeWidthStr;
 
+use crate::ui::app::App;
+
 use super::wrap::{flow_path, short_home, wrap_line, wrap_path};
+
+fn app() -> App {
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()))
+}
+
+fn lane() -> AgentLane {
+    AgentLane {
+        key: "k".into(),
+        label: "worker".into(),
+        role: AgentRole::Agent,
+        turns: Vec::new(),
+        last_at: 0,
+        tasks: Vec::new(),
+        context_tokens: None,
+        usage: Default::default(),
+        harness_label: None,
+        agent_id: None,
+        session_id: None,
+        parent_agent_id: None,
+        descriptor: None,
+        active_tasks: 0,
+        work: None,
+    }
+}
+
+fn task(status: TaskStatus, attention: bool, at: i64) -> TaskState {
+    TaskState {
+        task_id: format!("task-{at}"),
+        status,
+        turns: 1,
+        last_at: at,
+        turn_blocks: Vec::new(),
+        attention: attention.then(|| "confirm: continue?".to_string()),
+        question_id: attention.then(|| "question-1".to_string()),
+        work: None,
+    }
+}
+
+#[test]
+fn harness_rows_color_each_lifecycle_state_and_only_working_flashes() {
+    let app = app();
+    let row = AgentRow::Lane { lane_index: 0 };
+    let cases = [
+        (Vec::new(), 0, Color::DarkGray, false, " · inactive"),
+        (
+            vec![task(TaskStatus::Running, false, 1)],
+            1,
+            Color::Green,
+            true,
+            " · working",
+        ),
+        (
+            vec![task(TaskStatus::Running, true, 1)],
+            1,
+            Color::Yellow,
+            false,
+            " · needs input",
+        ),
+        (
+            vec![task(TaskStatus::Failed, false, 1)],
+            0,
+            Color::Red,
+            false,
+            " · errored",
+        ),
+        (
+            vec![task(TaskStatus::Done, false, 1)],
+            0,
+            Color::Green,
+            false,
+            " · completed",
+        ),
+    ];
+
+    for (tasks, active_tasks, color, flashes, suffix) in cases {
+        let mut harness = lane();
+        harness.tasks = tasks;
+        harness.active_tasks = active_tasks;
+        let line = app.agent_row_line(&row, std::slice::from_ref(&harness), false);
+        let style = line.spans[0].style;
+        assert_eq!(style.fg, Some(color), "row: {}", line);
+        assert_eq!(
+            style.add_modifier.contains(Modifier::SLOW_BLINK),
+            flashes,
+            "row: {}",
+            line
+        );
+        assert_eq!(app.lane_state(&harness), suffix);
+    }
+}
+
+#[test]
+fn current_harness_activity_takes_priority_over_an_old_error() {
+    let app = app();
+    let mut harness = lane();
+    harness.tasks = vec![
+        task(TaskStatus::Failed, false, 1),
+        task(TaskStatus::Running, false, 2),
+    ];
+    harness.active_tasks = 1;
+
+    let line = app.agent_row_line(
+        &AgentRow::Lane { lane_index: 0 },
+        std::slice::from_ref(&harness),
+        false,
+    );
+
+    assert_eq!(line.spans[0].style.fg, Some(Color::Green));
+    assert!(line.spans[0]
+        .style
+        .add_modifier
+        .contains(Modifier::SLOW_BLINK));
+    assert_eq!(app.lane_state(&harness), " · working");
+}
+
+#[test]
+fn selected_working_harness_keeps_its_status_color_and_flash() {
+    let app = app();
+    let mut harness = lane();
+    harness.tasks = vec![task(TaskStatus::Running, false, 1)];
+    harness.active_tasks = 1;
+
+    let line = app.agent_row_line(
+        &AgentRow::Lane { lane_index: 0 },
+        std::slice::from_ref(&harness),
+        true,
+    );
+    let style = line.spans[0].style;
+
+    assert_eq!(style.fg, Some(Color::Green));
+    assert_eq!(style.bg, Some(app.theme.primary));
+    assert!(style.add_modifier.contains(Modifier::SLOW_BLINK));
+}
 
 #[test]
 fn a_row_that_fits_is_left_exactly_as_it_was() {

@@ -70,7 +70,7 @@ fn an_unbacked_worker_is_unknown_and_a_roster_seeded_one_is_idle() {
     let a = app();
     // Nothing known at all.
     assert_eq!(a.lane_marker(&lane(AgentRole::Agent), false), "◆");
-    assert_eq!(a.lane_state(&lane(AgentRole::Agent)), " · idle");
+    assert_eq!(a.lane_state(&lane(AgentRole::Agent)), " · inactive");
 }
 
 #[test]
@@ -123,14 +123,14 @@ fn a_session_lane_reflects_its_peer_session_state() {
     live.parent_agent_id = Some("machine-1".to_string());
     assert_eq!(a.session_state(&live).as_deref(), Some("running"));
     assert_eq!(a.lane_marker(&live, false), "●");
-    assert_eq!(a.lane_state(&live), " · running");
+    assert_eq!(a.lane_state(&live), " · working");
 
-    // An ended session is hollow and reads as inactive.
+    // An ended session is terminal and reads as completed.
     let mut done = lane(AgentRole::Agent);
     done.session_id = Some("s-done".to_string());
     done.parent_agent_id = Some("machine-1".to_string());
     assert_eq!(a.lane_marker(&done, false), "○");
-    assert_eq!(a.lane_state(&done), " · inactive");
+    assert_eq!(a.lane_state(&done), " · completed");
 
     // A session id whose parent machine is unknown resolves to nothing, and the
     // row degrades to the pending suffix instead of claiming a state.

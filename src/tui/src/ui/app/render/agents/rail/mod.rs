@@ -23,10 +23,12 @@ use super::super::super::types::App;
 use super::super::color;
 use super::types::{AgentsPanes, Selection};
 
+mod status;
 #[cfg(test)]
 mod tests;
 mod wrap;
 
+use status::HarnessVisualState;
 use wrap::{home_dir, short_home, wrap_line, wrap_path};
 
 /// The most content columns the Agents rail ever takes.
@@ -359,13 +361,7 @@ impl App {
                 } else {
                     String::new()
                 };
-                let mut style = Style::default().fg(color(item.role.color()));
-                if is_fn {
-                    style = style.add_modifier(Modifier::DIM);
-                }
-                if active {
-                    style = self.theme.selection();
-                }
+                let style = self.lane_style(item, is_fn, active);
                 let work_note = item
                     .work
                     .as_deref()
@@ -435,22 +431,43 @@ impl App {
     /// A short human-readable state suffix for a lane row.
     pub(in crate::ui::app::render) fn lane_state(&self, item: &AgentLane) -> String {
         if item.session_id.is_some() {
-            let s = self.session_state(item);
-            match s.as_deref() {
-                Some("ended") => " · inactive".into(),
-                Some(other) => format!(" · {other}"),
-                None => " · …".into(),
-            }
+            self.session_state(item)
+                .map(|_| format!(" · {}", self.harness_visual_state(item).label()))
+                .unwrap_or_else(|| " · …".into())
         } else if item.role == AgentRole::Agent {
-            if item.active_tasks > 0 {
-                " · busy".into()
-            } else if item.turns.is_empty() {
-                " · idle".into()
-            } else {
-                String::new()
-            }
+            format!(" · {}", self.harness_visual_state(item).label())
         } else {
             String::new()
         }
+    }
+
+    /// Style a lane while preserving both selection visibility and harness state.
+    fn lane_style(&self, item: &AgentLane, is_fn: bool, active: bool) -> Style {
+        let mut style = if active {
+            self.theme.selection()
+        } else {
+            Style::default()
+        };
+        if item.role == AgentRole::Agent {
+            let state = self.harness_visual_state(item);
+            style = style.fg(state.color());
+            if state.flashes() {
+                style = style.add_modifier(Modifier::SLOW_BLINK);
+            }
+        } else {
+            style = style.fg(color(item.role.color()));
+        }
+        if is_fn {
+            style = style.add_modifier(Modifier::DIM);
+        }
+        style
+    }
+
+    /// Resolve the current state instead of letting an older terminal task
+    /// override newer work. Pending input wins over active work, then the most
+    /// recent terminal task supplies completion or error.
+    fn harness_visual_state(&self, item: &AgentLane) -> HarnessVisualState {
+        let session = self.session_state(item);
+        status::classify(item, session.as_deref())
     }
 }
