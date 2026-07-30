@@ -1,6 +1,8 @@
 //! Focused tests for bounded folder completion and fuzzy ranking.
 
-use super::harness_workspace::{folder_completions, fuzzy_subsequence_score, match_score};
+use super::harness_workspace::{
+    absolute, folder_completions, fuzzy_subsequence_score, match_score,
+};
 
 #[test]
 fn fuzzy_matching_accepts_tight_subsequences_and_rejects_missing_characters() {
@@ -31,6 +33,14 @@ fn folder_completion_lists_matching_children_but_never_files() {
 #[test]
 fn known_workspace_basename_prefixes_beat_filesystem_duplicates() {
     assert_eq!(match_score("/work/project-beta", "project-b"), Some(1));
+}
+
+#[test]
+fn registered_relative_workspace_resolves_from_process_directory() {
+    let process_dir = std::path::Path::new("/work");
+
+    assert_eq!(absolute("other", process_dir), "/work/other");
+    assert_eq!(absolute("/srv/repo", process_dir), "/srv/repo");
 }
 
 #[test]

@@ -92,6 +92,7 @@ impl App {
             return Vec::new();
         };
         let base = Path::new(&harnesses.workspace);
+        let process_dir = std::env::current_dir().unwrap_or_else(|_| base.to_path_buf());
         let resolved_query = harnesses.resolve_workspace(query);
         let mut known = Vec::new();
         for path in &self.loaded.config.harness.recent_workspaces {
@@ -100,19 +101,19 @@ impl App {
         known.push((harnesses.workspace.clone(), "default"));
         if !self.loaded.config.host.workspace.trim().is_empty() {
             known.push((
-                absolute(&self.loaded.config.host.workspace, base),
+                absolute(&self.loaded.config.host.workspace, &process_dir),
                 "registered",
             ));
         }
         for path in &self.loaded.config.host.workspaces {
-            known.push((absolute(path, base), "registered"));
+            known.push((absolute(path, &process_dir), "registered"));
         }
         for host in &self.loaded.config.hosts {
             if !host.workspace.trim().is_empty() {
-                known.push((absolute(&host.workspace, base), "registered"));
+                known.push((absolute(&host.workspace, &process_dir), "registered"));
             }
             for path in &host.workspaces {
-                known.push((absolute(path, base), "registered"));
+                known.push((absolute(path, &process_dir), "registered"));
             }
         }
 
@@ -162,8 +163,8 @@ impl App {
     }
 }
 
-/// Make a configured path absolute against the local host workspace.
-fn absolute(path: &str, base: &Path) -> String {
+/// Make a configured path absolute against its owning resolution directory.
+pub(super) fn absolute(path: &str, base: &Path) -> String {
     let path = Path::new(path);
     if path.is_absolute() {
         path.to_string_lossy().into_owned()
