@@ -210,6 +210,29 @@ fn persist_setting_preserves_json_format_and_unrelated_values() {
 }
 
 #[test]
+fn persist_setting_uses_json_for_extensionless_config_like_the_loader() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("medulla-config");
+    std::fs::write(&path, r#"{"harness":{"skipPermissions":true}}"#).expect("seed");
+
+    super::persist_setting(
+        &path,
+        "harness",
+        "recentWorkspaces",
+        toml::Value::Array(vec![toml::Value::String("/work/medulla".into())]),
+    )
+    .expect("write");
+
+    let saved = std::fs::read_to_string(&path).expect("read");
+    let parsed: serde_json::Value = serde_json::from_str(&saved).expect("JSON remains valid");
+    assert_eq!(parsed["harness"]["skipPermissions"], true);
+    assert_eq!(
+        parsed["harness"]["recentWorkspaces"],
+        serde_json::json!(["/work/medulla"])
+    );
+}
+
+#[test]
 fn subscription_routing_strategy_persists_without_clobbering_host_strategy() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("config.toml");

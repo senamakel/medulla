@@ -7,7 +7,7 @@
 //!
 //! Every writer here follows the same rule: parse the target file, replace only
 //! its own section, and write the whole document back. JSON is preserved for
-//! JSON targets; every other target uses TOML. Unrelated keys — and any other
+//! JSON targets; only `.toml` targets use TOML. Unrelated keys — and any other
 //! file in the layered load — are preserved.
 
 use std::path::Path;
@@ -16,8 +16,8 @@ use std::path::Path;
 ///
 /// This is the generic form of the writers below: it parses the whole document,
 /// merges `value` into `section` (creating either when absent), and writes the
-/// document back, so unrelated keys and sections survive. A `.json` target is
-/// parsed and rendered as JSON; every other extension uses TOML. Comments and
+/// document back, so unrelated keys and sections survive. A `.toml` target is
+/// parsed and rendered as TOML; every other extension uses JSON. Comments and
 /// key ordering are *not* preserved.
 ///
 /// A missing or empty file is treated as an empty document rather than an
@@ -33,7 +33,7 @@ pub fn persist_setting(
     key: &str,
     value: toml::Value,
 ) -> anyhow::Result<()> {
-    if is_json(path) {
+    if uses_json_format(path) {
         return persist_json_setting(path, section, key, value);
     }
     let mut doc = read_document(path)?;
@@ -89,11 +89,12 @@ fn persist_json_setting(
         .map_err(|error| anyhow::anyhow!("Cannot write {}: {error}", path.display()))
 }
 
-/// JSON is opt-in by extension, matching the config loader.
-fn is_json(path: &Path) -> bool {
-    path.extension()
+/// Match the loader: only `.toml` selects TOML; every other path selects JSON.
+fn uses_json_format(path: &Path) -> bool {
+    !path
+        .extension()
         .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))
 }
 
 /// Replace a top-level key, preserving every other key and section.
