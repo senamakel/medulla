@@ -50,6 +50,12 @@ pub struct RunStep {
     pub status: String,
     /// Wall-clock duration in milliseconds.
     pub duration_ms: u128,
+    /// The resolved input this activation received.
+    ///
+    /// Currently recorded for agent nodes as their full prompt. Absent on
+    /// other node kinds and on records written before input evidence existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
     /// The items emitted by this activation, retained for run inspection.
     ///
     /// Absent on records written before step results were persisted and null

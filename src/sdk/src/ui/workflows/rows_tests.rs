@@ -25,6 +25,7 @@ fn run(id: &str, status: RunStatus) -> RunRecord {
             node_id: "a".into(),
             status: "success".into(),
             duration_ms: 5,
+            input: None,
             output: None,
             diagnostics: Vec::new(),
         }],

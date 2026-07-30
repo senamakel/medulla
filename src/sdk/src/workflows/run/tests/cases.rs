@@ -24,7 +24,7 @@ pub(super) use crate::workflows::{
 /// A dispatch that answers immediately, recording what it saw.
 #[derive(Default)]
 pub(super) struct StubDispatch {
-    seen: Mutex<Vec<TaskRequest>>,
+    pub(super) seen: Mutex<Vec<TaskRequest>>,
 }
 
 #[async_trait]
@@ -227,6 +227,24 @@ async fn a_diamond_runs_both_branches_and_waits_for_them_at_the_merge() {
         dispatched.len(),
         2,
         "both branches should have dispatched: {dispatched:?}"
+    );
+    assert_eq!(
+        record
+            .steps
+            .iter()
+            .find(|step| step.node_id == "left")
+            .and_then(|step| step.input.as_ref()),
+        Some(&json!("left")),
+        "the resolved prompt is durable evidence on the correct parallel step"
+    );
+    assert_eq!(
+        record
+            .steps
+            .iter()
+            .find(|step| step.node_id == "right")
+            .and_then(|step| step.input.as_ref()),
+        Some(&json!("right")),
+        "parallel agent prompts must not be crossed"
     );
     assert!(dispatched.contains(&"a".to_string()));
     assert!(dispatched.contains(&"b".to_string()));

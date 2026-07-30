@@ -25,6 +25,7 @@ use serde_json::Value;
 use tinyflows::caps::{Capabilities, WorkflowResolver};
 use tinyflows::engine::{Checkpointer, FileCheckpointer};
 
+use crate::flow_engine::agent_evidence::AgentEvidence;
 use crate::flow_engine::settings::CapabilitySettings;
 
 use self::agent::{HarnessAgentRunner, HarnessLlm};
@@ -59,6 +60,28 @@ pub fn build_capabilities(
     state_namespace: &str,
     run_id: &str,
 ) -> Capabilities {
+    build_capabilities_inner(settings, services, state_namespace, run_id, None)
+}
+
+/// Build capabilities that also capture resolved agent prompts for run history.
+pub(crate) fn build_capabilities_with_agent_evidence(
+    settings: Arc<CapabilitySettings>,
+    services: HostServices,
+    state_namespace: &str,
+    run_id: &str,
+    evidence: Arc<AgentEvidence>,
+) -> Capabilities {
+    build_capabilities_inner(settings, services, state_namespace, run_id, Some(evidence))
+}
+
+/// Shared capability assembly, optionally instrumented with agent evidence.
+fn build_capabilities_inner(
+    settings: Arc<CapabilitySettings>,
+    services: HostServices,
+    state_namespace: &str,
+    run_id: &str,
+    evidence: Option<Arc<AgentEvidence>>,
+) -> Capabilities {
     let code: Arc<dyn tinyflows::caps::CodeRunner> = if settings.allow_code {
         // The same bound `medulla:shell` uses, so an author who moves a
         // script between the two does not silently change its deadline.
@@ -67,17 +90,36 @@ pub fn build_capabilities(
         Arc::new(DeniedCodeRunner)
     };
 
-    Capabilities {
-        llm: Arc::new(HarnessLlm::new(
+    let llm: Arc<dyn tinyflows::caps::LlmProvider> = match &evidence {
+        Some(evidence) => Arc::new(HarnessLlm::recording(
+            services.dispatch.clone(),
+            settings.clone(),
+            run_id,
+            evidence.clone(),
+        )),
+        None => Arc::new(HarnessLlm::new(
             services.dispatch.clone(),
             settings.clone(),
             run_id,
         )),
-        agent: Some(Arc::new(HarnessAgentRunner::new(
+    };
+    let agent: Arc<dyn tinyflows::caps::AgentRunner> = match evidence {
+        Some(evidence) => Arc::new(HarnessAgentRunner::recording(
             services.dispatch,
             settings.clone(),
             run_id,
-        ))),
+            evidence,
+        )),
+        None => Arc::new(HarnessAgentRunner::new(
+            services.dispatch,
+            settings.clone(),
+            run_id,
+        )),
+    };
+
+    Capabilities {
+        llm,
+        agent: Some(agent),
         tools: Arc::new(MedullaToolInvoker::new(settings.clone())),
         http: Arc::new(AllowlistHttpClient::new(
             settings.clone(),

@@ -82,6 +82,7 @@ fn run_records_use_camel_case_on_the_wire() {
             node_id: "start".into(),
             status: "ok".into(),
             duration_ms: 3,
+            input: Some(json!("inspect this")),
             output: None,
             diagnostics: Vec::new(),
         }],
@@ -100,6 +101,7 @@ fn run_records_use_camel_case_on_the_wire() {
         "an absent error should not be written"
     );
     assert!(wire["steps"][0].get("nodeId").is_some());
+    assert_eq!(wire["steps"][0]["input"], json!("inspect this"));
 }
 
 #[test]
@@ -121,6 +123,7 @@ fn a_run_file_written_before_evidence_existed_still_parses() {
     .expect("a run record from before the evidence fields must still load");
 
     assert_eq!(parsed.status, RunStatus::Failed);
+    assert!(parsed.steps[0].input.is_none());
     assert!(parsed.summary.is_none());
     assert!(parsed.diagnosis.is_none());
 }

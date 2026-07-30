@@ -91,7 +91,7 @@ impl App {
                     Style::default().fg(Color::Yellow),
                 )));
             }
-            lines.extend(run_lines(run, &selected.id));
+            lines.extend(run_lines(run, &selected.id, selected.kind == "agent"));
             lines.push(Line::from(""));
         }
 
@@ -117,7 +117,7 @@ impl App {
 }
 
 /// Render what the selected run recorded for one node.
-fn run_lines(run: &RunRecord, node_id: &str) -> Vec<Line<'static>> {
+fn run_lines(run: &RunRecord, node_id: &str, is_agent: bool) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     if let Some(summary) = &run.summary {
         lines.push(Line::from(vec![
@@ -128,11 +128,29 @@ fn run_lines(run: &RunRecord, node_id: &str) -> Vec<Line<'static>> {
 
     match run.steps.iter().rev().find(|step| step.node_id == node_id) {
         Some(step) => {
+            if is_agent {
+                match &step.input {
+                    Some(input) => lines.extend(labelled_value("prompt", input)),
+                    None => lines.push(Line::from(Span::styled(
+                        "prompt  unavailable in this older run record",
+                        Style::default().add_modifier(Modifier::DIM),
+                    ))),
+                }
+            }
             if let Some(output) = &step.output {
-                lines.extend(labelled_value("result", output));
+                let label = if is_agent { "output" } else { "result" };
+                let value = if is_agent {
+                    agent_output(output)
+                } else {
+                    output.clone()
+                };
+                lines.extend(labelled_value(label, &value));
             } else if step.status.eq_ignore_ascii_case("error") {
                 lines.push(Line::from(Span::styled(
-                    "result  no output was produced",
+                    format!(
+                        "{}  no output was produced",
+                        if is_agent { "output" } else { "result" }
+                    ),
                     Style::default().fg(Color::Red),
                 )));
             } else {
@@ -194,6 +212,22 @@ fn run_lines(run: &RunRecord, node_id: &str) -> Vec<Line<'static>> {
         )));
     }
     lines
+}
+
+/// Pull the harness prose out of the engine's item envelope when available.
+fn agent_output(output: &Value) -> Value {
+    let replies = output
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.get("json")?.get("text")?.as_str())
+        .map(|text| Value::String(text.to_string()))
+        .collect::<Vec<_>>();
+    match replies.len() {
+        0 => output.clone(),
+        1 => replies.into_iter().next().unwrap_or(Value::Null),
+        _ => Value::Array(replies),
+    }
 }
 
 /// A diagnosis line that stands apart from ordinary result data.

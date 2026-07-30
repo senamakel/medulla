@@ -3,7 +3,9 @@
 use ratatui::text::Line;
 use serde_json::json;
 
-use super::kind_lines;
+use medulla::workflows::{RunRecord, RunStatus, RunStep};
+
+use super::{kind_lines, run_lines};
 
 /// Flatten styled lines into the text an operator reads.
 fn text(lines: Vec<Line<'static>>) -> String {
@@ -70,4 +72,39 @@ fn generic_detail_redacts_credential_shaped_fields_recursively() {
     assert!(!preview.contains("Bearer private"), "{preview}");
     assert!(!preview.contains("\"private\""), "{preview}");
     assert!(preview.contains("••••"), "{preview}");
+}
+
+#[test]
+fn agent_run_detail_shows_the_resolved_prompt_and_plain_reply() {
+    let run = RunRecord {
+        id: "run-1".into(),
+        workflow_id: "demo".into(),
+        status: RunStatus::Succeeded,
+        started_at: 1,
+        finished_at: Some(2),
+        steps: vec![RunStep {
+            node_id: "agent".into(),
+            status: "success".into(),
+            duration_ms: 3,
+            input: Some(json!("Review every changed file\nand explain the risk.")),
+            output: Some(json!([
+                { "json": { "text": "The change is safe.\nTests cover the edge case." } }
+            ])),
+            diagnostics: Vec::new(),
+        }],
+        pending_approvals: Vec::new(),
+        error: None,
+        summary: None,
+        diagnosis: None,
+    };
+
+    let preview = text(run_lines(&run, "agent", true));
+
+    assert!(preview.contains("prompt"), "{preview}");
+    assert!(preview.contains("Review every changed file"), "{preview}");
+    assert!(preview.contains("and explain the risk."), "{preview}");
+    assert!(preview.contains("output"), "{preview}");
+    assert!(preview.contains("The change is safe."), "{preview}");
+    assert!(preview.contains("Tests cover the edge case."), "{preview}");
+    assert!(!preview.contains("\"json\""), "{preview}");
 }
