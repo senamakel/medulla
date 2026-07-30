@@ -56,6 +56,32 @@ fn shell_tool_steps_use_the_same_code_viewer() {
 }
 
 #[test]
+fn shell_tool_steps_redact_credentials_before_highlighting() {
+    let preview = text(kind_lines(
+        "tool_call",
+        &json!({
+            "slug": "medulla:shell",
+            "args": {
+                "language": "shell",
+                "script": "curl -H 'Authorization: Basic dXNlcjpwYXNz' https://example.test\nPASSWORD=short\ncurl https://user:pass@example.test/hook?x=private\necho visible"
+            }
+        }),
+        100,
+        &AgentDefaults::default(),
+    ));
+
+    for secret in ["dXNlcjpwYXNz", "short", "user:pass", "x=private"] {
+        assert!(!preview.contains(secret), "{preview}");
+    }
+    assert!(
+        preview.contains("credential-bearing source redacted"),
+        "{preview}"
+    );
+    assert!(preview.contains("https://example.test/hook"), "{preview}");
+    assert!(preview.contains("echo visible"), "{preview}");
+}
+
+#[test]
 fn wrapped_code_keeps_a_blank_gutter_on_continuation_lines() {
     let lines = kind_lines(
         "code",
