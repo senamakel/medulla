@@ -12,6 +12,9 @@
 //! are re-exported here so callers use `crate::ui::app::*`.
 
 mod account;
+mod appearance;
+#[cfg(test)]
+mod appearance_tests;
 mod commands;
 mod credentials;
 mod custom_harnesses;

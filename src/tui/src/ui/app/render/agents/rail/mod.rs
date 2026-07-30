@@ -16,7 +16,7 @@ use ratatui::Frame;
 use unicode_width::UnicodeWidthStr;
 
 use crate::ui::agents::{AgentLane, AgentRole, AgentRow, TaskStatus};
-use crate::ui::util::fmt_tokens;
+use crate::ui::util::{clip, fmt_tokens};
 use crate::worker::pty::{HarnessControl, SessionRow};
 
 use super::super::super::rail::{RailRow, NEW_HARNESS_LABEL};
@@ -261,18 +261,32 @@ impl App {
             Style::default()
         };
         let head = format!("{} {}{control}", row.state.glyph(), row.provider.as_str());
-        let path_style = if active {
+        let detail_style = if active {
             style
         } else {
             style.add_modifier(Modifier::DIM)
         };
         const SEPARATOR: &str = " · ";
-        let path_room = width.saturating_sub(head.width() + SEPARATOR.width());
         let mut spans = vec![Span::styled(head, style)];
-        if path_room >= 4 {
+        let mut used = spans[0].width();
+        let appearance = &self.loaded.config.appearance;
+        if appearance.show_harness_branch {
+            if let Some(branch) = row.branch.as_deref() {
+                let remaining = width.saturating_sub(used + SEPARATOR.width());
+                let reserve_for_path = if appearance.show_harness_path { 7 } else { 0 };
+                let branch_room = remaining.saturating_sub(reserve_for_path).min(16);
+                if branch_room >= 2 {
+                    let branch = clip(branch, branch_room);
+                    used += SEPARATOR.width() + branch.width();
+                    spans.push(Span::styled(format!("{SEPARATOR}{branch}"), detail_style));
+                }
+            }
+        }
+        let path_room = width.saturating_sub(used + SEPARATOR.width());
+        if appearance.show_harness_path && path_room >= 4 {
             let path = short_home(&row.cwd, home_dir().as_deref());
             let path = wrap_path(&path, path_room, 1).concat();
-            spans.push(Span::styled(format!("{SEPARATOR}{path}"), path_style));
+            spans.push(Span::styled(format!("{SEPARATOR}{path}"), detail_style));
         }
         vec![TLine::from(spans)]
     }

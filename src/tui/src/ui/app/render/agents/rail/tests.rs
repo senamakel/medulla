@@ -61,6 +61,7 @@ fn harness_row(cwd: &str) -> SessionRow {
         provider: medulla::tinyplace::HarnessProvider::Codex,
         state: PtyState::Running,
         cwd: cwd.into(),
+        branch: Some("main".into()),
         session_id: None,
         started_at: 1,
         last_output_at: 1,
@@ -79,7 +80,7 @@ fn an_operator_harness_uses_one_compact_line_like_the_orchestrator() {
     assert_eq!(lines.len(), 1, "a harness should consume one rail row");
     assert_eq!(
         lines[0].to_string(),
-        "● codex · unmanaged · /workspace/medulla"
+        "● codex · unmanaged · main · /workspace/medulla"
     );
 }
 
@@ -97,6 +98,37 @@ fn a_long_harness_path_is_shortened_instead_of_adding_rows() {
     assert!(
         lines[0].to_string().ends_with("public"),
         "the path tail should survive even when the checkout name is shortened"
+    );
+}
+
+#[test]
+fn harness_branch_and_path_can_be_hidden_independently() {
+    let mut app = app();
+    let row = harness_row("/workspace/medulla");
+
+    app.loaded.config.appearance.show_harness_branch = false;
+    assert_eq!(
+        app.own_harness_lines(&row, false, 48)[0].to_string(),
+        "● codex · unmanaged · /workspace/medulla"
+    );
+
+    app.loaded.config.appearance.show_harness_branch = true;
+    app.loaded.config.appearance.show_harness_path = false;
+    assert_eq!(
+        app.own_harness_lines(&row, false, 48)[0].to_string(),
+        "● codex · unmanaged · main"
+    );
+}
+
+#[test]
+fn a_non_git_harness_omits_the_branch_without_a_placeholder() {
+    let app = app();
+    let mut row = harness_row("/workspace/medulla");
+    row.branch = None;
+
+    assert_eq!(
+        app.own_harness_lines(&row, false, 48)[0].to_string(),
+        "● codex · unmanaged · /workspace/medulla"
     );
 }
 
