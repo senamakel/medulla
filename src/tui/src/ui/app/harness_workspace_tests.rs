@@ -37,10 +37,18 @@ fn known_workspace_basename_prefixes_beat_filesystem_duplicates() {
 
 #[test]
 fn registered_relative_workspace_resolves_from_process_directory() {
-    let process_dir = std::path::Path::new("/work");
+    let root = tempfile::tempdir().unwrap();
+    let process_dir = root.path().join("work");
+    let already_absolute = root.path().join("srv").join("repo");
 
-    assert_eq!(absolute("other", process_dir), "/work/other");
-    assert_eq!(absolute("/srv/repo", process_dir), "/srv/repo");
+    assert_eq!(
+        std::path::PathBuf::from(absolute("other", &process_dir)),
+        process_dir.join("other")
+    );
+    assert_eq!(
+        std::path::PathBuf::from(absolute(already_absolute.to_str().unwrap(), &process_dir)),
+        already_absolute
+    );
 }
 
 #[test]
