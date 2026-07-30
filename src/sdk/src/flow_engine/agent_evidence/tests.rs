@@ -49,3 +49,25 @@ fn every_prompt_from_a_per_item_agent_is_kept() {
         Some(json!(["Review the first file", "Review the second file"]))
     );
 }
+
+#[test]
+fn prompt_queue_is_bounded_before_the_run_finishes() {
+    let evidence = AgentEvidence::default();
+    let request = json!({ (NODE_ID_FIELD): "work" });
+    evidence.record(&request, &"x".repeat(128 * 1024));
+    evidence.record(&request, "must not grow the queue again");
+    let mut steps = [RunStep {
+        node_id: "work".into(),
+        status: "success".into(),
+        duration_ms: 4,
+        input: None,
+        output: None,
+        diagnostics: Vec::new(),
+    }];
+
+    evidence.attach(&mut steps);
+
+    let input = serde_json::to_vec(&steps[0].input).unwrap();
+    assert!(input.len() <= 64 * 1024 + 256);
+    assert_eq!(steps[0].input.as_ref().unwrap()["_medullaTruncated"], true);
+}

@@ -9,6 +9,10 @@ use crate::workflows::RunStep;
 
 use super::NODE_ID_FIELD;
 
+const MAX_PROMPT_BYTES_PER_NODE: usize = 64 * 1024;
+const MAX_PROMPTS_PER_NODE: usize = 128;
+const TRUNCATED: &str = "[additional prompt evidence truncated]";
+
 /// Resolved agent prompts waiting to be attached to completed run steps.
 #[derive(Debug, Default)]
 pub(crate) struct AgentEvidence {
@@ -21,12 +25,33 @@ impl AgentEvidence {
         let Some(node_id) = request.get(NODE_ID_FIELD).and_then(Value::as_str) else {
             return;
         };
-        self.prompts
-            .lock()
-            .expect("agent evidence lock")
-            .entry(node_id.to_string())
-            .or_default()
-            .push_back(prompt.to_string());
+        let mut prompts = self.prompts.lock().expect("agent evidence lock");
+        let queue = prompts.entry(node_id.to_string()).or_default();
+        if queue.back().is_some_and(|value| value == TRUNCATED) {
+            return;
+        }
+        let used = queue.iter().map(String::len).sum::<usize>();
+        if queue.len() >= MAX_PROMPTS_PER_NODE - 1 || used >= MAX_PROMPT_BYTES_PER_NODE {
+            queue.push_back(TRUNCATED.to_string());
+            return;
+        }
+        let available = MAX_PROMPT_BYTES_PER_NODE
+            .saturating_sub(used)
+            .saturating_sub(TRUNCATED.len());
+        if prompt.len() <= available {
+            queue.push_back(prompt.to_string());
+            return;
+        }
+        let end = prompt
+            .char_indices()
+            .map(|(index, _)| index)
+            .take_while(|index| *index <= available)
+            .last()
+            .unwrap_or(0);
+        if end > 0 {
+            queue.push_back(prompt[..end].to_string());
+        }
+        queue.push_back(TRUNCATED.to_string());
     }
 
     /// Attach prompts to their corresponding persisted steps in completion order.
