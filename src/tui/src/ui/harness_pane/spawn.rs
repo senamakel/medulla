@@ -9,11 +9,9 @@
 //!
 //! [`claim_idle`]: crate::worker::pty::PtyManager::claim_idle
 
-use medulla::tinyplace::HarnessProvider;
-
 use crate::worker::pty::{HarnessControl, LaunchSpec};
 
-use super::LocalHarnesses;
+use super::{HarnessChoice, LocalHarnesses};
 
 impl LocalHarnesses {
     /// Who currently holds `session_id`.
@@ -41,7 +39,7 @@ impl LocalHarnesses {
     /// start claude" is a much worse message than naming the folder.
     pub fn open_unmanaged(
         &self,
-        provider: HarnessProvider,
+        choice: &HarnessChoice,
         cwd: &str,
         skip_permissions: bool,
     ) -> Result<String, String> {
@@ -54,8 +52,10 @@ impl LocalHarnesses {
             return Err(format!("{cwd} is not a directory"));
         }
 
+        let provider = choice.provider;
         let bin = medulla::tinyplace::env::provider_bin(provider, &self.env);
-        let (env, extra_args) = self.spawn_env(provider)?;
+        let (env, extra_args) = self.spawn_env(choice)?;
+        let model = choice.preset.as_ref().map(|preset| preset.model.clone());
 
         self.sessions.open(LaunchSpec {
             provider,
@@ -68,8 +68,8 @@ impl LocalHarnesses {
             // dialog hangs it — the opposite is true here, so the harness keeps
             // its own guardrails and the person who asked for it answers them.
             skip_permissions,
-            label: format!("you:{}", provider.as_str()),
-            model: None,
+            label: format!("you:{}", choice.id()),
+            model,
             session_id: None,
             control: HarnessControl::User,
             user_spawned: true,
@@ -82,16 +82,18 @@ impl LocalHarnesses {
     /// dispatched one reach the same endpoint: a configured `[router]` that
     /// applied to one but not the other would silently change which model
     /// answered, with nothing on screen to say so.
-    fn spawn_env(
+    pub(super) fn spawn_env(
         &self,
-        provider: HarnessProvider,
+        choice: &HarnessChoice,
     ) -> Result<(std::collections::HashMap<String, String>, Vec<String>), String> {
         let mut env = self.env.clone();
         let mut extra_args = Vec::new();
-        let Some(router) = &self.router else {
+        let custom_router = choice.preset.as_ref().map(|preset| preset.router());
+        let router = custom_router.as_ref().or(self.router.as_ref());
+        let Some(router) = router else {
             return Ok((env, extra_args));
         };
-        let injection = medulla::tinyplace::env::router_env(provider, router);
+        let injection = medulla::tinyplace::env::router_env(choice.provider, router);
         for (key, value) in injection.env {
             env.insert(key, value);
         }
@@ -109,6 +111,9 @@ impl LocalHarnesses {
             }
         }
         extra_args.extend(injection.args);
+        if let Some(preset) = &choice.preset {
+            env.extend(preset.harness_env());
+        }
         Ok((env, extra_args))
     }
 }

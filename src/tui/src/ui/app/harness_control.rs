@@ -14,6 +14,7 @@
 use crossterm::event::KeyCode;
 use medulla::tinyplace::HarnessProvider;
 
+use crate::ui::harness_pane::HarnessChoice;
 use crate::worker::pty::HarnessControl;
 
 use crate::ui::composer::Draft;
@@ -37,15 +38,16 @@ impl App {
         match provider.and_then(HarnessProvider::from_wire) {
             Some(provider) => {
                 let cwd = path.unwrap_or("").to_string();
-                self.spawn_harness(provider, &cwd);
+                self.spawn_harness(HarnessChoice::native(provider), &cwd);
             }
             None => {
-                if harnesses.providers.is_empty() {
+                let choices = harnesses.choices();
+                if choices.is_empty() {
                     self.set_status("No harness CLIs found on this device");
                     return;
                 }
                 self.harness_picker = Some(HarnessPicker {
-                    providers: harnesses.providers.clone(),
+                    choices,
                     index: 0,
                     cwd: path
                         .map(str::to_string)
@@ -65,24 +67,26 @@ impl App {
     /// Selecting the new row matters more than it sounds: a harness that
     /// appears somewhere below the fold, with the pane still showing whatever
     /// was selected before, reads as "nothing happened".
-    pub(super) fn spawn_harness(&mut self, provider: HarnessProvider, cwd: &str) {
+    pub(super) fn spawn_harness(&mut self, choice: HarnessChoice, cwd: &str) {
         let Some(harnesses) = self.harnesses.clone() else {
             self.set_status("This device is not hosting, so it has no harnesses to start");
             return;
         };
         let skip = self.harness_skip_permissions;
-        match harnesses.open_unmanaged(provider, cwd, skip) {
+        match harnesses.open_unmanaged(&choice, cwd, skip) {
             Ok(id) => {
                 self.tab_index = tab_pos("Agents");
                 self.select_harness_row(&id);
                 self.set_status(format!(
                     "Started {} · unmanaged, the orchestrator will not use it",
-                    provider.as_str()
+                    choice.display_name()
                 ));
             }
             // Surfaced, never swallowed: a spawn that fails silently leaves the
             // operator waiting for a pane that is never coming.
-            Err(err) => self.set_status(format!("Could not start {}: {err}", provider.as_str())),
+            Err(err) => {
+                self.set_status(format!("Could not start {}: {err}", choice.display_name()))
+            }
         }
     }
 
@@ -222,7 +226,7 @@ impl App {
             }
             KeyCode::Down => {
                 if let Some(picker) = &mut self.harness_picker {
-                    picker.index = (picker.index + 1).min(picker.providers.len().saturating_sub(1));
+                    picker.index = (picker.index + 1).min(picker.choices.len().saturating_sub(1));
                 }
             }
             KeyCode::Char('e') => {
@@ -241,9 +245,9 @@ impl App {
             }
             KeyCode::Enter => {
                 if let Some(picker) = self.harness_picker.take() {
-                    if let Some(provider) = picker.providers.get(picker.index).copied() {
+                    if let Some(choice) = picker.choices.get(picker.index).cloned() {
                         let cwd = picker.cwd.clone();
-                        self.spawn_harness(provider, &cwd);
+                        self.spawn_harness(choice, &cwd);
                     }
                 }
             }

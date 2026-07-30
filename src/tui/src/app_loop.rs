@@ -459,13 +459,16 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // for that. Only task resolution needs every host, which is `runtimes`.
     // Read before the list moves into the shared handle below.
     let primary_defaults = local_hosts.first().map(|primary| {
-        (
-            primary.workspace().to_string(),
-            primary.providers().to_vec(),
-        )
+        let providers = medulla::daemon::providers::detect_providers(&env, None, None);
+        let presets = custom_harnesses
+            .iter()
+            .filter(|preset| preset.host_id == primary.address())
+            .cloned()
+            .collect::<Vec<_>>();
+        (primary.workspace().to_string(), providers, presets)
     });
     let started_hosts = std::sync::Arc::new(std::sync::Mutex::new(local_hosts));
-    let local_harnesses = primary_defaults.map(|(workspace, providers)| {
+    let local_harnesses = primary_defaults.map(|(workspace, providers, custom_harnesses)| {
         medulla_tui::ui::harness_pane::LocalHarnesses {
             sessions: harness_sessions.clone(),
             runtimes: host_runtimes.clone(),
@@ -473,6 +476,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             env: env.clone(),
             workspace,
             providers,
+            custom_harnesses,
             router: loaded.config.router.clone(),
         }
     });

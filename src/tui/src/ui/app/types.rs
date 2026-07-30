@@ -555,8 +555,8 @@ pub(super) struct ResumePicker {
 
 /// The modal state for the "start a harness" picker overlay.
 pub(super) struct HarnessPicker {
-    /// The providers this device actually has, in offer order.
-    pub(super) providers: Vec<medulla::tinyplace::HarnessProvider>,
+    /// Installed providers and registered presets, in offer order.
+    pub(super) choices: Vec<crate::ui::harness_pane::HarnessChoice>,
     /// The highlighted row.
     pub(super) index: usize,
     /// Where the harness will be started. Defaults to the host's workspace and

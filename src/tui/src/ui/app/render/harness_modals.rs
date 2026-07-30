@@ -20,7 +20,7 @@ impl App {
         let Some(picker) = &self.harness_picker else {
             return;
         };
-        let height = (picker.providers.len() as u16).saturating_add(5).min(14);
+        let height = (picker.choices.len() as u16).saturating_add(5).min(14);
         let area = centered(area, 62, height);
         let block = Block::default()
             .borders(Borders::ALL)
@@ -39,7 +39,7 @@ impl App {
         f.render_widget(block, area);
 
         let mut lines = Vec::new();
-        for (i, provider) in picker.providers.iter().enumerate() {
+        for (i, choice) in picker.choices.iter().enumerate() {
             let marker = if i == picker.index { "❯ " } else { "  " };
             let style = if i == picker.index {
                 self.theme.selection()
@@ -47,7 +47,7 @@ impl App {
                 Style::default()
             };
             lines.push(TLine::from(Span::styled(
-                format!("{marker}{}", provider.display_name()),
+                format!("{marker}{}", choice.display_name()),
                 style,
             )));
         }

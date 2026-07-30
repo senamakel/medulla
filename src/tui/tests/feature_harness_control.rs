@@ -77,6 +77,7 @@ fn app_with_harnesses(sessions: PtyManager) -> App {
         env,
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
+        custom_harnesses: Vec::new(),
         router: None,
     });
     app
