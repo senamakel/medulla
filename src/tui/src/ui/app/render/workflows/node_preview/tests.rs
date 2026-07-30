@@ -5,7 +5,7 @@ use serde_json::json;
 
 use medulla::workflows::{RunRecord, RunStatus, RunStep};
 
-use super::{kind_lines, run_lines};
+use super::{kind_lines, run_lines, AgentDefaults};
 
 /// Flatten styled lines into the text an operator reads.
 fn text(lines: Vec<Line<'static>>) -> String {
@@ -30,6 +30,7 @@ fn code_steps_have_a_language_badge_and_numbered_source() {
             "source": "def greet(name):\n    return f\"hi {name}\""
         }),
         80,
+        &AgentDefaults::default(),
     ));
 
     assert!(preview.contains("python"), "{preview}");
@@ -46,6 +47,7 @@ fn shell_tool_steps_use_the_same_code_viewer() {
             "args": { "language": "shell", "script": "cargo test\ncargo clippy" }
         }),
         80,
+        &AgentDefaults::default(),
     ));
 
     assert!(preview.contains("executable source"), "{preview}");
@@ -62,6 +64,7 @@ fn wrapped_code_keeps_a_blank_gutter_on_continuation_lines() {
             "source": "printf '%s' \"$pr\" | jq -c --argjson result \"$roll\""
         }),
         24,
+        &AgentDefaults::default(),
     );
     let rendered = lines
         .iter()
@@ -97,6 +100,7 @@ fn generic_detail_redacts_credential_shaped_fields_recursively() {
             "api_key": "private"
         }),
         80,
+        &AgentDefaults::default(),
     ));
 
     assert!(preview.contains("POST"), "{preview}");
@@ -105,6 +109,33 @@ fn generic_detail_redacts_credential_shaped_fields_recursively() {
     assert!(!preview.contains("Bearer private"), "{preview}");
     assert!(!preview.contains("\"private\""), "{preview}");
     assert!(preview.contains("••••"), "{preview}");
+}
+
+#[test]
+fn agent_steps_explain_the_effective_worker_harness_and_dynamic_task() {
+    let preview = text(kind_lines(
+        "agent",
+        &json!({
+            "agent_ref": "reviewer",
+            "prompt": "=item.pull_request"
+        }),
+        100,
+        &AgentDefaults {
+            worker: "fallback".into(),
+            harness: "Codex".into(),
+            model: "gpt-5.6".into(),
+        },
+    ));
+
+    assert!(preview.contains("agent    reviewer"), "{preview}");
+    assert!(preview.contains("named workflow agent"), "{preview}");
+    assert!(preview.contains("harness  Codex"), "{preview}");
+    assert!(preview.contains("model gpt-5.6"), "{preview}");
+    assert!(
+        preview.contains("Uses “pull_request” from the previous step"),
+        "{preview}"
+    );
+    assert!(preview.contains("binding  =item.pull_request"), "{preview}");
 }
 
 #[test]
@@ -121,7 +152,12 @@ fn agent_run_detail_shows_the_resolved_prompt_and_plain_reply() {
             duration_ms: 3,
             input: Some(json!("Review every changed file\nand explain the risk.")),
             output: Some(json!([
-                { "json": { "text": "The change is safe.\nTests cover the edge case." } }
+                {
+                    "json": {
+                        "text": "The change is safe.\nTests cover the edge case.",
+                        "worker": "builder"
+                    }
+                }
             ])),
             diagnostics: Vec::new(),
         }],
@@ -134,6 +170,8 @@ fn agent_run_detail_shows_the_resolved_prompt_and_plain_reply() {
     let preview = text(run_lines(&run, "agent", true));
 
     assert!(preview.contains("prompt"), "{preview}");
+    assert!(preview.contains("ran as"), "{preview}");
+    assert!(preview.contains("builder"), "{preview}");
     assert!(preview.contains("Review every changed file"), "{preview}");
     assert!(preview.contains("and explain the risk."), "{preview}");
     assert!(preview.contains("output"), "{preview}");

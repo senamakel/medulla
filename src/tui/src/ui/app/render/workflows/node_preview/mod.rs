@@ -18,6 +18,7 @@ use super::super::super::types::App;
 
 mod kinds;
 mod syntax;
+mod types;
 
 #[cfg(test)]
 mod syntax_tests;
@@ -25,6 +26,7 @@ mod syntax_tests;
 mod tests;
 
 use kinds::{kind_lines, labelled_value};
+use types::AgentDefaults;
 
 impl App {
     /// Draw the selected node's useful contents below the workflow graph.
@@ -99,7 +101,13 @@ impl App {
         }
 
         lines.push(connection_line(&selected.id, &self.workflow_layout().edges));
-        lines.extend(kind_lines(&selected.kind, &config, inner.width as usize));
+        let agent_defaults = AgentDefaults::from_config(&self.loaded.config.workflows);
+        lines.extend(kind_lines(
+            &selected.kind,
+            &config,
+            inner.width as usize,
+            &agent_defaults,
+        ));
         let visible = inner.height as usize;
         let width = inner.width.max(1) as usize;
         let visual_lines = lines
@@ -132,6 +140,17 @@ fn run_lines(run: &RunRecord, node_id: &str, is_agent: bool) -> Vec<Line<'static
     match run.steps.iter().rev().find(|step| step.node_id == node_id) {
         Some(step) => {
             if is_agent {
+                if let Some(worker) = step.output.as_ref().and_then(agent_worker) {
+                    lines.push(Line::from(vec![
+                        Span::styled("ran as  ", Style::default().add_modifier(Modifier::DIM)),
+                        Span::styled(
+                            worker,
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    ]));
+                }
                 match &step.input {
                     Some(input) => lines.extend(labelled_value("prompt", input)),
                     None => lines.push(Line::from(Span::styled(
@@ -215,6 +234,15 @@ fn run_lines(run: &RunRecord, node_id: &str, is_agent: bool) -> Vec<Line<'static
         )));
     }
     lines
+}
+
+/// Pull the worker identity from an agent result envelope.
+fn agent_worker(output: &Value) -> Option<String> {
+    output
+        .as_array()?
+        .iter()
+        .find_map(|item| item.get("json")?.get("worker")?.as_str())
+        .map(str::to_string)
 }
 
 /// Pull the harness prose out of the engine's item envelope when available.

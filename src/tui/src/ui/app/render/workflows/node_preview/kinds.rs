@@ -5,9 +5,15 @@ use ratatui::text::{Line, Span};
 use serde_json::{Map, Value};
 
 use super::syntax;
+use super::types::AgentDefaults;
 
 /// Render a node according to the semantics of its kind.
-pub(super) fn kind_lines(kind: &str, config: &Value, width: usize) -> Vec<Line<'static>> {
+pub(super) fn kind_lines(
+    kind: &str,
+    config: &Value,
+    width: usize,
+    agent_defaults: &AgentDefaults,
+) -> Vec<Line<'static>> {
     match kind {
         "code" => code_lines(
             config
@@ -21,7 +27,7 @@ pub(super) fn kind_lines(kind: &str, config: &Value, width: usize) -> Vec<Line<'
                 .unwrap_or("javascript"),
             width,
         ),
-        "agent" => agent_lines(config),
+        "agent" => agent_lines(config, agent_defaults),
         "condition" => labelled_value(
             "condition",
             config
@@ -98,19 +104,105 @@ fn code_lines(source: &str, language: &str, width: usize) -> Vec<Line<'static>> 
     lines
 }
 
-/// Render a coding-agent step as execution metadata followed by its prompt.
-fn agent_lines(config: &Value) -> Vec<Line<'static>> {
-    let mut lines = metadata_line(
-        config,
-        &["harness", "model", "provider", "requires_approval"],
-    );
+/// Render a coding-agent step as a readable route followed by its task.
+fn agent_lines(config: &Value, defaults: &AgentDefaults) -> Vec<Line<'static>> {
+    let selected_worker = config
+        .get("agent_ref")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|worker| !worker.is_empty());
+    let (worker, route_note, missing) = match selected_worker {
+        Some(worker) => (worker, "named workflow agent", false),
+        None if !defaults.worker.is_empty() => {
+            (defaults.worker.as_str(), "default workflow agent", false)
+        }
+        None => (
+            "not configured",
+            "set agent_ref or workflows.defaultWorker",
+            true,
+        ),
+    };
+    let worker_style = if missing {
+        Style::default().fg(Color::Red)
+    } else {
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+    };
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("agent    ", Style::default().add_modifier(Modifier::DIM)),
+            Span::styled(worker.to_string(), worker_style),
+            Span::styled(
+                format!("  · {route_note}"),
+                Style::default().add_modifier(Modifier::DIM),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("harness  ", Style::default().add_modifier(Modifier::DIM)),
+            Span::styled(
+                defaults.harness.clone(),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("  · model {}", defaults.model),
+                Style::default().add_modifier(Modifier::DIM),
+            ),
+        ]),
+        Line::from(Span::styled(
+            "A fresh, bounded harness session is started for this step.",
+            Style::default().add_modifier(Modifier::DIM),
+        )),
+    ];
+    if config
+        .get("requires_approval")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        lines.push(Line::from(Span::styled(
+            "approval  required before dispatch",
+            Style::default().fg(Color::Yellow),
+        )));
+    }
     let prompt = config
         .get("prompt")
         .or_else(|| config.get("instruction"))
         .or_else(|| config.get("task"))
         .unwrap_or(&Value::Null);
-    lines.extend(labelled_value("prompt", prompt));
+    lines.extend(task_lines(prompt));
     lines
+}
+
+/// Explain a literal task or a run-time binding in operator-facing language.
+fn task_lines(prompt: &Value) -> Vec<Line<'static>> {
+    let Some(text) = prompt.as_str() else {
+        return labelled_value("task", prompt);
+    };
+    let dynamic = text.starts_with('=') || text.contains("{{");
+    if !dynamic {
+        return labelled_value("task", prompt);
+    }
+
+    let explanation = text
+        .strip_prefix("=item.")
+        .filter(|field| !field.is_empty())
+        .map(|field| format!("Uses “{field}” from the previous step when this run reaches it."))
+        .unwrap_or_else(|| "Built from workflow data when this run reaches the step.".to_string());
+    vec![
+        Line::from(vec![
+            Span::styled(
+                "dynamic task  ",
+                Style::default().add_modifier(Modifier::DIM),
+            ),
+            Span::styled(explanation, Style::default().fg(Color::Cyan)),
+        ]),
+        Line::from(vec![
+            Span::styled("  binding  ", Style::default().add_modifier(Modifier::DIM)),
+            Span::styled(text.to_string(), Style::default().fg(Color::Magenta)),
+        ]),
+    ]
 }
 
 /// Render an HTTP request without exposing stored credential-shaped values.
@@ -155,27 +247,6 @@ fn tool_lines(config: &Value) -> Vec<Line<'static>> {
         config.get("args").unwrap_or(&Value::Null),
     ));
     lines
-}
-
-/// Render selected scalar metadata on one compact line.
-fn metadata_line(config: &Value, keys: &[&str]) -> Vec<Line<'static>> {
-    let fields = keys
-        .iter()
-        .filter_map(|key| {
-            config
-                .get(*key)
-                .filter(|value| !value.is_null())
-                .map(|value| format!("{key}: {}", scalar(value)))
-        })
-        .collect::<Vec<_>>();
-    if fields.is_empty() {
-        Vec::new()
-    } else {
-        vec![Line::from(Span::styled(
-            fields.join("  ·  "),
-            Style::default().fg(Color::Blue),
-        ))]
-    }
 }
 
 /// Render a labelled scalar or pretty, recursively redacted JSON value.
@@ -229,13 +300,5 @@ fn redact(value: &Value) -> Value {
         ),
         Value::Array(items) => Value::Array(items.iter().map(redact).collect()),
         value => value.clone(),
-    }
-}
-
-/// Render a JSON scalar without quotes for compact metadata.
-fn scalar(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        value => value.to_string(),
     }
 }
