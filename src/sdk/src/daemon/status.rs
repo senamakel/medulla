@@ -4,7 +4,7 @@
 //! newer structured events need.
 
 use crate::harness_work::WorkSnapshot;
-use crate::tinyplace::{HarnessEvent, HarnessEventKind};
+use crate::tinyplace::{HarnessEvent, HarnessEventKind, ToolCallPayload, ToolResultPayload};
 
 /// What a tool-call status frame starts with.
 ///
@@ -18,18 +18,10 @@ pub const TOOL_PREFIX: &str = "running ";
 /// TS `statusDetail`.
 pub fn status_detail(event: &HarnessEvent) -> Option<String> {
     match event.decoded() {
-        HarnessEventKind::ToolCall(payload) => Some(cap(
-            &format!("{TOOL_PREFIX}{}: {}", payload.tool_name, payload.display),
-            200,
-        )),
-        HarnessEventKind::ToolResult(payload) => Some(
-            if payload.is_error {
-                "tool failed"
-            } else {
-                "tool completed"
-            }
-            .to_string(),
-        ),
+        HarnessEventKind::ToolCall(payload) => {
+            Some(format!("{TOOL_PREFIX}{}", tool_call_detail(&payload)))
+        }
+        HarnessEventKind::ToolResult(payload) => Some(tool_result_detail(&payload)),
         HarnessEventKind::AgentThinking(_) => Some("thinking".to_string()),
         HarnessEventKind::AgentMessage(_) => Some("writing response".to_string()),
         HarnessEventKind::Status(payload) => {
@@ -42,6 +34,107 @@ pub fn status_detail(event: &HarnessEvent) -> Option<String> {
         }
         HarnessEventKind::Error(payload) => Some(cap(&format!("error: {}", payload.message), 200)),
         _ => None,
+    }
+}
+
+/// Describe what a tool is actually doing without dumping its input JSON.
+fn tool_call_detail(payload: &ToolCallPayload) -> String {
+    let input = &payload.input;
+    let title = tool_title(payload);
+    let detail = scalar_at(input, &["command", "cmd", "script"])
+        .map(|command| format!("$ {}", one_line(command)))
+        .or_else(|| {
+            scalar_at(input, &["file_path", "filePath", "path"])
+                .map(|path| one_line(path).to_string())
+        })
+        .or_else(|| {
+            scalar_at(input, &["query", "pattern", "needle"])
+                .map(|query| format!("“{}”", one_line(query)))
+        })
+        .or_else(|| {
+            scalar_at(input, &["instruction", "prompt", "task", "objective"])
+                .map(|task| one_line(task).to_string())
+        })
+        .or_else(|| scalar_at(input, &["url", "uri"]).map(|url| one_line(url).to_string()));
+    match detail {
+        Some(detail) if !detail.is_empty() => cap(&format!("{title} · {detail}"), 180),
+        _ if !payload.display.trim().is_empty() => {
+            cap(&format!("{title}: {}", one_line(&payload.display)), 180)
+        }
+        _ => title,
+    }
+}
+
+/// Prefer a human surface name, falling back to the protocol tool name/kind.
+fn tool_title(payload: &ToolCallPayload) -> String {
+    let display = payload.display.trim();
+    let name = payload.tool_name.trim();
+    match (name, payload.tool_kind.as_str()) {
+        ("execute", _) | ("", "shell") => "Terminal".to_string(),
+        ("read", _) | (_, "file_read") => "Read".to_string(),
+        ("write", _) | (_, "file_write") => "Write".to_string(),
+        ("edit", _) | (_, "edit") => "Edit".to_string(),
+        ("search", _) | (_, "search") => "Search".to_string(),
+        ("", _) if !display.is_empty() => display.to_string(),
+        ("", kind) if !kind.is_empty() => title_case(kind),
+        ("", _) => "Tool".to_string(),
+        (name, _) => title_case(name),
+    }
+}
+
+/// Describe settlement without exposing tool output, which may contain secrets.
+fn tool_result_detail(payload: &ToolResultPayload) -> String {
+    let failed = payload.is_error || payload.exit_code.is_some_and(|code| code != 0);
+    let title = if failed {
+        "tool failed"
+    } else {
+        "tool completed"
+    };
+    if let Some(code) = payload.exit_code {
+        return format!("{title} · exit {code}");
+    }
+    if payload.output_bytes > 0 {
+        return format!(
+            "{title} · {} output",
+            byte_count(payload.output_bytes as u64)
+        );
+    }
+    title.to_string()
+}
+
+/// Read the first string or scalar at a known-safe key.
+fn scalar_at<'a>(value: &'a serde_json::Value, keys: &[&str]) -> Option<&'a str> {
+    let object = value.as_object()?;
+    keys.iter().find_map(|key| object.get(*key)?.as_str())
+}
+
+/// Collapse a potentially multiline value before it enters a one-line status.
+fn one_line(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Turn a protocol identifier into a compact title.
+fn title_case(value: &str) -> String {
+    value
+        .split(['_', '-', ':'])
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Humanize a byte count without false precision.
+fn byte_count(bytes: u64) -> String {
+    if bytes < 1024 {
+        format!("{bytes} B")
+    } else {
+        format!("{:.1} KiB", bytes as f64 / 1024.0)
     }
 }
 

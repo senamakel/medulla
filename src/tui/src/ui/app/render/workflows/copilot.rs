@@ -20,7 +20,7 @@ use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
-use medulla::ui::workflows::CopilotTurn;
+use medulla::ui::workflows::{CopilotTurn, TurnRole};
 
 use crate::ui::chat::{self, ComposerChrome};
 use crate::ui::util::{clip, wrap, SPINNER};
@@ -167,7 +167,13 @@ fn hint(busy: bool, below: usize) -> String {
 }
 
 /// One transcript turn, wrapped and marked by role.
-fn turn_lines(turn: &CopilotTurn, width: usize) -> Vec<TLine<'static>> {
+pub(super) fn turn_lines(turn: &CopilotTurn, width: usize) -> Vec<TLine<'static>> {
+    if matches!(
+        turn.role,
+        TurnRole::Tool | TurnRole::ToolSuccess | TurnRole::ToolFailure
+    ) {
+        return tool_turn_lines(turn, width);
+    }
     let mut style = Style::default().fg(super::super::color(turn.role.color()));
     if turn.role.dim() {
         style = style.add_modifier(Modifier::DIM);
@@ -190,6 +196,48 @@ fn turn_lines(turn: &CopilotTurn, width: usize) -> Vec<TLine<'static>> {
             TLine::from(Span::styled(format!("{lead}{row}"), style))
         })
         .collect()
+}
+
+/// Draw a tool as one compact semantic row, with at most one detail row.
+fn tool_turn_lines(turn: &CopilotTurn, width: usize) -> Vec<TLine<'static>> {
+    let color = super::super::color(turn.role.color());
+    let title_style = Style::default().fg(color).add_modifier(Modifier::BOLD);
+    let detail_style = Style::default().add_modifier(Modifier::DIM);
+    let (title, detail) = split_tool_summary(&turn.text);
+    let glyph = turn.role.glyph();
+    let title = clip(title, width.saturating_sub(2));
+    let Some(detail) = detail.filter(|detail| !detail.is_empty()) else {
+        return vec![TLine::from(vec![
+            Span::styled(format!("{glyph} "), title_style),
+            Span::styled(title, title_style),
+        ])];
+    };
+
+    let inline = format!("{glyph} {title}  {detail}");
+    if inline.chars().count() <= width {
+        return vec![TLine::from(vec![
+            Span::styled(format!("{glyph} {title}"), title_style),
+            Span::styled(format!("  {detail}"), detail_style),
+        ])];
+    }
+    vec![
+        TLine::from(vec![
+            Span::styled(format!("{glyph} "), title_style),
+            Span::styled(title, title_style),
+        ]),
+        TLine::from(Span::styled(
+            format!("  {}", clip(detail, width.saturating_sub(2))),
+            detail_style,
+        )),
+    ]
+}
+
+/// Split the producer's `title · detail` summary without parsing raw input.
+fn split_tool_summary(summary: &str) -> (&str, Option<&str>) {
+    summary
+        .split_once(" · ")
+        .or_else(|| summary.split_once(": "))
+        .map_or((summary, None), |(title, detail)| (title, Some(detail)))
 }
 
 /// Which invitation the pane shows before its first instruction.

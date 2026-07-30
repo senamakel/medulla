@@ -35,6 +35,9 @@ mod paint;
 mod rail;
 
 #[cfg(test)]
+mod copilot_tests;
+
+#[cfg(test)]
 mod rail_tests;
 
 #[cfg(test)]

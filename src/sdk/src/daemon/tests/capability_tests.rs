@@ -137,6 +137,21 @@ async fn status_detail_maps_event_kinds() {
         status_detail(&tool_call).as_deref(),
         Some("running Bash: ls -la")
     );
+    let terminal = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c2",
+            "tool_name": "execute",
+            "tool_kind": "shell",
+            "display": "Terminal",
+            "input": { "command": "cargo test --workspace\ncargo clippy" }
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        status_detail(&terminal).as_deref(),
+        Some("running Terminal · $ cargo test --workspace cargo clippy")
+    );
 
     let thinking = HarnessEvent {
         kind: "agent_thinking".to_string(),

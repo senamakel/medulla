@@ -27,6 +27,10 @@ pub enum TurnRole {
     /// orchestrator's transcript has drawn tool calls this way since it existed;
     /// this is the copilot reading the same.
     Tool,
+    /// A tool call that completed successfully.
+    ToolSuccess,
+    /// A tool call that failed.
+    ToolFailure,
     /// A change the turn made to the graph.
     Change,
     /// The turn failed.
@@ -40,7 +44,9 @@ impl TurnRole {
             Self::User => "❯",
             Self::Agent => "⏺",
             Self::Status => "·",
-            Self::Tool => "⏺",
+            Self::Tool => "↻",
+            Self::ToolSuccess => "✓",
+            Self::ToolFailure => "✗",
             Self::Change => "±",
             Self::Error => "✗",
         }
@@ -52,7 +58,9 @@ impl TurnRole {
             Self::User => "cyan",
             Self::Agent => "green",
             Self::Status => "gray",
-            Self::Tool => "magenta",
+            Self::Tool => "yellow",
+            Self::ToolSuccess => "green",
+            Self::ToolFailure => "red",
             Self::Change => "yellow",
             Self::Error => "red",
         }
@@ -60,7 +68,7 @@ impl TurnRole {
 
     /// Whether the line is secondary — progress chatter rather than substance.
     pub fn dim(self) -> bool {
-        matches!(self, Self::Status | Self::Tool)
+        matches!(self, Self::Status)
     }
 }
 
@@ -212,7 +220,36 @@ impl CopilotState {
     pub fn progress(&mut self, frame: &str) {
         match super::progress::classify(frame) {
             super::progress::Progress::Tool(text) => self.tool(text),
+            super::progress::Progress::ToolResult { failed, detail } => {
+                self.settle_tool(failed, &detail)
+            }
             super::progress::Progress::Status(text) => self.status(text),
+        }
+    }
+
+    /// Settle the newest in-flight tool row instead of adding a generic line.
+    fn settle_tool(&mut self, failed: bool, detail: &str) {
+        let Some(turn) = self
+            .turns
+            .iter_mut()
+            .rev()
+            .find(|turn| turn.role == TurnRole::Tool)
+        else {
+            self.status(if failed {
+                "tool failed"
+            } else {
+                "tool completed"
+            });
+            return;
+        };
+        turn.role = if failed {
+            TurnRole::ToolFailure
+        } else {
+            TurnRole::ToolSuccess
+        };
+        if !detail.is_empty() {
+            turn.text.push_str(" · ");
+            turn.text.push_str(detail);
         }
     }
 

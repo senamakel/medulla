@@ -138,6 +138,33 @@ fn ordinary_progress_frames_stay_status_lines() {
 }
 
 #[test]
+fn a_tool_result_settles_the_latest_call_in_place() {
+    let mut state = CopilotState::new("sweep");
+    state.progress("running Terminal · $ cargo test");
+
+    state.progress("tool completed · 2.4 KiB output");
+
+    assert_eq!(state.turns.len(), 1);
+    assert_eq!(state.turns[0].role, TurnRole::ToolSuccess);
+    assert_eq!(
+        state.turns[0].text,
+        "Terminal · $ cargo test · 2.4 KiB output"
+    );
+}
+
+#[test]
+fn a_failed_tool_result_marks_the_call_and_keeps_the_exit_code() {
+    let mut state = CopilotState::new("sweep");
+    state.progress("running Terminal · $ cargo test");
+
+    state.progress("tool failed · exit 101");
+
+    assert_eq!(state.turns.len(), 1);
+    assert_eq!(state.turns[0].role, TurnRole::ToolFailure);
+    assert!(state.turns[0].text.ends_with("exit 101"));
+}
+
+#[test]
 fn the_same_tool_called_twice_is_two_lines() {
     // Unlike a repeated status frame, which is a poll. Two calls are two things
     // that happened, and collapsing them under-reports the work.
@@ -179,14 +206,16 @@ fn every_role_has_a_glyph_and_a_colour_and_only_progress_is_dim() {
         TurnRole::Agent,
         TurnRole::Status,
         TurnRole::Tool,
+        TurnRole::ToolSuccess,
+        TurnRole::ToolFailure,
         TurnRole::Change,
         TurnRole::Error,
     ] {
         assert!(!role.glyph().is_empty(), "{role:?}");
         assert!(!role.color().is_empty(), "{role:?}");
-        // Both kinds of progress are secondary to what was asked, said, and
-        // changed — the three the eye should land on first.
-        let secondary = matches!(role, TurnRole::Status | TurnRole::Tool);
+        // Chatter is secondary; a concrete tool operation is part of the
+        // durable record of what the turn actually did.
+        let secondary = role == TurnRole::Status;
         assert_eq!(role.dim(), secondary, "{role:?}");
     }
 }

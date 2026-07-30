@@ -312,6 +312,8 @@ impl FoldState {
                 "tool",
                 json!({
                     "call_id": value.get("toolCallId"),
+                    "ok": value.get("status").and_then(Value::as_str) == Some("completed"),
+                    "is_error": value.get("status").and_then(Value::as_str) == Some("failed"),
                     "status": value.get("status"),
                     "output": value.get("rawOutput"),
                 }),
