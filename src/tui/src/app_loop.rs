@@ -460,11 +460,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // Read before the list moves into the shared handle below.
     let primary_defaults = local_hosts.first().map(|primary| {
         let providers = medulla::daemon::providers::detect_providers(&env, None, None);
-        let presets = custom_harnesses
-            .iter()
-            .filter(|preset| preset.host_id == primary.address())
-            .cloned()
-            .collect::<Vec<_>>();
+        let presets = available_primary_presets(&custom_harnesses, primary.address(), &providers);
         (primary.workspace().to_string(), providers, presets)
     });
     let started_hosts = std::sync::Arc::new(std::sync::Mutex::new(local_hosts));
@@ -624,6 +620,19 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     drop(guard);
     drop(tinyplace_service); // aborts the background loops.
     result
+}
+
+/// Keep only presets that belong to the primary host and can launch locally.
+pub(super) fn available_primary_presets(
+    presets: &[medulla::config::CustomHarnessConfig],
+    host_id: &str,
+    providers: &[medulla::tinyplace::HarnessProvider],
+) -> Vec<medulla::config::CustomHarnessConfig> {
+    presets
+        .iter()
+        .filter(|preset| preset.host_id == host_id && providers.contains(&preset.base_harness))
+        .cloned()
+        .collect()
 }
 
 /// Offer an available release before the interactive session starts, so an

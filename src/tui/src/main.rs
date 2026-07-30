@@ -15,6 +15,8 @@ use crate::commands::{run_hub, run_init, run_login, run_logout, run_workspace};
 use crate::run::run_core;
 
 mod app_loop;
+#[cfg(test)]
+mod app_loop_tests;
 mod commands;
 mod event_loop;
 mod hub_relay;
