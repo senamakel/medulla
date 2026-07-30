@@ -196,6 +196,28 @@ pub(super) fn tool_call_event() -> HarnessSemanticEvent {
     }
 }
 
+/// A successful result paired with [`tool_call_event`].
+pub(super) fn tool_result_event() -> HarnessSemanticEvent {
+    HarnessSemanticEvent {
+        line: 1,
+        timestamp_ms: 1,
+        record_type: "assistant:tool_result".to_string(),
+        event: HarnessEvent {
+            kind: "tool_result".to_string(),
+            role: "tool".to_string(),
+            payload: json!({
+                "call_id": "c1",
+                "ok": true,
+                "exit_code": 0,
+                "is_error": false,
+                "output": "done",
+                "output_bytes": 4
+            }),
+            ..Default::default()
+        },
+    }
+}
+
 /// A runner that fires `count` tool_call events at `on_event`, then replies.
 pub(super) fn status_runner(count: usize) -> RunTaskFn {
     Arc::new(move |mut opts: RunTaskOptions| {
@@ -212,6 +234,25 @@ pub(super) fn status_runner(count: usize) -> RunTaskFn {
                 provider: opts.provider,
                 reply: "ok".to_string(),
                 events: count,
+            })
+        })
+    })
+}
+
+/// A runner that completes a tool inside one throttle window.
+pub(super) fn quick_tool_runner() -> RunTaskFn {
+    Arc::new(move |mut opts: RunTaskOptions| {
+        Box::pin(async move {
+            if let Some(mut on_event) = opts.on_event.take() {
+                on_event(&tool_call_event());
+                on_event(&tool_result_event());
+            }
+            Ok(RunTaskResult {
+                session_id: None,
+                usage: None,
+                provider: opts.provider,
+                reply: "ok".to_string(),
+                events: 2,
             })
         })
     })
