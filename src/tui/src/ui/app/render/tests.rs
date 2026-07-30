@@ -19,6 +19,23 @@ fn app() -> App {
     App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 
+#[test]
+fn harness_choice_window_keeps_the_selection_visible() {
+    assert_eq!(
+        super::harness_modals::harness_choice_window(20, 0, 13),
+        0..13
+    );
+    assert_eq!(
+        super::harness_modals::harness_choice_window(20, 10, 13),
+        4..17
+    );
+    assert_eq!(
+        super::harness_modals::harness_choice_window(20, 19, 13),
+        7..20
+    );
+    assert_eq!(super::harness_modals::harness_choice_window(2, 1, 13), 0..2);
+}
+
 fn lane(role: AgentRole) -> AgentLane {
     AgentLane {
         key: "k".into(),

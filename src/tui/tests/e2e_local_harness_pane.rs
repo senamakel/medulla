@@ -173,6 +173,7 @@ async fn a_dispatched_task_resolves_to_the_terminal_its_harness_is_painting() {
         env: HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
+        custom_harnesses: Vec::new(),
         router: None,
     };
 
@@ -220,6 +221,7 @@ async fn an_attached_pane_types_into_the_harness_serving_the_task() {
         env: HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
+        custom_harnesses: Vec::new(),
         router: None,
     };
 
@@ -255,6 +257,7 @@ async fn a_task_that_names_no_session_shows_no_screen_rather_than_someone_elses(
         env: HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
+        custom_harnesses: Vec::new(),
         router: None,
     };
 

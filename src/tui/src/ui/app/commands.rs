@@ -148,16 +148,6 @@ impl App {
                 self.save_custom_harness(Some(&id), &text);
                 None
             }
-            // Back to the picker with the new directory, rather than spawning
-            // straight from here: the operator has still not said *which*
-            // harness, and the picker is where that choice lives.
-            PromptKind::HarnessCwd => {
-                if let Some(picker) = &mut self.harness_picker {
-                    picker.cwd = text;
-                }
-                self.set_status("Pick a harness · Enter start · Esc cancel");
-                None
-            }
             PromptKind::LocalHostWorkspace(harness) => self.add_local_host(harness, &text),
             PromptKind::RejectProposal {
                 workflow,

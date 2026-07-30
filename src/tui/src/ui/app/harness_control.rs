@@ -11,15 +11,14 @@
 //! the operator gets an answer on the status line in the same keystroke, which
 //! is the whole point of a control handover being *explicit*.
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::tinyplace::HarnessProvider;
 
+use crate::ui::harness_pane::HarnessChoice;
 use crate::worker::pty::HarnessControl;
 
-use crate::ui::composer::Draft;
-
 use super::types::{
-    tab_pos, App, HandbackPolicy, HandbackPrompt, HarnessPicker, Prompt, PromptKind,
+    tab_pos, App, HandbackPolicy, HandbackPrompt, HarnessPicker, HarnessPickerStep,
 };
 
 impl App {
@@ -37,19 +36,24 @@ impl App {
         match provider.and_then(HarnessProvider::from_wire) {
             Some(provider) => {
                 let cwd = path.unwrap_or("").to_string();
-                self.spawn_harness(provider, &cwd);
+                self.spawn_harness(HarnessChoice::native(provider), &cwd);
             }
             None => {
-                if harnesses.providers.is_empty() {
+                let choices = harnesses.choices();
+                if choices.is_empty() {
                     self.set_status("No harness CLIs found on this device");
                     return;
                 }
                 self.harness_picker = Some(HarnessPicker {
-                    providers: harnesses.providers.clone(),
+                    choices,
                     index: 0,
+                    step: HarnessPickerStep::Harness,
                     cwd: path
                         .map(str::to_string)
                         .unwrap_or_else(|| harnesses.workspace.clone()),
+                    workspace_query: String::new(),
+                    workspace_choices: Vec::new(),
+                    workspace_index: 0,
                 });
             }
         }
@@ -65,24 +69,31 @@ impl App {
     /// Selecting the new row matters more than it sounds: a harness that
     /// appears somewhere below the fold, with the pane still showing whatever
     /// was selected before, reads as "nothing happened".
-    pub(super) fn spawn_harness(&mut self, provider: HarnessProvider, cwd: &str) {
+    pub(super) fn spawn_harness(&mut self, choice: HarnessChoice, cwd: &str) {
         let Some(harnesses) = self.harnesses.clone() else {
             self.set_status("This device is not hosting, so it has no harnesses to start");
             return;
         };
         let skip = self.harness_skip_permissions;
-        match harnesses.open_unmanaged(provider, cwd, skip) {
+        let workspace = harnesses.resolve_workspace(cwd);
+        match harnesses.open_unmanaged(&choice, &workspace, skip) {
             Ok(id) => {
                 self.tab_index = tab_pos("Agents");
                 self.select_harness_row(&id);
-                self.set_status(format!(
+                let mut status = format!(
                     "Started {} · unmanaged, the orchestrator will not use it",
-                    provider.as_str()
-                ));
+                    choice.display_name()
+                );
+                if let Err(error) = self.remember_harness_workspace(&workspace) {
+                    status.push_str(&format!(" · {error}"));
+                }
+                self.set_status(status);
             }
             // Surfaced, never swallowed: a spawn that fails silently leaves the
             // operator waiting for a pane that is never coming.
-            Err(err) => self.set_status(format!("Could not start {}: {err}", provider.as_str())),
+            Err(err) => {
+                self.set_status(format!("Could not start {}: {err}", choice.display_name()))
+            }
         }
     }
 
@@ -205,11 +216,20 @@ impl App {
 impl App {
     /// Route a key while the "start a harness" picker is open.
     ///
-    /// `e` edits the directory through the ordinary inline prompt rather than
-    /// building an editable field into the modal — one text-editing
-    /// implementation is enough, and it is the one the operator already knows
-    /// from every other prompt in the app.
-    pub(super) fn handle_harness_picker_key(&mut self, code: KeyCode) {
+    /// The first step chooses a registered harness. The second step owns text
+    /// input directly so filtering and filesystem completion update as the
+    /// operator types.
+    pub(super) fn handle_harness_picker_key(&mut self, event: KeyEvent) {
+        let code = event.code;
+        let step = self
+            .harness_picker
+            .as_ref()
+            .map(|picker| picker.step)
+            .unwrap_or(HarnessPickerStep::Harness);
+        if step == HarnessPickerStep::Workspace {
+            self.handle_harness_workspace_key(event);
+            return;
+        }
         match code {
             KeyCode::Esc => {
                 self.harness_picker = None;
@@ -222,30 +242,69 @@ impl App {
             }
             KeyCode::Down => {
                 if let Some(picker) = &mut self.harness_picker {
-                    picker.index = (picker.index + 1).min(picker.providers.len().saturating_sub(1));
+                    picker.index = (picker.index + 1).min(picker.choices.len().saturating_sub(1));
                 }
             }
-            KeyCode::Char('e') => {
-                if let Some(picker) = &self.harness_picker {
-                    let cursor = picker.cwd.chars().count();
-                    self.prompt = Some(Prompt {
-                        kind: PromptKind::HarnessCwd,
-                        title: "Start the harness in — directory".into(),
-                        draft: Draft {
-                            text: picker.cwd.clone(),
-                            cursor,
-                        },
-                    });
-                    self.set_status("Directory · Enter save · Esc cancel");
-                }
+            KeyCode::Char('e') if is_text_input(event.modifiers) => {
+                self.open_harness_workspace_step(true);
             }
             KeyCode::Enter => {
-                if let Some(picker) = self.harness_picker.take() {
-                    if let Some(provider) = picker.providers.get(picker.index).copied() {
-                        let cwd = picker.cwd.clone();
-                        self.spawn_harness(provider, &cwd);
-                    }
+                self.open_harness_workspace_step(false);
+            }
+            _ => {}
+        }
+    }
+
+    /// Route a key while choosing and completing the workspace directory.
+    fn handle_harness_workspace_key(&mut self, event: KeyEvent) {
+        match event.code {
+            KeyCode::Esc | KeyCode::BackTab => {
+                if let Some(picker) = &mut self.harness_picker {
+                    picker.step = HarnessPickerStep::Harness;
                 }
+                self.set_status("Pick a harness · Enter workspace · Esc cancel");
+            }
+            KeyCode::Up => {
+                if let Some(picker) = &mut self.harness_picker {
+                    picker.workspace_index = picker.workspace_index.saturating_sub(1);
+                }
+            }
+            KeyCode::Down => {
+                if let Some(picker) = &mut self.harness_picker {
+                    picker.workspace_index = (picker.workspace_index + 1)
+                        .min(picker.workspace_choices.len().saturating_sub(1));
+                }
+            }
+            KeyCode::Tab => self.complete_harness_workspace(),
+            KeyCode::Backspace => {
+                if let Some(picker) = &mut self.harness_picker {
+                    picker.workspace_query.pop();
+                    picker.workspace_index = 0;
+                }
+                self.refresh_harness_workspace_choices();
+            }
+            KeyCode::Char(character) if is_text_input(event.modifiers) => {
+                if let Some(picker) = &mut self.harness_picker {
+                    picker.workspace_query.push(character);
+                    picker.workspace_index = 0;
+                }
+                self.refresh_harness_workspace_choices();
+            }
+            KeyCode::Enter => {
+                let Some(workspace) = self.selected_harness_workspace() else {
+                    self.set_status("Choose an existing directory");
+                    return;
+                };
+                let choice = self
+                    .harness_picker
+                    .as_ref()
+                    .and_then(|picker| picker.choices.get(picker.index).cloned());
+                let Some(choice) = choice else {
+                    self.set_status("Choose a harness first");
+                    return;
+                };
+                self.harness_picker = None;
+                self.spawn_harness(choice, &workspace);
             }
             _ => {}
         }
@@ -283,4 +342,12 @@ impl App {
             _ => {}
         }
     }
+}
+
+/// Only printable text belongs in the workspace query; modifier chords must
+/// never be mistaken for their underlying character.
+pub(super) fn is_text_input(modifiers: KeyModifiers) -> bool {
+    modifiers == KeyModifiers::NONE
+        || modifiers == KeyModifiers::SHIFT
+        || modifiers == (KeyModifiers::CONTROL | KeyModifiers::ALT)
 }

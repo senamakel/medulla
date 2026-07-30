@@ -55,6 +55,20 @@ fn workflow_workspaces_parse_for_daemon_workers() {
 }
 
 #[test]
+fn harness_recent_workspaces_round_trip_as_picker_history() {
+    let cfg: TuiConfig =
+        serde_json::from_str(r#"{"harness":{"recentWorkspaces":["/work/second","/work/first"]}}"#)
+            .unwrap();
+    assert_eq!(
+        cfg.harness.recent_workspaces,
+        ["/work/second", "/work/first"]
+    );
+
+    let encoded = serde_json::to_string(&cfg).unwrap();
+    assert!(encoded.contains("\"recentWorkspaces\""));
+}
+
+#[test]
 fn backend_and_tinyplace_parse() {
     let cfg: TuiConfig = serde_json::from_str(
         r#"{"backend":{"baseUrl":"http://x:1","token":"t"},"tinyplace":{"peers":[{"id":"p1","handle":"@a"}]}}"#,

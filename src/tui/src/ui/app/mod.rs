@@ -18,6 +18,11 @@ mod custom_harnesses;
 mod decisions;
 mod feedback;
 mod harness_control;
+#[cfg(test)]
+mod harness_control_tests;
+mod harness_workspace;
+#[cfg(test)]
+mod harness_workspace_tests;
 mod input;
 mod keys;
 mod rail;

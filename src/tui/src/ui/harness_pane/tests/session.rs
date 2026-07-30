@@ -16,6 +16,7 @@ use medulla::tinyplace::HarnessProvider;
 
 use crate::worker::pty::{HarnessControl, LaunchSpec, PtyManager};
 
+use super::super::HarnessChoice;
 use super::super::LocalHarnesses;
 
 /// A spec that runs `sh -c <script>` on a pty.
@@ -83,8 +84,61 @@ fn harnesses(sessions: PtyManager) -> LocalHarnesses {
         env: HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
+        custom_harnesses: Vec::new(),
         router: None,
     }
+}
+
+#[test]
+fn picker_choices_include_every_native_provider_and_registered_preset() {
+    let mut harnesses = harnesses(PtyManager::new());
+    harnesses.providers = vec![
+        HarnessProvider::Claude,
+        HarnessProvider::Codex,
+        HarnessProvider::Opencode,
+    ];
+    harnesses.custom_harnesses = vec![medulla::config::CustomHarnessConfig::from_editor_line(
+        "deepseek | DeepSeek Codex | codex | deepseek/deepseek-chat | | this-device",
+    )
+    .unwrap()];
+
+    let choices = harnesses.choices();
+    let labels = choices
+        .iter()
+        .map(HarnessChoice::display_name)
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        labels,
+        ["Claude Code", "Codex", "OpenCode", "DeepSeek Codex"]
+    );
+    assert_eq!(choices[3].id(), "deepseek");
+    assert_eq!(choices[3].provider, HarnessProvider::Codex);
+}
+
+#[test]
+fn registered_preset_supplies_its_router_key_and_model_environment() {
+    let mut harnesses = harnesses(PtyManager::new());
+    harnesses
+        .env
+        .insert("OPENROUTER_API_KEY".into(), "secret".into());
+    let preset = medulla::config::CustomHarnessConfig::from_editor_line(
+        "deepseek | DeepSeek Claude | claude | deepseek/deepseek-chat | deepseek/fast | this-device",
+    )
+    .unwrap();
+
+    let (env, extra_args) = harnesses
+        .spawn_env(&HarnessChoice::custom(preset))
+        .expect("registered preset is launchable");
+
+    assert_eq!(env["ANTHROPIC_BASE_URL"], "https://openrouter.ai/api");
+    assert_eq!(env["ANTHROPIC_AUTH_TOKEN"], "secret");
+    assert_eq!(
+        env["ANTHROPIC_DEFAULT_OPUS_MODEL"],
+        "deepseek/deepseek-chat"
+    );
+    assert_eq!(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"], "deepseek/fast");
+    assert!(extra_args.is_empty());
 }
 
 /// Spin until `check` passes or the deadline expires.

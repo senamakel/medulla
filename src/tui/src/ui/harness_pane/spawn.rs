@@ -9,11 +9,9 @@
 //!
 //! [`claim_idle`]: crate::worker::pty::PtyManager::claim_idle
 
-use medulla::tinyplace::HarnessProvider;
-
 use crate::worker::pty::{HarnessControl, LaunchSpec};
 
-use super::LocalHarnesses;
+use super::{HarnessChoice, LocalHarnesses};
 
 impl LocalHarnesses {
     /// Who currently holds `session_id`.
@@ -41,21 +39,19 @@ impl LocalHarnesses {
     /// start claude" is a much worse message than naming the folder.
     pub fn open_unmanaged(
         &self,
-        provider: HarnessProvider,
+        choice: &HarnessChoice,
         cwd: &str,
         skip_permissions: bool,
     ) -> Result<String, String> {
-        let cwd = if cwd.trim().is_empty() {
-            self.workspace.clone()
-        } else {
-            expand_home(cwd.trim())
-        };
+        let cwd = self.resolve_workspace(cwd);
         if !std::path::Path::new(&cwd).is_dir() {
             return Err(format!("{cwd} is not a directory"));
         }
 
+        let provider = choice.provider;
         let bin = medulla::tinyplace::env::provider_bin(provider, &self.env);
-        let (env, extra_args) = self.spawn_env(provider)?;
+        let (env, extra_args) = self.spawn_env(choice)?;
+        let model = choice.preset.as_ref().map(|preset| preset.model.clone());
 
         self.sessions.open(LaunchSpec {
             provider,
@@ -68,12 +64,34 @@ impl LocalHarnesses {
             // dialog hangs it — the opposite is true here, so the harness keeps
             // its own guardrails and the person who asked for it answers them.
             skip_permissions,
-            label: format!("you:{}", provider.as_str()),
-            model: None,
+            label: format!("you:{}", choice.id()),
+            model,
             session_id: None,
             control: HarnessControl::User,
             user_spawned: true,
         })
+    }
+
+    /// Resolve picker input to the absolute directory a child will receive.
+    ///
+    /// Blank input uses the host workspace, `~` follows the harness
+    /// environment, and relative input is rooted at the host workspace rather
+    /// than whichever directory happens to contain the TUI process.
+    pub fn resolve_workspace(&self, cwd: &str) -> String {
+        let input = if cwd.trim().is_empty() {
+            return self.workspace.clone();
+        } else {
+            expand_home(cwd.trim(), &self.env)
+        };
+        let path = std::path::Path::new(&input);
+        if path.is_absolute() {
+            input
+        } else {
+            std::path::Path::new(&self.workspace)
+                .join(path)
+                .to_string_lossy()
+                .into_owned()
+        }
     }
 
     /// The environment and extra argv an operator-started harness spawns with.
@@ -82,16 +100,18 @@ impl LocalHarnesses {
     /// dispatched one reach the same endpoint: a configured `[router]` that
     /// applied to one but not the other would silently change which model
     /// answered, with nothing on screen to say so.
-    fn spawn_env(
+    pub(super) fn spawn_env(
         &self,
-        provider: HarnessProvider,
+        choice: &HarnessChoice,
     ) -> Result<(std::collections::HashMap<String, String>, Vec<String>), String> {
         let mut env = self.env.clone();
         let mut extra_args = Vec::new();
-        let Some(router) = &self.router else {
+        let custom_router = choice.preset.as_ref().map(|preset| preset.router());
+        let router = custom_router.as_ref().or(self.router.as_ref());
+        let Some(router) = router else {
             return Ok((env, extra_args));
         };
-        let injection = medulla::tinyplace::env::router_env(provider, router);
+        let injection = medulla::tinyplace::env::router_env(choice.provider, router);
         for (key, value) in injection.env {
             env.insert(key, value);
         }
@@ -109,6 +129,9 @@ impl LocalHarnesses {
             }
         }
         extra_args.extend(injection.args);
+        if let Some(preset) = &choice.preset {
+            env.extend(preset.harness_env());
+        }
         Ok((env, extra_args))
     }
 }
@@ -118,15 +141,15 @@ impl LocalHarnesses {
 /// An operator typing a path into the composer writes `~/work/foo`, which no
 /// syscall understands — the shell would have expanded it, and there is no shell
 /// here.
-fn expand_home(path: &str) -> String {
+fn expand_home(path: &str, env: &std::collections::HashMap<String, String>) -> String {
     let Some(rest) = path.strip_prefix('~') else {
         return path.to_string();
     };
-    let Ok(home) = std::env::var("HOME") else {
+    let Some(home) = env.get("HOME") else {
         return path.to_string();
     };
     if rest.is_empty() {
-        return home;
+        return home.clone();
     }
     match rest.strip_prefix('/') {
         Some(tail) => format!("{}/{tail}", home.trim_end_matches('/')),

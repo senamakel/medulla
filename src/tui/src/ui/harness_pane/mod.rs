@@ -33,7 +33,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use types::{HarnessFocus, LocalHarnesses};
+pub use types::{HarnessChoice, HarnessFocus, LocalHarnesses};
 
 /// How the focus chord is written in hints and titles.
 ///

@@ -4,6 +4,52 @@
 #[allow(unused_imports)]
 use super::*;
 
+/// One launchable entry in the operator's harness picker.
+///
+/// Native entries point directly at an installed CLI. Custom entries retain
+/// the registered preset so spawning can apply its model, endpoint, and
+/// non-secret environment without flattening it back into the base CLI.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HarnessChoice {
+    /// The CLI process that implements this choice.
+    pub provider: medulla::tinyplace::HarnessProvider,
+    /// The configured preset, absent for a native CLI entry.
+    pub preset: Option<medulla::config::CustomHarnessConfig>,
+}
+
+impl HarnessChoice {
+    /// Build a choice for an installed provider with its ordinary configuration.
+    pub fn native(provider: medulla::tinyplace::HarnessProvider) -> Self {
+        Self {
+            provider,
+            preset: None,
+        }
+    }
+
+    /// Build a choice for a previously registered custom harness.
+    pub fn custom(preset: medulla::config::CustomHarnessConfig) -> Self {
+        Self {
+            provider: preset.base_harness,
+            preset: Some(preset),
+        }
+    }
+
+    /// Human-readable picker label.
+    pub fn display_name(&self) -> &str {
+        self.preset.as_ref().map_or_else(
+            || self.provider.display_name(),
+            |preset| preset.name.as_str(),
+        )
+    }
+
+    /// Stable identifier used in session labels and status messages.
+    pub fn id(&self) -> &str {
+        self.preset
+            .as_ref()
+            .map_or_else(|| self.provider.as_str(), |preset| preset.id.as_str())
+    }
+}
+
 /// The local harness sessions the Agents tab reads and types into.
 ///
 /// Two halves that are only useful together: [`sessions`](Self::sessions) holds
@@ -48,9 +94,28 @@ pub struct LocalHarnesses {
     /// The coding-agent CLIs this device actually has, in the order the picker
     /// should offer them.
     pub providers: Vec<medulla::tinyplace::HarnessProvider>,
+    /// Registered presets attached to this local host.
+    pub custom_harnesses: Vec<medulla::config::CustomHarnessConfig>,
     /// The configured `[router]`, injected into an operator-started harness the
     /// same way the executor injects it into a task's.
     pub router: Option<medulla::config::RouterConfig>,
+}
+
+impl LocalHarnesses {
+    /// Every launchable native CLI and registered preset in picker order.
+    pub fn choices(&self) -> Vec<HarnessChoice> {
+        self.providers
+            .iter()
+            .copied()
+            .map(HarnessChoice::native)
+            .chain(
+                self.custom_harnesses
+                    .iter()
+                    .cloned()
+                    .map(HarnessChoice::custom),
+            )
+            .collect()
+    }
 }
 
 /// Where the operator's keystrokes are going.
