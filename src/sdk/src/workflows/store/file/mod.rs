@@ -1,4 +1,4 @@
-//! JSON workflow documents under `.medulla/workflows`, one graph per file.
+//! JSON workflow documents under the Medulla home, one graph per file.
 //!
 //! The directory layering, the forgiving read, and the atomic write all match
 //! how agent templates are already kept ([`crate::agents`]) — an operator who
@@ -182,11 +182,11 @@ impl FileWorkflowStore {
     }
 
     /// The directory new definitions are written to: the highest-precedence one,
-    /// which is the project-local directory when there is one.
+    /// which production discovery resolves to `<medulla home>/workflows`.
     ///
-    /// Writing to the most specific directory is what makes a saved workflow
-    /// belong to the repository an agent is working in rather than leaking into
-    /// every other checkout on the machine.
+    /// Project-local workflows remain a readable lower-precedence layer, but
+    /// generated user data belongs beside Medulla's config and state rather
+    /// than appearing as an untracked repository artifact.
     pub fn write_dir(&self) -> &Path {
         self.dirs
             .last()

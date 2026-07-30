@@ -824,12 +824,11 @@ pub struct App {
     /// A workflow store attached directly, overriding the layered one this
     /// client would otherwise resolve.
     ///
-    /// The layered store always includes the *current directory's*
-    /// `.medulla/workflows`, which is right in use — a workflow checked into the
-    /// repository you are working in should be listed — and wrong under test,
-    /// where it makes the catalogue depend on whatever happens to be in the
-    /// developer's checkout. `None` resolves the layered store, as a real
-    /// session does.
+    /// The layered store always reads the current directory's
+    /// `.medulla/workflows` as repository defaults, then overlays the
+    /// user-global workflow directory. That is useful in a real session and
+    /// wrong under test, where it makes the catalogue depend on the developer's
+    /// checkout. `None` resolves the layered store, as a real session does.
     #[cfg(feature = "workflows")]
     pub(super) workflow_store_override: Option<Arc<dyn medulla::workflows::WorkflowStore>>,
     /// Which kind of host the Add Host page is offering — a cursor into
