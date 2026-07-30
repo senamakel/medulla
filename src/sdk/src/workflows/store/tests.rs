@@ -351,6 +351,33 @@ fn deleting_removes_the_file_the_workflow_was_actually_read_from() {
 }
 
 #[test]
+fn deleting_a_repository_default_never_modifies_the_checkout() {
+    let root = tempfile::tempdir().unwrap();
+    let repository_dir = root.path().join("repo/.medulla/workflows");
+    let home_dir = root.path().join("home/workflows");
+    let repository_file = repository_dir.join("shared.json");
+    write(&repository_file, &valid_document("shared"));
+    let store = FileWorkflowStore::new(
+        vec![repository_dir, home_dir],
+        root.path().join("state/runs"),
+    );
+
+    let err = store
+        .delete("shared")
+        .expect_err("repository defaults are read-only");
+
+    assert!(
+        matches!(err, WorkflowError::ReadOnlyDefinition { .. }),
+        "got {err:?}"
+    );
+    assert!(
+        repository_file.exists(),
+        "the checkout must remain untouched"
+    );
+    assert!(store.get("shared").unwrap().is_some());
+}
+
+#[test]
 fn an_id_containing_a_dot_does_not_collide_on_its_temporary_file() {
     // The temp name is appended, not substituted for the extension, so
     // `a.b.json` and `a.json` cannot fight over one scratch path.

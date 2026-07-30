@@ -402,19 +402,19 @@ impl WorkflowStore for FileWorkflowStore {
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
         self.with_definition_lock(id, || {
-            // Delete wherever it was found, not only in the write directory: an
-            // operator asking to remove a workflow they can see means the one they
-            // can see.
             let existing = self
                 .load()
                 .workflows
                 .into_iter()
                 .find(|w| w.id == id)
                 .ok_or_else(|| WorkflowError::NotFound(id.to_string()))?;
-            let path = match existing.source_path.clone() {
-                Some(path) => path,
-                None => self.definition_path(id)?,
-            };
+            let path = self.definition_path(id)?;
+            if existing.source_path.as_deref() != Some(path.as_path()) {
+                return Err(WorkflowError::ReadOnlyDefinition {
+                    id: id.to_string(),
+                    path: existing.source_path.unwrap_or(path),
+                });
+            }
             // Snapshot before removing. A delete is the one edit that leaves
             // nothing to diff against afterwards, so without this it is the one
             // edit that cannot be undone.
