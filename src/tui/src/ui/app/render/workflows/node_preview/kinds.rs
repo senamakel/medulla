@@ -339,7 +339,7 @@ fn redact(value: &Value) -> Value {
         Value::Object(map) => Value::Object(
             map.iter()
                 .map(|(key, value)| {
-                    let lower = key.to_ascii_lowercase();
+                    let lower = key.to_ascii_lowercase().replace('-', "_");
                     let secret = [
                         "token",
                         "secret",
@@ -347,6 +347,7 @@ fn redact(value: &Value) -> Value {
                         "api_key",
                         "apikey",
                         "authorization",
+                        "cookie",
                     ]
                     .iter()
                     .any(|needle| lower.contains(needle));
@@ -354,6 +355,12 @@ fn redact(value: &Value) -> Value {
                         key.clone(),
                         if secret {
                             Value::String("••••".to_string())
+                        } else if let Value::String(text) = value {
+                            if text.contains("://") {
+                                Value::String(safe_preview_url(text))
+                            } else {
+                                value.clone()
+                            }
                         } else {
                             redact(value)
                         },

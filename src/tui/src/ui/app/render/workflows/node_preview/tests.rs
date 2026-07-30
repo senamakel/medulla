@@ -95,11 +95,14 @@ fn generic_detail_redacts_credential_shaped_fields_recursively() {
             "url": "https://example.test",
             "headers": {
                 "Authorization": "Bearer private",
+                "X-API-Key": "hyphen-private",
+                "Cookie": "session=cookie-private",
                 "X-Trace": "visible"
             },
             "api_key": "private",
             "nested": {
-                "apiKey": "camel-private"
+                "apiKey": "camel-private",
+                "callback": "https://user:pass@example.test/hook?token=url-private"
             }
         }),
         80,
@@ -112,6 +115,10 @@ fn generic_detail_redacts_credential_shaped_fields_recursively() {
     assert!(!preview.contains("Bearer private"), "{preview}");
     assert!(!preview.contains("\"private\""), "{preview}");
     assert!(!preview.contains("camel-private"), "{preview}");
+    assert!(!preview.contains("hyphen-private"), "{preview}");
+    assert!(!preview.contains("cookie-private"), "{preview}");
+    assert!(!preview.contains("user:pass"), "{preview}");
+    assert!(!preview.contains("url-private"), "{preview}");
     assert!(preview.contains("••••"), "{preview}");
 }
 
