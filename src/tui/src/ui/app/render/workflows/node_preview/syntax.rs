@@ -5,6 +5,7 @@
 
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
+use unicode_width::UnicodeWidthChar;
 
 /// Syntax families whose common tokens can be highlighted reliably.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -80,6 +81,44 @@ pub(super) fn highlight_line(line: &str, language: &str) -> Vec<Span<'static>> {
         cursor += length;
     }
     spans
+}
+
+/// Wrap highlighted spans without losing their styles or source characters.
+pub(super) fn wrap_spans(spans: Vec<Span<'static>>, width: usize) -> Vec<Vec<Span<'static>>> {
+    let width = width.max(1);
+    let mut lines = vec![Vec::new()];
+    let mut used = 0;
+
+    for span in spans {
+        let mut part = String::new();
+        for character in span.content.chars() {
+            let character_width = character.width().unwrap_or(0);
+            if used > 0 && used + character_width > width {
+                push_part(
+                    lines.last_mut().expect("one line exists"),
+                    &mut part,
+                    span.style,
+                );
+                lines.push(Vec::new());
+                used = 0;
+            }
+            part.push(character);
+            used += character_width;
+        }
+        push_part(
+            lines.last_mut().expect("one line exists"),
+            &mut part,
+            span.style,
+        );
+    }
+    lines
+}
+
+/// Append an owned span when a wrapped token has accumulated text.
+fn push_part(line: &mut Vec<Span<'static>>, part: &mut String, style: Style) {
+    if !part.is_empty() {
+        line.push(Span::styled(std::mem::take(part), style));
+    }
 }
 
 impl Language {

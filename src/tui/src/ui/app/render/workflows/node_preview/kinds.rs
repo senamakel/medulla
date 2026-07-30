@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 use super::syntax;
 
 /// Render a node according to the semantics of its kind.
-pub(super) fn kind_lines(kind: &str, config: &Value) -> Vec<Line<'static>> {
+pub(super) fn kind_lines(kind: &str, config: &Value, width: usize) -> Vec<Line<'static>> {
     match kind {
         "code" => code_lines(
             config
@@ -19,6 +19,7 @@ pub(super) fn kind_lines(kind: &str, config: &Value) -> Vec<Line<'static>> {
                 .get("language")
                 .and_then(Value::as_str)
                 .unwrap_or("javascript"),
+            width,
         ),
         "agent" => agent_lines(config),
         "condition" => labelled_value(
@@ -38,6 +39,7 @@ pub(super) fn kind_lines(kind: &str, config: &Value) -> Vec<Line<'static>> {
                 args.get("language")
                     .and_then(Value::as_str)
                     .unwrap_or("shell"),
+                width,
             )
         }
         "tool_call" => tool_lines(config),
@@ -51,7 +53,7 @@ pub(super) fn kind_lines(kind: &str, config: &Value) -> Vec<Line<'static>> {
 }
 
 /// Render executable source with a language badge and line-number gutter.
-fn code_lines(source: &str, language: &str) -> Vec<Line<'static>> {
+fn code_lines(source: &str, language: &str, width: usize) -> Vec<Line<'static>> {
     let mut lines = vec![Line::from(vec![
         Span::styled(
             format!(" {language} "),
@@ -75,12 +77,23 @@ fn code_lines(source: &str, language: &str) -> Vec<Line<'static>> {
     let count = source.lines().count();
     let gutter = count.to_string().len();
     for (index, source_line) in source.lines().enumerate() {
-        let mut spans = vec![Span::styled(
-            format!("{:>gutter$} │ ", index + 1),
-            Style::default().fg(Color::DarkGray),
-        )];
-        spans.extend(syntax::highlight_line(source_line, language));
-        lines.push(Line::from(spans));
+        let source_width = width.saturating_sub(gutter + 3).max(1);
+        for (segment, highlighted) in
+            syntax::wrap_spans(syntax::highlight_line(source_line, language), source_width)
+                .into_iter()
+                .enumerate()
+        {
+            let mut spans = vec![Span::styled(
+                if segment == 0 {
+                    format!("{:>gutter$} │ ", index + 1)
+                } else {
+                    format!("{:>gutter$} │ ", "")
+                },
+                Style::default().fg(Color::DarkGray),
+            )];
+            spans.extend(highlighted);
+            lines.push(Line::from(spans));
+        }
     }
     lines
 }

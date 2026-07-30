@@ -99,7 +99,7 @@ impl App {
         }
 
         lines.push(connection_line(&selected.id, &self.workflow_layout().edges));
-        lines.extend(kind_lines(&selected.kind, &config));
+        lines.extend(kind_lines(&selected.kind, &config, inner.width as usize));
         let visible = inner.height as usize;
         let width = inner.width.max(1) as usize;
         let visual_lines = lines
