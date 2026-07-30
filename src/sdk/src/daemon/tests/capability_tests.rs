@@ -152,6 +152,37 @@ async fn status_detail_maps_event_kinds() {
         status_detail(&terminal).as_deref(),
         Some("running Terminal · $ cargo test --workspace cargo clippy")
     );
+    let secret_command = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c3",
+            "tool_name": "execute",
+            "tool_kind": "shell",
+            "input": {
+                "command": "curl -H 'Authorization: Bearer top-secret' https://example.test"
+            }
+        }),
+        ..Default::default()
+    };
+    let command_detail = status_detail(&secret_command).expect("secret command has safe status");
+    assert_eq!(command_detail, "running Terminal · $ [credential redacted]");
+    assert!(!command_detail.contains("top-secret"));
+
+    let secret_url = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c4",
+            "tool_name": "fetch",
+            "input": {
+                "url": "https://operator:password@example.test/hook?token=top-secret"
+            }
+        }),
+        ..Default::default()
+    };
+    let url_detail = status_detail(&secret_url).expect("secret URL has safe status");
+    assert_eq!(url_detail, "running Fetch · [credential redacted URL]");
+    assert!(!url_detail.contains("operator"));
+    assert!(!url_detail.contains("top-secret"));
 
     let thinking = HarnessEvent {
         kind: "agent_thinking".to_string(),

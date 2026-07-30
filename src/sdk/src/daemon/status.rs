@@ -42,7 +42,7 @@ fn tool_call_detail(payload: &ToolCallPayload) -> String {
     let input = &payload.input;
     let title = tool_title(payload);
     let detail = scalar_at(input, &["command", "cmd", "script"])
-        .map(|command| format!("$ {}", one_line(command)))
+        .map(|command| format!("$ {}", safe_command(command)))
         .or_else(|| {
             scalar_at(input, &["file_path", "filePath", "path"])
                 .map(|path| one_line(path).to_string())
@@ -55,7 +55,7 @@ fn tool_call_detail(payload: &ToolCallPayload) -> String {
             scalar_at(input, &["instruction", "prompt", "task", "objective"])
                 .map(|task| one_line(task).to_string())
         })
-        .or_else(|| scalar_at(input, &["url", "uri"]).map(|url| one_line(url).to_string()));
+        .or_else(|| scalar_at(input, &["url", "uri"]).map(safe_url));
     match detail {
         Some(detail) if !detail.is_empty() => cap(&format!("{title} · {detail}"), 180),
         _ if !payload.display.trim().is_empty() => {
@@ -100,6 +100,64 @@ fn tool_result_detail(payload: &ToolResultPayload) -> String {
         );
     }
     title.to_string()
+}
+
+/// Keep useful command text unless it carries credential-shaped material.
+///
+/// Status lines cross the daemon boundary and can be persisted by peers, so a
+/// false positive costs only detail while a false negative leaks a credential.
+fn safe_command(command: &str) -> String {
+    let command = one_line(command);
+    if credential_shaped(&command)
+        || command
+            .split_whitespace()
+            .any(|part| part.contains("://") && (part.contains('?') || has_url_userinfo(part)))
+    {
+        "[credential redacted]".to_string()
+    } else {
+        command
+    }
+}
+
+/// Remove URL components commonly used to carry credentials.
+fn safe_url(url: &str) -> String {
+    let url = one_line(url);
+    if credential_shaped(&url) || has_url_userinfo(&url) {
+        return "[credential redacted URL]".to_string();
+    }
+    match url.find(['?', '#']) {
+        Some(index) => format!("{}?••••", &url[..index]),
+        None => url,
+    }
+}
+
+/// Detect names and schemes that commonly introduce inline credentials.
+fn credential_shaped(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    [
+        "authorization",
+        "bearer ",
+        "token",
+        "secret",
+        "password",
+        "passwd",
+        "api_key",
+        "api-key",
+        "apikey",
+        "access_key",
+        "private_key",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
+/// Return whether a URL authority contains `user:password@` style userinfo.
+fn has_url_userinfo(value: &str) -> bool {
+    let Some(authority) = value.split_once("://").map(|(_, rest)| rest) else {
+        return false;
+    };
+    let authority = authority.split(['/', '?', '#']).next().unwrap_or(authority);
+    authority.contains('@')
 }
 
 /// Read the first string or scalar at a known-safe key.
