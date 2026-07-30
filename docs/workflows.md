@@ -16,7 +16,7 @@ model call.**
 JSON documents, one graph per file. Authored workflows are saved in the Medulla
 home beside the rest of its persistent data:
 
-```
+```text
 <medulla home>/workflows/*.json
 ```
 
