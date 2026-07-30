@@ -146,6 +146,19 @@ tokenEnv = "MEDULLA_TOKEN"
 # stateDir = "/absolute/path/to/state"
 
 # ---------------------------------------------------------------------------
+# workflows — authored workflow capabilities (optional)
+# ---------------------------------------------------------------------------
+# Definitions are saved under <home>/workflows and runtime state under
+# <home>/state/workflows. Code execution is on by default but is not sandboxed;
+# set allowCode = false before loading workflows you do not trust. HTTP and
+# third-party tools remain deny-by-default.
+# [workflows]
+# allowCode = true
+# runTimeoutSecs = 600
+# toolAllowlist = []
+# httpAllowlist = []
+
+# ---------------------------------------------------------------------------
 # workflow — daemon worker workspace allowlist
 # ---------------------------------------------------------------------------
 # [workflow]

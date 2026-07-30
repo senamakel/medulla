@@ -13,17 +13,18 @@ model call.**
 
 ## Where workflows live
 
-JSON documents, one graph per file, in two layered directories — lowest
-precedence first:
+JSON documents, one graph per file. Authored workflows are saved in the Medulla
+home beside the rest of its persistent data:
 
 ```
-<medulla home>/workflows/*.json     # yours, on this machine
-<cwd>/.medulla/workflows/*.json     # this repository's, checked in
+<medulla home>/workflows/*.json
 ```
 
-Same layering as `.medulla/agents`, so a workflow committed to a repository
-shadows a personal one of the same id. A malformed document costs only itself:
-the rest of the catalogue still loads and the failure is reported.
+A repository may still provide defaults under `<cwd>/.medulla/workflows`.
+Those are read first; a user-global workflow of the same id overlays the
+repository copy, so edits never have to create untracked files in the checkout.
+A malformed document costs only itself: the rest of the catalogue still loads
+and the failure is reported.
 
 Run records live under `<medulla home>/state/workflows/runs/`, and the engine's
 checkpoints — what lets a paused run survive a restart — under
@@ -216,10 +217,9 @@ that shows a harness's own todo list, with no rendering code of its own.
 
 ## Configuration
 
-The `workflows` section. Every capability defaults to **off**: a workflow arrives
-as a file, possibly written by an agent, and the difference between a plan and an
-exploit is whether it can reach the network, run code, or call a third-party
-tool.
+The `workflows` section. Local code execution defaults **on** so authored
+workflows run without a host bootstrap step. Outbound HTTP and third-party tools
+remain deny-by-default.
 
 ```toml
 [workflows]
@@ -227,7 +227,7 @@ enabled = true
 defaultWorker = ""        # where agent nodes with no agentRef go
 defaultProvider = ""      # claude | codex | opencode
 defaultModel = ""
-allowCode = false         # code nodes: no sandbox here, so off by default
+allowCode = true          # set false for untrusted workflows; there is no sandbox
 toolAllowlist = []        # beyond the built-in medulla:* tools
 httpAllowlist = []        # a bare domain also permits its subdomains
 runTimeoutSecs = 600
@@ -243,8 +243,9 @@ Two guards are not configurable:
   resolves to, so an allowlisted name answering `127.0.0.1` is caught. Redirects
   are not followed, since only the first URL is ever checked. A name that cannot
   be resolved is refused rather than attempted.
-- **`code` nodes have no sandbox** on this host, so enabling them grants a
-  workflow author the daemon's own privileges. The refusal message says as much.
+- **`code` nodes have no sandbox** on this host, so the default grants a
+  workflow author the daemon's own privileges. Set `allowCode = false` before
+  loading untrusted workflows; the refusal message says as much.
 
 Workflow ids and run ids both become filenames and are validated as single path
 components before use: a document's `id` overrides the caller's, and a run id can

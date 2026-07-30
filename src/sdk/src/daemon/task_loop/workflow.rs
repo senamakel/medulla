@@ -396,8 +396,8 @@ impl DaemonRuntime {
     ///
     /// Read from the operator's layered config so `workflows.enabled` and the
     /// allowlists mean the same thing here as they do on the CLI. A config that
-    /// cannot be loaded falls back to the safe defaults — no code execution, no
-    /// outbound HTTP, no third-party tools — rather than to permissive ones.
+    /// cannot be loaded falls back to the built-in policy: local code enabled,
+    /// outbound HTTP and third-party tools denied.
     fn workflow_settings(&self) -> Arc<CapabilitySettings> {
         let home = crate::home::medulla_home(&self.inner.config.env);
         let cwd = std::path::Path::new(&self.inner.config.workspace);

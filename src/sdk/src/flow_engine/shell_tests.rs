@@ -20,7 +20,6 @@ use tinyflows::caps::ToolInvoker;
 
 use super::caps::tools::MedullaToolInvoker;
 use super::settings::CapabilitySettings;
-use super::tests::settings;
 
 /// Settings with script execution turned on, rooted at `workspace`.
 fn scripting_settings(workspace: &std::path::Path) -> Arc<CapabilitySettings> {
@@ -31,13 +30,15 @@ fn scripting_settings(workspace: &std::path::Path) -> Arc<CapabilitySettings> {
 }
 
 #[tokio::test]
-async fn the_shell_tool_is_refused_until_an_operator_turns_scripting_on() {
+async fn the_shell_tool_honors_an_explicit_operator_opt_out() {
     let root = tempfile::tempdir().unwrap();
+    let mut denied = CapabilitySettings::rooted_at(root.path());
+    denied.allow_code = false;
 
-    let err = MedullaToolInvoker::new(settings(root.path()))
+    let err = MedullaToolInvoker::new(Arc::new(denied))
         .invoke("medulla:shell", json!({ "script": "echo hi" }), None)
         .await
-        .expect_err("off by default");
+        .expect_err("explicitly disabled");
 
     // The same decision `code` nodes are gated on, and the message has to name
     // the switch rather than just refusing.

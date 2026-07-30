@@ -97,9 +97,9 @@ impl App {
             vec![
                 "No workflows installed.",
                 "",
-                "Write one to .medulla/workflows/<id>.json. The copilot beside",
-                "this pane can then edit it — but it acts on a selected",
-                "workflow, so there must be one on disk first.",
+                "Create one with medulla workflow create. It will be saved under",
+                "your Medulla home; the copilot beside this pane can then edit",
+                "it, but it needs a selected workflow on disk first.",
                 "",
                 "r re-reads the store.",
             ]

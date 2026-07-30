@@ -14,10 +14,11 @@
 //! sibling `openhuman` host, but a crate-root module of that name would collide
 //! with the `tinyflows` crate itself in every path inside this crate.)
 //!
-//! Definitions are JSON documents in the layered workflow directories
-//! (`<medulla home>/workflows`, then `<cwd>/.medulla/workflows`), the same
-//! layering agent templates use. The store is behind the [`WorkflowStore`]
-//! trait, so a remote catalog is a new implementation rather than a rewrite.
+//! Definitions are JSON documents under `<medulla home>/workflows`.
+//! Repository-provided defaults under `<cwd>/.medulla/workflows` remain
+//! readable, but user-authored changes overlay them from the home directory.
+//! The store is behind the [`WorkflowStore`] trait, so a remote catalog is a new
+//! implementation rather than a rewrite.
 
 pub mod authoring;
 pub mod bridge;
