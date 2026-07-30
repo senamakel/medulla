@@ -17,7 +17,10 @@ use medulla::workflows::{RunRecord, RunStatus};
 use super::super::super::types::App;
 
 mod kinds;
+mod syntax;
 
+#[cfg(test)]
+mod syntax_tests;
 #[cfg(test)]
 mod tests;
 

@@ -4,6 +4,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use serde_json::{Map, Value};
 
+use super::syntax;
+
 /// Render a node according to the semantics of its kind.
 pub(super) fn kind_lines(kind: &str, config: &Value) -> Vec<Line<'static>> {
     match kind {
@@ -73,47 +75,14 @@ fn code_lines(source: &str, language: &str) -> Vec<Line<'static>> {
     let count = source.lines().count();
     let gutter = count.to_string().len();
     for (index, source_line) in source.lines().enumerate() {
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("{:>gutter$} │ ", index + 1),
-                Style::default().fg(Color::DarkGray),
-            ),
-            highlighted_source(source_line, language),
-        ]));
+        let mut spans = vec![Span::styled(
+            format!("{:>gutter$} │ ", index + 1),
+            Style::default().fg(Color::DarkGray),
+        )];
+        spans.extend(syntax::highlight_line(source_line, language));
+        lines.push(Line::from(spans));
     }
     lines
-}
-
-/// Apply restrained syntax colour without making the viewer parser-dependent.
-fn highlighted_source(line: &str, language: &str) -> Span<'static> {
-    let trimmed = line.trim_start();
-    let style = if trimmed.starts_with('#') || trimmed.starts_with("//") {
-        Style::default()
-            .fg(Color::DarkGray)
-            .add_modifier(Modifier::ITALIC)
-    } else if language == "python"
-        && [
-            "def ", "class ", "import ", "from ", "for ", "if ", "return ",
-        ]
-        .iter()
-        .any(|word| trimmed.starts_with(word))
-        || language == "javascript"
-            && [
-                "const ",
-                "let ",
-                "function ",
-                "class ",
-                "import ",
-                "export ",
-            ]
-            .iter()
-            .any(|word| trimmed.starts_with(word))
-    {
-        Style::default().fg(Color::Cyan)
-    } else {
-        Style::default()
-    };
-    Span::styled(line.to_string(), style)
 }
 
 /// Render a coding-agent step as execution metadata followed by its prompt.
