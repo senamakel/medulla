@@ -227,21 +227,33 @@ impl CopilotState {
         }
     }
 
-    /// Settle the newest in-flight tool row instead of adding a generic line.
+    /// Settle a tool row only when there is exactly one possible match.
+    ///
+    /// The shared status channel does not carry call IDs. With overlapping
+    /// calls, choosing newest or oldest can attach another call's failure to
+    /// the wrong operation, so ambiguous results remain generic status lines.
     fn settle_tool(&mut self, failed: bool, detail: &str) {
-        let Some(turn) = self
+        let unresolved = self
             .turns
-            .iter_mut()
-            .rev()
-            .find(|turn| turn.role == TurnRole::Tool)
-        else {
-            self.status(if failed {
-                "tool failed"
+            .iter()
+            .enumerate()
+            .filter_map(|(index, turn)| (turn.role == TurnRole::Tool).then_some(index))
+            .take(2)
+            .collect::<Vec<_>>();
+        let [index] = unresolved.as_slice() else {
+            let mut status = if failed {
+                "tool failed".to_string()
             } else {
-                "tool completed"
-            });
+                "tool completed".to_string()
+            };
+            if !detail.is_empty() {
+                status.push_str(" · ");
+                status.push_str(detail);
+            }
+            self.status(status);
             return;
         };
+        let turn = &mut self.turns[*index];
         turn.role = if failed {
             TurnRole::ToolFailure
         } else {
