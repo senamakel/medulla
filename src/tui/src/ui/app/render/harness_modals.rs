@@ -12,7 +12,7 @@ use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
-use super::super::types::App;
+use super::super::types::{App, HarnessPickerStep};
 
 impl App {
     /// Draw the "start a harness" picker.
@@ -20,14 +20,24 @@ impl App {
         let Some(picker) = &self.harness_picker else {
             return;
         };
-        let height = (picker.choices.len() as u16).saturating_add(5).min(14);
+        let (rows, title) = match picker.step {
+            HarnessPickerStep::Harness => (
+                picker.choices.len(),
+                "Choose harness — ↑/↓ · Enter workspace · Esc cancel",
+            ),
+            HarnessPickerStep::Workspace => (
+                picker.workspace_choices.len(),
+                "Choose workspace — type to filter · Tab complete · Enter start · Esc back",
+            ),
+        };
+        let height = (rows as u16).saturating_add(7).clamp(8, 18);
         let area = centered(area, 62, height);
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(self.theme.accent))
             .title(Span::styled(
-                "Start a harness — ↑/↓ · Enter start · e directory · Esc cancel",
+                title,
                 Style::default()
                     .fg(self.theme.accent)
                     .add_modifier(Modifier::BOLD),
@@ -38,24 +48,85 @@ impl App {
         f.render_widget(Clear, area);
         f.render_widget(block, area);
 
-        let mut lines = Vec::new();
-        for (i, choice) in picker.choices.iter().enumerate() {
-            let marker = if i == picker.index { "❯ " } else { "  " };
-            let style = if i == picker.index {
-                self.theme.selection()
-            } else {
-                Style::default()
+        let mut lines =
+            match picker.step {
+                HarnessPickerStep::Harness => picker
+                    .choices
+                    .iter()
+                    .enumerate()
+                    .map(|(index, choice)| {
+                        let marker = if index == picker.index { "❯ " } else { "  " };
+                        let style = if index == picker.index {
+                            self.theme.selection()
+                        } else {
+                            Style::default()
+                        };
+                        TLine::from(Span::styled(
+                            format!("{marker}{}", choice.display_name()),
+                            style,
+                        ))
+                    })
+                    .collect(),
+                HarnessPickerStep::Workspace => {
+                    let selected_harness = picker
+                        .choices
+                        .get(picker.index)
+                        .map(|choice| choice.display_name())
+                        .unwrap_or("harness");
+                    let mut lines = vec![
+                        TLine::from(Span::styled(
+                            format!("  {selected_harness}"),
+                            Style::default().add_modifier(Modifier::BOLD),
+                        )),
+                        TLine::from(format!(
+                            "  search › {}▌",
+                            medulla::ui::util::clip_left(&picker.workspace_query, 46)
+                        )),
+                        TLine::from(""),
+                    ];
+                    if picker.workspace_choices.is_empty() {
+                        lines.push(TLine::from(Span::styled(
+                            "  No matching folders",
+                            Style::default().add_modifier(Modifier::DIM),
+                        )));
+                    }
+                    lines.extend(picker.workspace_choices.iter().enumerate().map(
+                        |(index, choice)| {
+                            let marker = if index == picker.workspace_index {
+                                "❯ "
+                            } else {
+                                "  "
+                            };
+                            let style = if index == picker.workspace_index {
+                                self.theme.selection()
+                            } else {
+                                Style::default()
+                            };
+                            TLine::from(vec![
+                                Span::styled(
+                                    format!(
+                                        "{marker}{}",
+                                        medulla::ui::util::clip_left(&choice.path, 43)
+                                    ),
+                                    style,
+                                ),
+                                Span::styled(
+                                    format!("  {}", choice.source),
+                                    Style::default().add_modifier(Modifier::DIM),
+                                ),
+                            ])
+                        },
+                    ));
+                    lines
+                }
             };
+        if picker.step == HarnessPickerStep::Harness {
+            lines.push(TLine::from(""));
             lines.push(TLine::from(Span::styled(
-                format!("{marker}{}", choice.display_name()),
-                style,
+                "  Next: choose a workspace",
+                Style::default().add_modifier(Modifier::DIM),
             )));
         }
-        lines.push(TLine::from(""));
-        lines.push(TLine::from(Span::styled(
-            format!("  in {}", picker.cwd),
-            Style::default().add_modifier(Modifier::DIM),
-        )));
         // Said here as well as in the status line, because it is the one fact
         // that makes this different from every other way to start a harness.
         lines.push(TLine::from(Span::styled(

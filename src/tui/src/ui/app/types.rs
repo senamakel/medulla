@@ -559,9 +559,34 @@ pub(super) struct HarnessPicker {
     pub(super) choices: Vec<crate::ui::harness_pane::HarnessChoice>,
     /// The highlighted row.
     pub(super) index: usize,
-    /// Where the harness will be started. Defaults to the host's workspace and
-    /// is editable from inside the picker.
+    /// Which half of the two-step picker owns the keyboard.
+    pub(super) step: HarnessPickerStep,
+    /// Where the harness will be started when no filtered row is selected.
     pub(super) cwd: String,
+    /// Inline fuzzy-completion text on the workspace step.
+    pub(super) workspace_query: String,
+    /// Cached workspace rows, refreshed only when the query changes.
+    pub(super) workspace_choices: Vec<WorkspaceChoice>,
+    /// Highlighted workspace completion.
+    pub(super) workspace_index: usize,
+}
+
+/// Active stage of the manual harness launcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum HarnessPickerStep {
+    /// Choose an installed CLI or registered preset.
+    Harness,
+    /// Choose or complete the working directory.
+    Workspace,
+}
+
+/// One cached workspace completion and why it was suggested.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct WorkspaceChoice {
+    /// Absolute directory path.
+    pub(super) path: String,
+    /// Short operator-facing provenance such as `recent` or `folder`.
+    pub(super) source: &'static str,
 }
 
 /// The "you still hold this harness" confirmation shown on release.
@@ -617,8 +642,6 @@ pub(super) enum PromptKind {
     CustomHarnessAdd,
     /// Edit the custom harness with the given stable id.
     CustomHarnessEdit(String),
-    /// Set the directory the harness picker will start its harness in.
-    HarnessCwd,
     /// The working directory for a new local host, with the harness already
     /// chosen. Blank accepts the default — where this process is running.
     LocalHostWorkspace(medulla::tinyplace::HarnessProvider),

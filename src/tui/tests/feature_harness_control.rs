@@ -30,6 +30,11 @@ use medulla_tui::worker::pty::{HarnessControl, LaunchSpec, PtyManager};
 /// launch `/bin/sh` through the ordinary path without claude's minted
 /// `--session-id` reaching a shell that would reject it.
 fn app_with_harnesses(sessions: PtyManager) -> App {
+    app_with_workspace(sessions, "/")
+}
+
+/// Variant whose picker and shell child use an isolated workspace.
+fn app_with_workspace(sessions: PtyManager, workspace: &str) -> App {
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.tab_index = TABS.iter().position(|t| *t == "Agents").unwrap();
@@ -37,7 +42,7 @@ fn app_with_harnesses(sessions: PtyManager) -> App {
     let config = medulla::daemon::DaemonConfig {
         providers: vec![HarnessProvider::Codex],
         default_provider: HarnessProvider::Codex,
-        workspace: "/".to_string(),
+        workspace: workspace.to_string(),
         accessible_dirs: Vec::new(),
         env: HashMap::new(),
         task_timeout_ms: 1_000,
@@ -75,7 +80,7 @@ fn app_with_harnesses(sessions: PtyManager) -> App {
         ])),
         hub_address: "medulla-orchestrator".to_string(),
         env,
-        workspace: "/".to_string(),
+        workspace: workspace.to_string(),
         providers: vec![HarnessProvider::Codex],
         custom_harnesses: Vec::new(),
         router: None,
@@ -166,11 +171,16 @@ fn ctrl_t_opens_the_picker_and_enter_starts_an_unmanaged_harness() {
 
     let _ = app.on_event(ctrl('t'));
     let out = render(&mut app, 140, 44);
-    assert!(out.contains("Start a harness"), "{out}");
+    assert!(out.contains("Choose harness"), "{out}");
     assert!(
         out.contains("the orchestrator will not dispatch into it"),
         "the picker must say what unmanaged means: {out}"
     );
+
+    let _ = app.on_event(key(KeyCode::Enter));
+    let out = render(&mut app, 140, 44);
+    assert!(out.contains("Choose workspace"), "{out}");
+    assert!(out.contains("/"), "{out}");
 
     let _ = app.on_event(key(KeyCode::Enter));
     wait_for("the harness to open", || sessions.rows().len() == 1);
@@ -212,7 +222,7 @@ fn the_picker_cancels_without_starting_anything() {
     let _ = app.on_event(key(KeyCode::Esc));
 
     let out = render(&mut app, 140, 44);
-    assert!(!out.contains("Start a harness"), "{out}");
+    assert!(!out.contains("Choose harness"), "{out}");
     assert!(sessions.rows().is_empty(), "Esc must not start a harness");
 }
 
@@ -224,7 +234,6 @@ fn the_picker_directory_can_be_edited_before_starting() {
     let _ = app.on_event(ctrl('t'));
     let _ = app.on_event(key(KeyCode::Char('e')));
     type_str(&mut app, "tmp");
-    let _ = app.on_event(key(KeyCode::Enter));
 
     let out = render(&mut app, 140, 44);
     assert!(
@@ -239,6 +248,53 @@ fn the_picker_directory_can_be_edited_before_starting() {
     let _ = app.on_event(key(KeyCode::Enter));
     wait_for("the harness to open", || sessions.rows().len() == 1);
     assert_eq!(sessions.rows().remove(0).cwd, "/tmp");
+
+    sessions.shutdown();
+}
+
+#[test]
+fn workspace_picker_autocompletes_folders_and_remembers_successful_choices() {
+    let root = tempfile::tempdir().unwrap();
+    let alpha = root.path().join("project-alpha");
+    let beta = root.path().join("project-beta");
+    std::fs::create_dir(&alpha).unwrap();
+    std::fs::create_dir(&beta).unwrap();
+    let sessions = PtyManager::new();
+    let mut app = app_with_workspace(sessions.clone(), root.path().to_str().unwrap());
+    app.loaded.config.harness.recent_workspaces = vec![alpha.to_string_lossy().into_owned()];
+    let config = root.path().join("config.toml");
+    app.set_config_path(config.clone());
+
+    let _ = app.on_event(ctrl('t'));
+    let _ = app.on_event(key(KeyCode::Enter));
+    let out = render(&mut app, 140, 44);
+    assert!(out.contains("project-alpha"), "{out}");
+    assert!(out.contains("recent"), "{out}");
+
+    type_str(&mut app, "pb");
+    let out = render(&mut app, 140, 44);
+    assert!(out.contains("project-beta"), "{out}");
+    assert!(out.contains("folder"), "{out}");
+
+    let _ = app.on_event(key(KeyCode::Tab));
+    let out = render(&mut app, 140, 44);
+    assert!(
+        out.contains("search ›") && out.contains("project-beta"),
+        "{out}"
+    );
+
+    let _ = app.on_event(key(KeyCode::Enter));
+    wait_for("the harness to open in the completed folder", || {
+        sessions.rows().len() == 1
+    });
+    assert_eq!(
+        sessions.rows().remove(0).cwd,
+        beta.to_string_lossy().into_owned()
+    );
+    let saved = std::fs::read_to_string(config).unwrap();
+    assert!(saved.contains("recentWorkspaces"));
+    assert!(saved.contains("project-beta"));
+    assert!(saved.find("project-beta") < saved.find("project-alpha"));
 
     sessions.shutdown();
 }

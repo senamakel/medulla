@@ -201,6 +201,12 @@ pub struct HarnessSection {
     /// `skipPermissions`: that flag exists because an unattended session hangs
     /// on a permission dialog, and this session is by definition attended.
     pub skip_permissions: bool,
+    /// Recently chosen directories in the manual harness launcher, newest first.
+    ///
+    /// This is picker history, not a routing allowlist: it never changes where
+    /// orchestrated tasks may run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_workspaces: Vec<String>,
 }
 
 impl Default for HarnessSection {
@@ -208,6 +214,7 @@ impl Default for HarnessSection {
         HarnessSection {
             handback: "ask".to_string(),
             skip_permissions: false,
+            recent_workspaces: Vec::new(),
         }
     }
 }

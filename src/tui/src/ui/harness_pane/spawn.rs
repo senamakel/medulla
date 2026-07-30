@@ -43,11 +43,7 @@ impl LocalHarnesses {
         cwd: &str,
         skip_permissions: bool,
     ) -> Result<String, String> {
-        let cwd = if cwd.trim().is_empty() {
-            self.workspace.clone()
-        } else {
-            expand_home(cwd.trim())
-        };
+        let cwd = self.resolve_workspace(cwd);
         if !std::path::Path::new(&cwd).is_dir() {
             return Err(format!("{cwd} is not a directory"));
         }
@@ -74,6 +70,28 @@ impl LocalHarnesses {
             control: HarnessControl::User,
             user_spawned: true,
         })
+    }
+
+    /// Resolve picker input to the absolute directory a child will receive.
+    ///
+    /// Blank input uses the host workspace, `~` follows the harness
+    /// environment, and relative input is rooted at the host workspace rather
+    /// than whichever directory happens to contain the TUI process.
+    pub fn resolve_workspace(&self, cwd: &str) -> String {
+        let input = if cwd.trim().is_empty() {
+            return self.workspace.clone();
+        } else {
+            expand_home(cwd.trim(), &self.env)
+        };
+        let path = std::path::Path::new(&input);
+        if path.is_absolute() {
+            input
+        } else {
+            std::path::Path::new(&self.workspace)
+                .join(path)
+                .to_string_lossy()
+                .into_owned()
+        }
     }
 
     /// The environment and extra argv an operator-started harness spawns with.
@@ -123,15 +141,15 @@ impl LocalHarnesses {
 /// An operator typing a path into the composer writes `~/work/foo`, which no
 /// syscall understands — the shell would have expanded it, and there is no shell
 /// here.
-fn expand_home(path: &str) -> String {
+fn expand_home(path: &str, env: &std::collections::HashMap<String, String>) -> String {
     let Some(rest) = path.strip_prefix('~') else {
         return path.to_string();
     };
-    let Ok(home) = std::env::var("HOME") else {
+    let Some(home) = env.get("HOME") else {
         return path.to_string();
     };
     if rest.is_empty() {
-        return home;
+        return home.clone();
     }
     match rest.strip_prefix('/') {
         Some(tail) => format!("{}/{tail}", home.trim_end_matches('/')),
