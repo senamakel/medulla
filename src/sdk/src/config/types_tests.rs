@@ -45,6 +45,7 @@ fn defaults_are_applied() {
     );
     assert_eq!(cfg.medulla.context_window(), 1_000_000);
     assert!(cfg.workflow.workspaces.is_empty());
+    assert!(cfg.workflows.allow_code);
     assert!(cfg.appearance.show_harness_branch);
     assert!(cfg.appearance.show_harness_path);
 }

@@ -1,8 +1,8 @@
 //! Tests for capability settings and the config that produces them.
 //!
-//! These are mostly about defaults being *closed*: a workflow arriving as a file
-//! must not be able to reach the network, run code, or call a third-party tool
-//! until an operator says so.
+//! These pin the deliberate split in defaults: local code is available, while
+//! network and third-party tools remain closed until an operator allowlists
+//! them.
 
 use std::path::Path;
 
@@ -10,10 +10,10 @@ use super::{CapabilitySettings, DEFAULT_RUN_TIMEOUT_SECS};
 use crate::config::WorkflowsConfig;
 
 #[test]
-fn every_optional_capability_is_off_by_default() {
+fn code_is_on_while_external_capabilities_stay_off_by_default() {
     let settings = CapabilitySettings::rooted_at(Path::new("/home"));
 
-    assert!(!settings.allow_code, "no sandbox means no code execution");
+    assert!(settings.allow_code);
     assert!(settings.tool_allowlist.is_empty());
     assert!(settings.http_allowlist.is_empty());
     assert!(
@@ -21,6 +21,18 @@ fn every_optional_capability_is_off_by_default() {
         "an empty allowlist permits nothing, rather than everything"
     );
     assert!(!settings.tool_allowed("github.create_issue"));
+}
+
+#[test]
+fn an_explicit_config_opt_out_disables_code_execution() {
+    let config = WorkflowsConfig {
+        allow_code: false,
+        ..Default::default()
+    };
+
+    let settings = CapabilitySettings::from_config(&config, "/home");
+
+    assert!(!settings.allow_code);
 }
 
 #[test]

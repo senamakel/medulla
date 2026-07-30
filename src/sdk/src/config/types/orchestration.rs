@@ -311,10 +311,10 @@ pub struct WorkflowConfig {
 
 /// The `workflows` section: what authored workflows may do when they run.
 ///
-/// Every capability defaults to off. A workflow arrives as a file — possibly
-/// written by an agent, possibly copied from somewhere — and the difference
-/// between a plan and an exploit is whether it can reach the network, run code,
-/// or call a third-party tool. Turning each on is an operator's decision.
+/// Code execution defaults on so locally authored workflows work without an
+/// extra host bootstrap step. Outbound HTTP and third-party tools remain
+/// deny-by-default, and an operator can explicitly set `allowCode = false` for
+/// untrusted workflow collections.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct WorkflowsConfig {
@@ -334,7 +334,7 @@ pub struct WorkflowsConfig {
     pub default_model: String,
     /// Whether `code` nodes may execute. This host has no sandbox, so enabling
     /// it grants a workflow author the daemon's own privileges.
-    #[serde(default)]
+    #[serde(default = "d_true")]
     pub allow_code: bool,
     /// Tool slugs a `tool_call` node may invoke, beyond the built-in
     /// `medulla:` operations.
@@ -411,7 +411,7 @@ impl Default for WorkflowsConfig {
             default_worker: String::new(),
             default_provider: None,
             default_model: String::new(),
-            allow_code: false,
+            allow_code: true,
             tool_allowlist: Vec::new(),
             http_allowlist: Vec::new(),
             run_timeout_secs: d_run_timeout_secs(),
