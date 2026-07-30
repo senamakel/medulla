@@ -23,17 +23,25 @@ pub(crate) fn bounded_evidence(value: &serde_json::Value) -> serde_json::Value {
     if serialized.len() <= MAX_EVIDENCE_BYTES {
         return value.clone();
     }
+    // The preview is itself embedded in JSON, so reserve half the budget for
+    // escaping plus the wrapper metadata. Quotes and backslashes can nearly
+    // double when serialized a second time.
+    let preview_budget = MAX_EVIDENCE_BYTES / 2 - 256;
     let end = serialized
         .char_indices()
         .map(|(index, _)| index)
-        .take_while(|index| *index <= MAX_EVIDENCE_BYTES)
+        .take_while(|index| *index <= preview_budget)
         .last()
         .unwrap_or(0);
-    serde_json::json!({
+    let bounded = serde_json::json!({
         "_medullaTruncated": true,
         "originalBytes": serialized.len(),
         "preview": &serialized[..end],
-    })
+    });
+    debug_assert!(serde_json::to_vec(&bounded)
+        .map(|body| body.len() <= MAX_EVIDENCE_BYTES)
+        .unwrap_or(false));
+    bounded
 }
 
 /// One run's identifier. Doubles as the engine checkpointer's `thread_id`, which

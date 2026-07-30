@@ -138,8 +138,16 @@ fn durable_step_evidence_is_bounded_without_changing_small_values() {
     assert_eq!(bounded["_medullaTruncated"], true);
     assert!(bounded["originalBytes"].as_u64().unwrap() > run::MAX_EVIDENCE_BYTES as u64);
     assert!(
-        serde_json::to_vec(&bounded).unwrap().len() < run::MAX_EVIDENCE_BYTES + 256,
+        serde_json::to_vec(&bounded).unwrap().len() <= run::MAX_EVIDENCE_BYTES,
         "the persisted summary itself must remain bounded"
+    );
+
+    let escaping = json!({ "body": "\\\"".repeat(run::MAX_EVIDENCE_BYTES) });
+    assert!(
+        serde_json::to_vec(&bounded_evidence(&escaping))
+            .unwrap()
+            .len()
+            <= run::MAX_EVIDENCE_BYTES
     );
 }
 
