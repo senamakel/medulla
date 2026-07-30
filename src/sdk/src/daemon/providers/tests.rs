@@ -346,8 +346,15 @@ fn acp_tool_updates_preserve_failure_state_for_the_copilot() {
         "rawOutput": "tests failed"
     }))
     .unwrap();
+    let still_running = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "call-1",
+        "status": "in_progress"
+    }))
+    .unwrap();
 
     state.fold(call);
+    state.fold(still_running);
     state.fold(failure);
 
     assert_eq!(
