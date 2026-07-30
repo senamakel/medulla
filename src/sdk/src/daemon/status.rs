@@ -13,15 +13,20 @@ use crate::tinyplace::{HarnessEvent, HarnessEventKind, ToolCallPayload, ToolResu
 /// ([`crate::ui::workflows::progress`]), and a producer that reworded this
 /// without the reader following would silently stop rendering tool calls.
 pub const TOOL_PREFIX: &str = "running ";
+/// Internal separator carrying a tool call id through the legacy text channel.
+pub(crate) const TOOL_CALL_ID_SEPARATOR: char = '\u{1f}';
 
 /// Derive a short status string from a semantic event (or none). Ported from the
 /// TS `statusDetail`.
 pub fn status_detail(event: &HarnessEvent) -> Option<String> {
     match event.decoded() {
-        HarnessEventKind::ToolCall(payload) => {
-            Some(format!("{TOOL_PREFIX}{}", tool_call_detail(&payload)))
+        HarnessEventKind::ToolCall(payload) => Some(tag_call_id(
+            format!("{TOOL_PREFIX}{}", tool_call_detail(&payload)),
+            &payload.call_id,
+        )),
+        HarnessEventKind::ToolResult(payload) => {
+            Some(tag_call_id(tool_result_detail(&payload), &payload.call_id))
         }
-        HarnessEventKind::ToolResult(payload) => Some(tool_result_detail(&payload)),
         HarnessEventKind::AgentThinking(_) => Some("thinking".to_string()),
         HarnessEventKind::AgentMessage(_) => Some("writing response".to_string()),
         HarnessEventKind::Status(payload) => {
@@ -34,6 +39,15 @@ pub fn status_detail(event: &HarnessEvent) -> Option<String> {
         }
         HarnessEventKind::Error(payload) => Some(cap(&format!("error: {}", payload.message), 200)),
         _ => None,
+    }
+}
+
+/// Append correlation metadata that the copilot parser removes before display.
+fn tag_call_id(detail: String, call_id: &str) -> String {
+    if call_id.is_empty() {
+        detail
+    } else {
+        format!("{detail}{TOOL_CALL_ID_SEPARATOR}{call_id}")
     }
 }
 

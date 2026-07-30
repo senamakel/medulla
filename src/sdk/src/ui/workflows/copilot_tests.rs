@@ -179,6 +179,20 @@ fn an_ambiguous_result_does_not_settle_the_wrong_overlapping_tool() {
 }
 
 #[test]
+fn call_ids_settle_the_matching_overlapping_tool() {
+    let mut state = CopilotState::new("sweep");
+    state.progress("running Read · first.rs\u{1f}read-1");
+    state.progress("running Terminal · $ cargo test\u{1f}shell-1");
+
+    state.progress("tool failed · exit 2\u{1f}shell-1");
+    state.progress("tool completed\u{1f}read-1");
+
+    assert_eq!(state.turns[0].role, TurnRole::ToolSuccess);
+    assert_eq!(state.turns[1].role, TurnRole::ToolFailure);
+    assert!(state.turns[1].text.ends_with("exit 2"));
+}
+
+#[test]
 fn the_same_tool_called_twice_is_two_lines() {
     // Unlike a repeated status frame, which is a poll. Two calls are two things
     // that happened, and collapsing them under-reports the work.

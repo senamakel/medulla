@@ -359,6 +359,9 @@ fn acp_tool_updates_preserve_failure_state_for_the_copilot() {
 
     assert_eq!(
         *details.lock().unwrap(),
-        ["running Terminal · $ cargo test --workspace", "tool failed"]
+        [
+            "running Terminal · $ cargo test --workspace\u{1f}call-1",
+            "tool failed\u{1f}call-1"
+        ]
     );
 }

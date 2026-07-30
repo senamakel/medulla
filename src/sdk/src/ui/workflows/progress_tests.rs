@@ -34,7 +34,10 @@ fn a_tool_call_frame_is_recognised_as_the_call_it_describes() {
     };
     assert_eq!(
         round_trip(&event),
-        Progress::Tool("Workflow Apply Ops: add node notify".to_string())
+        Progress::Tool {
+            call_id: Some("c1".to_string()),
+            text: "Workflow Apply Ops: add node notify".to_string(),
+        }
     );
 }
 
@@ -78,6 +81,7 @@ fn tool_settlement_is_promoted_so_the_call_can_update_in_place() {
         Progress::ToolResult {
             failed: true,
             detail: "exit 2".to_string(),
+            call_id: Some("c".to_string()),
         }
     );
 }
