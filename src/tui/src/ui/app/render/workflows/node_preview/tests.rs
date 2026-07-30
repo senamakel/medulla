@@ -235,3 +235,30 @@ fn agent_run_detail_shows_the_resolved_prompt_and_plain_reply() {
     assert!(preview.contains("Tests cover the edge case."), "{preview}");
     assert!(!preview.contains("\"json\""), "{preview}");
 }
+
+#[test]
+fn older_agent_run_labels_missing_evidence_as_output() {
+    let run = RunRecord {
+        id: "run-old".into(),
+        workflow_id: "demo".into(),
+        status: RunStatus::Succeeded,
+        started_at: 1,
+        finished_at: Some(2),
+        steps: vec![RunStep {
+            node_id: "agent".into(),
+            status: "success".into(),
+            duration_ms: 3,
+            input: None,
+            output: None,
+            diagnostics: Vec::new(),
+        }],
+        pending_approvals: Vec::new(),
+        error: None,
+        summary: None,
+        diagnosis: None,
+    };
+
+    let preview = text(run_lines(&run, "agent", true));
+    assert!(preview.contains("output  unavailable"), "{preview}");
+    assert!(!preview.contains("result  unavailable"), "{preview}");
+}

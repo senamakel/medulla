@@ -59,7 +59,10 @@ pub(super) fn run_lines(run: &RunRecord, node_id: &str, is_agent: bool) -> Vec<L
                 )));
             } else {
                 lines.push(Line::from(Span::styled(
-                    "result  unavailable in this older run record",
+                    format!(
+                        "{}  unavailable in this older run record",
+                        if is_agent { "output" } else { "result" }
+                    ),
                     Style::default().add_modifier(Modifier::DIM),
                 )));
             }
