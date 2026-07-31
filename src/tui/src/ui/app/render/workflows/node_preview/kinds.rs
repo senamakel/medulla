@@ -39,10 +39,13 @@ pub(super) fn kind_lines(
         "http_request" => request_lines(config),
         "tool_call" if config.get("slug").and_then(Value::as_str) == Some("medulla:shell") => {
             let args = config.get("args").unwrap_or(&Value::Null);
+            let source = args
+                .get("script")
+                .and_then(Value::as_str)
+                .map(redact_source)
+                .unwrap_or_default();
             code_lines(
-                args.get("script")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default(),
+                &source,
                 args.get("language")
                     .and_then(Value::as_str)
                     .unwrap_or("shell"),
@@ -320,6 +323,72 @@ pub(super) fn labelled_value(label: &str, value: &Value) -> Vec<Line<'static>> {
             .map(|line| Line::from(Span::raw(format!("  {line}")))),
     );
     lines
+}
+
+/// Scrub credentials embedded in executable source before syntax highlighting.
+///
+/// Shell is free-form text rather than structured JSON, so it needs both the
+/// shared secret scanner and URL sanitization. Credential-shaped lines that the
+/// scanner cannot safely edit are hidden in full.
+fn redact_source(source: &str) -> String {
+    source
+        .lines()
+        .map(|line| {
+            let (redacted, count) = medulla::history_upload::redact_text(line);
+            let visible = if count == 0 && credential_shaped_source(line) {
+                "[credential-bearing source redacted]".to_string()
+            } else {
+                redacted
+            };
+            redact_source_urls(&visible)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Treat credential vocabulary as sensitive even when its value is unusually
+/// short or uses a scheme the structured scanner does not recognize.
+fn credential_shaped_source(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    [
+        "authorization",
+        "bearer ",
+        "token",
+        "secret",
+        "password",
+        "passwd",
+        "api_key",
+        "api-key",
+        "apikey",
+        "access_key",
+        "private_key",
+        "cookie",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
+/// Sanitize URL-shaped shell tokens without disturbing the surrounding source.
+fn redact_source_urls(source: &str) -> String {
+    let mut output = String::with_capacity(source.len());
+    let mut rest = source;
+    while let Some(start) = ["https://", "http://"]
+        .iter()
+        .filter_map(|scheme| rest.find(scheme))
+        .min()
+    {
+        output.push_str(&rest[..start]);
+        let url = &rest[start..];
+        let end = url
+            .find(|ch: char| {
+                ch.is_whitespace() || matches!(ch, '"' | '\'' | ')' | ']' | '}' | ';' | ',' | '|')
+            })
+            .unwrap_or(url.len());
+        output.push_str(&safe_preview_url(&url[..end]));
+        rest = &url[end..];
+    }
+    output.push_str(rest);
+    output
 }
 
 /// Copy an object except for keys already represented in its headline.
