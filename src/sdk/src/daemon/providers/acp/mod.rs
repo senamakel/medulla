@@ -5,7 +5,6 @@
 //! exposes ACP directly. Everything above this module continues to consume the
 //! stable Medulla semantic-event surface.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -23,7 +22,7 @@ use crate::daemon::mappers::HarnessSemanticEvent;
 use crate::tinyplace::{HarnessEvent, HarnessProvider};
 
 use super::types::{OnEvent, RunTaskOptions, RunTaskResult};
-use types::AcpToolCall;
+pub(super) use types::FoldState;
 
 mod types;
 
@@ -265,15 +264,6 @@ fn agent_for(options: &RunTaskOptions) -> AcpAgent {
     AcpAgent::new(config.envs(options.env.clone()))
 }
 
-pub(super) struct FoldState {
-    text: String,
-    thought: String,
-    events: usize,
-    on_event: Option<OnEvent>,
-    last_activity: Instant,
-    tool_calls: HashMap<String, AcpToolCall>,
-}
-
 impl FoldState {
     pub(super) fn new(on_event: Option<OnEvent>) -> Self {
         Self {
@@ -282,7 +272,7 @@ impl FoldState {
             events: 0,
             on_event,
             last_activity: Instant::now(),
-            tool_calls: HashMap::new(),
+            tool_calls: Default::default(),
         }
     }
 
