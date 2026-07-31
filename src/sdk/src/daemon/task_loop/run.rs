@@ -214,12 +214,15 @@ impl DaemonRuntime {
         // corrected by the next one rather than lost.
         let (status_tx, mut status_rx) =
             mpsc::unbounded_channel::<(String, Option<WorkSnapshot>)>();
+        let pending_thinking = Arc::new(Mutex::new(None));
+        let final_status_tx = status_tx.clone();
         let on_event = {
             let now = self.inner.now.clone();
             let throttle = self.inner.config.status_throttle_ms;
             let mut last_status_at: i64 = i64::MIN;
             let status_tx = status_tx.clone();
             let work = work.clone();
+            let pending_thinking = pending_thinking.clone();
             Box::new(move |semantic: &mappers::HarnessSemanticEvent| {
                 // Fold first, unconditionally: throttling governs how often the
                 // peer is told, never what this worker knows.
@@ -242,6 +245,17 @@ impl DaemonRuntime {
                 let snapshot = fold.snapshot().clone();
                 drop(fold);
                 let current = now();
+                let is_thinking =
+                    matches!(semantic.event.decoded(), HarnessEventKind::AgentThinking(_));
+                // A non-thinking transition ends the reasoning stream. Flush
+                // its newest cumulative snapshot first so a quick turn cannot
+                // leave the copilot displaying only the first fragment.
+                if !is_thinking {
+                    if let Some(pending) = pending_thinking.lock().unwrap().take() {
+                        let _ = status_tx.send(pending);
+                        last_status_at = current;
+                    }
+                }
                 // Tool lifecycle events are state changes, not periodic
                 // chatter. In particular ACP may announce a generic Terminal
                 // call and supply its command in the next patch; throttling
@@ -251,9 +265,15 @@ impl DaemonRuntime {
                     HarnessEventKind::ToolCall(_) | HarnessEventKind::ToolResult(_)
                 );
                 if !changes_tool && current.saturating_sub(last_status_at) < throttle {
+                    if is_thinking {
+                        *pending_thinking.lock().unwrap() = Some((detail, Some(snapshot)));
+                    }
                     return;
                 }
                 last_status_at = current;
+                if is_thinking {
+                    pending_thinking.lock().unwrap().take();
+                }
                 let _ = status_tx.send((detail, Some(snapshot)));
             }) as Box<dyn FnMut(&mappers::HarnessSemanticEvent) + Send>
         };
@@ -457,6 +477,12 @@ impl DaemonRuntime {
         tokio::task::yield_now().await;
 
         let result = (self.inner.run_task)(options).await;
+        // A turn may finish directly after a burst of thought chunks, without
+        // another semantic event to trigger the transition flush above.
+        if let Some(pending) = pending_thinking.lock().unwrap().take() {
+            let _ = final_status_tx.send(pending);
+        }
+        drop(final_status_tx);
         // Released only now: the guard must outlive the `on_session` callback
         // above, which is the thing recording the binding the next queued turn
         // will plan against.

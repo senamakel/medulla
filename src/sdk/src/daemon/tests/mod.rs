@@ -270,6 +270,36 @@ pub(super) fn chatter_status_runner(count: usize) -> RunTaskFn {
     })
 }
 
+/// A runner that emits two cumulative thinking snapshots inside one throttle window.
+pub(super) fn quick_thinking_runner() -> RunTaskFn {
+    Arc::new(move |mut opts: RunTaskOptions| {
+        Box::pin(async move {
+            if let Some(mut on_event) = opts.on_event.take() {
+                for text in ["checking", "checking the final result"] {
+                    on_event(&HarnessSemanticEvent {
+                        line: 0,
+                        timestamp_ms: 0,
+                        record_type: "agent_thought".to_string(),
+                        event: HarnessEvent {
+                            kind: "agent_thinking".to_string(),
+                            role: "agent".to_string(),
+                            payload: json!({ "text": text }),
+                            ..Default::default()
+                        },
+                    });
+                }
+            }
+            Ok(RunTaskResult {
+                session_id: None,
+                usage: None,
+                provider: opts.provider,
+                reply: "ok".to_string(),
+                events: 2,
+            })
+        })
+    })
+}
+
 /// A runner that completes a tool inside one throttle window.
 pub(super) fn quick_tool_runner() -> RunTaskFn {
     Arc::new(move |mut opts: RunTaskOptions| {

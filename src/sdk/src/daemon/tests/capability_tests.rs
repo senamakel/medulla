@@ -11,7 +11,8 @@ use crate::tinyplace::{AgentCapabilities, HarnessEvent, TaskFrameKind};
 
 use super::{
     base_config, capabilities_frame, chatter_status_runner, counting_capability_runner,
-    decoded_frames, quick_tool_runner, recording_send, status_runner, task_frame, tool_call_event,
+    decoded_frames, quick_thinking_runner, quick_tool_runner, recording_send, status_runner,
+    task_frame, tool_call_event,
 };
 
 #[tokio::test]
@@ -49,6 +50,39 @@ async fn throttles_status_frames() {
     assert!(frames
         .iter()
         .any(|f| f.kind == TaskFrameKind::Reply && f.text == "ok"));
+}
+
+#[tokio::test]
+async fn flushes_final_thinking_snapshot_after_throttling() {
+    let (send, recorded) = recording_send();
+    let runtime = DaemonRuntime::new(base_config(), quick_thinking_runner(), send);
+    let seq = Arc::new(vec![10_000i64, 11_000]);
+    let index = Arc::new(AtomicUsize::new(0));
+    let now: NowFn = Arc::new(move || {
+        let position = index.fetch_add(1, Ordering::SeqCst);
+        *seq.get(position).unwrap_or(seq.last().unwrap())
+    });
+
+    let runtime = runtime.with_now(now);
+    runtime.handle_message(
+        "peer".into(),
+        String::new(),
+        Some(task_frame("t1", "work", None)),
+    );
+    runtime.idle().await;
+
+    let statuses = decoded_frames(&recorded)
+        .into_iter()
+        .filter(|frame| frame.kind == TaskFrameKind::Status)
+        .map(|frame| frame.text)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        statuses,
+        [
+            "thinking · checking",
+            "thinking · checking the final result"
+        ]
+    );
 }
 
 #[tokio::test]
