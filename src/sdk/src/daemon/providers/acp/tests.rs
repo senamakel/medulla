@@ -7,7 +7,7 @@ use crate::daemon::providers::{Abort, RunTaskOptions};
 use crate::daemon::status_detail;
 use crate::tinyplace::HarnessProvider;
 
-use super::FoldState;
+use super::types::FoldState;
 
 #[test]
 fn agent_message_chunks_form_one_reply() {
@@ -193,6 +193,42 @@ fn thought_chunks_emit_a_cumulative_bounded_snapshot() {
 }
 
 #[test]
+fn usage_updates_do_not_reset_the_cumulative_thought_snapshot() {
+    let thoughts = Arc::new(Mutex::new(Vec::new()));
+    let captured = thoughts.clone();
+    let mut state = FoldState::new(Some(Box::new(move |event| {
+        if event.event.kind == "agent_thought" {
+            captured
+                .lock()
+                .unwrap()
+                .push(event.event.payload["text"].as_str().unwrap().to_string());
+        }
+    })));
+    for update in [
+        serde_json::json!({
+            "sessionUpdate": "agent_thought_chunk",
+            "content": { "type": "text", "text": "Checking " }
+        }),
+        serde_json::json!({
+            "sessionUpdate": "usage_update",
+            "used": 42,
+            "size": 100
+        }),
+        serde_json::json!({
+            "sessionUpdate": "agent_thought_chunk",
+            "content": { "type": "text", "text": "the workflow." }
+        }),
+    ] {
+        state.fold(serde_json::from_value(update).unwrap());
+    }
+
+    assert_eq!(
+        *thoughts.lock().unwrap(),
+        ["Checking ", "Checking the workflow."]
+    );
+}
+
+#[test]
 fn thought_credentials_are_redacted_before_the_snapshot_is_bounded() {
     let thoughts = Arc::new(Mutex::new(Vec::new()));
     let captured = thoughts.clone();
@@ -253,7 +289,7 @@ fn attribution_options(attribution: bool) -> RunTaskOptions {
 #[cfg(unix)]
 #[test]
 fn agent_env_carries_attribution() {
-    let env = super::acp_env(&attribution_options(true));
+    let env = super::execution::acp_env(&attribution_options(true));
     assert!(
         env.contains_key("MEDULLA_ATTRIBUTION"),
         "ACP agent env must carry the attribution trailer"
@@ -268,7 +304,7 @@ fn agent_env_carries_attribution() {
 /// Turning attribution off leaves the ACP env untouched.
 #[test]
 fn agent_env_omits_attribution_when_off() {
-    let env = super::acp_env(&attribution_options(false));
+    let env = super::execution::acp_env(&attribution_options(false));
     assert!(!env.contains_key("MEDULLA_ATTRIBUTION"));
     assert!(!env.contains_key("GIT_CONFIG_KEY_0"));
 }
