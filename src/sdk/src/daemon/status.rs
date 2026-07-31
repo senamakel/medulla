@@ -30,7 +30,11 @@ pub fn status_detail(event: &HarnessEvent) -> Option<String> {
             Some(tag_call_id(tool_result_detail(&payload), &payload.call_id))
         }
         HarnessEventKind::AgentThinking(payload) => {
-            let text = one_line(&payload.text);
+            // Reasoning may echo material the harness just read. Status frames
+            // cross the daemon boundary and can be persisted, so scrub the
+            // complete text before making it compact.
+            let (redacted, _) = crate::history_upload::redact_text(&payload.text);
+            let text = one_line(&redacted);
             Some(if text.is_empty() {
                 "thinking".to_string()
             } else {

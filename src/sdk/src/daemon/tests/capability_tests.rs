@@ -296,6 +296,14 @@ async fn status_detail_maps_event_kinds() {
         ..thinking.clone()
     };
     assert_eq!(status_detail(&empty_thinking).as_deref(), Some("thinking"));
+    let secret_thinking = HarnessEvent {
+        payload: json!({ "text": "use sk-abcdefghijklmnop0123456789 now" }),
+        ..thinking.clone()
+    };
+    assert_eq!(
+        status_detail(&secret_thinking).as_deref(),
+        Some("thinking · use [REDACTED] now")
+    );
 
     let message = HarnessEvent {
         kind: "agent_message".to_string(),
