@@ -26,6 +26,9 @@ pub(super) use types::FoldState;
 
 mod types;
 
+#[cfg(test)]
+mod tests;
+
 /// The MCP servers offered to every ACP session.
 ///
 /// Just the workflow tools, served by this same binary in a subprocess. Empty
