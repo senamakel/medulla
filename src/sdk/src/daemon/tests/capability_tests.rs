@@ -10,13 +10,13 @@ use crate::daemon::{status_detail, work_detail, DaemonRuntime, NowFn};
 use crate::tinyplace::{AgentCapabilities, HarnessEvent, TaskFrameKind};
 
 use super::{
-    base_config, capabilities_frame, counting_capability_runner, decoded_frames, quick_tool_runner,
-    recording_send, status_runner, task_frame, tool_call_event,
+    base_config, capabilities_frame, chatter_status_runner, counting_capability_runner,
+    decoded_frames, quick_tool_runner, recording_send, status_runner, task_frame, tool_call_event,
 };
 
 #[tokio::test]
 async fn throttles_status_frames() {
-    let run_task = status_runner(3);
+    let run_task = chatter_status_runner(3);
     let (send, recorded) = recording_send();
     let runtime = DaemonRuntime::new(base_config(), run_task, send);
 

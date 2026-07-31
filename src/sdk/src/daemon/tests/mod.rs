@@ -239,6 +239,37 @@ pub(super) fn status_runner(count: usize) -> RunTaskFn {
     })
 }
 
+/// A runner that fires `count` ordinary status events, then replies.
+pub(super) fn chatter_status_runner(count: usize) -> RunTaskFn {
+    Arc::new(move |mut opts: RunTaskOptions| {
+        Box::pin(async move {
+            if let Some(mut on_event) = opts.on_event.take() {
+                let event = HarnessSemanticEvent {
+                    line: 0,
+                    timestamp_ms: 0,
+                    record_type: "status".to_string(),
+                    event: HarnessEvent {
+                        kind: "status".to_string(),
+                        role: "system".to_string(),
+                        payload: json!({ "state": "working" }),
+                        ..Default::default()
+                    },
+                };
+                for _ in 0..count {
+                    on_event(&event);
+                }
+            }
+            Ok(RunTaskResult {
+                session_id: None,
+                usage: None,
+                provider: opts.provider,
+                reply: "ok".to_string(),
+                events: count,
+            })
+        })
+    })
+}
+
 /// A runner that completes a tool inside one throttle window.
 pub(super) fn quick_tool_runner() -> RunTaskFn {
     Arc::new(move |mut opts: RunTaskOptions| {
