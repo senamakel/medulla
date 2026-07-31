@@ -24,13 +24,14 @@ use super::evolve::ToolMode;
 ///
 /// There is still no tool to *cancel* a run. A copilot that started one is
 /// awaiting it; the operator cancels from the pane, where they can see it.
-pub const TOOL_NAMES: [&str; 18] = [
+pub const TOOL_NAMES: [&str; 19] = [
     "workflow_list",
     "workflow_get",
     "workflow_host",
     "workflow_catalog",
     "workflow_create",
     "workflow_apply_ops",
+    "workflow_defaults",
     "workflow_preview_ops",
     "workflow_validate",
     "workflow_dry_run",
@@ -66,7 +67,7 @@ fn arg<'a>(arguments: &'a Value, name: &str) -> Result<&'a str, RpcError> {
 /// Run a `tools/call`.
 pub(crate) async fn call(
     store: &Arc<dyn WorkflowStore>,
-    config: &crate::config::WorkflowsConfig,
+    policy: &crate::workflows::ops::HostPolicy,
     mode: ToolMode,
     params: &Value,
 ) -> Result<Value, RpcError> {
@@ -137,13 +138,33 @@ pub(crate) async fn call(
             let input = arguments.get("input").cloned().unwrap_or(json!({}));
             let env: std::collections::HashMap<String, String> = std::env::vars().collect();
             let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-            ops::run(store, config, &env, &cwd, id, input)
-                .await
-                .map_err(to_rpc)
+            ops::run(
+                store,
+                &policy.workflows,
+                &policy.custom_harness_configs,
+                &env,
+                &cwd,
+                id,
+                input,
+            )
+            .await
+            .map_err(to_rpc)
         }
         "workflow_runs" => ops::list_runs(store, arg(&arguments, "id")?).map_err(to_rpc),
         "workflow_run_get" => ops::get_run(store, arg(&arguments, "runId")?).map_err(to_rpc),
-        "workflow_host" => Ok(ops::host_facts(config)),
+        "workflow_defaults" => {
+            let id = arg(&arguments, "id")?;
+            let harness = arguments.get("harness").and_then(Value::as_str);
+            let model = arguments.get("model").and_then(Value::as_str);
+            if harness.is_none() && model.is_none() {
+                return Err(RpcError::invalid_params(
+                    "workflow_defaults: pass 'harness', 'model', or both; an empty string clears \
+                     one",
+                ));
+            }
+            ops::set_defaults(store, id, harness, model).map_err(to_rpc)
+        }
+        "workflow_host" => Ok(ops::host_facts(policy)),
         "workflow_history" => ops::list_history(store, arg(&arguments, "id")?).map_err(to_rpc),
         "workflow_delete" => ops::delete(store, arg(&arguments, "id")?).map_err(to_rpc),
         "workflow_notes" => ops::notes(store, arg(&arguments, "id")?).map_err(to_rpc),

@@ -126,6 +126,9 @@ pub async fn run_workflow(
             "workflow '{workflow_id}' is disabled"
         )));
     }
+    refuse_unresolved_harness(&workflow)?;
+
+    let settings = settings_for(&context.settings, &workflow)?;
 
     let execution_graph = agent_evidence::instrumented(&workflow.graph);
     let compiled = execute::compile(&execution_graph).map_err(WorkflowError::Engine)?;
@@ -151,7 +154,7 @@ pub async fn run_workflow(
     ));
     let agent_evidence = Arc::new(agent_evidence::AgentEvidence::default());
     let capabilities = build_capabilities_with_agent_evidence(
-        context.settings.clone(),
+        settings.clone(),
         context.services,
         &format!("workflow:{workflow_id}"),
         run_id,
@@ -163,14 +166,11 @@ pub async fn run_workflow(
         &compiled,
         input,
         &capabilities,
-        open_checkpointer(&context.settings),
+        open_checkpointer(&settings),
         run_id,
         &as_observer,
     );
-    let bounded = tokio::time::timeout(
-        Duration::from_secs(context.settings.run_timeout_secs),
-        engine_run,
-    );
+    let bounded = tokio::time::timeout(Duration::from_secs(settings.run_timeout_secs), engine_run);
     tokio::pin!(bounded);
 
     // `biased` so a cancel that lands in the same poll as the run settling wins
@@ -182,7 +182,7 @@ pub async fn run_workflow(
         result = &mut bounded => match result {
             Ok(Ok(outcome)) => Ok(outcome),
             Ok(Err(err)) => Err(Settle::Failed(err)),
-            Err(_) => Err(Settle::TimedOut(context.settings.run_timeout_secs)),
+            Err(_) => Err(Settle::TimedOut(settings.run_timeout_secs)),
         },
     };
 
@@ -253,6 +253,76 @@ fn remember_failure(store: &Arc<dyn WorkflowStore>, record: &RunRecord) {
     }
 }
 
+/// The settings one run of `workflow` uses.
+///
+/// The host's settings with the workflow's own `defaults` block layered over
+/// them, so an `agent` node that names no harness of its own inherits the
+/// workflow's rather than the machine's. Returned unchanged — and without a
+/// clone of the whole struct — when the workflow states no preference, which is
+/// most workflows.
+///
+/// Applied here rather than inside the dispatch path because the run is where
+/// the workflow record and the capability settings are both in hand, and because
+/// a sub-workflow's nodes should then inherit *its* defaults, not its parent's.
+///
+/// # Errors
+///
+/// Returns [`WorkflowError::Invalid`] when the block names something that cannot
+/// be a harness. A stored workflow is checked on the way in, so this only fires
+/// for a record built in memory.
+fn settings_for(
+    host: &Arc<CapabilitySettings>,
+    workflow: &crate::workflows::WorkflowRecord,
+) -> Result<Arc<CapabilitySettings>, WorkflowError> {
+    if workflow.defaults.is_empty() {
+        return Ok(host.clone());
+    }
+    let preference = workflow
+        .defaults
+        .preference()
+        .map_err(|message| WorkflowError::Invalid {
+            id: workflow.id.clone(),
+            messages: vec![format!("`defaults`: {message}")],
+        })?;
+    let choice =
+        crate::flow_engine::HarnessChoice::resolve(&[preference, host.harness_preference()]);
+    let mut settings = CapabilitySettings::clone(host);
+    settings.default_provider = choice.provider;
+    settings.default_custom_harness = choice.custom_harness;
+    settings.default_model = choice.model;
+    Ok(Arc::new(settings))
+}
+
+/// Refuse to run `workflow` if any `agent` node's `harness`/`provider` is an
+/// unresolved `=`-expression.
+///
+/// [`crate::workflows::gates::harness_failures`] is the same check
+/// `authoring::apply_ops`/`create` run before a write lands — but a graph can
+/// reach a run without ever passing through that write path (an operator hand-
+/// editing the saved JSON file directly, or a future store implementation that
+/// does not route through authoring), and by the time a node dispatches the
+/// engine has already resolved its config: an expression is indistinguishable
+/// from a name typed by hand. This is the last point before that happens where
+/// the raw, unresolved graph is still in hand, so it is the last point this can
+/// still be caught rather than silently letting upstream data or a model's own
+/// output choose which binary and which credentials run the step.
+///
+/// # Errors
+///
+/// Returns [`WorkflowError::Invalid`] naming every offending node.
+fn refuse_unresolved_harness(
+    workflow: &crate::workflows::WorkflowRecord,
+) -> Result<(), WorkflowError> {
+    let failures = crate::workflows::gates::harness_failures(&workflow.graph);
+    if failures.is_empty() {
+        return Ok(());
+    }
+    Err(WorkflowError::Invalid {
+        id: workflow.id.clone(),
+        messages: failures,
+    })
+}
+
 /// How a run stopped, when it did not produce an outcome.
 enum Settle {
     /// An operator or an abort frame cancelled it.
@@ -302,6 +372,8 @@ pub async fn resume_workflow(
     }
 
     let workflow = require(context.store.as_ref(), &record.workflow_id)?;
+    refuse_unresolved_harness(&workflow)?;
+    let settings = settings_for(&context.settings, &workflow)?;
     let execution_graph = agent_evidence::instrumented(&workflow.graph);
     let compiled = execute::compile(&execution_graph).map_err(WorkflowError::Engine)?;
 
@@ -322,7 +394,7 @@ pub async fn resume_workflow(
     ));
     let agent_evidence = Arc::new(agent_evidence::AgentEvidence::default());
     let capabilities = build_capabilities_with_agent_evidence(
-        context.settings.clone(),
+        settings.clone(),
         context.services,
         &format!("workflow:{}", record.workflow_id),
         run_id,
@@ -333,16 +405,13 @@ pub async fn resume_workflow(
     let engine_run = execute::resume(
         &compiled,
         &capabilities,
-        open_checkpointer(&context.settings),
+        open_checkpointer(&settings),
         run_id,
         approvals,
         rejections,
         &as_observer,
     );
-    let bounded = tokio::time::timeout(
-        Duration::from_secs(context.settings.run_timeout_secs),
-        engine_run,
-    );
+    let bounded = tokio::time::timeout(Duration::from_secs(settings.run_timeout_secs), engine_run);
     tokio::pin!(bounded);
 
     let settled = tokio::select! {
@@ -351,7 +420,7 @@ pub async fn resume_workflow(
         result = &mut bounded => match result {
             Ok(Ok(outcome)) => Ok(outcome),
             Ok(Err(err)) => Err(Settle::Failed(err)),
-            Err(_) => Err(Settle::TimedOut(context.settings.run_timeout_secs)),
+            Err(_) => Err(Settle::TimedOut(settings.run_timeout_secs)),
         },
     };
 

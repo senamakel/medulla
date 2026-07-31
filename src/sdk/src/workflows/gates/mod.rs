@@ -26,8 +26,13 @@
 //! are about its integration registry rather than about graphs.
 
 mod bindings;
+mod harness;
 
 pub use bindings::{collect_expressions, parse_node_binding, reads_as_prose, NodeBinding};
+/// The harness-choice gate alone, re-exported so a run boundary can re-check
+/// it against a persisted graph that may never have passed through an
+/// authoring write — see [`crate::workflows::run`]'s use of it.
+pub use harness::failures as harness_failures;
 
 use tinyflows::model::{NodeKind, WorkflowGraph};
 
@@ -58,6 +63,7 @@ pub fn failures(graph: &WorkflowGraph) -> Vec<String> {
     let mut failures = agent_prompt_failures(graph);
     failures.extend(binding_failures(graph));
     failures.extend(code_language_failures(graph));
+    failures.extend(harness::failures(graph));
     failures
 }
 

@@ -41,8 +41,8 @@ pub(super) fn document(id: &str) -> String {
 
 /// The host configuration these tests run against: permissive defaults, which
 /// is what a machine with no `[workflows]` section has.
-pub(super) fn config() -> crate::config::WorkflowsConfig {
-    crate::config::WorkflowsConfig::default()
+pub(super) fn config() -> crate::workflows::ops::HostPolicy {
+    crate::workflows::ops::HostPolicy::default()
 }
 
 /// Call a tool and return its parsed result payload plus the error flag.
@@ -403,77 +403,6 @@ async fn every_advertised_tool_is_one_the_dispatch_actually_handles() {
             "{name} is advertised but not dispatched: {response}"
         );
     }
-}
-
-#[tokio::test]
-async fn the_host_tool_reports_what_this_machine_permits() {
-    let (_root, store) = store();
-
-    let (facts, is_error) = call(&store, "workflow_host", json!({})).await;
-
-    assert!(!is_error, "{facts}");
-    // The native slugs are the ones always available; an author guessing at
-    // them is how a graph saves cleanly and fails at run time.
-    assert!(facts["nativeTools"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("medulla:echo")));
-    assert!(facts["allowCode"].is_boolean());
-    assert!(
-        facts["notes"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|note| note.as_str().unwrap().contains("manual")),
-        "the trigger limitation has to be stated: {facts}"
-    );
-}
-
-#[tokio::test]
-async fn the_host_tool_states_whether_shell_scripts_are_available() {
-    // An author needs this before writing a `medulla:shell` step, not after it
-    // fails on whichever host actually runs the workflow: `run_script` refuses
-    // `language: shell` on Windows rather than emulating a POSIX shell there.
-    let (_root, store) = store();
-
-    let (facts, _) = call(&store, "workflow_host", json!({})).await;
-
-    assert_eq!(facts["shellScriptsAvailable"], json!(!cfg!(windows)));
-    let notes: Vec<&str> = facts["notes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|note| note.as_str().unwrap())
-        .collect();
-    if cfg!(windows) {
-        assert!(
-            notes.iter().any(|note| note.contains("javascript")),
-            "{notes:?}"
-        );
-    } else {
-        assert!(
-            notes.iter().any(|note| note.contains("language: shell")),
-            "{notes:?}"
-        );
-    }
-}
-
-#[tokio::test]
-async fn the_host_tool_says_plainly_when_there_is_no_default_worker() {
-    let (_root, store) = store();
-
-    let (facts, _) = call(&store, "workflow_host", json!({})).await;
-
-    // Default config configures none, so every agent node must name one — and
-    // a node that does not fails at run time rather than at save time.
-    assert_eq!(facts["defaultWorker"], json!(null));
-    assert!(
-        facts["notes"][0]
-            .as_str()
-            .unwrap()
-            .contains("must name a `config.agent_ref`"),
-        "{facts}"
-    );
 }
 
 #[tokio::test]

@@ -35,6 +35,7 @@ fn record(nodes: usize) -> WorkflowRecord {
         name: "Nightly sweep".into(),
         description: String::new(),
         enabled: true,
+        defaults: Default::default(),
         graph: graph(nodes),
         source_path: None,
     }
@@ -268,6 +269,28 @@ fn a_disabled_workflow_says_so() {
     // The agent would otherwise diagnose a graph that is fine and miss that
     // the workflow simply cannot run.
     assert!(prompt.contains("disabled"), "{prompt}");
+}
+
+#[test]
+fn a_pinned_harness_and_model_are_stated() {
+    // The block is not part of the graph, so pasting the graph does not reveal
+    // it — a turn that could not see it would answer "what runs this" from the
+    // host's config, which is the wrong layer.
+    let mut pinned = record(1);
+    pinned.defaults.harness = Some("codex".into());
+    pinned.defaults.model = Some("gpt-5-codex".into());
+
+    let prompt = revise(&pinned, "add a review step");
+
+    assert!(prompt.contains("`codex` harness"), "{prompt}");
+    assert!(prompt.contains("`gpt-5-codex` model"), "{prompt}");
+}
+
+#[test]
+fn a_workflow_pinning_nothing_says_nothing_about_a_harness() {
+    let prompt = revise(&record(1), "add a review step");
+
+    assert!(!prompt.contains("Every step runs on"), "{prompt}");
 }
 
 #[test]

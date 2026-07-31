@@ -21,6 +21,7 @@
 pub(crate) mod agent_evidence;
 pub mod caps;
 pub mod execute;
+pub mod harness_choice;
 pub mod observability;
 pub mod settings;
 
@@ -32,8 +33,13 @@ mod tests;
 #[cfg(test)]
 mod shell_tests;
 
+// Likewise: harness and model selection, asserted on the dispatched task frame.
+#[cfg(test)]
+mod harness_selection_tests;
+
 pub(crate) use caps::build_capabilities_with_agent_evidence;
 pub use caps::{build_capabilities, build_dry_run_capabilities, open_checkpointer, HostServices};
 pub use execute::{Compiled, Outcome};
+pub use harness_choice::{HarnessChoice, HarnessPreference, HarnessSelector};
 pub use observability::{folding_sink, null_sink, WorkEventSink, WorkflowRunObserver};
 pub use settings::{CapabilitySettings, DEFAULT_MAX_PARALLEL_AGENTS, DEFAULT_RUN_TIMEOUT_SECS};
