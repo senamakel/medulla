@@ -82,14 +82,7 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     // A refusal stops the login here, before a core is booted or a token
     // written: the alternative is storing this account's bearer in a directory
     // that belongs to somebody else.
-    adopt_account(&env, &me).map_err(|why| anyhow::anyhow!("signed in, but {why}"))?;
-
-    // Carry the deployment this token was minted against into the account that
-    // just became current, exactly as the TUI's first-run path does. `auth_core`
-    // below reloads config from the *new* home; without this an account with no
-    // config of its own falls back to the production default, and the core
-    // rejects the JWT the configured deployment issued a moment ago.
-    crate::sign_in::seed_account_backend(&env, &base_url)?;
+    adopt_account(&env, &me, &base_url).map_err(|why| anyhow::anyhow!("signed in, but {why}"))?;
 
     // Boot last: the flow above can take minutes of browser round-trip, and a
     // core sitting open across it buys nothing.
@@ -134,6 +127,7 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
 pub(crate) fn adopt_account(
     env: &std::collections::HashMap<String, String>,
     me: &serde_json::Value,
+    base_url: &str,
 ) -> Result<(), String> {
     let root = medulla::home::medulla_root(env);
 
@@ -152,22 +146,55 @@ pub(crate) fn adopt_account(
         );
     };
 
+    // Before the id is joined to anything. It comes from a backend response and
+    // becomes a directory name, so `..`, a separator, or an absolute path would
+    // otherwise reach `seed_account_backend` — which creates directories and
+    // merges a config file — at a path outside the root, on a login that may
+    // then be refused anyway.
+    let user_id = medulla::home::user::sanitize_account_id(&user_id).ok_or_else(|| {
+        format!("the backend named an account id that cannot be a directory name ({user_id:?})")
+    })?;
+
     // `MEDULLA_USER` selects an account for *this process* without touching the
     // selection every other process reads, so honouring it means not writing the
     // marker at all — not even when the authenticated account matches, which
-    // would still overwrite a marker naming somebody else. The verification
-    // below is what makes that safe: an override pointing somewhere other than
-    // the account that just authenticated fails instead of writing.
+    // would still overwrite a marker naming somebody else.
     let overridden = env
         .get(medulla::home::user::MEDULLA_USER_ENV)
         .map(|v| v.trim())
         .is_some_and(|v| !v.is_empty());
+
+    let expected = root.join(&user_id);
+
+    // The override is checked before anything is written. A refused login must
+    // leave no trace: seeding first would create the authenticated account's
+    // config in a home this process is not going to use, on a login that ends
+    // in an error.
+    if overridden && medulla::home::medulla_home(env) != expected {
+        return Err(format!(
+            "signed in as {user_id}, but {} pins this process to another account — unset it to \
+             use that account's own directory",
+            medulla::home::user::MEDULLA_USER_ENV,
+        ));
+    }
+
+    // Describe the account before selecting it. The other order leaves a failed
+    // login with the marker already moved: the command reports failure, stores
+    // no session, and every later launch resolves to the account whose home
+    // could not be written — skipping the first-account flow that would fix it.
+    let notice = crate::sign_in::seed_account_backend(&expected, base_url)
+        .map_err(|err| format!("this account's config could not be written ({err})"))?;
+    if let Some(notice) = notice {
+        eprintln!("{notice}");
+    }
+
     if !overridden {
         medulla::home::user::write_active_user_id(&root, &user_id)
             .map_err(|err| format!("this account could not be recorded ({err})"))?;
     }
 
-    let expected = root.join(&user_id);
+    // Final check that the resolver agrees, which is what every later launch
+    // will ask it.
     let effective = medulla::home::medulla_home(env);
     if effective != expected {
         return Err(format!(
