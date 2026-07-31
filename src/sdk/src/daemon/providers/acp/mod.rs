@@ -298,6 +298,7 @@ impl FoldState {
             }
             "agent_thought_chunk" => {
                 self.thought.push_str(&content_text(value.get("content")));
+                self.thought = crate::daemon::status::redact_reasoning(&self.thought);
                 retain_tail(&mut self.thought, 780);
                 ("agent_thought", "agent", json!({ "text": self.thought }))
             }

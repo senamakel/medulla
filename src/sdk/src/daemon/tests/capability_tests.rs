@@ -356,7 +356,7 @@ async fn status_detail_maps_event_kinds() {
     };
     assert_eq!(
         status_detail(&userinfo_thinking).as_deref(),
-        Some("thinking · connecting to [credential redacted URL]")
+        Some("thinking · [credential redacted]")
     );
 
     let message = HarnessEvent {

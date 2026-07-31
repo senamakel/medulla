@@ -174,22 +174,24 @@ fn safe_command(command: &str) -> String {
 /// second pass covers credential-bearing URLs and authorization forms that are
 /// unsafe even when their secret does not match a known token shape.
 fn safe_reasoning(reasoning: &str) -> String {
+    one_line(&redact_reasoning(reasoning))
+}
+
+/// Redact reasoning while preserving its whitespace for streamed accumulation.
+///
+/// Providers must call this before bounding a cumulative snapshot: truncating
+/// raw text first can remove the prefix that makes a credential detectable.
+pub(crate) fn redact_reasoning(reasoning: &str) -> String {
     let (redacted, _) = crate::history_upload::redact_text(reasoning);
-    let redacted = one_line(&redacted);
-    if credential_shaped(&redacted) {
-        return "[credential redacted]".to_string();
-    }
-    redacted
-        .split_whitespace()
-        .map(|part| {
-            if part.contains("://") {
-                safe_url(part)
-            } else {
-                part.to_string()
-            }
+    if credential_shaped(&redacted)
+        || redacted.split_whitespace().any(|part| {
+            part.contains("://") && (has_url_userinfo(part) || part.contains(['?', '#']))
         })
-        .collect::<Vec<_>>()
-        .join(" ")
+    {
+        "[credential redacted]".to_string()
+    } else {
+        redacted
+    }
 }
 
 /// Remove URL components commonly used to carry credentials.

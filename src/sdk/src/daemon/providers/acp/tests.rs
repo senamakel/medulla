@@ -188,3 +188,30 @@ fn thought_chunks_emit_a_cumulative_bounded_snapshot() {
     assert_eq!(thoughts[2].chars().count(), 780);
     assert!(thoughts[2].starts_with('…'));
 }
+
+#[test]
+fn thought_credentials_are_redacted_before_the_snapshot_is_bounded() {
+    let thoughts = Arc::new(Mutex::new(Vec::new()));
+    let captured = thoughts.clone();
+    let mut state = FoldState::new(Some(Box::new(move |event| {
+        if event.event.kind == "agent_thought" {
+            captured
+                .lock()
+                .unwrap()
+                .push(event.event.payload["text"].as_str().unwrap().to_string());
+        }
+    })));
+    let prefix = format!("{}sk-", "context ".repeat(110));
+    for text in [prefix.as_str(), "abcdefghijklmnop0123456789"] {
+        let update = serde_json::from_value(serde_json::json!({
+            "sessionUpdate": "agent_thought_chunk",
+            "content": { "type": "text", "text": text }
+        }))
+        .unwrap();
+        state.fold(update);
+    }
+
+    let final_thought = thoughts.lock().unwrap().last().unwrap().clone();
+    assert!(final_thought.contains("[REDACTED]"));
+    assert!(!final_thought.contains("0123456789"));
+}
