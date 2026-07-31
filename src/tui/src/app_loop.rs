@@ -19,10 +19,11 @@ use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
 use medulla_tui::cli::parse_tui_args;
 
-use crate::commands::run_login_screen;
 use crate::event_loop::{run, SessionExit, SessionWiring};
+use crate::sign_in::{
+    account_is_active, relogin, sign_in_first_account, SignIn, SWITCHED_ACCOUNT_NOTICE,
+};
 use crate::terminal::{restore, TermGuard};
-use medulla_tui::ui::login::LoginOutcome;
 
 /// Wrap a signed-in core in its [`Runtime`] and start it producing.
 ///
@@ -78,32 +79,6 @@ async fn session_of(
     (session, account)
 }
 
-/// Run the login screen again for an already-booted core and store the result.
-///
-/// `Ok(true)` when a new session was stored and the app should start another
-/// session; `Ok(false)` when the operator quit from the screen. A core that
-/// rejects the freshly verified token is an error rather than a silent return to
-/// the screen: the token passed `/auth/me`, so a refusal here means the core and
-/// the login flow disagree about which deployment they are talking to, and
-/// looping would just ask for the same token again.
-async fn relogin(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    core: &medulla::core_host::EmbeddedCore,
-    base_url: &str,
-) -> anyhow::Result<bool> {
-    match run_login_screen(terminal, base_url.to_string()).await? {
-        LoginOutcome::Quit => Ok(false),
-        LoginOutcome::Token(jwt) => {
-            medulla::core_host::auth::store_session(core, &jwt)
-                .await
-                .map_err(|e| {
-                    anyhow::anyhow!("signed in, but the core rejected the session: {e}")
-                })?;
-            Ok(true)
-        }
-    }
-}
-
 /// Parse TUI args, select a runtime, set up the terminal, optionally run the
 /// login screen, start background services, and drive the event loop to exit.
 pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
@@ -125,8 +100,46 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     }
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let loaded = load_config(args.config.as_deref(), &env, &cwd)?;
+    let mut loaded = load_config(args.config.as_deref(), &env, &cwd)?;
     prompt_for_update(&loaded.config.update, &env).await;
+
+    // Sign in before resolving anything else, when this install has no account
+    // yet. Every path below — the config that wins, the log directory, the
+    // workflow store, the core's own workspace — is derived from the *account's*
+    // home, so learning who the operator is has to come first or all of it lands
+    // in the pre-login directory and stays there for the life of the process.
+    //
+    // Skipped on `--mock`, which never touches a backend, and skipped once an
+    // account is recorded: from then on the ordinary boot below finds the
+    // session where that account's home keeps it.
+    let mut pending_jwt = None;
+    if !args.mock && !account_is_active(&env) {
+        match sign_in_first_account(&env, &loaded.config.backend.base_url, args.alt_screen).await? {
+            // Quit from the login screen before any account exists: there is no
+            // home to open and nothing to show, so this is a clean exit.
+            None => return Ok(()),
+            Some(jwt) => {
+                // Carry the deployment this token was minted against into the
+                // new account's own config, before reloading against it.
+                //
+                // Without this the reload is a downgrade: the bootstrap
+                // `backend.baseUrl` lived in the *pre-login* home, the account
+                // home that just became current is empty, so the reload falls
+                // back to the production default. The core would then be bound
+                // to production and reject the JWT that staging (or a
+                // self-hosted deployment) had just issued — and every later
+                // launch would do the same, since nothing else records which
+                // deployment the account belongs to.
+                let base_url = loaded.config.backend.base_url.clone();
+                crate::sign_in::seed_account_backend(&env, &base_url);
+                // The account's own config file is a different file from the one
+                // loaded a moment ago, and it is the one that wins from here on.
+                loaded = load_config(args.config.as_deref(), &env, &cwd)?;
+                pending_jwt = Some(jwt);
+            }
+        }
+    }
+
     let home = medulla::home::medulla_home(&env);
 
     // Bind the embedded core's state directory to this process's Medulla home
@@ -225,29 +238,41 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // that looks live. It takes the offline demo, exactly as `--mock` does.
     if runtime.is_none() {
         match medulla::core_host::boot().await {
-            Ok(core) => match medulla::core_host::probe_medulla(&core).await {
-                medulla::core_host::Readiness::Ready => {
-                    (session, account) = session_of(&core, &loaded.config.backend.base_url).await;
-                    let core = Arc::new(core);
-                    core_arc = Some(Arc::clone(&core));
-                    runtime = Some(
-                        core_runtime(core, hub_slot.clone(), &loaded.config.backend.base_url).await,
-                    );
+            Ok(core) => {
+                // A token from the sign-in gate above: the core now exists, and
+                // it was booted against the home the gate chose, so this is the
+                // first moment the session can be stored where it belongs.
+                if let Some(jwt) = pending_jwt.take() {
+                    if let Err(e) = medulla::core_host::auth::store_session(&core, &jwt).await {
+                        anyhow::bail!("signed in, but the core rejected the session: {e}");
+                    }
                 }
-                // Signed out is an expected state with an obvious remedy, so it
-                // is the one thing that does not end here: the core is held and
-                // the login screen runs once the terminal is up.
-                medulla::core_host::Readiness::SignedOut => {
-                    pending_core = Some(core);
-                    need_login = Some(loaded.config.backend.base_url.clone());
+                match medulla::core_host::probe_medulla(&core).await {
+                    medulla::core_host::Readiness::Ready => {
+                        (session, account) =
+                            session_of(&core, &loaded.config.backend.base_url).await;
+                        let core = Arc::new(core);
+                        core_arc = Some(Arc::clone(&core));
+                        runtime = Some(
+                            core_runtime(core, hub_slot.clone(), &loaded.config.backend.base_url)
+                                .await,
+                        );
+                    }
+                    // Signed out is an expected state with an obvious remedy, so it
+                    // is the one thing that does not end here: the core is held and
+                    // the login screen runs once the terminal is up.
+                    medulla::core_host::Readiness::SignedOut => {
+                        pending_core = Some(core);
+                        need_login = Some(loaded.config.backend.base_url.clone());
+                    }
+                    // No backend to reach, or the surface compiled out. Neither is
+                    // fixable from inside the app, and neither is a reason to start
+                    // a different runtime that would quietly behave differently.
+                    medulla::core_host::Readiness::Unusable(why) => {
+                        anyhow::bail!("the embedded OpenHuman core cannot reach Medulla: {why}");
+                    }
                 }
-                // No backend to reach, or the surface compiled out. Neither is
-                // fixable from inside the app, and neither is a reason to start
-                // a different runtime that would quietly behave differently.
-                medulla::core_host::Readiness::Unusable(why) => {
-                    anyhow::bail!("the embedded OpenHuman core cannot reach Medulla: {why}");
-                }
-            },
+            }
             Err(e) => {
                 // Boot failure is fatal rather than a downgrade. The core is
                 // in-process, so a failure here means a broken workspace or
@@ -278,18 +303,27 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // nothing to show.
     if let Some(base_url) = need_login.take() {
         let core = pending_core.take().expect("a core is held for the login");
-        match run_login_screen(&mut terminal, base_url).await? {
-            LoginOutcome::Quit => {
+        // Same flow as a mid-session relogin, and deliberately the same code: an
+        // install with an account whose session went missing is signing in
+        // against an already-booted core, which is exactly what that is. Signing
+        // in as somebody else stores nothing here — the account check runs
+        // before the write, and the core validates the JWT before persisting it,
+        // so a rejected token fails here rather than after startup.
+        match relogin(&mut terminal, &core, &env, &base_url).await {
+            Ok(SignIn::Quit) => {
                 drop(guard);
                 return Ok(());
             }
-            LoginOutcome::Token(jwt) => {
-                // The core validates the JWT against the backend before writing
-                // it, so a rejected token fails here rather than after startup.
-                if let Err(e) = medulla::core_host::auth::store_session(&core, &jwt).await {
-                    drop(guard);
-                    anyhow::bail!("signed in, but the core rejected the session: {e}");
-                }
+            Ok(SignIn::SwitchedAccount) => {
+                drop(guard);
+                println!("{SWITCHED_ACCOUNT_NOTICE}");
+                return Ok(());
+            }
+            Err(e) => {
+                drop(guard);
+                return Err(e);
+            }
+            Ok(SignIn::SameAccount) => {
                 match medulla::core_host::probe_medulla(&core).await {
                     medulla::core_host::Readiness::Ready => {
                         (session, account) =
@@ -315,6 +349,9 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
 
     // `mut` because a relogin rebuilds it around the same core.
     let mut runtime = runtime.expect("a runtime is always selected");
+    // Set when a relogin lands on a different account than this process runs as.
+    // Reported after the terminal is restored, not while the app owns the screen.
+    let mut account_switched = false;
 
     // First-run welcome: offer promotional credit for sharing coding-agent
     // history. Gated locally by `[onboarding] welcomeCompleted` so a returning
@@ -593,8 +630,19 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 // runtime reports that it holds no session, so its logout never
                 // succeeds and this arm is unreachable for it.
                 if let Some(core) = core_arc.clone() {
-                    match relogin(&mut terminal, &core, &loaded.config.backend.base_url).await {
-                        Ok(true) => {
+                    match relogin(&mut terminal, &core, &env, &loaded.config.backend.base_url).await
+                    {
+                        // Signing in as a different account re-homes the
+                        // install, and this process cannot follow: its config,
+                        // logs, workflow store, and the core's own workspace all
+                        // belong to the account it started as. Their session was
+                        // not stored in it — the next launch signs them in
+                        // against their own home.
+                        Ok(SignIn::SwitchedAccount) => {
+                            account_switched = true;
+                            break Ok(());
+                        }
+                        Ok(SignIn::SameAccount) => {
                             (_, account) = session_of(&core, &loaded.config.backend.base_url).await;
                             runtime = core_runtime(
                                 core,
@@ -606,7 +654,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                         }
                         // Quit from the login screen: the operator asked to
                         // leave, having already logged out.
-                        Ok(false) => break Ok(()),
+                        Ok(SignIn::Quit) => break Ok(()),
                         Err(e) => break Err(e),
                     }
                 }
@@ -621,6 +669,12 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // Explicit teardown (the guard also runs on drop / panic).
     drop(guard);
     drop(tinyplace_service); // aborts the background loops.
+                             // Printed after the screen is back: the operator signed in as somebody else
+                             // mid-session, the marker now names them, and the next launch opens their
+                             // home. Nothing is lost — the previous account's directory stays put.
+    if account_switched {
+        println!("{SWITCHED_ACCOUNT_NOTICE}");
+    }
     result
 }
 
