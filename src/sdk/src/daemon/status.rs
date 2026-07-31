@@ -33,8 +33,7 @@ pub fn status_detail(event: &HarnessEvent) -> Option<String> {
             // Reasoning may echo material the harness just read. Status frames
             // cross the daemon boundary and can be persisted, so scrub the
             // complete text before making it compact.
-            let (redacted, _) = crate::history_upload::redact_text(&payload.text);
-            let text = one_line(&redacted);
+            let text = safe_reasoning(&payload.text);
             Some(if text.is_empty() {
                 "thinking".to_string()
             } else {
@@ -167,6 +166,30 @@ fn safe_command(command: &str) -> String {
     } else {
         command
     }
+}
+
+/// Scrub reasoning before it crosses the daemon boundary.
+///
+/// The history scrubber handles known token formats and assignments. This
+/// second pass covers credential-bearing URLs and authorization forms that are
+/// unsafe even when their secret does not match a known token shape.
+fn safe_reasoning(reasoning: &str) -> String {
+    let (redacted, _) = crate::history_upload::redact_text(reasoning);
+    let redacted = one_line(&redacted);
+    if credential_shaped(&redacted) {
+        return "[credential redacted]".to_string();
+    }
+    redacted
+        .split_whitespace()
+        .map(|part| {
+            if part.contains("://") {
+                safe_url(part)
+            } else {
+                part.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Remove URL components commonly used to carry credentials.

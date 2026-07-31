@@ -304,6 +304,26 @@ async fn status_detail_maps_event_kinds() {
         status_detail(&secret_thinking).as_deref(),
         Some("thinking · use [REDACTED] now")
     );
+    let basic_auth_thinking = HarnessEvent {
+        payload: serde_json::json!({
+            "text": "trying Authorization: Basic ZGJ1c2VyOmRicGFzcw=="
+        }),
+        ..thinking.clone()
+    };
+    assert_eq!(
+        status_detail(&basic_auth_thinking).as_deref(),
+        Some("thinking · [credential redacted]")
+    );
+    let userinfo_thinking = HarnessEvent {
+        payload: serde_json::json!({
+            "text": "connecting to postgres://dbuser:dbpass@host/db"
+        }),
+        ..thinking.clone()
+    };
+    assert_eq!(
+        status_detail(&userinfo_thinking).as_deref(),
+        Some("thinking · connecting to [credential redacted URL]")
+    );
 
     let message = HarnessEvent {
         kind: "agent_message".to_string(),
