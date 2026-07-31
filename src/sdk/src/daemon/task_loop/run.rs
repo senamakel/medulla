@@ -392,6 +392,7 @@ impl DaemonRuntime {
             extra_args: self.inner.config.extra_args.clone(),
             skip_permissions: self.inner.config.skip_permissions,
             abort: abort.clone(),
+            attribution: self.inner.config.attribution,
             router: custom_harness
                 .as_ref()
                 .map(crate::config::CustomHarnessConfig::router)
@@ -594,6 +595,7 @@ impl DaemonRuntime {
             skip_permissions: self.inner.config.skip_permissions,
             abort,
             router: self.inner.config.router.clone(),
+            attribution: self.inner.config.attribution,
             on_event: None,
             on_stdin: None,
             on_session: None,

@@ -1,8 +1,11 @@
 //! Focused tests for folding ACP stream updates into semantic harness events.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use crate::daemon::providers::{Abort, RunTaskOptions};
 use crate::daemon::status_detail;
+use crate::tinyplace::HarnessProvider;
 
 use super::FoldState;
 
@@ -214,4 +217,58 @@ fn thought_credentials_are_redacted_before_the_snapshot_is_bounded() {
     let final_thought = thoughts.lock().unwrap().last().unwrap().clone();
     assert!(final_thought.contains("[REDACTED]"));
     assert!(!final_thought.contains("0123456789"));
+}
+
+// ---------------------------------------------------------------------------
+// Attribution reaches the ACP spawn path
+// ---------------------------------------------------------------------------
+
+/// A `RunTaskOptions` carrying `attribution`, with everything else inert.
+fn attribution_options(attribution: bool) -> RunTaskOptions {
+    RunTaskOptions {
+        conversation: String::new(),
+        session_class: crate::sessions::SessionClass::Bounded,
+        resume_session_id: None,
+        provider: HarnessProvider::Claude,
+        prompt: String::new(),
+        cwd: ".".to_string(),
+        env: HashMap::new(),
+        timeout_ms: 1_000,
+        model: None,
+        agent: None,
+        extra_args: Vec::new(),
+        skip_permissions: false,
+        abort: Abort::new(),
+        router: None,
+        attribution,
+        on_event: None,
+        on_stdin: None,
+        on_session: None,
+    }
+}
+
+/// `run_provider_task` dispatches to ACP *before* the spawn seam that applies
+/// attribution for direct runs, so the ACP agent env must carry it itself —
+/// otherwise every ACP-backed commit is unattributed.
+#[cfg(unix)]
+#[test]
+fn agent_env_carries_attribution() {
+    let env = super::acp_env(&attribution_options(true));
+    assert!(
+        env.contains_key("MEDULLA_ATTRIBUTION"),
+        "ACP agent env must carry the attribution trailer"
+    );
+    assert_eq!(
+        env.get("GIT_CONFIG_KEY_0").map(String::as_str),
+        Some("core.hooksPath"),
+        "ACP agent env must activate the hook directory"
+    );
+}
+
+/// Turning attribution off leaves the ACP env untouched.
+#[test]
+fn agent_env_omits_attribution_when_off() {
+    let env = super::acp_env(&attribution_options(false));
+    assert!(!env.contains_key("MEDULLA_ATTRIBUTION"));
+    assert!(!env.contains_key("GIT_CONFIG_KEY_0"));
 }
