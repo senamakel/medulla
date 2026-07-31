@@ -234,43 +234,39 @@ impl CopilotState {
         self.turns.push(turn);
     }
 
-    /// Fold streamed reasoning fragments into one bounded status row.
-    fn thinking(&mut self, fragment: &str) {
+    /// Replace the live reasoning snapshot in one bounded status row.
+    fn thinking(&mut self, snapshot: &str) {
         const LABEL: &str = "thinking · ";
-        let fragment = fragment.trim();
-        if fragment.is_empty() {
+        let snapshot = snapshot.trim();
+        if snapshot.is_empty() {
             self.status("thinking");
             return;
         }
+        let keep = MAX_THINKING_CHARS
+            .saturating_sub(LABEL.chars().count())
+            .saturating_sub(1);
+        let text = if LABEL.chars().count() + snapshot.chars().count() <= MAX_THINKING_CHARS {
+            format!("{LABEL}{snapshot}")
+        } else {
+            let tail = snapshot
+                .chars()
+                .rev()
+                .take(keep)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<String>();
+            format!("{LABEL}…{tail}")
+        };
         if let Some(last) = self
             .turns
             .last_mut()
             .filter(|turn| turn.role == TurnRole::Status && turn.text.starts_with(LABEL))
         {
-            if !last.text.ends_with(char::is_whitespace)
-                && !fragment.starts_with(|ch: char| ch.is_ascii_punctuation())
-            {
-                last.text.push(' ');
-            }
-            last.text.push_str(fragment);
-            if last.text.chars().count() > MAX_THINKING_CHARS {
-                let keep = MAX_THINKING_CHARS
-                    .saturating_sub(LABEL.chars().count())
-                    .saturating_sub(1);
-                let tail: String = last
-                    .text
-                    .chars()
-                    .rev()
-                    .take(keep)
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .rev()
-                    .collect();
-                last.text = format!("{LABEL}…{tail}");
-            }
+            last.text = text;
             return;
         }
-        self.status(format!("{LABEL}{fragment}"));
+        self.status(text);
     }
 
     /// Record a progress frame the harness reported, as the kind of line it is.

@@ -34,7 +34,7 @@ pub fn status_detail(event: &HarnessEvent) -> Option<String> {
             Some(if text.is_empty() {
                 "thinking".to_string()
             } else {
-                cap(&format!("{THINKING_PREFIX}{text}"), 200)
+                cap(&format!("{THINKING_PREFIX}{text}"), 800)
             })
         }
         HarnessEventKind::AgentMessage(_) => Some("writing response".to_string()),

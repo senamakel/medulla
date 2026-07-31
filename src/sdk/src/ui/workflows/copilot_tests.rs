@@ -138,11 +138,11 @@ fn ordinary_progress_frames_stay_status_lines() {
 }
 
 #[test]
-fn streamed_thinking_fragments_share_one_compact_line() {
+fn streamed_thinking_snapshots_replace_one_compact_line() {
     let mut state = CopilotState::new("sweep");
 
     state.progress("thinking · Checking the workflow.");
-    state.progress("thinking · It has four nodes.");
+    state.progress("thinking · Checking the workflow. It has four nodes.");
 
     assert_eq!(state.turns.len(), 1);
     assert_eq!(state.turns[0].role, TurnRole::Status);
@@ -150,6 +150,17 @@ fn streamed_thinking_fragments_share_one_compact_line() {
         state.turns[0].text,
         "thinking · Checking the workflow. It has four nodes."
     );
+}
+
+#[test]
+fn first_thinking_snapshot_is_bounded() {
+    let mut state = CopilotState::new("sweep");
+
+    state.progress(&format!("thinking · {}", "x".repeat(2_000)));
+
+    assert_eq!(state.turns.len(), 1);
+    assert!(state.turns[0].text.chars().count() <= MAX_THINKING_CHARS);
+    assert!(state.turns[0].text.starts_with("thinking · …"));
 }
 
 #[test]

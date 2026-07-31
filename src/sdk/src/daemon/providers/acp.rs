@@ -264,6 +264,7 @@ fn agent_for(options: &RunTaskOptions) -> AcpAgent {
 
 pub(super) struct FoldState {
     text: String,
+    thought: String,
     events: usize,
     on_event: Option<OnEvent>,
     last_activity: Instant,
@@ -282,6 +283,7 @@ impl FoldState {
     pub(super) fn new(on_event: Option<OnEvent>) -> Self {
         Self {
             text: String::new(),
+            thought: String::new(),
             events: 0,
             on_event,
             last_activity: Instant::now(),
@@ -297,17 +299,20 @@ impl FoldState {
             .get("sessionUpdate")
             .and_then(Value::as_str)
             .unwrap_or("unknown");
+        if kind != "agent_thought_chunk" {
+            self.thought.clear();
+        }
         let (event_kind, role, payload) = match kind {
             "agent_message_chunk" => {
                 let text = content_text(value.get("content"));
                 self.text.push_str(&text);
                 ("agent_message", "agent", json!({ "text": text }))
             }
-            "agent_thought_chunk" => (
-                "agent_thought",
-                "agent",
-                json!({ "text": content_text(value.get("content")) }),
-            ),
+            "agent_thought_chunk" => {
+                self.thought.push_str(&content_text(value.get("content")));
+                retain_tail(&mut self.thought, 780);
+                ("agent_thought", "agent", json!({ "text": self.thought }))
+            }
             "tool_call" => ("tool_call", "agent", self.tool_call_payload(&value)),
             "tool_call_update"
                 if !matches!(
@@ -400,6 +405,23 @@ fn content_text(content: Option<&Value>) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string()
+}
+
+/// Bound a streamed snapshot while retaining the most recent reasoning.
+fn retain_tail(value: &mut String, max_chars: usize) {
+    if value.chars().count() <= max_chars {
+        return;
+    }
+    let keep = max_chars.saturating_sub(1);
+    let tail = value
+        .chars()
+        .rev()
+        .take(keep)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    *value = format!("…{tail}");
 }
 
 fn now_ms() -> i64 {

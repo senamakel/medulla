@@ -291,6 +291,11 @@ async fn status_detail_maps_event_kinds() {
         ..Default::default()
     };
     assert_eq!(status_detail(&thinking).as_deref(), Some("thinking · hmm"));
+    let empty_thinking = HarnessEvent {
+        payload: json!({ "text": " \n\t" }),
+        ..thinking.clone()
+    };
+    assert_eq!(status_detail(&empty_thinking).as_deref(), Some("thinking"));
 
     let message = HarnessEvent {
         kind: "agent_message".to_string(),

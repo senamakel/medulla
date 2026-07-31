@@ -443,3 +443,31 @@ fn acp_running_tool_patch_preserves_initial_metadata() {
         ]
     );
 }
+
+#[test]
+fn acp_thought_chunks_emit_a_cumulative_bounded_snapshot() {
+    let thoughts = Arc::new(Mutex::new(Vec::new()));
+    let captured = thoughts.clone();
+    let mut state = FoldState::new(Some(Box::new(move |event| {
+        if event.event.kind == "agent_thought" {
+            captured
+                .lock()
+                .unwrap()
+                .push(event.event.payload["text"].as_str().unwrap().to_string());
+        }
+    })));
+    for text in ["Checking ", "the workflow.", &"x".repeat(1_000)] {
+        let update = serde_json::from_value(serde_json::json!({
+            "sessionUpdate": "agent_thought_chunk",
+            "content": { "type": "text", "text": text }
+        }))
+        .unwrap();
+        state.fold(update);
+    }
+
+    let thoughts = thoughts.lock().unwrap();
+    assert_eq!(thoughts[0], "Checking ");
+    assert_eq!(thoughts[1], "Checking the workflow.");
+    assert_eq!(thoughts[2].chars().count(), 780);
+    assert!(thoughts[2].starts_with('…'));
+}
