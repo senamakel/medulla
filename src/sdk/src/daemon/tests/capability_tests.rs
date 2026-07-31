@@ -183,6 +183,20 @@ async fn status_detail_maps_event_kinds() {
         status_detail(&terminal).as_deref(),
         Some("running Terminal · $ cargo test --workspace cargo clippy\u{1f}c2")
     );
+    let terminal_without_input = HarnessEvent {
+        kind: "tool_call".to_string(),
+        payload: json!({
+            "call_id": "c2-pending",
+            "tool_name": "execute",
+            "tool_kind": "shell",
+            "display": "Terminal"
+        }),
+        ..Default::default()
+    };
+    assert_eq!(
+        status_detail(&terminal_without_input).as_deref(),
+        Some("running Terminal\u{1f}c2-pending")
+    );
     let secret_command = HarnessEvent {
         kind: "tool_call".to_string(),
         payload: json!({
@@ -246,7 +260,7 @@ async fn status_detail_maps_event_kinds() {
         payload: json!({ "text": "hmm" }),
         ..Default::default()
     };
-    assert_eq!(status_detail(&thinking).as_deref(), Some("thinking"));
+    assert_eq!(status_detail(&thinking).as_deref(), Some("thinking · hmm"));
 
     let message = HarnessEvent {
         kind: "agent_message".to_string(),

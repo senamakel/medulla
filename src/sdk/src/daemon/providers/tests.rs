@@ -365,3 +365,44 @@ fn acp_tool_updates_preserve_failure_state_for_the_copilot() {
         ]
     );
 }
+
+#[test]
+fn acp_running_tool_patch_surfaces_the_command_when_it_arrives_late() {
+    let details = Arc::new(Mutex::new(Vec::new()));
+    let captured = details.clone();
+    let mut state = FoldState::new(Some(Box::new(move |event| {
+        if let Some(detail) = status_detail(&event.event) {
+            captured.lock().unwrap().push(detail);
+        }
+    })));
+    let call = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call",
+        "toolCallId": "call-1",
+        "title": "Terminal",
+        "kind": "execute",
+        "status": "in_progress"
+    }))
+    .unwrap();
+    let input = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "call-1",
+        "status": "in_progress",
+        "rawInput": { "command": "cargo test --workspace" }
+    }))
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(&input).unwrap()["rawInput"]["command"],
+        "cargo test --workspace"
+    );
+
+    state.fold(call);
+    state.fold(input);
+
+    assert_eq!(
+        *details.lock().unwrap(),
+        [
+            "running Terminal\u{1f}call-1",
+            "running Terminal · $ cargo test --workspace\u{1f}call-1"
+        ]
+    );
+}

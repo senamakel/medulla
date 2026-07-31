@@ -138,6 +138,32 @@ fn ordinary_progress_frames_stay_status_lines() {
 }
 
 #[test]
+fn streamed_thinking_fragments_share_one_compact_line() {
+    let mut state = CopilotState::new("sweep");
+
+    state.progress("thinking · Checking the workflow.");
+    state.progress("thinking · It has four nodes.");
+
+    assert_eq!(state.turns.len(), 1);
+    assert_eq!(state.turns[0].role, TurnRole::Status);
+    assert_eq!(
+        state.turns[0].text,
+        "thinking · Checking the workflow. It has four nodes."
+    );
+}
+
+#[test]
+fn a_late_tool_detail_updates_the_matching_call_in_place() {
+    let mut state = CopilotState::new("sweep");
+
+    state.progress("running Terminal\u{1f}shell-1");
+    state.progress("running Terminal · $ cargo test\u{1f}shell-1");
+
+    assert_eq!(state.turns.len(), 1);
+    assert_eq!(state.turns[0].text, "Terminal · $ cargo test");
+}
+
+#[test]
 fn a_tool_result_settles_the_latest_call_in_place() {
     let mut state = CopilotState::new("sweep");
     state.progress("running Terminal · $ cargo test");

@@ -141,6 +141,8 @@ pub struct CopilotState {
 /// Only status lines are trimmed — nothing the operator typed or the agent
 /// concluded is ever discarded.
 const MAX_STATUS_LINES: usize = 40;
+/// Maximum reasoning text retained in one updating transcript row.
+const MAX_THINKING_CHARS: usize = 800;
 
 impl CopilotState {
     /// A fresh thread for `workflow_id`.
@@ -217,9 +219,58 @@ impl CopilotState {
 
     /// Record a tool call with the provider identity used by its result.
     fn tool_with_id(&mut self, text: String, call_id: Option<String>) {
+        if let Some(id) = call_id.as_deref() {
+            if let Some(turn) = self
+                .turns
+                .iter_mut()
+                .find(|turn| turn.role == TurnRole::Tool && turn.call_id.as_deref() == Some(id))
+            {
+                turn.text = text;
+                return;
+            }
+        }
         let mut turn = CopilotTurn::new(TurnRole::Tool, text);
         turn.call_id = call_id;
         self.turns.push(turn);
+    }
+
+    /// Fold streamed reasoning fragments into one bounded status row.
+    fn thinking(&mut self, fragment: &str) {
+        const LABEL: &str = "thinking · ";
+        let fragment = fragment.trim();
+        if fragment.is_empty() {
+            self.status("thinking");
+            return;
+        }
+        if let Some(last) = self
+            .turns
+            .last_mut()
+            .filter(|turn| turn.role == TurnRole::Status && turn.text.starts_with(LABEL))
+        {
+            if !last.text.ends_with(char::is_whitespace)
+                && !fragment.starts_with(|ch: char| ch.is_ascii_punctuation())
+            {
+                last.text.push(' ');
+            }
+            last.text.push_str(fragment);
+            if last.text.chars().count() > MAX_THINKING_CHARS {
+                let keep = MAX_THINKING_CHARS
+                    .saturating_sub(LABEL.chars().count())
+                    .saturating_sub(1);
+                let tail: String = last
+                    .text
+                    .chars()
+                    .rev()
+                    .take(keep)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev()
+                    .collect();
+                last.text = format!("{LABEL}…{tail}");
+            }
+            return;
+        }
+        self.status(format!("{LABEL}{fragment}"));
     }
 
     /// Record a progress frame the harness reported, as the kind of line it is.
@@ -235,6 +286,7 @@ impl CopilotState {
                 detail,
                 call_id,
             } => self.settle_tool(failed, &detail, call_id.as_deref()),
+            super::progress::Progress::Thinking(fragment) => self.thinking(&fragment),
             super::progress::Progress::Status(text) => self.status(text),
         }
     }

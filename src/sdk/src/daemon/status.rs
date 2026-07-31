@@ -13,6 +13,8 @@ use crate::tinyplace::{HarnessEvent, HarnessEventKind, ToolCallPayload, ToolResu
 /// ([`crate::ui::workflows::progress`]), and a producer that reworded this
 /// without the reader following would silently stop rendering tool calls.
 pub const TOOL_PREFIX: &str = "running ";
+/// Prefix for provider-emitted reasoning text forwarded to the copilot.
+pub const THINKING_PREFIX: &str = "thinking · ";
 /// Internal separator carrying a tool call id through the legacy text channel.
 pub(crate) const TOOL_CALL_ID_SEPARATOR: char = '\u{1f}';
 
@@ -27,7 +29,14 @@ pub fn status_detail(event: &HarnessEvent) -> Option<String> {
         HarnessEventKind::ToolResult(payload) => {
             Some(tag_call_id(tool_result_detail(&payload), &payload.call_id))
         }
-        HarnessEventKind::AgentThinking(_) => Some("thinking".to_string()),
+        HarnessEventKind::AgentThinking(payload) => {
+            let text = one_line(&payload.text);
+            Some(if text.is_empty() {
+                "thinking".to_string()
+            } else {
+                cap(&format!("{THINKING_PREFIX}{text}"), 200)
+            })
+        }
         HarnessEventKind::AgentMessage(_) => Some("writing response".to_string()),
         HarnessEventKind::Status(payload) => {
             let detail = if payload.detail.is_empty() {
@@ -77,7 +86,9 @@ fn tool_call_detail(payload: &ToolCallPayload) -> String {
         .or_else(|| scalar_at(input, &["url", "uri"]).map(safe_url));
     match detail {
         Some(detail) if !detail.is_empty() => cap(&format!("{title} · {detail}"), 180),
-        _ if !payload.display.trim().is_empty() => {
+        _ if !payload.display.trim().is_empty()
+            && !payload.display.trim().eq_ignore_ascii_case(&title) =>
+        {
             cap(&format!("{title}: {}", one_line(&payload.display)), 180)
         }
         _ => title,
@@ -103,6 +114,9 @@ fn tool_title(payload: &ToolCallPayload) -> String {
     let name = payload.tool_name.trim();
     match (name, payload.tool_kind.as_str()) {
         ("execute", _) | ("", "shell") => "Terminal".to_string(),
+        ("", _) if scalar_at(&payload.input, &["command", "cmd", "script"]).is_some() => {
+            "Terminal".to_string()
+        }
         ("read", _) | (_, "file_read") => "Read".to_string(),
         ("write", _) | (_, "file_write") => "Write".to_string(),
         ("edit", _) | (_, "edit") => "Edit".to_string(),

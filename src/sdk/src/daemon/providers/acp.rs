@@ -291,6 +291,7 @@ impl FoldState {
                 value.get("status").and_then(Value::as_str),
                 Some("completed" | "failed")
             )
+            && value.get("rawInput").is_none()
         {
             return;
         }
@@ -315,6 +316,23 @@ impl FoldState {
                     "input": value.get("rawInput"),
                 }),
             ),
+            "tool_call_update"
+                if !matches!(
+                    value.get("status").and_then(Value::as_str),
+                    Some("completed" | "failed")
+                ) =>
+            {
+                (
+                    "tool_call",
+                    "agent",
+                    json!({
+                        "call_id": value.get("toolCallId").and_then(Value::as_str).unwrap_or_default(),
+                        "tool_name": value.get("kind").and_then(Value::as_str).unwrap_or_default(),
+                        "display": value.get("title").and_then(Value::as_str).unwrap_or_default(),
+                        "input": value.get("rawInput").cloned().unwrap_or(Value::Null),
+                    }),
+                )
+            }
             "tool_call_update" => (
                 "tool_result",
                 "tool",
