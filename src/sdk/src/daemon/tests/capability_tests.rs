@@ -83,6 +83,36 @@ async fn tool_settlements_bypass_status_throttling() {
 }
 
 #[tokio::test]
+async fn tool_call_details_bypass_status_throttling() {
+    let run_task = status_runner(2);
+    let (send, recorded) = recording_send();
+    let runtime = DaemonRuntime::new(base_config(), run_task, send);
+
+    // The second call represents ACP enriching the same call with raw input.
+    // Both must reach the copilot even though they land inside the 4s window.
+    let seq = Arc::new(vec![10_000i64, 11_000]);
+    let index = Arc::new(AtomicUsize::new(0));
+    let now: NowFn = Arc::new(move || {
+        let position = index.fetch_add(1, Ordering::SeqCst);
+        *seq.get(position).unwrap_or(seq.last().unwrap())
+    });
+
+    let runtime = runtime.with_now(now);
+    runtime.handle_message(
+        "peer".into(),
+        String::new(),
+        Some(task_frame("t1", "work", None)),
+    );
+    runtime.idle().await;
+
+    let statuses = decoded_frames(&recorded)
+        .into_iter()
+        .filter(|frame| frame.kind == TaskFrameKind::Status)
+        .collect::<Vec<_>>();
+    assert_eq!(statuses.len(), 2, "{statuses:?}");
+}
+
+#[tokio::test]
 async fn capabilities_probe_is_cached_across_askers() {
     let count = Arc::new(AtomicUsize::new(0));
     let run_task = counting_capability_runner(count.clone());

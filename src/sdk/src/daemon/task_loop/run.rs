@@ -242,12 +242,15 @@ impl DaemonRuntime {
                 let snapshot = fold.snapshot().clone();
                 drop(fold);
                 let current = now();
-                // A settlement closes a running tool row in the copilot. It is
-                // terminal state, not periodic progress, so dropping it behind
-                // the chatter throttle would leave quick tools running forever.
-                let settles_tool =
-                    matches!(semantic.event.decoded(), HarnessEventKind::ToolResult(_));
-                if !settles_tool && current.saturating_sub(last_status_at) < throttle {
+                // Tool lifecycle events are state changes, not periodic
+                // chatter. In particular ACP may announce a generic Terminal
+                // call and supply its command in the next patch; throttling
+                // either frame would leave the copilot generic or running.
+                let changes_tool = matches!(
+                    semantic.event.decoded(),
+                    HarnessEventKind::ToolCall(_) | HarnessEventKind::ToolResult(_)
+                );
+                if !changes_tool && current.saturating_sub(last_status_at) < throttle {
                     return;
                 }
                 last_status_at = current;

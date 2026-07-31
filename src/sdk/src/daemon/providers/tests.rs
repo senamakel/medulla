@@ -406,3 +406,40 @@ fn acp_running_tool_patch_surfaces_the_command_when_it_arrives_late() {
         ]
     );
 }
+
+#[test]
+fn acp_running_tool_patch_preserves_initial_metadata() {
+    let details = Arc::new(Mutex::new(Vec::new()));
+    let captured = details.clone();
+    let mut state = FoldState::new(Some(Box::new(move |event| {
+        if let Some(detail) = status_detail(&event.event) {
+            captured.lock().unwrap().push(detail);
+        }
+    })));
+    let call = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call",
+        "toolCallId": "call-1",
+        "title": "Read configuration",
+        "kind": "read",
+        "status": "in_progress"
+    }))
+    .unwrap();
+    let input = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "call-1",
+        "status": "in_progress",
+        "rawInput": { "path": "/tmp/medulla.json" }
+    }))
+    .unwrap();
+
+    state.fold(call);
+    state.fold(input);
+
+    assert_eq!(
+        *details.lock().unwrap(),
+        [
+            "running Read: Read configuration\u{1f}call-1",
+            "running Read · /tmp/medulla.json\u{1f}call-1"
+        ]
+    );
+}

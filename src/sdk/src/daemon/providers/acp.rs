@@ -5,6 +5,7 @@
 //! exposes ACP directly. Everything above this module continues to consume the
 //! stable Medulla semantic-event surface.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -266,6 +267,15 @@ pub(super) struct FoldState {
     events: usize,
     on_event: Option<OnEvent>,
     last_activity: Instant,
+    tool_calls: HashMap<String, AcpToolCall>,
+}
+
+/// Provider metadata accumulated across ACP's initial call and later patches.
+#[derive(Default)]
+struct AcpToolCall {
+    title: String,
+    kind: String,
+    input: Value,
 }
 
 impl FoldState {
@@ -275,6 +285,7 @@ impl FoldState {
             events: 0,
             on_event,
             last_activity: Instant::now(),
+            tool_calls: HashMap::new(),
         }
     }
 
@@ -286,15 +297,6 @@ impl FoldState {
             .get("sessionUpdate")
             .and_then(Value::as_str)
             .unwrap_or("unknown");
-        if kind == "tool_call_update"
-            && !matches!(
-                value.get("status").and_then(Value::as_str),
-                Some("completed" | "failed")
-            )
-            && value.get("rawInput").is_none()
-        {
-            return;
-        }
         let (event_kind, role, payload) = match kind {
             "agent_message_chunk" => {
                 let text = content_text(value.get("content"));
@@ -306,44 +308,37 @@ impl FoldState {
                 "agent",
                 json!({ "text": content_text(value.get("content")) }),
             ),
-            "tool_call" => (
-                "tool_call",
-                "agent",
-                json!({
-                    "call_id": value.get("toolCallId"),
-                    "tool_name": value.get("kind"),
-                    "display": value.get("title"),
-                    "input": value.get("rawInput"),
-                }),
-            ),
+            "tool_call" => ("tool_call", "agent", self.tool_call_payload(&value)),
             "tool_call_update"
                 if !matches!(
                     value.get("status").and_then(Value::as_str),
                     Some("completed" | "failed")
                 ) =>
             {
+                let payload = self.tool_call_payload(&value);
+                if value.get("rawInput").is_none() {
+                    return;
+                }
+                ("tool_call", "agent", payload)
+            }
+            "tool_call_update" => {
+                let call_id = value
+                    .get("toolCallId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                self.tool_calls.remove(call_id);
                 (
-                    "tool_call",
-                    "agent",
+                    "tool_result",
+                    "tool",
                     json!({
-                        "call_id": value.get("toolCallId").and_then(Value::as_str).unwrap_or_default(),
-                        "tool_name": value.get("kind").and_then(Value::as_str).unwrap_or_default(),
-                        "display": value.get("title").and_then(Value::as_str).unwrap_or_default(),
-                        "input": value.get("rawInput").cloned().unwrap_or(Value::Null),
+                        "call_id": value.get("toolCallId"),
+                        "ok": value.get("status").and_then(Value::as_str) == Some("completed"),
+                        "is_error": value.get("status").and_then(Value::as_str) == Some("failed"),
+                        "status": value.get("status"),
+                        "output": value.get("rawOutput"),
                     }),
                 )
             }
-            "tool_call_update" => (
-                "tool_result",
-                "tool",
-                json!({
-                    "call_id": value.get("toolCallId"),
-                    "ok": value.get("status").and_then(Value::as_str) == Some("completed"),
-                    "is_error": value.get("status").and_then(Value::as_str) == Some("failed"),
-                    "status": value.get("status"),
-                    "output": value.get("rawOutput"),
-                }),
-            ),
             "plan" => ("plan", "agent", value.clone()),
             "usage_update" => ("usage", "system", value.clone()),
             _ => ("status", "system", value.clone()),
@@ -371,6 +366,31 @@ impl FoldState {
         } else {
             self.text.clone()
         }
+    }
+
+    /// Merge a partial ACP tool update and expose the complete call to Medulla.
+    fn tool_call_payload(&mut self, value: &Value) -> Value {
+        let call_id = value
+            .get("toolCallId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let call = self.tool_calls.entry(call_id.clone()).or_default();
+        if let Some(title) = value.get("title").and_then(Value::as_str) {
+            call.title = title.to_string();
+        }
+        if let Some(kind) = value.get("kind").and_then(Value::as_str) {
+            call.kind = kind.to_string();
+        }
+        if let Some(input) = value.get("rawInput") {
+            call.input = input.clone();
+        }
+        json!({
+            "call_id": call_id,
+            "tool_name": call.kind,
+            "display": call.title,
+            "input": call.input,
+        })
     }
 }
 
