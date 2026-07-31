@@ -23,6 +23,9 @@ use crate::daemon::mappers::HarnessSemanticEvent;
 use crate::tinyplace::{HarnessEvent, HarnessProvider};
 
 use super::types::{OnEvent, RunTaskOptions, RunTaskResult};
+use types::AcpToolCall;
+
+mod types;
 
 /// The MCP servers offered to every ACP session.
 ///
@@ -269,14 +272,6 @@ pub(super) struct FoldState {
     on_event: Option<OnEvent>,
     last_activity: Instant,
     tool_calls: HashMap<String, AcpToolCall>,
-}
-
-/// Provider metadata accumulated across ACP's initial call and later patches.
-#[derive(Default)]
-struct AcpToolCall {
-    title: String,
-    kind: String,
-    input: Value,
 }
 
 impl FoldState {
