@@ -273,11 +273,23 @@ terminal on its own.
 because the tiny.place mailbox could silently black-hole a frame — a failure mode
 this protocol does not have.
 
-**Both clocks MUST be paused while `status() != Live`.** Otherwise a 30-second
-network blip fails a task that the transport was in the middle of recovering,
-which would forfeit the entire reason for adopting SSP. They resume, rather than
-reset, when the link returns to `Live`: `ACK_WINDOW` measures *peer processing*,
-and a peer that was unreachable was not thinking.
+**Both clocks MUST be paused while liveness is not `Live`.** Otherwise a
+30-second network blip fails a task that the transport was in the middle of
+recovering, which would forfeit the entire reason for adopting SSP. They resume,
+rather than reset, when liveness returns to `Live`: `ACK_WINDOW` measures *peer
+processing*, and a peer that was unreachable was not thinking.
+
+**The gate is per peer, not per link.** An orchestrator holds sessions with many
+hosts, and §6.2 liveness is a property of one peer's session. Gating on an
+aggregate would let a single dead host pause every other host's clock, so a task
+dispatched to a healthy worker would stop timing out because an unrelated laptop
+went to sleep. Implementations MUST evaluate liveness for the peer the task is
+dispatched to.
+
+A correct implementation needs **both** of these tests, because either alone
+passes for the wrong reason: an outage longer than `ACK_WINDOW` must not fail the
+task (proving the clock pauses), *and* a hung peer on a `Live` link must still
+time out (proving the clock was gated rather than deleted).
 
 ## 7. Enrollment
 
