@@ -50,7 +50,13 @@ pub fn seal(key: &PairKey, seq: u64, aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&expand_key(key)));
     let nonce = nonce_for(seq);
     cipher
-        .encrypt(Nonce::from_slice(&nonce), Payload { msg: plaintext, aad })
+        .encrypt(
+            Nonce::from_slice(&nonce),
+            Payload {
+                msg: plaintext,
+                aad,
+            },
+        )
         // The only documented failure is a plaintext longer than the cipher's
         // limit (256 GiB); a link datagram is capped at 1400 bytes by §3.2.
         .expect("ChaCha20-Poly1305 cannot fail on a datagram-sized plaintext")
@@ -63,7 +69,12 @@ pub fn seal(key: &PairKey, seq: u64, aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
 /// [`CryptoError::Authentication`] on any tag failure. There is deliberately no
 /// finer-grained error: distinguishing "wrong key" from "tampered" would leak
 /// which one an attacker got wrong.
-pub fn open(key: &PairKey, seq: u64, aad: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, CryptoError> {
+pub fn open(
+    key: &PairKey,
+    seq: u64,
+    aad: &[u8],
+    ciphertext: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&expand_key(key)));
     let nonce = nonce_for(seq);
     cipher

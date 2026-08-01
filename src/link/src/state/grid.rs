@@ -67,7 +67,8 @@ impl SspState for RowGrid {
                 changed.push((index as u32, row));
             }
         }
-        let mut out = Vec::with_capacity(8 + changed.iter().map(|(_, r)| r.len() + 8).sum::<usize>());
+        let mut out =
+            Vec::with_capacity(8 + changed.iter().map(|(_, r)| r.len() + 8).sum::<usize>());
         out.extend_from_slice(&(self.rows.len() as u32).to_be_bytes());
         out.extend_from_slice(&(changed.len() as u32).to_be_bytes());
         for (index, row) in changed {
@@ -95,8 +96,12 @@ impl SspState for RowGrid {
     }
 }
 
+/// A decoded grid diff: the row count the sender ended on, and the rows it
+/// changed, each as its index and its new contents.
+type DecodedRows = (usize, Vec<(usize, Vec<u8>)>);
+
 /// Parse a grid diff into its row count and its (index, row) updates.
-fn decode_rows(diff: &[u8]) -> Result<(usize, Vec<(usize, Vec<u8>)>), StateError> {
+fn decode_rows(diff: &[u8]) -> Result<DecodedRows, StateError> {
     let read_u32 = |at: usize| -> Result<usize, StateError> {
         if diff.len() < at + 4 {
             return Err(StateError::Malformed(format!(

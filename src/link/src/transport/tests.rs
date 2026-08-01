@@ -4,7 +4,6 @@
 use super::*;
 use crate::keys::{ForwarderKey, MemorySeq, NodeId, PairKey, Role};
 use crate::packet::Packet;
-use crate::state::CHANNEL_MESSAGES;
 
 /// A pair of sessions that share a pair key, plus their sequence sources.
 struct Pair {
@@ -97,7 +96,9 @@ fn an_instruction_whose_old_num_does_not_match_is_refused() {
 #[test]
 fn a_stale_instruction_leaves_the_held_state_byte_for_byte_unchanged() {
     let mut pair = Pair::new();
-    pair.orchestrator.set_screen(vec![b"row 0".to_vec()]).unwrap();
+    pair.orchestrator
+        .set_screen(vec![b"row 0".to_vec()])
+        .unwrap();
     let first = pair
         .orchestrator
         .outgoing(100, &mut pair.orchestrator_seq)
@@ -271,7 +272,10 @@ fn an_idle_session_sends_one_heartbeat_every_three_seconds() {
         .unwrap()
         .is_empty());
     assert_eq!(
-        pair.host.outgoing(HEARTBEAT, &mut pair.host_seq).unwrap().len(),
+        pair.host
+            .outgoing(HEARTBEAT, &mut pair.host_seq)
+            .unwrap()
+            .len(),
         1
     );
     assert_eq!(pair.host.next_send_ms(HEARTBEAT), 2 * HEARTBEAT);
@@ -327,7 +331,10 @@ fn an_unacknowledged_state_is_retransmitted_after_the_rto() {
         .outgoing(rto - 1, &mut pair.host_seq)
         .unwrap()
         .is_empty());
-    assert_eq!(pair.host.outgoing(rto, &mut pair.host_seq).unwrap().len(), 1);
+    assert_eq!(
+        pair.host.outgoing(rto, &mut pair.host_seq).unwrap().len(),
+        1
+    );
     assert!(pair.host.has_pending_state());
 }
 
@@ -434,7 +441,9 @@ fn history_is_freed_as_the_peer_acknowledges() {
         }
         now += 100;
         for datagram in pair.host.outgoing(now, &mut pair.host_seq).unwrap() {
-            pair.orchestrator.handle_datagram(&datagram, now + 5).unwrap();
+            pair.orchestrator
+                .handle_datagram(&datagram, now + 5)
+                .unwrap();
         }
         now += 100;
     }
@@ -444,9 +453,7 @@ fn history_is_freed_as_the_peer_acknowledges() {
         "only the assumed receiver state should remain"
     );
     assert_eq!(
-        pair.orchestrator
-            .messages_channel()
-            .assumed_receiver_num(),
+        pair.orchestrator.messages_channel().assumed_receiver_num(),
         8
     );
     assert_eq!(pair.host.take_messages().len(), 8);

@@ -103,7 +103,9 @@ fn applying_a_diff_that_would_overflow_leaves_the_state_unchanged() {
         max_messages: 2,
         max_bytes: 1024,
     });
-    let error = receiver.apply_diff(&sender.diff_from(&queue())).unwrap_err();
+    let error = receiver
+        .apply_diff(&sender.diff_from(&queue()))
+        .unwrap_err();
     assert!(matches!(error, StateError::Overflow(_)));
     assert_eq!(receiver.num(), 0);
 }
@@ -113,10 +115,10 @@ fn a_malformed_queue_diff_is_refused_and_changes_nothing() {
     let mut receiver = queue();
     receiver.push(b"kept".to_vec()).unwrap();
     for bad in [
-        vec![0u8, 0, 0],                       // truncated count
-        vec![0u8, 0, 0, 1],                    // a message is promised
-        vec![0u8, 0, 0, 1, 0, 0, 0, 9, 1, 2],  // over-declared length
-        vec![0u8, 0, 0, 0, 7],                 // trailing bytes
+        vec![0u8, 0, 0],                      // truncated count
+        vec![0u8, 0, 0, 1],                   // a message is promised
+        vec![0u8, 0, 0, 1, 0, 0, 0, 9, 1, 2], // over-declared length
+        vec![0u8, 0, 0, 0, 7],                // trailing bytes
     ] {
         assert!(matches!(
             receiver.apply_diff(&bad),
@@ -183,8 +185,8 @@ fn a_malformed_grid_diff_is_refused() {
     let mut receiver = RowGrid::new();
     receiver.set_rows(vec![b"kept".to_vec()]);
     for bad in [
-        vec![0u8, 0, 0, 1],                                  // truncated
-        vec![0u8, 0, 0, 1, 0, 0, 0, 1],                      // a row is promised
+        vec![0u8, 0, 0, 1],                                        // truncated
+        vec![0u8, 0, 0, 1, 0, 0, 0, 1],                            // a row is promised
         vec![0u8, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 4, 1], // over-declared
     ] {
         assert!(matches!(

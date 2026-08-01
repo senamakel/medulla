@@ -53,9 +53,7 @@ pub struct MemorySeq {
 impl MemorySeq {
     /// Start at `start`, or at 1 when `start` is 0 — sequences begin at 1.
     pub fn new(start: u64) -> Self {
-        MemorySeq {
-            next: start.max(1),
-        }
+        MemorySeq { next: start.max(1) }
     }
 }
 

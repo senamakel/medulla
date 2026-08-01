@@ -72,10 +72,7 @@ pub fn acquire(dir: &Path) -> KeyResult<AcquiredNode> {
 ///
 /// `seed` is only called when there is no identity yet, and only while the lock
 /// is held, so two racing processes cannot both mint one.
-pub fn acquire_or_create(
-    dir: &Path,
-    seed: impl FnOnce() -> NodeState,
-) -> KeyResult<AcquiredNode> {
+pub fn acquire_or_create(dir: &Path, seed: impl FnOnce() -> NodeState) -> KeyResult<AcquiredNode> {
     let lock = store::lock_node_dir(dir)?;
     let path = node_path(dir);
     let state = match store::read_node_state(&path) {

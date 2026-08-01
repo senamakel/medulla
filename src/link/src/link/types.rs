@@ -50,7 +50,9 @@ impl LinkConfig {
     pub fn new(state_dir: impl Into<PathBuf>) -> Self {
         LinkConfig {
             state_dir: state_dir.into(),
-            bind: "0.0.0.0:0".parse().expect("a literal socket address parses"),
+            bind: "0.0.0.0:0"
+                .parse()
+                .expect("a literal socket address parses"),
             forwarder_endpoint: None,
             peers: Vec::new(),
             queue_limits: QueueLimits::default(),
@@ -133,6 +135,7 @@ pub(super) enum Command {
 /// Cloning is deliberately not provided: the handle owns the inbound queue, and
 /// two owners would race over which one receives a message. Share it behind an
 /// `Arc` instead — every method takes `&self`.
+#[derive(Debug)]
 pub struct LinkHandle {
     pub(super) commands: mpsc::Sender<Command>,
     pub(super) inbound: Mutex<mpsc::Receiver<(NodeId, Vec<u8>)>>,

@@ -176,9 +176,7 @@ pub fn verify_tag(datagram: &[u8], key: &ForwarderKey) -> bool {
         return false;
     }
     let expected = tag_for(key, &datagram[..TAG_OFFSET]);
-    expected
-        .ct_eq(&datagram[TAG_OFFSET..HEADER_LEN])
-        .into()
+    expected.ct_eq(&datagram[TAG_OFFSET..HEADER_LEN]).into()
 }
 
 #[cfg(test)]

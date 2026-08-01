@@ -107,7 +107,8 @@ impl Serialize for NodeId {
 impl<'de> Deserialize<'de> for NodeId {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
-        let bytes = hex_decode(&text).ok_or_else(|| D::Error::custom("node id is not 16 hex bytes"))?;
+        let bytes =
+            hex_decode(&text).ok_or_else(|| D::Error::custom("node id is not 16 hex bytes"))?;
         let bytes: [u8; 16] = bytes
             .try_into()
             .map_err(|_| D::Error::custom("node id is not 16 bytes"))?;
@@ -237,7 +238,9 @@ impl Drop for NodeLock {
 
 impl fmt::Debug for NodeLock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("NodeLock").field("path", &self.path).finish()
+        f.debug_struct("NodeLock")
+            .field("path", &self.path)
+            .finish()
     }
 }
 

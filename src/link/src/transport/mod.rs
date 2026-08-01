@@ -144,9 +144,8 @@ impl Session {
             });
         }
         let mut queued = Some(body);
-        self.messages.advance(|queue| {
-            queue.push(queued.take().expect("advance runs the change once"))
-        })
+        self.messages
+            .advance(|queue| queue.push(queued.take().expect("advance runs the change once")))
     }
 
     /// Take every message received on channel 0, in order.
@@ -258,7 +257,9 @@ impl Session {
     /// policy above simply returns nothing — but not less often without
     /// delaying a retransmission.
     pub fn next_send_ms(&self, now_ms: u64) -> u64 {
-        let floor = self.last_send_ms.map_or(now_ms, |at| at + SEND_INTERVAL_MIN);
+        let floor = self
+            .last_send_ms
+            .map_or(now_ms, |at| at + SEND_INTERVAL_MIN);
         let mut due = self.last_send_ms.map_or(now_ms, |at| at + HEARTBEAT);
         if self.pending_ack_channel().is_some() {
             due = due.min(
@@ -315,7 +316,8 @@ impl Session {
         self.last_heard_ms = Some(now_ms);
         self.peer_timestamp = Some((packet.send_ts, now_ms));
         if packet.reply_ts != 0 {
-            self.rtt.sample(u64::from(elapsed16(now_ms, packet.reply_ts)));
+            self.rtt
+                .sample(u64::from(elapsed16(now_ms, packet.reply_ts)));
         }
 
         let instruction = packet.instruction;

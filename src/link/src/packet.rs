@@ -161,7 +161,9 @@ impl Packet {
     ///
     /// [`PacketError::DiffTooLarge`] when the diff would not fit one datagram.
     pub fn encode(&self) -> Result<Vec<u8>, PacketError> {
-        let mut out = Vec::with_capacity(TIMESTAMP_LEN + INSTRUCTION_HEADER_LEN + self.instruction.diff.len());
+        let mut out = Vec::with_capacity(
+            TIMESTAMP_LEN + INSTRUCTION_HEADER_LEN + self.instruction.diff.len(),
+        );
         out.extend_from_slice(&self.send_ts.to_be_bytes());
         out.extend_from_slice(&self.reply_ts.to_be_bytes());
         self.instruction.encode_into(&mut out)?;

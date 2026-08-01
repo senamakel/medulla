@@ -21,8 +21,8 @@ use crate::keys::{self, AcquiredNode, NodeId};
 use crate::state::QueueLimits;
 use crate::transport::{Session, SessionConfig};
 
-pub use types::{LinkConfig, LinkError, LinkHandle, LinkStatus, PeerConfig};
 use types::Command;
+pub use types::{LinkConfig, LinkError, LinkHandle, LinkStatus, PeerConfig};
 
 /// How many messages may sit in the inbound queue before the driver blocks.
 ///

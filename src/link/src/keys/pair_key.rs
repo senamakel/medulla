@@ -101,7 +101,9 @@ impl PairKey {
         }
         bits.chunks(5)
             .map(|chunk| {
-                let value = chunk.iter().fold(0u8, |acc, bit| (acc << 1) | u8::from(*bit));
+                let value = chunk
+                    .iter()
+                    .fold(0u8, |acc, bit| (acc << 1) | u8::from(*bit));
                 ALPHABET[value as usize] as char
             })
             .collect()
