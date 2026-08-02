@@ -127,6 +127,41 @@ async fn an_enrolled_host_with_a_profile_is_not_re_onboarded() {
 }
 
 #[tokio::test]
+async fn malformed_explicit_config_cannot_mutate_an_existing_profile() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("broken.toml");
+    std::fs::write(&config_path, "[link\nstateDir = nope").unwrap();
+    let e = home_env(
+        dir.path(),
+        &[(
+            crate::config::CONFIG_PATH_ENV,
+            config_path.to_str().unwrap(),
+        )],
+    );
+    let profile_file = profile_path(&e);
+    let profile = WorkerProfile {
+        name: "existing-worker".to_string(),
+        address: String::new(),
+        owner: Some("orchestrator-1".to_string()),
+        registered_at: Some("2026-01-01T00:00:00Z".to_string()),
+    };
+    profile.save(&profile_file).unwrap();
+
+    let err = ensure_registered_in(&e, false, None, dir.path())
+        .await
+        .expect_err("an explicit malformed config must stop onboarding");
+
+    assert!(err.to_string().contains("explicit configuration failed"));
+    assert_eq!(
+        WorkerProfile::load(&profile_file)
+            .expect("profile remains readable")
+            .address,
+        "",
+        "validation must happen before onboarding writes the link identity"
+    );
+}
+
+#[tokio::test]
 async fn headless_without_owner_still_registers() {
     let dir = tempfile::tempdir().unwrap();
     let e = home_env(dir.path(), &[("USER", "grace"), ("HOSTNAME", "node")]);

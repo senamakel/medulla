@@ -87,14 +87,20 @@ pub async fn ensure_registered_in(
     let home = crate::home::medulla_home(env);
     let profile_file = profile_path(env);
     // Load the effective configuration to honor the configured link.stateDir if set.
-    let link_dir = crate::config::load_config(
-        crate::config::explicit_config_from_env(env),
-        env,
-        config_cwd,
-    )
-    .ok()
-    .and_then(|loaded| loaded.config.link.map(|cfg| cfg.state_dir.into()))
-    .unwrap_or_else(|| medulla_link::keys::link_dir(&home));
+    let explicit_config = crate::config::explicit_config_from_env(env);
+    let link_dir = match crate::config::load_config(explicit_config, env, config_cwd) {
+        Ok(loaded) => loaded
+            .config
+            .link
+            .map(|cfg| cfg.state_dir.into())
+            .unwrap_or_else(|| medulla_link::keys::link_dir(&home)),
+        Err(err) if explicit_config.is_some() => {
+            return Err(anyhow::anyhow!(
+                "explicit configuration failed to load before onboarding: {err}"
+            ));
+        }
+        Err(_) => medulla_link::keys::link_dir(&home),
+    };
     let mut existing = WorkerProfile::load(&profile_file);
     if let (Some(profile), Ok(state)) = (
         existing
