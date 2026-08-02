@@ -125,7 +125,7 @@ async fn two_links_exchange_messages_through_a_forwarder() {
         .send(host_id, b"dispatch task 1")
         .await
         .unwrap();
-    let (from, body) = tokio::time::timeout(PATIENCE, host.recv())
+    let (from, _epoch, body) = tokio::time::timeout(PATIENCE, host.recv())
         .await
         .expect("the host heard nothing")
         .expect("the link closed");
@@ -135,7 +135,7 @@ async fn two_links_exchange_messages_through_a_forwarder() {
     host.send(orchestrator_id, b"task 1 accepted")
         .await
         .unwrap();
-    let (from, body) = tokio::time::timeout(PATIENCE, orchestrator.recv())
+    let (from, _epoch, body) = tokio::time::timeout(PATIENCE, orchestrator.recv())
         .await
         .expect("the orchestrator heard nothing")
         .expect("the link closed");
@@ -196,7 +196,7 @@ async fn many_messages_arrive_in_order() {
             .unwrap();
     }
     for index in 0..20u32 {
-        let (_, body) = tokio::time::timeout(PATIENCE, host.recv())
+        let (_, _epoch, body) = tokio::time::timeout(PATIENCE, host.recv())
             .await
             .expect("a frame went missing")
             .expect("the link closed");
