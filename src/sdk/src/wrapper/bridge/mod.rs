@@ -94,18 +94,16 @@ impl Bridge {
             Err(_) => return,
         };
         use crate::bridge::Bridge as _;
-        // Retry with exponential backoff on retryable errors.
+        // Retry with capped exponential backoff while link history is full.
         let mut delay_ms = 10u64;
         loop {
             match self.transport.send(recipient, &body).await {
                 Ok(()) => return,
                 Err(err) => {
-                    if err.is_retryable() && delay_ms < 1000 {
-                        // Retryable error (e.g., queue overflow): back off and retry.
+                    if err.starts_with("link queue overflow:") {
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
                         delay_ms = (delay_ms * 2).min(1000);
                     } else {
-                        // Non-retryable error or max retries reached: log and give up.
                         eprintln!("medulla wrapper: publish failed: {err}");
                         return;
                     }

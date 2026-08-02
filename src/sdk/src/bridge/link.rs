@@ -257,7 +257,11 @@ impl LinkBridge {
 /// Drain the link into the bridge's inbox until the link stops.
 async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<Inbox>) {
     while let Some((peer, body)) = link.recv().await {
-        let Some(body) = reassemble(peer, body, &link, &inbox).await else {
+        let status = link.status();
+        let is_live = status
+            .peer(&peer)
+            .is_some_and(|peer| peer.liveness == Liveness::Live);
+        let Some(body) = reassemble_with_liveness(peer, body, is_live, &inbox).await else {
             continue;
         };
         // An unknown sender is named by its id rather than dropped: the message
@@ -297,7 +301,17 @@ async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<
 async fn reassemble(
     peer: NodeId,
     body: Vec<u8>,
-    link: &LinkHandle,
+    inbox: &Inbox,
+) -> Option<Vec<u8>> {
+    reassemble_with_liveness(peer, body, true, inbox).await
+}
+
+/// Reassemble a fragment while applying the caller's current peer-liveness
+/// observation to partial-message expiry.
+async fn reassemble_with_liveness(
+    peer: NodeId,
+    body: Vec<u8>,
+    is_live: bool,
     inbox: &Inbox,
 ) -> Option<Vec<u8>> {
     if body.len() < CHUNK_HEADER || &body[..4] != CHUNK_MAGIC {
@@ -311,9 +325,6 @@ async fn reassemble(
     }
     let key = (peer, id);
     let now = Instant::now();
-    // Check if the peer's link is Live; only expire partials while Live.
-    let peer_status = link.status().peer(&peer);
-    let is_live = peer_status.map_or(false, |s| s.liveness == medulla_link::Liveness::Live);
     let mut reassembly = inbox.reassembly.lock().await;
     reassembly.expire(now, is_live);
     if !reassembly.partials.contains_key(&key) {
