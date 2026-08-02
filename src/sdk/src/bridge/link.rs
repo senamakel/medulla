@@ -22,18 +22,28 @@
 //! is what makes the transport swap safe.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::sync::{Mutex, Notify};
 
 use medulla_link::keys::NodeId;
-use medulla_link::{LinkHandle, Liveness};
+use medulla_link::{LinkHandle, Liveness, MAX_MESSAGE_BYTES};
 
 use super::{Bridge, BridgeLiveness, InboundMessage};
 
 /// Maximum number of complete frames buffered above the bounded link channel.
 const INBOX_CAPACITY: usize = 1024;
+
+const CHUNK_MAGIC: &[u8; 4] = b"MDL1";
+const CHUNK_HEADER: usize = 20;
+const MAX_CHUNKS: usize = 4096;
+static NEXT_MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
+
+struct PartialMessage {
+    chunks: Vec<Option<Vec<u8>>>,
+}
 
 /// One reachable peer: the name callers address it by, and the id on the wire.
 ///
@@ -65,6 +75,7 @@ pub struct LinkBridgeConfig {
 #[derive(Default)]
 struct Inbox {
     queue: Mutex<VecDeque<InboundMessage>>,
+    reassembly: Mutex<HashMap<(NodeId, u64), PartialMessage>>,
     /// Notified on every delivery, so `wait_for_inbox` returns at about a round
     /// trip rather than at the caller's poll interval.
     arrival: Notify,
@@ -179,6 +190,9 @@ impl LinkBridge {
 /// Drain the link into the bridge's inbox until the link stops.
 async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<Inbox>) {
     while let Some((peer, body)) = link.recv().await {
+        let Some(body) = reassemble(peer, body, &inbox).await else {
+            continue;
+        };
         // An unknown sender is named by its id rather than dropped: the message
         // authenticated under a pair key we hold, so it is genuinely from a peer
         // this endpoint is enrolled with — only the local name table is behind.
@@ -206,6 +220,44 @@ async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<
     }
 }
 
+/// Decode one bridge fragment, returning a complete application frame once all
+/// chunks have arrived. Link channel 0 is ordered, but the id keeps concurrent
+/// callers independent when their chunk sequences interleave.
+async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8>> {
+    if body.len() < CHUNK_HEADER || &body[..4] != CHUNK_MAGIC {
+        return Some(body);
+    }
+    let id = u64::from_be_bytes(body[4..12].try_into().ok()?);
+    let index = u32::from_be_bytes(body[12..16].try_into().ok()?) as usize;
+    let count = u32::from_be_bytes(body[16..20].try_into().ok()?) as usize;
+    if count == 0 || count > MAX_CHUNKS || index >= count {
+        return None;
+    }
+    let mut partials = inbox.reassembly.lock().await;
+    let partial = partials
+        .entry((peer, id))
+        .or_insert_with(|| PartialMessage {
+            chunks: (0..count).map(|_| None).collect(),
+        });
+    if partial.chunks.len() != count {
+        partials.remove(&(peer, id));
+        return None;
+    }
+    partial.chunks[index] = Some(body[CHUNK_HEADER..].to_vec());
+    if partial.chunks.iter().any(Option::is_none) {
+        return None;
+    }
+    let partial = partials.remove(&(peer, id)).expect("partial exists");
+    Some(
+        partial
+            .chunks
+            .into_iter()
+            .flatten()
+            .flatten()
+            .collect(),
+    )
+}
+
 #[async_trait]
 impl Bridge for LinkBridge {
     /// Queue `body` for `to`.
@@ -217,11 +269,40 @@ impl Bridge for LinkBridge {
         let peer = self
             .node_id(to)
             .ok_or_else(|| format!("no link peer is enrolled for address: {to}"))?;
-        self.inner
-            .link
-            .send(peer, body.as_bytes())
-            .await
-            .map_err(|err| err.to_string())
+        let payload = body.as_bytes();
+        let capacity = MAX_MESSAGE_BYTES - CHUNK_HEADER;
+        let count = payload.len().div_ceil(capacity).max(1);
+        if count > MAX_CHUNKS {
+            return Err(format!("bridge frame requires {count} chunks; limit is {MAX_CHUNKS}"));
+        }
+        let id = NEXT_MESSAGE_ID.fetch_add(1, Ordering::Relaxed);
+        for (index, chunk) in payload.chunks(capacity).enumerate() {
+            let mut frame = Vec::with_capacity(CHUNK_HEADER + chunk.len());
+            frame.extend_from_slice(CHUNK_MAGIC);
+            frame.extend_from_slice(&id.to_be_bytes());
+            frame.extend_from_slice(&(index as u32).to_be_bytes());
+            frame.extend_from_slice(&(count as u32).to_be_bytes());
+            frame.extend_from_slice(chunk);
+            self.inner
+                .link
+                .send(peer, &frame)
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        // `chunks()` yields no item for an empty payload.
+        if payload.is_empty() {
+            let mut frame = Vec::with_capacity(CHUNK_HEADER);
+            frame.extend_from_slice(CHUNK_MAGIC);
+            frame.extend_from_slice(&id.to_be_bytes());
+            frame.extend_from_slice(&0u32.to_be_bytes());
+            frame.extend_from_slice(&1u32.to_be_bytes());
+            self.inner
+                .link
+                .send(peer, &frame)
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(())
     }
 
     async fn drain_inbox(&self, limit: i64) -> Vec<InboundMessage> {
