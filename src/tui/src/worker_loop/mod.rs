@@ -244,10 +244,23 @@ pub(super) fn worker_runtime(
     };
     let send = {
         let transport = transport.clone();
+        let logs = logs.clone();
         Arc::new(move |to: String, body: String| {
             let transport = transport.clone();
+            let logs = logs.clone();
             Box::pin(async move {
-                let _ = transport.send(&to, &body).await;
+                loop {
+                    match transport.send(&to, &body).await {
+                        Ok(()) => break,
+                        Err(err) if err.starts_with("link queue overflow:") => {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        }
+                        Err(err) => {
+                            logs.push(format!("worker: send to {to} failed ({err})"));
+                            break;
+                        }
+                    }
+                }
             }) as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
         })
     };

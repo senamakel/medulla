@@ -22,12 +22,12 @@
 //! is what makes the transport swap safe.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use tokio::sync::{Mutex, Notify};
+use uuid::Uuid;
 
 use medulla_link::keys::NodeId;
 use medulla_link::{LinkHandle, Liveness, MAX_MESSAGE_BYTES};
@@ -47,7 +47,6 @@ const MAX_CHUNKS: usize = 4096;
 const MAX_PARTIAL_MESSAGES: usize = 128;
 const MAX_PARTIAL_BYTES: usize = 16 * 1024 * 1024;
 const PARTIAL_TTL: Duration = Duration::from_secs(30);
-static NEXT_MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
 
 struct PartialMessage {
     chunks: Vec<Option<Vec<u8>>>,
@@ -357,7 +356,11 @@ impl Bridge for LinkBridge {
                 "bridge frame requires {count} chunks; limit is {MAX_CHUNKS}"
             ));
         }
-        let id = NEXT_MESSAGE_ID.fetch_add(1, Ordering::Relaxed);
+        // Process-local counters collide after a sender restart while the peer
+        // may still retain an old incomplete message. A random v4 UUID prefix
+        // makes the 64-bit wire id restart-unique without changing the fragment
+        // header or coupling this layer to the transport's private epoch.
+        let id = u64::from_be_bytes(Uuid::new_v4().as_bytes()[..8].try_into().expect("8 bytes"));
         for (index, chunk) in payload.chunks(capacity).enumerate() {
             let mut frame = Vec::with_capacity(CHUNK_HEADER + chunk.len());
             frame.extend_from_slice(CHUNK_MAGIC);

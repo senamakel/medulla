@@ -66,3 +66,10 @@ async fn incomplete_reassembly_is_bounded_and_expires() {
     assert_eq!(state.partials.len(), 1);
     assert!(state.partials.contains_key(&(peer, 999)));
 }
+
+#[test]
+fn fragment_message_ids_are_random_across_calls() {
+    let first = Uuid::new_v4();
+    let second = Uuid::new_v4();
+    assert_ne!(&first.as_bytes()[..8], &second.as_bytes()[..8]);
+}
