@@ -177,7 +177,9 @@ fn a_peer_restart_rebuilds_screen_rows_as_datagram_sized_prefixes() {
             .orchestrator
             .outgoing(220 + step * 20, &mut pair.orchestrator_seq)
             .unwrap();
-        pair.host.handle_datagram(&sent[0], 230 + step * 20).unwrap();
+        pair.host
+            .handle_datagram(&sent[0], 230 + step * 20)
+            .unwrap();
         let ack = pair
             .host
             .outgoing(240 + step * 20, &mut pair.host_seq)
