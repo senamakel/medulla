@@ -89,10 +89,17 @@ impl<S: SspState> Channel<S> {
         let mut new_num = 1u64;
         for (old_num, state) in &self.sent_states {
             if *old_num > self.assumed_receiver_num {
-                // Skip channel 0 (MessageQueue) states due to internal base numbering.
-                // Channel 0's base represents absolute message count and cannot be
-                // trivially adjusted when renumbering; the peer will retrieve it fresh.
-                if self.id != 0 {
+                if self.id == 0 {
+                    let mut rebased = state.clone();
+                    let rebased_num = rebased
+                        .reset_origin()
+                        .expect("channel zero queue reports its rebased number");
+                    if rebased_num > 0
+                        && new_sent_states.back().map(|(num, _)| *num) != Some(rebased_num)
+                    {
+                        new_sent_states.push_back((rebased_num, rebased));
+                    }
+                } else {
                     // This is a pending unacknowledged state — preserve it with new numbering.
                     new_sent_states.push_back((new_num, state.clone()));
                     if *old_num == self.current_num {
@@ -103,16 +110,17 @@ impl<S: SspState> Channel<S> {
             }
         }
 
-        // Channel 0 collapses its pending messages into one rebased state. Its
-        // internal absolute message base belongs to the retired peer session,
-        // so carrying that base into the new state would make the fresh peer's
-        // empty origin appear to be ahead of messages it has never received.
+        // Channel 0 rebases every retained intermediate queue state above. Its
+        // internal absolute base belongs to the retired peer session, while the
+        // sequence of prefixes is needed to keep every next diff datagram-sized.
         if self.id == 0 {
             self.current_num = self
                 .current
                 .reset_origin()
                 .expect("channel zero queue reports its rebased number");
-            if self.current_num > 0 {
+            if self.current_num > 0
+                && new_sent_states.back().map(|(num, _)| *num) != Some(self.current_num)
+            {
                 new_sent_states.push_back((self.current_num, self.current.clone()));
             }
         }
