@@ -93,6 +93,7 @@ struct Driver {
     node: AcquiredNode,
     inbound: mpsc::Sender<(NodeId, u64, Vec<u8>)>,
     pending_inbound: HashMap<NodeId, VecDeque<(u64, Vec<u8>)>>,
+    last_screens: HashMap<NodeId, Vec<Vec<u8>>>,
     status: watch::Sender<LinkStatus>,
     /// Monotonic origin: every `now_ms` in the transport is measured from here,
     /// so a wall-clock jump cannot make a retransmission timer fire late (or
@@ -140,6 +141,7 @@ impl Driver {
             node,
             inbound,
             pending_inbound: HashMap::new(),
+            last_screens: HashMap::new(),
             status,
             origin,
         }
@@ -233,6 +235,13 @@ impl Driver {
             .expect("an accepted datagram has an epoch");
         for message in messages {
             pending.push_back((epoch, message));
+        }
+        let screen = session.screen().rows().to_vec();
+        if self.last_screens.get(&header.src) != Some(&screen) {
+            self.last_screens.insert(header.src, screen.clone());
+            if let [message] = screen.as_slice() {
+                pending.push_back((epoch, message.clone()));
+            }
         }
     }
 

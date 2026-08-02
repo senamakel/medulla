@@ -307,6 +307,17 @@ impl Bridge for LinkBridge {
         let peer = self
             .node_id(to)
             .ok_or_else(|| format!("no link peer is enrolled for address: {to}"))?;
+        if matches!(
+            crate::protocol::parse_screen_message(body),
+            Some(crate::protocol::ScreenMessage::Frame(_))
+        ) {
+            return self
+                .inner
+                .link
+                .send_screen(peer, vec![body.as_bytes().to_vec()])
+                .await
+                .map_err(|err| err.to_string());
+        }
         let send_lock = self
             .inner
             .send_locks
