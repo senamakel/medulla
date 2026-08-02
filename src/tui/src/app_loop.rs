@@ -371,15 +371,17 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // Optional background host-link service (observational only): keep per-peer
     // liveness current and surface it into the Overview panel and Agents lanes.
     let mut link_status: Option<String> = None;
-    let link_service = match &loaded.config.link {
-        Some(link) => match medulla::protocol::service::LinkService::start(link).await {
+    let link_config = loaded
+        .config
+        .link
+        .clone()
+        .unwrap_or_else(|| medulla::config::default_link_config(&env));
+    let link_service = match medulla::protocol::service::LinkService::start(&link_config).await {
             Ok(service) => Some(service),
             Err(e) => {
                 link_status = Some(format!("host link unavailable ({e})"));
                 None
             }
-        },
-        None => None,
     };
     let link_obs = link_service.as_ref().map(|s| s.observation());
 

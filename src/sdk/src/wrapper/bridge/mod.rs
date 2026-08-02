@@ -216,8 +216,9 @@ pub(super) async fn build_bridge(
     // — a harness must still be usable on a machine that was never enrolled.
     let home = crate::home::medulla_home(&config.env);
     // Load the effective configuration to honor the configured link.stateDir if set.
+    let explicit_config = crate::config::explicit_config_from_env(&config.env);
     let link_state_dir = match crate::config::load_config(
-        crate::config::explicit_config_from_env(&config.env),
+        explicit_config,
         &config.env,
         std::path::Path::new(&config.cwd),
     ) {
@@ -226,8 +227,13 @@ pub(super) async fn build_bridge(
             .link
             .map(|link_cfg| link_cfg.state_dir.into())
             .unwrap_or_else(|| medulla_link::keys::link_dir(&home)),
+        Err(err) if explicit_config.is_some() => {
+            eprintln!(
+                "medulla wrapper: explicit configuration failed to load ({err}) — running as a plain passthrough"
+            );
+            return None;
+        }
         Err(_) => {
-            // Config loading failed; fall back to default.
             medulla_link::keys::link_dir(&home)
         }
     };

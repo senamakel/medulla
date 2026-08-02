@@ -288,15 +288,11 @@ impl HubHandle {
         // answerable exactly, and demanding base58 of it would make the host on
         // this very machine the one worker the roster refuses.
         let enrolled_address = self.relay.resolve_handle(&worker.address).await;
-        if !is_plausible_address(&worker.address)
-            && !self.relay.is_device_local(&worker.address).await
-            && enrolled_address.is_none()
-        {
+        let device_local = self.relay.is_device_local(&worker.address).await;
+        if !device_local && enrolled_address.is_none() {
             let given = worker.address.clone();
             (self.log)(&format!("hub: refused worker address {given:?}"));
-            anyhow::bail!(
-                "{given:?} is not a tiny.place address — expected a base58 cryptoId or an @handle"
-            );
+            anyhow::bail!("{given:?} is not an enrolled link peer");
         }
         // A handle is a directory alias; contacts, pre-key bundles and DMs are
         // all keyed on the cryptoId behind it. Storing the alias would register
