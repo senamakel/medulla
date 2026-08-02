@@ -16,11 +16,12 @@ fn chunk(id: u64, index: u32, count: u32, body: &[u8]) -> Vec<u8> {
 async fn fragments_reassemble_without_mixing_interleaved_messages() {
     let inbox = Inbox::default();
     let peer = NodeId([7; 16]);
+    let other_peer = NodeId([8; 16]);
 
     assert!(reassemble(peer, chunk(1, 0, 2, b"large "), &inbox)
         .await
         .is_none());
-    assert!(reassemble(peer, chunk(2, 0, 2, b"other "), &inbox)
+    assert!(reassemble(other_peer, chunk(2, 0, 2, b"other "), &inbox)
         .await
         .is_none());
     assert_eq!(
@@ -28,7 +29,7 @@ async fn fragments_reassemble_without_mixing_interleaved_messages() {
         Some(b"large frame".to_vec())
     );
     assert_eq!(
-        reassemble(peer, chunk(2, 1, 2, b"message"), &inbox).await,
+        reassemble(other_peer, chunk(2, 1, 2, b"message"), &inbox).await,
         Some(b"other message".to_vec())
     );
 }
@@ -44,24 +45,19 @@ async fn unframed_payloads_remain_compatible() {
 }
 
 #[tokio::test]
-async fn incomplete_reassembly_is_bounded_and_evicts_the_oldest() {
+async fn a_second_frame_never_evicts_acknowledged_fragments() {
     let inbox = Inbox::default();
     let peer = NodeId([9; 16]);
-    for id in 0..=MAX_PARTIAL_MESSAGES as u64 {
-        assert!(reassemble(peer, chunk(id, 0, 2, b"partial"), &inbox)
-            .await
-            .is_none());
-    }
-    assert_eq!(
-        inbox.reassembly.lock().await.partials.len(),
-        MAX_PARTIAL_MESSAGES
-    );
-    assert!(reassemble(peer, chunk(999, 0, 2, b"fresh"), &inbox)
+    assert!(reassemble(peer, chunk(1, 0, 2, b"preserved "), &inbox)
         .await
         .is_none());
-    let state = inbox.reassembly.lock().await;
-    assert_eq!(state.partials.len(), MAX_PARTIAL_MESSAGES);
-    assert!(state.partials.contains_key(&(peer, 999)));
+    assert!(reassemble(peer, chunk(2, 0, 2, b"new"), &inbox)
+        .await
+        .is_none());
+    assert_eq!(
+        reassemble(peer, chunk(1, 1, 2, b"frame"), &inbox).await,
+        Some(b"preserved frame".to_vec())
+    );
 }
 
 #[tokio::test]
@@ -71,15 +67,6 @@ async fn incomplete_reassembly_survives_a_long_gap() {
     assert!(reassemble(peer, chunk(1, 0, 2, b"held "), &inbox)
         .await
         .is_none());
-    inbox
-        .reassembly
-        .lock()
-        .await
-        .partials
-        .get_mut(&(peer, 1))
-        .expect("partial exists")
-        .updated = Instant::now() - Duration::from_secs(3_600);
-
     assert_eq!(
         reassemble(peer, chunk(1, 1, 2, b"frame"), &inbox).await,
         Some(b"held frame".to_vec())

@@ -23,7 +23,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use tokio::sync::{Mutex, Notify};
@@ -53,7 +53,6 @@ fn next_message_id() -> u64 {
 struct PartialMessage {
     chunks: Vec<Option<Vec<u8>>>,
     bytes: usize,
-    updated: Instant,
 }
 
 #[derive(Default)]
@@ -264,7 +263,6 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
         return None;
     }
     let key = (peer, id);
-    let now = Instant::now();
     let mut reassembly = inbox.reassembly.lock().await;
     if !reassembly.partials.contains_key(&key) {
         // A conforming sender serializes fragmented frames, so at most one
@@ -280,7 +278,6 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
             PartialMessage {
                 chunks: (0..count).map(|_| None).collect(),
                 bytes: 0,
-                updated: now,
             },
         );
     }
@@ -296,7 +293,6 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
     let added = payload.len().saturating_sub(old_len);
     let partial = reassembly.partials.get_mut(&key).expect("partial exists");
     partial.bytes = partial.bytes + payload.len() - old_len;
-    partial.updated = now;
     partial.chunks[index] = Some(payload.to_vec());
     if payload.len() >= old_len {
         reassembly.bytes += added;
