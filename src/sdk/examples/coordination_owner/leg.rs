@@ -91,7 +91,7 @@ pub async fn run_leg(link: &LinkHandle, owner_id: NodeId, leg: &Leg) -> (i32, se
     let mut collected: Vec<TaskFrame> = Vec::new();
     let mut terminal: Option<TaskFrame> = None;
     while terminal.is_none() {
-        let Ok(Some((_from, body))) = tokio::time::timeout_at(deadline, link.recv()).await else {
+        let Ok(Some((_from, _epoch, body))) = tokio::time::timeout_at(deadline, link.recv()).await else {
             break; // the deadline passed, or the link closed under us
         };
         let text = String::from_utf8_lossy(&body).into_owned();
