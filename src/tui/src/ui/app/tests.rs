@@ -26,7 +26,7 @@ fn app_with_running_task() -> App {
     let rt = MockRuntime::demo();
     let loaded = {
         let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
-        loaded.config.tinyplace = Some(medulla::config::TinyplaceConfig::default());
+        loaded.config.link = Some(medulla::config::LinkConfig::default());
         loaded
     };
     let mut app = App::new(Arc::new(rt), loaded);
