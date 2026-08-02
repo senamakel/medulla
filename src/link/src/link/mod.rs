@@ -91,7 +91,7 @@ struct Driver {
     forwarder: SocketAddr,
     sessions: HashMap<NodeId, Session>,
     node: AcquiredNode,
-    inbound: mpsc::Sender<(NodeId, Vec<u8>)>,
+    inbound: mpsc::Sender<(NodeId, u64, Vec<u8>)>,
     status: watch::Sender<LinkStatus>,
     /// Monotonic origin: every `now_ms` in the transport is measured from here,
     /// so a wall-clock jump cannot make a retransmission timer fire late (or
@@ -106,7 +106,7 @@ impl Driver {
         node: AcquiredNode,
         socket: UdpSocket,
         forwarder: SocketAddr,
-        inbound: mpsc::Sender<(NodeId, Vec<u8>)>,
+        inbound: mpsc::Sender<(NodeId, u64, Vec<u8>)>,
         status: watch::Sender<LinkStatus>,
     ) -> Self {
         let origin = Instant::now();
@@ -219,8 +219,9 @@ impl Driver {
         }
         let messages = session.take_messages();
         let peer = header.src;
+        let epoch = session.peer_epoch().expect("an accepted datagram has an epoch");
         for message in messages {
-            if self.inbound.send((peer, message)).await.is_err() {
+            if self.inbound.send((peer, epoch, message)).await.is_err() {
                 return;
             }
         }

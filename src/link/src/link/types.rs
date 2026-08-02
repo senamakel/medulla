@@ -138,7 +138,7 @@ pub(super) enum Command {
 #[derive(Debug)]
 pub struct LinkHandle {
     pub(super) commands: mpsc::Sender<Command>,
-    pub(super) inbound: Mutex<mpsc::Receiver<(NodeId, Vec<u8>)>>,
+    pub(super) inbound: Mutex<mpsc::Receiver<(NodeId, u64, Vec<u8>)>>,
     pub(super) status: watch::Receiver<LinkStatus>,
     pub(super) peers: Vec<NodeId>,
 }
@@ -177,7 +177,7 @@ impl LinkHandle {
     /// The next message received from any peer.
     ///
     /// `None` means the driver has stopped and no further message will arrive.
-    pub async fn recv(&self) -> Option<(NodeId, Vec<u8>)> {
+    pub async fn recv(&self) -> Option<(NodeId, u64, Vec<u8>)> {
         self.inbound.lock().await.recv().await
     }
 

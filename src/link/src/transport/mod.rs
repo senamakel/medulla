@@ -120,6 +120,11 @@ impl Session {
         self.config.peer_node_id
     }
 
+    /// The current peer process epoch, once an authenticated datagram arrived.
+    pub fn peer_epoch(&self) -> Option<u64> {
+        self.peer_epoch
+    }
+
     /// The round-trip estimator, for `status()` and for tests.
     pub fn rtt(&self) -> &RttEstimator {
         &self.rtt
