@@ -405,8 +405,11 @@ impl Bridge for LinkBridge {
     /// The relay refused a message between non-contacts, so a sender had to ask
     /// first and wait. Here the pair key established at enrollment *is* the
     /// permission, and there is no edge to create.
-    async fn request_contact(&self, _peer: &str) -> Result<(), String> {
-        Ok(())
+    async fn request_contact(&self, peer: &str) -> Result<(), String> {
+        self.resolve_handle(peer)
+            .await
+            .map(|_| ())
+            .ok_or_else(|| format!("no link peer is enrolled for address: {peer}"))
     }
 
     /// A node name is already the address, so this only checks it is enrolled.

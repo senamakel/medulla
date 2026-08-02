@@ -103,6 +103,11 @@ impl LinkService {
         // session needs a pair key, and the pair key is never written to a
         // config file (protocol §7.1).
         let state_dir = PathBuf::from(&config.state_dir);
+        let enrolled_node_name = medulla_link::keys::read_node_state(
+            &medulla_link::keys::node_path(&state_dir),
+        )
+        .ok()
+        .map(|state| state.node_id.to_string());
         let link = Arc::new(
             Link::connect(LinkTransportConfig::new(state_dir))
                 .await
@@ -110,7 +115,11 @@ impl LinkService {
         );
 
         let identity = LinkIdentity {
-            node_name: config.node_name.clone().unwrap_or_default(),
+            node_name: config
+                .node_name
+                .clone()
+                .or(enrolled_node_name)
+                .unwrap_or_default(),
             forwarder: config.forwarder_url.clone(),
         };
         // Presence is keyed by the roster's own peer id, so the descriptor the

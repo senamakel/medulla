@@ -109,11 +109,15 @@ impl<S: SspState> Channel<S> {
         // empty origin appear to be ahead of messages it has never received.
         if self.id == 0 {
             self.current.reset_origin();
+            self.current_num = self.current.num();
+            if self.current_num > 0 {
+                new_sent_states.push_back((self.current_num, self.current.clone()));
+            }
         }
 
         // If no pending states existed (or channel 0 deliberately collapsed
         // them), current becomes state 1.
-        if new_num == 1 {
+        if new_num == 1 && self.id != 0 {
             self.current_num = 1;
             new_sent_states.push_back((1, self.current.clone()));
         }
