@@ -569,12 +569,12 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             // The roles a worker can be toggled on for. Read from the same
             // layered config the Agent Templates page shows.
             agent_templates: loaded.config.fleet.agent_templates.clone(),
-            link: link_service.as_ref().map(|service| {
-                crate::hub_relay::ResolvedLink {
+            link: link_service
+                .as_ref()
+                .map(|service| crate::hub_relay::ResolvedLink {
                     config: link_config.clone(),
                     handle: service.link().clone(),
-                }
-            }),
+                }),
         },
     )
     .await;
