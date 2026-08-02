@@ -209,8 +209,19 @@ pub async fn run_daemon(
         Arc::new(move |to: String, body: String| {
             let transport = transport.clone();
             Box::pin(async move {
-                if let Err(err) = transport.send(&to, &body).await {
-                    eprintln!("medulla daemon: send to {to} failed: {err}");
+                loop {
+                    match transport.send(&to, &body).await {
+                        Ok(()) => break,
+                        Err(err) if err.contains("unacknowledged states") => {
+                            // QueueOverflow is explicitly retryable: retain the
+                            // frame until peer acknowledgements free history.
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        }
+                        Err(err) => {
+                            eprintln!("medulla daemon: send to {to} failed: {err}");
+                            break;
+                        }
+                    }
                 }
             })
         })
