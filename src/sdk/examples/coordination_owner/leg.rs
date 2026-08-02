@@ -30,6 +30,7 @@ pub async fn connect(state_dir: &Path, forwarder: Option<&str>) -> Result<LinkBr
                         link.peers().len()
                     ));
                 };
+                let peer = *peer;
                 return LinkBridge::single_peer(
                     Arc::new(link),
                     "coordination-owner",
