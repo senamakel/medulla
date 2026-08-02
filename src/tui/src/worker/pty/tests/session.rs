@@ -67,7 +67,9 @@ fn clearing_a_terminal_title_clears_the_thread_name() {
 
     manager.write(&id, b"clear\n").unwrap();
     wait_for("cleared thread name", || {
-        manager.row(&id).is_some_and(|row| row.thread_name.is_none())
+        manager
+            .row(&id)
+            .is_some_and(|row| row.thread_name.is_none())
     });
 
     assert_eq!(manager.row(&id).unwrap().thread_name, None);
