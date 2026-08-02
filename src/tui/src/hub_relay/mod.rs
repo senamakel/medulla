@@ -66,9 +66,12 @@ fn workers_from_config(home: &Path) -> Vec<WorkerSpec> {
 /// The current node-state schema carries one peer key. A configured peer name
 /// is matched to that wire id; absent a row, its hexadecimal id remains a valid
 /// bridge address so an enrolled link is never silently left unused.
-fn link_from_config(home: &Path) -> Option<HubLinkConfig> {
-    let text = std::fs::read_to_string(roster_path(home)).ok()?;
-    let config = toml::from_str::<medulla::config::TuiConfig>(&text).ok()?;
+fn link_from_config(env: &HashMap<String, String>, home: &Path) -> Option<HubLinkConfig> {
+    let path = roster_path(home);
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let config = medulla::config::load_config(path.to_str(), env, &cwd)
+        .ok()?
+        .config;
     let link = config.link?;
     let state_dir = PathBuf::from(&link.state_dir);
     let state =
@@ -362,7 +365,7 @@ pub(crate) fn build_hub_config_with_host(
         log,
         backend_url: creds.base_url,
         jwt: creds.jwt,
-        link: link_from_config(home),
+        link: link_from_config(env, home),
         workers,
         poll: Duration::from_millis(poll_ms),
         local_network,
