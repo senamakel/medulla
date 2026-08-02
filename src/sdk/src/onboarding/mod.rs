@@ -72,10 +72,22 @@ pub async fn ensure_registered(
     reonboard: bool,
     ui: Option<OnboardingUi>,
 ) -> anyhow::Result<Option<Registration>> {
+    ensure_registered_in(env, reonboard, ui, Path::new(".")).await
+}
+
+/// Ensure this worker is registered using `config_cwd` for project config
+/// discovery. Daemons pass their selected workspace so onboarding and serving
+/// resolve the same link identity.
+pub async fn ensure_registered_in(
+    env: &HashMap<String, String>,
+    reonboard: bool,
+    ui: Option<OnboardingUi>,
+    config_cwd: &Path,
+) -> anyhow::Result<Option<Registration>> {
     let home = crate::home::medulla_home(env);
     let profile_file = profile_path(env);
     // Load the effective configuration to honor the configured link.stateDir if set.
-    let link_dir = crate::config::load_config(None, env, std::path::Path::new("."))
+    let link_dir = crate::config::load_config(None, env, config_cwd)
         .ok()
         .and_then(|loaded| loaded.config.link.map(|cfg| cfg.state_dir.into()))
         .unwrap_or_else(|| medulla_link::keys::link_dir(&home));

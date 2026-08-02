@@ -44,8 +44,6 @@ const INBOX_CAPACITY: usize = 1024;
 const CHUNK_MAGIC: &[u8; 4] = b"MDL1";
 const CHUNK_HEADER: usize = 20;
 const MAX_CHUNKS: usize = 4096;
-const MAX_PARTIAL_MESSAGES: usize = 128;
-const MAX_PARTIAL_BYTES: usize = 16 * 1024 * 1024;
 
 /// Mint an id that does not reset to a predictable value with the process.
 fn next_message_id() -> u64 {
@@ -65,22 +63,6 @@ struct Reassembly {
 }
 
 impl Reassembly {
-    /// Evict the least recently updated message other than `protected`.
-    fn evict_oldest_except(&mut self, protected: Option<(NodeId, u64)>) -> bool {
-        let oldest = self
-            .partials
-            .iter()
-            .filter(|(key, _)| protected.as_ref() != Some(*key))
-            .min_by_key(|(_, partial)| partial.updated)
-            .map(|(key, _)| *key);
-        if let Some(key) = oldest {
-            self.remove(&key);
-            true
-        } else {
-            false
-        }
-    }
-
     fn remove(&mut self, key: &(NodeId, u64)) -> Option<PartialMessage> {
         let partial = self.partials.remove(key)?;
         self.bytes = self.bytes.saturating_sub(partial.bytes);
@@ -135,6 +117,10 @@ struct Inner {
     /// Wire id → address, for naming the sender of an inbound message.
     names: HashMap<NodeId, String>,
     inbox: Arc<Inbox>,
+    /// Keeps one fragmented application frame in flight at a time. Because
+    /// channel 0 is reliable and ordered, this also bounds each receiver to one
+    /// acknowledged partial per enrolled sender without eviction.
+    send_lock: Mutex<()>,
     pump: tokio::task::JoinHandle<()>,
 }
 
@@ -172,6 +158,7 @@ impl LinkBridge {
                 ids,
                 names,
                 inbox,
+                send_lock: Mutex::new(()),
                 pump,
             }),
         }
@@ -280,10 +267,13 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
     let now = Instant::now();
     let mut reassembly = inbox.reassembly.lock().await;
     if !reassembly.partials.contains_key(&key) {
-        while reassembly.partials.len() >= MAX_PARTIAL_MESSAGES {
-            if !reassembly.evict_oldest_except(None) {
-                return None;
-            }
+        // A conforming sender serializes fragmented frames, so at most one
+        // partial exists per authenticated peer. Never evict that partial: its
+        // chunks have already been acknowledged by the reliable link and cannot
+        // be retransmitted. A second id is malformed concurrency and is refused
+        // without damaging the frame already in progress.
+        if reassembly.partials.keys().any(|(source, _)| *source == peer) {
+            return None;
         }
         reassembly.partials.insert(
             key,
@@ -304,12 +294,6 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
         .as_ref()
         .map_or(0, Vec::len);
     let added = payload.len().saturating_sub(old_len);
-    while reassembly.bytes.saturating_add(added) > MAX_PARTIAL_BYTES {
-        if !reassembly.evict_oldest_except(Some(key)) {
-            reassembly.remove(&key);
-            return None;
-        }
-    }
     let partial = reassembly.partials.get_mut(&key).expect("partial exists");
     partial.bytes = partial.bytes + payload.len() - old_len;
     partial.updated = now;
@@ -334,6 +318,7 @@ impl Bridge for LinkBridge {
     /// delivered: the link owns retransmission, so there is no ack window at
     /// this layer and no mailbox to push to.
     async fn send(&self, to: &str, body: &str) -> Result<(), String> {
+        let _send = self.inner.send_lock.lock().await;
         let peer = self
             .node_id(to)
             .ok_or_else(|| format!("no link peer is enrolled for address: {to}"))?;

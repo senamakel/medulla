@@ -128,7 +128,14 @@ pub async fn run_daemon(
     // auto-registers with defaults + an env owner so the daemon stays scriptable.
     // Aborting the interactive flow (q / Ctrl-C) exits cleanly without serving.
     let worker_profile =
-        match crate::onboarding::ensure_registered(&env, reonboard, onboarding_ui).await? {
+        match crate::onboarding::ensure_registered_in(
+            &env,
+            reonboard,
+            onboarding_ui,
+            std::path::Path::new(&workspace),
+        )
+        .await?
+        {
             Some(reg) => reg.profile,
             None => {
                 log("onboarding aborted; not starting daemon");
