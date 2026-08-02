@@ -71,9 +71,11 @@ async fn incomplete_reassembly_is_bounded_and_expires() {
 async fn incomplete_reassembly_does_not_expire_while_the_peer_is_offline() {
     let inbox = Inbox::default();
     let peer = NodeId([10; 16]);
-    assert!(reassemble_with_liveness(peer, chunk(1, 0, 2, b"held "), false, &inbox)
-        .await
-        .is_none());
+    assert!(
+        reassemble_with_liveness(peer, chunk(1, 0, 2, b"held "), false, &inbox)
+            .await
+            .is_none()
+    );
     inbox
         .reassembly
         .lock()
