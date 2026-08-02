@@ -126,11 +126,9 @@ impl LinkBridge {
         let mut send_locks = HashMap::new();
         for peer in config.peers {
             names.insert(peer.node_id, peer.name.clone());
-            ids.insert(peer.name, peer.node_id);
-            // Enrollment and the Add Host flow expose the wire node id, while a
-            // config row may also assign a friendly address. Both must resolve
-            // to the same session.
-            ids.insert(peer.node_id.to_string(), peer.node_id);
+            for alias in peer_aliases(&peer) {
+                ids.insert(alias, peer.node_id);
+            }
             send_locks.insert(peer.node_id, Arc::new(Mutex::new(())));
         }
         let inbox = Arc::new(Inbox::default());
@@ -199,6 +197,13 @@ impl LinkBridge {
     pub fn peer_names(&self) -> impl Iterator<Item = &str> {
         self.inner.names.values().map(String::as_str)
     }
+}
+
+/// Return every address form accepted for an enrolled peer.
+fn peer_aliases(peer: &LinkPeer) -> [String; 2] {
+    // Enrollment and the Add Host flow expose the wire node id, while a config
+    // row may also assign a friendly address. Both identify the same session.
+    [peer.name.clone(), peer.node_id.to_string()]
 }
 
 /// Drain the link into the bridge's inbox until the link stops.

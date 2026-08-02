@@ -93,3 +93,15 @@ async fn incomplete_reassembly_survives_a_long_gap() {
 fn fragment_message_ids_are_random_across_calls() {
     assert_ne!(next_message_id(), next_message_id());
 }
+
+#[test]
+fn a_friendly_peer_name_preserves_the_enrolled_node_id_alias() {
+    let node_id = NodeId([12; 16]);
+    let aliases = peer_aliases(&LinkPeer {
+        name: "worker-alpha".to_string(),
+        node_id,
+    });
+
+    assert_eq!(aliases[0], "worker-alpha");
+    assert_eq!(aliases[1], node_id.to_string());
+}
