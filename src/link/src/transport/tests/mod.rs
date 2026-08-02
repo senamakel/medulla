@@ -408,6 +408,19 @@ fn a_message_larger_than_a_datagram_is_refused_at_enqueue() {
 }
 
 #[test]
+fn an_oversized_raw_screen_update_is_refused_before_mutation() {
+    let mut pair = Pair::new();
+    let error = pair
+        .host
+        .set_screen(vec![vec![0u8; MAX_DIFF_LEN]])
+        .unwrap_err();
+
+    assert!(matches!(error, TransportError::DiffTooLarge { .. }));
+    assert!(pair.host.screen_channel().current().rows().is_empty());
+    assert!(!pair.host.screen_channel().is_pending());
+}
+
+#[test]
 fn queue_overflow_is_reported_as_retryable() {
     let mut config = SessionConfig::new(
         NodeId([1u8; 16]),

@@ -32,7 +32,7 @@ use crate::crypto;
 use crate::header::{OuterHeader, HEADER_LEN, MAX_DATAGRAM};
 use crate::keys::SeqSource;
 use crate::packet::{elapsed16, timestamp16, Packet, MAX_DIFF_LEN};
-use crate::state::{MessageQueue, RowGrid, CHANNEL_MESSAGES, CHANNEL_SCREEN};
+use crate::state::{MessageQueue, RowGrid, SspState, CHANNEL_MESSAGES, CHANNEL_SCREEN};
 use rand::RngCore;
 
 pub use channel::{Channel, MAX_SENT_STATES};
@@ -176,9 +176,19 @@ impl Session {
     ///
     /// # Errors
     ///
-    /// [`TransportError::QueueOverflow`] when the sent-state history is at its
-    /// bound.
+    /// [`TransportError::DiffTooLarge`] when this update cannot fit as one state
+    /// step, or [`TransportError::QueueOverflow`] when the sent-state history is
+    /// at its bound.
     pub fn set_screen(&mut self, rows: Vec<Vec<u8>>) -> Result<(), TransportError> {
+        let mut next = self.screen.current().clone();
+        next.set_rows(rows.clone());
+        let size = next.diff_from(self.screen.current()).len();
+        if size > MAX_DIFF_LEN {
+            return Err(TransportError::DiffTooLarge {
+                size,
+                limit: MAX_DIFF_LEN,
+            });
+        }
         let mut rows = Some(rows);
         self.screen.advance(|grid| {
             grid.set_rows(rows.take().expect("advance runs the change once"));
