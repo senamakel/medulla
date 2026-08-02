@@ -32,7 +32,9 @@ pub trait SspState: Clone {
     /// Rebase state-internal numbering onto a fresh peer session origin.
     ///
     /// Most latest-wins states have no internal sequence and need no work.
-    fn reset_origin(&mut self) {}
+    fn reset_origin(&mut self) -> Option<u64> {
+        None
+    }
 
     /// The bytes that turn `prev` into `self`.
     ///

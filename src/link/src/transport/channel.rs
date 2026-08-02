@@ -108,8 +108,10 @@ impl<S: SspState> Channel<S> {
         // so carrying that base into the new state would make the fresh peer's
         // empty origin appear to be ahead of messages it has never received.
         if self.id == 0 {
-            self.current.reset_origin();
-            self.current_num = self.current.num();
+            self.current_num = self
+                .current
+                .reset_origin()
+                .expect("channel zero queue reports its rebased number");
             if self.current_num > 0 {
                 new_sent_states.push_back((self.current_num, self.current.clone()));
             }
