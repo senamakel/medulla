@@ -212,7 +212,7 @@ pub async fn run_daemon(
                 loop {
                     match transport.send(&to, &body).await {
                         Ok(()) => break,
-                        Err(err) if err.contains("unacknowledged states") => {
+                        Err(err) if err.starts_with("link queue overflow:") => {
                             // QueueOverflow is explicitly retryable: retain the
                             // frame until peer acknowledgements free history.
                             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
