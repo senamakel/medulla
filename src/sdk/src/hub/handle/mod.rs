@@ -54,10 +54,10 @@ pub(super) fn should_request_contact(address: &str, accepted: bool) -> bool {
 /// cached details for the affected ids.
 pub(super) fn cache_system_info_if_current(
     roster: &SharedRoster,
-    system_info: &Mutex<HashMap<String, crate::tinyplace::WorkerSystemInfo>>,
+    system_info: &Mutex<HashMap<String, crate::protocol::WorkerSystemInfo>>,
     id: &str,
     address: &str,
-    info: crate::tinyplace::WorkerSystemInfo,
+    info: crate::protocol::WorkerSystemInfo,
 ) -> bool {
     let workers = roster.lock().expect("roster lock");
     if !workers
@@ -86,7 +86,7 @@ impl HubHandle {
     /// subscription, and a delta against that would apply to the wrong base.
     pub async fn watch(&self, worker: &str, task_id: &str) -> Result<(), String> {
         let body =
-            crate::tinyplace::encode_screen_message(&crate::tinyplace::ScreenMessage::Subscribe {
+            crate::protocol::encode_screen_message(&crate::protocol::ScreenMessage::Subscribe {
                 task_id: task_id.to_string(),
                 max_fps: 1,
                 resync: true,
@@ -117,8 +117,8 @@ impl HubHandle {
     /// showing a screen that will never update again reads as a hung worker
     /// rather than an ended subscription.
     pub async fn unwatch(&self, worker: &str, task_id: &str) -> Result<(), String> {
-        let body = crate::tinyplace::encode_screen_message(
-            &crate::tinyplace::ScreenMessage::Unsubscribe {
+        let body = crate::protocol::encode_screen_message(
+            &crate::protocol::ScreenMessage::Unsubscribe {
                 task_id: task_id.to_string(),
             },
         );
@@ -182,7 +182,7 @@ impl HubHandle {
     }
 
     /// Latest captured system details for a worker, if it has been refreshed.
-    pub fn system_info(&self, id: &str) -> Option<crate::tinyplace::WorkerSystemInfo> {
+    pub fn system_info(&self, id: &str) -> Option<crate::protocol::WorkerSystemInfo> {
         self.system_info
             .lock()
             .expect("system info lock")

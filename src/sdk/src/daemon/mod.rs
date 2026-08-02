@@ -1,7 +1,7 @@
 //! The headless `medulla daemon`: offer this machine's local coding-agent CLIs
 //! (Claude Code / Codex / OpenCode) as an addressable tiny.place agent over
 //! Signal end-to-end encrypted DMs, speaking both plain-text prompts and the
-//! `medulla-tinyplace/1` task protocol an orchestrator delegates with.
+//! `medulla-task/1` task protocol an orchestrator delegates with.
 //!
 //! Layout:
 //! - [`mappers`] — JSONL transcript → semantic-event line mappers.

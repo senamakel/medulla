@@ -133,10 +133,10 @@ pub struct WorkerInfo {
     pub roles: Vec<String>,
     /// Per-harness token budgets the worker advertised on its capability probe.
     /// Empty when none were reported. Display-only; the orchestrator sizes tasks.
-    pub budgets: Vec<crate::tinyplace::HarnessBudget>,
+    pub budgets: Vec<crate::protocol::HarnessBudget>,
     /// Per-harness readiness the worker advertised on its capability probe. Empty
     /// when none were reported. Display-only.
-    pub readiness: Vec<crate::tinyplace::HarnessReadiness>,
+    pub readiness: Vec<crate::protocol::HarnessReadiness>,
 }
 /// How the hub chooses a default host from captured capacity details.
 ///

@@ -21,7 +21,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
 use tokio::sync::Mutex;
 
-use crate::tinyplace::FileSessionStore;
+use crate::protocol::FileSessionStore;
 use ::tinyplace::crypto::decode_base58;
 use ::tinyplace::signal::crypto::{ed25519_pub_to_x25519_pub, ed25519_seed_to_x25519_keypair};
 use ::tinyplace::signal::session::SignalSession;

@@ -373,7 +373,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // surfacing all of it into the Overview panel and Agents lanes.
     let mut tinyplace_status: Option<String> = None;
     let tinyplace_service = match &loaded.config.tinyplace {
-        Some(tp) => match medulla::tinyplace::service::TinyplaceService::start(tp) {
+        Some(tp) => match medulla::protocol::service::TinyplaceService::start(tp) {
             Ok(service) => Some(service),
             Err(e) => {
                 tinyplace_status = Some(format!("tinyplace service failed to start ({e})"));
@@ -678,7 +678,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
 pub(super) fn available_primary_presets(
     presets: &[medulla::config::CustomHarnessConfig],
     host_id: &str,
-    providers: &[medulla::tinyplace::HarnessProvider],
+    providers: &[medulla::protocol::HarnessProvider],
 ) -> Vec<medulla::config::CustomHarnessConfig> {
     presets
         .iter()

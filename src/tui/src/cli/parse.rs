@@ -4,7 +4,7 @@
 //! `medulla help`/`--help`. Every function is pure over its input args.
 
 use medulla::auth::Provider;
-use medulla::tinyplace::HarnessProvider;
+use medulla::protocol::HarnessProvider;
 
 use super::types::{
     Command, InitArgs, LoginArgs, RunArgs, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs,

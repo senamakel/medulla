@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use crate::onboarding::OnboardingUi;
 
-use crate::tinyplace::{
+use crate::protocol::{
     acquire_identity, decode_task_frame, resolve_endpoint, spawn_contact_auto_accepter,
     spawn_presence_heartbeat,
 };
@@ -425,7 +425,7 @@ pub async fn run_daemon(
 /// Accept pending contacts and dispatch one inbox drain (the `--once` probe path).
 async fn drain_once(transport: &SignalTransport, runtime: &DaemonRuntime) {
     for message in transport.drain_inbox(50).await {
-        let frame = crate::tinyplace::decode_task_frame(&message.text);
+        let frame = crate::protocol::decode_task_frame(&message.text);
         runtime.handle_message(message.from, message.text, frame);
     }
 }

@@ -15,7 +15,7 @@ use rust_socketio::asynchronous::Client;
 
 use crate::bridge::{RoutingBridge, TinyplaceBridge};
 use crate::daemon::transport::SignalTransport;
-use crate::tinyplace::{load_or_create_identity, resolve_endpoint};
+use crate::protocol::{load_or_create_identity, resolve_endpoint};
 
 use super::handle::HubHandle;
 use super::roster::{HubWorker, SharedRoster};

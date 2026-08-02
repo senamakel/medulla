@@ -2,7 +2,7 @@
 
 use tokio::sync::oneshot;
 
-use crate::tinyplace::{encode_task_frame, EncodeFrameInput, TaskFrameKind, WorkerSystemInfo};
+use crate::protocol::{encode_task_frame, EncodeFrameInput, TaskFrameKind, WorkerSystemInfo};
 
 use super::{RunError, TaskRunner, MAX_RESETS};
 

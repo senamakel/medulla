@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use medulla::config::Peer;
 use medulla::contacts::{ContactDesk, ContactRequest, RequestState};
-use medulla::tinyplace::HarnessProvider;
+use medulla::protocol::HarnessProvider;
 
 use super::super::pty::{PtyManager, SessionRow};
 use super::types::{Confirm, ExecutionMode, Screen, SetupStep, WorkerApp, TABS};

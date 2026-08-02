@@ -1,7 +1,7 @@
 //! Focused tests for startup-time local harness availability.
 
 use medulla::config::CustomHarnessConfig;
-use medulla::tinyplace::HarnessProvider;
+use medulla::protocol::HarnessProvider;
 
 use crate::app_loop::available_primary_presets;
 

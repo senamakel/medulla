@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::{attribution_args, attribution_trailer, ATTRIBUTION_EMAIL, ATTRIBUTION_NAME};
 use crate::config::AttributionConfig;
-use crate::tinyplace::HarnessProvider;
+use crate::protocol::HarnessProvider;
 
 #[test]
 fn trailer_uses_the_medulla_identity() {

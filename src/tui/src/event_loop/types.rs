@@ -116,7 +116,7 @@ pub(crate) struct SessionWiring {
     pub startup_status: Option<String>,
     /// The tiny.place presence observation, when that service is running.
     pub tinyplace_obs:
-        Option<Arc<std::sync::Mutex<medulla::tinyplace::service::TinyplaceObservation>>>,
+        Option<Arc<std::sync::Mutex<medulla::protocol::service::TinyplaceObservation>>>,
     /// Where appearance/config edits are persisted.
     pub config_path: std::path::PathBuf,
     /// The Medulla home: where user-level application state is kept.

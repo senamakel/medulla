@@ -26,7 +26,7 @@ impl App {
     /// work and fails every task.
     pub(in crate::ui::app) fn add_host_providers(
         &self,
-    ) -> Vec<medulla::tinyplace::HarnessProvider> {
+    ) -> Vec<medulla::protocol::HarnessProvider> {
         // Computed once per process. Detection stat-checks provider binaries on
         // `PATH`, and both the draw and the key handler call this — so without
         // the cache the page did that work every frame and every keystroke.
@@ -35,7 +35,7 @@ impl App {
                 let env: std::collections::HashMap<String, String> = std::env::vars().collect();
                 let detected = medulla::daemon::providers::detect_providers(&env, None, None);
                 if detected.is_empty() {
-                    vec![medulla::tinyplace::HarnessProvider::Claude]
+                    vec![medulla::protocol::HarnessProvider::Claude]
                 } else {
                     detected
                 }

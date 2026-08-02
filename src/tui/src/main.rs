@@ -205,7 +205,7 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
     // this function, which lives as long as the process.
     let _identity_lock = claim_identity(&env, &mut tinyplace_config)?;
 
-    let service = match medulla::tinyplace::service::TinyplaceService::start(&tinyplace_config) {
+    let service = match medulla::protocol::service::TinyplaceService::start(&tinyplace_config) {
         Ok(service) => Some(service),
         Err(err) => {
             startup_status = Some(format!("tiny.place service failed to start ({err})"));
@@ -295,7 +295,7 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
 fn claim_identity(
     env: &std::collections::HashMap<String, String>,
     config: &mut medulla::config::TinyplaceConfig,
-) -> anyhow::Result<medulla::tinyplace::IdentityLock> {
+) -> anyhow::Result<medulla::protocol::IdentityLock> {
     let home = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
     // Component-wise, not string or raw-`Path` equality: a hand-written
     // `identityDir = ".../tinyplace/"` keeps its trailing separator, which a
@@ -307,11 +307,11 @@ fn claim_identity(
         .components()
         .eq(default_pool_dir.components());
     let acquired = if pooled {
-        medulla::tinyplace::acquire_identity(env, &home)
+        medulla::protocol::acquire_identity(env, &home)
     } else {
         let named =
-            std::path::Path::new(&config.identity_dir).join(medulla::tinyplace::IDENTITY_FILE);
-        medulla::tinyplace::acquire_identity_at(&named, env)
+            std::path::Path::new(&config.identity_dir).join(medulla::protocol::IDENTITY_FILE);
+        medulla::protocol::acquire_identity_at(&named, env)
     }
     .map_err(|e| anyhow::anyhow!("{e}"))?;
     config.identity_dir = acquired.identity_dir.to_string_lossy().into_owned();

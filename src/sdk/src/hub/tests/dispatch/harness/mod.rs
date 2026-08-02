@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 
 use crate::daemon::transport::InboundMessage;
 use crate::hub::{Relay, TaskRequest};
-use crate::tinyplace::{
+use crate::protocol::{
     decode_task_frame, encode_task_frame_with_usage, AgentCapabilities, EncodeFrameInput,
     TaskFrameKind, TokenUsage, WorkerSystemInfo,
 };

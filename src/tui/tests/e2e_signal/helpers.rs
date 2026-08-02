@@ -13,8 +13,8 @@ use std::time::{Duration, Instant};
 use medulla::daemon::providers::{run_provider_task, RunTaskFn, RunTaskOptions};
 use medulla::daemon::transport::SignalTransport;
 use medulla::daemon::{DaemonConfig, DaemonRuntime, SendFn};
-use medulla::tinyplace::tinyplace::{LocalSigner, Signer, TinyPlaceClient, TinyPlaceClientOptions};
-use medulla::tinyplace::{
+use medulla::protocol::tinyplace::{LocalSigner, Signer, TinyPlaceClient, TinyPlaceClientOptions};
+use medulla::protocol::{
     decode_task_frame, encode_task_frame, EncodeFrameInput, HarnessProvider, TaskFrame,
     TaskFrameKind,
 };

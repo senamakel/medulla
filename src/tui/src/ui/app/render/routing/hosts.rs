@@ -6,7 +6,7 @@ use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
-use medulla::tinyplace::{BudgetWindow, HarnessBudget, HarnessReadiness};
+use medulla::protocol::{BudgetWindow, HarnessBudget, HarnessReadiness};
 
 use super::super::super::types::App;
 

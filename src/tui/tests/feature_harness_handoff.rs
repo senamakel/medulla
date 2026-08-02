@@ -13,7 +13,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
-use medulla::tinyplace::HarnessProvider;
+use medulla::protocol::HarnessProvider;
 use medulla_tui::ui::app::{App, Cmd, TABS};
 use medulla_tui::ui::harness_pane::LocalHarnesses;
 use medulla_tui::worker::pty::{HarnessControl, LaunchSpec, PtyManager};

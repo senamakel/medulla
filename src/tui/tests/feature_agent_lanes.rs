@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use medulla::config::{LoadedConfig, TinyplaceConfig};
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::{AgentDescriptor, AgentPresence, TinyplaceIdentity, WorkerInfo};
-use medulla::tinyplace::service::TinyplaceObservation;
+use medulla::protocol::service::TinyplaceObservation;
 use medulla_tui::ui::app::{App, TABS};
 
 use ratatui::backend::TestBackend;

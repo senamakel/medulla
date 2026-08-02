@@ -300,7 +300,7 @@ impl App {
     /// roster, and presence are merged into every snapshot refresh.
     pub fn set_tinyplace_observation(
         &mut self,
-        obs: Arc<std::sync::Mutex<medulla::tinyplace::service::TinyplaceObservation>>,
+        obs: Arc<std::sync::Mutex<medulla::protocol::service::TinyplaceObservation>>,
     ) {
         self.tinyplace_obs = Some(obs);
         self.refresh_snapshot();

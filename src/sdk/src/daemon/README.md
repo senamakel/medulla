@@ -1,6 +1,6 @@
 # Daemon
 
-The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable tiny.place agent over Signal end-to-end encrypted DMs, speaking both plain-text prompts and the `medulla-tinyplace/1` task protocol an orchestrator delegates with.
+The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable tiny.place agent over Signal end-to-end encrypted DMs, speaking both plain-text prompts and the `medulla-task/1` task protocol an orchestrator delegates with.
 
 ## Contents
 
@@ -17,7 +17,7 @@ The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Cla
 - [`transport/`](./transport/) — Encrypted Signal DM transport for the daemon.
 - [`entry_tests.rs`](./entry_tests.rs) — Tests for the entry module.
 - [`entry.rs`](./entry.rs) — The `medulla daemon` CLI entry point: `run_daemon` wires provider detection, identity/config bootstrap, tiny.place onboarding, and the transport-backed serve loop around a `DaemonRuntime`. Flag parsing lives in `super::flags`; the runtime state machine in `super::runtime` and `super::task_loop`.
-- [`mod.rs`](./mod.rs) — The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable tiny.place agent over Signal end-to-end encrypted DMs, speaking both plain-text prompts and the `medulla-tinyplace/1` task protocol an orchestrator delegates with.
+- [`mod.rs`](./mod.rs) — The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable tiny.place agent over Signal end-to-end encrypted DMs, speaking both plain-text prompts and the `medulla-task/1` task protocol an orchestrator delegates with.
 - [`runtime.rs`](./runtime.rs) — `DaemonRuntime` lifecycle: construction and test overrides, fire-and-forget dispatch and idle/shutdown coordination, controller bookkeeping, and the encrypted reply helpers. The frame- and task-handling half of the state machine lives in `super::task_loop`.
 - [`status.rs`](./status.rs) — Status-line derivation: turn a semantic harness event into the short, human-facing detail string the daemon forwards as a `status` frame. Ported from provider status details, and extended with the work-derived line the newer structured events need.
 - [`types.rs`](./types.rs) — Daemon data model: the callback type aliases, non-callback `DaemonConfig`, the shared per-runtime `Inner` state, and the cheaply-clonable `DaemonRuntime` handle.

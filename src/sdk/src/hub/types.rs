@@ -1,7 +1,7 @@
 //! Data types for the bridge-independent task sender: a dispatch request, its
 //! terminal outcome, and the error a dispatch can fail with.
 
-use crate::tinyplace::{HarnessProvider, TokenUsage};
+use crate::protocol::{HarnessProvider, TokenUsage};
 
 /// A line sink for hub diagnostics.
 ///

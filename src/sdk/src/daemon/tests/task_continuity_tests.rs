@@ -20,8 +20,8 @@ fn conversation_frame(
     task_id: &str,
     text: &str,
     conversation: &str,
-) -> crate::tinyplace::TaskFrame {
-    crate::tinyplace::TaskFrame {
+) -> crate::protocol::TaskFrame {
+    crate::protocol::TaskFrame {
         conversation: Some(conversation.to_string()),
         ..task_frame(task_id, text, None)
     }

@@ -32,7 +32,7 @@ use std::time::{Duration, Instant};
 use medulla::daemon::transport::SignalTransport;
 use medulla::daemon::{DaemonConfig, DaemonRuntime};
 use medulla::hub::{Relay, TaskRunner};
-use medulla::tinyplace::{
+use medulla::protocol::{
     encode_task_frame, load_or_create_identity, parse_screen_message, resolve_endpoint,
     EncodeFrameInput, HarnessProvider, TaskFrameKind,
 };
@@ -40,7 +40,7 @@ use medulla_tui::worker::pty::{HarnessControl, LaunchSpec, PtyManager};
 use medulla_tui::worker::stream::{send_fn, ScreenRouter};
 // The SDK re-exports the tiny.place crate, so the app crate reaches it here
 // rather than taking a direct dependency it does not otherwise need.
-use medulla::tinyplace::tinyplace::{
+use medulla::protocol::tinyplace::{
     auth, LocalSigner, Signer, TinyPlaceClient, TinyPlaceClientOptions,
 };
 
@@ -134,7 +134,7 @@ async fn a_hub_watches_a_real_workers_screen_over_the_relay() {
     // The worker is whichever identity `medulla` itself resolves to, so this
     // watches the machine the hub's roster actually names rather than some
     // other key that happens to be on disk.
-    let worker_config = medulla::tinyplace::config_path(
+    let worker_config = medulla::protocol::config_path(
         &std::env::vars().collect::<HashMap<String, String>>(),
         &home,
     );
@@ -232,7 +232,7 @@ async fn a_hub_watches_a_real_workers_screen_over_the_relay() {
                         router.handle(&message.from, screen);
                         continue;
                     }
-                    let frame = medulla::tinyplace::decode_task_frame(&message.text);
+                    let frame = medulla::protocol::decode_task_frame(&message.text);
                     runtime.handle_message(message.from, message.text, frame);
                 }
                 worker_tx.wait_for_inbox(Duration::from_millis(500)).await;
@@ -276,8 +276,8 @@ async fn a_hub_watches_a_real_workers_screen_over_the_relay() {
     hub_tx
         .send(
             &worker_addr,
-            &medulla::tinyplace::encode_screen_message(
-                &medulla::tinyplace::ScreenMessage::Subscribe {
+            &medulla::protocol::encode_screen_message(
+                &medulla::protocol::ScreenMessage::Subscribe {
                     task_id: task_id.clone(),
                     max_fps: 1,
                     resync: true,

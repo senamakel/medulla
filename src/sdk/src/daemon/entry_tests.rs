@@ -3,7 +3,7 @@
 use super::*;
 // `Flags`/`parse_provider`/`dedupe` come from `super::*`; the provider enum
 // is only needed by these tests, so import it explicitly here.
-use crate::tinyplace::HarnessProvider;
+use crate::protocol::HarnessProvider;
 
 fn args(list: &[&str]) -> Vec<String> {
     list.iter().map(|s| s.to_string()).collect()

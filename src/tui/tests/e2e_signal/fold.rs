@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use medulla::daemon::DaemonRuntime;
 use medulla::runtime::AgentDescriptor;
-use medulla::tinyplace::{HarnessProvider, TaskFrame, TaskFrameKind};
+use medulla::protocol::{HarnessProvider, TaskFrame, TaskFrameKind};
 use medulla_tui::ui::agents::{derive_agent_lanes, TaskStatus};
 use medulla_tui::ui::events::{EventEnvelope, TaskDigest, TuiEvent};
 

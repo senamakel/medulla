@@ -3,7 +3,7 @@
 //! [`super::core_socket_tests`].
 
 use super::*;
-use crate::tinyplace::BudgetWindow;
+use crate::protocol::BudgetWindow;
 use std::collections::HashMap;
 
 fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {

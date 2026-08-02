@@ -1,5 +1,5 @@
 //! The owner side of the coordination e2e chain: create a fresh owner identity,
-//! publish Signal pre-keys, send a `medulla-tinyplace/1` task frame to the worker
+//! publish Signal pre-keys, send a `medulla-task/1` task frame to the worker
 //! daemon over the mock Signal server, then drain the encrypted mailbox until a
 //! terminal (reply/error) frame comes back — decrypt it and print it as JSON on
 //! stdout for `run.sh` to assert the mock-LLM marker on.
@@ -34,8 +34,8 @@
 use std::time::{Duration, Instant};
 
 use medulla::daemon::transport::SignalTransport;
-use medulla::tinyplace::tinyplace::{LocalSigner, Signer, TinyPlaceClient, TinyPlaceClientOptions};
-use medulla::tinyplace::{
+use medulla::protocol::tinyplace::{LocalSigner, Signer, TinyPlaceClient, TinyPlaceClientOptions};
+use medulla::protocol::{
     decode_task_frame, encode_task_frame, EncodeFrameInput, HarnessProvider, TaskFrame,
     TaskFrameKind,
 };

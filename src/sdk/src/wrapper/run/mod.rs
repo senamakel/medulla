@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::onboarding::OnboardingUi;
-use crate::tinyplace::HarnessProvider;
+use crate::protocol::HarnessProvider;
 
 use super::args::parse_wrapper_args;
 use super::bridge::{
@@ -87,7 +87,7 @@ pub async fn run_wrapper(
 
 /// Run the wrapper described by `config`, returning the child's exit code.
 pub async fn run_wrapper_with(mut config: WrapperConfig) -> anyhow::Result<i32> {
-    use crate::tinyplace::env as tp_env;
+    use crate::protocol::env as tp_env;
     let bin = tp_env::provider_bin(config.provider, &config.env);
     let lookup = crate::daemon::providers::make_path_lookup(&config.env);
     if !lookup(&bin) {

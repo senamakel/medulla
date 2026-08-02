@@ -17,7 +17,7 @@ pub use medulla::runtime::mock::MockRuntime;
 pub use medulla::runtime::{
     ContextItem, Runtime, RuntimeSnapshot, StreamState, WorkerInfo, WorkerOp,
 };
-pub use medulla::tinyplace::{
+pub use medulla::protocol::{
     BudgetSource, BudgetWindow, HarnessBudget, HarnessProvider, HarnessReadiness,
 };
 pub use medulla_tui::ui::app::{App, Cmd, TABS};

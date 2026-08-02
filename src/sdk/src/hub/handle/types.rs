@@ -18,7 +18,7 @@ pub struct HubHandle {
     /// Sender/receiver correlation used for lightweight worker probes.
     pub(super) runner: Arc<super::super::runner::TaskRunner>,
     /// Latest capacity details keyed by stable worker id.
-    pub(super) system_info: Arc<Mutex<HashMap<String, crate::tinyplace::WorkerSystemInfo>>>,
+    pub(super) system_info: Arc<Mutex<HashMap<String, crate::protocol::WorkerSystemInfo>>>,
     /// Where roster mutations are narrated. An add that quietly does nothing is
     /// the hardest kind of failure to chase.
     pub(super) log: super::super::types::HubLog,

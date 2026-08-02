@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use medulla::tinyplace::tinyplace::{Signer, TinyPlaceClient, TinyPlaceClientOptions};
+use medulla::protocol::tinyplace::{Signer, TinyPlaceClient, TinyPlaceClientOptions};
 
 use crate::helpers::*;
 use crate::mock_signal_server::MockSignalServer;
@@ -91,7 +91,7 @@ async fn two_identities_register_and_roundtrip_encrypted_dms() {
 // contact-accept handshake — against the same mock Signal server.
 #[tokio::test]
 async fn presence_and_contacts_rest_surface() {
-    use medulla::tinyplace::{spawn_contact_auto_accepter, spawn_presence_heartbeat};
+    use medulla::protocol::{spawn_contact_auto_accepter, spawn_presence_heartbeat};
 
     let server = MockSignalServer::start().await;
     let owner = make_identity("owner-rest", &server.base_url);

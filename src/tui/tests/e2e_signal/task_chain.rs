@@ -7,13 +7,13 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use medulla::daemon::DaemonRuntime;
-use medulla::tinyplace::{HarnessProvider, TaskFrame, TaskFrameKind, TINYPLACE_PROTO};
+use medulla::protocol::{HarnessProvider, TaskFrame, TaskFrameKind, MEDULLA_TASK_PROTO};
 
 use crate::helpers::*;
 use crate::mock_harness::{MockCli, MockDir, MockProvider};
 use crate::mock_signal_server::MockSignalServer;
 
-// Scenario 2: full task chain. An owner sends a `medulla-tinyplace/1` task frame;
+// Scenario 2: full task chain. An owner sends a `medulla-task/1` task frame;
 // the DAEMON receives it over the mock Signal server, admits + runs it on a MOCK
 // harness CLI, and the owner receives ack → status → encrypted reply frames,
 // each decrypted and validated end-to-end. Stored server payloads are ciphertext.
@@ -109,7 +109,7 @@ async fn task_chain_owner_daemon_mock_harness() {
     for frame in &collected {
         assert_eq!(frame.correlation_id.as_deref(), Some("corr-1"));
         assert_eq!(frame.harness, Some(HarnessProvider::Claude));
-        assert_eq!(frame.proto, TINYPLACE_PROTO);
+        assert_eq!(frame.proto, MEDULLA_TASK_PROTO);
     }
 
     // Server never saw the task text, the reply, or any status detail in plaintext.

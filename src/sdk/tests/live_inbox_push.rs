@@ -37,7 +37,7 @@ use std::time::Duration;
 
 use base64::Engine as _;
 use medulla::daemon::transport::SignalTransport;
-use medulla::tinyplace::{load_or_create_identity, resolve_endpoint};
+use medulla::protocol::{load_or_create_identity, resolve_endpoint};
 use tinyplace::types::MessageEnvelope;
 use tinyplace::{Signer, TinyPlaceClient, TinyPlaceClientOptions};
 
@@ -52,7 +52,7 @@ const PATIENCE: Duration = Duration::from_secs(20);
 fn live_client() -> Option<(TinyPlaceClient, Arc<tinyplace::LocalSigner>, String)> {
     let env: HashMap<String, String> = std::env::vars().collect();
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    let config_file = medulla::tinyplace::config_path(&env, &home);
+    let config_file = medulla::protocol::config_path(&env, &home);
     if !config_file.exists() {
         eprintln!(
             "skipping: no tiny.place identity at {}",
@@ -168,7 +168,7 @@ async fn the_listener_rings_the_doorbell_for_a_relayed_message() {
         return;
     };
     let agent_id = signer.agent_id();
-    let identity_dir = medulla::tinyplace::config_path(
+    let identity_dir = medulla::protocol::config_path(
         &std::env::vars().collect::<HashMap<_, _>>(),
         &dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")),
     )

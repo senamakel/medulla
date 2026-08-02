@@ -1,7 +1,7 @@
 //! Async effects emitted by the daemon TUI.
 
 use medulla::daemon::DaemonRuntime;
-use medulla::tinyplace::HarnessProvider;
+use medulla::protocol::HarnessProvider;
 use medulla_tui::worker::app::{ExecutionMode, WorkerApp, WorkerCmd};
 
 use super::{claude_preflight, spawn_inbox_drain, worker_runtime, StartWiring};

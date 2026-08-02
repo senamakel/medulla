@@ -29,7 +29,7 @@ pub(crate) mod persistence;
 pub mod runtime;
 pub mod session_history;
 pub mod sessions;
-pub mod tinyplace;
+pub mod protocol;
 pub mod tokio_tuning;
 pub mod ui;
 pub mod update;

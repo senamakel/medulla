@@ -84,7 +84,7 @@
 //! 1. Two identities register (publish bundles), exchange bundles, round-trip
 //!    encrypted DMs; server payloads asserted ciphertext-only; plus presence
 //!    heartbeat/query and contact-accept against this server.
-//! 2. Owner → daemon task chain: an owner sends a `medulla-tinyplace/1` task
+//! 2. Owner → daemon task chain: an owner sends a `medulla-task/1` task
 //!    frame; a `DaemonRuntime` receives it over this server, runs it on a mock
 //!    harness CLI, and the owner receives ack → status → reply, all encrypted.
 //! 3. Same chain against the real `opencode` binary when on PATH (skipped, with a

@@ -19,7 +19,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use medulla::onboarding::{reverse_handle_lookup, OnboardingContext};
-use medulla::tinyplace::tinyplace::LocalSigner;
+use medulla::protocol::tinyplace::LocalSigner;
 
 use super::types::{OnboardingCmd, OnboardingEvent, OnboardingOutcome, OnboardingScreen};
 

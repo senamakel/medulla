@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot, Mutex, Notify};
 
-use crate::tinyplace::{
+use crate::protocol::{
     encode_task_frame, AgentCapabilities, EncodeFrameInput, TaskFrameKind, WorkerSystemInfo,
 };
 

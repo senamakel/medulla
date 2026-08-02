@@ -33,7 +33,7 @@ impl HarnessDispatch for StubDispatch {
         self.seen.lock().unwrap().push(request);
         Ok(TaskOutcome {
             reply: "done".into(),
-            usage: crate::tinyplace::TokenUsage {
+            usage: crate::protocol::TokenUsage {
                 input_tokens: 0,
                 output_tokens: 0,
             },
@@ -67,7 +67,7 @@ impl HarnessDispatch for ErrorThenHangDispatch {
         }
         Ok(TaskOutcome {
             reply: "approved".into(),
-            usage: crate::tinyplace::TokenUsage {
+            usage: crate::protocol::TokenUsage {
                 input_tokens: 0,
                 output_tokens: 0,
             },
@@ -621,7 +621,7 @@ impl HarnessDispatch for ConcurrencyProbe {
         self.live.fetch_sub(1, SeqCst);
         Ok(TaskOutcome {
             reply: "done".into(),
-            usage: crate::tinyplace::TokenUsage {
+            usage: crate::protocol::TokenUsage {
                 input_tokens: 0,
                 output_tokens: 0,
             },

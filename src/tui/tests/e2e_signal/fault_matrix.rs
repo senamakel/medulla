@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use medulla::daemon::providers::{RunTaskFn, RunTaskOptions, RunTaskResult};
 use medulla::daemon::DaemonRuntime;
-use medulla::tinyplace::{HarnessProvider, TaskFrame, TaskFrameKind};
+use medulla::protocol::{HarnessProvider, TaskFrame, TaskFrameKind};
 use tokio::sync::{mpsc, Notify};
 
 use crate::helpers::*;

@@ -8,9 +8,9 @@ mod mock_tinyplace;
 use std::time::Duration;
 
 use medulla::config::{Peer, TinyplaceConfig};
-use medulla::tinyplace::frames::{encode_task_frame, EncodeFrameInput, TaskFrameKind};
-use medulla::tinyplace::service::TinyplaceService;
-use medulla::tinyplace::{
+use medulla::protocol::frames::{encode_task_frame, EncodeFrameInput, TaskFrameKind};
+use medulla::protocol::service::TinyplaceService;
+use medulla::protocol::{
     spawn_contact_auto_accepter, spawn_mailbox_poll, spawn_presence_heartbeat,
 };
 use tinyplace::types::MessageEnvelope;

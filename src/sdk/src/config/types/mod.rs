@@ -16,7 +16,7 @@ use crate::runtime::fleet::{
     AgentTemplate, CapacitySnapshot, HarnessDescriptor, HostDescriptor, WorkspaceDescriptor,
 };
 use crate::runtime::{AgentDescriptor, RoutingStrategy, SubscriptionRoutingStrategy};
-use crate::tinyplace::{BudgetWindow, HarnessProvider};
+use crate::protocol::{BudgetWindow, HarnessProvider};
 
 // --- serde default helpers -------------------------------------------------
 

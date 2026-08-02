@@ -60,7 +60,7 @@ fn events_changed_flips_then_settles() {
 #[test]
 fn tinyplace_observation_merges_into_snapshot() {
     use medulla::runtime::{AgentDescriptor, AgentPresence, TinyplaceIdentity};
-    use medulla::tinyplace::service::TinyplaceObservation;
+    use medulla::protocol::service::TinyplaceObservation;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 

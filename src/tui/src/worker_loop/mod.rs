@@ -21,7 +21,7 @@ use ratatui::Terminal;
 use medulla::contacts::ContactDesk;
 use medulla::daemon::transport::SignalTransport;
 use medulla::daemon::{DaemonConfig, DaemonRuntime};
-use medulla::tinyplace::{decode_task_frame, HarnessProvider};
+use medulla::protocol::{decode_task_frame, HarnessProvider};
 
 use medulla_tui::log::LogBuffer;
 use medulla_tui::worker::app::{ExecutionMode, WorkerApp, WorkerWiring};
@@ -276,7 +276,7 @@ pub(super) fn spawn_inbox_drain(
         let _push = push;
         loop {
             for message in transport.drain_inbox(50).await {
-                if let Some(screen) = medulla::tinyplace::parse_screen_message(&message.text) {
+                if let Some(screen) = medulla::protocol::parse_screen_message(&message.text) {
                     screens.handle(&message.from, screen);
                     continue;
                 }

@@ -16,7 +16,7 @@ fn no_presence() -> std::collections::HashMap<String, bool> {
 }
 use super::super::roster::{subscription_for_strategy, worker_for_strategy};
 use crate::runtime::{RoutingStrategy, SubscriptionRoutingStrategy};
-use crate::tinyplace::{
+use crate::protocol::{
     AgentCapabilities, BudgetSource, BudgetWindow, HarnessBudget, HarnessProvider,
     HarnessReadiness, WorkerSystemInfo,
 };

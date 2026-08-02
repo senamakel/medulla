@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::tinyplace::{
+use crate::protocol::{
     config_path, load_config, load_or_create_identity, resolve_endpoint, TinyplaceFileConfig,
 };
 use crate::worker_profile::{default_worker_name, is_registered, profile_path, WorkerProfile};

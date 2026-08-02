@@ -258,7 +258,7 @@ fn policy_from_loaded(loaded: crate::config::LoadedConfig) -> crate::workflows::
 mod policy_tests {
     use super::policy_from_loaded;
     use crate::config::{CustomHarnessConfig, HostSection, LoadedConfig, TuiConfig};
-    use crate::tinyplace::HarnessProvider;
+    use crate::protocol::HarnessProvider;
 
     /// A minimal, valid custom-harness preset for `host_id`.
     fn preset(id: &str, host_id: &str) -> CustomHarnessConfig {

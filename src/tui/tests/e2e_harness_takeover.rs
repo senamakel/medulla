@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use medulla::daemon::providers::{Abort, RunTaskOptions};
 use medulla::sessions::SessionClass;
-use medulla::tinyplace::HarnessProvider;
+use medulla::protocol::HarnessProvider;
 use medulla_tui::worker::executor::PtySessionExecutor;
 use medulla_tui::worker::pty::{HarnessControl, PtyManager};
 
