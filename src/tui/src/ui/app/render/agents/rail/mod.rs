@@ -22,9 +22,12 @@ use super::super::super::types::App;
 use super::super::color;
 use super::types::{AgentsPanes, Selection};
 
+mod harness_line;
 mod rows;
 mod state;
 mod status;
+#[cfg(test)]
+mod status_line_tests;
 #[cfg(test)]
 mod tests;
 mod wrap;
@@ -38,7 +41,7 @@ use wrap::wrap_line;
 /// path — an absolute working directory is easily eighty columns — push the
 /// transcript into a gutter. Rows that do not fit within this wrap onto a second
 /// line instead of buying width nothing else needs.
-pub(super) const RAIL_MAX_CONTENT: usize = 36;
+pub(in crate::ui::app) const RAIL_MAX_CONTENT: usize = 36;
 
 /// How far a wrapped row's continuation lines are indented, so a row that took
 /// two lines still reads as one row rather than as two entries.
@@ -68,6 +71,36 @@ fn rail_title(lanes: &[AgentLane], waiting: usize) -> String {
 }
 
 impl App {
+    /// Render every form of a row that can affect the rail's width.
+    ///
+    /// Harness fields may be visible only while selected, so measuring only the
+    /// inactive form would allocate a rail that clips the row as soon as the
+    /// cursor reaches it. Other row types only change style when selected.
+    pub(super) fn rail_row_measurement_lines(
+        &self,
+        row: &RailRow,
+        lanes: &[AgentLane],
+    ) -> Vec<TLine<'static>> {
+        let waiting_sessions = std::collections::HashSet::new();
+        let now = medulla::clock::now_millis();
+        match row {
+            RailRow::Harness(_) => [false, true]
+                .into_iter()
+                .flat_map(|active| {
+                    self.rail_row_lines(
+                        row,
+                        lanes,
+                        active,
+                        RAIL_MAX_CONTENT,
+                        &waiting_sessions,
+                        now,
+                    )
+                })
+                .collect(),
+            _ => self.rail_row_lines(row, lanes, false, RAIL_MAX_CONTENT, &waiting_sessions, now),
+        }
+    }
+
     /// Draw the threads strip and the rail list under it.
     pub(super) fn draw_agents_rail(
         &mut self,
@@ -112,6 +145,7 @@ impl App {
         let mut lines: Vec<TLine> = Vec::new();
         let mut owners: Vec<usize> = Vec::new();
         let mut active_line = 0;
+        let mut active_line_end = 0;
         for (index, row) in selection.rows.iter().enumerate() {
             if index == selection.active {
                 active_line = lines.len();
@@ -127,10 +161,14 @@ impl App {
                 lines.push(line);
                 owners.push(index);
             }
+            if index == selection.active {
+                active_line_end = lines.len();
+            }
         }
 
         let capacity = (inner.height as usize).max(1);
-        let start = crate::ui::selection::viewport_start(active_line, lines.len(), capacity);
+        let start =
+            selected_row_viewport_start(active_line, active_line_end, lines.len(), capacity);
         self.hit_agents = Some((
             inner,
             owners.iter().skip(start).take(capacity).copied().collect(),
@@ -264,5 +302,22 @@ impl App {
             Span::styled(format!(" {NEW_HARNESS_LABEL} "), style),
             Span::styled(" ⏎ / ^T", Style::default().add_modifier(Modifier::DIM)),
         ])
+    }
+}
+
+/// Center the selected row while keeping its final line visible when the full
+/// multi-line row fits in the viewport.
+fn selected_row_viewport_start(
+    active_start: usize,
+    active_end: usize,
+    total: usize,
+    capacity: usize,
+) -> usize {
+    let start = crate::ui::selection::viewport_start(active_start, total, capacity);
+    let row_height = active_end.saturating_sub(active_start);
+    if row_height <= capacity && active_end > start.saturating_add(capacity) {
+        active_end.saturating_sub(capacity)
+    } else {
+        start
     }
 }

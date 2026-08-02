@@ -199,6 +199,11 @@ impl HookRepo {
             .env("GIT_CONFIG_COUNT", "1")
             .env("GIT_CONFIG_KEY_0", "core.hooksPath")
             .env("GIT_CONFIG_VALUE_0", &self.hook_dir)
+            .env(
+                "GIT_CONFIG_PARAMETERS",
+                format!("'core.hooksPath={}'", self.hook_dir.display()),
+            )
+            .env("MEDULLA_GIT_CONFIG_BASE_PARAMETERS", "")
             .output()
             .expect("git invocation");
         assert!(
@@ -361,6 +366,11 @@ fn a_failing_repository_hook_still_blocks_the_commit() {
         .env("GIT_CONFIG_COUNT", "1")
         .env("GIT_CONFIG_KEY_0", "core.hooksPath")
         .env("GIT_CONFIG_VALUE_0", &repo.hook_dir)
+        .env(
+            "GIT_CONFIG_PARAMETERS",
+            format!("'core.hooksPath={}'", repo.hook_dir.display()),
+        )
+        .env("MEDULLA_GIT_CONFIG_BASE_PARAMETERS", "")
         .output()
         .expect("git commit");
 
@@ -413,6 +423,11 @@ fn a_tilde_in_the_repository_hooks_path_is_expanded() {
         .env("GIT_CONFIG_COUNT", "1")
         .env("GIT_CONFIG_KEY_0", "core.hooksPath")
         .env("GIT_CONFIG_VALUE_0", &repo.hook_dir)
+        .env(
+            "GIT_CONFIG_PARAMETERS",
+            format!("'core.hooksPath={}'", repo.hook_dir.display()),
+        )
+        .env("MEDULLA_GIT_CONFIG_BASE_PARAMETERS", "")
         .output()
         .expect("git commit");
     assert!(
@@ -424,75 +439,6 @@ fn a_tilde_in_the_repository_hooks_path_is_expanded() {
     assert!(
         marker.exists(),
         "a `~/`-spelled core.hooksPath must still have its hooks run"
-    );
-}
-
-/// `GIT_CONFIG_COUNT` is the number of pairs git reads, so our entry must be
-/// *appended* to whatever the parent set. Resetting it to 1 would silently drop
-/// a CI-supplied `user.email` or `safe.directory`.
-#[cfg(unix)]
-#[test]
-fn inherited_git_config_entries_are_preserved() {
-    let base = HashMap::from([
-        ("GIT_CONFIG_COUNT".to_string(), "2".to_string()),
-        ("GIT_CONFIG_KEY_0".to_string(), "user.email".to_string()),
-        (
-            "GIT_CONFIG_VALUE_0".to_string(),
-            "ci@example.com".to_string(),
-        ),
-        ("GIT_CONFIG_KEY_1".to_string(), "safe.directory".to_string()),
-        ("GIT_CONFIG_VALUE_1".to_string(), "*".to_string()),
-    ]);
-    let env = super::attribution_env(true, &base);
-
-    assert_eq!(
-        env.get("GIT_CONFIG_COUNT"),
-        Some(&"3".to_string()),
-        "our pair must be appended, not replace the inherited ones"
-    );
-    assert_eq!(
-        env.get("GIT_CONFIG_KEY_2"),
-        Some(&"core.hooksPath".to_string()),
-        "our key belongs at the next free index"
-    );
-    assert!(
-        !env.contains_key("GIT_CONFIG_KEY_0") && !env.contains_key("GIT_CONFIG_KEY_1"),
-        "inherited slots must be left alone: {env:?}"
-    );
-    // The shim needs the pre-existing count so it can drop only our entry.
-    assert_eq!(
-        env.get("MEDULLA_GIT_CONFIG_BASE_COUNT"),
-        Some(&"2".to_string())
-    );
-}
-
-/// With no inherited git config, our pair lands at slot zero.
-#[cfg(unix)]
-#[test]
-fn a_clean_environment_puts_our_pair_at_slot_zero() {
-    let env = super::attribution_env(true, &HashMap::new());
-    assert_eq!(env.get("GIT_CONFIG_COUNT"), Some(&"1".to_string()));
-    assert_eq!(
-        env.get("GIT_CONFIG_KEY_0"),
-        Some(&"core.hooksPath".to_string())
-    );
-    assert_eq!(
-        env.get("MEDULLA_GIT_CONFIG_BASE_COUNT"),
-        Some(&"0".to_string())
-    );
-}
-
-/// A malformed inherited count is treated as absent rather than appended after —
-/// git would reject the value anyway, and guessing helps nobody.
-#[cfg(unix)]
-#[test]
-fn a_malformed_inherited_count_falls_back_to_slot_zero() {
-    let base = HashMap::from([("GIT_CONFIG_COUNT".to_string(), "not-a-number".to_string())]);
-    let env = super::attribution_env(true, &base);
-    assert_eq!(env.get("GIT_CONFIG_COUNT"), Some(&"1".to_string()));
-    assert_eq!(
-        env.get("GIT_CONFIG_KEY_0"),
-        Some(&"core.hooksPath".to_string())
     );
 }
 

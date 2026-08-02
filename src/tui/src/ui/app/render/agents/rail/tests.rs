@@ -19,14 +19,14 @@ use super::state::{classify_lane, lane_waiting_session, task_waiting_session};
 use super::status::HarnessVisualState;
 use super::wrap::{flow_path, short_home, wrap_line, wrap_path};
 
-fn app() -> App {
+pub(super) fn app() -> App {
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
     App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 
 /// A fixed "now" for row rendering, so an elapsed-time suffix in an assertion
 /// does not depend on when the test ran.
-const NOW: i64 = 10_000;
+pub(super) const NOW: i64 = 10_000;
 
 /// No harness is waiting, which is what most of these rows assume.
 fn none_waiting() -> std::collections::HashSet<String> {
@@ -66,7 +66,7 @@ fn task(status: TaskStatus, attention: bool, at: i64) -> TaskState {
     }
 }
 
-fn harness_row(cwd: &str) -> SessionRow {
+pub(super) fn harness_row(cwd: &str) -> SessionRow {
     SessionRow {
         id: "w_1".into(),
         label: "local".into(),
@@ -83,6 +83,14 @@ fn harness_row(cwd: &str) -> SessionRow {
         user_spawned: true,
         attention: None,
     }
+}
+
+#[test]
+fn viewport_keeps_all_three_lines_of_the_selected_harness_visible() {
+    // One row precedes the selected three-line harness and another follows it.
+    // Centering only the selected row's first line starts at zero and clips its
+    // final line, while starting at one keeps the complete row in view.
+    assert_eq!(super::selected_row_viewport_start(1, 4, 5, 3), 1);
 }
 
 #[test]

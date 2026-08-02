@@ -4,21 +4,25 @@ use std::collections::HashSet;
 
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span};
-use unicode_width::UnicodeWidthStr;
 
 use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
-use crate::ui::util::{clip, fmt_tokens};
+use crate::ui::util::fmt_tokens;
 use crate::worker::pty::{HarnessAttention, HarnessControl, SessionRow, ATTENTION_GLYPH};
 
 use super::super::super::super::types::App;
 use super::super::super::color;
+use super::harness_line;
 use super::status::HarnessVisualState;
-use super::wrap::{home_dir, short_home, wrap_line, wrap_path};
+use super::wrap::{home_dir, wrap_line};
 use super::CONT_INDENT;
 
 impl App {
-    /// Format one operator-started harness as one compact rail row.
-    pub(super) fn own_harness_lines(
+    /// Format one operator-started harness using the configured status-line layout.
+    ///
+    /// PTY attention overrides the ordinary state glyph and adds a textual cue,
+    /// while the operator's field placement and visibility choices remain in
+    /// force for the status line itself.
+    pub(in crate::ui::app::render) fn own_harness_lines(
         &self,
         row: &SessionRow,
         active: bool,
@@ -26,10 +30,7 @@ impl App {
         now: i64,
     ) -> Vec<TLine<'static>> {
         let waiting = self.harness_attention(row);
-        let control = match row.control {
-            HarnessControl::User => " · unmanaged",
-            HarnessControl::Orchestrator => " · orchestrator",
-        };
+        let alerting = waiting.is_some();
         let style = if active {
             self.theme.selection()
         } else if waiting.is_some() {
@@ -45,40 +46,25 @@ impl App {
             Some(_) => ATTENTION_GLYPH,
             None => row.state.glyph(),
         };
-        let head = format!("{glyph} {}{control}", row.provider.as_str());
-        let head = if width == 0 {
-            String::new()
-        } else {
-            clip(&head, width)
-        };
         let detail_style = if active {
             style
         } else {
             style.add_modifier(Modifier::DIM)
         };
-        const SEPARATOR: &str = " · ";
-        let mut spans = vec![Span::styled(head, style)];
-        let mut used = spans[0].width();
-        let appearance = &self.loaded.config.appearance;
-        if appearance.show_harness_branch {
-            if let Some(branch) = row.branch.as_deref() {
-                let remaining = width.saturating_sub(used + SEPARATOR.width());
-                let reserve_for_path = if appearance.show_harness_path { 7 } else { 0 };
-                let branch_room = remaining.saturating_sub(reserve_for_path).min(16);
-                if branch_room >= 2 {
-                    let branch = clip(branch, branch_room);
-                    used += SEPARATOR.width() + branch.width();
-                    spans.push(Span::styled(format!("{SEPARATOR}{branch}"), detail_style));
-                }
-            }
-        }
-        let path_room = width.saturating_sub(used + SEPARATOR.width());
-        if appearance.show_harness_path && path_room >= 4 {
-            let path = short_home(&row.cwd, home_dir().as_deref());
-            let path = wrap_path(&path, path_room, 1).concat();
-            spans.push(Span::styled(format!("{SEPARATOR}{path}"), detail_style));
-        }
-        let mut lines = vec![TLine::from(spans)];
+        let render = harness_line::HarnessLineStyle {
+            active,
+            width,
+            alerting,
+            state_glyph: glyph,
+            primary: style,
+            detail: detail_style,
+        };
+        let mut lines = harness_line::harness_lines(
+            &self.loaded.config.status_line(),
+            row,
+            home_dir().as_deref(),
+            render,
+        );
         if let Some(cue) = waiting {
             let text = format!("  {ATTENTION_GLYPH} {}", cue.label(now));
             lines.extend(wrap_line(
