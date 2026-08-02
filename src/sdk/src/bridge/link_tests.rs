@@ -61,6 +61,22 @@ async fn a_second_frame_never_evicts_acknowledged_fragments() {
 }
 
 #[tokio::test]
+async fn a_new_sender_epoch_replaces_an_abandoned_partial() {
+    let inbox = Inbox::default();
+    let peer = NodeId([11; 16]);
+    assert!(reassemble(peer, 1, chunk(1, 0, 2, b"abandoned"), &inbox)
+        .await
+        .is_none());
+    assert!(reassemble(peer, 2, chunk(2, 0, 2, b"new "), &inbox)
+        .await
+        .is_none());
+    assert_eq!(
+        reassemble(peer, 2, chunk(2, 1, 2, b"frame"), &inbox).await,
+        Some(b"new frame".to_vec())
+    );
+}
+
+#[tokio::test]
 async fn incomplete_reassembly_survives_a_long_gap() {
     let inbox = Inbox::default();
     let peer = NodeId([10; 16]);
