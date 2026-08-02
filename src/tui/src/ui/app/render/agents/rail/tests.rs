@@ -75,6 +75,7 @@ pub(super) fn harness_row(cwd: &str) -> SessionRow {
         cwd: cwd.into(),
         branch: Some("main".into()),
         session_id: None,
+        thread_name: None,
         started_at: 1,
         last_output_at: 1,
         last_error: None,
@@ -469,6 +470,17 @@ fn a_harness_waiting_on_you_blinks_and_says_what_it_wants() {
         "{}",
         lines[1]
     );
+}
+
+#[test]
+fn a_selected_harness_waiting_on_you_stays_blinking_yellow() {
+    let app = app();
+    let lines = app.own_harness_lines(&waiting_row("/workspace/medulla"), true, 48, NOW);
+    let style = lines[0].spans[0].style;
+
+    assert_eq!(style.fg, Some(Color::Yellow));
+    assert!(style.add_modifier.contains(Modifier::SLOW_BLINK));
+    assert!(style.add_modifier.contains(Modifier::REVERSED));
 }
 
 #[test]

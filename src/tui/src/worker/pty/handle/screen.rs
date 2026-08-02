@@ -11,6 +11,16 @@ use super::SessionHandle;
 const BLANK: CellText = CellText::blank();
 
 impl SessionHandle {
+    /// The harness's current human-facing thread name, when it advertises one.
+    ///
+    /// Codex and Claude Code update the terminal window title after `/rename`.
+    /// Reading that standard PTY signal keeps the rail live without coupling it
+    /// to either provider's private transcript format.
+    pub fn thread_name(&self) -> Option<String> {
+        let title = lock(&self.screen).screen().title().trim().to_string();
+        (!title.is_empty()).then_some(title)
+    }
+
     /// Sample the live screen text and audible-bell counter for classification.
     ///
     /// Restores the operator's scrollback offset before returning, so a
