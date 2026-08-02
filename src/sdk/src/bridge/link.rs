@@ -24,6 +24,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use tokio::sync::{Mutex, Notify};
@@ -43,10 +44,59 @@ const INBOX_CAPACITY: usize = 1024;
 const CHUNK_MAGIC: &[u8; 4] = b"MDL1";
 const CHUNK_HEADER: usize = 20;
 const MAX_CHUNKS: usize = 4096;
+const MAX_PARTIAL_MESSAGES: usize = 128;
+const MAX_PARTIAL_BYTES: usize = 16 * 1024 * 1024;
+const PARTIAL_TTL: Duration = Duration::from_secs(30);
 static NEXT_MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
 
 struct PartialMessage {
     chunks: Vec<Option<Vec<u8>>>,
+    bytes: usize,
+    updated: Instant,
+}
+
+#[derive(Default)]
+struct Reassembly {
+    partials: HashMap<(NodeId, u64), PartialMessage>,
+    bytes: usize,
+}
+
+impl Reassembly {
+    /// Drop incomplete messages that have stopped making progress.
+    fn expire(&mut self, now: Instant) {
+        let stale: Vec<_> = self
+            .partials
+            .iter()
+            .filter_map(|(key, partial)| {
+                (now.saturating_duration_since(partial.updated) >= PARTIAL_TTL).then_some(*key)
+            })
+            .collect();
+        for key in stale {
+            self.remove(&key);
+        }
+    }
+
+    /// Evict the least recently updated message other than `protected`.
+    fn evict_oldest_except(&mut self, protected: Option<(NodeId, u64)>) -> bool {
+        let oldest = self
+            .partials
+            .iter()
+            .filter(|(key, _)| protected.as_ref() != Some(*key))
+            .min_by_key(|(_, partial)| partial.updated)
+            .map(|(key, _)| *key);
+        if let Some(key) = oldest {
+            self.remove(&key);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn remove(&mut self, key: &(NodeId, u64)) -> Option<PartialMessage> {
+        let partial = self.partials.remove(key)?;
+        self.bytes = self.bytes.saturating_sub(partial.bytes);
+        Some(partial)
+    }
 }
 
 /// One reachable peer: the name callers address it by, and the id on the wire.
@@ -79,7 +129,7 @@ pub struct LinkBridgeConfig {
 #[derive(Default)]
 struct Inbox {
     queue: Mutex<VecDeque<InboundMessage>>,
-    reassembly: Mutex<HashMap<(NodeId, u64), PartialMessage>>,
+    reassembly: Mutex<Reassembly>,
     /// Notified on every delivery, so `wait_for_inbox` returns at about a round
     /// trip rather than at the caller's poll interval.
     arrival: Notify,
@@ -237,21 +287,54 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
     if count == 0 || count > MAX_CHUNKS || index >= count {
         return None;
     }
-    let mut partials = inbox.reassembly.lock().await;
-    let partial = partials
-        .entry((peer, id))
-        .or_insert_with(|| PartialMessage {
-            chunks: (0..count).map(|_| None).collect(),
-        });
-    if partial.chunks.len() != count {
-        partials.remove(&(peer, id));
+    let key = (peer, id);
+    let now = Instant::now();
+    let mut reassembly = inbox.reassembly.lock().await;
+    reassembly.expire(now);
+    if !reassembly.partials.contains_key(&key) {
+        while reassembly.partials.len() >= MAX_PARTIAL_MESSAGES {
+            if !reassembly.evict_oldest_except(None) {
+                return None;
+            }
+        }
+        reassembly.partials.insert(
+            key,
+            PartialMessage {
+                chunks: (0..count).map(|_| None).collect(),
+                bytes: 0,
+                updated: now,
+            },
+        );
+    }
+    if reassembly.partials[&key].chunks.len() != count {
+        reassembly.remove(&key);
         return None;
     }
-    partial.chunks[index] = Some(body[CHUNK_HEADER..].to_vec());
-    if partial.chunks.iter().any(Option::is_none) {
+
+    let payload = &body[CHUNK_HEADER..];
+    let old_len = reassembly.partials[&key].chunks[index]
+        .as_ref()
+        .map_or(0, Vec::len);
+    let added = payload.len().saturating_sub(old_len);
+    while reassembly.bytes.saturating_add(added) > MAX_PARTIAL_BYTES {
+        if !reassembly.evict_oldest_except(Some(key)) {
+            reassembly.remove(&key);
+            return None;
+        }
+    }
+    let partial = reassembly.partials.get_mut(&key).expect("partial exists");
+    partial.bytes = partial.bytes + payload.len() - old_len;
+    partial.updated = now;
+    partial.chunks[index] = Some(payload.to_vec());
+    reassembly.bytes += added;
+    if reassembly.partials[&key]
+        .chunks
+        .iter()
+        .any(Option::is_none)
+    {
         return None;
     }
-    let partial = partials.remove(&(peer, id)).expect("partial exists");
+    let partial = reassembly.remove(&key).expect("partial exists");
     Some(partial.chunks.into_iter().flatten().flatten().collect())
 }
 

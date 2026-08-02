@@ -42,3 +42,27 @@ async fn unframed_payloads_remain_compatible() {
         Some(body)
     );
 }
+
+#[tokio::test]
+async fn incomplete_reassembly_is_bounded_and_expires() {
+    let inbox = Inbox::default();
+    let peer = NodeId([9; 16]);
+    for id in 0..=MAX_PARTIAL_MESSAGES as u64 {
+        assert!(reassemble(peer, chunk(id, 0, 2, b"partial"), &inbox)
+            .await
+            .is_none());
+    }
+    {
+        let mut state = inbox.reassembly.lock().await;
+        assert_eq!(state.partials.len(), MAX_PARTIAL_MESSAGES);
+        for partial in state.partials.values_mut() {
+            partial.updated = Instant::now() - PARTIAL_TTL;
+        }
+    }
+    assert!(reassemble(peer, chunk(999, 0, 2, b"fresh"), &inbox)
+        .await
+        .is_none());
+    let state = inbox.reassembly.lock().await;
+    assert_eq!(state.partials.len(), 1);
+    assert!(state.partials.contains_key(&(peer, 999)));
+}
