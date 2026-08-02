@@ -103,11 +103,10 @@ impl LinkService {
         // session needs a pair key, and the pair key is never written to a
         // config file (protocol §7.1).
         let state_dir = PathBuf::from(&config.state_dir);
-        let enrolled_node_name = medulla_link::keys::read_node_state(
-            &medulla_link::keys::node_path(&state_dir),
-        )
-        .ok()
-        .map(|state| state.node_id.to_string());
+        let enrolled_node_name =
+            medulla_link::keys::read_node_state(&medulla_link::keys::node_path(&state_dir))
+                .ok()
+                .map(|state| state.node_id.to_string());
         let link = Arc::new(
             Link::connect(LinkTransportConfig::new(state_dir))
                 .await
