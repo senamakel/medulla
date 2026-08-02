@@ -214,41 +214,40 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
     ))
     .ok()
     .map(|state| state.node_id.to_string());
-    let transport = match medulla_link::Link::connect(medulla_link::LinkConfig::new(
-        &link_config.state_dir,
-    ))
-    .await
-    {
-        Ok(link) => {
-            // The owner is the link's single peer: a host enrolls against
-            // exactly one orchestrator (protocol §7.3).
-            let owner = link_config
-                .peers
-                .first()
-                .map(|peer| peer.id.clone())
-                .unwrap_or_else(|| "orchestrator".to_string());
-            let node_name = link_config
-                .node_name
-                .clone()
-                .or(enrolled_node_id)
-                .unwrap_or_else(|| owner.clone());
-            match medulla::bridge::LinkBridge::single_peer(
-                std::sync::Arc::new(link),
-                node_name,
-                owner,
-            ) {
-                Ok(bridge) => Some(bridge),
-                Err(err) => {
-                    startup_status = Some(format!("host link is misconfigured ({err})"));
-                    None
+    let transport =
+        match medulla_link::Link::connect(medulla_link::LinkConfig::new(&link_config.state_dir))
+            .await
+        {
+            Ok(link) => {
+                // The owner is the link's single peer: a host enrolls against
+                // exactly one orchestrator (protocol §7.3).
+                let owner = link_config
+                    .peers
+                    .first()
+                    .map(|peer| peer.id.clone())
+                    .unwrap_or_else(|| "orchestrator".to_string());
+                let node_name = link_config
+                    .node_name
+                    .clone()
+                    .or(enrolled_node_id)
+                    .unwrap_or_else(|| owner.clone());
+                match medulla::bridge::LinkBridge::single_peer(
+                    std::sync::Arc::new(link),
+                    node_name,
+                    owner,
+                ) {
+                    Ok(bridge) => Some(bridge),
+                    Err(err) => {
+                        startup_status = Some(format!("host link is misconfigured ({err})"));
+                        None
+                    }
                 }
             }
-        }
-        Err(err) => {
-            startup_status = Some(format!("host link unavailable ({err})"));
-            None
-        }
-    };
+            Err(err) => {
+                startup_status = Some(format!("host link unavailable ({err})"));
+                None
+            }
+        };
     let agent_id = transport
         .as_ref()
         .map(|bridge| bridge.address().to_string())
