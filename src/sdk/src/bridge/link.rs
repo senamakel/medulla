@@ -32,7 +32,7 @@ use uuid::Uuid;
 use medulla_link::keys::NodeId;
 use medulla_link::{LinkHandle, Liveness, MAX_MESSAGE_BYTES};
 
-use super::{Bridge, BridgeLiveness, InboundMessage};
+use super::{Bridge, BridgeLiveness, InboundMessage, LinkBridgeConfig, LinkPeer};
 
 #[cfg(test)]
 #[path = "link_tests.rs"]
@@ -68,28 +68,6 @@ impl Reassembly {
         self.bytes = self.bytes.saturating_sub(partial.bytes);
         Some(partial)
     }
-}
-
-/// One reachable peer: the name callers address it by, and the id on the wire.
-///
-/// The two are separate on purpose (protocol §2). `node_name` is human-readable
-/// and unique within a team; `node_id` is 16 random bytes and the only
-/// identifier that travels. Endpoints resolve name → id once, at enrollment.
-#[derive(Debug, Clone)]
-pub struct LinkPeer {
-    /// The bridge address — what the roster, the hub and the TUI use.
-    pub name: String,
-    /// The wire identifier this bridge sends to.
-    pub node_id: NodeId,
-}
-
-/// How to build a [`LinkBridge`] over an already-connected link.
-#[derive(Debug, Clone)]
-pub struct LinkBridgeConfig {
-    /// This endpoint's own node name — the address peers send to.
-    pub node_name: String,
-    /// Every peer this endpoint can address.
-    pub peers: Vec<LinkPeer>,
 }
 
 /// The queue the pump fills and `drain_inbox` empties.
@@ -279,7 +257,7 @@ async fn reassemble(peer: NodeId, epoch: u64, body: Vec<u8>, inbox: &Inbox) -> O
             .find(|((source, _), _)| *source == peer)
             .map(|(key, partial)| (*key, partial.epoch));
         if let Some((old_key, old_epoch)) = existing {
-            if old_epoch == epoch {
+            if old_epoch == epoch && index != 0 {
                 return None;
             }
             reassembly.remove(&old_key);
@@ -418,14 +396,14 @@ impl Bridge for LinkBridge {
         self.inner.ids.contains_key(name).then(|| name.to_string())
     }
 
-    /// Always true: an enrolled peer is reachable by definition.
+    /// True when the address belongs to an enrolled peer.
     ///
     /// Note this says nothing about whether the peer is *up* — that is
     /// [`liveness`](Bridge::liveness), and the two must not be conflated. A peer
     /// that is offline is still a peer we are permitted (and still trying) to
     /// send to.
-    async fn contact_accepted(&self, _peer: &str) -> bool {
-        true
+    async fn contact_accepted(&self, peer: &str) -> bool {
+        self.resolve_handle(peer).await.is_some()
     }
 
     /// No-op, deliberately.

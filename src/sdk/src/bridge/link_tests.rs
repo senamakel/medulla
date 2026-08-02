@@ -45,7 +45,7 @@ async fn unframed_payloads_remain_compatible() {
 }
 
 #[tokio::test]
-async fn a_second_frame_never_evicts_acknowledged_fragments() {
+async fn a_new_first_fragment_replaces_a_cancelled_frame_in_the_same_epoch() {
     let inbox = Inbox::default();
     let peer = NodeId([9; 16]);
     assert!(reassemble(peer, 1, chunk(1, 0, 2, b"preserved "), &inbox)
@@ -55,8 +55,8 @@ async fn a_second_frame_never_evicts_acknowledged_fragments() {
         .await
         .is_none());
     assert_eq!(
-        reassemble(peer, 1, chunk(1, 1, 2, b"frame"), &inbox).await,
-        Some(b"preserved frame".to_vec())
+        reassemble(peer, 1, chunk(2, 1, 2, b" frame"), &inbox).await,
+        Some(b"new frame".to_vec())
     );
 }
 

@@ -17,7 +17,9 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use link::{LinkBridge, LinkBridgeConfig, LinkPeer};
+pub use link::LinkBridge;
 pub use local::{LocalBridge, LocalBridgeNetwork};
 pub use routing::RoutingBridge;
-pub use types::{Bridge, BridgeKind, BridgeLiveness, BridgeTransport, InboundMessage};
+pub use types::{
+    Bridge, BridgeKind, BridgeLiveness, BridgeTransport, InboundMessage, LinkBridgeConfig, LinkPeer,
+};

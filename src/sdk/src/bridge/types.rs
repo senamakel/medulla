@@ -1,8 +1,27 @@
 //! Shared bridge contract, kind discriminator, and runtime-selected transport.
 
 use async_trait::async_trait;
+use medulla_link::keys::NodeId;
 
 use super::{LinkBridge, LocalBridge};
+
+/// One reachable link peer: its bridge name and wire identifier.
+#[derive(Debug, Clone)]
+pub struct LinkPeer {
+    /// The human-readable address used by bridge callers.
+    pub name: String,
+    /// The identifier carried by link packets.
+    pub node_id: NodeId,
+}
+
+/// Configuration for wrapping an already-connected host link.
+#[derive(Debug, Clone)]
+pub struct LinkBridgeConfig {
+    /// This endpoint's bridge address.
+    pub node_name: String,
+    /// Every remote peer this endpoint can address.
+    pub peers: Vec<LinkPeer>,
+}
 
 /// One inbound message, addressed to this bridge.
 ///
