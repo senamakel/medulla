@@ -326,7 +326,11 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
     partial.bytes = partial.bytes + payload.len() - old_len;
     partial.updated = now;
     partial.chunks[index] = Some(payload.to_vec());
-    reassembly.bytes += added;
+    if payload.len() >= old_len {
+        reassembly.bytes += added;
+    } else {
+        reassembly.bytes -= old_len - payload.len();
+    }
     if reassembly.partials[&key]
         .chunks
         .iter()
