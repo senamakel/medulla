@@ -428,7 +428,7 @@ async fn a_kill_for_a_task_this_sender_never_dispatched_is_refused() {
     let mut router = empty_router();
     router.handle(
         "peerA",
-        medulla::tinyplace::ScreenMessage::Kill {
+        medulla::protocol::ScreenMessage::Kill {
             task_id: "t1".into(),
             correlation_id: "cyc/t1/0".into(),
         },

@@ -141,11 +141,10 @@ impl HubHandle {
             .ok_or_else(|| {
                 format!("task {task_id} is not running with termination support on {worker}")
             })?;
-        let body =
-            crate::tinyplace::encode_screen_message(&crate::tinyplace::ScreenMessage::Kill {
-                task_id: wire_task_id,
-                correlation_id,
-            });
+        let body = crate::protocol::encode_screen_message(&crate::protocol::ScreenMessage::Kill {
+            task_id: wire_task_id,
+            correlation_id,
+        });
         (self.log)(&format!("hub: killing task {task_id} on {worker}"));
         self.relay.send(worker, &body).await
     }
