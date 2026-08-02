@@ -87,9 +87,9 @@ impl<S: SspState> Channel<S> {
         new_sent_states.push_back((0, self.initial.clone()));
 
         let mut new_num = 1u64;
-        for (old_num, state) in &self.sent_states {
-            if *old_num > self.assumed_receiver_num {
-                if self.id == 0 {
+        if self.id == 0 {
+            for (old_num, state) in &self.sent_states {
+                if *old_num > self.assumed_receiver_num {
                     let mut rebased = state.clone();
                     rebased.release_through(self.assumed_receiver_num);
                     let rebased_num = rebased
@@ -100,14 +100,13 @@ impl<S: SspState> Channel<S> {
                     {
                         new_sent_states.push_back((rebased_num, rebased));
                     }
-                } else {
-                    // This is a pending unacknowledged state — preserve it with new numbering.
-                    new_sent_states.push_back((new_num, state.clone()));
-                    if *old_num == self.current_num {
-                        self.current_num = new_num;
-                    }
-                    new_num += 1;
                 }
+            }
+        } else {
+            for state in self.current.rebase_steps() {
+                new_sent_states.push_back((new_num, state));
+                self.current_num = new_num;
+                new_num += 1;
             }
         }
 

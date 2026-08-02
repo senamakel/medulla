@@ -29,6 +29,11 @@ pub enum StateError {
 /// > `let mut s = prev.clone(); s.apply_diff(&next.diff_from(prev))` yields a
 /// > state equal to `next`.
 pub trait SspState: Clone {
+    /// Intermediate states that rebuild `self` from the empty initial state.
+    fn rebase_steps(&self) -> Vec<Self> {
+        vec![self.clone()]
+    }
+
     /// Rebase state-internal numbering onto a fresh peer session origin.
     ///
     /// Most latest-wins states have no internal sequence and need no work.
