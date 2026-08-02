@@ -377,11 +377,11 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         .clone()
         .unwrap_or_else(|| medulla::config::default_link_config(&env));
     let link_service = match medulla::protocol::service::LinkService::start(&link_config).await {
-            Ok(service) => Some(service),
-            Err(e) => {
-                link_status = Some(format!("host link unavailable ({e})"));
-                None
-            }
+        Ok(service) => Some(service),
+        Err(e) => {
+            link_status = Some(format!("host link unavailable ({e})"));
+            None
+        }
     };
     let link_obs = link_service.as_ref().map(|s| s.observation());
 

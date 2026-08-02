@@ -233,9 +233,7 @@ pub(super) async fn build_bridge(
             );
             return None;
         }
-        Err(_) => {
-            medulla_link::keys::link_dir(&home)
-        }
+        Err(_) => medulla_link::keys::link_dir(&home),
     };
     let link = match Link::connect(LinkConfig::new(link_state_dir)).await {
         Ok(link) => link,
