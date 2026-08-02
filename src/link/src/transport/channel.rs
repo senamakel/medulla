@@ -70,10 +70,33 @@ impl<S: SspState> Channel<S> {
     /// Unconsumed outbound state is preserved and becomes state 1 relative to
     /// the shared initial state; inbound state restarts at 0.
     pub fn reset_peer(&mut self) {
-        self.current_num = 1;
-        self.sent_states.clear();
-        self.sent_states.push_back((0, self.initial.clone()));
-        self.sent_states.push_back((1, self.current.clone()));
+        // Preserve pending unacknowledged states by renumbering them starting from 1.
+        // This ensures that if state layer fragmentation split a message into
+        // intermediate states, those states remain available instead of being
+        // collapsed into a single oversized state 1.
+        let mut new_sent_states = VecDeque::new();
+        new_sent_states.push_back((0, self.initial.clone()));
+
+        let mut new_num = 1u64;
+        for (old_num, state) in &self.sent_states {
+            if *old_num > self.assumed_receiver_num {
+                // This is a pending unacknowledged state — preserve it with new numbering.
+                new_sent_states.push_back((new_num, state.clone()));
+                if *old_num == self.current_num {
+                    self.current_num = new_num;
+                }
+                new_num += 1;
+            }
+        }
+
+        // If no pending states existed, current was the same as the assumed receiver state.
+        // In that case, make the current state be state 1.
+        if new_num == 1 {
+            self.current_num = 1;
+            new_sent_states.push_back((1, self.current.clone()));
+        }
+
+        self.sent_states = new_sent_states;
         self.assumed_receiver_num = 0;
         self.received = self.initial.clone();
         self.received_num = 0;
