@@ -6,10 +6,10 @@ relay and polling it back down, endpoints exchange UDP datagrams carrying
 **mosh-style state synchronisation** through a backend that forwards bytes it
 cannot read.
 
-This document is **normative**. Three implementations code against it — the Rust
-orchestrator endpoint, the Rust host endpoint (one crate, `medulla-link`) and the
-TypeScript forwarder in the backend. Where this document and an implementation
-disagree, this document is right.
+This document is **normative**. Three implementations code against it — the
+orchestrator endpoint, the host endpoint (both in the `medulla-link` crate) and
+the forwarder that relays between them. Where this document and an
+implementation disagree, this document is right.
 
 ## 1. Model
 
@@ -223,10 +223,26 @@ by the heartbeat interval rather than by an operator.
 
 ### 5.1 Limits
 
-- Per-node token bucket on datagrams per second, and a hard cap on datagram size
-  (§3.2). Both enforced before the HMAC check where possible, so an unauthenticated
-  flood is cheap to reject.
-- `online` is derived from recent traffic, not asserted by the endpoint.
+Rate limiting is **two layers**, and which side of the HMAC each falls on is a
+correctness question, not an optimisation:
+
+- **Datagram size cap** (§3.2) — first, before anything else. Costs nothing.
+- **Per-source-address token bucket — *before* the HMAC.** Everything up to the
+  HMAC (a header parse and a node lookup) is attacker-triggerable work, so it
+  must be metered by something available at that point. Set it well above the
+  per-node rate: several of a user's hosts can share one NAT address.
+- **Per-node token bucket — *after* the HMAC verifies.** Charging it earlier
+  would mean anyone who learns a node id could exhaust that node's quota with
+  forged packets, turning the rate limit into a denial of service against the
+  very node it protects.
+- **A node id that does not resolve MUST be cached as unresolved**, briefly.
+  Otherwise a flood of random node ids costs one registry lookup each, and an
+  unauthenticated flood converts directly into database load.
+- Both of those caches are keyed by attacker-chosen values, so **both MUST be
+  bounded** with eviction. An unbounded map is itself the denial of service the
+  buckets exist to prevent.
+
+`online` is derived from recent traffic, not asserted by the endpoint.
 
 ## 6. Timing
 
@@ -378,6 +394,12 @@ than in a test file because they are part of the contract.
   rebind.** (§5 rule 5.)
 - A datagram addressed across teams is dropped and counted.
 - Given a captured datagram, the forwarder cannot recover the payload.
+- **A flood of forged datagrams naming a real node does not consume that node's
+  quota** — the node keeps working throughout. (§5.1.)
+- Per-source metering engages under a flood, and one flooding source does not
+  starve another source.
+- A node id repeatedly presented and never resolved is looked up **once**, not
+  once per datagram.
 
 **Enrollment**
 - The `HostNode` schema has no pair-key field, asserted against the schema itself
