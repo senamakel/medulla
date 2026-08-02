@@ -93,7 +93,7 @@ fn a_bidirectional_task_round_trip_delivers_the_terminal_frame() {
         .outgoing(160, &mut pair.orchestrator_seq)
         .unwrap();
     pair.host.handle_datagram(&ack[0], 170).unwrap();
-    let retry = pair.host.outgoing(180, &mut pair.host_seq).unwrap();
+    let retry = pair.host.outgoing(1_000, &mut pair.host_seq).unwrap();
     pair.orchestrator
         .handle_datagram(&retry[0], 190)
         .unwrap();
