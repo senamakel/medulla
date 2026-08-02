@@ -41,7 +41,7 @@
 //!   reservation that makes nonce reuse impossible across restarts (§3.1).
 //! - [`crypto`] — ChaCha20-Poly1305 under the pair key, with the outer header as
 //!   AAD (§4).
-//! - [`header`] — the 58-byte cleartext header and its forwarder HMAC (§3).
+//! - [`header`] — the 66-byte cleartext header and its forwarder HMAC (§3).
 //! - [`packet`] — the plaintext framing and the `Instruction` (§4.1, §4.3).
 //! - [`state`] — the `SspState` trait, the append-only `MessageQueue` of channel
 //!   0 and the latest-wins `RowGrid` of channel 1 (§4.4, §4.5).

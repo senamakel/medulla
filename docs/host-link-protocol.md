@@ -52,7 +52,7 @@ given datagram.
 
 ## 3. Outer header
 
-Fixed 58 bytes, big-endian, cleartext. These are the only bytes the forwarder
+Fixed 66 bytes, big-endian, cleartext. These are the only bytes the forwarder
 parses.
 
 | Offset | Size | Field | Notes |
@@ -62,8 +62,9 @@ parses.
 | 2 | 16 | `src_node_id` | |
 | 18 | 16 | `dst_node_id` | |
 | 34 | 8 | `seq` | §3.1 |
-| 42 | 16 | `tag` | `HMAC-SHA256(forwarder_key, bytes[0..42])[0..16]` |
-| 58 | … | `payload` | opaque to the forwarder (§4) |
+| 42 | 8 | `epoch` | random value minted for each endpoint process (§6.4) |
+| 50 | 16 | `tag` | `HMAC-SHA256(forwarder_key, bytes[0..50])[0..16]` |
+| 66 | … | `payload` | opaque to the forwarder (§4) |
 
 ### 3.1 `seq`
 
@@ -90,7 +91,7 @@ A datagram MUST NOT exceed **1400 bytes** total. This keeps it inside a typical
 fragmented — a fragmented UDP datagram is dropped whole if any fragment is lost,
 which would defeat the loss-tolerance the design is built on.
 
-The payload budget is therefore `1400 − 58 (header) − 16 (AEAD tag) − 4
+The payload budget is therefore `1400 − 66 (header) − 16 (AEAD tag) − 4
 (timestamps) = 1322` bytes per Instruction, diff included. Senders MUST fragment
 at the *state* layer — send a smaller diff — never at the datagram layer.
 
@@ -194,7 +195,7 @@ already treats that as retryable, so it rejoins the existing retry path.
 The forwarder is a pure function of the header plus its binding table. In order,
 dropping silently unless stated:
 
-1. `len ≥ 58` and `version == 1`.
+1. `len ≥ 66` and `version == 2`.
 2. `src_node_id` resolves to a known, non-revoked node. (Unknown → drop.)
 3. `tag` verifies against that node's forwarder key, compared in **constant
    time**.

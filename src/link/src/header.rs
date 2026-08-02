@@ -123,7 +123,7 @@ impl OuterHeader {
         out
     }
 
-    /// Encode the full 58 bytes, tagged with `key`.
+    /// Encode the full 66 bytes, tagged with `key`.
     pub fn encode(&self, key: &ForwarderKey) -> [u8; HEADER_LEN] {
         let signed = self.signed_bytes();
         let mut out = [0u8; HEADER_LEN];
