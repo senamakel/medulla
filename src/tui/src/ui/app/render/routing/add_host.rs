@@ -147,7 +147,11 @@ impl App {
                 )));
                 lines.push(TLine::from(""));
                 lines.push(TLine::from(Span::styled(
-                    "    Press c to copy that line, then paste it into an SSH session.",
+                    "    Press c to copy the installer, then paste it into an SSH session.",
+                    dim,
+                )));
+                lines.push(TLine::from(Span::styled(
+                    "    Provision the host-link identity before starting `medulla daemon`.",
                     dim,
                 )));
                 lines.push(TLine::from(""));

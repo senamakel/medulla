@@ -127,6 +127,10 @@ impl LinkBridge {
         for peer in config.peers {
             names.insert(peer.node_id, peer.name.clone());
             ids.insert(peer.name, peer.node_id);
+            // Enrollment and the Add Host flow expose the wire node id, while a
+            // config row may also assign a friendly address. Both must resolve
+            // to the same session.
+            ids.insert(peer.node_id.to_string(), peer.node_id);
             send_locks.insert(peer.node_id, Arc::new(Mutex::new(())));
         }
         let inbox = Arc::new(Inbox::default());
