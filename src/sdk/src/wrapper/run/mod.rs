@@ -29,6 +29,8 @@ use child::{spawn_child, ChildSession};
 /// How long to wait for the PTY reader to copy the child's final output before
 /// restoring the terminal. Bounded so a wedged reader cannot hang the exit.
 const DRAIN_TIMEOUT: Duration = Duration::from_millis(500);
+/// Bound teardown even if the recipient remains backpressured.
+const PUBLISH_DRAIN_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// The `medulla codex|claude|opencode` entry: build a [`WrapperConfig`] from the
 /// process environment and run the wrapper, returning the child's exit code.
@@ -186,6 +188,7 @@ pub async fn run_wrapper_with(mut config: WrapperConfig) -> anyhow::Result<i32> 
             bridge.ingest_lines(lines).await;
         }
         bridge.lifecycle("session_end").await;
+        bridge.finish_publications(PUBLISH_DRAIN_TIMEOUT).await;
     }
 
     Ok(code)

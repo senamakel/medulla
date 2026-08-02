@@ -97,8 +97,21 @@ impl Bridge {
             Ok(body) => body,
             Err(_) => return,
         };
-        if let Err(err) = self.publish_tx.try_send(body) {
+        let Some(publish_tx) = self.publish_tx.as_ref() else {
+            return;
+        };
+        if let Err(err) = publish_tx.try_send(body) {
             eprintln!("medulla wrapper: publication dropped: {err}");
+        }
+    }
+
+    /// Close the queue and wait briefly for its reliable sender to catch up.
+    pub(super) async fn finish_publications(&mut self, timeout: tokio::time::Duration) {
+        self.publish_tx.take();
+        if let Some(mut publisher) = self.publisher.take() {
+            if tokio::time::timeout(timeout, &mut publisher).await.is_err() {
+                publisher.abort();
+            }
         }
     }
 
@@ -287,8 +300,8 @@ pub(super) async fn build_bridge(
 
     Some(Bridge {
         transport,
-        publish_tx,
-        _publisher: publisher,
+        publish_tx: Some(publish_tx),
+        publisher: Some(publisher),
         recipient,
         receive_from,
         receive_active,

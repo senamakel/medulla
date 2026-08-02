@@ -5,8 +5,8 @@ use super::*;
 /// per-session envelope/status/tailer state. Absent when running passthrough.
 pub(in super::super) struct Bridge {
     pub(in super::super) transport: LinkBridge,
-    pub(in super::super) publish_tx: mpsc::Sender<String>,
-    pub(in super::super) _publisher: tokio::task::JoinHandle<()>,
+    pub(in super::super) publish_tx: Option<mpsc::Sender<String>>,
+    pub(in super::super) publisher: Option<tokio::task::JoinHandle<()>>,
     pub(in super::super) recipient: Option<String>,
     pub(in super::super) receive_from: Option<String>,
     pub(in super::super) receive_active: bool,
