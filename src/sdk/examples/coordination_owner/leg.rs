@@ -71,7 +71,10 @@ pub async fn run_leg(link: &LinkHandle, owner_id: NodeId, leg: &Leg) -> (i32, se
         model: leg.model.clone(),
         tool_mode: None,
         workflow: None,
+        workflow_fingerprint: None,
+        workflow_inputs: Default::default(),
         conversation: None,
+        fleet_depth: 0,
     });
     if let Err(err) = link.send(peer, frame.as_bytes()).await {
         return (
