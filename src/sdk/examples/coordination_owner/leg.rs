@@ -24,14 +24,17 @@ pub async fn connect(state_dir: &Path, forwarder: Option<&str>) -> Result<LinkBr
     for _ in 0..25 {
         match Link::connect(config.clone()).await {
             Ok(link) => {
-                let owner = link.status().local_node_id.to_string();
                 let [peer] = link.peers() else {
                     return Err(format!(
                         "expected the coordination link to have one peer, found {}",
                         link.peers().len()
                     ));
                 };
-                return LinkBridge::single_peer(Arc::new(link), owner, peer.to_string());
+                return LinkBridge::single_peer(
+                    Arc::new(link),
+                    "coordination-owner",
+                    peer.to_string(),
+                );
             }
             Err(err) => {
                 last = err.to_string();
