@@ -93,7 +93,10 @@ impl GatedPeer {
             model: None,
             tool_mode: None,
             workflow: None,
+            workflow_fingerprint: None,
+            workflow_inputs: Default::default(),
             conversation: None,
+            fleet_depth: 0,
         });
         self.inbox.lock().await.push_back(InboundMessage {
             from: "host-a".to_string(),
@@ -153,7 +156,10 @@ fn req() -> TaskRequest {
         model: None,
         tool_mode: None,
         workflow: None,
+        workflow_fingerprint: None,
+        workflow_inputs: Default::default(),
         conversation: None,
+        fleet_depth: 0,
     }
 }
 
@@ -188,7 +194,10 @@ async fn an_outage_longer_than_the_ack_window_does_not_fail_the_task() {
                 model: None,
                 tool_mode: None,
                 workflow: None,
+                workflow_fingerprint: None,
+                workflow_inputs: Default::default(),
                 conversation: None,
+                fleet_depth: 0,
             });
             peer.answer(&dispatched).await;
         })
@@ -260,7 +269,10 @@ async fn a_degraded_link_pauses_the_clock_just_as_an_offline_one_does() {
                 model: None,
                 tool_mode: None,
                 workflow: None,
+                workflow_fingerprint: None,
+                workflow_inputs: Default::default(),
                 conversation: None,
+                fleet_depth: 0,
             });
             peer.answer(&dispatched).await;
         })
