@@ -94,6 +94,9 @@ fn one_endpoint_restart_rebases_the_live_peer_and_delivers_new_work() {
     );
     let hello = pair.host.outgoing(200, &mut pair.host_seq).unwrap();
     pair.orchestrator.handle_datagram(&hello[0], 210).unwrap();
+    // A reordered datagram from the retired process epoch must not switch the
+    // live peer back to the old numbering.
+    assert!(!pair.orchestrator.handle_datagram(&ack[0], 215).unwrap());
 
     pair.orchestrator.queue_message(b"after".to_vec()).unwrap();
     let after = pair
