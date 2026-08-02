@@ -136,6 +136,7 @@ fn write_identity(
         forwarder_key: forwarder_key.clone(),
         forwarder_endpoint,
         peer_node_id,
+        peers: Vec::new(),
         seq_reservation: 1,
     })
     .map_err(|e| format!("could not enroll {}: {e}", dir.display()))?;

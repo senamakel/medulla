@@ -53,6 +53,16 @@ fn every_configured_link_peer_reaches_the_hub_bridge() {
         forwarder_key: ForwarderKey([3; 32]),
         forwarder_endpoint: "127.0.0.1:4600".to_string(),
         peer_node_id: NodeId([4; 16]),
+        peers: vec![
+            medulla_link::keys::EnrolledPeer {
+                node_id: NodeId([5; 16]),
+                pair_key: PairKey::from_bytes([5; 16]),
+            },
+            medulla_link::keys::EnrolledPeer {
+                node_id: NodeId([6; 16]),
+                pair_key: PairKey::from_bytes([6; 16]),
+            },
+        ],
         seq_reservation: 1,
     })
     .expect("node state");

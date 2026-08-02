@@ -111,10 +111,14 @@ impl Driver {
     ) -> Self {
         let origin = Instant::now();
         let peers = if config.peers.is_empty() {
-            vec![PeerConfig {
-                node_id: node.state.peer_node_id,
-                pair_key: node.state.pair_key.clone(),
-            }]
+            node.state
+                .enrolled_peers()
+                .into_iter()
+                .map(|peer| PeerConfig {
+                    node_id: peer.node_id,
+                    pair_key: peer.pair_key,
+                })
+                .collect()
         } else {
             config.peers.clone()
         };

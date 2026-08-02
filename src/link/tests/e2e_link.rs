@@ -40,6 +40,7 @@ fn enroll(
         forwarder_key,
         forwarder_endpoint,
         peer_node_id,
+        peers: Vec::new(),
         seq_reservation: 1,
     })
     .expect("a fresh identity directory");

@@ -13,6 +13,7 @@ fn state() -> NodeState {
         forwarder_key: ForwarderKey([3u8; 32]),
         forwarder_endpoint: "link.example:4600".to_string(),
         peer_node_id: NodeId([4u8; 16]),
+        peers: Vec::new(),
         seq_reservation: 1,
     }
 }

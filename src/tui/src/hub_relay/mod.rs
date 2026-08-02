@@ -84,6 +84,11 @@ fn link_from_resolved_config(
     let state_dir = PathBuf::from(&link.state_dir);
     let state =
         medulla_link::keys::read_node_state(&medulla_link::keys::node_path(&state_dir)).ok()?;
+    let enrolled: HashMap<_, _> = state
+        .enrolled_peers()
+        .into_iter()
+        .map(|peer| (peer.node_id, peer.pair_key))
+        .collect();
     let mut peers: Vec<HubLinkPeer> = link
         .peers
         .iter()
@@ -96,7 +101,7 @@ fn link_from_resolved_config(
                     .or_else(|| peer.name.clone())
                     .unwrap_or_else(|| peer.id.clone()),
                 node_id,
-                pair_key: state.pair_key.clone(),
+                pair_key: enrolled.get(&node_id)?.clone(),
             })
         })
         .collect();
@@ -104,7 +109,7 @@ fn link_from_resolved_config(
         peers.push(HubLinkPeer {
             name: state.peer_node_id.to_string(),
             node_id: state.peer_node_id,
-            pair_key: state.pair_key.clone(),
+            pair_key: enrolled.get(&state.peer_node_id)?.clone(),
         });
     }
     Some(HubLinkConfig {
