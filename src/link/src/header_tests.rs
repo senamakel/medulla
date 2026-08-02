@@ -76,8 +76,8 @@ fn a_short_datagram_is_rejected() {
 #[test]
 fn an_unknown_version_is_rejected() {
     let mut encoded = header().encode(&key()).to_vec();
-    encoded[0] = 2;
-    assert_eq!(OuterHeader::decode(&encoded), Err(HeaderError::Version(2)));
+    encoded[0] = 3;
+    assert_eq!(OuterHeader::decode(&encoded), Err(HeaderError::Version(3)));
 }
 
 #[test]
