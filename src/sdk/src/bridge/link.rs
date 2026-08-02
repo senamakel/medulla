@@ -48,6 +48,11 @@ const MAX_PARTIAL_MESSAGES: usize = 128;
 const MAX_PARTIAL_BYTES: usize = 16 * 1024 * 1024;
 const PARTIAL_TTL: Duration = Duration::from_secs(30);
 
+/// Mint an id that does not reset to a predictable value with the process.
+fn next_message_id() -> u64 {
+    u64::from_be_bytes(Uuid::new_v4().as_bytes()[..8].try_into().expect("8 bytes"))
+}
+
 struct PartialMessage {
     chunks: Vec<Option<Vec<u8>>>,
     bytes: usize,
@@ -360,7 +365,7 @@ impl Bridge for LinkBridge {
         // may still retain an old incomplete message. A random v4 UUID prefix
         // makes the 64-bit wire id restart-unique without changing the fragment
         // header or coupling this layer to the transport's private epoch.
-        let id = u64::from_be_bytes(Uuid::new_v4().as_bytes()[..8].try_into().expect("8 bytes"));
+        let id = next_message_id();
         for (index, chunk) in payload.chunks(capacity).enumerate() {
             let mut frame = Vec::with_capacity(CHUNK_HEADER + chunk.len());
             frame.extend_from_slice(CHUNK_MAGIC);

@@ -69,7 +69,5 @@ async fn incomplete_reassembly_is_bounded_and_expires() {
 
 #[test]
 fn fragment_message_ids_are_random_across_calls() {
-    let first = Uuid::new_v4();
-    let second = Uuid::new_v4();
-    assert_ne!(&first.as_bytes()[..8], &second.as_bytes()[..8]);
+    assert_ne!(next_message_id(), next_message_id());
 }
