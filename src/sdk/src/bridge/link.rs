@@ -314,7 +314,7 @@ impl Bridge for LinkBridge {
             return self
                 .inner
                 .link
-                .send_screen(peer, vec![body.as_bytes().to_vec()])
+                .send_screen_frame(peer, body.as_bytes())
                 .await
                 .map_err(|err| err.to_string());
         }

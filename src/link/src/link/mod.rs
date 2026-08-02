@@ -21,7 +21,7 @@ use crate::keys::{self, AcquiredNode, NodeId};
 use crate::state::QueueLimits;
 use crate::transport::{Session, SessionConfig};
 
-use types::Command;
+use types::{Command, SCREEN_FRAME_HEADER, SCREEN_FRAME_MAGIC};
 pub use types::{LinkConfig, LinkError, LinkHandle, LinkStatus, PeerConfig};
 
 /// How many messages may sit in the inbound queue before the driver blocks.
@@ -239,8 +239,8 @@ impl Driver {
         let screen = session.screen().rows().to_vec();
         if self.last_screens.get(&header.src) != Some(&screen) {
             self.last_screens.insert(header.src, screen.clone());
-            if let [message] = screen.as_slice() {
-                pending.push_back((epoch, message.clone()));
+            if let Some(message) = complete_screen_frame(&screen) {
+                pending.push_back((epoch, message));
             }
         }
     }
@@ -298,6 +298,27 @@ impl Driver {
             .collect();
         let _ = self.status.send(LinkStatus { peers });
     }
+}
+
+/// Reassemble the application frame once every channel-1 row has arrived.
+fn complete_screen_frame(rows: &[Vec<u8>]) -> Option<Vec<u8>> {
+    if rows.is_empty() {
+        return None;
+    }
+    let count = rows.len();
+    let mut body = Vec::new();
+    for (index, row) in rows.iter().enumerate() {
+        if row.len() < SCREEN_FRAME_HEADER || &row[..4] != SCREEN_FRAME_MAGIC {
+            return None;
+        }
+        let declared = u32::from_be_bytes(row[4..8].try_into().ok()?) as usize;
+        let declared_index = u32::from_be_bytes(row[8..12].try_into().ok()?) as usize;
+        if declared != count || declared_index != index {
+            return None;
+        }
+        body.extend_from_slice(&row[SCREEN_FRAME_HEADER..]);
+    }
+    Some(body)
 }
 
 /// Build a session configuration from the node identity and one peer.

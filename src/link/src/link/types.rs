@@ -10,6 +10,9 @@ use crate::keys::{KeyError, NodeId, PairKey};
 use crate::state::QueueLimits;
 use crate::transport::{SessionStatus, TransportError, MAX_SENT_STATES};
 
+pub(super) const SCREEN_FRAME_MAGIC: &[u8; 4] = b"MSF1";
+pub(super) const SCREEN_FRAME_HEADER: usize = 12;
+
 /// A peer this endpoint can talk to, and the key it is talked to with.
 ///
 /// The pair key is per peer by construction (§7.1): an orchestrator generates
@@ -172,6 +175,30 @@ impl LinkHandle {
     pub async fn send_screen(&self, peer: NodeId, rows: Vec<Vec<u8>>) -> Result<(), LinkError> {
         self.request(|reply| Command::Screen { peer, rows, reply })
             .await
+    }
+
+    /// Replace `peer`'s screen frame, splitting large frames into state steps.
+    pub async fn send_screen_frame(&self, peer: NodeId, body: &[u8]) -> Result<(), LinkError> {
+        let capacity = crate::transport::MAX_MESSAGE_BYTES - 20;
+        let count = body.len().div_ceil(capacity).max(1);
+        let mut rows = Vec::with_capacity(count);
+        for (index, chunk) in body.chunks(capacity).enumerate() {
+            let mut row = Vec::with_capacity(SCREEN_FRAME_HEADER + chunk.len());
+            row.extend_from_slice(SCREEN_FRAME_MAGIC);
+            row.extend_from_slice(&(count as u32).to_be_bytes());
+            row.extend_from_slice(&(index as u32).to_be_bytes());
+            row.extend_from_slice(chunk);
+            rows.push(row);
+            self.send_screen(peer, rows.clone()).await?;
+        }
+        if body.is_empty() {
+            let mut row = Vec::with_capacity(SCREEN_FRAME_HEADER);
+            row.extend_from_slice(SCREEN_FRAME_MAGIC);
+            row.extend_from_slice(&1u32.to_be_bytes());
+            row.extend_from_slice(&0u32.to_be_bytes());
+            self.send_screen(peer, vec![row]).await?;
+        }
+        Ok(())
     }
 
     /// The next message received from any peer.
