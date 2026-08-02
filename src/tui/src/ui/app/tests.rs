@@ -124,7 +124,7 @@ fn enter_answers_the_harness_picker_not_the_harness_behind_it() {
     a.harness_pane_session = Some("already-running".to_string());
     a.harness_picker = Some(HarnessPicker {
         choices: vec![HarnessChoice::native(
-            medulla::tinyplace::HarnessProvider::Claude,
+            medulla::protocol::HarnessProvider::Claude,
         )],
         index: 0,
         step: HarnessPickerStep::Harness,
