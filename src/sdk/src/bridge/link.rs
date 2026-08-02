@@ -33,6 +33,10 @@ use medulla_link::{LinkHandle, Liveness, MAX_MESSAGE_BYTES};
 
 use super::{Bridge, BridgeLiveness, InboundMessage};
 
+#[cfg(test)]
+#[path = "link_tests.rs"]
+mod tests;
+
 /// Maximum number of complete frames buffered above the bounded link channel.
 const INBOX_CAPACITY: usize = 1024;
 

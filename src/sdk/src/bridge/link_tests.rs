@@ -1,0 +1,44 @@
+//! Unit tests for bridge-level fragmentation and reassembly.
+
+use super::*;
+
+fn chunk(id: u64, index: u32, count: u32, body: &[u8]) -> Vec<u8> {
+    let mut frame = Vec::new();
+    frame.extend_from_slice(CHUNK_MAGIC);
+    frame.extend_from_slice(&id.to_be_bytes());
+    frame.extend_from_slice(&index.to_be_bytes());
+    frame.extend_from_slice(&count.to_be_bytes());
+    frame.extend_from_slice(body);
+    frame
+}
+
+#[tokio::test]
+async fn fragments_reassemble_without_mixing_interleaved_messages() {
+    let inbox = Inbox::default();
+    let peer = NodeId([7; 16]);
+
+    assert!(reassemble(peer, chunk(1, 0, 2, b"large "), &inbox)
+        .await
+        .is_none());
+    assert!(reassemble(peer, chunk(2, 0, 2, b"other "), &inbox)
+        .await
+        .is_none());
+    assert_eq!(
+        reassemble(peer, chunk(1, 1, 2, b"frame"), &inbox).await,
+        Some(b"large frame".to_vec())
+    );
+    assert_eq!(
+        reassemble(peer, chunk(2, 1, 2, b"message"), &inbox).await,
+        Some(b"other message".to_vec())
+    );
+}
+
+#[tokio::test]
+async fn unframed_payloads_remain_compatible() {
+    let inbox = Inbox::default();
+    let body = b"legacy frame".to_vec();
+    assert_eq!(
+        reassemble(NodeId([8; 16]), body.clone(), &inbox).await,
+        Some(body)
+    );
+}
