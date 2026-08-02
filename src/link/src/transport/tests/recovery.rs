@@ -149,7 +149,9 @@ fn a_peer_restart_preserves_datagram_sized_queue_prefixes() {
 fn a_peer_restart_rebuilds_screen_rows_as_datagram_sized_prefixes() {
     let mut pair = Pair::new();
     let rows = vec![vec![1; 900], vec![2; 900], vec![3; 900]];
-    pair.orchestrator.set_screen(rows.clone()).unwrap();
+    for end in 1..=rows.len() {
+        pair.orchestrator.set_screen(rows[..end].to_vec()).unwrap();
+    }
 
     let first = pair
         .orchestrator
