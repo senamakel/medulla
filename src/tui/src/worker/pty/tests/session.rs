@@ -53,6 +53,27 @@ fn a_terminal_title_update_surfaces_as_the_thread_name() {
     manager.close(&id);
 }
 
+#[test]
+fn clearing_a_terminal_title_clears_the_thread_name() {
+    let manager = PtyManager::new();
+    let id = manager
+        .open(sh(
+            "printf '\\033]2;Named thread\\007'; read line; printf '\\033]2;   \\007'; sleep 30",
+        ))
+        .unwrap();
+    wait_for("initial thread name", || {
+        manager.row(&id).and_then(|row| row.thread_name).as_deref() == Some("Named thread")
+    });
+
+    manager.write(&id, b"clear\n").unwrap();
+    wait_for("cleared thread name", || {
+        manager.row(&id).is_some_and(|row| row.thread_name.is_none())
+    });
+
+    assert_eq!(manager.row(&id).unwrap().thread_name, None);
+    manager.close(&id);
+}
+
 #[tokio::test]
 async fn typed_input_reaches_the_child() {
     let manager = PtyManager::new();
