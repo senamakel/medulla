@@ -225,7 +225,6 @@ impl Driver {
             return;
         }
         let messages = session.take_messages();
-        let peer = header.src;
         let epoch = session
             .peer_epoch()
             .expect("an accepted datagram has an epoch");
