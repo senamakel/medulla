@@ -18,9 +18,7 @@ use async_trait::async_trait;
 use crate::flow_engine::caps::dispatch::HarnessDispatch;
 use crate::flow_engine::{folding_sink, CapabilitySettings, HostServices};
 use crate::hub::{RunError, TaskOutcome, TaskRequest};
-use crate::protocol::{
-    TaskFrame, TaskFrameKind, TokenUsage, WorkflowAdvert, WorkflowInputAdvert,
-};
+use crate::protocol::{TaskFrame, TaskFrameKind, TokenUsage, WorkflowAdvert, WorkflowInputAdvert};
 // `trigger_input` is shared with the cloud plane's adapter
 // ([`crate::workflows::bridge`]) rather than defined twice: a frame's text must
 // become the same trigger payload whether it arrived over tiny.place or over the

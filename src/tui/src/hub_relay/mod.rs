@@ -16,7 +16,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use medulla::auth::Credentials;
-use medulla::hub::{start_hub, HubConfig, HubSession, WorkerSpec};
+use medulla::hub::{
+    start_hub, HubConfig, HubLinkConfig, HubLinkPeer, HubSession, WorkerSpec,
+};
 
 /// Default inbox poll interval when `MEDULLA_HUB_POLL_MS` is unset.
 const DEFAULT_POLL_MS: u64 = 1500;
@@ -59,6 +61,38 @@ fn workers_from_config(home: &Path) -> Vec<WorkerSpec> {
             workspace: None,
         })
         .collect()
+}
+
+/// Build the remote side of the hub from an enrolled link identity.
+///
+/// The current node-state schema carries one peer key. A configured peer name
+/// is matched to that wire id; absent a row, its hexadecimal id remains a valid
+/// bridge address so an enrolled link is never silently left unused.
+fn link_from_config(home: &Path) -> Option<HubLinkConfig> {
+    let text = std::fs::read_to_string(roster_path(home)).ok()?;
+    let config = toml::from_str::<medulla::config::TuiConfig>(&text).ok()?;
+    let link = config.link?;
+    let state_dir = PathBuf::from(&link.state_dir);
+    let state = medulla_link::keys::read_node_state(&medulla_link::keys::node_path(&state_dir))
+        .ok()?;
+    let peer_name = link
+        .peers
+        .iter()
+        .find(|peer| peer.node_id.as_deref() == Some(&state.peer_node_id.to_string()))
+        .and_then(|peer| peer.address.clone().or_else(|| peer.name.clone()))
+        .unwrap_or_else(|| state.peer_node_id.to_string());
+    Some(HubLinkConfig {
+        state_dir,
+        node_name: link
+            .node_name
+            .unwrap_or_else(|| state.node_id.to_string()),
+        forwarder_endpoint: None,
+        peers: vec![HubLinkPeer {
+            name: peer_name,
+            node_id: state.peer_node_id,
+            pair_key: state.pair_key,
+        }],
+    })
 }
 
 /// Subscription routing remembered beside the roster.
@@ -332,11 +366,7 @@ pub(crate) fn build_hub_config_with_host(
         log,
         backend_url: creds.base_url,
         jwt: creds.jwt,
-        // No remote link yet: enrollment (the invite token and the hand-carried
-        // pair key) is the Hosts page's job, so until a host is enrolled the hub
-        // routes on the device-local bus only. That is exactly
-        // `RoutingBridge::local_only`, which is the single-device tier.
-        link: None,
+        link: link_from_config(home),
         workers,
         poll: Duration::from_millis(poll_ms),
         local_network,

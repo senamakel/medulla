@@ -248,14 +248,7 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
         return None;
     }
     let partial = partials.remove(&(peer, id)).expect("partial exists");
-    Some(
-        partial
-            .chunks
-            .into_iter()
-            .flatten()
-            .flatten()
-            .collect(),
-    )
+    Some(partial.chunks.into_iter().flatten().flatten().collect())
 }
 
 #[async_trait]
@@ -273,7 +266,9 @@ impl Bridge for LinkBridge {
         let capacity = MAX_MESSAGE_BYTES - CHUNK_HEADER;
         let count = payload.len().div_ceil(capacity).max(1);
         if count > MAX_CHUNKS {
-            return Err(format!("bridge frame requires {count} chunks; limit is {MAX_CHUNKS}"));
+            return Err(format!(
+                "bridge frame requires {count} chunks; limit is {MAX_CHUNKS}"
+            ));
         }
         let id = NEXT_MESSAGE_ID.fetch_add(1, Ordering::Relaxed);
         for (index, chunk) in payload.chunks(capacity).enumerate() {

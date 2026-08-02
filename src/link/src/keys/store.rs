@@ -88,7 +88,10 @@ pub fn write_node_state(path: &Path, state: &NodeState) -> KeyResult<()> {
 /// Make the renamed directory entry durable as well as the file contents.
 #[cfg(unix)]
 fn sync_parent(path: &Path) -> std::io::Result<()> {
-    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         File::open(parent)?.sync_all()?;
     }
     Ok(())
