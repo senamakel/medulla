@@ -19,6 +19,7 @@ use super::{base_config, recording_send, resume_runner, task_frame, wait_ready};
 fn conversation_frame(task_id: &str, text: &str, conversation: &str) -> crate::protocol::TaskFrame {
     crate::protocol::TaskFrame {
         conversation: Some(conversation.to_string()),
+        fleet_depth: 0,
         ..task_frame(task_id, text, None)
     }
 }

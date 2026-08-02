@@ -74,6 +74,9 @@ uuid = { workspace = true }
 
 tempfile = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 # `test-util` gives the tests a paused clock. The host-link timeout gate
 # (docs/host-link-protocol.md §6.3) is tested over multi-second windows, which

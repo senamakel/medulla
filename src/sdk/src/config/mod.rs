@@ -44,7 +44,7 @@ pub use persist::{
 pub use types::{
     wire_value, AppearanceConfig, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle,
     CoreConfig, EvolveSettings, FieldPlacement, FieldVisibility, FleetConfig, HarnessNameStyle,
-    HarnessSection, HostSection, HubSection, HubWorkerConfig, LinkConfig, LoadedConfig,
+    HarnessSection, HostSection, HubSection, HubWorkerConfig, LinkConfig, LoadedConfig, McpSection,
     MedullaConfig, OnboardingConfig, OpencodeConfig, PathStyle, Peer, ProviderBudgetConfig,
     RouterConfig, RouterProviderConfig, StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig,
     WorkflowConfig, WorkflowsConfig, DEFAULT_CONTEXT_WINDOW_TOKENS,
