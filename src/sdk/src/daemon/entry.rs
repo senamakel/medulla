@@ -127,21 +127,20 @@ pub async fn run_daemon(
     // `onboarding_ui` this walks the operator through onboarding; without one it
     // auto-registers with defaults + an env owner so the daemon stays scriptable.
     // Aborting the interactive flow (q / Ctrl-C) exits cleanly without serving.
-    let worker_profile =
-        match crate::onboarding::ensure_registered_in(
-            &env,
-            reonboard,
-            onboarding_ui,
-            std::path::Path::new(&workspace),
-        )
-        .await?
-        {
-            Some(reg) => reg.profile,
-            None => {
-                log("onboarding aborted; not starting daemon");
-                return Ok(());
-            }
-        };
+    let worker_profile = match crate::onboarding::ensure_registered_in(
+        &env,
+        reonboard,
+        onboarding_ui,
+        std::path::Path::new(&workspace),
+    )
+    .await?
+    {
+        Some(reg) => reg.profile,
+        None => {
+            log("onboarding aborted; not starting daemon");
+            return Ok(());
+        }
+    };
     // The profile's name is the daemon's advertised label unless --name overrides it.
     let _display_name = flags.string("name").or_else(|| {
         let name = worker_profile.name.trim();

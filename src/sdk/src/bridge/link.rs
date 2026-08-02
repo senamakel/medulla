@@ -270,7 +270,11 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
         // chunks have already been acknowledged by the reliable link and cannot
         // be retransmitted. A second id is malformed concurrency and is refused
         // without damaging the frame already in progress.
-        if reassembly.partials.keys().any(|(source, _)| *source == peer) {
+        if reassembly
+            .partials
+            .keys()
+            .any(|(source, _)| *source == peer)
+        {
             return None;
         }
         reassembly.partials.insert(
