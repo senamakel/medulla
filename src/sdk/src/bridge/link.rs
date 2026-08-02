@@ -32,6 +32,9 @@ use medulla_link::{LinkHandle, Liveness};
 
 use super::{Bridge, BridgeLiveness, InboundMessage};
 
+/// Maximum number of complete frames buffered above the bounded link channel.
+const INBOX_CAPACITY: usize = 1024;
+
 /// One reachable peer: the name callers address it by, and the id on the wire.
 ///
 /// The two are separate on purpose (protocol §2). `node_name` is human-readable
@@ -65,6 +68,8 @@ struct Inbox {
     /// Notified on every delivery, so `wait_for_inbox` returns at about a round
     /// trip rather than at the caller's poll interval.
     arrival: Notify,
+    /// Wakes the pump after a consumer frees queue capacity.
+    space: Notify,
 }
 
 /// Shared state behind every clone of a [`LinkBridge`].
@@ -185,12 +190,19 @@ async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<
         // lossy decode is the right failure: a mangled frame surfaces as a frame
         // that does not parse, not as a silently vanished message.
         let text = String::from_utf8_lossy(&body).into_owned();
-        inbox
-            .queue
-            .lock()
-            .await
-            .push_back(InboundMessage { from, text });
-        inbox.arrival.notify_waiters();
+        let mut message = Some(InboundMessage { from, text });
+        loop {
+            let space = inbox.space.notified();
+            {
+                let mut queue = inbox.queue.lock().await;
+                if queue.len() < INBOX_CAPACITY {
+                    queue.push_back(message.take().expect("message is queued once"));
+                    inbox.arrival.notify_waiters();
+                    break;
+                }
+            }
+            space.await;
+        }
     }
 }
 
@@ -220,7 +232,11 @@ impl Bridge for LinkBridge {
         let count = usize::try_from(limit)
             .unwrap_or(usize::MAX)
             .min(queue.len());
-        queue.drain(..count).collect()
+        let drained = queue.drain(..count).collect();
+        if count > 0 {
+            self.inner.inbox.space.notify_waiters();
+        }
+        drained
     }
 
     /// Return as soon as the pump delivers, or after `poll`.

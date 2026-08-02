@@ -53,8 +53,8 @@ impl Link {
             .forwarder_endpoint
             .clone()
             .unwrap_or_else(|| node.state.forwarder_endpoint.clone());
-        let forwarder = resolve(&endpoint)?;
         let socket = UdpSocket::bind(config.bind).await?;
+        let forwarder = resolve(&endpoint, config.bind.is_ipv4())?;
 
         let (command_tx, command_rx) = mpsc::channel(COMMAND_CAPACITY);
         let (inbound_tx, inbound_rx) = mpsc::channel(INBOUND_CAPACITY);
@@ -77,11 +77,11 @@ impl Link {
 }
 
 /// Resolve a `host:port` forwarder endpoint to one address.
-fn resolve(endpoint: &str) -> Result<SocketAddr, LinkError> {
+fn resolve(endpoint: &str, ipv4: bool) -> Result<SocketAddr, LinkError> {
     endpoint
         .to_socket_addrs()
         .map_err(|_| LinkError::Endpoint(endpoint.to_string()))?
-        .next()
+        .find(|address| address.is_ipv4() == ipv4)
         .ok_or_else(|| LinkError::Endpoint(endpoint.to_string()))
 }
 

@@ -151,7 +151,14 @@ pub async fn run_daemon(
     // (protocol §3.1). The lock is released when the link driver stops, which is
     // when the handle below is dropped: the end of `run_daemon`.
     let home = crate::home::medulla_home(&env);
-    let link_dir = medulla_link::keys::link_dir(&home);
+    let link_dir = crate::config::load_config(
+        flags.string("config").as_deref(),
+        &env,
+        std::path::Path::new(&workspace),
+    )
+    .ok()
+    .and_then(|loaded| loaded.config.link.map(|link| PathBuf::from(link.state_dir)))
+    .unwrap_or_else(|| medulla_link::keys::link_dir(&home));
     // The orchestrator this host serves. A host enrolls against exactly one
     // (protocol §7.3), so this is also the link's single peer.
     let owner = crate::onboarding::env_owner(&env)
@@ -280,6 +287,9 @@ pub async fn run_daemon(
     if once {
         // Probe hook: drain the inbox once, wait for every started task to
         // settle, then exit.
+        transport
+            .wait_for_inbox(tokio::time::Duration::from_millis(poll_ms))
+            .await;
         drain_once(&transport, &runtime).await;
         runtime.idle().await;
         log("--once complete");
