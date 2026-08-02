@@ -147,9 +147,10 @@ async fn malformed_explicit_config_cannot_mutate_an_existing_profile() {
     };
     profile.save(&profile_file).unwrap();
 
-    let err = ensure_registered_in(&e, false, None, dir.path())
-        .await
-        .expect_err("an explicit malformed config must stop onboarding");
+    let err = match ensure_registered_in(&e, false, None, dir.path()).await {
+        Err(err) => err,
+        Ok(_) => panic!("an explicit malformed config must stop onboarding"),
+    };
 
     assert!(err.to_string().contains("explicit configuration failed"));
     assert_eq!(
