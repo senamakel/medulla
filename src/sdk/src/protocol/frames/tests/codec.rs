@@ -43,7 +43,7 @@ fn encodes_a_minimal_frame() {
 #[test]
 fn rejects_a_fleet_depth_that_cannot_fit_the_protocol_type() {
     let body = json!({
-        "proto": TINYPLACE_PROTO,
+        "proto": MEDULLA_TASK_PROTO,
         "kind": "task",
         "taskId": "cycle-1",
         "text": "do the thing",
