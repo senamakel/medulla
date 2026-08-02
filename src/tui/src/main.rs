@@ -218,42 +218,42 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
             .iter()
             .filter_map(|peer| {
                 Some(medulla_link::PeerConfig {
-                    node_id: peer.node_id.as_deref()?.parse().ok()?,
+                    node_id: medulla_link::keys::NodeId::from_hex(peer.node_id.as_deref()?)?,
                     pair_key: state.pair_key.clone(),
                 })
             })
             .collect();
     }
     let transport = match medulla_link::Link::connect(transport_config).await {
-            Ok(link) => {
-                // The owner is the link's single peer: a host enrolls against
-                // exactly one orchestrator (protocol §7.3).
-                let owner = link_config
-                    .peers
-                    .first()
-                    .map(|peer| peer.id.clone())
-                    .unwrap_or_else(|| "orchestrator".to_string());
-                let node_name = link_config
-                    .node_name
-                    .clone()
-                    .unwrap_or_else(|| owner.clone());
-                match medulla::bridge::LinkBridge::single_peer(
-                    std::sync::Arc::new(link),
-                    node_name,
-                    owner,
-                ) {
-                    Ok(bridge) => Some(bridge),
-                    Err(err) => {
-                        startup_status = Some(format!("host link is misconfigured ({err})"));
-                        None
-                    }
+        Ok(link) => {
+            // The owner is the link's single peer: a host enrolls against
+            // exactly one orchestrator (protocol §7.3).
+            let owner = link_config
+                .peers
+                .first()
+                .map(|peer| peer.id.clone())
+                .unwrap_or_else(|| "orchestrator".to_string());
+            let node_name = link_config
+                .node_name
+                .clone()
+                .unwrap_or_else(|| owner.clone());
+            match medulla::bridge::LinkBridge::single_peer(
+                std::sync::Arc::new(link),
+                node_name,
+                owner,
+            ) {
+                Ok(bridge) => Some(bridge),
+                Err(err) => {
+                    startup_status = Some(format!("host link is misconfigured ({err})"));
+                    None
                 }
             }
-            Err(err) => {
-                startup_status = Some(format!("host link unavailable ({err})"));
-                None
-            }
-        };
+        }
+        Err(err) => {
+            startup_status = Some(format!("host link unavailable ({err})"));
+            None
+        }
+    };
     let agent_id = transport
         .as_ref()
         .map(|bridge| bridge.address().to_string())

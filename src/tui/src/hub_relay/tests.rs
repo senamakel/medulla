@@ -40,6 +40,43 @@ fn explicit_truthy_is_on() {
 }
 
 #[test]
+fn every_configured_link_peer_reaches_the_hub_bridge() {
+    use medulla_link::keys::{ForwarderKey, NodeId, NodeState, PairKey, Role};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let state_dir = dir.path().join("link");
+    let _node = medulla_link::keys::acquire_or_create(&state_dir, || NodeState {
+        version: 1,
+        node_id: NodeId([1; 16]),
+        role: Role::Orchestrator,
+        pair_key: PairKey::from_bytes([2; 16]),
+        forwarder_key: ForwarderKey([3; 32]),
+        forwarder_endpoint: "127.0.0.1:4600".to_string(),
+        peer_node_id: NodeId([4; 16]),
+        seq_reservation: 1,
+    })
+    .expect("node state");
+    let peer = |id: &str, byte: u8| medulla::config::Peer {
+        id: id.to_string(),
+        node_id: Some(NodeId([byte; 16]).to_string()),
+        address: Some(id.to_string()),
+        ..Default::default()
+    };
+    let config = medulla::config::LinkConfig {
+        state_dir: state_dir.display().to_string(),
+        peers: vec![peer("worker-alpha", 5), peer("worker-beta", 6)],
+        ..Default::default()
+    };
+
+    let link = super::link_from_resolved_config(&config, None).expect("hub link");
+    assert_eq!(link.peers.len(), 2);
+    assert_eq!(link.peers[0].name, "worker-alpha");
+    assert_eq!(link.peers[0].node_id, NodeId([5; 16]));
+    assert_eq!(link.peers[1].name, "worker-beta");
+    assert_eq!(link.peers[1].node_id, NodeId([6; 16]));
+}
+
+#[test]
 fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
     // Regression. The hub used to `eprintln!` its progress — "hub: connecting to
     // <url>", "socket closed — reconnecting", every task result. Under the

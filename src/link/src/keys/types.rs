@@ -90,6 +90,12 @@ impl NodeId {
     pub fn as_bytes(&self) -> &[u8; 16] {
         &self.0
     }
+
+    /// Decode the 32-character hexadecimal form issued by enrollment.
+    pub fn from_hex(text: &str) -> Option<Self> {
+        let bytes: [u8; 16] = hex_decode(text)?.try_into().ok()?;
+        Some(NodeId(bytes))
+    }
 }
 
 impl fmt::Display for NodeId {

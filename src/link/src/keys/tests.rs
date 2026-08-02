@@ -27,6 +27,13 @@ fn a_pair_key_round_trips_through_its_display_form() {
 }
 
 #[test]
+fn a_node_id_round_trips_through_its_hex_form() {
+    let id = NodeId([0xab; 16]);
+    assert_eq!(NodeId::from_hex(&id.to_string()), Some(id));
+    assert_eq!(NodeId::from_hex("not-hex"), None);
+}
+
+#[test]
 fn the_display_form_is_seven_groups_of_four() {
     let encoded = PairKey::from_bytes([0u8; 16]).encode();
     let groups: Vec<&str> = encoded.split('-').collect();

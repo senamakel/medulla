@@ -88,7 +88,7 @@ fn link_from_resolved_config(
         .peers
         .iter()
         .filter_map(|peer| {
-            let node_id = peer.node_id.as_deref()?.parse().ok()?;
+            let node_id = medulla_link::keys::NodeId::from_hex(peer.node_id.as_deref()?)?;
             Some(HubLinkPeer {
                 name: peer
                     .address
