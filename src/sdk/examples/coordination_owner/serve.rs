@@ -7,8 +7,8 @@
 
 use std::path::{Path, PathBuf};
 
-use medulla_link::keys::NodeId;
 use medulla::bridge::LinkBridge;
+use medulla_link::keys::NodeId;
 
 use crate::leg::{connect, run_leg};
 use crate::{parse_args, Args, POLL};
