@@ -6,7 +6,7 @@ use super::*;
 pub(in super::super) struct Bridge {
     pub(in super::super) transport: LinkBridge,
     pub(in super::super) publish_tx: mpsc::Sender<String>,
-    pub(in super::super) publisher: tokio::task::JoinHandle<()>,
+    pub(in super::super) _publisher: tokio::task::JoinHandle<()>,
     pub(in super::super) recipient: Option<String>,
     pub(in super::super) receive_from: Option<String>,
     pub(in super::super) receive_active: bool,
@@ -19,10 +19,4 @@ pub(in super::super) struct Bridge {
     pub(in super::super) harness_session_id: String,
     pub(in super::super) status_throttle_ms: i64,
     pub(in super::super) status_idle_ms: i64,
-}
-
-impl Drop for Bridge {
-    fn drop(&mut self) {
-        self.publisher.abort();
-    }
 }

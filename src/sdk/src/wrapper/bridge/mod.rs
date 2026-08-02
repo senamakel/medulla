@@ -282,7 +282,7 @@ pub(super) async fn build_bridge(
     Some(Bridge {
         transport,
         publish_tx,
-        publisher,
+        _publisher: publisher,
         recipient,
         receive_from,
         receive_active,
