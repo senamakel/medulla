@@ -9,6 +9,7 @@ fn key() -> ForwarderKey {
 
 fn header() -> OuterHeader {
     OuterHeader::new(NodeId([1u8; 16]), NodeId([2u8; 16]), 0x8000_0000_0000_002A)
+        .epoch(0x1122_3344_5566_7788)
 }
 
 #[test]
@@ -28,6 +29,10 @@ fn fields_sit_at_their_documented_offsets() {
     assert_eq!(
         u64::from_be_bytes(encoded[34..42].try_into().unwrap()),
         0x8000_0000_0000_002A
+    );
+    assert_eq!(
+        u64::from_be_bytes(encoded[42..50].try_into().unwrap()),
+        0x1122_3344_5566_7788
     );
 }
 
