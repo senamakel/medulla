@@ -152,6 +152,16 @@ async fn two_links_exchange_messages_through_a_forwarder() {
     assert_eq!(from, host_id);
     assert_eq!(body, b"latest screen frame");
 
+    let large_screen = vec![b'x'; 4_000];
+    host.send_screen_frame(orchestrator_id, &large_screen)
+        .await
+        .unwrap();
+    let (_from, _epoch, body) = tokio::time::timeout(PATIENCE, orchestrator.recv())
+        .await
+        .expect("the orchestrator heard no fragmented screen update")
+        .expect("the link closed");
+    assert_eq!(body, large_screen);
+
     // Both ends have heard from each other, so both report the peer live.
     let status = orchestrator.status();
     let peer = status.peer(&host_id).expect("a session for the host");
