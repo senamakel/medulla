@@ -207,6 +207,12 @@ pub(super) async fn build_bridge(
     let home = crate::home::medulla_home(&config.env);
     // Load the effective configuration to honor the configured link.stateDir if set.
     let explicit_config = crate::config::explicit_config_from_env(&config.env);
+    if explicit_config.is_some_and(|path| !std::path::Path::new(path).is_file()) {
+        eprintln!(
+            "medulla wrapper: explicit configuration does not exist — running as a plain passthrough"
+        );
+        return None;
+    }
     let link_state_dir = match crate::config::load_config(
         explicit_config,
         &config.env,

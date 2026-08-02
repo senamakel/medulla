@@ -442,9 +442,18 @@ impl TaskRunner {
                 fleet_depth: req.fleet_depth,
             });
 
-            if let Err(e) = self.relay.send(&req.worker_address, &body).await {
-                self.waiters.lock().await.remove(&cid);
-                return Err(RunError::Transport(e));
+            tokio::select! {
+                biased;
+                _ = abort.notified() => {
+                    self.waiters.lock().await.remove(&cid);
+                    return Err(RunError::Aborted);
+                }
+                result = self.relay.send(&req.worker_address, &body) => {
+                    if let Err(e) = result {
+                        self.waiters.lock().await.remove(&cid);
+                        return Err(RunError::Transport(e));
+                    }
+                }
             }
 
             // Ack window: first sign of life, an early terminal, an orchestrator

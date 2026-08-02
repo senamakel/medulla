@@ -73,7 +73,10 @@ fn link_from_config(env: &HashMap<String, String>, home: &Path) -> Option<HubLin
     let config = medulla::config::load_config(path.to_str(), env, &cwd)
         .ok()?
         .config;
-    link_from_resolved_config(&config.link?, None)
+    let link = config
+        .link
+        .unwrap_or_else(|| medulla::config::default_link_config(env));
+    link_from_resolved_config(&link, None)
 }
 
 /// Build hub link wiring from the same resolved config the TUI is displaying.

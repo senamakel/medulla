@@ -178,6 +178,9 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
     // `app_loop::run_tui`. This worker TUI runs the same daemon that spawns
     // ACP harness subprocesses, so it needs the same propagation.
     if let Some(path) = explicit_config.as_deref() {
+        if !std::path::Path::new(path).is_file() {
+            anyhow::bail!("explicit daemon configuration does not exist: {path}");
+        }
         std::env::set_var(medulla::config::CONFIG_PATH_ENV, path);
     }
     let loaded =

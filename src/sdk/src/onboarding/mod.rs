@@ -88,6 +88,11 @@ pub async fn ensure_registered_in(
     let profile_file = profile_path(env);
     // Load the effective configuration to honor the configured link.stateDir if set.
     let explicit_config = crate::config::explicit_config_from_env(env);
+    if let Some(path) = explicit_config {
+        if !Path::new(path).is_file() {
+            anyhow::bail!("explicit configuration does not exist: {path}");
+        }
+    }
     let link_dir = match crate::config::load_config(explicit_config, env, config_cwd) {
         Ok(loaded) => loaded
             .config
