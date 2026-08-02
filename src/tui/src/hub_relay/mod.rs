@@ -412,22 +412,23 @@ pub(crate) async fn start(
     logs: medulla_tui::log::LogBuffer,
     local: Option<LocalDispatch>,
     session: Option<&Credentials>,
-    agent_templates: Vec<medulla::runtime::AgentTemplate>,
-    resolved_link: Option<&medulla::config::LinkConfig>,
-    link_handle: Option<Arc<LinkHandle>>,
+    startup: StartupConfig,
 ) -> Option<HubSession> {
     // The hub must never write to the terminal here: the TUI owns the alternate
     // screen, and ratatui only repaints the cells it manages, so a stray line
     // lands on top of the UI and is never cleared. Capturing them keeps the
     // screen intact and the diagnostics readable.
-    let link = resolved_link.and_then(|config| link_from_resolved_config(config, link_handle));
+    let link = startup
+        .link
+        .as_ref()
+        .and_then(|link| link_from_resolved_config(&link.config, Some(link.handle.clone())));
     let config = build_hub_config_with_host_and_link(
         env,
         home,
         logs.sink(),
         local,
         session,
-        agent_templates,
+        startup.agent_templates,
         link,
     )?;
     match start_hub(config).await {
@@ -447,3 +448,19 @@ mod tests;
 
 mod types;
 pub(crate) use types::{HubSlot, LocalDispatch};
+
+/// Inputs already resolved by the TUI's layered configuration load.
+pub(crate) struct StartupConfig {
+    /// Agent roles shown by the same running TUI.
+    pub agent_templates: Vec<medulla::runtime::AgentTemplate>,
+    /// The one link handle shared by observation and dispatch.
+    pub link: Option<ResolvedLink>,
+}
+
+/// A configured link and the handle that already owns its identity lock.
+pub(crate) struct ResolvedLink {
+    /// Effective `[link]` configuration after all layers are merged.
+    pub config: medulla::config::LinkConfig,
+    /// Link opened by the observation service.
+    pub handle: Arc<LinkHandle>,
+}
