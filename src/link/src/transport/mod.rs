@@ -26,6 +26,8 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+use std::collections::HashSet;
+
 use crate::crypto;
 use crate::header::{OuterHeader, HEADER_LEN, MAX_DATAGRAM};
 use crate::keys::SeqSource;
@@ -82,6 +84,7 @@ pub struct Session {
     rotate: bool,
     local_epoch: u64,
     peer_epoch: Option<u64>,
+    retired_peer_epochs: HashSet<u64>,
 }
 
 impl Session {
@@ -103,6 +106,7 @@ impl Session {
             rotate: false,
             local_epoch: rand::thread_rng().next_u64(),
             peer_epoch: None,
+            retired_peer_epochs: HashSet::new(),
         }
     }
 
@@ -318,7 +322,12 @@ impl Session {
         )?;
         let packet = Packet::decode(&plaintext)?;
 
+        if self.retired_peer_epochs.contains(&header.epoch) {
+            return Ok(false);
+        }
         if self.peer_epoch.is_some_and(|epoch| epoch != header.epoch) {
+            self.retired_peer_epochs
+                .insert(self.peer_epoch.expect("peer epoch is present"));
             self.messages.reset_peer();
             self.screen.reset_peer();
             self.ack_pending = [false; CHANNEL_COUNT];
