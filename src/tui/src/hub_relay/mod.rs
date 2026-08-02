@@ -16,9 +16,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use medulla::auth::Credentials;
-use medulla::hub::{
-    start_hub, HubConfig, HubLinkConfig, HubLinkPeer, HubSession, WorkerSpec,
-};
+use medulla::hub::{start_hub, HubConfig, HubLinkConfig, HubLinkPeer, HubSession, WorkerSpec};
 
 /// Default inbox poll interval when `MEDULLA_HUB_POLL_MS` is unset.
 const DEFAULT_POLL_MS: u64 = 1500;
@@ -73,8 +71,8 @@ fn link_from_config(home: &Path) -> Option<HubLinkConfig> {
     let config = toml::from_str::<medulla::config::TuiConfig>(&text).ok()?;
     let link = config.link?;
     let state_dir = PathBuf::from(&link.state_dir);
-    let state = medulla_link::keys::read_node_state(&medulla_link::keys::node_path(&state_dir))
-        .ok()?;
+    let state =
+        medulla_link::keys::read_node_state(&medulla_link::keys::node_path(&state_dir)).ok()?;
     let peer_name = link
         .peers
         .iter()
@@ -83,9 +81,7 @@ fn link_from_config(home: &Path) -> Option<HubLinkConfig> {
         .unwrap_or_else(|| state.peer_node_id.to_string());
     Some(HubLinkConfig {
         state_dir,
-        node_name: link
-            .node_name
-            .unwrap_or_else(|| state.node_id.to_string()),
+        node_name: link.node_name.unwrap_or_else(|| state.node_id.to_string()),
         forwarder_endpoint: None,
         peers: vec![HubLinkPeer {
             name: peer_name,
