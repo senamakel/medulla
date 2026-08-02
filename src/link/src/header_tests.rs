@@ -12,7 +12,7 @@ fn header() -> OuterHeader {
 }
 
 #[test]
-fn the_header_is_fifty_eight_bytes_with_the_tag_at_forty_two() {
+fn the_header_is_sixty_six_bytes_with_the_tag_at_fifty() {
     let encoded = header().encode(&key());
     assert_eq!(encoded.len(), 66);
     assert_eq!(HEADER_LEN, 66);

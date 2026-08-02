@@ -57,7 +57,7 @@ parses.
 
 | Offset | Size | Field | Notes |
 |---:|---:|---|---|
-| 0 | 1 | `version` | `1`. Anything else is dropped |
+| 0 | 1 | `version` | `2`. Anything else is dropped |
 | 1 | 1 | `flags` | bit 0 = heartbeat (no state change). Bits 1–7 reserved, MUST be 0 |
 | 2 | 16 | `src_node_id` | |
 | 18 | 16 | `dst_node_id` | |
@@ -97,7 +97,7 @@ at the *state* layer — send a smaller diff — never at the datagram layer.
 
 ## 4. Payload
 
-`payload = ChaCha20-Poly1305(key = pair_key, nonce = §4.2, aad = header[0..42],
+`payload = ChaCha20-Poly1305(key = pair_key, nonce = §4.2, aad = header[0..50],
 plaintext = §4.1)`.
 
 Binding the AAD to the outer header means a recipient can verify the datagram was
