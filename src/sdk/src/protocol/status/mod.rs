@@ -10,7 +10,7 @@
 //! State strings are the SDK's `HarnessSessionState` wire values, exposed as the
 //! `STATE_*` constants so the fold ([`crate::protocol::consumer`]) and this machine agree.
 
-use ::tinyplace::types::{HarnessEventKind, StatusPayload};
+use crate::protocol::envelope::{HarnessEventKind, StatusPayload};
 
 /// Default idle horizon: age a silent active session after 30s.
 pub const DEFAULT_IDLE_AFTER_MS: i64 = 30_000;

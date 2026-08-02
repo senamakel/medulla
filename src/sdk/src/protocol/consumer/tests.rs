@@ -239,8 +239,8 @@ fn a_wrapped_sessions_todo_list_folds_into_its_view() {
 
     let mut view = initial_session_view();
     let envelope = |seq: i64, kind: &str, payload: serde_json::Value| {
-        let mut env = ::tinyplace::types::SessionEnvelopeV2 {
-            envelope_version: ::tinyplace::types::SESSION_ENVELOPE_VERSION_V2.to_string(),
+        let mut env = crate::protocol::envelope::SessionEnvelopeV2 {
+            envelope_version: crate::protocol::envelope::SESSION_ENVELOPE_VERSION_V2.to_string(),
             version: 2,
             ..Default::default()
         };
@@ -248,7 +248,7 @@ fn a_wrapped_sessions_todo_list_folds_into_its_view() {
         env.event.seq = seq;
         env.event.kind = kind.to_string();
         env.event.payload = payload;
-        ::tinyplace::types::AnySessionEnvelope::V2(env)
+        crate::protocol::envelope::AnySessionEnvelope::V2(env)
     };
 
     apply_session_envelope(

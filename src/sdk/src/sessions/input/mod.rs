@@ -23,7 +23,7 @@
 //! [`Folded`] rather than a bare [`TurnRequest`] — most envelope events
 //! are progress reports on a turn somebody else is running.
 
-use ::tinyplace::types::{
+use crate::protocol::envelope::{
     AnySessionEnvelope, HarnessEventKind, SessionEnvelopeV1, SessionEnvelopeV2,
 };
 

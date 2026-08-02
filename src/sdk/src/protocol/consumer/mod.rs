@@ -6,11 +6,11 @@
 //! v1 envelopes carry no typed events and are ignored here.
 //!
 //! The envelope/event types come from the published SDK
-//! (the SDK `::tinyplace::types` module); this module only derives view state from
+//! ([`crate::protocol::envelope`]); this module only derives view state from
 //! them. State strings match the SDK's `HarnessSessionState` wire values (see
 //! [`crate::protocol::status`] for the shared constants).
 
-use ::tinyplace::types::{AnySessionEnvelope, HarnessEventKind, SessionEnvelopeV2};
+use crate::protocol::envelope::{AnySessionEnvelope, HarnessEventKind, SessionEnvelopeV2};
 
 use super::status::{
     STATE_ERRORED, STATE_IDLE, STATE_RUNNING_TOOL, STATE_STOPPED, STATE_WAITING_APPROVAL,

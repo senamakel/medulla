@@ -1,19 +1,16 @@
-//! tinyplace protocol + agent-runtime layer for the medulla TUI/daemon.
+//! Medulla's own wire protocol + agent-runtime layer for the medulla TUI/daemon.
 //!
-//! Session envelopes and harness event types are **not** hand-rolled here — they
-//! are re-exported from the published `tinyplace` Rust SDK
-//! (the SDK `::tinyplace::types` module), so this module and the SDK share one wire
-//! model. What lives here is the medulla-specific protocol the SDK does not
-//! carry, plus thin async helpers over the SDK client:
+//! Everything medulla puts on a wire lives here:
 //!
 //! - [`frames`] — the `medulla-task/1` task frame protocol (delegated work
 //!   over encrypted DMs).
 //! - [`control`] — owner→machine harness control frames (session-targeted input).
 //! - [`screen`] — the `medulla.screen.v1` protocol, streaming a worker's live
 //!   terminal to a watching orchestrator as mosh-style synchronised state.
-//! - [`consumer`] — receiver-side fold of the SDK's v2 harness stream into a live
+//! - [`envelope`] — the harness session-envelope wire model (v1 and v2).
+//! - [`consumer`] — receiver-side fold of the v2 harness stream into a live
 //!   [`consumer::SessionView`].
-//! - [`status`] — the derived session-status state machine over SDK events.
+//! - [`status`] — the derived session-status state machine over harness events.
 //! - [`config`] — the tinyplace CLI config-file model and endpoint resolution.
 //! - [`runtime`] — agent-runtime helpers: a file-backed [`runtime::FileSessionStore`],
 //!   identity bootstrap, and async mailbox / contact / presence loops driving the
@@ -23,6 +20,7 @@ pub mod config;
 pub mod consumer;
 pub mod control;
 pub mod env;
+pub mod envelope;
 pub mod frames;
 pub mod runtime;
 pub mod screen;
@@ -70,12 +68,12 @@ pub use status::{
 };
 pub use system_info::{capture_system_info, WorkerSystemInfo};
 
-// Harness session-envelope + typed-event model, owned by the SDK. Re-exported so
-// callers work with the same types the fold and status machine operate on.
-// `HarnessProvider` is intentionally NOT re-exported from the SDK (there it is a
-// bare `String`); [`frames::HarnessProvider`] is this module's typed provider for
-// the task-frame protocol.
-pub use ::tinyplace::types::{
+// The harness session-envelope + typed-event wire model, owned here. Re-exported
+// so callers work with the same types the fold and status machine operate on.
+// `envelope::HarnessProvider` is intentionally NOT re-exported (it is a bare
+// `String`); [`frames::HarnessProvider`] is this module's typed provider for the
+// task-frame protocol.
+pub use envelope::{
     AnySessionEnvelope, ApprovalRequestPayload, ErrorPayload, HarnessBucket, HarnessBucketUnit,
     HarnessEnvelopeScope, HarnessEvent, HarnessEventKind, HarnessEventRole, HarnessInfo,
     HarnessMessage, HarnessMessageRole, HarnessScope, HarnessSessionState, HarnessSource,

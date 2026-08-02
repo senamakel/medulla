@@ -1,7 +1,7 @@
 //! Driver-seam tests: task frames and session envelopes folded into one
 //! normalized turn, and the asymmetry between the two drivers.
 
-use ::tinyplace::types::{AnySessionEnvelope, SessionEnvelopeV1, SessionEnvelopeV2};
+use crate::protocol::envelope::{AnySessionEnvelope, SessionEnvelopeV1, SessionEnvelopeV2};
 
 use crate::protocol::{HarnessProvider, TaskFrame, TaskFrameKind, MEDULLA_TASK_PROTO};
 
