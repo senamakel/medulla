@@ -91,7 +91,10 @@ fn a_long_attention_reason_wraps_without_losing_words() {
         .map(|line| line.to_string().trim().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    assert!(rendered.contains(reason), "complete reason was {rendered:?}");
+    assert!(
+        rendered.contains(reason),
+        "complete reason was {rendered:?}"
+    );
 }
 
 #[test]
@@ -159,7 +162,10 @@ fn task_attention_marks_only_the_exact_waiting_session() {
         task_waiting_session("task-2", None, &waiting, resolve).as_deref(),
         Some("w-2")
     );
-    assert_eq!(task_waiting_session("task-1", None, &waiting, resolve), None);
+    assert_eq!(
+        task_waiting_session("task-1", None, &waiting, resolve),
+        None
+    );
     assert_eq!(
         task_waiting_session("task-2", Some("w-2"), &waiting, resolve),
         None,
