@@ -107,3 +107,40 @@ fn a_peer_restart_preserves_every_pending_message_on_channel_zero() {
         vec![b"status".to_vec(), b"terminal".to_vec()]
     );
 }
+
+#[test]
+fn a_peer_restart_preserves_datagram_sized_queue_prefixes() {
+    let mut pair = Pair::new();
+    let first = vec![1; MAX_MESSAGE_BYTES];
+    let second = vec![2; MAX_MESSAGE_BYTES];
+    pair.orchestrator.queue_message(first.clone()).unwrap();
+    pair.orchestrator.queue_message(second.clone()).unwrap();
+
+    pair.host = Session::new(
+        SessionConfig::new(
+            NodeId([2u8; 16]),
+            NodeId([1u8; 16]),
+            Role::Host,
+            PairKey::from_bytes([5u8; 16]),
+            ForwarderKey([8u8; 32]),
+        ),
+        200,
+    );
+    let hello = pair.host.outgoing(200, &mut pair.host_seq).unwrap();
+    pair.orchestrator.handle_datagram(&hello[0], 210).unwrap();
+
+    let first_step = pair
+        .orchestrator
+        .outgoing(220, &mut pair.orchestrator_seq)
+        .unwrap();
+    pair.host.handle_datagram(&first_step[0], 230).unwrap();
+    let ack = pair.host.outgoing(240, &mut pair.host_seq).unwrap();
+    pair.orchestrator.handle_datagram(&ack[0], 250).unwrap();
+    let second_step = pair
+        .orchestrator
+        .outgoing(260, &mut pair.orchestrator_seq)
+        .unwrap();
+    pair.host.handle_datagram(&second_step[0], 270).unwrap();
+
+    assert_eq!(pair.host.take_messages(), vec![first, second]);
+}
