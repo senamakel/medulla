@@ -68,11 +68,9 @@ async fn incomplete_reassembly_is_bounded_and_evicts_the_oldest() {
 async fn incomplete_reassembly_survives_a_long_gap() {
     let inbox = Inbox::default();
     let peer = NodeId([10; 16]);
-    assert!(
-        reassemble(peer, chunk(1, 0, 2, b"held "), &inbox)
-            .await
-            .is_none()
-    );
+    assert!(reassemble(peer, chunk(1, 0, 2, b"held "), &inbox)
+        .await
+        .is_none());
     inbox
         .reassembly
         .lock()

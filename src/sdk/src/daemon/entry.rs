@@ -136,7 +136,7 @@ pub async fn run_daemon(
             }
         };
     // The profile's name is the daemon's advertised label unless --name overrides it.
-    let display_name = flags.string("name").or_else(|| {
+    let _display_name = flags.string("name").or_else(|| {
         let name = worker_profile.name.trim();
         (!name.is_empty()).then(|| name.to_string())
     });
@@ -167,9 +167,11 @@ pub async fn run_daemon(
             (!owner.trim().is_empty()).then_some(owner)
         })
         .unwrap_or_else(|| "orchestrator".to_string());
-    let node_name = (!worker_profile.address.trim().is_empty())
-        .then(|| worker_profile.address.trim().to_string())
-        .unwrap_or_else(|| worker_profile.name.clone());
+    let node_name = if !worker_profile.address.trim().is_empty() {
+        worker_profile.address.trim().to_string()
+    } else {
+        worker_profile.name.clone()
+    };
     let link = Link::connect(LinkConfig::new(&link_dir))
         .await
         .map_err(|e| {
