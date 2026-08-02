@@ -144,3 +144,48 @@ fn a_peer_restart_preserves_datagram_sized_queue_prefixes() {
 
     assert_eq!(pair.host.take_messages(), vec![first, second]);
 }
+
+#[test]
+fn a_peer_restart_rebuilds_screen_rows_as_datagram_sized_prefixes() {
+    let mut pair = Pair::new();
+    let rows = vec![vec![1; 900], vec![2; 900], vec![3; 900]];
+    pair.orchestrator.set_screen(rows.clone()).unwrap();
+
+    let first = pair
+        .orchestrator
+        .outgoing(100, &mut pair.orchestrator_seq)
+        .unwrap();
+    pair.host.handle_datagram(&first[0], 110).unwrap();
+    let ack = pair.host.outgoing(120, &mut pair.host_seq).unwrap();
+    pair.orchestrator.handle_datagram(&ack[0], 130).unwrap();
+
+    pair.host = Session::new(
+        SessionConfig::new(
+            NodeId([2u8; 16]),
+            NodeId([1u8; 16]),
+            Role::Host,
+            PairKey::from_bytes([5u8; 16]),
+            ForwarderKey([8u8; 32]),
+        ),
+        200,
+    );
+    let hello = pair.host.outgoing(200, &mut pair.host_seq).unwrap();
+    pair.orchestrator.handle_datagram(&hello[0], 210).unwrap();
+
+    for step in 0..3 {
+        let sent = pair
+            .orchestrator
+            .outgoing(220 + step * 20, &mut pair.orchestrator_seq)
+            .unwrap();
+        pair.host.handle_datagram(&sent[0], 230 + step * 20).unwrap();
+        let ack = pair
+            .host
+            .outgoing(240 + step * 20, &mut pair.host_seq)
+            .unwrap();
+        pair.orchestrator
+            .handle_datagram(&ack[0], 250 + step * 20)
+            .unwrap();
+    }
+
+    assert_eq!(pair.host.screen().rows(), rows);
+}
