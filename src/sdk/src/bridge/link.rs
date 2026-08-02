@@ -67,7 +67,16 @@ struct Reassembly {
 
 impl Reassembly {
     /// Drop incomplete messages that have stopped making progress.
-    fn expire(&mut self, now: Instant) {
+    ///
+    /// Only expires partials when the link is known to be Live. During outages
+    /// (Degraded/Offline), partials are retained so they can complete once the
+    /// peer reconnects within the timeout window. This aligns with task-layer
+    /// clock pausing during outages (see TaskRunner's ACK_WINDOW/IDLE_WINDOW).
+    fn expire(&mut self, now: Instant, is_live: bool) {
+        if !is_live {
+            // Pause expiry during outages so the timeout window extends across recovery.
+            return;
+        }
         let stale: Vec<_> = self
             .partials
             .iter()
@@ -248,7 +257,7 @@ impl LinkBridge {
 /// Drain the link into the bridge's inbox until the link stops.
 async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<Inbox>) {
     while let Some((peer, body)) = link.recv().await {
-        let Some(body) = reassemble(peer, body, &inbox).await else {
+        let Some(body) = reassemble(peer, body, &link, &inbox).await else {
             continue;
         };
         // An unknown sender is named by its id rather than dropped: the message
@@ -281,7 +290,16 @@ async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<
 /// Decode one bridge fragment, returning a complete application frame once all
 /// chunks have arrived. Link channel 0 is ordered, but the id keeps concurrent
 /// callers independent when their chunk sequences interleave.
-async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8>> {
+///
+/// Only expires partial message buffers when the peer's link is Live; during
+/// outages (Degraded/Offline), partials are retained to complete once connectivity
+/// recovers, aligning with task-layer clock pausing for peer outages.
+async fn reassemble(
+    peer: NodeId,
+    body: Vec<u8>,
+    link: &LinkHandle,
+    inbox: &Inbox,
+) -> Option<Vec<u8>> {
     if body.len() < CHUNK_HEADER || &body[..4] != CHUNK_MAGIC {
         return Some(body);
     }
@@ -293,8 +311,11 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
     }
     let key = (peer, id);
     let now = Instant::now();
+    // Check if the peer's link is Live; only expire partials while Live.
+    let peer_status = link.status().peer(&peer);
+    let is_live = peer_status.map_or(false, |s| s.liveness == medulla_link::Liveness::Live);
     let mut reassembly = inbox.reassembly.lock().await;
-    reassembly.expire(now);
+    reassembly.expire(now, is_live);
     if !reassembly.partials.contains_key(&key) {
         while reassembly.partials.len() >= MAX_PARTIAL_MESSAGES {
             if !reassembly.evict_oldest_except(None) {

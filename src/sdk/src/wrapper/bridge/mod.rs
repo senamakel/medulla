@@ -79,6 +79,11 @@ pub(super) fn now_ms() -> i64 {
 impl Bridge {
     /// Serialize and send `envelope` to the configured recipient (no-op when the
     /// bridge has no recipient or serialization fails).
+    ///
+    /// Retries on retryable errors (e.g., link queue overflow from peer backpressure)
+    /// with exponential backoff, giving the peer time to catch up. Non-retryable errors
+    /// and final failures are logged; the tailer has already consumed the event, so
+    /// missing envelopes after outages are accepted rather than blocking.
     pub(super) async fn publish(&self, envelope: &crate::protocol::SessionEnvelopeV2) {
         let recipient = match &self.recipient {
             Some(recipient) => recipient,
@@ -89,8 +94,23 @@ impl Bridge {
             Err(_) => return,
         };
         use crate::bridge::Bridge as _;
-        if let Err(err) = self.transport.send(recipient, &body).await {
-            eprintln!("medulla wrapper: publish failed: {err}");
+        // Retry with exponential backoff on retryable errors.
+        let mut delay_ms = 10u64;
+        loop {
+            match self.transport.send(recipient, &body).await {
+                Ok(()) => return,
+                Err(err) => {
+                    if err.is_retryable() && delay_ms < 1000 {
+                        // Retryable error (e.g., queue overflow): back off and retry.
+                        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                        delay_ms = (delay_ms * 2).min(1000);
+                    } else {
+                        // Non-retryable error or max retries reached: log and give up.
+                        eprintln!("medulla wrapper: publish failed: {err}");
+                        return;
+                    }
+                }
+            }
         }
     }
 
