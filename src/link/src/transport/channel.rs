@@ -91,6 +91,7 @@ impl<S: SspState> Channel<S> {
             if *old_num > self.assumed_receiver_num {
                 if self.id == 0 {
                     let mut rebased = state.clone();
+                    rebased.release_through(self.assumed_receiver_num);
                     let rebased_num = rebased
                         .reset_origin()
                         .expect("channel zero queue reports its rebased number");

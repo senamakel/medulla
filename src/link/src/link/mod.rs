@@ -93,6 +93,7 @@ struct Driver {
     node: AcquiredNode,
     inbound: mpsc::Sender<(NodeId, u64, Vec<u8>)>,
     pending_inbound: HashMap<NodeId, VecDeque<(u64, Vec<u8>)>>,
+    inbound_cursor: usize,
     last_screens: HashMap<NodeId, Vec<Vec<u8>>>,
     status: watch::Sender<LinkStatus>,
     /// Monotonic origin: every `now_ms` in the transport is measured from here,
@@ -141,6 +142,7 @@ impl Driver {
             node,
             inbound,
             pending_inbound: HashMap::new(),
+            inbound_cursor: 0,
             last_screens: HashMap::new(),
             status,
             origin,
@@ -248,18 +250,31 @@ impl Driver {
     /// Move pending deliveries into the shared handle queue without ever
     /// suspending the socket/session driver on a slow consumer.
     fn flush_inbound(&mut self) {
-        for (peer, pending) in &mut self.pending_inbound {
-            while let Some((epoch, message)) = pending.pop_front() {
-                match self.inbound.try_send((*peer, epoch, message)) {
-                    Ok(()) => {}
-                    Err(mpsc::error::TrySendError::Full((_, epoch, message))) => {
-                        pending.push_front((epoch, message));
-                        return;
-                    }
-                    Err(mpsc::error::TrySendError::Closed(_)) => return,
+        let peers: Vec<NodeId> = self.pending_inbound.keys().copied().collect();
+        if peers.is_empty() {
+            return;
+        }
+        let start = self.inbound_cursor % peers.len();
+        for offset in 0..peers.len() {
+            let index = (start + offset) % peers.len();
+            let peer = peers[index];
+            let Some(pending) = self.pending_inbound.get_mut(&peer) else {
+                continue;
+            };
+            let Some((epoch, message)) = pending.pop_front() else {
+                continue;
+            };
+            match self.inbound.try_send((peer, epoch, message)) {
+                Ok(()) => {}
+                Err(mpsc::error::TrySendError::Full((_, epoch, message))) => {
+                    pending.push_front((epoch, message));
+                    self.inbound_cursor = (index + 1) % peers.len();
+                    return;
                 }
+                Err(mpsc::error::TrySendError::Closed(_)) => return,
             }
         }
+        self.inbound_cursor = (start + 1) % peers.len();
     }
 
     /// Send whatever every session says is due now.
