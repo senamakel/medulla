@@ -92,12 +92,14 @@ pub async fn ensure_registered_in(
         env,
         config_cwd,
     )
-        .ok()
-        .and_then(|loaded| loaded.config.link.map(|cfg| cfg.state_dir.into()))
-        .unwrap_or_else(|| medulla_link::keys::link_dir(&home));
+    .ok()
+    .and_then(|loaded| loaded.config.link.map(|cfg| cfg.state_dir.into()))
+    .unwrap_or_else(|| medulla_link::keys::link_dir(&home));
     let mut existing = WorkerProfile::load(&profile_file);
     if let (Some(profile), Ok(state)) = (
-        existing.as_mut().filter(|profile| profile.address.is_empty()),
+        existing
+            .as_mut()
+            .filter(|profile| profile.address.is_empty()),
         medulla_link::keys::read_node_state(&medulla_link::keys::node_path(&link_dir)),
     ) {
         profile.address = state.node_id.to_string();

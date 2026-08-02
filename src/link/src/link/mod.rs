@@ -219,7 +219,9 @@ impl Driver {
         }
         let messages = session.take_messages();
         let peer = header.src;
-        let epoch = session.peer_epoch().expect("an accepted datagram has an epoch");
+        let epoch = session
+            .peer_epoch()
+            .expect("an accepted datagram has an epoch");
         for message in messages {
             if self.inbound.send((peer, epoch, message)).await.is_err() {
                 return;
