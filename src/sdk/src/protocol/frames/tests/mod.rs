@@ -2,3 +2,4 @@
 
 mod codec;
 mod tool_mode;
+mod work_snapshot;
