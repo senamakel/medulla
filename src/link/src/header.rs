@@ -111,7 +111,7 @@ impl OuterHeader {
         self.flags & FLAG_HEARTBEAT != 0
     }
 
-    /// The bytes covered by the HMAC and used as the AEAD's AAD: `[0..42]`.
+    /// The bytes covered by the HMAC and used as the AEAD's AAD: `[0..50]`.
     pub fn signed_bytes(&self) -> [u8; TAG_OFFSET] {
         let mut out = [0u8; TAG_OFFSET];
         out[0] = VERSION;
