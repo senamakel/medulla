@@ -217,7 +217,11 @@ pub(super) async fn build_bridge(
     let home = crate::home::medulla_home(&config.env);
     // Load the effective configuration to honor the configured link.stateDir if set.
     let link_state_dir =
-        match crate::config::load_config(None, &config.env, std::path::Path::new(&config.cwd)) {
+        match crate::config::load_config(
+            crate::config::explicit_config_from_env(&config.env),
+            &config.env,
+            std::path::Path::new(&config.cwd),
+        ) {
             Ok(loaded) => loaded
                 .config
                 .link
