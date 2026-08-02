@@ -1,4 +1,4 @@
-//! The 58-byte cleartext outer header (protocol §3).
+//! The 66-byte cleartext outer header (protocol §3).
 //!
 //! These are the only bytes the forwarder parses, and the only bytes it is able
 //! to parse. Layout, big-endian throughout:
@@ -9,8 +9,9 @@
 //!   2 16  src_node_id
 //!  18 16  dst_node_id
 //!  34  8  seq       counter with the direction bit in bit 63
-//!  42 16  tag       HMAC-SHA256(forwarder_key, bytes[0..42])[0..16]
-//!  58  …  payload   opaque (§4)
+//!  42  8  epoch     random endpoint-process session epoch
+//!  50 16  tag       HMAC-SHA256(forwarder_key, bytes[0..50])[0..16]
+//!  66  …  payload   opaque (§4)
 //! ```
 //!
 //! Bytes `[0..42]` are both the HMAC input and the AEAD's AAD, so a forwarder
@@ -29,13 +30,13 @@ use subtle::ConstantTimeEq;
 use crate::keys::{ForwarderKey, NodeId};
 
 /// Protocol version carried in byte 0.
-pub const VERSION: u8 = 1;
+pub const VERSION: u8 = 2;
 
 /// Total header size.
-pub const HEADER_LEN: usize = 58;
+pub const HEADER_LEN: usize = 66;
 
 /// Offset of the tag, and therefore the length of the HMAC/AAD input.
-pub const TAG_OFFSET: usize = 42;
+pub const TAG_OFFSET: usize = 50;
 
 /// Length of the truncated HMAC tag.
 pub const TAG_LEN: usize = 16;
@@ -77,6 +78,8 @@ pub struct OuterHeader {
     pub dst: NodeId,
     /// The §3.1 sequence, direction bit included.
     pub seq: u64,
+    /// Random value minted by the sending process, used to detect restarts.
+    pub epoch: u64,
 }
 
 impl OuterHeader {
@@ -87,7 +90,14 @@ impl OuterHeader {
             src,
             dst,
             seq,
+            epoch: 0,
         }
+    }
+
+    /// Attach the sender process's session epoch.
+    pub fn epoch(mut self, epoch: u64) -> Self {
+        self.epoch = epoch;
+        self
     }
 
     /// Mark this datagram as a heartbeat (no state change).
@@ -109,6 +119,7 @@ impl OuterHeader {
         out[2..18].copy_from_slice(self.src.as_bytes());
         out[18..34].copy_from_slice(self.dst.as_bytes());
         out[34..42].copy_from_slice(&self.seq.to_be_bytes());
+        out[42..50].copy_from_slice(&self.epoch.to_be_bytes());
         out
     }
 
@@ -147,11 +158,14 @@ impl OuterHeader {
         dst.copy_from_slice(&datagram[18..34]);
         let mut seq = [0u8; 8];
         seq.copy_from_slice(&datagram[34..42]);
+        let mut epoch = [0u8; 8];
+        epoch.copy_from_slice(&datagram[42..50]);
         Ok(OuterHeader {
             flags,
             src: NodeId(src),
             dst: NodeId(dst),
             seq: u64::from_be_bytes(seq),
+            epoch: u64::from_be_bytes(epoch),
         })
     }
 }

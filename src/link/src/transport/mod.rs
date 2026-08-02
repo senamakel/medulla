@@ -31,6 +31,7 @@ use crate::header::{OuterHeader, HEADER_LEN, MAX_DATAGRAM};
 use crate::keys::SeqSource;
 use crate::packet::{elapsed16, timestamp16, Packet, MAX_DIFF_LEN};
 use crate::state::{MessageQueue, RowGrid, CHANNEL_MESSAGES, CHANNEL_SCREEN};
+use rand::RngCore;
 
 pub use channel::{Channel, MAX_SENT_STATES};
 pub use timing::{
@@ -79,6 +80,8 @@ pub struct Session {
     ack_pending: [bool; CHANNEL_COUNT],
     /// Alternates which channel is offered first, so neither can starve the other.
     rotate: bool,
+    local_epoch: u64,
+    peer_epoch: Option<u64>,
 }
 
 impl Session {
@@ -98,6 +101,8 @@ impl Session {
             peer_timestamp: None,
             ack_pending: [false; CHANNEL_COUNT],
             rotate: false,
+            local_epoch: rand::thread_rng().next_u64(),
+            peer_epoch: None,
         }
     }
 
@@ -313,6 +318,13 @@ impl Session {
         )?;
         let packet = Packet::decode(&plaintext)?;
 
+        if self.peer_epoch.is_some_and(|epoch| epoch != header.epoch) {
+            self.messages.reset_peer();
+            self.screen.reset_peer();
+            self.ack_pending = [false; CHANNEL_COUNT];
+        }
+        self.peer_epoch = Some(header.epoch);
+
         self.last_heard_ms = Some(now_ms);
         self.peer_timestamp = Some((packet.send_ts, now_ms));
         if packet.reply_ts != 0 {
@@ -410,7 +422,8 @@ impl Session {
         let plaintext = packet.encode()?;
 
         let full_seq = seq.next_seq()? | self.config.role.direction_bit();
-        let mut header = OuterHeader::new(self.config.node_id, self.config.peer_node_id, full_seq);
+        let mut header = OuterHeader::new(self.config.node_id, self.config.peer_node_id, full_seq)
+            .epoch(self.local_epoch);
         if heartbeat {
             header = header.heartbeat();
         }

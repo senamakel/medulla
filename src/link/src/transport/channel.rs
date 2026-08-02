@@ -24,6 +24,7 @@ pub const MAX_SENT_STATES: usize = 512;
 /// The sending and receiving state for one channel.
 pub struct Channel<S: SspState> {
     id: u8,
+    initial: S,
     current: S,
     current_num: u64,
     /// States `assumed_receiver_num ..= current_num`, oldest first. The front is
@@ -51,6 +52,7 @@ impl<S: SspState> Channel<S> {
         sent_states.push_back((0, initial.clone()));
         Channel {
             id,
+            initial: initial.clone(),
             current: initial.clone(),
             current_num: 0,
             sent_states,
@@ -61,6 +63,22 @@ impl<S: SspState> Channel<S> {
             last_sent_ms: None,
             max_sent_states,
         }
+    }
+
+    /// Rebase this channel after the peer process changes epoch.
+    ///
+    /// Unconsumed outbound state is preserved and becomes state 1 relative to
+    /// the shared initial state; inbound state restarts at 0.
+    pub fn reset_peer(&mut self) {
+        self.current_num = 1;
+        self.sent_states.clear();
+        self.sent_states.push_back((0, self.initial.clone()));
+        self.sent_states.push_back((1, self.current.clone()));
+        self.assumed_receiver_num = 0;
+        self.received = self.initial.clone();
+        self.received_num = 0;
+        self.sent_num = 0;
+        self.last_sent_ms = None;
     }
 
     /// The channel id carried in an Instruction.
