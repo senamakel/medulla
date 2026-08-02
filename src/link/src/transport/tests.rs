@@ -94,9 +94,7 @@ fn a_bidirectional_task_round_trip_delivers_the_terminal_frame() {
         .unwrap();
     pair.host.handle_datagram(&ack[0], 170).unwrap();
     let retry = pair.host.outgoing(1_000, &mut pair.host_seq).unwrap();
-    pair.orchestrator
-        .handle_datagram(&retry[0], 190)
-        .unwrap();
+    pair.orchestrator.handle_datagram(&retry[0], 190).unwrap();
     assert_eq!(
         pair.orchestrator.take_messages(),
         vec![b"terminal".to_vec()]
@@ -149,7 +147,9 @@ fn one_endpoint_restart_rebases_the_live_peer_and_delivers_new_work() {
 fn a_peer_restart_preserves_every_pending_message_on_channel_zero() {
     let mut pair = Pair::new();
     pair.orchestrator.queue_message(b"status".to_vec()).unwrap();
-    pair.orchestrator.queue_message(b"terminal".to_vec()).unwrap();
+    pair.orchestrator
+        .queue_message(b"terminal".to_vec())
+        .unwrap();
 
     pair.host = Session::new(
         SessionConfig::new(
