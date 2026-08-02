@@ -308,32 +308,15 @@ passes for the wrong reason: an outage longer than `ACK_WINDOW` must not fail th
 task (proving the clock pauses), *and* a hung peer on a `Live` link must still
 time out (proving the clock was gated rather than deleted).
 
-### 6.4 Endpoint restart — a known defect
+### 6.4 Endpoint restart
 
-**As specified, this protocol does not survive one endpoint restarting.** This is
-the one place the design is currently wrong, and it is written down here rather
-than left to be rediscovered.
-
-SSP state lives in memory. A restarted endpoint comes back at state 0 while its
-peer still holds state *n*, so every diff it sends carries an `old_num` the peer
-refuses (§4.3) — correctly, by the rule that makes the protocol idempotent. Worse,
-the peer's `ack_num` still reports *n*, which the restarted side reads as "my
-message was delivered". The link wedges in both directions while both ends
-believe they are healthy: liveness stays `Live` because heartbeats still flow.
-
-Mosh does not have this problem because a `mosh-server` restart ends the session
-outright — there is no long-lived peer to desynchronise against. Medulla's hosts
-restart routinely, so we cannot inherit that assumption.
-
-Until it is fixed, the only recovery is restarting **both** ends, and any harness
-driving this protocol must do so explicitly rather than assuming reconnection
-heals it.
-
-The intended fix is a **session epoch**: a random value minted per endpoint
-process (or persisted beside the sequence reservation, §3.1) and carried in the
-header. A peer that observes a new epoch from a node discards its state for that
-node and restarts the exchange from 0, rather than refusing diffs forever. That
-changes the wire format, so it belongs in a version bump, not a patch.
+Each endpoint process mints a random 64-bit `epoch` carried in every header. A
+peer that observes the epoch change rebases its outbound state onto the shared
+state 0, preserves any unconsumed messages and latest screen state, and resets
+its inbound state to 0 before applying the restarted peer's instruction. This
+prevents the old state-*n*/state-0 mismatch from wedging the link while retaining
+work that was still awaiting delivery. The epoch was added with wire version 2;
+version-1 datagrams are rejected rather than ambiguously interpreted.
 
 ## 7. Enrollment
 
