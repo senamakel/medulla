@@ -46,7 +46,6 @@ const CHUNK_HEADER: usize = 20;
 const MAX_CHUNKS: usize = 4096;
 const MAX_PARTIAL_MESSAGES: usize = 128;
 const MAX_PARTIAL_BYTES: usize = 16 * 1024 * 1024;
-const PARTIAL_TTL: Duration = Duration::from_secs(30);
 
 /// Mint an id that does not reset to a predictable value with the process.
 fn next_message_id() -> u64 {
@@ -66,29 +65,6 @@ struct Reassembly {
 }
 
 impl Reassembly {
-    /// Drop incomplete messages that have stopped making progress.
-    ///
-    /// Only expires partials when the link is known to be Live. During outages
-    /// (Degraded/Offline), partials are retained so they can complete once the
-    /// peer reconnects within the timeout window. This aligns with task-layer
-    /// clock pausing during outages (see TaskRunner's ACK_WINDOW/IDLE_WINDOW).
-    fn expire(&mut self, now: Instant, is_live: bool) {
-        if !is_live {
-            // Pause expiry during outages so the timeout window extends across recovery.
-            return;
-        }
-        let stale: Vec<_> = self
-            .partials
-            .iter()
-            .filter_map(|(key, partial)| {
-                (now.saturating_duration_since(partial.updated) >= PARTIAL_TTL).then_some(*key)
-            })
-            .collect();
-        for key in stale {
-            self.remove(&key);
-        }
-    }
-
     /// Evict the least recently updated message other than `protected`.
     fn evict_oldest_except(&mut self, protected: Option<(NodeId, u64)>) -> bool {
         let oldest = self
@@ -257,11 +233,7 @@ impl LinkBridge {
 /// Drain the link into the bridge's inbox until the link stops.
 async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<Inbox>) {
     while let Some((peer, body)) = link.recv().await {
-        let status = link.status();
-        let is_live = status
-            .peer(&peer)
-            .is_some_and(|peer| peer.liveness == Liveness::Live);
-        let Some(body) = reassemble_with_liveness(peer, body, is_live, &inbox).await else {
+        let Some(body) = reassemble(peer, body, &inbox).await else {
             continue;
         };
         // An unknown sender is named by its id rather than dropped: the message
@@ -294,23 +266,7 @@ async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<
 /// Decode one bridge fragment, returning a complete application frame once all
 /// chunks have arrived. Link channel 0 is ordered, but the id keeps concurrent
 /// callers independent when their chunk sequences interleave.
-///
-/// Only expires partial message buffers when the peer's link is Live; during
-/// outages (Degraded/Offline), partials are retained to complete once connectivity
-/// recovers, aligning with task-layer clock pausing for peer outages.
-#[cfg(test)]
 async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8>> {
-    reassemble_with_liveness(peer, body, true, inbox).await
-}
-
-/// Reassemble a fragment while applying the caller's current peer-liveness
-/// observation to partial-message expiry.
-async fn reassemble_with_liveness(
-    peer: NodeId,
-    body: Vec<u8>,
-    is_live: bool,
-    inbox: &Inbox,
-) -> Option<Vec<u8>> {
     if body.len() < CHUNK_HEADER || &body[..4] != CHUNK_MAGIC {
         return Some(body);
     }
@@ -323,7 +279,6 @@ async fn reassemble_with_liveness(
     let key = (peer, id);
     let now = Instant::now();
     let mut reassembly = inbox.reassembly.lock().await;
-    reassembly.expire(now, is_live);
     if !reassembly.partials.contains_key(&key) {
         while reassembly.partials.len() >= MAX_PARTIAL_MESSAGES {
             if !reassembly.evict_oldest_except(None) {
