@@ -74,8 +74,14 @@ async fn incomplete_reassembly_does_not_expire_while_the_peer_is_offline() {
     assert!(reassemble_with_liveness(peer, chunk(1, 0, 2, b"held "), false, &inbox)
         .await
         .is_none());
-    inbox.reassembly.lock().await.partials[&mut (peer, 1)].updated =
-        Instant::now() - PARTIAL_TTL;
+    inbox
+        .reassembly
+        .lock()
+        .await
+        .partials
+        .get_mut(&(peer, 1))
+        .expect("partial exists")
+        .updated = Instant::now() - PARTIAL_TTL;
 
     assert_eq!(
         reassemble_with_liveness(peer, chunk(1, 1, 2, b"frame"), false, &inbox).await,
