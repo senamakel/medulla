@@ -92,7 +92,10 @@ fn link_from_resolved_config(
         .unwrap_or_else(|| state.peer_node_id.to_string());
     Some(HubLinkConfig {
         state_dir,
-        node_name: link.node_name.unwrap_or_else(|| state.node_id.to_string()),
+        node_name: link
+            .node_name
+            .clone()
+            .unwrap_or_else(|| state.node_id.to_string()),
         forwarder_endpoint: None,
         peers: vec![HubLinkPeer {
             name: peer_name,
@@ -324,15 +327,7 @@ pub(crate) fn build_hub_config_with_host(
     agent_templates: Vec<medulla::runtime::AgentTemplate>,
 ) -> Option<HubConfig> {
     let link = link_from_config(env, home);
-    build_hub_config_with_host_and_link(
-        env,
-        home,
-        log,
-        local,
-        session,
-        agent_templates,
-        link,
-    )
+    build_hub_config_with_host_and_link(env, home, log, local, session, agent_templates, link)
 }
 
 /// Build a hub using link wiring already resolved by the embedding process.

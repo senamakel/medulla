@@ -331,11 +331,7 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
     } else {
         reassembly.bytes -= old_len - payload.len();
     }
-    if reassembly.partials[&key]
-        .chunks
-        .iter()
-        .any(Option::is_none)
-    {
+    if reassembly.partials[&key].chunks.iter().any(Option::is_none) {
         return None;
     }
     let partial = reassembly.remove(&key).expect("partial exists");
