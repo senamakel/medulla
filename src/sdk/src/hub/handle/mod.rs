@@ -27,6 +27,7 @@ pub(super) fn is_handle(address: &str) -> bool {
 /// This exists because a mis-paste is silent otherwise: a stray `>` was accepted
 /// as an address, registered as a worker, and had a contact request sent to it.
 /// Nothing downstream can tell that from a real peer that never replies.
+#[cfg(test)]
 pub(super) fn is_plausible_address(address: &str) -> bool {
     let address = address.trim();
     if is_handle(address) {
