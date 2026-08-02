@@ -9,7 +9,7 @@
 
 mod types;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
@@ -92,6 +92,7 @@ struct Driver {
     sessions: HashMap<NodeId, Session>,
     node: AcquiredNode,
     inbound: mpsc::Sender<(NodeId, u64, Vec<u8>)>,
+    pending_inbound: HashMap<NodeId, VecDeque<(u64, Vec<u8>)>>,
     status: watch::Sender<LinkStatus>,
     /// Monotonic origin: every `now_ms` in the transport is measured from here,
     /// so a wall-clock jump cannot make a retransmission timer fire late (or
@@ -138,6 +139,7 @@ impl Driver {
             sessions,
             node,
             inbound,
+            pending_inbound: HashMap::new(),
             status,
             origin,
         }
@@ -152,6 +154,7 @@ impl Driver {
     async fn run(mut self, mut commands: mpsc::Receiver<Command>) {
         let mut buffer = vec![0u8; MAX_DATAGRAM];
         loop {
+            self.flush_inbound();
             self.flush().await;
             self.publish_status();
 
@@ -172,7 +175,7 @@ impl Driver {
                 },
                 received = self.socket.recv_from(&mut buffer) => {
                     if let Ok((len, _from)) = received {
-                        self.handle_datagram(&buffer[..len]).await;
+                        self.handle_datagram(&buffer[..len]);
                     }
                 }
                 _ = tokio::time::sleep(delay) => {}
@@ -206,7 +209,7 @@ impl Driver {
     /// dropped. That is not an error condition: with a blind forwarder in the
     /// middle, junk arriving is expected, and SSP recovers from a dropped
     /// datagram by construction.
-    async fn handle_datagram(&mut self, datagram: &[u8]) {
+    fn handle_datagram(&mut self, datagram: &[u8]) {
         let now = self.now_ms();
         let Ok(header) = crate::header::OuterHeader::decode(datagram) else {
             return;
@@ -214,6 +217,10 @@ impl Driver {
         let Some(session) = self.sessions.get_mut(&header.src) else {
             return;
         };
+        let pending = self.pending_inbound.entry(header.src).or_default();
+        if pending.len() >= INBOUND_CAPACITY {
+            return;
+        }
         if session.handle_datagram(datagram, now).is_err() {
             return;
         }
@@ -223,8 +230,23 @@ impl Driver {
             .peer_epoch()
             .expect("an accepted datagram has an epoch");
         for message in messages {
-            if self.inbound.send((peer, epoch, message)).await.is_err() {
-                return;
+            pending.push_back((epoch, message));
+        }
+    }
+
+    /// Move pending deliveries into the shared handle queue without ever
+    /// suspending the socket/session driver on a slow consumer.
+    fn flush_inbound(&mut self) {
+        for (peer, pending) in &mut self.pending_inbound {
+            while let Some((epoch, message)) = pending.pop_front() {
+                match self.inbound.try_send((*peer, epoch, message)) {
+                    Ok(()) => {}
+                    Err(mpsc::error::TrySendError::Full((_, epoch, message))) => {
+                        pending.push_front((epoch, message));
+                        return;
+                    }
+                    Err(mpsc::error::TrySendError::Closed(_)) => return,
+                }
             }
         }
     }
