@@ -174,7 +174,10 @@ impl Driver {
                     None => return,
                 },
                 received = self.socket.recv_from(&mut buffer) => {
-                    if let Ok((len, _from)) = received {
+                    if let Ok((len, from)) = received {
+                        if from != self.forwarder {
+                            continue;
+                        }
                         self.handle_datagram(&buffer[..len]);
                     }
                 }

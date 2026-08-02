@@ -158,6 +158,11 @@ pub async fn run_daemon(
     // when the handle below is dropped: the end of `run_daemon`.
     let home = crate::home::medulla_home(&env);
     let explicit_config = flags.string("config");
+    if let Some(path) = explicit_config.as_deref() {
+        if !std::path::Path::new(path).is_file() {
+            anyhow::bail!("explicit daemon configuration does not exist: {path}");
+        }
+    }
     let loaded_link_config = crate::config::load_config(
         explicit_config.as_deref(),
         &env,

@@ -4,7 +4,7 @@
 //! to parse. Layout, big-endian throughout:
 //!
 //! ```text
-//!   0  1  version   = 1
+//!   0  1  version   = 2
 //!   1  1  flags     bit 0 = heartbeat; bits 1-7 reserved, MUST be 0
 //!   2 16  src_node_id
 //!  18 16  dst_node_id
@@ -14,7 +14,7 @@
 //!  66  …  payload   opaque (§4)
 //! ```
 //!
-//! Bytes `[0..42]` are both the HMAC input and the AEAD's AAD, so a forwarder
+//! Bytes `[0..50]` are both the HMAC input and the AEAD's AAD, so a forwarder
 //! that rewrote any header field would break the payload's authentication as
 //! well as its own tag. §5 rule 8 forbids rewriting for exactly that reason.
 //!
