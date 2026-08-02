@@ -298,6 +298,7 @@ async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<
 /// Only expires partial message buffers when the peer's link is Live; during
 /// outages (Degraded/Offline), partials are retained to complete once connectivity
 /// recovers, aligning with task-layer clock pausing for peer outages.
+#[cfg(test)]
 async fn reassemble(
     peer: NodeId,
     body: Vec<u8>,
