@@ -118,6 +118,7 @@ impl App {
             settings_index: 0,
             settings_focused: false,
             appearance_index: 0,
+            resource_monitor: Default::default(),
             status_line_index: 0,
             status_line_promotion_pending,
             config_index: 0,

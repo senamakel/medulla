@@ -895,6 +895,8 @@ pub struct App {
     pub(super) settings_focused: bool,
     /// The selected theme role on the Appearance subpage.
     pub(super) appearance_index: usize,
+    /// Throttled sampler backing the optional local-process status indicators.
+    pub(super) resource_monitor: crate::ui::resources::ResourceMonitor,
     /// The selected field row on the Status line subpage.
     pub(super) status_line_index: usize,
     /// Whether the next persisted status-line edit must write the complete

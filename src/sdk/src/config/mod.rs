@@ -9,6 +9,7 @@
 //! `core_socket` resolves and validates the core (`medulla-serve`) socket path.
 //! All public items are re-exported here so callers use `medulla::config::*`.
 
+mod appearance;
 mod core_socket;
 mod custom_harnesses;
 mod load;
@@ -29,6 +30,7 @@ mod types_tests;
 #[cfg(test)]
 mod urls_tests;
 
+pub use appearance::{AppearanceConfig, ResourceDisplay};
 pub use core_socket::{validate_core_socket, CoreSocketError, CoreSocketSource};
 pub use custom_harnesses::{
     load_custom_harnesses, load_layered_custom_harnesses, CustomHarnessConfig,
@@ -42,12 +44,12 @@ pub use persist::{
     persist_welcome_completed, persist_workflow_workspaces,
 };
 pub use types::{
-    wire_value, AppearanceConfig, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle,
-    CoreConfig, EvolveSettings, FieldPlacement, FieldVisibility, FleetConfig, HarnessNameStyle,
-    HarnessSection, HostSection, HubSection, HubWorkerConfig, LoadedConfig, McpSection,
-    MedullaConfig, OnboardingConfig, OpencodeConfig, PathStyle, Peer, ProviderBudgetConfig,
-    RouterConfig, RouterProviderConfig, StatusLineConfig, ThemeConfig, TinyplaceConfig, TuiConfig,
-    UpdateConfig, WorkflowConfig, WorkflowsConfig, DEFAULT_CONTEXT_WINDOW_TOKENS,
+    wire_value, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle, CoreConfig,
+    EvolveSettings, FieldPlacement, FieldVisibility, FleetConfig, HarnessNameStyle, HarnessSection,
+    HostSection, HubSection, HubWorkerConfig, LoadedConfig, McpSection, MedullaConfig,
+    OnboardingConfig, OpencodeConfig, PathStyle, Peer, ProviderBudgetConfig, RouterConfig,
+    RouterProviderConfig, StatusLineConfig, ThemeConfig, TinyplaceConfig, TuiConfig, UpdateConfig,
+    WorkflowConfig, WorkflowsConfig, DEFAULT_CONTEXT_WINDOW_TOKENS,
 };
 pub use urls::{
     default_backend_base_url, default_tinyplace_base_url, display_host, is_staging,
