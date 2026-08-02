@@ -44,7 +44,7 @@ async fn unframed_payloads_remain_compatible() {
 }
 
 #[tokio::test]
-async fn incomplete_reassembly_is_bounded_and_expires() {
+async fn incomplete_reassembly_is_bounded_and_evicts_the_oldest() {
     let inbox = Inbox::default();
     let peer = NodeId([9; 16]);
     for id in 0..=MAX_PARTIAL_MESSAGES as u64 {
@@ -52,27 +52,24 @@ async fn incomplete_reassembly_is_bounded_and_expires() {
             .await
             .is_none());
     }
-    {
-        let mut state = inbox.reassembly.lock().await;
-        assert_eq!(state.partials.len(), MAX_PARTIAL_MESSAGES);
-        for partial in state.partials.values_mut() {
-            partial.updated = Instant::now() - PARTIAL_TTL;
-        }
-    }
+    assert_eq!(
+        inbox.reassembly.lock().await.partials.len(),
+        MAX_PARTIAL_MESSAGES
+    );
     assert!(reassemble(peer, chunk(999, 0, 2, b"fresh"), &inbox)
         .await
         .is_none());
     let state = inbox.reassembly.lock().await;
-    assert_eq!(state.partials.len(), 1);
+    assert_eq!(state.partials.len(), MAX_PARTIAL_MESSAGES);
     assert!(state.partials.contains_key(&(peer, 999)));
 }
 
 #[tokio::test]
-async fn incomplete_reassembly_does_not_expire_while_the_peer_is_offline() {
+async fn incomplete_reassembly_survives_a_long_gap() {
     let inbox = Inbox::default();
     let peer = NodeId([10; 16]);
     assert!(
-        reassemble_with_liveness(peer, chunk(1, 0, 2, b"held "), false, &inbox)
+        reassemble(peer, chunk(1, 0, 2, b"held "), &inbox)
             .await
             .is_none()
     );
@@ -83,10 +80,10 @@ async fn incomplete_reassembly_does_not_expire_while_the_peer_is_offline() {
         .partials
         .get_mut(&(peer, 1))
         .expect("partial exists")
-        .updated = Instant::now() - PARTIAL_TTL;
+        .updated = Instant::now() - Duration::from_secs(3_600);
 
     assert_eq!(
-        reassemble_with_liveness(peer, chunk(1, 1, 2, b"frame"), false, &inbox).await,
+        reassemble(peer, chunk(1, 1, 2, b"frame"), &inbox).await,
         Some(b"held frame".to_vec())
     );
 }
