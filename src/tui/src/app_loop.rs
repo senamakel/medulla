@@ -368,25 +368,24 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         .or_else(|| loaded.sources.last().map(std::path::PathBuf::from))
         .unwrap_or_else(|| home_config_path.clone());
 
-    // Optional background tiny.place presence service (observational only): keep
-    // the identity online, auto-accept peer contacts, and poll peer presence,
-    // surfacing all of it into the Overview panel and Agents lanes.
-    let mut tinyplace_status: Option<String> = None;
-    let tinyplace_service = match &loaded.config.tinyplace {
-        Some(tp) => match medulla::protocol::service::TinyplaceService::start(tp) {
+    // Optional background host-link service (observational only): keep per-peer
+    // liveness current and surface it into the Overview panel and Agents lanes.
+    let mut link_status: Option<String> = None;
+    let link_service = match &loaded.config.link {
+        Some(link) => match medulla::protocol::service::LinkService::start(link).await {
             Ok(service) => Some(service),
             Err(e) => {
-                tinyplace_status = Some(format!("tinyplace service failed to start ({e})"));
+                link_status = Some(format!("host link unavailable ({e})"));
                 None
             }
         },
         None => None,
     };
-    let tinyplace_obs = tinyplace_service.as_ref().map(|s| s.observation());
+    let link_obs = link_service.as_ref().map(|s| s.observation());
 
     // Backend runtime only: start the orchestrator hub so the hosted brain's
-    // delegated tasks reach local tiny.place workers, and fill the roster slot so
-    // the Workers tab manages it live. Opt-in via `MEDULLA_TINYPLACE_PEER` /
+    // delegated tasks reach linked hosts, and fill the roster slot so
+    // the Workers tab manages it live. Opt-in via `MEDULLA_LINK_PEER` /
     // `MEDULLA_HUB_WORKERS`; the session is dropped (disconnected) on exit.
     //
     // The hub is scoped to the *authenticated* session: its Socket.IO uplink
@@ -575,7 +574,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // reach the login screen — dropping the operator back to the shell instead
     // would contradict both the message it shows and the no-session startup path
     // they would then have to trigger by relaunching.
-    let mut status = startup_status.or(tinyplace_status).or(log_note);
+    let mut status = startup_status.or(link_status).or(log_note);
     let result = loop {
         // Read before the wiring is built: holding the lock into an awaited call
         // would park every other host operation behind this session for as long
@@ -592,7 +591,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 local_hosts: local_host_spawner.clone(),
                 loaded: loaded.clone(),
                 startup_status: status.take(),
-                tinyplace_obs: tinyplace_obs.clone(),
+                link_obs: link_obs.clone(),
                 config_path: active_config_path.clone(),
                 medulla_home: home.clone(),
                 account: account.clone(),
@@ -659,10 +658,10 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     runtime.shutdown().await.ok();
     // Explicit teardown (the guard also runs on drop / panic).
     drop(guard);
-    drop(tinyplace_service); // aborts the background loops.
-                             // Printed after the screen is back: the operator signed in as somebody else
-                             // mid-session, the marker now names them, and the next launch opens their
-                             // home. Nothing is lost — the previous account's directory stays put.
+    drop(link_service); // aborts the background loops.
+                        // Printed after the screen is back: the operator signed in as somebody else
+                        // mid-session, the marker now names them, and the next launch opens their
+                        // home. Nothing is lost — the previous account's directory stays put.
     if let Some(notice) = account_switched {
         // Both after the restore: the alt screen swallows anything written to
         // the terminal while the app still owns it.

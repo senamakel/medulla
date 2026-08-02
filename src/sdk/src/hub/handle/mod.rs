@@ -117,11 +117,10 @@ impl HubHandle {
     /// showing a screen that will never update again reads as a hung worker
     /// rather than an ended subscription.
     pub async fn unwatch(&self, worker: &str, task_id: &str) -> Result<(), String> {
-        let body = crate::protocol::encode_screen_message(
-            &crate::protocol::ScreenMessage::Unsubscribe {
+        let body =
+            crate::protocol::encode_screen_message(&crate::protocol::ScreenMessage::Unsubscribe {
                 task_id: task_id.to_string(),
-            },
-        );
+            });
         let sent = self.relay.send(worker, &body).await;
         // Disarmed, not forgotten: looking away should not throw away a screen
         // that is already here. Looking back redraws it at once, with its age

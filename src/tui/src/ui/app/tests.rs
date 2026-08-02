@@ -16,7 +16,7 @@ fn app() -> App {
     let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
     let loaded = {
         let mut l = LoadedConfig::defaults("medulla.tui.json".into());
-        l.config.tinyplace = Some(medulla::config::TinyplaceConfig::default());
+        l.config.link = Some(medulla::config::LinkConfig::default());
         l
     };
     App::new(rt, loaded)

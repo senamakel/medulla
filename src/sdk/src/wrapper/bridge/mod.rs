@@ -302,10 +302,7 @@ pub(super) async fn drain_and_inject(
 /// Decide what (if anything) an inbound DM injects: a matching control frame's
 /// text, or a plain owner DM verbatim. Session envelopes and task frames are
 /// never injected.
-fn classify_inbound(
-    bridge: &Bridge,
-    message: &crate::bridge::InboundMessage,
-) -> Option<String> {
+fn classify_inbound(bridge: &Bridge, message: &crate::bridge::InboundMessage) -> Option<String> {
     if let Some(frame) = parse_harness_control_frame(&message.text) {
         if frame_targets_session(
             &frame,

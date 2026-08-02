@@ -89,7 +89,11 @@ impl WorkFold {
 
     /// Fold in a [`HarnessEvent`](crate::protocol::envelope::HarnessEvent) directly,
     /// reading its kind, payload, and ISO timestamp.
-    pub fn apply_event(&mut self, event: &crate::protocol::envelope::HarnessEvent, at: i64) -> bool {
+    pub fn apply_event(
+        &mut self,
+        event: &crate::protocol::envelope::HarnessEvent,
+        at: i64,
+    ) -> bool {
         self.apply(&event.kind, &event.payload, at)
     }
 

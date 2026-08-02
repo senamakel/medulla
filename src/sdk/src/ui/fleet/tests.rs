@@ -330,8 +330,8 @@ fn workspace_detail_shows_its_medulla_md_profile() {
 
 // --- local registry → capacity ---------------------------------------------
 
-use crate::runtime::WorkerInfo;
 use crate::protocol::{BudgetSource, BudgetWindow, HarnessProvider, HarnessReadiness};
+use crate::runtime::WorkerInfo;
 
 /// A registered peer with the capacity facts the Hosts page shows.
 fn peer(id: &str) -> WorkerInfo {

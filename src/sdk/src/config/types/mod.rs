@@ -12,11 +12,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::urls::{PROD_BACKEND_BASE_URL, PROD_TINYPLACE_BASE_URL};
+use crate::protocol::{BudgetWindow, HarnessProvider};
 use crate::runtime::fleet::{
     AgentTemplate, CapacitySnapshot, HarnessDescriptor, HostDescriptor, WorkspaceDescriptor,
 };
 use crate::runtime::{AgentDescriptor, RoutingStrategy, SubscriptionRoutingStrategy};
-use crate::protocol::{BudgetWindow, HarnessProvider};
 
 // --- serde default helpers -------------------------------------------------
 

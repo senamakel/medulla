@@ -137,15 +137,13 @@ fn v2_decodes_every_event_kind() {
         })
     );
 
-    let am =
-        SessionEnvelopeV2::parse(&v2_wire("agent_message", r#"{ "text": "ok" }"#)).unwrap();
+    let am = SessionEnvelopeV2::parse(&v2_wire("agent_message", r#"{ "text": "ok" }"#)).unwrap();
     assert_eq!(
         am.event.decoded(),
         AgentMessage(TextPayload { text: "ok".into() })
     );
 
-    let th =
-        SessionEnvelopeV2::parse(&v2_wire("agent_thinking", r#"{ "text": "hmm" }"#)).unwrap();
+    let th = SessionEnvelopeV2::parse(&v2_wire("agent_thinking", r#"{ "text": "hmm" }"#)).unwrap();
     assert_eq!(
         th.event.decoded(),
         AgentThinking(TextPayload { text: "hmm".into() })
@@ -215,8 +213,8 @@ fn v2_decodes_every_event_kind() {
         })
     );
 
-    let lc = SessionEnvelopeV2::parse(&v2_wire("lifecycle", r#"{ "phase": "session_end" }"#))
-        .unwrap();
+    let lc =
+        SessionEnvelopeV2::parse(&v2_wire("lifecycle", r#"{ "phase": "session_end" }"#)).unwrap();
     assert_eq!(
         lc.event.decoded(),
         Lifecycle(LifecyclePayload {
@@ -224,9 +222,8 @@ fn v2_decodes_every_event_kind() {
         })
     );
 
-    let er =
-        SessionEnvelopeV2::parse(&v2_wire("error", r#"{ "message": "boom", "fatal": true }"#))
-            .unwrap();
+    let er = SessionEnvelopeV2::parse(&v2_wire("error", r#"{ "message": "boom", "fatal": true }"#))
+        .unwrap();
     assert_eq!(
         er.event.decoded(),
         Error(ErrorPayload {

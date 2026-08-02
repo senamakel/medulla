@@ -16,11 +16,7 @@ use crate::daemon::DaemonRuntime;
 use super::{base_config, recording_send, resume_runner, task_frame, wait_ready};
 
 /// A task frame naming a continuity group.
-fn conversation_frame(
-    task_id: &str,
-    text: &str,
-    conversation: &str,
-) -> crate::protocol::TaskFrame {
+fn conversation_frame(task_id: &str, text: &str, conversation: &str) -> crate::protocol::TaskFrame {
     crate::protocol::TaskFrame {
         conversation: Some(conversation.to_string()),
         ..task_frame(task_id, text, None)

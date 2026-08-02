@@ -158,15 +158,24 @@ fn persist_setting_preserves_unrelated_sections() {
     )
     .expect("seed");
 
-    super::persist_setting(&path, "link", "forwarderUrl", toml::Value::String("https://f".into()))
-        .expect("write");
+    super::persist_setting(
+        &path,
+        "link",
+        "forwarderUrl",
+        toml::Value::String("https://f".into()),
+    )
+    .expect("write");
 
     let parsed: TuiConfig =
         toml::from_str(&std::fs::read_to_string(&path).expect("read")).expect("reparse");
     assert_eq!(parsed.theme.primary.as_deref(), Some("cyan"));
     let link = parsed.link.expect("link section");
     assert_eq!(link.forwarder_url, "https://f");
-    assert_eq!(link.node_name.as_deref(), Some("me"), "sibling key survives");
+    assert_eq!(
+        link.node_name.as_deref(),
+        Some("me"),
+        "sibling key survives"
+    );
 }
 
 #[test]
@@ -449,7 +458,10 @@ fn daemon_master_roster_persists_public_peer_data_without_identity_secrets() {
     let text = std::fs::read_to_string(path).unwrap();
     let saved: toml::Value = toml::from_str(&text).unwrap();
     assert_eq!(saved["link"]["stateDir"].as_str(), Some("/worker-link"));
-    assert_eq!(saved["link"]["forwarderUrl"].as_str(), Some("https://relay"));
+    assert_eq!(
+        saved["link"]["forwarderUrl"].as_str(),
+        Some("https://relay")
+    );
     assert_eq!(saved["link"]["peers"][0]["id"].as_str(), Some("master-id"));
     assert_eq!(
         saved["link"]["peers"][0]["nodeId"].as_str(),

@@ -11,6 +11,7 @@
 //! - [`consumer`] — receiver-side fold of the v2 harness stream into a live
 //!   [`consumer::SessionView`].
 //! - [`status`] — the derived session-status state machine over harness events.
+//! - [`service`] — the background host-link observation the TUI renders.
 
 pub mod consumer;
 pub mod control;
@@ -18,6 +19,7 @@ pub mod env;
 pub mod envelope;
 pub mod frames;
 pub mod screen;
+pub mod service;
 pub mod status;
 pub mod system_info;
 

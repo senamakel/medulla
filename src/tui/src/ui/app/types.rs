@@ -955,12 +955,11 @@ pub struct App {
     // here and skips the platform writers (no `pbcopy`/OSC subprocess in tests).
     pub(super) copy_capture: Option<Arc<std::sync::Mutex<Vec<String>>>>,
 
-    // Optional observational overlay from the background tinyplace service:
-    // this TUI's own identity, its peer roster, and peer presence. Merged into
-    // the snapshot on every refresh so the Overview panel and Agents lanes light
-    // up without the runtime having to know about tiny.place.
-    pub(super) tinyplace_obs:
-        Option<Arc<std::sync::Mutex<medulla::protocol::service::TinyplaceObservation>>>,
+    // Optional observational overlay from the background host-link service:
+    // this endpoint's own identity, its peer roster, and peer presence. Merged
+    // into the snapshot on every refresh so the Overview panel and Agents lanes
+    // light up without the runtime having to know about the link.
+    pub(super) link_obs: Option<Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>>,
     // A read-only view of the task host running on this device, when one is.
     // Read live at render rather than merged into the snapshot: its counters
     // move on the host's own schedule, and the snapshot is the *runtime's*

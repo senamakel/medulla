@@ -29,9 +29,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use medulla::daemon::providers::{RunTaskFn, RunTaskOptions, RunTaskResult};
+use medulla::protocol::HarnessProvider;
 use medulla::session_history::SessionAgentKind;
 use medulla::sessions::{SessionClass, TurnStream};
-use medulla::protocol::HarnessProvider;
 use medulla::wrapper::tail::SessionTailer;
 
 use super::super::pty::{HarnessControl, LaunchSpec, PtyManager};

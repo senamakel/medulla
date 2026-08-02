@@ -193,7 +193,8 @@ fn decode_rejects_non_frames() {
     );
     // Unknown kind.
     assert!(decode_task_frame(
-        &json!({"proto": MEDULLA_TASK_PROTO, "kind": "nope", "taskId": "t", "text": "x"}).to_string()
+        &json!({"proto": MEDULLA_TASK_PROTO, "kind": "nope", "taskId": "t", "text": "x"})
+            .to_string()
     )
     .is_none());
     // Missing required text.

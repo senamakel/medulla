@@ -24,9 +24,7 @@ impl App {
     /// What this machine actually has, not what the protocol knows about: a
     /// picker offering a CLI that is not installed produces a host that accepts
     /// work and fails every task.
-    pub(in crate::ui::app) fn add_host_providers(
-        &self,
-    ) -> Vec<medulla::protocol::HarnessProvider> {
+    pub(in crate::ui::app) fn add_host_providers(&self) -> Vec<medulla::protocol::HarnessProvider> {
         // Computed once per process. Detection stat-checks provider binaries on
         // `PATH`, and both the draw and the key handler call this — so without
         // the cache the page did that work every frame and every keystroke.

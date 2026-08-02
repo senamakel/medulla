@@ -17,8 +17,8 @@ use tokio::sync::broadcast;
 
 use crate::runtime::event_log::ThreadEventLog;
 use crate::runtime::{
-    AgentDescriptor, AgentPresence, CycleResultSummary, PeerSession, ThreadSummary,
-    LinkIdentity, WorkerInfo,
+    AgentDescriptor, AgentPresence, CycleResultSummary, LinkIdentity, PeerSession, ThreadSummary,
+    WorkerInfo,
 };
 use crate::ui::chat_store::ChatMessage;
 use crate::ui::events::{EventEnvelope, TuiEvent};

@@ -2,10 +2,10 @@
 //!
 //! When the TUI resolves the backend runtime it spawns the hub in-process (on by
 //! default) so a plain `medulla` run relays the hosted brain's delegated tasks to
-//! tiny.place workers — no separate process, no core-js. The hub is a tokio task
+//! linked hosts — no separate process, no core-js. The hub is a tokio task
 //! aborted when its guard drops (TUI exit / panic). It starts with an empty
 //! roster and you add workers live from the Workers tab (or pre-seed via
-//! `MEDULLA_TINYPLACE_PEER` / `MEDULLA_HUB_WORKERS`); `MEDULLA_HUB=0` opts out.
+//! `MEDULLA_LINK_PEER` / `MEDULLA_HUB_WORKERS`); `MEDULLA_HUB=0` opts out.
 //!
 //! The same [`build_hub_config`] powers the `medulla hub` subcommand, so the
 //! standalone and embedded hubs resolve identically.
@@ -50,7 +50,7 @@ fn workers_from_config(home: &Path) -> Vec<WorkerSpec> {
         .map(|w| WorkerSpec {
             id: w.id,
             address: w.address,
-            name: w.label.unwrap_or_else(|| "tinyplace-worker".to_string()),
+            name: w.label.unwrap_or_else(|| "medulla-worker".to_string()),
             description: format!("{} daemon", w.harness),
             harness: w.harness,
             // Remembered rosters carry no workspace: the local host's is
@@ -110,7 +110,7 @@ fn roster_sink(
 }
 
 /// Parse pre-seeded worker specs from the environment:
-/// `MEDULLA_HUB_WORKERS="id=addr,…"`, else a single `MEDULLA_TINYPLACE_PEER`
+/// `MEDULLA_HUB_WORKERS="id=addr,…"`, else a single `MEDULLA_LINK_PEER`
 /// (id == address). Empty is fine — the hub starts with an empty roster and
 /// workers are added live from the Workers tab.
 fn workers_from_env(env: &HashMap<String, String>) -> Vec<WorkerSpec> {
@@ -122,7 +122,7 @@ fn workers_from_env(env: &HashMap<String, String>) -> Vec<WorkerSpec> {
     let spec = |id: &str, addr: &str| WorkerSpec {
         id: id.to_string(),
         address: addr.to_string(),
-        name: "tinyplace-worker".to_string(),
+        name: "medulla-worker".to_string(),
         description: format!("{provider} daemon"),
         harness: provider.clone(),
         workspace: None,
@@ -143,7 +143,7 @@ fn workers_from_env(env: &HashMap<String, String>) -> Vec<WorkerSpec> {
             .collect();
     }
     if let Some(peer) = env
-        .get("MEDULLA_TINYPLACE_PEER")
+        .get("MEDULLA_LINK_PEER")
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
     {
@@ -237,7 +237,7 @@ fn workflow_bridge(
 
 /// Whether the hub should run. **On by default** in the backend runtime — a
 /// plain `medulla` login is enough, and workers are added live from the Workers
-/// tab (or pre-seeded via `MEDULLA_TINYPLACE_PEER` / `MEDULLA_HUB_WORKERS`).
+/// tab (or pre-seeded via `MEDULLA_LINK_PEER` / `MEDULLA_HUB_WORKERS`).
 /// `MEDULLA_HUB=0`/`false` is the explicit kill-switch; `MEDULLA_HUB=1`/`true`
 /// is the (redundant) explicit opt-in.
 fn hub_enabled(env: &HashMap<String, String>) -> bool {
@@ -316,10 +316,6 @@ pub(crate) fn build_hub_config_with_host(
     // session, and a second lookup here could disagree with the runtime about
     // whether this process is signed in.
     let creds = session?.clone();
-    let identity_dir = env
-        .get("MEDULLA_HUB_IDENTITY_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home.join("tinyplace-hub"));
     let poll_ms = env
         .get("MEDULLA_HUB_POLL_MS")
         .and_then(|s| s.parse().ok())
@@ -336,7 +332,11 @@ pub(crate) fn build_hub_config_with_host(
         log,
         backend_url: creds.base_url,
         jwt: creds.jwt,
-        identity_dir,
+        // No remote link yet: enrollment (the invite token and the hand-carried
+        // pair key) is the Hosts page's job, so until a host is enrolled the hub
+        // routes on the device-local bus only. That is exactly
+        // `RoutingBridge::local_only`, which is the single-device tier.
+        link: None,
         workers,
         poll: Duration::from_millis(poll_ms),
         local_network,

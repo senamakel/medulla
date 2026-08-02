@@ -50,9 +50,7 @@ fn iso_from_epoch_millis(millis: i64) -> String {
         (time_of_day % 3_600) / 60,
         time_of_day % 60,
     );
-    format!(
-        "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{sub_milli:03}Z"
-    )
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{sub_milli:03}Z")
 }
 
 /// Days since 1970-01-01 → `(year, month, day)`.

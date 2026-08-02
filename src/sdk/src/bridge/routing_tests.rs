@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
-use crate::bridge::{Bridge, LocalBridgeNetwork, RoutingBridge};
 use crate::bridge::InboundMessage;
+use crate::bridge::{Bridge, LocalBridgeNetwork, RoutingBridge};
 
 /// A remote stand-in that records every call it receives.
 ///

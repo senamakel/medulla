@@ -347,11 +347,8 @@ async fn a_dead_peer_does_not_pause_another_peers_clock() {
 
     // And the offline one is still paused: it does not settle within the window
     // the awake peer just spent in full.
-    let paused = tokio::time::timeout(
-        ACK_WINDOW * 8,
-        runner.run(req_to("host-asleep"), None),
-    )
-    .await;
+    let paused =
+        tokio::time::timeout(ACK_WINDOW * 8, runner.run(req_to("host-asleep"), None)).await;
     assert!(
         paused.is_err(),
         "the offline peer's clock must still be paused: {paused:?}"

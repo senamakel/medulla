@@ -17,10 +17,7 @@ fn on_by_default_in_backend_mode() {
     // A plain login (no hub-related vars) still runs the hub.
     assert!(hub_enabled(&env(&[])));
     // A pre-seeded worker also runs it (unchanged).
-    assert!(hub_enabled(&env(&[(
-        "MEDULLA_TINYPLACE_PEER",
-        "GRV1worker"
-    )])));
+    assert!(hub_enabled(&env(&[("MEDULLA_LINK_PEER", "GRV1worker")])));
 }
 
 #[test]
@@ -30,7 +27,7 @@ fn explicit_zero_is_a_hard_kill_switch() {
     // The kill-switch wins even when a worker is configured.
     assert!(!hub_enabled(&env(&[
         ("MEDULLA_HUB", "0"),
-        ("MEDULLA_TINYPLACE_PEER", "GRV1worker"),
+        ("MEDULLA_LINK_PEER", "GRV1worker"),
     ])));
 }
 
@@ -133,7 +130,7 @@ fn an_explicit_environment_roster_is_not_merged_with_the_saved_one() {
         false,
     )]);
 
-    let from_env = super::workers_from_env(&env(&[("MEDULLA_TINYPLACE_PEER", "addr-env")]));
+    let from_env = super::workers_from_env(&env(&[("MEDULLA_LINK_PEER", "addr-env")]));
     assert_eq!(from_env.len(), 1);
     assert_eq!(from_env[0].address, "addr-env");
     // And the saved one is still on disk, untouched, for a run without the var.
