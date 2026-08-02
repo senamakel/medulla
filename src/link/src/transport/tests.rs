@@ -88,6 +88,15 @@ fn a_bidirectional_task_round_trip_delivers_the_terminal_frame() {
     pair.orchestrator
         .handle_datagram(&terminal[0], 150)
         .unwrap();
+    let ack = pair
+        .orchestrator
+        .outgoing(160, &mut pair.orchestrator_seq)
+        .unwrap();
+    pair.host.handle_datagram(&ack[0], 170).unwrap();
+    let retry = pair.host.outgoing(180, &mut pair.host_seq).unwrap();
+    pair.orchestrator
+        .handle_datagram(&retry[0], 190)
+        .unwrap();
     assert_eq!(
         pair.orchestrator.take_messages(),
         vec![b"terminal".to_vec()]
