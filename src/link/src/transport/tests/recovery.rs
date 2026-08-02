@@ -175,19 +175,20 @@ fn a_peer_restart_rebuilds_screen_rows_as_datagram_sized_prefixes() {
     pair.orchestrator.handle_datagram(&hello[0], 210).unwrap();
 
     for step in 0..3 {
+        let base = 300 + step * 100;
         let sent = pair
             .orchestrator
-            .outgoing(220 + step * 20, &mut pair.orchestrator_seq)
+            .outgoing(base, &mut pair.orchestrator_seq)
             .unwrap();
         pair.host
-            .handle_datagram(&sent[0], 230 + step * 20)
+            .handle_datagram(&sent[0], base + 10)
             .unwrap();
         let ack = pair
             .host
-            .outgoing(240 + step * 20, &mut pair.host_seq)
+            .outgoing(base + 20, &mut pair.host_seq)
             .unwrap();
         pair.orchestrator
-            .handle_datagram(&ack[0], 250 + step * 20)
+            .handle_datagram(&ack[0], base + 30)
             .unwrap();
     }
 
