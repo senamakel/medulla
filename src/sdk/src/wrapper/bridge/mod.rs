@@ -198,15 +198,18 @@ pub(super) async fn build_bridge(
     // — a harness must still be usable on a machine that was never enrolled.
     let home = crate::home::medulla_home(&config.env);
     // Load the effective configuration to honor the configured link.stateDir if set.
-    let link_state_dir = match crate::config::load_config(None, &config.env, std::path::Path::new(&config.cwd)) {
-        Ok(loaded) => loaded.config.link
-            .map(|link_cfg| link_cfg.state_dir.into())
-            .unwrap_or_else(|| medulla_link::keys::link_dir(&home)),
-        Err(_) => {
-            // Config loading failed; fall back to default.
-            medulla_link::keys::link_dir(&home)
-        }
-    };
+    let link_state_dir =
+        match crate::config::load_config(None, &config.env, std::path::Path::new(&config.cwd)) {
+            Ok(loaded) => loaded
+                .config
+                .link
+                .map(|link_cfg| link_cfg.state_dir.into())
+                .unwrap_or_else(|| medulla_link::keys::link_dir(&home)),
+            Err(_) => {
+                // Config loading failed; fall back to default.
+                medulla_link::keys::link_dir(&home)
+            }
+        };
     let link = match Link::connect(LinkConfig::new(link_state_dir)).await {
         Ok(link) => link,
         Err(err) => {
