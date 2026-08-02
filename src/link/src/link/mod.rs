@@ -218,7 +218,7 @@ impl Driver {
             return;
         };
         let pending = self.pending_inbound.entry(header.src).or_default();
-        if pending.len() >= INBOUND_CAPACITY {
+        if !pending.is_empty() {
             return;
         }
         if session.handle_datagram(datagram, now).is_err() {
