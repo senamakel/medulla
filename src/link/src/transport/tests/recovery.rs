@@ -180,13 +180,8 @@ fn a_peer_restart_rebuilds_screen_rows_as_datagram_sized_prefixes() {
             .orchestrator
             .outgoing(base, &mut pair.orchestrator_seq)
             .unwrap();
-        pair.host
-            .handle_datagram(&sent[0], base + 10)
-            .unwrap();
-        let ack = pair
-            .host
-            .outgoing(base + 20, &mut pair.host_seq)
-            .unwrap();
+        pair.host.handle_datagram(&sent[0], base + 10).unwrap();
+        let ack = pair.host.outgoing(base + 20, &mut pair.host_seq).unwrap();
         pair.orchestrator
             .handle_datagram(&ack[0], base + 30)
             .unwrap();
