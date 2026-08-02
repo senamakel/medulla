@@ -133,6 +133,10 @@ impl MessageQueue {
 }
 
 impl SspState for MessageQueue {
+    fn reset_origin(&mut self) {
+        self.base = 0;
+    }
+
     /// Messages `prev.num()+1 … self.num()`, in order.
     ///
     /// When `prev` is ahead of what this state still holds (its messages were

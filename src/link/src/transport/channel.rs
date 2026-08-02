@@ -103,8 +103,16 @@ impl<S: SspState> Channel<S> {
             }
         }
 
-        // If no pending states existed (or we skipped channel 0), current becomes state 1.
-        // This preserves unconsumed outbound state as documented.
+        // Channel 0 collapses its pending messages into one rebased state. Its
+        // internal absolute message base belongs to the retired peer session,
+        // so carrying that base into the new state would make the fresh peer's
+        // empty origin appear to be ahead of messages it has never received.
+        if self.id == 0 {
+            self.current.reset_origin();
+        }
+
+        // If no pending states existed (or channel 0 deliberately collapsed
+        // them), current becomes state 1.
         if new_num == 1 {
             self.current_num = 1;
             new_sent_states.push_back((1, self.current.clone()));

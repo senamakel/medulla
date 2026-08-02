@@ -146,6 +146,38 @@ fn one_endpoint_restart_rebases_the_live_peer_and_delivers_new_work() {
 }
 
 #[test]
+fn a_peer_restart_preserves_every_pending_message_on_channel_zero() {
+    let mut pair = Pair::new();
+    pair.orchestrator.queue_message(b"status".to_vec()).unwrap();
+    pair.orchestrator.queue_message(b"terminal".to_vec()).unwrap();
+
+    pair.host = Session::new(
+        SessionConfig::new(
+            NodeId([2u8; 16]),
+            NodeId([1u8; 16]),
+            Role::Host,
+            PairKey::from_bytes([5u8; 16]),
+            ForwarderKey([8u8; 32]),
+        ),
+        200,
+    );
+    let hello = pair.host.outgoing(200, &mut pair.host_seq).unwrap();
+    pair.orchestrator.handle_datagram(&hello[0], 210).unwrap();
+
+    let pending = pair
+        .orchestrator
+        .outgoing(220, &mut pair.orchestrator_seq)
+        .unwrap();
+    for datagram in pending {
+        pair.host.handle_datagram(&datagram, 230).unwrap();
+    }
+    assert_eq!(
+        pair.host.take_messages(),
+        vec![b"status".to_vec(), b"terminal".to_vec()]
+    );
+}
+
+#[test]
 fn an_instruction_whose_old_num_does_not_match_is_refused() {
     let mut pair = Pair::new();
     pair.orchestrator.queue_message(b"one".to_vec()).unwrap();
