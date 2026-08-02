@@ -167,8 +167,8 @@ pub async fn run_daemon(
             (!owner.trim().is_empty()).then_some(owner)
         })
         .unwrap_or_else(|| "orchestrator".to_string());
-    let node_name = display_name
-        .clone()
+    let node_name = (!worker_profile.address.trim().is_empty())
+        .then(|| worker_profile.address.trim().to_string())
         .unwrap_or_else(|| worker_profile.name.clone());
     let link = Link::connect(LinkConfig::new(&link_dir))
         .await

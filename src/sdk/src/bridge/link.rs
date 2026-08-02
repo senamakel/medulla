@@ -402,11 +402,7 @@ impl Bridge for LinkBridge {
             frame.extend_from_slice(&(index as u32).to_be_bytes());
             frame.extend_from_slice(&(count as u32).to_be_bytes());
             frame.extend_from_slice(chunk);
-            self.inner
-                .link
-                .send(peer, &frame)
-                .await
-                .map_err(|err| err.to_string())?;
+            send_with_backpressure(&self.inner.link, peer, &frame).await?;
         }
         // `chunks()` yields no item for an empty payload.
         if payload.is_empty() {
@@ -415,11 +411,7 @@ impl Bridge for LinkBridge {
             frame.extend_from_slice(&id.to_be_bytes());
             frame.extend_from_slice(&0u32.to_be_bytes());
             frame.extend_from_slice(&1u32.to_be_bytes());
-            self.inner
-                .link
-                .send(peer, &frame)
-                .await
-                .map_err(|err| err.to_string())?;
+            send_with_backpressure(&self.inner.link, peer, &frame).await?;
         }
         Ok(())
     }
@@ -529,6 +521,23 @@ impl Bridge for LinkBridge {
                 Liveness::Offline => BridgeLiveness::Offline,
             },
             None => BridgeLiveness::Live,
+        }
+    }
+}
+
+/// Retain one fragment and its message id while link history is full.
+async fn send_with_backpressure(
+    link: &LinkHandle,
+    peer: NodeId,
+    frame: &[u8],
+) -> Result<(), String> {
+    loop {
+        match link.send(peer, frame).await {
+            Ok(()) => return Ok(()),
+            Err(err) if err.is_retryable() => {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            Err(err) => return Err(err.to_string()),
         }
     }
 }
