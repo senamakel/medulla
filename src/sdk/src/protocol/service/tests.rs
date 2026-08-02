@@ -48,6 +48,17 @@ fn the_roster_projects_every_configured_peer_and_tags_it_link() {
 }
 
 #[test]
+fn enrolled_nodes_without_config_rows_receive_fallback_roster_entries() {
+    let node = NodeId([0x42; 16]);
+    let roster = roster_from_peers_and_nodes(&LinkConfig::default(), &[(node, node.to_string())]);
+
+    assert_eq!(roster.len(), 1);
+    assert_eq!(roster[0].id, node.to_string());
+    assert_eq!(roster[0].name, node.to_string());
+    assert_eq!(roster[0].metadata["harness"], "link");
+}
+
+#[test]
 fn merging_overlays_identity_dedupes_the_roster_and_upserts_presence() {
     let mut snapshot = crate::runtime::RuntimeSnapshot {
         roster: roster_from_peers(&LinkConfig {

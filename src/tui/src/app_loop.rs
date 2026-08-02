@@ -84,6 +84,8 @@ async fn session_of(
 pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let args = parse_tui_args(raw);
 
+    validate_explicit_config(args.config.as_deref())?;
+
     if !io::stdout().is_terminal() {
         eprintln!("medulla-tui requires an interactive terminal (TTY).");
         std::process::exit(1);
@@ -705,6 +707,19 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         println!("{SWITCHED_ACCOUNT_NOTICE}");
     }
     result
+}
+
+/// Refuse an explicit configuration path that cannot contribute any config.
+///
+/// `load_config` intentionally permits missing paths for config creation flows,
+/// but TUI startup must not silently fall back to the default link identity.
+pub(crate) fn validate_explicit_config(path: Option<&str>) -> anyhow::Result<()> {
+    if let Some(path) = path {
+        if !std::path::Path::new(path).is_file() {
+            anyhow::bail!("explicit TUI configuration does not exist: {path}");
+        }
+    }
+    Ok(())
 }
 
 /// Keep only presets that belong to the primary host and can launch locally.

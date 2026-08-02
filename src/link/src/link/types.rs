@@ -144,6 +144,7 @@ pub struct LinkHandle {
     pub(super) inbound: Mutex<mpsc::Receiver<(NodeId, u64, Vec<u8>)>>,
     pub(super) status: watch::Receiver<LinkStatus>,
     pub(super) peers: Vec<NodeId>,
+    pub(super) screen_updates: HashMap<NodeId, Mutex<()>>,
 }
 
 impl LinkHandle {
@@ -179,6 +180,14 @@ impl LinkHandle {
 
     /// Replace `peer`'s screen frame, splitting large frames into state steps.
     pub async fn send_screen_frame(&self, peer: NodeId, body: &[u8]) -> Result<(), LinkError> {
+        let screen_update = self
+            .screen_updates
+            .get(&peer)
+            .ok_or(LinkError::UnknownPeer(peer))?;
+        // A frame is represented by several cumulative grid states. Keep those
+        // states contiguous: interleaving another producer's prefixes could
+        // create a transition whose changed rows no longer fit one datagram.
+        let _guard = screen_update.lock().await;
         let capacity = crate::transport::MAX_MESSAGE_BYTES - 20;
         let count = body.len().div_ceil(capacity).max(1);
         let mut rows = Vec::with_capacity(count);

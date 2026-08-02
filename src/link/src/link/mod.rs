@@ -65,6 +65,12 @@ impl Link {
         // fixed at connect, and a caller that needs it must not have to wait for
         // the first status publication to see it.
         let peers = driver.sessions.keys().copied().collect();
+        let screen_updates = driver
+            .sessions
+            .keys()
+            .copied()
+            .map(|peer| (peer, Mutex::new(())))
+            .collect();
         tokio::spawn(driver.run(command_rx));
 
         Ok(LinkHandle {
@@ -72,6 +78,7 @@ impl Link {
             inbound: Mutex::new(inbound_rx),
             status: status_rx,
             peers,
+            screen_updates,
         })
     }
 }

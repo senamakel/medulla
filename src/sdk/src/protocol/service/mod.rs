@@ -124,15 +124,20 @@ impl LinkService {
         // Presence is keyed by the roster's own peer id, so the descriptor the
         // TUI renders and the reading that lights it up agree without the view
         // having to know anything about node ids.
-        let by_node: Vec<(NodeId, String)> = config
+        let mut by_node: Vec<(NodeId, String)> = config
             .peers
             .iter()
             .filter_map(|peer| Some((parse_node_id(peer.node_id.as_deref()?)?, peer.id.clone())))
             .collect();
+        for peer in link.peers() {
+            if !by_node.iter().any(|(node_id, _)| node_id == peer) {
+                by_node.push((*peer, peer.to_string()));
+            }
+        }
 
         let observation = Arc::new(Mutex::new(LinkObservation {
             identity: Some(identity),
-            roster: roster_from_peers(config),
+            roster: roster_from_peers_and_nodes(config, &by_node),
             presence: HashMap::new(),
             notice: None,
         }));
@@ -232,6 +237,33 @@ fn roster_from_peers(config: &LinkConfig) -> Vec<AgentDescriptor> {
             }
         })
         .collect()
+}
+
+/// Add enrolled link peers that have no configured display metadata.
+fn roster_from_peers_and_nodes(
+    config: &LinkConfig,
+    by_node: &[(NodeId, String)],
+) -> Vec<AgentDescriptor> {
+    let mut roster = roster_from_peers(config);
+    for (_, id) in by_node {
+        if roster.iter().any(|descriptor| descriptor.id == *id) {
+            continue;
+        }
+        let mut metadata = serde_json::Map::new();
+        metadata.insert("harness".to_string(), Value::String("link".to_string()));
+        roster.push(AgentDescriptor {
+            id: id.clone(),
+            name: id.clone(),
+            description: String::new(),
+            availability: String::new(),
+            workspace_id: None,
+            host_id: None,
+            template_id: None,
+            tags: Vec::new(),
+            metadata,
+        });
+    }
+    roster
 }
 
 #[cfg(test)]
