@@ -299,11 +299,7 @@ async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<
 /// outages (Degraded/Offline), partials are retained to complete once connectivity
 /// recovers, aligning with task-layer clock pausing for peer outages.
 #[cfg(test)]
-async fn reassemble(
-    peer: NodeId,
-    body: Vec<u8>,
-    inbox: &Inbox,
-) -> Option<Vec<u8>> {
+async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8>> {
     reassemble_with_liveness(peer, body, true, inbox).await
 }
 
