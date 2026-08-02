@@ -2,26 +2,37 @@
 //! frame, and render it as the JSON line the harness asserts on.
 
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
+use medulla::bridge::{Bridge, LinkBridge};
 use medulla::protocol::{
     decode_task_frame, encode_task_frame, EncodeFrameInput, TaskFrame, TaskFrameKind,
 };
 use medulla_link::keys::NodeId;
-use medulla_link::{Link, LinkConfig, LinkHandle};
+use medulla_link::{Link, LinkConfig};
 
 use crate::{Leg, POLL};
 
 /// Bring the link up, retrying briefly while a previous driver releases the
 /// identity lock (the lock is dropped when the old driver task stops, which is
 /// shortly after its handle is).
-pub async fn connect(state_dir: &Path, forwarder: Option<&str>) -> Result<LinkHandle, String> {
+pub async fn connect(state_dir: &Path, forwarder: Option<&str>) -> Result<LinkBridge, String> {
     let mut config = LinkConfig::new(state_dir);
     config.forwarder_endpoint = forwarder.map(str::to_string);
     let mut last = String::new();
     for _ in 0..25 {
         match Link::connect(config.clone()).await {
-            Ok(link) => return Ok(link),
+            Ok(link) => {
+                let owner = link.status().local_node_id.to_string();
+                let [peer] = link.peers() else {
+                    return Err(format!(
+                        "expected the coordination link to have one peer, found {}",
+                        link.peers().len()
+                    ));
+                };
+                return LinkBridge::single_peer(Arc::new(link), owner, peer.to_string());
+            }
             Err(err) => {
                 last = err.to_string();
                 tokio::time::sleep(POLL).await;
@@ -37,15 +48,16 @@ pub async fn connect(state_dir: &Path, forwarder: Option<&str>) -> Result<LinkHa
 /// Run one leg: send the frame, wait for the terminal frame, build the report.
 ///
 /// Returns the leg's exit code and the JSON line describing it.
-pub async fn run_leg(link: &LinkHandle, owner_id: NodeId, leg: &Leg) -> (i32, serde_json::Value) {
-    let Some(peer) = leg.to.or_else(|| link.peers().first().copied()) else {
+pub async fn run_leg(link: &LinkBridge, owner_id: NodeId, leg: &Leg) -> (i32, serde_json::Value) {
+    let peers = link.link().peers();
+    let Some(peer) = leg.to.or_else(|| peers.first().copied()) else {
         return (
             2,
             report_error(owner_id, leg, "missing --to <worker node id>"),
         );
     };
-    if !link.peers().contains(&peer) {
-        let known: Vec<String> = link.peers().iter().map(NodeId::to_string).collect();
+    if !peers.contains(&peer) {
+        let known: Vec<String> = peers.iter().map(NodeId::to_string).collect();
         return (
             2,
             report_error(
@@ -76,7 +88,7 @@ pub async fn run_leg(link: &LinkHandle, owner_id: NodeId, leg: &Leg) -> (i32, se
         conversation: None,
         fleet_depth: 0,
     });
-    if let Err(err) = link.send(peer, frame.as_bytes()).await {
+    if let Err(err) = link.send(&peer.to_string(), &frame).await {
         return (
             2,
             report_error(owner_id, leg, &format!("send failed: {err}")),
@@ -91,37 +103,40 @@ pub async fn run_leg(link: &LinkHandle, owner_id: NodeId, leg: &Leg) -> (i32, se
     let mut collected: Vec<TaskFrame> = Vec::new();
     let mut terminal: Option<TaskFrame> = None;
     while terminal.is_none() {
-        let Ok(Some((_from, _epoch, body))) = tokio::time::timeout_at(deadline, link.recv()).await
-        else {
-            break; // the deadline passed, or the link closed under us
-        };
-        let text = String::from_utf8_lossy(&body).into_owned();
-        let Some(frame) = decode_task_frame(&text) else {
-            eprintln!("coordination_owner: ignoring a message that is not a task frame");
-            continue;
-        };
-        // A leg only ends on its *own* task. A reply to an earlier, timed-out leg
-        // can still be in flight on a link this process keeps across legs, and
-        // letting it terminate this one would report the wrong answer.
-        if frame.task_id != leg.task_id {
+        for message in link.drain_inbox(1024).await {
+            let Some(frame) = decode_task_frame(&message.text) else {
+                eprintln!("coordination_owner: ignoring a message that is not a task frame");
+                continue;
+            };
+            // A leg only ends on its *own* task. A reply to an earlier, timed-out leg
+            // can still be in flight on a link this process keeps across legs, and
+            // letting it terminate this one would report the wrong answer.
+            if frame.task_id != leg.task_id {
+                eprintln!(
+                    "coordination_owner: ignoring frame for task {} (waiting on {})",
+                    frame.task_id, leg.task_id
+                );
+                continue;
+            }
             eprintln!(
-                "coordination_owner: ignoring frame for task {} (waiting on {})",
-                frame.task_id, leg.task_id
+                "coordination_owner: frame kind={:?} text={:?}",
+                frame.kind, frame.text
             );
-            continue;
+            let is_terminal = matches!(
+                frame.kind,
+                TaskFrameKind::Reply | TaskFrameKind::Error | TaskFrameKind::CapabilitiesResult
+            );
+            collected.push(frame.clone());
+            if is_terminal {
+                terminal = Some(frame);
+                break;
+            }
         }
-        eprintln!(
-            "coordination_owner: frame kind={:?} text={:?}",
-            frame.kind, frame.text
-        );
-        let is_terminal = matches!(
-            frame.kind,
-            TaskFrameKind::Reply | TaskFrameKind::Error | TaskFrameKind::CapabilitiesResult
-        );
-        collected.push(frame.clone());
-        if is_terminal {
-            terminal = Some(frame);
+        if terminal.is_some() || tokio::time::Instant::now() >= deadline {
+            break;
         }
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        link.wait_for_inbox(remaining.min(POLL)).await;
     }
 
     match terminal {

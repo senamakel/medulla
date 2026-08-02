@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use medulla_link::keys::NodeId;
-use medulla_link::LinkHandle;
+use medulla::bridge::LinkBridge;
 
 use crate::leg::{connect, run_leg};
 use crate::{parse_args, Args, POLL};
@@ -21,7 +21,7 @@ use crate::{parse_args, Args, POLL};
 /// terminal-frame report) and then `<label>.rc` (the exit code) into the results
 /// directory — in that order, because the harness waits on the `.rc`.
 pub async fn serve(
-    connected: LinkHandle,
+    connected: LinkBridge,
     state_dir: &Path,
     args: &Args,
     owner_id: NodeId,
