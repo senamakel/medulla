@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 
 use tokio::sync::{Mutex as TokioMutex, Notify, Semaphore};
 
-use ::tinyplace::auth::timestamp;
+use crate::clock::iso_now as timestamp;
 
 use crate::protocol::{EncodeFrameInput, HarnessProvider, TaskFrame, TaskFrameKind};
 

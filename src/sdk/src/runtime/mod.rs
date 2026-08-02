@@ -345,7 +345,7 @@ pub use types::RuntimeSnapshot;
 pub use types::StreamState;
 pub use types::SubmitReceipt;
 pub use types::ThreadSummary;
-pub use types::TinyplaceIdentity;
+pub use types::LinkIdentity;
 pub use types::WorkerInfo;
 pub use types::WorkerOp;
 pub use types::{RoutingStrategy, SubscriptionRoutingStrategy};

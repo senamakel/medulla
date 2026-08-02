@@ -61,12 +61,17 @@ impl Link {
         let (status_tx, status_rx) = watch::channel(LinkStatus::default());
 
         let driver = Driver::new(&config, node, socket, forwarder, inbound_tx, status_tx);
+        // Captured before the driver moves into its task: the peer table is
+        // fixed at connect, and a caller that needs it must not have to wait for
+        // the first status publication to see it.
+        let peers = driver.sessions.keys().copied().collect();
         tokio::spawn(driver.run(command_rx));
 
         Ok(LinkHandle {
             commands: command_tx,
             inbound: Mutex::new(inbound_rx),
             status: status_rx,
+            peers,
         })
     }
 }

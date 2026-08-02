@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 
 pub use pair_key::{PairKey, PairKeyError};
 pub use seq::{MemorySeq, ReservedSeq, SeqSource, RESERVATION_BLOCK};
-pub use store::{node_path, LOCK_FILE, NODE_FILE};
+pub use store::{node_path, read_node_state, LOCK_FILE, NODE_FILE};
 pub use types::{ForwarderKey, KeyError, KeyResult, NodeId, NodeLock, NodeState, Role};
 
 /// The identity directory under a medulla home: `<home>/link`.

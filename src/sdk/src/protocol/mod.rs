@@ -11,31 +11,16 @@
 //! - [`consumer`] — receiver-side fold of the v2 harness stream into a live
 //!   [`consumer::SessionView`].
 //! - [`status`] — the derived session-status state machine over harness events.
-//! - [`config`] — the tinyplace CLI config-file model and endpoint resolution.
-//! - [`runtime`] — agent-runtime helpers: a file-backed [`runtime::FileSessionStore`],
-//!   identity bootstrap, and async mailbox / contact / presence loops driving the
-//!   SDK client.
 
-pub mod config;
 pub mod consumer;
 pub mod control;
 pub mod env;
 pub mod envelope;
 pub mod frames;
-pub mod runtime;
 pub mod screen;
-pub mod service;
 pub mod status;
 pub mod system_info;
 
-/// The published tinyplace Rust SDK, re-exported so downstream code depends on a
-/// single tinyplace surface.
-pub use tinyplace;
-
-pub use config::{
-    config_path, load_config, parse_config, resolve_endpoint, write_config, TinyplaceFileConfig,
-    DEFAULT_ENDPOINT,
-};
 pub use consumer::{
     apply_session_envelope, fold_session_envelopes, initial_session_view, parse_session_envelope,
     FeedEntry, SessionView, SessionViewLimits, ToolActivity, DEFAULT_LIMITS,
@@ -49,11 +34,6 @@ pub use frames::{
     encode_task_frame_with_work, parse_agent_capabilities, AgentCapabilities, BudgetSource,
     BudgetWindow, CustomHarnessAdvert, EncodeFrameInput, HarnessBudget, HarnessProvider,
     HarnessReadiness, TaskFrame, TaskFrameKind, TokenUsage, WorkflowAdvert, MEDULLA_TASK_PROTO,
-};
-pub use runtime::{
-    acquire_identity, acquire_identity_at, load_or_create_identity, spawn_contact_auto_accepter,
-    spawn_mailbox_poll, spawn_presence_heartbeat, AcquiredIdentity, FileSessionStore, IdentityLock,
-    MailboxItem, MailboxPoll, RuntimeError, RuntimeResult, IDENTITY_FILE,
 };
 pub use screen::{
     apply_frame, build_frame, changed_rows, coalesce_runs, encode_screen_message,

@@ -39,7 +39,7 @@ pub struct AgentDescriptor {
     #[serde(default)]
     pub metadata: Map<String, Value>,
 }
-/// Latest liveness reading for one roster agent (tinyplace backend only).
+/// Latest liveness reading for one roster agent (remote transports only).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct AgentPresence {
     /// Whether the agent is currently considered reachable.
@@ -77,15 +77,13 @@ pub struct ThreadSummary {
     /// Number of tasks or questions awaiting operator attention.
     pub attention: usize,
 }
-/// This TUI's own tiny.place identity.
+/// This endpoint's own host-link identity, as the TUI displays it.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TinyplaceIdentity {
-    /// tiny.place agent identifier for this installation.
-    pub agent_id: String,
-    /// Public identity key encoded for display or transport setup.
-    pub public_key: String,
-    /// Optional registered handle.
-    pub handle: Option<String>,
+pub struct LinkIdentity {
+    /// The node name peers address this endpoint by.
+    pub node_name: String,
+    /// The forwarder this endpoint links through.
+    pub forwarder: String,
 }
 /// The last cycle's result, as surfaced in the Overview tab.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -337,7 +335,7 @@ pub struct RuntimeSnapshot {
     /// Wrapper sessions grouped by peer identifier.
     pub sessions: HashMap<String, Vec<PeerSession>>,
     /// This installation's tiny.place identity, when configured.
-    pub tinyplace: Option<TinyplaceIdentity>,
+    pub link: Option<LinkIdentity>,
     /// Resumable chat threads.
     pub threads: Vec<ThreadSummary>,
     /// Thread currently selected for input.

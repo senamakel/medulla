@@ -29,7 +29,7 @@ impl Relay for Recorder {
         Ok(())
     }
 
-    async fn drain_inbox(&self, _limit: i64) -> Vec<crate::daemon::transport::InboundMessage> {
+    async fn drain_inbox(&self, _limit: i64) -> Vec<crate::bridge::InboundMessage> {
         Vec::new()
     }
 

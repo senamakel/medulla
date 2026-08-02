@@ -140,6 +140,7 @@ pub struct LinkHandle {
     pub(super) commands: mpsc::Sender<Command>,
     pub(super) inbound: Mutex<mpsc::Receiver<(NodeId, Vec<u8>)>>,
     pub(super) status: watch::Receiver<LinkStatus>,
+    pub(super) peers: Vec<NodeId>,
 }
 
 impl LinkHandle {
@@ -178,6 +179,15 @@ impl LinkHandle {
     /// `None` means the driver has stopped and no further message will arrive.
     pub async fn recv(&self) -> Option<(NodeId, Vec<u8>)> {
         self.inbound.lock().await.recv().await
+    }
+
+    /// Every peer this link opened a session with.
+    ///
+    /// The host case has exactly one — the orchestrator recorded in `node.json`
+    /// — and a caller that must map a name onto a node id has no other source
+    /// for it, since the name lives only in the backend registry (§2).
+    pub fn peers(&self) -> &[NodeId] {
+        &self.peers
     }
 
     /// The current per-peer link status (§6.2).

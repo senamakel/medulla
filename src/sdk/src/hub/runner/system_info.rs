@@ -38,7 +38,7 @@ impl TaskRunner {
                 kind: TaskFrameKind::SystemInfo,
                 task_id: correlation_id.clone(),
                 text: String::new(),
-                ts: ::tinyplace::auth::timestamp(),
+                ts: crate::clock::iso_now(),
                 correlation_id: Some(correlation_id.clone()),
                 harness: None,
                 provider: None,

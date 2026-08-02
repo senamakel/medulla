@@ -136,7 +136,6 @@ impl HubHandle {
             roster: wiring.roster,
             socket: wiring.socket,
             address: wiring.address,
-            public_key: wiring.public_key,
             relay: wiring.relay,
             catalog: wiring.catalog,
             runner: wiring.runner,
@@ -164,16 +163,11 @@ impl HubHandle {
         }
     }
 
-    /// The hub's own tiny.place address (base58 cryptoId). This is the value an
-    /// operator sets as a worker's `TINYPLACE_OPENHUMAN_OWNER` / adds to its
-    /// `acceptContacts` allowlist.
+    /// The hub's own link node name. This is the value an operator sets as a
+    /// worker's `MEDULLA_LINK_OWNER`, because a worker only accepts a task from
+    /// the orchestrator it enrolled with.
     pub fn address(&self) -> &str {
         &self.address
-    }
-
-    /// The hub's own Ed25519 identity public key, base64.
-    pub fn public_key(&self) -> &str {
-        &self.public_key
     }
 
     /// A snapshot of the current roster.
