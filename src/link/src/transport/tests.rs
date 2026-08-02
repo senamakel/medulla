@@ -68,6 +68,45 @@ fn applying_the_same_instruction_twice_equals_applying_it_once() {
 }
 
 #[test]
+fn one_endpoint_restart_rebases_the_live_peer_and_delivers_new_work() {
+    let mut pair = Pair::new();
+    pair.orchestrator.queue_message(b"before".to_vec()).unwrap();
+    let first = pair
+        .orchestrator
+        .outgoing(100, &mut pair.orchestrator_seq)
+        .unwrap();
+    pair.host.handle_datagram(&first[0], 110).unwrap();
+    assert_eq!(pair.host.take_messages(), vec![b"before".to_vec()]);
+    let ack = pair.host.outgoing(140, &mut pair.host_seq).unwrap();
+    pair.orchestrator.handle_datagram(&ack[0], 150).unwrap();
+
+    // Only the host process restarts. Its first heartbeat carries a new epoch,
+    // causing the still-running orchestrator to rebase before its next send.
+    pair.host = Session::new(
+        SessionConfig::new(
+            NodeId([2u8; 16]),
+            NodeId([1u8; 16]),
+            Role::Host,
+            PairKey::from_bytes([5u8; 16]),
+            ForwarderKey([8u8; 32]),
+        ),
+        200,
+    );
+    let hello = pair.host.outgoing(200, &mut pair.host_seq).unwrap();
+    pair.orchestrator.handle_datagram(&hello[0], 210).unwrap();
+
+    pair.orchestrator.queue_message(b"after".to_vec()).unwrap();
+    let after = pair
+        .orchestrator
+        .outgoing(220, &mut pair.orchestrator_seq)
+        .unwrap();
+    for datagram in after {
+        pair.host.handle_datagram(&datagram, 230).unwrap();
+    }
+    assert_eq!(pair.host.take_messages(), vec![b"after".to_vec()]);
+}
+
+#[test]
 fn an_instruction_whose_old_num_does_not_match_is_refused() {
     let mut pair = Pair::new();
     pair.orchestrator.queue_message(b"one".to_vec()).unwrap();
