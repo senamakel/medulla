@@ -68,6 +68,33 @@ fn applying_the_same_instruction_twice_equals_applying_it_once() {
 }
 
 #[test]
+fn a_bidirectional_task_round_trip_delivers_the_terminal_frame() {
+    let mut pair = Pair::new();
+    pair.orchestrator.queue_message(b"task".to_vec()).unwrap();
+    let task = pair
+        .orchestrator
+        .outgoing(100, &mut pair.orchestrator_seq)
+        .unwrap();
+    pair.host.handle_datagram(&task[0], 110).unwrap();
+    assert_eq!(pair.host.take_messages(), vec![b"task".to_vec()]);
+
+    pair.host.queue_message(b"status".to_vec()).unwrap();
+    let status = pair.host.outgoing(120, &mut pair.host_seq).unwrap();
+    pair.orchestrator.handle_datagram(&status[0], 130).unwrap();
+    assert_eq!(pair.orchestrator.take_messages(), vec![b"status".to_vec()]);
+
+    pair.host.queue_message(b"terminal".to_vec()).unwrap();
+    let terminal = pair.host.outgoing(140, &mut pair.host_seq).unwrap();
+    pair.orchestrator
+        .handle_datagram(&terminal[0], 150)
+        .unwrap();
+    assert_eq!(
+        pair.orchestrator.take_messages(),
+        vec![b"terminal".to_vec()]
+    );
+}
+
+#[test]
 fn one_endpoint_restart_rebases_the_live_peer_and_delivers_new_work() {
     let mut pair = Pair::new();
     pair.orchestrator.queue_message(b"before".to_vec()).unwrap();
