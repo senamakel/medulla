@@ -155,26 +155,33 @@ async fn connect_link(
     config: &HubLinkConfig,
     log: &super::types::HubLog,
 ) -> anyhow::Result<LinkBridge> {
-    let mut link_config = LinkConfig::new(config.state_dir.clone());
-    link_config.forwarder_endpoint = config.forwarder_endpoint.clone();
-    link_config.peers = config
-        .peers
-        .iter()
-        .map(|peer| PeerConfig {
-            node_id: peer.node_id,
-            pair_key: peer.pair_key.clone(),
-        })
-        .collect();
-    let handle = Link::connect(link_config)
-        .await
-        .map_err(|e| anyhow::anyhow!("hub: could not bring up the host link ({e})"))?;
+    let handle = match &config.handle {
+        Some(handle) => handle.clone(),
+        None => {
+            let mut link_config = LinkConfig::new(config.state_dir.clone());
+            link_config.forwarder_endpoint = config.forwarder_endpoint.clone();
+            link_config.peers = config
+                .peers
+                .iter()
+                .map(|peer| PeerConfig {
+                    node_id: peer.node_id,
+                    pair_key: peer.pair_key.clone(),
+                })
+                .collect();
+            Arc::new(
+                Link::connect(link_config)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("hub: could not bring up the host link ({e})"))?,
+            )
+        }
+    };
     log(&format!(
         "hub: link up as {} ({} peer(s))",
         config.node_name,
         config.peers.len()
     ));
     Ok(LinkBridge::new(
-        Arc::new(handle),
+        handle,
         LinkBridgeConfig {
             node_name: config.node_name.clone(),
             peers: config

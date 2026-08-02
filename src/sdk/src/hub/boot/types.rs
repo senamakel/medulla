@@ -21,7 +21,7 @@ pub struct HubLinkPeer {
 }
 
 /// How the hub brings up its host link.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HubLinkConfig {
     /// The link identity directory, normally `<medulla_home>/link`.
     pub state_dir: PathBuf,
@@ -31,6 +31,12 @@ pub struct HubLinkConfig {
     pub forwarder_endpoint: Option<String>,
     /// The hosts this orchestrator has enrolled.
     pub peers: Vec<HubLinkPeer>,
+    /// An already-open link owned by the embedding process.
+    ///
+    /// Embedded hubs share this handle with status observation because the
+    /// identity directory is exclusively locked. Standalone hubs leave it
+    /// unset and open the link during startup.
+    pub handle: Option<Arc<medulla_link::LinkHandle>>,
 }
 
 /// One worker the hub fronts on the backend roster.

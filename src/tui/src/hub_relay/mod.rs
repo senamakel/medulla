@@ -17,6 +17,7 @@ use std::time::Duration;
 
 use medulla::auth::Credentials;
 use medulla::hub::{start_hub, HubConfig, HubLinkConfig, HubLinkPeer, HubSession, WorkerSpec};
+use medulla_link::LinkHandle;
 
 /// Default inbox poll interval when `MEDULLA_HUB_POLL_MS` is unset.
 const DEFAULT_POLL_MS: u64 = 1500;
@@ -72,7 +73,14 @@ fn link_from_config(env: &HashMap<String, String>, home: &Path) -> Option<HubLin
     let config = medulla::config::load_config(path.to_str(), env, &cwd)
         .ok()?
         .config;
-    let link = config.link?;
+    link_from_resolved_config(&config.link?, None)
+}
+
+/// Build hub link wiring from the same resolved config the TUI is displaying.
+fn link_from_resolved_config(
+    link: &medulla::config::LinkConfig,
+    handle: Option<Arc<LinkHandle>>,
+) -> Option<HubLinkConfig> {
     let state_dir = PathBuf::from(&link.state_dir);
     let state =
         medulla_link::keys::read_node_state(&medulla_link::keys::node_path(&state_dir)).ok()?;
@@ -91,6 +99,7 @@ fn link_from_config(env: &HashMap<String, String>, home: &Path) -> Option<HubLin
             node_id: state.peer_node_id,
             pair_key: state.pair_key,
         }],
+        handle,
     })
 }
 
@@ -314,6 +323,28 @@ pub(crate) fn build_hub_config_with_host(
     session: Option<&Credentials>,
     agent_templates: Vec<medulla::runtime::AgentTemplate>,
 ) -> Option<HubConfig> {
+    let link = link_from_config(env, home);
+    build_hub_config_with_host_and_link(
+        env,
+        home,
+        log,
+        local,
+        session,
+        agent_templates,
+        link,
+    )
+}
+
+/// Build a hub using link wiring already resolved by the embedding process.
+fn build_hub_config_with_host_and_link(
+    env: &HashMap<String, String>,
+    home: &Path,
+    log: medulla::hub::HubLog,
+    local: Option<LocalDispatch>,
+    session: Option<&Credentials>,
+    agent_templates: Vec<medulla::runtime::AgentTemplate>,
+    link: Option<HubLinkConfig>,
+) -> Option<HubConfig> {
     if !hub_enabled(env) {
         return None;
     }
@@ -365,7 +396,7 @@ pub(crate) fn build_hub_config_with_host(
         log,
         backend_url: creds.base_url,
         jwt: creds.jwt,
-        link: link_from_config(env, home),
+        link,
         workers,
         poll: Duration::from_millis(poll_ms),
         local_network,
@@ -387,13 +418,23 @@ pub(crate) async fn start(
     local: Option<LocalDispatch>,
     session: Option<&Credentials>,
     agent_templates: Vec<medulla::runtime::AgentTemplate>,
+    resolved_link: Option<&medulla::config::LinkConfig>,
+    link_handle: Option<Arc<LinkHandle>>,
 ) -> Option<HubSession> {
     // The hub must never write to the terminal here: the TUI owns the alternate
     // screen, and ratatui only repaints the cells it manages, so a stray line
     // lands on top of the UI and is never cleared. Capturing them keeps the
     // screen intact and the diagnostics readable.
-    let config =
-        build_hub_config_with_host(env, home, logs.sink(), local, session, agent_templates)?;
+    let link = resolved_link.and_then(|config| link_from_resolved_config(config, link_handle));
+    let config = build_hub_config_with_host_and_link(
+        env,
+        home,
+        logs.sink(),
+        local,
+        session,
+        agent_templates,
+        link,
+    )?;
     match start_hub(config).await {
         Ok(session) => {
             *slot.lock().expect("hub slot") = Some(session.handle.clone());
