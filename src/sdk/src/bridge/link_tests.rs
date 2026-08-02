@@ -18,18 +18,18 @@ async fn fragments_reassemble_without_mixing_interleaved_messages() {
     let peer = NodeId([7; 16]);
     let other_peer = NodeId([8; 16]);
 
-    assert!(reassemble(peer, chunk(1, 0, 2, b"large "), &inbox)
+    assert!(reassemble(peer, 1, chunk(1, 0, 2, b"large "), &inbox)
         .await
         .is_none());
-    assert!(reassemble(other_peer, chunk(2, 0, 2, b"other "), &inbox)
+    assert!(reassemble(other_peer, 1, chunk(2, 0, 2, b"other "), &inbox)
         .await
         .is_none());
     assert_eq!(
-        reassemble(peer, chunk(1, 1, 2, b"frame"), &inbox).await,
+        reassemble(peer, 1, chunk(1, 1, 2, b"frame"), &inbox).await,
         Some(b"large frame".to_vec())
     );
     assert_eq!(
-        reassemble(other_peer, chunk(2, 1, 2, b"message"), &inbox).await,
+        reassemble(other_peer, 1, chunk(2, 1, 2, b"message"), &inbox).await,
         Some(b"other message".to_vec())
     );
 }
@@ -39,7 +39,7 @@ async fn unframed_payloads_remain_compatible() {
     let inbox = Inbox::default();
     let body = b"legacy frame".to_vec();
     assert_eq!(
-        reassemble(NodeId([8; 16]), body.clone(), &inbox).await,
+        reassemble(NodeId([8; 16]), 1, body.clone(), &inbox).await,
         Some(body)
     );
 }
@@ -48,14 +48,14 @@ async fn unframed_payloads_remain_compatible() {
 async fn a_second_frame_never_evicts_acknowledged_fragments() {
     let inbox = Inbox::default();
     let peer = NodeId([9; 16]);
-    assert!(reassemble(peer, chunk(1, 0, 2, b"preserved "), &inbox)
+    assert!(reassemble(peer, 1, chunk(1, 0, 2, b"preserved "), &inbox)
         .await
         .is_none());
-    assert!(reassemble(peer, chunk(2, 0, 2, b"new"), &inbox)
+    assert!(reassemble(peer, 1, chunk(2, 0, 2, b"new"), &inbox)
         .await
         .is_none());
     assert_eq!(
-        reassemble(peer, chunk(1, 1, 2, b"frame"), &inbox).await,
+        reassemble(peer, 1, chunk(1, 1, 2, b"frame"), &inbox).await,
         Some(b"preserved frame".to_vec())
     );
 }
@@ -64,11 +64,11 @@ async fn a_second_frame_never_evicts_acknowledged_fragments() {
 async fn incomplete_reassembly_survives_a_long_gap() {
     let inbox = Inbox::default();
     let peer = NodeId([10; 16]);
-    assert!(reassemble(peer, chunk(1, 0, 2, b"held "), &inbox)
+    assert!(reassemble(peer, 1, chunk(1, 0, 2, b"held "), &inbox)
         .await
         .is_none());
     assert_eq!(
-        reassemble(peer, chunk(1, 1, 2, b"frame"), &inbox).await,
+        reassemble(peer, 1, chunk(1, 1, 2, b"frame"), &inbox).await,
         Some(b"held frame".to_vec())
     );
 }
