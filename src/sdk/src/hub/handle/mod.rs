@@ -287,8 +287,10 @@ impl HubHandle {
         // its address is a name this process bound, so "does it exist" is
         // answerable exactly, and demanding base58 of it would make the host on
         // this very machine the one worker the roster refuses.
+        let enrolled_address = self.relay.resolve_handle(&worker.address).await;
         if !is_plausible_address(&worker.address)
             && !self.relay.is_device_local(&worker.address).await
+            && enrolled_address.is_none()
         {
             let given = worker.address.clone();
             (self.log)(&format!("hub: refused worker address {given:?}"));
@@ -300,7 +302,7 @@ impl HubHandle {
         // all keyed on the cryptoId behind it. Storing the alias would register
         // a peer that nothing can address.
         if is_handle(&worker.address) {
-            match self.relay.resolve_handle(&worker.address).await {
+            match enrolled_address {
                 Some(crypto_id) => {
                     (self.log)(&format!("hub: resolved {} → {crypto_id}", worker.address));
                     if worker.id == worker.address {

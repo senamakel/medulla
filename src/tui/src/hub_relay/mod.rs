@@ -64,9 +64,9 @@ fn workers_from_config(home: &Path) -> Vec<WorkerSpec> {
 
 /// Build the remote side of the hub from an enrolled link identity.
 ///
-/// The current node-state schema carries one peer key. A configured peer name
-/// is matched to that wire id; absent a row, its hexadecimal id remains a valid
-/// bridge address so an enrolled link is never silently left unused.
+/// The current node-state schema carries the enrolled pair key. Every configured
+/// peer with a valid wire id is routed through the already-open link handle;
+/// absent such a row, the peer recorded in node state remains available.
 fn link_from_config(env: &HashMap<String, String>, home: &Path) -> Option<HubLinkConfig> {
     let path = roster_path(home);
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -84,12 +84,29 @@ fn link_from_resolved_config(
     let state_dir = PathBuf::from(&link.state_dir);
     let state =
         medulla_link::keys::read_node_state(&medulla_link::keys::node_path(&state_dir)).ok()?;
-    let peer_name = link
+    let mut peers: Vec<HubLinkPeer> = link
         .peers
         .iter()
-        .find(|peer| peer.node_id.as_deref() == Some(&state.peer_node_id.to_string()))
-        .and_then(|peer| peer.address.clone().or_else(|| peer.name.clone()))
-        .unwrap_or_else(|| state.peer_node_id.to_string());
+        .filter_map(|peer| {
+            let node_id = peer.node_id.as_deref()?.parse().ok()?;
+            Some(HubLinkPeer {
+                name: peer
+                    .address
+                    .clone()
+                    .or_else(|| peer.name.clone())
+                    .unwrap_or_else(|| peer.id.clone()),
+                node_id,
+                pair_key: state.pair_key.clone(),
+            })
+        })
+        .collect();
+    if peers.is_empty() {
+        peers.push(HubLinkPeer {
+            name: state.peer_node_id.to_string(),
+            node_id: state.peer_node_id,
+            pair_key: state.pair_key.clone(),
+        });
+    }
     Some(HubLinkConfig {
         state_dir,
         node_name: link
@@ -97,11 +114,7 @@ fn link_from_resolved_config(
             .clone()
             .unwrap_or_else(|| state.node_id.to_string()),
         forwarder_endpoint: None,
-        peers: vec![HubLinkPeer {
-            name: peer_name,
-            node_id: state.peer_node_id,
-            pair_key: state.pair_key,
-        }],
+        peers,
         handle,
     })
 }
