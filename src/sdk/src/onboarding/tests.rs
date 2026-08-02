@@ -163,6 +163,33 @@ async fn malformed_explicit_config_cannot_mutate_an_existing_profile() {
 }
 
 #[tokio::test]
+async fn missing_explicit_config_cannot_mutate_an_existing_profile() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("missing.toml");
+    let e = home_env(
+        dir.path(),
+        &[(crate::config::CONFIG_PATH_ENV, missing.to_str().unwrap())],
+    );
+    let profile_file = profile_path(&e);
+    WorkerProfile {
+        name: "existing-worker".to_string(),
+        address: String::new(),
+        owner: None,
+        registered_at: None,
+    }
+    .save(&profile_file)
+    .unwrap();
+
+    let err = match ensure_registered_in(&e, false, None, dir.path()).await {
+        Err(err) => err,
+        Ok(_) => panic!("a missing explicit config must stop onboarding"),
+    };
+
+    assert!(err.to_string().contains("does not exist"));
+    assert_eq!(WorkerProfile::load(&profile_file).unwrap().address, "");
+}
+
+#[tokio::test]
 async fn headless_without_owner_still_registers() {
     let dir = tempfile::tempdir().unwrap();
     let e = home_env(dir.path(), &[("USER", "grace"), ("HOSTNAME", "node")]);
