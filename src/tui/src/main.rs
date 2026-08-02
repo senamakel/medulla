@@ -209,27 +209,16 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
     // link identity for the life of the process: a second `Link` on the same
     // node would draw sequences from a second counter under one AEAD key, which
     // reuses nonces (protocol §3.1).
-    let mut transport_config = medulla_link::LinkConfig::new(&link_config.state_dir);
     let enrolled_node_id = medulla_link::keys::read_node_state(&medulla_link::keys::node_path(
         std::path::Path::new(&link_config.state_dir),
     ))
     .ok()
     .map(|state| state.node_id.to_string());
-    if let Ok(state) = medulla_link::keys::read_node_state(&medulla_link::keys::node_path(
-        std::path::Path::new(&link_config.state_dir),
-    )) {
-        transport_config.peers = link_config
-            .peers
-            .iter()
-            .filter_map(|peer| {
-                Some(medulla_link::PeerConfig {
-                    node_id: medulla_link::keys::NodeId::from_hex(peer.node_id.as_deref()?)?,
-                    pair_key: state.pair_key.clone(),
-                })
-            })
-            .collect();
-    }
-    let transport = match medulla_link::Link::connect(transport_config).await {
+    let transport = match medulla_link::Link::connect(medulla_link::LinkConfig::new(
+        &link_config.state_dir,
+    ))
+    .await
+    {
         Ok(link) => {
             // The owner is the link's single peer: a host enrolls against
             // exactly one orchestrator (protocol §7.3).
