@@ -105,11 +105,14 @@ fn link_from_resolved_config(
             })
         })
         .collect();
-    if peers.is_empty() {
+    for (node_id, pair_key) in enrolled {
+        if peers.iter().any(|peer| peer.node_id == node_id) {
+            continue;
+        }
         peers.push(HubLinkPeer {
-            name: state.peer_node_id.to_string(),
-            node_id: state.peer_node_id,
-            pair_key: enrolled.get(&state.peer_node_id)?.clone(),
+            name: node_id.to_string(),
+            node_id,
+            pair_key,
         });
     }
     Some(HubLinkConfig {

@@ -119,7 +119,6 @@ pub async fn run_daemon(
     let model = flags.string("model");
     let opencode_agent = flags.string("opencode-agent");
     let skip_permissions = flags.is_set("dangerously-skip-permissions");
-    let handle = flags.string("handle");
     let once = flags.is_set("once");
     let reonboard = flags.is_set("reonboard");
 
@@ -221,7 +220,7 @@ pub async fn run_daemon(
         }
         eprint!(
             "{}",
-            super::pairing::pairing_banner(&agent_id, handle.as_deref(), handoff.is_some())
+            super::pairing::pairing_banner(&agent_id, None, handoff.is_some())
         );
     }
 

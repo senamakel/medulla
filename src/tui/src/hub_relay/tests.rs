@@ -87,6 +87,55 @@ fn every_configured_link_peer_reaches_the_hub_bridge() {
 }
 
 #[test]
+fn every_unconfigured_enrolled_peer_reaches_the_hub_bridge_by_node_id() {
+    use medulla_link::keys::{ForwarderKey, NodeId, NodeState, PairKey, Role};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let state_dir = dir.path().join("link");
+    let _node = medulla_link::keys::acquire_or_create(&state_dir, || NodeState {
+        version: 1,
+        node_id: NodeId([1; 16]),
+        role: Role::Orchestrator,
+        pair_key: PairKey::from_bytes([2; 16]),
+        forwarder_key: ForwarderKey([3; 32]),
+        forwarder_endpoint: "127.0.0.1:4600".to_string(),
+        peer_node_id: NodeId([4; 16]),
+        peers: vec![
+            medulla_link::keys::EnrolledPeer {
+                node_id: NodeId([5; 16]),
+                pair_key: PairKey::from_bytes([5; 16]),
+            },
+            medulla_link::keys::EnrolledPeer {
+                node_id: NodeId([6; 16]),
+                pair_key: PairKey::from_bytes([6; 16]),
+            },
+        ],
+        seq_reservation: 1,
+    })
+    .expect("node state");
+    let config = medulla::config::LinkConfig {
+        state_dir: state_dir.display().to_string(),
+        peers: vec![medulla::config::Peer {
+            id: "worker-alpha".to_string(),
+            node_id: Some(NodeId([5; 16]).to_string()),
+            address: Some("worker-alpha".to_string()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let link = super::link_from_resolved_config(&config, None).expect("hub link");
+    assert_eq!(link.peers.len(), 2);
+    assert!(link
+        .peers
+        .iter()
+        .any(|peer| peer.name == "worker-alpha" && peer.node_id == NodeId([5; 16])));
+    assert!(link.peers.iter().any(|peer| {
+        peer.name == NodeId([6; 16]).to_string() && peer.node_id == NodeId([6; 16])
+    }));
+}
+
+#[test]
 fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
     // Regression. The hub used to `eprintln!` its progress — "hub: connecting to
     // <url>", "socket closed — reconnecting", every task result. Under the

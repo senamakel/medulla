@@ -32,6 +32,9 @@ use super::types::{WrapperConfig, WrapperTimings};
 /// Maximum inbound messages drained from the mailbox per receive tick.
 const INBOX_LIMIT: i64 = 50;
 
+/// Publications buffered away from child and signal supervision.
+const PUBLISH_CAPACITY: usize = 256;
+
 /// The provider's transcript agent kind, or `None` for opencode (no tailing).
 pub(super) fn agent_kind(provider: HarnessProvider) -> Option<SessionAgentKind> {
     match provider {
@@ -80,35 +83,22 @@ impl Bridge {
     /// Serialize and send `envelope` to the configured recipient (no-op when the
     /// bridge has no recipient or serialization fails).
     ///
-    /// Retries on retryable errors (e.g., link queue overflow from peer backpressure)
-    /// with exponential backoff, giving the peer time to catch up. Non-retryable errors
-    /// and final failures are logged; the tailer has already consumed the event, so
-    /// missing envelopes after outages are accepted rather than blocking.
+    /// Enqueues without waiting for link backpressure. A dedicated publisher
+    /// task owns reliable link retries, so an offline recipient cannot stop the
+    /// wrapper from polling child completion or signals. A full publication
+    /// queue drops the new envelope; the tailer has already consumed the event,
+    /// so missing envelopes after a long outage are accepted rather than
+    /// blocking supervision.
     pub(super) async fn publish(&self, envelope: &crate::protocol::SessionEnvelopeV2) {
-        let recipient = match &self.recipient {
-            Some(recipient) => recipient,
-            None => return,
-        };
+        if self.recipient.is_none() {
+            return;
+        }
         let body = match serde_json::to_string(envelope) {
             Ok(body) => body,
             Err(_) => return,
         };
-        use crate::bridge::Bridge as _;
-        // Retry with capped exponential backoff while link history is full.
-        let mut delay_ms = 10u64;
-        loop {
-            match self.transport.send(recipient, &body).await {
-                Ok(()) => return,
-                Err(err) => {
-                    if err.starts_with("link queue overflow:") {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
-                        delay_ms = (delay_ms * 2).min(1000);
-                    } else {
-                        eprintln!("medulla wrapper: publish failed: {err}");
-                        return;
-                    }
-                }
-            }
+        if let Err(err) = self.publish_tx.try_send(body) {
+            eprintln!("medulla wrapper: publication dropped: {err}");
         }
     }
 
@@ -256,6 +246,20 @@ pub(super) async fn build_bridge(
             return None;
         }
     };
+    let (publish_tx, mut publish_rx) = mpsc::channel::<String>(PUBLISH_CAPACITY);
+    let publish_transport = transport.clone();
+    let publish_recipient = recipient.clone();
+    let publisher = tokio::spawn(async move {
+        use crate::bridge::Bridge as _;
+        while let Some(body) = publish_rx.recv().await {
+            let Some(recipient) = publish_recipient.as_deref() else {
+                continue;
+            };
+            if let Err(err) = publish_transport.send(recipient, &body).await {
+                eprintln!("medulla wrapper: publish failed: {err}");
+            }
+        }
+    });
 
     let receive_active =
         receive_from.is_some() && tp_env::receive_enabled(config.provider, &config.env);
@@ -277,6 +281,8 @@ pub(super) async fn build_bridge(
 
     Some(Bridge {
         transport,
+        publish_tx,
+        publisher,
         recipient,
         receive_from,
         receive_active,
