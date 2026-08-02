@@ -53,6 +53,7 @@ fn next_message_id() -> u64 {
 struct PartialMessage {
     chunks: Vec<Option<Vec<u8>>>,
     bytes: usize,
+    epoch: u64,
 }
 
 #[derive(Default)]
@@ -119,7 +120,7 @@ struct Inner {
     /// Keeps one fragmented application frame in flight at a time. Because
     /// channel 0 is reliable and ordered, this also bounds each receiver to one
     /// acknowledged partial per enrolled sender without eviction.
-    send_lock: Mutex<()>,
+    send_locks: HashMap<NodeId, Arc<Mutex<()>>>,
     pump: tokio::task::JoinHandle<()>,
 }
 
@@ -144,9 +145,11 @@ impl LinkBridge {
     pub fn new(link: Arc<LinkHandle>, config: LinkBridgeConfig) -> Self {
         let mut ids = HashMap::new();
         let mut names = HashMap::new();
+        let mut send_locks = HashMap::new();
         for peer in config.peers {
             names.insert(peer.node_id, peer.name.clone());
             ids.insert(peer.name, peer.node_id);
+            send_locks.insert(peer.node_id, Arc::new(Mutex::new(())));
         }
         let inbox = Arc::new(Inbox::default());
         let pump = tokio::spawn(pump(link.clone(), names.clone(), inbox.clone()));
@@ -157,7 +160,7 @@ impl LinkBridge {
                 ids,
                 names,
                 inbox,
-                send_lock: Mutex::new(()),
+                send_locks,
                 pump,
             }),
         }
@@ -218,8 +221,8 @@ impl LinkBridge {
 
 /// Drain the link into the bridge's inbox until the link stops.
 async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<Inbox>) {
-    while let Some((peer, body)) = link.recv().await {
-        let Some(body) = reassemble(peer, body, &inbox).await else {
+    while let Some((peer, epoch, body)) = link.recv().await {
+        let Some(body) = reassemble(peer, epoch, body, &inbox).await else {
             continue;
         };
         // An unknown sender is named by its id rather than dropped: the message
@@ -252,7 +255,7 @@ async fn pump(link: Arc<LinkHandle>, names: HashMap<NodeId, String>, inbox: Arc<
 /// Decode one bridge fragment, returning a complete application frame once all
 /// chunks have arrived. Link channel 0 is ordered, but the id keeps concurrent
 /// callers independent when their chunk sequences interleave.
-async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8>> {
+async fn reassemble(peer: NodeId, epoch: u64, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8>> {
     if body.len() < CHUNK_HEADER || &body[..4] != CHUNK_MAGIC {
         return Some(body);
     }
@@ -270,18 +273,23 @@ async fn reassemble(peer: NodeId, body: Vec<u8>, inbox: &Inbox) -> Option<Vec<u8
         // chunks have already been acknowledged by the reliable link and cannot
         // be retransmitted. A second id is malformed concurrency and is refused
         // without damaging the frame already in progress.
-        if reassembly
+        let existing = reassembly
             .partials
-            .keys()
-            .any(|(source, _)| *source == peer)
-        {
-            return None;
+            .iter()
+            .find(|((source, _), _)| *source == peer)
+            .map(|(key, partial)| (*key, partial.epoch));
+        if let Some((old_key, old_epoch)) = existing {
+            if old_epoch == epoch {
+                return None;
+            }
+            reassembly.remove(&old_key);
         }
         reassembly.partials.insert(
             key,
             PartialMessage {
                 chunks: (0..count).map(|_| None).collect(),
                 bytes: 0,
+                epoch,
             },
         );
     }
@@ -318,10 +326,16 @@ impl Bridge for LinkBridge {
     /// delivered: the link owns retransmission, so there is no ack window at
     /// this layer and no mailbox to push to.
     async fn send(&self, to: &str, body: &str) -> Result<(), String> {
-        let _send = self.inner.send_lock.lock().await;
         let peer = self
             .node_id(to)
             .ok_or_else(|| format!("no link peer is enrolled for address: {to}"))?;
+        let send_lock = self
+            .inner
+            .send_locks
+            .get(&peer)
+            .expect("every peer has a send lock")
+            .clone();
+        let _send = send_lock.lock().await;
         let payload = body.as_bytes();
         let capacity = MAX_MESSAGE_BYTES - CHUNK_HEADER;
         let count = payload.len().div_ceil(capacity).max(1);
