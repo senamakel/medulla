@@ -67,6 +67,22 @@ async fn incomplete_reassembly_is_bounded_and_expires() {
     assert!(state.partials.contains_key(&(peer, 999)));
 }
 
+#[tokio::test]
+async fn incomplete_reassembly_does_not_expire_while_the_peer_is_offline() {
+    let inbox = Inbox::default();
+    let peer = NodeId([10; 16]);
+    assert!(reassemble_with_liveness(peer, chunk(1, 0, 2, b"held "), false, &inbox)
+        .await
+        .is_none());
+    inbox.reassembly.lock().await.partials[&mut (peer, 1)].updated =
+        Instant::now() - PARTIAL_TTL;
+
+    assert_eq!(
+        reassemble_with_liveness(peer, chunk(1, 1, 2, b"frame"), false, &inbox).await,
+        Some(b"held frame".to_vec())
+    );
+}
+
 #[test]
 fn fragment_message_ids_are_random_across_calls() {
     assert_ne!(next_message_id(), next_message_id());
