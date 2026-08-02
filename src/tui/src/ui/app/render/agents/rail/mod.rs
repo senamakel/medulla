@@ -27,6 +27,8 @@ mod rows;
 mod state;
 mod status;
 #[cfg(test)]
+mod attention_tests;
+#[cfg(test)]
 mod status_line_tests;
 #[cfg(test)]
 mod tests;
