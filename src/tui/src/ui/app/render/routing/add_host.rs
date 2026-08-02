@@ -166,10 +166,6 @@ impl App {
                     "    Example: 7Kx…9fQ Primary build machine",
                     dim,
                 )));
-                lines.push(TLine::from(Span::styled(
-                    "    Or run `medulla daemon --handle build-box` and add `@build-box`.",
-                    dim,
-                )));
             }
             AddHostKind::Local => {
                 let state = if on_kind {
