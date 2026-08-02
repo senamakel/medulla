@@ -74,7 +74,11 @@ pub async fn ensure_registered(
 ) -> anyhow::Result<Option<Registration>> {
     let home = crate::home::medulla_home(env);
     let profile_file = profile_path(env);
-    let link_dir = medulla_link::keys::link_dir(&home);
+    // Load the effective configuration to honor the configured link.stateDir if set.
+    let link_dir = crate::config::load_config(None, env, std::path::Path::new("."))
+        .ok()
+        .and_then(|loaded| loaded.config.link.map(|cfg| cfg.state_dir.into()))
+        .unwrap_or_else(|| medulla_link::keys::link_dir(&home));
     let existing = WorkerProfile::load(&profile_file);
 
     if !reonboard && is_registered(existing.as_ref(), identity_present(&link_dir)) {

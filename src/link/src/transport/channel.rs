@@ -69,28 +69,42 @@ impl<S: SspState> Channel<S> {
     ///
     /// Unconsumed outbound state is preserved and becomes state 1 relative to
     /// the shared initial state; inbound state restarts at 0.
+    ///
+    /// Channel 0 (MessageQueue) is not preserved: its internal base tracks absolute
+    /// message numbers which cannot be adjusted when renumbering states. The peer
+    /// will request the complete message sequence from state 0 after restart anyway.
     pub fn reset_peer(&mut self) {
         // Preserve pending unacknowledged states by renumbering them starting from 1.
         // This ensures that if state layer fragmentation split a message into
         // intermediate states, those states remain available instead of being
         // collapsed into a single oversized state 1.
+        //
+        // Channel 0 (MessageQueue) is special: its base field tracks absolute
+        // message numbers that cannot simply be renumbered. The peer starts at
+        // state 0 after restart and will request the full sequence, so we don't
+        // preserve channel 0 states.
         let mut new_sent_states = VecDeque::new();
         new_sent_states.push_back((0, self.initial.clone()));
 
         let mut new_num = 1u64;
         for (old_num, state) in &self.sent_states {
             if *old_num > self.assumed_receiver_num {
-                // This is a pending unacknowledged state — preserve it with new numbering.
-                new_sent_states.push_back((new_num, state.clone()));
-                if *old_num == self.current_num {
-                    self.current_num = new_num;
+                // Skip channel 0 (MessageQueue) states due to internal base numbering.
+                // Channel 0's base represents absolute message count and cannot be
+                // trivially adjusted when renumbering; the peer will retrieve it fresh.
+                if self.id != 0 {
+                    // This is a pending unacknowledged state — preserve it with new numbering.
+                    new_sent_states.push_back((new_num, state.clone()));
+                    if *old_num == self.current_num {
+                        self.current_num = new_num;
+                    }
+                    new_num += 1;
                 }
-                new_num += 1;
             }
         }
 
-        // If no pending states existed, current was the same as the assumed receiver state.
-        // In that case, make the current state be state 1.
+        // If no pending states existed (or we skipped channel 0), current becomes state 1.
+        // This preserves unconsumed outbound state as documented.
         if new_num == 1 {
             self.current_num = 1;
             new_sent_states.push_back((1, self.current.clone()));
