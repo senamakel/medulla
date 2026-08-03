@@ -140,6 +140,12 @@ pub(crate) struct SessionMeta {
     /// `None` means the directory is not in a repository or has a detached
     /// `HEAD`.
     pub(crate) branch: Option<String>,
+    /// Repository root captured immediately before the harness was spawned.
+    pub(crate) launch_root: Option<String>,
+    /// Commit checked out immediately before the harness process was spawned.
+    pub(crate) launch_commit: Option<String>,
+    /// Filesystem identity of the launch checkout's Git directory.
+    pub(crate) launch_checkout_identity: Option<String>,
     /// Epoch ms when the session started.
     pub(crate) started_at: i64,
     /// Whether an operator asked for this session rather than a task frame.
