@@ -72,14 +72,28 @@ impl App {
                             id == &session && rect.contains((m.column, m.row).into())
                         });
                     if !inside_attached_pane {
-                        // A click that navigates away releases the same keyboard
-                        // focus as Ctrl-]. Settle the configured hand-back policy
-                        // before changing the selected tab or rail row; otherwise
-                        // an Ask prompt would refer to a pane already hidden.
-                        if !self.begin_harness_release(&session) {
-                            return None;
+                        // The rail and the threads strip are navigation chrome,
+                        // not a destination away from the harness: clicking a
+                        // lane should move the cursor, not raise the hand-back
+                        // question over the pane the operator is still in.
+                        let inside_rail = self
+                            .hit_agents
+                            .as_ref()
+                            .is_some_and(|(rect, _)| rect.contains((m.column, m.row).into()));
+                        let inside_threads = self
+                            .hit_threads
+                            .as_ref()
+                            .is_some_and(|(rect, _)| rect.contains((m.column, m.row).into()));
+                        if !inside_rail && !inside_threads {
+                            // A click that navigates away releases the same keyboard
+                            // focus as Ctrl-]. Settle the configured hand-back policy
+                            // before changing the selected tab or rail row; otherwise
+                            // an Ask prompt would refer to a pane already hidden.
+                            if !self.begin_harness_release(&session) {
+                                return None;
+                            }
+                            self.release_harness();
                         }
-                        self.release_harness();
                     }
                 }
                 self.drag_anchor = Some((m.column, m.row));
@@ -332,6 +346,26 @@ impl App {
                             if row.is_new_harness() {
                                 self.open_harness_picker();
                                 return None;
+                            }
+                            if let Some(session) = row.session_id() {
+                                // Point the prompt at the row that was clicked,
+                                // not at whatever the last render left behind.
+                                // `harness_pane_session` is written during the
+                                // draw, and no draw happens between the cursor
+                                // move above and this call — so without this the
+                                // prompt would offer to hand over the previously
+                                // visible harness, and confirming it would
+                                // transfer control of one the operator never
+                                // pointed at.
+                                self.harness_pane_session = Some(session.to_string());
+                                self.open_harness_enter_prompt();
+                                // Drop whatever task the previous row was
+                                // watching, exactly as the fall-through below
+                                // does for every other row. This branch returns
+                                // early, so without retargeting here a click
+                                // onto a harness leaves the last task's screen
+                                // streaming into a pane nobody is looking at.
+                                return self.retarget_watch();
                             }
                             // Clicking a task is the request to watch it.
                             if let Some(cmd) = self.retarget_watch() {
