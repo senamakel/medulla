@@ -5,6 +5,7 @@ use std::collections::{BinaryHeap, HashSet};
 use std::path::Path;
 
 use super::types::{App, HarnessPickerStep, WorkspaceChoice};
+use crate::ui::composer::flatten_paste;
 
 const MAX_WORKSPACE_CHOICES: usize = 10;
 const MAX_RECENT_WORKSPACES: usize = 12;
@@ -23,9 +24,41 @@ impl App {
             picker.step = HarnessPickerStep::Workspace;
             picker.workspace_query = if edit_default { default } else { String::new() };
             picker.workspace_index = 0;
+            picker.workspace_picked = false;
         }
         self.refresh_harness_workspace_choices();
         self.set_status("Workspace · type to filter · Tab complete · Enter start · Esc back");
+    }
+
+    /// Take a pasted directory into the workspace query, on the step that has
+    /// one.
+    ///
+    /// The picker is two overlays in one. Its harness step is a list of
+    /// providers with no field on it, so a paste there is dropped for the same
+    /// reason it swallows the keyboard — leaving it to surface in the query once
+    /// the step advanced would be worse than losing it. Its workspace step *is*
+    /// a text field ("type to filter"), and pasting a path into it is the common
+    /// case.
+    ///
+    /// Appended rather than inserted, and flattened to one line, because that is
+    /// what the query is: a single-line box with no caret, edited by the same
+    /// `push`/`pop` that typing uses. A path copied with a trailing newline
+    /// therefore lands as the path plus a space, which
+    /// [`resolve_workspace`](crate::ui::harness_pane::LocalHarnesses::resolve_workspace)
+    /// trims before it is used.
+    pub(super) fn paste_into_harness_workspace(&mut self, text: &str) {
+        let Some(picker) = &mut self.harness_picker else {
+            return;
+        };
+        if picker.step != HarnessPickerStep::Workspace {
+            return;
+        }
+        picker.workspace_query.push_str(&flatten_paste(text));
+        // Narrowing the completions invalidates where the cursor pointed,
+        // exactly as typing a character does.
+        picker.workspace_index = 0;
+        picker.workspace_picked = false;
+        self.refresh_harness_workspace_choices();
     }
 
     /// Recompute cached completions after the query changes.
@@ -43,15 +76,37 @@ impl App {
         }
     }
 
-    /// Selected completion, falling back to valid typed input.
+    /// The workspace Enter would start in: a deliberately chosen completion, an
+    /// entered path that already names a directory, or nothing.
+    ///
+    /// A query that resolves to a real directory is the operator's own answer,
+    /// so it outranks the completions listed *under* it — until they arrow onto
+    /// one, which sets `workspace_picked` and is honoured instead. That flag is
+    /// tracked rather than inferred from `workspace_index`, because a query
+    /// offering a single completion leaves the cursor on row zero however
+    /// deliberately it was moved there.
+    ///
+    /// Without that, a directory with a trailing separator — the form a path
+    /// copied out of a file manager takes — filled the list with its own
+    /// children, and Enter silently started the harness in the first of them
+    /// rather than in the directory that was asked for.
     pub(super) fn selected_harness_workspace(&self) -> Option<String> {
         let picker = self.harness_picker.as_ref()?;
+        let resolved = self
+            .harnesses
+            .as_ref()
+            .map(|harnesses| harnesses.resolve_workspace(&picker.workspace_query));
+        // Blank means "the default", which is what the completions already rank
+        // for, so an empty query is left to them.
+        if !picker.workspace_picked && !picker.workspace_query.trim().is_empty() {
+            if let Some(resolved) = resolved.as_ref().filter(|r| Path::new(r).is_dir()) {
+                return Some(resolved.clone());
+            }
+        }
         if let Some(choice) = picker.workspace_choices.get(picker.workspace_index) {
             return Some(choice.path.clone());
         }
-        let harnesses = self.harnesses.as_ref()?;
-        let resolved = harnesses.resolve_workspace(&picker.workspace_query);
-        Path::new(&resolved).is_dir().then_some(resolved)
+        resolved.filter(|resolved| Path::new(resolved).is_dir())
     }
 
     /// Make the highlighted completion the editable query.
@@ -65,6 +120,9 @@ impl App {
         if let (Some(picker), Some(selected)) = (&mut self.harness_picker, selected) {
             picker.workspace_query = selected;
             picker.workspace_index = 0;
+            // Completing *is* entering it: the query now names the directory,
+            // so it answers for itself rather than for the rows beneath it.
+            picker.workspace_picked = false;
             self.refresh_harness_workspace_choices();
         }
     }
