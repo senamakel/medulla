@@ -11,13 +11,13 @@ use std::sync::Arc;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
-use medulla::config::{LoadedConfig, TinyplaceConfig};
+use medulla::config::{LinkConfig, LoadedConfig};
 use medulla::runtime::mock::MockRuntime;
 use medulla_tui::ui::app::{App, Cmd, TABS};
 
 fn loaded() -> LoadedConfig {
     let mut l = LoadedConfig::defaults("medulla.tui.json".into());
-    l.config.tinyplace = Some(TinyplaceConfig::default());
+    l.config.link = Some(LinkConfig::default());
     l
 }
 
@@ -168,7 +168,7 @@ mod attached {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
-    use medulla::tinyplace::HarnessProvider;
+    use medulla::protocol::HarnessProvider;
     use medulla_tui::ui::harness_pane::LocalHarnesses;
     use medulla_tui::worker::pty::{HarnessControl, LaunchSpec, PtyManager};
 
