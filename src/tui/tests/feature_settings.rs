@@ -178,13 +178,31 @@ fn appearance_persists_theme_to_injected_path() {
 }
 
 #[test]
+fn appearance_blink_status_reports_the_boolean_value() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let mut app = settings_app();
+    app.set_config_path(path.clone());
+    let _ = key(&mut app, KeyCode::Char('2'));
+    for _ in 0..5 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Enter);
+
+    assert!(app.status().contains("Attention blink → off (saved)"));
+    let saved = std::fs::read_to_string(path).unwrap();
+    assert!(saved.contains("attentionBlink = false"), "{saved}");
+}
+
+#[test]
 fn appearance_cycles_and_persists_process_indicators() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("config.toml");
     let mut app = settings_app();
     app.set_config_path(path.clone());
     let _ = key(&mut app, KeyCode::Char('2'));
-    for _ in 0..4 {
+    // Five color rows and the attention blink toggle precede resources.
+    for _ in 0..6 {
         let _ = key(&mut app, KeyCode::Char('j'));
     }
     let _ = key(&mut app, KeyCode::Right);
@@ -205,7 +223,8 @@ fn appearance_persists_process_indicators_to_json() {
     let mut app = settings_app();
     app.set_config_path(path.clone());
     let _ = key(&mut app, KeyCode::Char('2'));
-    for _ in 0..4 {
+    // Five color rows and the attention blink toggle precede resources.
+    for _ in 0..6 {
         let _ = key(&mut app, KeyCode::Char('j'));
     }
     let _ = key(&mut app, KeyCode::Right);
@@ -284,8 +303,9 @@ fn appearance_cycles_and_persists_device_indicators_independently() {
     let mut app = settings_app();
     app.set_config_path(path.clone());
     let _ = key(&mut app, KeyCode::Char('2'));
-    // Four theme roles, three process indicators, and Session titles lands on Device CPU.
-    for _ in 0..8 {
+    // Five color rows, attention blink, three process indicators, and Session titles
+    // lands on Device CPU.
+    for _ in 0..10 {
         let _ = key(&mut app, KeyCode::Char('j'));
     }
     let _ = key(&mut app, KeyCode::Right);

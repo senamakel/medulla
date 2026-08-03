@@ -19,8 +19,12 @@ use super::types::App;
 /// Non-theme rows: session titles, then process and device resource indicators.
 pub(super) const APPEARANCE_OPTION_ROWS: usize = 7;
 
-/// Number of selectable rows on the Appearance page: theme roles plus resources.
-pub(super) const APPEARANCE_ROWS: usize = THEME_ROLES.len() + APPEARANCE_OPTION_ROWS;
+/// Number of behavior controls shown after the editable theme colors.
+pub(super) const ATTENTION_ROWS: usize = 1;
+
+/// Number of selectable rows: theme colors, attention behavior, and options.
+pub(super) const APPEARANCE_ROWS: usize =
+    THEME_ROLES.len() + ATTENTION_ROWS + APPEARANCE_OPTION_ROWS;
 
 impl App {
     /// Cycle the selected colour role and persist the theme.
@@ -29,8 +33,16 @@ impl App {
         if index < THEME_ROLES.len() {
             self.theme.cycle_role(index, forward);
             self.persist_theme_now(THEME_ROLES[index]);
+        } else if index == THEME_ROLES.len() {
+            self.theme.attention_blink = !self.theme.attention_blink;
+            let value = if self.theme.attention_blink {
+                "on"
+            } else {
+                "off"
+            };
+            self.persist_theme_value_now("Attention blink", value.into());
         } else {
-            let option = index - THEME_ROLES.len();
+            let option = index - THEME_ROLES.len() - ATTENTION_ROWS;
             if option == 3 {
                 self.toggle_session_titles();
             } else {
@@ -153,12 +165,17 @@ impl App {
     /// Write the current theme to the injected config path.
     fn persist_theme_now(&mut self, role: &str) {
         let value = color_to_string(self.theme.role(self.appearance_index));
+        self.persist_theme_value_now(role, value);
+    }
+
+    /// Persist the live theme and report the edited value in the status line.
+    fn persist_theme_value_now(&mut self, setting: &str, value: String) {
         match &self.config_path {
             Some(path) => match crate::ui::theme::persist_theme(path, &self.theme) {
-                Ok(()) => self.set_status(format!("Appearance · {role} → {value} (saved)")),
+                Ok(()) => self.set_status(format!("Appearance · {setting} → {value} (saved)")),
                 Err(error) => self.set_status(format!("Appearance · save failed: {error}")),
             },
-            None => self.set_status(format!("Appearance · {role} → {value} (not persisted)")),
+            None => self.set_status(format!("Appearance · {setting} → {value} (not persisted)")),
         }
     }
 }
