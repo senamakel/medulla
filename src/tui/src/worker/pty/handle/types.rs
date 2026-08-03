@@ -140,6 +140,8 @@ pub(crate) struct SessionMeta {
     /// `None` means the directory is not in a repository or has a detached
     /// `HEAD`.
     pub(crate) branch: Option<String>,
+    /// Whether the child environment contains a GitHub repository override.
+    pub(crate) gh_repo_is_set: bool,
     /// Repository root captured immediately before the harness was spawned.
     pub(crate) launch_root: Option<String>,
     /// Commit checked out immediately before the harness process was spawned.

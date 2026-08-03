@@ -7,6 +7,8 @@
 
 mod items;
 
+use std::collections::HashMap;
+
 use serde_json::Value;
 
 use items::codex_item;
@@ -16,9 +18,22 @@ use super::shared::{parse_json_object, parse_maybe_json, text_from_content};
 use super::timestamp::parse_timestamp_ms;
 use super::types::HarnessSemanticEvent;
 use super::work::work_events_for_tool;
+use super::workspace::{pull_request_command, workspace_event_from_output, PendingPullRequestCall};
 
-/// Map one raw Codex JSONL line into zero or more semantic events.
-pub(super) fn codex_events_from_line(raw: &str, line: i64) -> Vec<HarnessSemanticEvent> {
+/// Map one raw Codex JSONL `raw` line at `line` into semantic events.
+///
+/// `pull_request_calls` is mutated as PR commands start and finish, while
+/// `workspace_cwd` binds those calls to the checkout active at dispatch time.
+/// `gh_repo_is_set` prevents an inherited GitHub repository override from
+/// authorizing results for a different checkout.
+pub(super) fn codex_events_from_line(
+    raw: &str,
+    line: i64,
+    pull_request_calls: &mut HashMap<String, PendingPullRequestCall>,
+    workspace_cwd: Option<&str>,
+    workspace_branch: Option<&str>,
+    gh_repo_is_set: bool,
+) -> Vec<HarnessSemanticEvent> {
     let record = match parse_json_object(raw) {
         Some(record) => record,
         None => return Vec::new(),
@@ -37,7 +52,15 @@ pub(super) fn codex_events_from_line(raw: &str, line: i64) -> Vec<HarnessSemanti
             return vec![codex_status(line, ts, record_type.unwrap(), "idle")]
         }
         Some("item.started") | Some("item.completed") => {
-            return codex_item(&record, record_type.unwrap(), ts, line)
+            return codex_item(
+                &record,
+                record_type.unwrap(),
+                ts,
+                line,
+                pull_request_calls,
+                (workspace_cwd, workspace_branch),
+                gh_repo_is_set,
+            )
         }
         _ => {}
     }
@@ -117,6 +140,18 @@ pub(super) fn codex_events_from_line(raw: &str, line: i64) -> Vec<HarnessSemanti
             .or_else(|| payload.get("id").and_then(Value::as_str))
             .unwrap_or("");
         let record_type = format!("response_item:{}", payload_type.unwrap());
+        if tool_name == "shell" && !call_id.is_empty() {
+            if let Some(command) = input
+                .get("command")
+                .and_then(Value::as_str)
+                .and_then(|command| pull_request_command(command, workspace_cwd, gh_repo_is_set))
+            {
+                pull_request_calls.insert(
+                    call_id.to_string(),
+                    PendingPullRequestCall::new(command, workspace_cwd, workspace_branch),
+                );
+            }
+        }
         // `update_plan` and `apply_patch` are ordinary function calls on this
         // wire: the plan codex is following and the files it is rewriting are
         // both in here, and both were previously read as anonymous tool use.
@@ -151,7 +186,7 @@ pub(super) fn codex_events_from_line(raw: &str, line: i64) -> Vec<HarnessSemanti
             .and_then(Value::as_str)
             .or_else(|| payload.get("id").and_then(Value::as_str))
             .unwrap_or("");
-        return vec![semantic(
+        let mut events = vec![semantic(
             line,
             ts,
             &format!("response_item:{}", payload_type.unwrap()),
@@ -159,6 +194,19 @@ pub(super) fn codex_events_from_line(raw: &str, line: i64) -> Vec<HarnessSemanti
             "agent",
             tool_result_payload(call_id, is_error, &output),
         )];
+        events.extend(workspace_event_from_output(
+            &output,
+            pull_request_calls
+                .remove(call_id)
+                .filter(|_| !is_error)
+                .and_then(|call| call.command_in(workspace_cwd, workspace_branch)),
+            workspace_cwd,
+            workspace_branch,
+            line,
+            ts,
+            &format!("response_item:{}:workspace", payload_type.unwrap()),
+        ));
+        return events;
     }
 
     if payload_type == Some("mcp_tool_call_begin") {

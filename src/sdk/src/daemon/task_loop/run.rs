@@ -348,6 +348,23 @@ impl DaemonRuntime {
         let resume_session_id = plan
             .as_ref()
             .and_then(|plan| plan.resume_session_id.clone());
+        let workspace_context = plan
+            .as_ref()
+            .map(|plan| plan.workspace_context.clone())
+            .unwrap_or_default();
+        let bound_workspace_context = Arc::new(Mutex::new(workspace_context.clone()));
+        {
+            let mut fold = work.lock().expect("work fold lock");
+            let _ = fold.apply(
+                crate::harness_work::kinds::SESSION_INFO,
+                &serde_json::json!({
+                    "cwd": workspace_context.cwd.clone(),
+                    "branch": workspace_context.branch.clone(),
+                    "pull_request": workspace_context.pull_request.clone(),
+                }),
+                0,
+            );
+        }
 
         // Reported as soon as the executor opens a session, not with the
         // result: the point of knowing it is to watch the task while it runs.
@@ -355,13 +372,18 @@ impl DaemonRuntime {
             let this = self.clone();
             let key = key.clone();
             let session_key = session_key.clone();
+            let bound_workspace_context = bound_workspace_context.clone();
             Box::new(move |session_id: String| {
                 // Bind before the turn finishes. A turn that opens a session and
                 // then times out has still moved the conversation on, and the
                 // next instruction has to resume *that* session rather than
                 // starting a third one the operator never sees.
                 if let Some(session_key) = &session_key {
-                    this.inner.sessions.record(session_key, session_id.clone());
+                    this.inner.sessions.record_with_workspace_context(
+                        session_key,
+                        session_id.clone(),
+                        bound_workspace_context.lock().unwrap().clone(),
+                    );
                 }
                 this.record_task_session(&key, session_id);
             }) as Box<dyn FnOnce(String) + Send>
@@ -383,6 +405,7 @@ impl DaemonRuntime {
             // specific prior session scoped to `{sender}/{conversation}`.
             session_class: crate::sessions::SessionClass::Bounded,
             resume_session_id,
+            workspace_context,
             provider,
             prompt: frame.text.clone(),
             cwd: self.inner.config.workspace.clone(),
@@ -427,6 +450,14 @@ impl DaemonRuntime {
             on_event: Some(on_event),
             on_stdin: Some(on_stdin),
             on_session: Some(on_session),
+            on_workspace_context: session_key.clone().map(|session_key| {
+                let sessions = self.inner.sessions.clone();
+                let bound_workspace_context = bound_workspace_context.clone();
+                Box::new(move |context: crate::sessions::WorkspaceContext| {
+                    *bound_workspace_context.lock().unwrap() = context.clone();
+                    sessions.record_workspace_context(&session_key, context);
+                }) as crate::daemon::providers::OnWorkspaceContext
+            }),
         };
 
         // Consume status details in order while the task runs, and heartbeat
@@ -611,6 +642,7 @@ impl DaemonRuntime {
             // one-shots.
             session_class: crate::sessions::SessionClass::Unbound,
             resume_session_id: None,
+            workspace_context: Default::default(),
             provider,
             prompt: text,
             cwd: self.inner.config.workspace.clone(),
@@ -626,6 +658,7 @@ impl DaemonRuntime {
             on_event: None,
             on_stdin: None,
             on_session: None,
+            on_workspace_context: None,
         };
         let result = (self.inner.run_task)(options).await;
         match result {

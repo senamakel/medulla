@@ -5,14 +5,27 @@ use std::time::Instant;
 use agent_client_protocol::schema::v1::SessionUpdate;
 use serde_json::{json, Value};
 
-use crate::daemon::mappers::HarnessSemanticEvent;
+use crate::daemon::mappers::{
+    pull_request_command, workspace_event_from_output, HarnessSemanticEvent, PendingPullRequestCall,
+};
 use crate::protocol::HarnessEvent;
+use crate::sessions::WorkspaceContext;
 
-use super::super::types::OnEvent;
+use super::super::types::{OnEvent, OnWorkspaceContext};
 use super::types::FoldState;
 
 impl FoldState {
+    #[cfg(test)]
     pub(super) fn new(on_event: Option<OnEvent>) -> Self {
+        Self::with_workspace(on_event, Default::default(), false, None)
+    }
+
+    pub(super) fn with_workspace(
+        on_event: Option<OnEvent>,
+        workspace_context: WorkspaceContext,
+        gh_repo_is_set: bool,
+        on_workspace_context: Option<OnWorkspaceContext>,
+    ) -> Self {
         Self {
             text: String::new(),
             thought: String::new(),
@@ -20,6 +33,10 @@ impl FoldState {
             on_event,
             last_activity: Instant::now(),
             tool_calls: Default::default(),
+            pull_request_calls: Default::default(),
+            workspace_context,
+            gh_repo_is_set,
+            on_workspace_context,
         }
     }
 
@@ -67,7 +84,17 @@ impl FoldState {
                     .get("toolCallId")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
+                // Some ACP agents attach a final corrected rawInput only to the
+                // terminal patch. Revalidate it before consuming the result.
+                if value.get("rawInput").is_some() {
+                    let _ = self.tool_call_payload(&value);
+                }
                 self.tool_calls.remove(call_id);
+                if value.get("status").and_then(Value::as_str) == Some("completed") {
+                    self.fold_workspace_result(call_id, value.get("rawOutput"));
+                } else {
+                    self.pull_request_calls.remove(call_id);
+                }
                 (
                     "tool_result",
                     "tool",
@@ -120,11 +147,40 @@ impl FoldState {
         if let Some(title) = value.get("title").and_then(Value::as_str) {
             call.title = title.to_string();
         }
+        let kind_changed = value
+            .get("kind")
+            .and_then(Value::as_str)
+            .is_some_and(|kind| call.kind != kind);
         if let Some(kind) = value.get("kind").and_then(Value::as_str) {
             call.kind = kind.to_string();
         }
+        let input_changed = value
+            .get("rawInput")
+            .is_some_and(|input| call.input != *input);
         if let Some(input) = value.get("rawInput") {
             call.input = input.clone();
+        }
+        let correlation_changed = input_changed || kind_changed;
+        if correlation_changed {
+            self.pull_request_calls.remove(&call_id);
+        }
+        if correlation_changed && call.kind == "execute" {
+            if let Some(command) = command_from_input(&call.input) {
+                if let Some(operation) = pull_request_command(
+                    command,
+                    self.workspace_context.cwd.as_deref(),
+                    self.gh_repo_is_set,
+                ) {
+                    self.pull_request_calls.insert(
+                        call_id.clone(),
+                        PendingPullRequestCall::new(
+                            operation,
+                            self.workspace_context.cwd.as_deref(),
+                            self.workspace_context.branch.as_deref(),
+                        ),
+                    );
+                }
+            }
         }
         json!({
             "call_id": call_id,
@@ -132,6 +188,71 @@ impl FoldState {
             "display": call.title,
             "input": call.input,
         })
+    }
+
+    /// Correlate a completed ACP terminal call with worktree or PR output.
+    fn fold_workspace_result(&mut self, call_id: &str, output: Option<&Value>) {
+        let output = output_text(output);
+        let operation = self.pull_request_calls.remove(call_id).and_then(|call| {
+            call.command_in(
+                self.workspace_context.cwd.as_deref(),
+                self.workspace_context.branch.as_deref(),
+            )
+        });
+        let Some(event) = workspace_event_from_output(
+            &output,
+            operation,
+            self.workspace_context.cwd.as_deref(),
+            self.workspace_context.branch.as_deref(),
+            self.events as i64,
+            now_ms(),
+            "acp:workspace",
+        ) else {
+            return;
+        };
+        let payload = &event.event.payload;
+        let cwd = payload.get("cwd").and_then(Value::as_str);
+        let branch = payload.get("branch").and_then(Value::as_str);
+        if cwd.is_some_and(|cwd| self.workspace_context.cwd.as_deref() != Some(cwd))
+            || branch.is_some_and(|branch| self.workspace_context.branch.as_deref() != Some(branch))
+        {
+            self.workspace_context.pull_request = None;
+        }
+        if let Some(cwd) = cwd {
+            self.workspace_context.cwd = Some(cwd.to_string());
+        }
+        if let Some(branch) = branch {
+            self.workspace_context.branch = Some(branch.to_string());
+        }
+        if let Some(pull_request) = payload.get("pull_request").and_then(Value::as_str) {
+            self.workspace_context.pull_request = Some(pull_request.to_string());
+        }
+        if let Some(callback) = self.on_workspace_context.as_ref() {
+            callback(self.workspace_context.clone());
+        }
+        self.events += 1;
+        if let Some(callback) = self.on_event.as_mut() {
+            callback(&event);
+        }
+    }
+}
+
+fn command_from_input(input: &Value) -> Option<&str> {
+    input
+        .get("command")
+        .or_else(|| input.get("cmd"))
+        .and_then(Value::as_str)
+}
+
+fn output_text(output: Option<&Value>) -> String {
+    match output {
+        Some(Value::String(value)) => value.clone(),
+        Some(value) => value
+            .get("text")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| value.to_string()),
+        None => String::new(),
     }
 }
 

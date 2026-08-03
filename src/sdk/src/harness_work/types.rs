@@ -272,6 +272,10 @@ pub struct HarnessSessionInfo {
     /// The Git branch checked out in [`Self::cwd`], when the harness moved work.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    /// The pull request associated with [`Self::branch`], when the harness
+    /// created or inspected one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pull_request: Option<String>,
     /// The harness's own session id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -289,12 +293,21 @@ pub struct HarnessSessionInfo {
     pub mcp_servers: Vec<String>,
 }
 
+/// Render the compact pull-request label shared by session views.
+pub fn pull_request_label(pull_request: &str) -> String {
+    format!(
+        "PR {}",
+        pull_request.rsplit('/').next().unwrap_or(pull_request)
+    )
+}
+
 impl HarnessSessionInfo {
     /// Whether anything at all was reported (an all-absent info renders nothing).
     pub fn is_empty(&self) -> bool {
         self.model.is_none()
             && self.cwd.is_none()
             && self.branch.is_none()
+            && self.pull_request.is_none()
             && self.session_id.is_none()
             && self.permission_mode.is_none()
             && self.tools.is_empty()

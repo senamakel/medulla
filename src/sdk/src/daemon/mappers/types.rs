@@ -3,6 +3,7 @@
 //! [`mapper`](super::mapper); the fields are `pub(super)` so it can drive them.
 
 use crate::protocol::{HarnessEvent, TokenUsage};
+use std::collections::HashMap;
 
 /// One typed event parsed from a single transcript line, pre-envelope. Mirrors
 /// the TS `HarnessSemanticEvent`; `timestamp_ms` is epoch milliseconds (receive
@@ -32,6 +33,16 @@ pub struct HarnessLineMapper {
     pub(super) last_at_ms: i64,
     /// Latest token usage observed on the stream, if any.
     pub(super) usage: Option<TokenUsage>,
+    /// Claude shell calls whose results may authoritatively report a PR URL.
+    pub(super) pull_request_calls: HashMap<String, super::workspace::PendingPullRequestCall>,
+    /// Latest checkout authoritatively reported by a worktree helper.
+    pub(super) workspace_cwd: Option<String>,
+    /// Latest branch authoritatively reported with [`Self::workspace_cwd`].
+    pub(super) workspace_branch: Option<String>,
+    /// Latest pull request authoritatively reported for the checkout.
+    pub(super) workspace_pull_request: Option<String>,
+    /// Whether the harness inherited a GitHub CLI repository override.
+    pub(super) gh_repo_is_set: bool,
 }
 
 /// Which provider's flat-run transcript shape a mapper folds.

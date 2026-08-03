@@ -1,106 +1,11 @@
-//! Focused tests for folding ACP stream updates into semantic harness events.
+//! ACP notification folding and workspace-correlation regressions.
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::daemon::providers::{Abort, RunTaskOptions};
 use crate::daemon::status_detail;
-use crate::protocol::HarnessProvider;
+use crate::sessions::WorkspaceContext;
 
-use super::types::FoldState;
-
-#[cfg(all(feature = "workflows", unix))]
-struct NoFleet;
-
-#[cfg(all(feature = "workflows", unix))]
-#[async_trait::async_trait]
-impl crate::control_socket::FleetOps for NoFleet {
-    fn workers(&self) -> Option<Vec<crate::control_socket::FleetWorker>> {
-        Some(Vec::new())
-    }
-
-    fn default_worker(&self) -> Option<String> {
-        None
-    }
-
-    async fn dispatch(
-        &self,
-        _request: crate::hub::TaskRequest,
-        _status: Option<tokio::sync::mpsc::UnboundedSender<String>>,
-    ) -> Result<crate::hub::TaskOutcome, crate::hub::RunError> {
-        unreachable!("grant exchange never dispatches")
-    }
-
-    fn abort(&self, _abort_id: &str) -> bool {
-        false
-    }
-}
-
-#[cfg(all(feature = "workflows", unix))]
-#[tokio::test]
-async fn a_parent_handoff_is_exchanged_before_the_mcp_server_is_attached() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("control.sock");
-    let grants = crate::control_socket::GrantRegistry::new();
-    let parent_token = grants.mint(crate::control_socket::Grant::new("parent", 1, 3));
-    let ops: Arc<dyn crate::control_socket::FleetOps> = Arc::new(NoFleet);
-    let _server = crate::control_socket::ControlServer::bind(&path, ops, grants)
-        .await
-        .unwrap();
-    let env = HashMap::from([
-        (
-            crate::control_socket::MCP_PARENT_SOCKET_ENV.to_string(),
-            path.to_string_lossy().into_owned(),
-        ),
-        (
-            crate::control_socket::MCP_PARENT_GRANT_ENV.to_string(),
-            parent_token.clone(),
-        ),
-    ]);
-
-    let servers = super::execution::medulla_mcp_servers(None, "child", &env).await;
-    let agent_client_protocol::schema::v1::McpServer::Stdio(server) = &servers[0] else {
-        panic!("Medulla MCP server must use stdio");
-    };
-    let child_token = server
-        .env
-        .iter()
-        .find(|var| var.name == crate::control_socket::MCP_GRANT_ENV)
-        .map(|var| var.value.clone())
-        .expect("child grant attached");
-    let child = crate::control_socket::ControlClient::connect(&path, &child_token)
-        .await
-        .unwrap();
-
-    assert_ne!(child_token, parent_token);
-    assert_eq!(child.hello().depth, 2);
-    assert_eq!(child.hello().max_depth, 3);
-}
-
-#[cfg(feature = "workflows")]
-#[test]
-fn session_grants_read_depth_from_the_task_environment() {
-    let env = HashMap::from([(
-        crate::control_socket::FLEET_DEPTH_ENV.to_string(),
-        "2".to_string(),
-    )]);
-
-    let grant = super::execution::session_grant("nested", &env, Some("propose:demo"), true, 3, 5);
-
-    assert_eq!(grant.depth, 2);
-    assert_eq!(grant.max_depth, 3);
-    assert_eq!(grant.max_in_flight, 5);
-    assert_eq!(grant.tool_mode.as_deref(), Some("propose:demo"));
-}
-
-#[cfg(feature = "workflows")]
-#[test]
-fn disabling_workflows_keeps_the_fleet_family_on_the_session_grant() {
-    let grant = super::execution::session_grant("fleet-only", &HashMap::new(), None, false, 2, 4);
-
-    assert!(!grant.families.workflows);
-    assert!(grant.families.fleet);
-}
+use super::super::types::FoldState;
 
 #[test]
 fn agent_message_chunks_form_one_reply() {
@@ -347,75 +252,161 @@ fn thought_credentials_are_redacted_before_the_snapshot_is_bounded() {
     assert!(final_thought.contains("[REDACTED]"));
     assert!(!final_thought.contains("0123456789"));
 }
-
-// ---------------------------------------------------------------------------
-// Attribution reaches the ACP spawn path
-// ---------------------------------------------------------------------------
-
-/// A `RunTaskOptions` carrying `attribution`, with everything else inert.
-fn attribution_options(attribution: bool) -> RunTaskOptions {
-    RunTaskOptions {
-        conversation: String::new(),
-        session_class: crate::sessions::SessionClass::Bounded,
-        resume_session_id: None,
-        provider: HarnessProvider::Claude,
-        prompt: String::new(),
-        cwd: ".".to_string(),
-        env: HashMap::new(),
-        timeout_ms: 1_000,
-        model: None,
-        agent: None,
-        extra_args: Vec::new(),
-        skip_permissions: false,
-        abort: Abort::new(),
-        router: None,
-        attribution,
-        on_event: None,
-        on_stdin: None,
-        on_session: None,
+#[test]
+fn acp_pr_correlation_requires_success_in_the_dispatch_workspace() {
+    fn update(
+        kind: &str,
+        status: &str,
+        value: serde_json::Value,
+    ) -> agent_client_protocol::schema::v1::SessionUpdate {
+        let mut update = serde_json::json!({
+            "sessionUpdate": kind,
+            "toolCallId": "call-pr",
+            "title": "Terminal",
+            "kind": "execute",
+            "status": status,
+        });
+        update[if kind == "tool_call" || status == "in_progress" {
+            "rawInput"
+        } else {
+            "rawOutput"
+        }] = value;
+        serde_json::from_value(update).unwrap()
     }
-}
+    let contexts = Arc::new(Mutex::new(Vec::new()));
+    let make_state = || {
+        let observed = contexts.clone();
+        FoldState::with_workspace(
+            None,
+            WorkspaceContext {
+                cwd: Some("/repo/worktrees/pr-153".to_string()),
+                branch: Some("fix/pr-context".to_string()),
+                pull_request: None,
+            },
+            false,
+            Some(Box::new(move |context| {
+                observed.lock().unwrap().push(context)
+            })),
+        )
+    };
+    let call = || {
+        update(
+            "tool_call",
+            "in_progress",
+            serde_json::json!({"command": "cd /repo/worktrees/pr-153 && gh pr view --json url"}),
+        )
+    };
+    let result = |status| {
+        update(
+            "tool_call_update",
+            status,
+            serde_json::json!("{\"url\":\"https://github.com/acme/repo/pull/153\"}"),
+        )
+    };
 
-/// `run_provider_task` dispatches to ACP *before* the spawn seam that applies
-/// attribution for direct runs, so the ACP agent env must carry it itself —
-/// otherwise every ACP-backed commit is unattributed.
-#[cfg(unix)]
-#[test]
-fn agent_env_carries_attribution() {
-    let env = super::execution::acp_env(&attribution_options(true));
-    assert!(
-        env.contains_key("MEDULLA_ATTRIBUTION"),
-        "ACP agent env must carry the attribution trailer"
-    );
-    assert_eq!(
-        env.get("GIT_CONFIG_KEY_0").map(String::as_str),
-        Some("core.hooksPath"),
-        "ACP agent env must activate the hook directory"
-    );
-}
+    let mut completed = make_state();
+    completed.fold(call());
+    completed.fold(result("completed"));
+    assert_eq!(contexts.lock().unwrap().len(), 1);
 
-/// Turning attribution off leaves the ACP env untouched.
-#[test]
-fn agent_env_omits_attribution_when_off() {
-    let env = super::execution::acp_env(&attribution_options(false));
-    assert!(!env.contains_key("MEDULLA_ATTRIBUTION"));
-    assert!(!env.contains_key("GIT_CONFIG_KEY_0"));
-}
+    contexts.lock().unwrap().clear();
+    let mut failed = make_state();
+    failed.fold(call());
+    failed.fold(result("failed"));
+    assert!(contexts.lock().unwrap().is_empty());
 
-#[test]
-fn agent_env_strips_inherited_fleet_capabilities() {
-    let mut options = attribution_options(false);
-    options.env.insert(
-        crate::control_socket::MCP_SOCKET_ENV.to_string(),
-        "/tmp/another-session.sock".to_string(),
-    );
-    options.env.insert(
-        crate::control_socket::MCP_GRANT_ENV.to_string(),
-        "another-session-token".to_string(),
-    );
+    let mut moved = make_state();
+    moved.fold(call());
+    moved.workspace_context.branch = Some("another-branch".to_string());
+    moved.fold(result("completed"));
+    assert!(contexts.lock().unwrap().is_empty());
 
-    let env = super::execution::acp_env(&options);
+    let mut moved_with_repeated_input = make_state();
+    moved_with_repeated_input.fold(call());
+    moved_with_repeated_input.workspace_context = WorkspaceContext {
+        cwd: Some("/repo/worktrees/another-pr".to_string()),
+        branch: Some("another-branch".to_string()),
+        pull_request: None,
+    };
+    let repeated_terminal = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "call-pr",
+        "kind": "execute",
+        "status": "completed",
+        "rawInput": {
+            "command": "cd /repo/worktrees/pr-153 && gh pr view --json url"
+        },
+        "rawOutput": "{\"url\":\"https://github.com/acme/repo/pull/153\"}"
+    }))
+    .unwrap();
+    moved_with_repeated_input.fold(repeated_terminal);
+    assert!(contexts.lock().unwrap().is_empty());
 
-    assert!(!env.contains_key(crate::control_socket::MCP_SOCKET_ENV));
-    assert!(!env.contains_key(crate::control_socket::MCP_GRANT_ENV));
+    let mut replaced = make_state();
+    replaced.fold(call());
+    replaced.fold(update(
+        "tool_call_update",
+        "in_progress",
+        serde_json::json!({"command": "gh pr create --head another-branch"}),
+    ));
+    replaced.fold(result("completed"));
+    assert!(contexts.lock().unwrap().is_empty());
+
+    let mut final_replaced = make_state();
+    final_replaced.fold(call());
+    let terminal_replacement = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "call-pr",
+        "status": "completed",
+        "rawInput": {"command": "gh pr create --head another-branch"},
+        "rawOutput": "{\"url\":\"https://github.com/acme/repo/pull/153\"}"
+    }))
+    .unwrap();
+    final_replaced.fold(terminal_replacement);
+    assert!(contexts.lock().unwrap().is_empty());
+
+    let mut non_execute = make_state();
+    non_execute.fold(update(
+        "tool_call",
+        "in_progress",
+        serde_json::json!({"command": "gh pr view --json url"}),
+    ));
+    let kind_replacement = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "call-pr",
+        "kind": "read",
+        "status": "in_progress"
+    }))
+    .unwrap();
+    non_execute.fold(kind_replacement);
+    non_execute.fold(result("completed"));
+    assert!(contexts.lock().unwrap().is_empty());
+
+    let read_call: agent_client_protocol::schema::v1::SessionUpdate =
+        serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call",
+        "toolCallId": "call-pr",
+        "title": "Read",
+        "kind": "read",
+        "status": "in_progress",
+        "rawInput": {"command": "cd /repo/worktrees/pr-153 && gh pr view --json url"}
+        }))
+        .unwrap();
+    let mut read_only = make_state();
+    read_only.fold(read_call.clone());
+    read_only.fold(result("completed"));
+    assert!(contexts.lock().unwrap().is_empty());
+
+    let mut becomes_execute = make_state();
+    becomes_execute.fold(read_call);
+    let execute_update = serde_json::from_value(serde_json::json!({
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "call-pr",
+        "kind": "execute",
+        "status": "in_progress"
+    }))
+    .unwrap();
+    becomes_execute.fold(execute_update);
+    becomes_execute.fold(result("completed"));
+    assert_eq!(contexts.lock().unwrap().len(), 1);
 }

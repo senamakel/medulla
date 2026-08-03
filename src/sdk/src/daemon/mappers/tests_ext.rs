@@ -11,7 +11,7 @@ use super::timestamp::parse_iso_to_ms;
 use super::types::{HarnessLineMapper, HarnessSemanticEvent};
 
 fn map_all(provider: &str, lines: &[&str]) -> Vec<HarnessSemanticEvent> {
-    let mut mapper = HarnessLineMapper::new(provider);
+    let mut mapper = HarnessLineMapper::new_with_gh_repo_override(provider, false);
     let mut out = Vec::new();
     for (index, line) in lines.iter().enumerate() {
         out.extend(mapper.map_line(line, index as i64));
@@ -263,4 +263,41 @@ fn parse_iso_rejects_malformed_separators_and_handles_fractions() {
     assert_eq!(short_frac % 1000, 500);
     // A non-Z/offset trailing char is tolerated (treated like UTC).
     assert!(parse_iso_to_ms("2026-07-05T00:00:00X").is_some());
+}
+
+#[test]
+fn resumed_claude_init_cannot_replace_retained_worktree_context() {
+    let mut mapper = HarnessLineMapper::new("claude");
+    mapper.set_workspace_context(
+        Some("/repo/worktrees/pr-153".to_string()),
+        Some("fix/pr-context".to_string()),
+        Some("https://github.com/acme/repo/pull/153".to_string()),
+    );
+    let events = mapper.map_line(
+        r#"{"type":"system","subtype":"init","cwd":"/repo","model":"claude","session_id":"sess-1"}"#,
+        1,
+    );
+
+    assert_eq!(events.len(), 1);
+    assert!(events[0].event.payload.get("cwd").is_none());
+    assert_eq!(events[0].event.payload["model"], "claude");
+    assert_eq!(
+        mapper.workspace_context(),
+        (
+            Some("/repo/worktrees/pr-153".to_string()),
+            Some("fix/pr-context".to_string()),
+            Some("https://github.com/acme/repo/pull/153".to_string()),
+        )
+    );
+
+    mapper.set_workspace_context(
+        None,
+        None,
+        Some("https://github.com/acme/repo/pull/153".to_string()),
+    );
+    let launch_checkout = mapper.map_line(
+        r#"{"type":"system","subtype":"init","cwd":"/repo","session_id":"sess-1"}"#,
+        2,
+    );
+    assert!(launch_checkout[0].event.payload.get("cwd").is_none());
 }

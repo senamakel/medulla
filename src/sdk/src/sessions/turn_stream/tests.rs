@@ -7,7 +7,7 @@
 //! its message closes, and a turn with no stated reason still settles through the
 //! stall backstop.
 
-use super::turn_stream::TurnStream;
+use super::TurnStream;
 use crate::protocol::HarnessProvider;
 
 /// A claude assistant record that invokes a tool and states it will continue.
@@ -31,6 +31,21 @@ fn a_blank_line_folds_to_nothing_and_does_not_advance_the_stream() {
     assert!(!fold.is_complete());
     assert_eq!(stream.events(), 0, "the event count is untouched");
     assert!(!stream.is_done());
+}
+
+#[test]
+fn a_later_checkout_in_one_record_clears_an_earlier_pr() {
+    let mut stream = TurnStream::new_with_gh_repo_override(HarnessProvider::Claude, false);
+    stream.observe(
+        r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"pr-1","name":"Bash","input":{"command":"gh pr create --fill"}}]}}"#,
+    );
+    stream.observe(
+        r#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"pr-1","content":"https://github.com/acme/repo/pull/42"},{"type":"tool_result","tool_use_id":"worktree-2","content":"[PASS] WORKTREE_READY\n  path: /repo/worktrees/next\n  branch: next"}]}}"#,
+    );
+    let context = stream.workspace_context();
+    assert_eq!(context.0.as_deref(), Some("/repo/worktrees/next"));
+    assert_eq!(context.1.as_deref(), Some("next"));
+    assert_eq!(context.2, None);
 }
 
 #[test]
@@ -146,4 +161,56 @@ fn an_outstanding_tool_call_holds_off_the_stall_backstop() {
         !stream.stalled_for(10_000, 10),
         "a long-running tool is silence that means work, not a finished turn"
     );
+}
+
+#[test]
+fn a_reused_turn_can_resume_the_previous_turns_workspace_context() {
+    let mut first = TurnStream::new_with_gh_repo_override(HarnessProvider::Claude, false);
+    first.observe(
+        r#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"worktree-1","content":"[PASS] WORKTREE_READY\n  path: /repo/worktrees/fix\n  branch: fix"}]}}"#,
+    );
+    let context = first.workspace_context();
+    assert_eq!(context.0.as_deref(), Some("/repo/worktrees/fix"));
+
+    let mut second = TurnStream::new_with_gh_repo_override(HarnessProvider::Claude, false);
+    second.set_workspace_context(context.0, context.1, context.2);
+    second.observe(
+        r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"pr-1","name":"Bash","input":{"command":"cd /repo/worktrees/fix && gh pr create --fill"}}]}}"#,
+    );
+    let fold = second.observe(
+        r#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"pr-1","content":"https://github.com/acme/repo/pull/42"}]}}"#,
+    );
+
+    let event = fold
+        .events
+        .iter()
+        .find(|event| event.event.payload.get("pull_request").is_some())
+        .expect("the successful PR command emits session context");
+    assert_eq!(
+        event.event.payload["pull_request"],
+        "https://github.com/acme/repo/pull/42"
+    );
+    assert_eq!(event.event.payload["cwd"], "/repo/worktrees/fix");
+    assert_eq!(event.event.payload["branch"], "fix");
+
+    let retained = second.workspace_context();
+    let mut third = TurnStream::new_with_gh_repo_override(HarnessProvider::Claude, false);
+    third.set_workspace_context(retained.0, retained.1, retained.2);
+    let event = third
+        .retained_workspace_event()
+        .expect("a later task is seeded with repository context");
+    assert_eq!(event.event.payload["cwd"], "/repo/worktrees/fix");
+    assert_eq!(event.event.payload["branch"], "fix");
+    assert_eq!(
+        event.event.payload["pull_request"],
+        "https://github.com/acme/repo/pull/42"
+    );
+
+    second.observe(
+        r#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"worktree-2","content":"[PASS] WORKTREE_READY\n  path: /repo/worktrees/next\n  branch: next"}]}}"#,
+    );
+    let moved = second.workspace_context();
+    assert_eq!(moved.0.as_deref(), Some("/repo/worktrees/next"));
+    assert_eq!(moved.1.as_deref(), Some("next"));
+    assert_eq!(moved.2, None, "a new checkout cannot inherit the old PR");
 }

@@ -1,4 +1,4 @@
-//! Recognizes the stable report printed by the repository `worktree` helper.
+//! Recognizes repository context reported by Git and GitHub commands.
 //!
 //! A harness starts in the daemon's configured checkout, but may create and
 //! continue in a linked worktree. The harness process itself retains its launch
@@ -12,25 +12,59 @@ use crate::harness_work::kinds;
 use super::events::semantic;
 use super::types::HarnessSemanticEvent;
 
+mod pr;
 #[cfg(test)]
 mod tests;
+mod types;
 
-/// Turn a successful `worktree` report embedded in tool output into updated
-/// session facts. Unrelated output and incomplete reports produce no event.
-pub(super) fn workspace_event_from_output(
+pub(crate) use pr::{pull_request_command, pull_request_url, pull_request_url_from_json};
+pub(crate) use types::{PendingPullRequestCall, PullRequestCommand};
+
+/// Turn repository facts embedded in tool output into updated session facts.
+///
+/// A stable `worktree` report supplies the checkout and branch. GitHub CLI
+/// commands print the pull-request URL they created or inspected. Either fact
+/// is useful independently, and when one command prints both they travel in a
+/// single update.
+pub(crate) fn workspace_event_from_output(
     output: &str,
+    pull_request_command: Option<PullRequestCommand>,
+    workspace_cwd: Option<&str>,
+    workspace_branch: Option<&str>,
     line: i64,
     ts: i64,
     record_type: &str,
 ) -> Option<HarnessSemanticEvent> {
-    let (cwd, branch) = json_report(output).or_else(|| text_report(output))?;
+    let checkout = json_report(output).or_else(|| text_report(output));
+    let pull_request = pull_request_command.and_then(|command| match command {
+        PullRequestCommand::Create => pull_request_url(output),
+        PullRequestCommand::View => pull_request_url_from_json(output),
+    });
+    if checkout.is_none() && pull_request.is_none() {
+        return None;
+    }
+    let mut payload = serde_json::Map::new();
+    if let Some((cwd, branch)) = checkout {
+        payload.insert("cwd".into(), Value::String(cwd));
+        payload.insert("branch".into(), Value::String(branch));
+    } else if pull_request.is_some() {
+        if let Some(cwd) = workspace_cwd {
+            payload.insert("cwd".into(), Value::String(cwd.to_string()));
+        }
+        if let Some(branch) = workspace_branch {
+            payload.insert("branch".into(), Value::String(branch.to_string()));
+        }
+    }
+    if let Some(url) = pull_request {
+        payload.insert("pull_request".into(), Value::String(url));
+    }
     Some(semantic(
         line,
         ts,
         record_type,
         kinds::SESSION_INFO,
         "agent",
-        serde_json::json!({ "cwd": cwd, "branch": branch }),
+        Value::Object(payload),
     ))
 }
 

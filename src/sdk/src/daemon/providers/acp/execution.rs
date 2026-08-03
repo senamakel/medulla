@@ -230,13 +230,19 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     // revoked once the session is over however it ended.
     let revoke_key = session_key.clone();
     let task_env = options.env.clone();
-    let state = Arc::new(Mutex::new(FoldState::new(options.on_event)));
+    let state = Arc::new(Mutex::new(FoldState::with_workspace(
+        options.on_event,
+        options.workspace_context,
+        options.env.contains_key("GH_REPO"),
+        options.on_workspace_context,
+    )));
     let notification_state = state.clone();
     let approve = options.skip_permissions;
     let cwd = PathBuf::from(&options.cwd);
     let resume = options.resume_session_id.clone();
     let prompt = options.prompt.clone();
     let abort = options.abort.clone();
+    let on_session = options.on_session;
     let provider = options.provider;
     let timeout = Duration::from_millis(options.timeout_ms);
 
@@ -305,6 +311,14 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                         .session_id
                 }
             };
+
+            // Publish a newly learned ACP id before prompting. Notifications
+            // produced by the prompt may immediately report workspace state;
+            // the daemon must already have a binding for that callback to
+            // update rather than dropping the first turn's context.
+            if let Some(callback) = on_session {
+                callback(session_id.to_string());
+            }
 
             let request = connection
                 .send_request(PromptRequest::new(

@@ -125,9 +125,11 @@ impl App {
         // was not reported — a bar at 0% claims a measurement nobody took.
         {
             let capacity = self.fleet_capacity();
-            if let Some(descriptor) = lane.and_then(|l| l.descriptor.as_ref()) {
-                let placement = capacity.placement(descriptor);
-                let active_info = self.selected_work(selection).map(|work| &work.info);
+            let active_info = self.selected_work(selection).map(|work| &work.info);
+            let descriptor = lane.and_then(|lane| lane.descriptor.as_ref());
+            let placement = descriptor.map(|descriptor| capacity.placement(descriptor));
+            let mut chip_parts = Vec::new();
+            if let (Some(descriptor), Some(placement)) = (descriptor, placement.as_ref()) {
                 // Labelled, not bare: "this device · claude · /Users/me/repo"
                 // reads as three unexplained tokens, and the two an operator
                 // actually needs — which machine, which folder — are exactly the
@@ -153,40 +155,62 @@ impl App {
                     .host
                     .map(|h| h.name.clone())
                     .or_else(|| Some(descriptor.name.clone()).filter(|n| !n.trim().is_empty()));
-                // An init record's cwd only repeats where the harness was
-                // launched and can disagree with the declared placement. A
-                // branch is added only by a completed worktree report, making
-                // that cwd authoritative for the live session.
                 let workspace = active_info
-                    .filter(|info| info.branch.is_some())
                     .and_then(|info| info.cwd.clone())
                     .or_else(|| placement.workspace.map(|w| w.path.clone()))
                     .or_else(|| meta("workspace"));
-                let chip = [
-                    host.map(|h| format!("host {h}")),
-                    placement
-                        .harness
-                        .map(|h| h.kind.clone())
-                        .or_else(|| meta("harness")),
-                    workspace.map(|w| format!("dir {w}")),
+                chip_parts.extend(
+                    [
+                        host.map(|h| format!("host {h}")),
+                        placement
+                            .harness
+                            .map(|h| h.kind.clone())
+                            .or_else(|| meta("harness")),
+                        workspace.map(|w| format!("dir {w}")),
+                        placement.template.map(|t| {
+                            format!("via {}", t.name.clone().unwrap_or_else(|| t.id.clone()))
+                        }),
+                    ]
+                    .into_iter()
+                    .flatten(),
+                );
+            }
+            // Live session cwd is useful even for transcript-only lanes with
+            // no roster descriptor. Placement is only its fallback; it must
+            // not gate runtime context that the harness already reported.
+            if descriptor.is_none() {
+                chip_parts.extend(
+                    active_info
+                        .and_then(|info| info.cwd.as_ref())
+                        .map(|cwd| format!("dir {cwd}")),
+                );
+            }
+            chip_parts.extend(
+                [
                     active_info
                         .and_then(|info| info.branch.as_ref())
                         .map(|branch| format!("branch {branch}")),
-                    placement
-                        .template
-                        .map(|t| format!("via {}", t.name.clone().unwrap_or_else(|| t.id.clone()))),
+                    active_info
+                        .and_then(|info| info.pull_request.as_ref())
+                        .map(|pull_request| {
+                            medulla::harness_work::pull_request_label(pull_request)
+                        }),
                 ]
                 .into_iter()
-                .flatten()
+                .flatten(),
+            );
+            let chip = chip_parts
+                .into_iter()
                 .filter(|part| !part.trim().is_empty())
                 .collect::<Vec<_>>()
                 .join(" · ");
-                if !chip.is_empty() {
-                    header.push(TLine::from(Span::styled(
-                        chip,
-                        Style::default().fg(Color::Cyan),
-                    )));
-                }
+            if !chip.is_empty() {
+                header.push(TLine::from(Span::styled(
+                    chip,
+                    Style::default().fg(Color::Cyan),
+                )));
+            }
+            if let Some(placement) = placement.as_ref() {
                 if let Some(resources) = placement.host.and_then(|h| h.resources.as_ref()) {
                     for line in [
                         meters::cpu_meter(resources),

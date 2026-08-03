@@ -32,6 +32,9 @@ mod types;
 mod usage;
 mod work;
 mod workspace;
+pub(crate) use workspace::{
+    pull_request_command, workspace_event_from_output, PendingPullRequestCall,
+};
 
 #[cfg(test)]
 mod tests;
@@ -39,7 +42,6 @@ mod tests;
 mod tests_ext;
 #[cfg(test)]
 mod tests_work;
-
 pub use shared::{normalize_tool_kind, tool_display};
 pub use timestamp::parse_iso_ms;
 pub use types::{HarnessLineMapper, HarnessSemanticEvent};

@@ -6,7 +6,7 @@
 //! serialization, and the session is gone when the reply is sent. An **unbound**
 //! turn is the opposite on every count.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::daemon::providers::{Abort, RunTaskOptions};
 
@@ -57,7 +57,9 @@ impl SessionManager {
             // it — which is exactly what "one turn, then gone" promises.
             SessionClass::Bounded => {
                 let abort = self.begin_turn(id, &request);
-                let outcome = self.run_one_shot(&request, None, abort).await;
+                let outcome = self
+                    .run_one_shot(&request, None, Default::default(), abort)
+                    .await;
                 self.end_turn(id, &outcome);
                 self.spend_bounded(id);
                 outcome
@@ -91,7 +93,8 @@ impl SessionManager {
     /// independent delegated work behind an unrelated conversation would turn
     /// the daemon's concurrency budget into a single file.
     async fn run_bounded(&self, request: TurnRequest) -> Result<TurnOutcome, String> {
-        self.run_one_shot(&request, None, Abort::new()).await
+        self.run_one_shot(&request, None, Default::default(), Abort::new())
+            .await
     }
 
     /// Run a turn on a long-lived session, opening it if this is its first.
@@ -113,17 +116,35 @@ impl SessionManager {
             Transport::Interactive => self.run_interactive(&id, &request, abort).await,
             Transport::OneShot => {
                 let plan = self.inner.registry.plan(&request.key, request.class);
+                let workspace_context = Arc::new(Mutex::new(plan.workspace_context.clone()));
                 let outcome = self
-                    .run_one_shot(&request, plan.resume_session_id.as_deref(), abort)
+                    .run_one_shot(
+                        &request,
+                        plan.resume_session_id.as_deref(),
+                        workspace_context.clone(),
+                        abort,
+                    )
                     .await;
                 // Capture-then-bind: remember the id the CLI announced so the
                 // next turn resumes it. Presetting an id instead would make
                 // claude refuse the second start.
                 if let (true, Ok(outcome)) = (plan.bind, &outcome) {
                     if let Some(session_id) = &outcome.harness_session_id {
-                        self.inner.registry.record(&request.key, session_id.clone());
+                        self.inner.registry.record_with_workspace_context(
+                            &request.key,
+                            session_id.clone(),
+                            workspace_context.lock().unwrap().clone(),
+                        );
                     }
                 }
+                // A resumed process may report authoritative workspace movement
+                // before failing. Refresh an existing binding even on that
+                // terminal path; on a failed first turn there is no binding,
+                // so `record_workspace_context` remains a no-op.
+                self.inner.registry.record_workspace_context(
+                    &request.key,
+                    workspace_context.lock().unwrap().clone(),
+                );
                 outcome
             }
         };
@@ -322,6 +343,7 @@ impl SessionManager {
         &self,
         request: &TurnRequest,
         resume: Option<&str>,
+        workspace_context: Arc<Mutex<crate::sessions::WorkspaceContext>>,
         abort: Abort,
     ) -> Result<TurnOutcome, String> {
         let provider = self.provider_for(request);
@@ -343,12 +365,19 @@ impl SessionManager {
             extra_args: self.inner.config.extra_args.clone(),
             skip_permissions: self.inner.config.skip_permissions,
             resume_session_id: resume.map(str::to_string),
+            workspace_context: workspace_context.lock().unwrap().clone(),
             abort: abort.clone(),
             router: self.inner.config.router.clone(),
             attribution: self.inner.config.attribution,
             on_event: None,
             on_stdin: None,
             on_session: None,
+            on_workspace_context: {
+                let workspace_context = workspace_context.clone();
+                Some(Box::new(move |context| {
+                    *workspace_context.lock().unwrap() = context;
+                }))
+            },
         };
         let result = (self.inner.run_task)(options).await?;
         Ok(TurnOutcome {

@@ -24,6 +24,9 @@ use crate::protocol::HarnessProvider;
 
 use super::completion::{TurnSignal, TurnWatcher};
 
+#[cfg(test)]
+mod tests;
+
 impl LineFold {
     /// Whether this line ended the turn.
     pub fn is_complete(&self) -> bool {
@@ -34,12 +37,61 @@ impl LineFold {
 impl TurnStream {
     /// A stream for one turn on `provider`.
     pub fn new(provider: HarnessProvider) -> Self {
+        Self::new_with_gh_repo_override(provider, std::env::var_os("GH_REPO").is_some())
+    }
+
+    /// Build a turn stream with explicit effective child `GH_REPO` state.
+    pub fn new_with_gh_repo_override(provider: HarnessProvider, gh_repo_is_set: bool) -> Self {
         TurnStream {
-            mapper: HarnessLineMapper::new(provider.as_str()),
+            mapper: HarnessLineMapper::new_with_gh_repo_override(provider.as_str(), gh_repo_is_set),
             watcher: TurnWatcher::for_provider(provider),
             line_no: 0,
             events_seen: 0,
         }
+    }
+
+    /// Seed checkout context retained by a previous turn in the same PTY.
+    pub fn set_workspace_context(
+        &mut self,
+        cwd: Option<String>,
+        branch: Option<String>,
+        pull_request: Option<String>,
+    ) {
+        self.mapper.set_workspace_context(cwd, branch, pull_request);
+    }
+
+    /// Checkout context learned while folding this turn.
+    pub fn workspace_context(&self) -> (Option<String>, Option<String>, Option<String>) {
+        self.mapper.workspace_context()
+    }
+
+    /// Emit retained repository facts into a new task's otherwise-empty fold.
+    pub fn retained_workspace_event(&mut self) -> Option<HarnessSemanticEvent> {
+        let (cwd, branch, pull_request) = self.workspace_context();
+        if cwd.is_none() && branch.is_none() && pull_request.is_none() {
+            return None;
+        }
+        let mut payload = serde_json::Map::new();
+        for (name, value) in [
+            ("cwd", cwd),
+            ("branch", branch),
+            ("pull_request", pull_request),
+        ] {
+            if let Some(value) = value {
+                payload.insert(name.to_string(), serde_json::Value::String(value));
+            }
+        }
+        self.events_seen += 1;
+        Some(HarnessSemanticEvent {
+            line: self.line_no,
+            timestamp_ms: crate::clock::now_millis(),
+            record_type: "retained:workspace".to_string(),
+            event: crate::protocol::HarnessEvent {
+                kind: crate::harness_work::kinds::SESSION_INFO.to_string(),
+                payload: serde_json::Value::Object(payload),
+                ..Default::default()
+            },
+        })
     }
 
     /// How many semantic events this turn has produced.

@@ -67,6 +67,7 @@ pub async fn run_provider_task(mut options: RunTaskOptions) -> Result<RunTaskRes
     }
     let mut on_event = options.on_event;
     let mut on_stdin = options.on_stdin;
+    let mut on_session = options.on_session;
     let router = options.router;
     let env = options.env;
     let spec = RunSpec {
@@ -80,9 +81,11 @@ pub async fn run_provider_task(mut options: RunTaskOptions) -> Result<RunTaskRes
         extra_args: options.extra_args,
         skip_permissions: options.skip_permissions,
         resume_session_id: options.resume_session_id,
+        workspace_context: options.workspace_context,
         abort: options.abort,
         router,
         attribution: options.attribution,
+        on_workspace_context: options.on_workspace_context,
     };
     let mut attempt: u32 = 1;
     loop {
@@ -90,7 +93,15 @@ pub async fn run_provider_task(mut options: RunTaskOptions) -> Result<RunTaskRes
         // them, mirroring the rarity of that branch.
         let attempt_on_event = on_event.take();
         let attempt_on_stdin = on_stdin.take();
-        match run_provider_attempt(&spec, attempt_on_event, attempt_on_stdin).await {
+        let attempt_on_session = on_session.take();
+        match run_provider_attempt(
+            &spec,
+            attempt_on_event,
+            attempt_on_stdin,
+            attempt_on_session,
+        )
+        .await
+        {
             Ok(result) => return Ok(result),
             Err(message) => {
                 if !is_transient_lock(&message)
@@ -123,6 +134,7 @@ async fn run_provider_attempt(
     spec: &RunSpec,
     mut on_event: Option<OnEvent>,
     on_stdin: Option<OnStdin>,
+    mut on_session: Option<super::types::OnSession>,
 ) -> Result<RunTaskResult, String> {
     if spec.abort.is_aborted() {
         return Err(format!(
@@ -275,7 +287,19 @@ async fn run_provider_attempt(
     };
 
     let mut reader = BufReader::new(stdout);
-    let mut mapper = HarnessLineMapper::new(provider_name(spec.provider));
+    // PR attribution must use the environment actually installed on the child,
+    // not the daemon host's environment. Embedders may add or remove GH_REPO in
+    // `spec.env`, and either case changes whether a reported PR is authoritative
+    // for the current checkout.
+    let mut mapper = HarnessLineMapper::new_with_gh_repo_override(
+        provider_name(spec.provider),
+        merged_env.contains_key("GH_REPO"),
+    );
+    mapper.set_workspace_context(
+        spec.workspace_context.cwd.clone(),
+        spec.workspace_context.branch.clone(),
+        spec.workspace_context.pull_request.clone(),
+    );
     let mut messages: Vec<String> = Vec::new();
     let mut claude_result: Option<String> = None;
     // First announcement wins — a run reports exactly one session.
@@ -301,11 +325,13 @@ async fn run_provider_attempt(
             _ = spec.abort.cancelled() => {
                 let _ = child.start_kill();
                 let _ = child.wait().await;
+                report_workspace_context(&mapper, spec);
                 return Err(format!("{} task aborted", provider_name(spec.provider)));
             }
             _ = tokio::time::sleep_until(deadline) => {
                 let _ = child.start_kill();
                 let _ = child.wait().await;
+                report_workspace_context(&mapper, spec);
                 return Err(idle_error);
             }
             read = reader.read_until(b'\n', &mut buf) => {
@@ -321,7 +347,15 @@ async fn run_provider_attempt(
                         stdout_tail.push('\n');
                         stdout_tail = tail_bytes(&stdout_tail);
                         if session_id.is_none() {
-                            session_id = extract_session_id(spec.provider, raw);
+                            if let Some(discovered) = extract_session_id(spec.provider, raw) {
+                                // Bind before folding this same record: it may
+                                // also carry the first workspace update, whose
+                                // persistence requires an existing session.
+                                if let Some(callback) = on_session.take() {
+                                    callback(discovered.clone());
+                                }
+                                session_id = Some(discovered);
+                            }
                         }
                         let produced = consume_line(
                             spec.provider,
@@ -350,6 +384,7 @@ async fn run_provider_attempt(
     // transient-lock marker the retry loop keys on.
     let _ = tokio::time::timeout(Duration::from_millis(500), stderr_task).await;
     if spec.abort.is_aborted() {
+        report_workspace_context(&mapper, spec);
         return Err(format!("{} task aborted", provider_name(spec.provider)));
     }
     let code = status.ok().and_then(|s| s.code());
@@ -369,6 +404,7 @@ async fn run_provider_attempt(
                 .into_iter()
                 .rev()
                 .collect();
+            report_workspace_context(&mapper, spec);
             return Err(format!(
                 "{} exited {code}: {}",
                 provider_name(spec.provider),
@@ -387,6 +423,7 @@ async fn run_provider_attempt(
             )
         });
 
+    report_workspace_context(&mapper, spec);
     Ok(RunTaskResult {
         provider: spec.provider,
         reply,
@@ -394,6 +431,18 @@ async fn run_provider_attempt(
         usage: mapper.usage(),
         session_id,
     })
+}
+
+/// Persist mapper state on every post-spawn terminal path, including errors.
+fn report_workspace_context(mapper: &HarnessLineMapper, spec: &RunSpec) {
+    let (cwd, branch, pull_request) = mapper.workspace_context();
+    if let Some(callback) = spec.on_workspace_context.as_ref() {
+        callback(crate::sessions::WorkspaceContext {
+            cwd,
+            branch,
+            pull_request,
+        });
+    }
 }
 
 /// Fold one raw JSONL line through the mapper, updating the accumulated reply

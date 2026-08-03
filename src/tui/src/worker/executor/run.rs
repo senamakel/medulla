@@ -35,7 +35,7 @@ use medulla::sessions::{SessionClass, TurnStream};
 use medulla::wrapper::tail::SessionTailer;
 
 use super::super::pty::{HarnessControl, LaunchSpec, PtyManager};
-use super::types::{OpenedSession, PtySessionExecutor, SessionPlan};
+use super::types::{OpenedSession, PtySessionExecutor, SessionPlan, WorkspaceContext};
 
 /// How often the transcript is polled while a turn runs.
 ///
@@ -73,6 +73,7 @@ impl PtySessionExecutor {
             env,
             workspace,
             claims: Arc::new(Mutex::new(HashSet::new())),
+            workspace_context: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -154,6 +155,7 @@ impl PtySessionExecutor {
                 tailer.expecting(pinned.clone())
             };
         }
+        let gh_repo_is_set = opened.gh_repo_is_set;
         let id = opened.id;
         // Tell the daemon which session serves this task, as soon as it exists.
         // A screen subscription names a task, so until this lands there is
@@ -228,7 +230,14 @@ impl PtySessionExecutor {
         let on_event = options.on_event;
         let timeout_ms = options.timeout_ms;
         let outcome = self
-            .await_turn(&id, provider, tailer, abort, on_event, timeout_ms)
+            .await_turn(
+                &id,
+                (provider, gh_repo_is_set),
+                tailer,
+                abort,
+                on_event,
+                timeout_ms,
+            )
             .await;
         self.finish_turn(&id, class, outcome.is_ok());
         outcome
@@ -240,8 +249,18 @@ impl PtySessionExecutor {
     /// changes that lifetime: the PTY is now an interactive workspace, so the
     /// executor may release its busy claim but must not close the process.
     fn finish_turn(&self, id: &str, class: SessionClass, settled: bool) {
-        if class == SessionClass::Bounded && self.sessions.control(id) != Some(HarnessControl::User)
-        {
+        let control = self.sessions.control(id);
+        let running = self
+            .sessions
+            .row(id)
+            .is_some_and(|row| row.state.is_running());
+        if !retains_workspace_context(class, control, running) {
+            self.workspace_context
+                .lock()
+                .expect("workspace context lock poisoned")
+                .remove(id);
+        }
+        if class == SessionClass::Bounded && control != Some(HarnessControl::User) {
             self.sessions.close(id);
         } else {
             // Free it for the operator or this peer's next turn. Released on
@@ -277,7 +296,15 @@ impl PtySessionExecutor {
     /// composer, which is the failure that produces confidently wrong answers
     /// rather than an error.
     fn stop_turn(&self, id: &str) {
-        self.sessions.stop_if_orchestrator(id);
+        let stopped = self.sessions.stop_if_orchestrator(id);
+        retire_stopped_workspace_context(
+            &mut self
+                .workspace_context
+                .lock()
+                .expect("workspace context lock poisoned"),
+            id,
+            stopped,
+        );
     }
 
     /// Decide which session serves this task: reuse an idle one, or launch.
@@ -323,6 +350,7 @@ impl PtySessionExecutor {
                     id: row.id.clone(),
                     harness_session_id: row.session_id.clone(),
                     reused: true,
+                    gh_repo_is_set: self.sessions.gh_repo_is_set(&row.id).unwrap_or(false),
                 }));
             }
         }
@@ -365,6 +393,7 @@ impl PtySessionExecutor {
     /// it since they share one. So the launch goes to the blocking pool, which
     /// is what it is for.
     async fn launch(&self, spec: LaunchSpec) -> Result<OpenedSession, String> {
+        let gh_repo_is_set = spec.env.contains_key("GH_REPO");
         let sessions = self.sessions.clone();
         let id = tokio::task::spawn_blocking(move || sessions.open(spec))
             .await
@@ -374,6 +403,7 @@ impl PtySessionExecutor {
             id,
             harness_session_id,
             reused: false,
+            gh_repo_is_set,
         })
     }
 
@@ -457,13 +487,28 @@ impl PtySessionExecutor {
     async fn await_turn(
         &self,
         id: &str,
-        provider: HarnessProvider,
+        mapper_context: (HarnessProvider, bool),
         mut tailer: SessionTailer,
         abort: medulla::daemon::providers::Abort,
         mut on_event: Option<medulla::daemon::providers::OnEvent>,
         timeout_ms: u64,
     ) -> Result<RunTaskResult, String> {
-        let mut stream = TurnStream::new(provider);
+        let (provider, gh_repo_is_set) = mapper_context;
+        let mut stream = TurnStream::new_with_gh_repo_override(provider, gh_repo_is_set);
+        if let Some((cwd, branch, pull_request)) = self
+            .workspace_context
+            .lock()
+            .expect("workspace context lock poisoned")
+            .get(id)
+            .cloned()
+        {
+            stream.set_workspace_context(cwd, branch, pull_request);
+            if let (Some(callback), Some(event)) =
+                (on_event.as_mut(), stream.retained_workspace_event())
+            {
+                callback(&event);
+            }
+        }
         let started = tokio::time::Instant::now();
         let mut last_line_at = medulla::clock::now_millis();
 
@@ -511,6 +556,10 @@ impl PtySessionExecutor {
             for line in poll.lines {
                 last_line_at = medulla::clock::now_millis();
                 let fold = stream.observe(&line.text);
+                self.workspace_context
+                    .lock()
+                    .expect("workspace context lock poisoned")
+                    .insert(id.to_string(), stream.workspace_context());
                 // The peer watches its task through these. Dropping them would
                 // leave it with an ack, silence, then a reply — which is what
                 // this executor used to do.
@@ -591,6 +640,26 @@ impl PtySessionExecutor {
             }
             tokio::time::sleep(POLL).await;
         }
+    }
+}
+
+/// Retain mapper state only while the PTY can serve a later turn.
+pub(super) fn retains_workspace_context(
+    class: SessionClass,
+    control: Option<HarnessControl>,
+    running: bool,
+) -> bool {
+    running && (class == SessionClass::Unbound || control == Some(HarnessControl::User))
+}
+
+/// Forget mapper state only when the orchestrator actually won the stop race.
+pub(super) fn retire_stopped_workspace_context(
+    context: &mut HashMap<String, WorkspaceContext>,
+    id: &str,
+    stopped: bool,
+) {
+    if stopped {
+        context.remove(id);
     }
 }
 

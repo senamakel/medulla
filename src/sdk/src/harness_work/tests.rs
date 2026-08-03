@@ -184,11 +184,76 @@ fn session_info_merges_rather_than_overwrites() {
             kinds::SESSION_INFO,
             json!({ "model": "claude-opus-5", "tools": ["Bash", "Read"] }),
         ),
-        (kinds::SESSION_INFO, json!({ "cwd": "/repo" })),
+        (
+            kinds::SESSION_INFO,
+            json!({
+                "cwd": "/repo",
+                "pull_request": "https://github.com/acme/repo/pull/42"
+            }),
+        ),
     ]);
     assert_eq!(snapshot.info.model.as_deref(), Some("claude-opus-5"));
     assert_eq!(snapshot.info.cwd.as_deref(), Some("/repo"));
+    assert_eq!(
+        snapshot.info.pull_request.as_deref(),
+        Some("https://github.com/acme/repo/pull/42")
+    );
     assert_eq!(snapshot.info.tools, vec!["Bash", "Read"]);
+}
+
+#[test]
+fn a_new_branch_clears_the_previous_branches_pull_request() {
+    let snapshot = fold_with(&[
+        (
+            kinds::SESSION_INFO,
+            json!({
+                "branch": "first",
+                "pull_request": "https://github.com/acme/repo/pull/42"
+            }),
+        ),
+        (kinds::SESSION_INFO, json!({ "branch": "second" })),
+    ]);
+
+    assert_eq!(snapshot.info.branch.as_deref(), Some("second"));
+    assert!(snapshot.info.pull_request.is_none());
+}
+
+#[test]
+fn repeating_the_same_branch_preserves_its_pull_request() {
+    let snapshot = fold_with(&[
+        (
+            kinds::SESSION_INFO,
+            json!({
+                "branch": "same",
+                "pull_request": "https://github.com/acme/repo/pull/42"
+            }),
+        ),
+        (kinds::SESSION_INFO, json!({ "branch": "same" })),
+    ]);
+
+    assert_eq!(
+        snapshot.info.pull_request.as_deref(),
+        Some("https://github.com/acme/repo/pull/42")
+    );
+}
+
+#[test]
+fn a_new_checkout_clears_the_previous_checkouts_pull_request() {
+    let snapshot = fold_with(&[
+        (
+            kinds::SESSION_INFO,
+            json!({
+                "cwd": "/repo-a",
+                "branch": "main",
+                "pull_request": "https://github.com/acme/repo-a/pull/42"
+            }),
+        ),
+        (
+            kinds::SESSION_INFO,
+            json!({ "cwd": "/repo-b", "branch": "main" }),
+        ),
+    ]);
+    assert!(snapshot.info.pull_request.is_none());
 }
 
 #[test]

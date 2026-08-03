@@ -62,15 +62,13 @@ pub mod types;
 
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod turn_stream_tests;
 
 pub use completion::{TurnSignal, TurnWatcher};
 pub use input::{fold, fold_envelope, Folded, Observation, SessionInput};
 pub use interactive::{InteractiveSession, InteractiveSpec, StreamEvent};
 pub use manager::{OpenSession, SessionConfig, SessionManager, TranscriptLine, TranscriptRole};
 pub use ops::SessionOp;
-pub use registry::{SessionRegistry, TurnPlan, DEFAULT_MAX_BINDINGS};
+pub use registry::{SessionRegistry, TurnPlan, WorkspaceContext, DEFAULT_MAX_BINDINGS};
 pub use routing::{
     can_resume, can_run_interactive, has_continuity, route_session_class, route_transport,
     Stimulus, Transport,

@@ -8,13 +8,16 @@
 //! reached a screen. This module folds the rest.
 
 use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::harness_work::kinds;
 
 use super::super::events::{semantic, tool_call_payload, tool_result_payload};
 use super::super::shared::text_from_content;
 use super::super::types::HarnessSemanticEvent;
-use super::super::workspace::workspace_event_from_output;
+use super::super::workspace::{
+    pull_request_command, workspace_event_from_output, PendingPullRequestCall,
+};
 
 /// Map a codex `item.started`/`item.completed` record to semantic events.
 ///
@@ -29,6 +32,9 @@ pub(super) fn codex_item(
     record_type: &str,
     ts: i64,
     line: i64,
+    pull_request_calls: &mut HashMap<String, PendingPullRequestCall>,
+    workspace: (Option<&str>, Option<&str>),
+    gh_repo_is_set: bool,
 ) -> Vec<HarnessSemanticEvent> {
     let item = match record.get("item").and_then(Value::as_object) {
         Some(item) => item,
@@ -69,9 +75,15 @@ pub(super) fn codex_item(
                 serde_json::json!({ "text": text }),
             )]
         }
-        "command_execution" => {
-            command_event(item, id, completed, line, ts, &tag("command_execution"))
-        }
+        "command_execution" => command_event(
+            item,
+            id,
+            completed,
+            (line, ts),
+            &tag("command_execution"),
+            pull_request_calls,
+            (workspace.0, workspace.1, gh_repo_is_set),
+        ),
         // Codex's own todo list, the closest thing it has to Claude's TodoWrite.
         // Emitted on both started and completed so a list that is written once
         // and then ticked off still moves on screen.
@@ -128,12 +140,23 @@ fn command_event(
     item: &serde_json::Map<String, Value>,
     id: &str,
     completed: bool,
-    line: i64,
-    ts: i64,
+    position: (i64, i64),
     record_type: &str,
+    pull_request_calls: &mut HashMap<String, PendingPullRequestCall>,
+    workspace: (Option<&str>, Option<&str>, bool),
 ) -> Vec<HarnessSemanticEvent> {
+    let (line, ts) = position;
+    let (workspace_cwd, workspace_branch, gh_repo_is_set) = workspace;
     if !completed {
         let command = item.get("command").and_then(Value::as_str).unwrap_or("");
+        if !id.is_empty() {
+            if let Some(command) = pull_request_command(command, workspace_cwd, gh_repo_is_set) {
+                pull_request_calls.insert(
+                    id.to_string(),
+                    PendingPullRequestCall::new(command, workspace_cwd, workspace_branch),
+                );
+            }
+        }
         return vec![semantic(
             line,
             ts,
@@ -162,6 +185,12 @@ fn command_event(
     )];
     events.extend(workspace_event_from_output(
         output,
+        pull_request_calls
+            .remove(id)
+            .filter(|_| !is_error)
+            .and_then(|call| call.command_in(workspace_cwd, workspace_branch)),
+        workspace_cwd,
+        workspace_branch,
         line,
         ts,
         &format!("{record_type}:workspace"),

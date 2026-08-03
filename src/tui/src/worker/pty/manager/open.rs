@@ -96,6 +96,7 @@ impl PtyManager {
                 provider: spec.provider,
                 cwd: spec.cwd,
                 branch,
+                gh_repo_is_set: spec.env.contains_key("GH_REPO"),
                 launch_root,
                 launch_commit,
                 launch_checkout_identity,

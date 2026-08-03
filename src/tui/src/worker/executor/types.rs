@@ -5,6 +5,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use super::super::pty::{LaunchSpec, PtyManager};
+
+/// Checkout and branch last reported by a reusable harness session.
+pub(super) type WorkspaceContext = (Option<String>, Option<String>, Option<String>);
 /// The session a task will run in, and whether it was already running.
 ///
 /// The distinction decides how its transcript is tailed: a fresh session writes
@@ -17,6 +20,8 @@ pub(super) struct OpenedSession {
     pub(super) harness_session_id: Option<String>,
     /// Whether this task joined a session that was already running.
     pub(super) reused: bool,
+    /// Whether the already-running child has a GitHub repository override.
+    pub(super) gh_repo_is_set: bool,
 }
 /// What serving a task needs: an existing session, or a launch to perform.
 ///
@@ -55,4 +60,6 @@ pub struct PtySessionExecutor {
     /// its rollout location, which is unverified while codex is unused. Left as a
     /// documented gap rather than a guessed fix.
     pub(super) claims: Arc<Mutex<HashSet<PathBuf>>>,
+    /// Checkout context retained across turns in each reusable PTY session.
+    pub(super) workspace_context: Arc<Mutex<HashMap<String, WorkspaceContext>>>,
 }

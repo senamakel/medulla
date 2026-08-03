@@ -266,9 +266,17 @@ impl WorkFold {
     fn apply_session_info(&mut self, payload: &Value) -> bool {
         let before = self.snapshot.info.clone();
         let info = &mut self.snapshot.info;
+        let reported_branch = text_field(payload, "branch");
+        let reported_cwd = text_field(payload, "cwd");
+        if (reported_branch.is_some() && reported_branch != info.branch)
+            || (reported_cwd.is_some() && reported_cwd != info.cwd)
+        {
+            info.pull_request = None;
+        }
         merge_text(&mut info.model, payload, "model");
         merge_text(&mut info.cwd, payload, "cwd");
         merge_text(&mut info.branch, payload, "branch");
+        merge_text(&mut info.pull_request, payload, "pull_request");
         merge_text(&mut info.session_id, payload, "session_id");
         merge_text(&mut info.permission_mode, payload, "permission_mode");
         merge_list(&mut info.tools, payload, "tools");

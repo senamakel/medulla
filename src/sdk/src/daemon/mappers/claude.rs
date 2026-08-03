@@ -4,6 +4,7 @@
 //! events its `system`, `result`, and structured tool records imply.
 
 use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::harness_work::kinds;
 
@@ -12,10 +13,17 @@ use super::shared::{as_array, parse_json_object};
 use super::timestamp::parse_timestamp_ms;
 use super::types::HarnessSemanticEvent;
 use super::work::work_events_for_tool;
-use super::workspace::workspace_event_from_output;
+use super::workspace::{pull_request_command, workspace_event_from_output, PendingPullRequestCall};
 
 /// Map one raw Claude JSONL line into zero or more semantic events.
-pub(super) fn claude_events_from_line(raw: &str, line: i64) -> Vec<HarnessSemanticEvent> {
+pub(super) fn claude_events_from_line(
+    raw: &str,
+    line: i64,
+    pull_request_calls: &mut HashMap<String, PendingPullRequestCall>,
+    workspace_cwd: Option<&str>,
+    workspace_branch: Option<&str>,
+    gh_repo_is_set: bool,
+) -> Vec<HarnessSemanticEvent> {
     let record = match parse_json_object(raw) {
         Some(record) => record,
         None => return Vec::new(),
@@ -47,16 +55,53 @@ pub(super) fn claude_events_from_line(raw: &str, line: i64) -> Vec<HarnessSemant
                 vec![user_prompt_event(line, ts, text)]
             };
         }
-        return as_array(message.get("content"))
-            .iter()
-            .flat_map(|block| claude_user_block(block, line, ts))
-            .collect();
+        let mut current_cwd = workspace_cwd.map(str::to_string);
+        let mut current_branch = workspace_branch.map(str::to_string);
+        let mut events = Vec::new();
+        for block in as_array(message.get("content")) {
+            let block_events = claude_user_block(
+                &block,
+                line,
+                ts,
+                pull_request_calls,
+                current_cwd.as_deref(),
+                current_branch.as_deref(),
+            );
+            if let Some(cwd) = block_events.iter().rev().find_map(|event| {
+                (event.event.kind == kinds::SESSION_INFO
+                    && event.record_type.ends_with(":workspace"))
+                .then(|| event.event.payload.get("cwd").and_then(Value::as_str))
+                .flatten()
+            }) {
+                current_cwd = Some(cwd.to_string());
+            }
+            if let Some(branch) = block_events.iter().rev().find_map(|event| {
+                (event.event.kind == kinds::SESSION_INFO
+                    && event.record_type.ends_with(":workspace"))
+                .then(|| event.event.payload.get("branch").and_then(Value::as_str))
+                .flatten()
+            }) {
+                current_branch = Some(branch.to_string());
+            }
+            events.extend(block_events);
+        }
+        return events;
     }
 
     if record_type == Some("assistant") && source_role == Some("assistant") {
         return as_array(message.get("content"))
             .iter()
-            .flat_map(|block| claude_assistant_block(block, line, ts))
+            .flat_map(|block| {
+                claude_assistant_block(
+                    block,
+                    line,
+                    ts,
+                    pull_request_calls,
+                    workspace_cwd,
+                    workspace_branch,
+                    gh_repo_is_set,
+                )
+            })
             .collect();
     }
 
@@ -64,7 +109,14 @@ pub(super) fn claude_events_from_line(raw: &str, line: i64) -> Vec<HarnessSemant
 }
 
 /// Fold a single block of a user message (text prompt or tool_result).
-fn claude_user_block(block: &Value, line: i64, ts: i64) -> Vec<HarnessSemanticEvent> {
+fn claude_user_block(
+    block: &Value,
+    line: i64,
+    ts: i64,
+    pull_request_calls: &mut HashMap<String, PendingPullRequestCall>,
+    workspace_cwd: Option<&str>,
+    workspace_branch: Option<&str>,
+) -> Vec<HarnessSemanticEvent> {
     let object = match block.as_object() {
         Some(object) => object,
         None => return Vec::new(),
@@ -95,6 +147,12 @@ fn claude_user_block(block: &Value, line: i64, ts: i64) -> Vec<HarnessSemanticEv
             )];
             events.extend(workspace_event_from_output(
                 &output,
+                pull_request_calls
+                    .remove(call_id)
+                    .filter(|_| !is_error)
+                    .and_then(|call| call.command_in(workspace_cwd, workspace_branch)),
+                workspace_cwd,
+                workspace_branch,
                 line,
                 ts,
                 "user:tool_result:workspace",
@@ -106,7 +164,15 @@ fn claude_user_block(block: &Value, line: i64, ts: i64) -> Vec<HarnessSemanticEv
 }
 
 /// Fold a single block of an assistant message (text, thinking, or tool_use).
-fn claude_assistant_block(block: &Value, line: i64, ts: i64) -> Vec<HarnessSemanticEvent> {
+fn claude_assistant_block(
+    block: &Value,
+    line: i64,
+    ts: i64,
+    pull_request_calls: &mut HashMap<String, PendingPullRequestCall>,
+    workspace_cwd: Option<&str>,
+    workspace_branch: Option<&str>,
+    gh_repo_is_set: bool,
+) -> Vec<HarnessSemanticEvent> {
     let object = match block.as_object() {
         Some(object) => object,
         None => return Vec::new(),
@@ -153,6 +219,21 @@ fn claude_assistant_block(block: &Value, line: i64, ts: i64) -> Vec<HarnessSeman
                 .unwrap_or("unknown");
             let call_id = object.get("id").and_then(Value::as_str).unwrap_or("");
             let input = object.get("input").cloned().unwrap_or(Value::Null);
+            if matches!(tool_name, "Bash" | "Shell") && !call_id.is_empty() {
+                if let Some(command) =
+                    input
+                        .get("command")
+                        .and_then(Value::as_str)
+                        .and_then(|command| {
+                            pull_request_command(command, workspace_cwd, gh_repo_is_set)
+                        })
+                {
+                    pull_request_calls.insert(
+                        call_id.to_string(),
+                        PendingPullRequestCall::new(command, workspace_cwd, workspace_branch),
+                    );
+                }
+            }
             // The tool_call always goes out; the work events are additive, so a
             // `TodoWrite` reads both as a call in the transcript and as the todo
             // list it actually is.
