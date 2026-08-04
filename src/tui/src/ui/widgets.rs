@@ -14,7 +14,7 @@ use super::theme::Theme;
 /// A rounded titled panel using the active theme.
 pub(crate) fn panel<'a>(theme: &Theme, title: impl Into<String>, focused: bool) -> Block<'a> {
     let border = if focused {
-        theme.primary
+        theme.chrome()
     } else {
         theme.dim_border
     };
@@ -25,7 +25,7 @@ pub(crate) fn panel<'a>(theme: &Theme, title: impl Into<String>, focused: bool) 
         .title(Span::styled(
             title.into(),
             Style::default()
-                .fg(theme.primary)
+                .fg(theme.chrome())
                 .add_modifier(Modifier::BOLD),
         ))
 }

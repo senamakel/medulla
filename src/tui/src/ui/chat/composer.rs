@@ -79,7 +79,7 @@ pub(crate) fn draw_composer(
         .border_style(Style::default().fg(if chrome.busy {
             Color::Yellow
         } else if chrome.focused {
-            theme.primary
+            theme.chrome()
         } else {
             theme.dim_border
         }));
@@ -147,7 +147,7 @@ fn draft_lines(
         // Only the very first row is prompted. A continuation carrying `❯ ` too
         // would read as a second message rather than the same one wrapped.
         let prefix = if index == 0 { "❯ " } else { "  " };
-        let mut spans = vec![Span::styled(prefix, Style::default().fg(theme.primary))];
+        let mut spans = vec![Span::styled(prefix, Style::default().fg(theme.chrome()))];
         if index == caret_row {
             let chars: Vec<char> = row.text.chars().collect();
             let before: String = chars.iter().take(caret_col).collect();

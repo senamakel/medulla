@@ -96,7 +96,7 @@ impl WorkerApp {
                     .map(|provider| provider.as_str())
                     .collect::<Vec<_>>()
                     .join(", "),
-                Style::default().fg(self.theme.primary),
+                Style::default().fg(self.theme.chrome()),
             ));
         }
 

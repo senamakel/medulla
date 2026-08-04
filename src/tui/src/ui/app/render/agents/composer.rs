@@ -132,7 +132,7 @@ impl App {
                 let style = if active {
                     self.theme.selection()
                 } else {
-                    Style::default().fg(self.theme.primary)
+                    Style::default().fg(self.theme.chrome())
                 };
                 TLine::from(vec![
                     Span::styled(format!("{} {usage}", if active { "▸" } else { " " }), style),

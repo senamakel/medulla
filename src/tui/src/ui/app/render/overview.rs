@@ -34,7 +34,7 @@ impl App {
                 TLine::from(Span::styled(
                     *row,
                     Style::default()
-                        .fg(self.theme.primary)
+                        .fg(self.theme.chrome())
                         .add_modifier(Modifier::BOLD),
                 ))
             })
@@ -153,7 +153,7 @@ impl App {
             ]),
             TLine::from(Span::styled(
                 clip(&providers, width),
-                Style::default().fg(self.theme.primary),
+                Style::default().fg(self.theme.chrome()),
             )),
         ];
         let workspace = clip_middle(host.workspace(), width.saturating_mul(2));

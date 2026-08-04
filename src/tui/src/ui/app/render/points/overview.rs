@@ -36,7 +36,7 @@ impl App {
                 Span::styled(
                     "2,480 pts",
                     Style::default()
-                        .fg(self.theme.primary)
+                        .fg(self.theme.chrome())
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
@@ -60,7 +60,7 @@ impl App {
             Span::styled(
                 "TokenMaxxxing",
                 Style::default()
-                    .fg(self.theme.primary)
+                    .fg(self.theme.chrome())
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(

@@ -47,6 +47,17 @@ fn from_config_falls_back_per_field() {
 fn default_primary_is_medulla_red() {
     assert_eq!(Theme::default().primary, MEDULLA_RED);
     assert_eq!(Theme::default().selection_fg, Color::White);
+    assert_eq!(Theme::default().chrome(), MEDULLA_RED_CHROME);
+}
+
+#[test]
+fn partial_primary_override_uses_a_contrasting_selection_foreground() {
+    let theme = Theme::from_config(&ThemeConfig {
+        primary: Some("white".into()),
+        ..ThemeConfig::default()
+    });
+    assert_eq!(theme.selection_fg, Color::Black);
+    assert_eq!(theme.chrome(), Color::White);
 }
 
 #[test]

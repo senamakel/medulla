@@ -2,7 +2,9 @@
 //! panel chrome, and accents. Defaults to Medulla red (`#a50025`).
 //!
 //! Colors come from the optional `[theme]` config section (named ratatui colors
-//! or `#rrggbb` hex), with per-field fallback to the defaults. The Appearance
+//! or `#rrggbb` hex), with per-field fallback to the defaults; an omitted
+//! selection foreground instead receives a contrasting color for the resolved
+//! primary. The Appearance
 //! subpage edits the live theme and persists just the `[theme]` keys back into
 //! the user-global config via [`persist_theme`].
 
@@ -23,6 +25,8 @@ pub const THEME_ROLES: [&str; 5] = [
 
 /// Medulla's default primary brand color.
 const MEDULLA_RED: Color = Color::Rgb(0xa5, 0x00, 0x25);
+/// A brighter companion used when the brand color is drawn on a dark terminal.
+const MEDULLA_RED_CHROME: Color = Color::Rgb(0xff, 0x5c, 0x70);
 
 /// A curated palette the Appearance editor cycles through. The default brand
 /// color comes first so a first edit can be reversed; named colors keep the
@@ -62,10 +66,15 @@ impl Theme {
         let pick = |s: &Option<String>, fallback: Color| {
             s.as_deref().and_then(parse_color).unwrap_or(fallback)
         };
+        let primary = pick(&cfg.primary, d.primary);
         Theme {
-            primary: pick(&cfg.primary, d.primary),
+            primary,
             accent: pick(&cfg.accent, d.accent),
-            selection_fg: pick(&cfg.selection_fg, d.selection_fg),
+            selection_fg: cfg
+                .selection_fg
+                .as_deref()
+                .and_then(parse_color)
+                .unwrap_or_else(|| contrasting_foreground(primary)),
             dim_border: pick(&cfg.dim_border, d.dim_border),
             attention: pick(&cfg.attention, d.attention),
             attention_blink: cfg.attention_blink.unwrap_or(d.attention_blink),
@@ -79,6 +88,15 @@ impl Theme {
             .bg(self.primary)
             .fg(self.selection_fg)
             .add_modifier(Modifier::BOLD)
+    }
+
+    /// Return a readable foreground for chrome drawn using the primary role.
+    pub fn chrome(&self) -> Color {
+        if self.primary == MEDULLA_RED {
+            MEDULLA_RED_CHROME
+        } else {
+            self.primary
+        }
     }
 
     /// The color for editable role `index` (see [`THEME_ROLES`]).
@@ -126,6 +144,26 @@ impl Theme {
             }
         };
         self.set_role(index, next);
+    }
+}
+
+/// Pick black or white text with better contrast against a color background.
+fn contrasting_foreground(background: Color) -> Color {
+    match background {
+        Color::Rgb(r, g, b)
+            if u16::from(r) * 299 + u16::from(g) * 587 + u16::from(b) * 114 >= 128_000 =>
+        {
+            Color::Black
+        }
+        Color::White
+        | Color::Gray
+        | Color::LightRed
+        | Color::LightGreen
+        | Color::LightYellow
+        | Color::LightBlue
+        | Color::LightMagenta
+        | Color::LightCyan => Color::Black,
+        _ => Color::White,
     }
 }
 

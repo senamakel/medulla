@@ -18,7 +18,7 @@ impl App {
             Line::from(Span::styled(
                 "Burn tokens. Build streaks. Get recognized.",
                 Style::default()
-                    .fg(self.theme.primary)
+                    .fg(self.theme.chrome())
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),

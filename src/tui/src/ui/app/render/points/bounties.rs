@@ -42,7 +42,7 @@ impl App {
                 Span::styled(
                     "120 pts claimed",
                     Style::default()
-                        .fg(self.theme.primary)
+                        .fg(self.theme.chrome())
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
@@ -68,7 +68,7 @@ impl App {
             Span::styled(
                 "Daily bounties",
                 Style::default()
-                    .fg(self.theme.primary)
+                    .fg(self.theme.chrome())
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -95,7 +95,7 @@ impl App {
                             Style::default().fg(if bounty.progress == bounty.target {
                                 Color::Green
                             } else {
-                                self.theme.primary
+                                self.theme.chrome()
                             }),
                         ),
                         Span::styled(
@@ -123,7 +123,7 @@ impl App {
             let color = if complete {
                 Color::Green
             } else {
-                self.theme.primary
+                self.theme.chrome()
             };
             let card = Block::default()
                 .borders(Borders::RIGHT)

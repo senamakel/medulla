@@ -73,7 +73,7 @@ impl App {
             Span::styled(
                 "Season leaderboard",
                 Style::default()
-                    .fg(self.theme.primary)
+                    .fg(self.theme.chrome())
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -97,7 +97,7 @@ impl App {
             Line::from(vec![
                 Span::styled(
                     "Season token champion",
-                    Style::default().fg(self.theme.primary),
+                    Style::default().fg(self.theme.chrome()),
                 ),
                 Span::raw("  $250 + TokenMaxxxer badge"),
             ]),

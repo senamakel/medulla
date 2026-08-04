@@ -113,12 +113,12 @@ impl App {
         let summary = TLine::from(vec![
             Span::styled(
                 format!("sort {}", sort_label(q.sort)),
-                Style::default().fg(self.theme.primary),
+                Style::default().fg(self.theme.chrome()),
             ),
             Span::raw(" · "),
             Span::styled(
                 format!("filter {filter}"),
-                Style::default().fg(self.theme.primary),
+                Style::default().fg(self.theme.chrome()),
             ),
             Span::raw(" · "),
             Span::raw(count),
@@ -227,7 +227,7 @@ impl App {
         if let Some(url) = item.github.as_ref().and_then(|g| g.issue_url.as_deref()) {
             body.push(TLine::from(Span::styled(
                 format!("tracked as {url}"),
-                Style::default().fg(self.theme.primary),
+                Style::default().fg(self.theme.chrome()),
             )));
         }
         body.push(TLine::from(""));
@@ -255,7 +255,7 @@ impl App {
                 body.push(TLine::from(""));
                 body.push(TLine::from(Span::styled(
                     c.user_name.clone().unwrap_or_else(|| "someone".into()),
-                    Style::default().fg(self.theme.primary),
+                    Style::default().fg(self.theme.chrome()),
                 )));
                 for line in c.body.lines() {
                     body.push(TLine::from(line.to_string()));
