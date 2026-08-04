@@ -52,6 +52,7 @@ fn sh(script: &str) -> LaunchSpec {
 /// so the runtime is inert on purpose.
 fn harnesses(sessions: PtyManager) -> LocalHarnesses {
     let config = medulla::daemon::DaemonConfig {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
         providers: vec![HarnessProvider::Codex],
         default_provider: HarnessProvider::Codex,
         workspace: "/".to_string(),
@@ -77,6 +78,8 @@ fn harnesses(sessions: PtyManager) -> LocalHarnesses {
         Box::pin(async {}) as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
     });
     LocalHarnesses {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        log: None,
         sessions,
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),

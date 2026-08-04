@@ -35,7 +35,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use types::LocalHost;
+pub(crate) use types::{LaunchPolicy, LocalHost};
 
 /// Whether this device should host tasks.
 ///
@@ -160,9 +160,9 @@ pub(crate) fn options_from_config(
     router: Option<medulla::config::RouterConfig>,
     budget: Option<medulla::config::BudgetConfig>,
     log: Option<medulla::hub::HubLog>,
-    attribution: bool,
+    launch: &LaunchPolicy,
 ) -> Result<EmbeddedDaemonOptions, String> {
-    options_from_config_with_custom(config, env, router, budget, log, &[], attribution)
+    options_from_config_with_custom(config, env, router, budget, log, &[], launch)
 }
 
 /// Translate host config and named custom-harness presets into start-up options.
@@ -171,6 +171,7 @@ pub(crate) fn options_from_config(
 /// advertised or executable on this device. Its base CLI is added to an
 /// explicit provider allowlist because declaring a custom harness is itself an
 /// explicit request to run that CLI.
+#[cfg(test)]
 pub(crate) fn options_from_config_with_custom(
     config: &HostSection,
     env: &HashMap<String, String>,
@@ -178,7 +179,28 @@ pub(crate) fn options_from_config_with_custom(
     budget: Option<medulla::config::BudgetConfig>,
     log: Option<medulla::hub::HubLog>,
     custom_harnesses: &[medulla::config::CustomHarnessConfig],
-    attribution: bool,
+    launch: &LaunchPolicy,
+) -> Result<EmbeddedDaemonOptions, String> {
+    options_from_config_with_custom_and_hooks(
+        config,
+        env,
+        router,
+        budget,
+        log,
+        custom_harnesses,
+        launch,
+    )
+}
+
+/// Translate host configuration while retaining the loaded lifecycle hooks.
+pub(crate) fn options_from_config_with_custom_and_hooks(
+    config: &HostSection,
+    env: &HashMap<String, String>,
+    router: Option<medulla::config::RouterConfig>,
+    budget: Option<medulla::config::BudgetConfig>,
+    log: Option<medulla::hub::HubLog>,
+    custom_harnesses: &[medulla::config::CustomHarnessConfig],
+    launch: &LaunchPolicy,
 ) -> Result<EmbeddedDaemonOptions, String> {
     let address = host_address(config);
     let mut providers = config
@@ -218,7 +240,8 @@ pub(crate) fn options_from_config_with_custom(
         custom_harnesses,
         budget,
         log,
-        attribution,
+        attribution: launch.attribution,
+        hooks: launch.hooks.clone(),
         ..Default::default()
     })
 }
@@ -527,8 +550,11 @@ fn start_at(
     // tasks will run; it resolves the same configured workspace the host is
     // about to resolve. The two must agree — this is the directory the session
     // tailer searches for the harness's transcript.
-    let executor =
+    let mut executor =
         PtySessionExecutor::new(sessions, env.clone(), resolve_workspace(&options.workspace));
+    if let Some(log) = options.log.clone() {
+        executor = executor.with_log(log);
+    }
     let daemon = EmbeddedDaemon::start_with_executor(
         std::sync::Arc::new(bridge) as std::sync::Arc<dyn Bridge>,
         &address,

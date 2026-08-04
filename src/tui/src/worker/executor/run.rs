@@ -74,7 +74,14 @@ impl PtySessionExecutor {
             workspace,
             claims: Arc::new(Mutex::new(HashSet::new())),
             workspace_context: Arc::new(Mutex::new(HashMap::new())),
+            log: None,
         }
+    }
+
+    /// Route executor diagnostics into the owning TUI's log surface.
+    pub fn with_log(mut self, log: medulla::daemon::LogFn) -> Self {
+        self.log = Some(log);
+        self
     }
 
     /// Adapt this executor into the [`RunTaskFn`] the daemon runtime takes.
@@ -432,10 +439,23 @@ impl PtySessionExecutor {
         // as headless ones, so this path carries the same attribution.
         let attribution_env = medulla::attribution::attribution_env(options.attribution, &env);
         env.extend(attribution_env);
-        extra_args.extend(medulla::attribution::attribution_args(
+        // Attribution and the operator's configured hooks share Claude Code's
+        // single `--settings` flag, so both are built together — a watched PTY
+        // session runs the same lifecycle policy a headless one does.
+        let (launch_args, hook_notes) = medulla::harness_hooks::launch_args(
             options.provider,
             options.attribution,
-        ));
+            &options.hooks,
+        );
+        extra_args.extend(launch_args);
+        // Routed to the log rather than stderr: this crate draws a full-screen
+        // TUI, where a stray line corrupts the pane. Covers both hooks the
+        // harness cannot run and hooks it will not run until trusted.
+        if let Some(log) = &self.log {
+            for note in &hook_notes {
+                log(note);
+            }
+        }
         // OpenRouter-bound runs are re-pointed at Medulla's loopback attribution
         // proxy, and the real key is scrubbed from `env` here, before any of it
         // reaches the child. A no-op for every other endpoint.

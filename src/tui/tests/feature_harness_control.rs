@@ -40,6 +40,7 @@ fn app_with_workspace(sessions: PtyManager, workspace: &str) -> App {
     app.tab_index = TABS.iter().position(|t| *t == "Agents").unwrap();
 
     let config = medulla::daemon::DaemonConfig {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
         providers: vec![HarnessProvider::Codex],
         default_provider: HarnessProvider::Codex,
         workspace: workspace.to_string(),
@@ -75,6 +76,8 @@ fn app_with_workspace(sessions: PtyManager, workspace: &str) -> App {
     env.insert("TINYPLACE_CODEX_BIN".to_string(), "/bin/sh".to_string());
 
     app.set_local_harnesses(LocalHarnesses {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        log: None,
         sessions,
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
