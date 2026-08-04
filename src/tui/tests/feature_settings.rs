@@ -166,10 +166,7 @@ fn appearance_persists_theme_to_injected_path() {
     let _ = key(&mut app, KeyCode::Right); // cycle primary
     let text = std::fs::read_to_string(&path).unwrap();
     assert!(text.contains("[theme]"), "theme section written: {text}");
-    assert!(
-        text.contains("primary = \"lightcyan\""),
-        "primary saved: {text}"
-    );
+    assert!(text.contains("primary = \"cyan\""), "primary saved: {text}");
     assert!(
         app.status().contains("saved"),
         "status note: {}",
