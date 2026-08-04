@@ -21,10 +21,14 @@ pub const THEME_ROLES: [&str; 5] = [
     "Attention",
 ];
 
-/// A curated palette the Appearance editor cycles through. Named colors keep the
-/// persisted config readable; a `#rrggbb` custom value from config is folded in
-/// as an extra step at runtime.
-pub const PALETTE: [Color; 10] = [
+/// Medulla's default primary brand color.
+const MEDULLA_RED: Color = Color::Rgb(0xa5, 0x00, 0x25);
+
+/// A curated palette the Appearance editor cycles through. The default brand
+/// color comes first so a first edit can be reversed; named colors keep the
+/// remaining persisted values readable.
+pub const PALETTE: [Color; 11] = [
+    MEDULLA_RED,
     Color::Cyan,
     Color::LightCyan,
     Color::Blue,
@@ -40,9 +44,9 @@ pub const PALETTE: [Color; 10] = [
 impl Default for Theme {
     fn default() -> Self {
         Theme {
-            primary: Color::Rgb(0xa5, 0x00, 0x25),
+            primary: MEDULLA_RED,
             accent: Color::Magenta,
-            selection_fg: Color::Black,
+            selection_fg: Color::White,
             dim_border: Color::DarkGray,
             attention: Color::Yellow,
             attention_blink: true,

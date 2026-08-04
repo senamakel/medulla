@@ -45,17 +45,18 @@ fn from_config_falls_back_per_field() {
 
 #[test]
 fn default_primary_is_medulla_red() {
-    assert_eq!(Theme::default().primary, Color::Rgb(0xa5, 0x00, 0x25));
+    assert_eq!(Theme::default().primary, MEDULLA_RED);
+    assert_eq!(Theme::default().selection_fg, Color::White);
 }
 
 #[test]
 fn cycle_role_walks_palette_and_wraps() {
     let mut t = Theme::default();
-    assert_eq!(t.role(0), Color::Rgb(0xa5, 0x00, 0x25));
+    assert_eq!(t.role(0), MEDULLA_RED);
     t.cycle_role(0, true);
     assert_eq!(t.role(0), Color::Cyan); // PALETTE[0]
     t.cycle_role(0, false);
-    assert_eq!(t.role(0), Color::Rgb(0xa5, 0x00, 0x25));
+    assert_eq!(t.role(0), MEDULLA_RED);
 }
 
 #[test]
