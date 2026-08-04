@@ -131,7 +131,7 @@ fn appearance_cycling_changes_live_theme() {
     let mut app = settings_app();
     let _ = key(&mut app, KeyCode::Char('2')); // Appearance
     assert_eq!(app.theme_primary(), Color::Rgb(0xa5, 0x00, 0x25));
-    // The primary role is selected first; Right enters the editor palette.
+    // The primary role is selected first; Right enters the next editor color.
     let _ = key(&mut app, KeyCode::Right);
     assert_eq!(app.theme_primary(), Color::Cyan);
     // A selected row is now highlighted with the new primary background.
@@ -338,11 +338,11 @@ fn enabled_process_indicators_render_on_the_status_line() {
 
 #[test]
 fn selection_rows_use_theme_primary_background() {
-    // The Settings nav's selected subpage row is highlighted with primary (Cyan).
+    // The Settings nav's selected subpage row is highlighted with primary red.
     let mut app = settings_app();
     let buf = draw(&mut app, 140, 40);
     assert!(
-        any_cell_with_bg(&buf, Color::Cyan),
+        any_cell_with_bg(&buf, Color::Rgb(0xa5, 0x00, 0x25)),
         "selected nav row uses primary background"
     );
 }
