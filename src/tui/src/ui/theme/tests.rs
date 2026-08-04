@@ -44,8 +44,8 @@ fn from_config_falls_back_per_field() {
 }
 
 #[test]
-fn default_primary_is_cyan() {
-    assert_eq!(Theme::default().primary, Color::Cyan);
+fn default_primary_is_medulla_red() {
+    assert_eq!(Theme::default().primary, Color::Rgb(0xa5, 0x00, 0x25));
 }
 
 #[test]

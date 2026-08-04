@@ -1,5 +1,5 @@
 //! The TUI color theme: a small set of roles that drive selection highlighting,
-//! panel chrome, and accents. Defaults to the established medulla blue (Cyan).
+//! panel chrome, and accents. Defaults to Medulla red (`#a50025`).
 //!
 //! Colors come from the optional `[theme]` config section (named ratatui colors
 //! or `#rrggbb` hex), with per-field fallback to the defaults. The Appearance
@@ -40,7 +40,7 @@ pub const PALETTE: [Color; 10] = [
 impl Default for Theme {
     fn default() -> Self {
         Theme {
-            primary: Color::Cyan,
+            primary: Color::Rgb(0xa5, 0x00, 0x25),
             accent: Color::Magenta,
             selection_fg: Color::Black,
             dim_border: Color::DarkGray,
