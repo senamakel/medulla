@@ -366,8 +366,9 @@ fn a_row_answers_for_the_agent_and_the_lane_behind_it() {
                 assert_eq!(row.agent_id(), session.agent_id.as_deref());
                 assert_eq!(row.lane_index(), session.lane_index);
             }
-            // Hosts and the create action are about no agent and no lane.
-            RailRow::Host(_) | RailRow::NewAgent => {
+            // Hosts, the heading and the create action are about no agent and
+            // no lane.
+            RailRow::Host(_) | RailRow::NewAgent | RailRow::AgentsHeader => {
                 assert_eq!(row.agent_id(), None);
                 assert_eq!(row.lane_index(), None);
                 assert_eq!(row.session_id(), None);
@@ -398,6 +399,9 @@ fn only_the_rows_that_name_something_take_the_cursor() {
     for row in app.rail_rows() {
         match row {
             RailRow::Host(_) => assert!(!row.selectable(), "a host header is a label"),
+            RailRow::AgentsHeader => {
+                assert!(!row.selectable(), "the agents heading is a label")
+            }
             RailRow::Agent(_)
             | RailRow::Session(_)
             | RailRow::NewAgent
@@ -407,4 +411,52 @@ fn only_the_rows_that_name_something_take_the_cursor() {
             RailRow::Lane(_) => {}
         }
     }
+}
+
+#[test]
+fn the_agents_heading_sits_under_the_create_action_and_only_over_a_tree() {
+    let mut app = hosting_app();
+    app.loaded.config.fleet.agent_declarations =
+        vec![AgentDeclaration::new("api-codex", "", "codex", "/w/api")];
+    let rows = app.rail_rows();
+    let new_agent = rows
+        .iter()
+        .position(|row| matches!(row, RailRow::NewAgent))
+        .expect("the create action is on the rail");
+    let heading = rows
+        .iter()
+        .position(|row| matches!(row, RailRow::AgentsHeader))
+        .expect("a rail with agents heads them");
+    let first_agent = rows
+        .iter()
+        .position(|row| matches!(row, RailRow::Agent(_)))
+        .expect("this fixture declares agents");
+    assert_eq!(
+        heading,
+        new_agent + 1,
+        "the heading follows the button it explains"
+    );
+    assert!(
+        heading < first_agent,
+        "and precedes the tree it heads: {rows:?}"
+    );
+
+    // The other half of "only over a tree": a hosting device with nothing
+    // declared and no traffic still offers the create action, and a heading
+    // there would announce a section that is not on the rail. Built on the empty
+    // runtime rather than `hosting_app`, whose demo lanes are themselves agents.
+    let mut bare = App::new(
+        Arc::new(MockRuntime::empty()) as Arc<dyn Runtime>,
+        LoadedConfig::defaults("medulla.tui.json".into()),
+    );
+    bare.set_local_sessions(shell_harnesses(PtyManager::new()));
+    let rows = bare.rail_rows();
+    assert!(
+        rows.iter().any(|row| matches!(row, RailRow::NewAgent)),
+        "the create action is still offered: {rows:?}"
+    );
+    assert!(
+        !rows.iter().any(|row| matches!(row, RailRow::AgentsHeader)),
+        "but nothing is headed: {rows:?}"
+    );
 }
