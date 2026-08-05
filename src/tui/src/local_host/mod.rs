@@ -63,84 +63,36 @@ pub(crate) fn host_address(config: &HostSection) -> String {
     config.effective_address()
 }
 
-/// Every device-local address a host could bind, running or not.
+/// Every host this device declares, running or not — its bus address and its
+/// name.
 ///
 /// Known without starting anything, because it comes from the config rather
 /// than from a started host — and it is needed in exactly the case where none
 /// started, to recognise remembered local roster entries and drop them.
-pub(crate) fn all_host_addresses(primary: &HostSection, extras: &[HostSection]) -> Vec<String> {
-    std::iter::once(host_address(primary))
-        .chain(
-            extras
-                .iter()
-                .enumerate()
-                .map(|(index, extra)| extra_host_address(extra, index)),
-        )
-        .collect()
+///
+/// The name rides along because the hub advertises this same list as the
+/// `hosts[]` block, where a host with an id and nothing to call it reads as a
+/// machine nobody named.
+pub(crate) fn all_local_hosts(
+    primary: &HostSection,
+    extras: &[HostSection],
+) -> Vec<medulla::config::LocalHostRef> {
+    medulla::config::local_hosts(primary, extras)
 }
 
-/// The bus address for an extra host, derived from its name when it declared
-/// none of its own.
-///
-/// Two hosts cannot share an address — the second `bind` fails — so an operator
-/// who adds `[[hosts]]` without thinking about addressing would otherwise get
-/// one working host and one startup error. Deriving from the name means the
-/// field is optional in the common case and explicit when it matters.
+/// The bus address for an extra host — see
+/// [`local_host_address`](medulla::config::local_host_address), which the Hosts
+/// tab reads too so the list and the binder cannot disagree about which address
+/// a section will bind.
 fn extra_host_address(config: &HostSection, fallback_index: usize) -> String {
-    // The section default counts as unchosen, not as a choice. `[[hosts]]`
-    // shares `HostSection`, so an entry that names no address inherits the
-    // primary's — and two hosts on one address means the second never binds.
-    // An operator who *typed* the primary's address has made the same mistake,
-    // so both are treated the same way.
-    let chosen = config.address.trim();
-    let chosen = if chosen == HostSection::default().address {
-        ""
-    } else {
-        chosen
-    };
-    match chosen {
-        "" => {
-            let slug = slug_of(&config.name);
-            if slug.is_empty() {
-                format!("local-host-{}", fallback_index + 1)
-            } else {
-                format!("local-{slug}")
-            }
-        }
-        value => value.to_string(),
-    }
+    medulla::config::local_host_address(config, fallback_index)
 }
 
-/// A lowercase, hyphenated form of `name`, safe to use as a bus address.
-fn slug_of(name: &str) -> String {
-    let mut out = String::new();
-    let mut hyphen = false;
-    for ch in name.trim().chars() {
-        if ch.is_ascii_alphanumeric() {
-            out.push(ch.to_ascii_lowercase());
-            hyphen = false;
-        } else if !out.is_empty() && !hyphen {
-            out.push('-');
-            hyphen = true;
-        }
-    }
-    out.trim_end_matches('-').to_string()
-}
-
-/// What to call a host that named itself nothing.
-///
-/// The primary is "this device" — it is the machine the operator is looking at.
-/// An extra is named for the directory it works in, because that is the only
-/// thing distinguishing it from the primary.
+/// What to call a host that named itself nothing — see
+/// [`local_host_name`](medulla::config::local_host_name). Shared with the Hosts
+/// tab, which names the same hosts before any of them has started.
 pub(crate) fn display_name(config: &HostSection, workspace: &str, primary: bool) -> String {
-    match config.name.trim() {
-        "" if primary => "this device".to_string(),
-        "" => std::path::Path::new(workspace)
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| workspace.to_string()),
-        value => value.to_string(),
-    }
+    medulla::config::local_host_name(config, workspace, primary)
 }
 
 /// Translate the `[host]` section into the SDK's start-up options.
@@ -550,10 +502,11 @@ pub(crate) struct LocalHostSpawner {
     /// from. Carried rather than re-read so a host started now and one started
     /// at launch are built from the same list.
     declared: Vec<AgentDeclaration>,
-    /// Every device-local address, shared with the hub's roster filter. A host
-    /// bound here must be appended or the roster sink will persist it as a
-    /// remote entry.
-    addresses: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    /// Every host this device declares, shared with the hub's roster filter and
+    /// its `hosts[]` advert. A host bound here must be appended or the roster
+    /// sink will persist it as a remote entry — and the hub will advertise its
+    /// agents as running on somebody else's machine.
+    local_hosts: medulla::hub::SharedLocalHosts,
 }
 
 impl LocalHostSpawner {
@@ -570,7 +523,7 @@ impl LocalHostSpawner {
         env: HashMap<String, String>,
         runtimes: std::sync::Arc<std::sync::Mutex<Vec<medulla::daemon::DaemonRuntime>>>,
         started: std::sync::Arc<std::sync::Mutex<Vec<LocalHost>>>,
-        addresses: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+        local_hosts: medulla::hub::SharedLocalHosts,
         declared: Vec<AgentDeclaration>,
     ) -> Self {
         Self {
@@ -580,7 +533,7 @@ impl LocalHostSpawner {
             env,
             runtimes,
             started,
-            addresses,
+            local_hosts,
             declared,
         }
     }
@@ -590,7 +543,7 @@ impl LocalHostSpawner {
     /// rather than as one entry standing in for all of them.
     ///
     /// `index` is the entry's position within `[[hosts]]`, which is the basis
-    /// [`all_host_addresses`] and [`start_all`] derive an unnamed host's address
+    /// [`all_local_hosts`] and [`start_all`] derive an unnamed host's address
     /// from. It is passed in rather than counted here for exactly that reason:
     /// counting *started* hosts includes the primary, so a first unnamed extra
     /// bound `local-host-2` this run and `local-host-1` on the next launch —
@@ -611,12 +564,18 @@ impl LocalHostSpawner {
             &self.declared,
         )?;
         let specs = host.specs().to_vec();
-        // Before the roster entry exists, so the hub's save filter already knows
-        // this address is device-local by the time registration triggers one.
-        self.addresses
+        // Before the roster entry exists, so the hub's save filter and its
+        // `hosts[]` advert both already know this address is device-local by the
+        // time registration triggers one.
+        self.local_hosts
             .lock()
-            .expect("host addresses")
-            .push(host.address().to_string());
+            .expect("local hosts")
+            .push(medulla::config::LocalHostRef {
+                id: host.address().to_string(),
+                name: display_name(config, host.workspace(), false),
+                workspace: host.workspace().to_string(),
+                primary: false,
+            });
         self.runtimes
             .lock()
             .expect("local harness runtimes")
