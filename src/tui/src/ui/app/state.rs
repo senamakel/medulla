@@ -156,6 +156,8 @@ impl App {
             selected_harness_session: None,
             harness_picker: None,
             handback_prompt: None,
+            harness_pointer_grab: None,
+            hit_handback: Vec::new(),
             help_scroll: 0,
             handback_policy,
             harness_took_control: false,
@@ -357,6 +359,16 @@ impl App {
     /// The harness session currently receiving the operator's keystrokes.
     pub fn attached_harness(&self) -> Option<&str> {
         self.harness_focus.attached_to()
+    }
+
+    /// Where the last draw put the embedded harness pane, and whose it is.
+    ///
+    /// Inspection seam for pointer tests: every mouse rule in
+    /// [`on_mouse`](Self::on_mouse) is stated in terms of this rect, so a test
+    /// that wants to click "inside the pane" or "just outside it" has to be
+    /// able to read it rather than hardcode a layout it does not control.
+    pub fn harness_pane_rect_for_test(&self) -> Option<(Rect, String)> {
+        self.hit_harness.clone()
     }
 
     /// Re-read the runtime snapshot and merge in the host-link observation.
