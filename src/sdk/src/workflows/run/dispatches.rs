@@ -157,13 +157,19 @@ mod tests {
     }
 
     #[test]
-    fn a_recorder_tags_dispatches_with_its_run_and_workspace() {
-        let recorder = DispatchRecorder::new("run-recorder", Some("/srv/app".to_string()));
-        let _guard = recorder.record("wf:run-recorder:default#0", "local", "codex");
-        let live = in_flight("run-recorder");
+    fn a_dispatch_carries_the_worker_and_workspace_it_went_to() {
+        let _guard = record("run-attributed", dispatch("wf:run-attributed:default#0"));
+        let live = in_flight("run-attributed");
         assert_eq!(live.len(), 1);
         assert_eq!(live[0].worker, "local");
-        assert_eq!(live[0].harness, "codex");
-        assert_eq!(live[0].workspace.as_deref(), Some("/srv/app"));
+        assert_eq!(live[0].workspace.as_deref(), Some("/tmp/work"));
+    }
+
+    #[test]
+    fn one_run_does_not_see_another_run_s_dispatches() {
+        let _mine = record("run-mine", dispatch("wf:run-mine:default#0"));
+        let _theirs = record("run-theirs", dispatch("wf:run-theirs:default#0"));
+        assert_eq!(in_flight("run-mine").len(), 1);
+        assert_eq!(in_flight("run-mine")[0].task_id, "wf:run-mine:default#0");
     }
 }
