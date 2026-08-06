@@ -42,10 +42,12 @@
 //! honest answer is therefore "this worker is running this step of your run",
 //! not a progress bar, and the tool says so rather than implying more.
 //!
-//! Neither can it see a run executing in another process. The cancellation
-//! registry is process-local, so `executingHere` is a fact about *this* server,
-//! and a run started from the TUI reads as not executing here even while it is
-//! plainly alive — which is why the fleet half is reported independently of it.
+//! Nor can it see the harness sessions of a run executing in another process
+//! that dispatches onto its own embedded host — a run started from the TUI, say.
+//! Both halves of the join miss that case: the local registry belongs to this
+//! process, and the roster does not know that host either. `executingHere` is
+//! likewise a fact about *this* server only, which is why the harness half is
+//! reported independently of it.
 
 mod detail;
 mod types;
