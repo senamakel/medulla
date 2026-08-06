@@ -320,6 +320,49 @@ async fn cancelling_an_in_flight_run_settles_it_as_cancelled() {
 }
 
 #[tokio::test]
+async fn the_cancel_tool_stops_a_run_that_is_genuinely_mid_harness_session() {
+    // The path `workflow_run_cancel` takes, against a run that has a harness
+    // session out — the case a settled-run test cannot reach, and the only one
+    // where `cancelled: true` is the honest answer.
+    let harness = Harness::new();
+    harness.install(&gated(), "gated");
+    let context = harness.context(Arc::new(HangingDispatch));
+
+    let run = tokio::spawn(async move {
+        run_workflow(
+            context,
+            "gated",
+            "run-tool-cancel",
+            json!({ "approvals": ["review"] }),
+            Default::default(),
+        )
+        .await
+    });
+    wait_until_running("run-tool-cancel").await;
+    // The dispatch is registered from the moment it goes out, so a run
+    // inspector can see the session this process has in flight even though no
+    // outer fleet roster knows about the embedded host running it.
+    wait_until_dispatched("run-tool-cancel").await;
+    let live = crate::workflows::run::in_flight("run-tool-cancel");
+    assert_eq!(live.len(), 1, "{live:?}");
+    assert!(
+        live[0].task_id.starts_with("wf:run-tool-cancel:"),
+        "{live:?}"
+    );
+
+    let answer = crate::workflows::ops::cancel_run("run-tool-cancel");
+
+    assert_eq!(answer["cancelled"], json!(true), "{answer}");
+    assert_eq!(answer["runId"], json!("run-tool-cancel"), "{answer}");
+    let record = run.await.unwrap().expect("settles");
+    assert_eq!(record.status, RunStatus::Cancelled);
+    assert!(
+        crate::workflows::run::in_flight("run-tool-cancel").is_empty(),
+        "the dispatch guard must be withdrawn when the run is dropped"
+    );
+}
+
+#[tokio::test]
 async fn cancelling_a_run_that_already_settled_is_not_an_error() {
     assert!(!cancel("never-existed"));
 }
