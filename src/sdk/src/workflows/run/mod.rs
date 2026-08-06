@@ -34,7 +34,7 @@ mod summary;
 mod tests;
 
 pub use diagnose::{diagnose, Diagnosis, DryRun, HiddenError, NeverRan, NullBinding};
-pub use dispatches::{in_flight, DispatchRecorder, InFlightDispatch};
+pub use dispatches::{in_flight, InFlightDispatch};
 pub use registry::{cancel, is_running, RunGuard};
 pub use summary::summarize;
 
