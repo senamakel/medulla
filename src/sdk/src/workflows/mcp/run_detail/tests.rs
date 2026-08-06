@@ -67,12 +67,24 @@ fn worker(id: &str, running: &[&str]) -> FleetWorker {
 fn store_with_run(
     status: crate::workflows::RunStatus,
 ) -> (tempfile::TempDir, Arc<dyn WorkflowStore>) {
+    store_with_run_id("run-1", status)
+}
+
+/// A store with `run_id` recorded against `sweep` in the given status.
+///
+/// The run and dispatch registries are process-wide, so a test that registers
+/// one must own an id no other test in the binary uses — `cargo test` runs them
+/// on one process and concurrently.
+fn store_with_run_id(
+    run_id: &str,
+    status: crate::workflows::RunStatus,
+) -> (tempfile::TempDir, Arc<dyn WorkflowStore>) {
     let root = tempfile::tempdir().unwrap();
     let store: Arc<dyn WorkflowStore> = Arc::new(FileWorkflowStore::new(
         vec![root.path().join("workflows")],
         root.path().join("runs"),
     ));
-    let mut record = crate::workflows::new_run_record("run-1", "sweep", 1_000);
+    let mut record = crate::workflows::new_run_record(run_id, "sweep", 1_000);
     record.status = status;
     store.record_run(&record).expect("records the run");
     (root, store)
@@ -349,18 +361,15 @@ fn a_task_id_the_local_registry_holds_under_another_shape_is_dropped() {
 
 #[test]
 fn the_two_halves_merge_without_double_counting_one_dispatch() {
-    let prefix = dispatch_prefix("run-1");
-    let fleet = dispatches_in(
-        &[worker("laptop", &["wf:run-1:default#0"])],
-        &prefix,
-    );
+    let run = "run-merge";
+    let prefix = dispatch_prefix(run);
+    let fleet = dispatches_in(&[worker("laptop", &["wf:run-merge:default#0"])], &prefix);
     // The same task id the roster already accounted for, plus one only this
     // process knows about.
-    let run = "run-1";
     let _shared = run::dispatches::record(
         run,
         InFlightDispatch {
-            task_id: "wf:run-1:default#0".to_string(),
+            task_id: "wf:run-merge:default#0".to_string(),
             worker: "default-worker-address".to_string(),
             harness: String::new(),
             workspace: None,
@@ -369,7 +378,7 @@ fn the_two_halves_merge_without_double_counting_one_dispatch() {
     let _only_here = run::dispatches::record(
         run,
         InFlightDispatch {
-            task_id: "wf:run-1:builder#1".to_string(),
+            task_id: "wf:run-merge:builder#1".to_string(),
             worker: "local".to_string(),
             harness: "claude".to_string(),
             workspace: None,
@@ -389,14 +398,15 @@ fn the_two_halves_merge_without_double_counting_one_dispatch() {
 
 #[tokio::test]
 async fn a_run_executing_here_reports_its_own_harness_session_and_says_it_is_live() {
-    let (_root, store) = store_with_run(crate::workflows::RunStatus::Running);
+    let run = "run-executing-here";
+    let (_root, store) = store_with_run_id(run, crate::workflows::RunStatus::Running);
     // Registered so the run reads as executing in this process, which is what
     // a run started over this same MCP server looks like.
-    let (_run_guard, _signal) = run::RunGuard::register("run-1");
+    let (_run_guard, _signal) = run::RunGuard::register(run);
     let _dispatch = run::dispatches::record(
-        "run-1",
+        run,
         InFlightDispatch {
-            task_id: "wf:run-1:default#0".to_string(),
+            task_id: "wf:run-executing-here:default#0".to_string(),
             worker: "local".to_string(),
             harness: "claude".to_string(),
             workspace: Some("/srv/app".to_string()),
@@ -405,13 +415,9 @@ async fn a_run_executing_here_reports_its_own_harness_session_and_says_it_is_liv
 
     // An offline fleet on purpose: the embedded host is not in any roster, so
     // this is exactly the shape the roster-only join answered nothing for.
-    let answer = detail(
-        &session(&store, Arc::new(OfflineFleet)),
-        "run-1",
-        StepDetail::Summary,
-    )
-    .await
-    .expect("the run is in the store");
+    let answer = detail(&session(&store, Arc::new(OfflineFleet)), run, StepDetail::Summary)
+        .await
+        .expect("the run is in the store");
 
     assert_eq!(answer["live"]["executingHere"], true);
     let harnesses = answer["live"]["harnesses"].as_array().unwrap();
@@ -424,13 +430,14 @@ async fn a_run_executing_here_reports_its_own_harness_session_and_says_it_is_liv
 
 #[tokio::test]
 async fn an_approval_gated_run_reads_as_waiting_rather_than_as_lost() {
-    let (_root, store) = store_with_run(crate::workflows::RunStatus::PendingApproval);
+    let run = "run-parked";
+    let (_root, store) = store_with_run_id(run, crate::workflows::RunStatus::PendingApproval);
     let fleet = Arc::new(StubFleet {
         hello: hello(),
         workers: vec![worker("laptop", &[])],
     });
 
-    let answer = detail(&session(&store, fleet), "run-1", StepDetail::Summary)
+    let answer = detail(&session(&store, fleet), run, StepDetail::Summary)
         .await
         .expect("the run is in the store");
 
