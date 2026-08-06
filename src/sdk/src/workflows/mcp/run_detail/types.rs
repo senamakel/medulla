@@ -1,6 +1,7 @@
 //! Data types for the joined view a run-detail call answers with.
 
 use serde::Serialize;
+use serde_json::Value;
 
 /// One harness session the fleet is currently running on this run's behalf.
 ///
