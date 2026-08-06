@@ -497,3 +497,7 @@ impl LlmProvider for HarnessLlm {
             .await
     }
 }
+
+#[cfg(test)]
+#[path = "agent_tests.rs"]
+mod tests;
