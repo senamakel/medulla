@@ -18,7 +18,7 @@
 //! with the fleet roster rather than choosing between them.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 
 use crate::workflows::RunId;
 
