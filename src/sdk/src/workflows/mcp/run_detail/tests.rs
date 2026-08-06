@@ -17,8 +17,9 @@ use crate::workflows::run::{self, InFlightDispatch};
 use crate::workflows::{FileWorkflowStore, WorkflowStore};
 
 use super::detail::{
-    detail, dispatch_prefix, dispatches_here, dispatches_in, merge, note, split_suffix, Standing,
+    detail, dispatch_prefix, dispatches_here, dispatches_in, merge, note, split_suffix,
 };
+use super::types::Standing;
 
 /// A fleet that answers `worker.list` with a roster the test wrote.
 struct StubFleet {
