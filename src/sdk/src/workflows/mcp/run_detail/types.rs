@@ -36,3 +36,39 @@ pub(super) struct LiveDispatch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) workspace: Option<String>,
 }
+
+/// Where a run stands, as far as the durable record and this process agree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Standing {
+    /// A terminal status: nothing more will happen to this run.
+    Settled,
+    /// Parked at an approval gate, waiting to be resumed or rejected.
+    ///
+    /// Distinct from unsettled-and-idle even though neither is executing: the
+    /// durable record *proves* why nothing is in flight, so there is nothing to
+    /// hedge about.
+    AwaitingApproval,
+    /// Recorded as running, and this process is the one running it.
+    ExecutingHere,
+    /// Recorded as running, but not by this process.
+    Unaccounted,
+}
+
+impl Standing {
+    /// Read a run's standing off its projected record and the local registry.
+    ///
+    /// Reads the *projected* record rather than tracking status separately: the
+    /// two could otherwise disagree about a run that settled between the read
+    /// and the roster call, and the record is the half actually returned.
+    pub(super) fn of(record: &Value, executing_here: bool) -> Self {
+        match record.get("status").and_then(Value::as_str) {
+            Some("pending_approval") => Standing::AwaitingApproval,
+            Some("running") if executing_here => Standing::ExecutingHere,
+            Some("running") => Standing::Unaccounted,
+            // An unrecognised status is a terminal one this build does not know
+            // by name. Saying "finished" about it beats hedging: every status
+            // the store writes other than the two above is an outcome.
+            _ => Standing::Settled,
+        }
+    }
+}
