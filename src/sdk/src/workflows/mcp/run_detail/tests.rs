@@ -8,11 +8,17 @@ use std::sync::Arc;
 
 use serde_json::json;
 
-use crate::control_socket::{FleetWorker, ToolFamilies};
+use serde_json::Value;
+
+use crate::control_socket::{ControlError, FleetWorker, ToolFamilies};
 use crate::mcp::{FleetBackend, McpSession, OfflineFleet};
+use crate::workflows::ops::StepDetail;
+use crate::workflows::run::{self, InFlightDispatch};
 use crate::workflows::{FileWorkflowStore, WorkflowStore};
 
-use super::*;
+use super::detail::{
+    detail, dispatch_prefix, dispatches_here, dispatches_in, merge, note, split_suffix, Standing,
+};
 
 /// A fleet that answers `worker.list` with a roster the test wrote.
 struct StubFleet {
