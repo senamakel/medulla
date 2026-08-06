@@ -78,6 +78,14 @@ impl HarnessDispatch for RuntimeDispatch {
             resume_session_id: None,
             workspace_context: Default::default(),
             provider,
+            // Dropped when the provider fell back, for the same portability
+            // reason the provider itself falls back: a graph authored against
+            // `codex-server` should still run on a worker that only has
+            // `claude`, rather than failing the node.
+            transport: request
+                .transport
+                .filter(|transport| transport.supported_by(provider))
+                .unwrap_or_default(),
             prompt: request.instruction,
             cwd: inner.config.workspace.clone(),
             env: super::with_tool_mode_at_depth(
@@ -277,11 +285,19 @@ impl DaemonRuntime {
             settings,
             services: HostServices {
                 dispatch: Arc::new(RuntimeDispatch::new(self.clone(), from.clone())),
+                node_progress: None,
                 resolver: Arc::new(StoreWorkflowResolver::new(store, max_loop_iterations)),
                 http_credentials: Default::default(),
             },
             sink,
             step_snapshot: None,
+            // A fleet dispatch: this run exists because a peer sent a task
+            // frame, and the address it came from is the only thing that can
+            // say which one.
+            origin: Some(
+                crate::workflows::RunOrigin::of_kind("dispatch")
+                    .labelled(format!("task {} from {from}", frame.task_id)),
+            ),
         };
 
         // The frame's task id becomes the run id, so the orchestrator's existing

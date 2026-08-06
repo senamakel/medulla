@@ -2,6 +2,65 @@
 
 use medulla::runtime::ContextItem;
 
+/// One harness progress frame's place in the sink's backlog.
+///
+/// `AppMsg` is delivered over an unbounded channel, which is right for the
+/// lifecycle messages on it — losing `WorkflowRunFinished` would leave a row
+/// spinning forever. Harness progress is the opposite: an `agent` step emits
+/// thousands of frames, the pane shows a tail of them, and a frame the loop has
+/// not reached yet is one nobody will ever read. Without a bound, an agent that
+/// out-talks a busy event loop grows the queue with frames whose only effect is
+/// to delay the settle message behind them.
+///
+/// So the sink counts what it has queued and stops queueing past
+/// [`MAX_PENDING_FRAMES`](super::cmd_dispatch::workflows::MAX_PENDING_FRAMES).
+/// Dropping this token is what marks a frame taken, which happens when the loop
+/// destructures the message — no bookkeeping at the consumer, and no way for a
+/// message dropped on shutdown to leak a slot.
+#[cfg(feature = "workflows")]
+pub(super) struct PendingFrame(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+#[cfg(feature = "workflows")]
+impl PendingFrame {
+    /// Claim a backlog slot, if the sink is not already at its bound.
+    ///
+    /// `None` means the frame is dropped rather than queued.
+    ///
+    /// The reservation is one compare-and-exchange rather than a load followed
+    /// by an add: a workflow fans out, so several sinks call this at once, and
+    /// separate steps let all of them read a depth under the bound and then
+    /// every one of them queue — the overshoot growing with the fan-out, which
+    /// is precisely when the bound matters.
+    pub(super) fn claim(
+        depth: &std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        limit: usize,
+    ) -> Option<Self> {
+        use std::sync::atomic::Ordering;
+        let mut current = depth.load(Ordering::Relaxed);
+        loop {
+            if current >= limit {
+                return None;
+            }
+            match depth.compare_exchange_weak(
+                current,
+                current + 1,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return Some(Self(depth.clone())),
+                Err(observed) => current = observed,
+            }
+        }
+    }
+}
+
+#[cfg(feature = "workflows")]
+impl Drop for PendingFrame {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 /// Messages sent from spawned async tasks back to the event loop.
 pub(super) enum AppMsg {
     /// A status-line update.
@@ -44,6 +103,33 @@ pub(super) enum AppMsg {
     FeedbackItemUpdated(medulla::client::FeedbackItem),
     /// A feedback action finished; reload the board and report `status`.
     FeedbackChanged(String),
+    /// A run started from this TUI began executing.
+    #[cfg(feature = "workflows")]
+    WorkflowRunStarted {
+        /// The workflow being run.
+        workflow: String,
+        /// The engine run id, which the live output is keyed by.
+        run_id: String,
+    },
+    /// One progress frame from a harness a running workflow dispatched.
+    #[cfg(feature = "workflows")]
+    WorkflowRunOutput {
+        /// The run it belongs to.
+        run_id: String,
+        /// The graph node whose harness emitted it.
+        node: String,
+        /// The frame, in the vocabulary `medulla::daemon::status_detail` writes.
+        line: String,
+        /// Keeps this frame counted against the sink's backlog until the loop
+        /// has taken it. See [`PendingFrame`].
+        pending: PendingFrame,
+    },
+    /// A run started from this TUI settled.
+    #[cfg(feature = "workflows")]
+    WorkflowRunFinished {
+        /// The run that settled.
+        run_id: String,
+    },
     /// A progress line from a running copilot turn.
     #[cfg(feature = "workflows")]
     CopilotStatus {
@@ -149,6 +235,10 @@ pub(crate) struct SessionWiring {
     /// or to the transcript. Shared with the host's executor — the sessions it
     /// opens are the ones rendered here.
     pub local_sessions: Option<medulla_tui::ui::harness_pane::LocalSessions>,
+    /// Workflow runs reported by harnesses this device spawned, as the control
+    /// plane records them. Empty when no control socket was bound — a build
+    /// without workflows, or a host with fleet tools switched off.
+    pub harness_runs: medulla::control_socket::HarnessRunRegistry,
     /// Lifecycle reports from the harnesses this Medulla launched, as their
     /// hooks file them.
     ///

@@ -13,6 +13,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use medulla::daemon::embedded::EmbeddedDaemonOptions;
@@ -21,7 +22,17 @@ use medulla::workflows::{
     run_workflow, LocalWorkflowHost, RunContext, StoreWorkflowResolver, LOCAL_WORKER_ADDRESS,
 };
 
+use super::super::types::PendingFrame;
 use super::AppMsg;
+
+/// How many harness progress frames may sit unread before new ones are dropped.
+///
+/// The pane draws a tail of a node's frames, so a frame with this many already
+/// queued ahead of it will have scrolled past before it is ever rendered.
+/// Matches the reporter's own `MAX_PENDING_PROGRESS` — the same trade in the
+/// cross-process direction — so a run watched locally and one watched over the
+/// control socket lose progress at the same point.
+pub(in crate::event_loop) const MAX_PENDING_FRAMES: usize = 64;
 
 /// Spawn a run of the workflow `id`, reporting the outcome on the status line.
 ///
@@ -39,7 +50,15 @@ pub(super) fn spawn_run(
 ) {
     let tx = msg_tx.clone();
     tokio::spawn(async move {
-        let outcome = run(&id, inputs, &workflows_config, &custom_harnesses, &hooks).await;
+        let outcome = run(
+            &id,
+            inputs,
+            &workflows_config,
+            &custom_harnesses,
+            &tx,
+            &hooks,
+        )
+        .await;
         let (status, failed) = match outcome {
             Ok((summary, failed)) => (summary, failed),
             Err(err) => (format!("workflow '{id}' failed: {err}"), None),
@@ -69,6 +88,7 @@ async fn run(
     inputs: serde_json::Map<String, serde_json::Value>,
     workflows_config: &medulla::config::WorkflowsConfig,
     custom_harnesses: &[medulla::config::CustomHarnessConfig],
+    tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
     hooks: &medulla::harness_hooks::HooksConfig,
 ) -> anyhow::Result<(String, Option<String>)> {
     let env: HashMap<String, String> = std::env::vars().collect();
@@ -107,19 +127,65 @@ async fn run(
     let (sink, _fold) = folding_sink();
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let max_loop_iterations = settings.max_loop_iterations;
+    // Announced before the first step, because the point of the live view is
+    // that the pane stops being blank the moment the run starts rather than
+    // when the first agent node happens to say something.
+    let _ = tx.send(AppMsg::WorkflowRunStarted {
+        workflow: id.to_string(),
+        run_id: run_id.clone(),
+    });
+    // Every `agent` node's harness reports through here as it works. Forwarded
+    // rather than folded: the App owns the buffer, and a render pass must not
+    // reach into a run's internals to read it.
+    //
+    // Bounded at the sink, not at the channel: `AppMsg` carries the run's
+    // lifecycle too, and a bounded channel would either block a step's harness
+    // or drop the settle message. Counting frames instead leaves those
+    // unaffected and drops only progress nobody would have read — see
+    // [`PendingFrame`].
+    let progress: medulla::flow_engine::NodeProgressSink = {
+        let tx = tx.clone();
+        let run_id = run_id.clone();
+        let queued = Arc::new(AtomicUsize::new(0));
+        Arc::new(move |node: &str, line: &str| {
+            let Some(pending) = PendingFrame::claim(&queued, MAX_PENDING_FRAMES) else {
+                return;
+            };
+            let _ = tx.send(AppMsg::WorkflowRunOutput {
+                run_id: run_id.clone(),
+                node: node.to_string(),
+                line: line.to_string(),
+                pending,
+            });
+        })
+    };
     let context = RunContext {
         store: store.clone(),
         settings: Arc::new(settings),
-        services: HostServices {
-            dispatch: host.dispatch(),
-            resolver: Arc::new(StoreWorkflowResolver::new(store, max_loop_iterations)),
-            http_credentials: HashMap::new(),
-        },
+        services: HostServices::new(
+            host.dispatch(),
+            Arc::new(StoreWorkflowResolver::new(store, max_loop_iterations)),
+            HashMap::new(),
+        )
+        .watching(progress),
         sink,
         step_snapshot: None,
+        // Started from the Workflows pane by the person looking at it, which is
+        // what tells this run apart from the ones a session in the Agents rail
+        // kicked off behind their back.
+        origin: Some(
+            medulla::workflows::RunOrigin::of_kind(medulla::workflows::RunOrigin::OPERATOR)
+                .labelled("Workflows pane"),
+        ),
     };
 
-    let record = run_workflow(context, id, &run_id, serde_json::json!({}), inputs).await?;
+    let record = run_workflow(context, id, &run_id, serde_json::json!({}), inputs).await;
+    // Settled before the result is unwrapped: a run that failed still stops
+    // being live, and a `?` here would leave the row spinning forever.
+    let _ = tx.send(AppMsg::WorkflowRunFinished {
+        run_id: run_id.clone(),
+    });
+    let record = record?;
     let summary = format!(
         "{id}: {} · {} step{}",
         medulla::ui::workflows::status_label(record.status),

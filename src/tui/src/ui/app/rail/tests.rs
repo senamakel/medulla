@@ -56,6 +56,34 @@ pub(in crate::ui::app) fn shell_harnesses(
     }
 }
 
+/// A minimal live pty row, for the rail rules that only look at its identity.
+pub(in crate::ui::app) fn stub_session(id: &str) -> crate::worker::pty::SessionRow {
+    crate::worker::pty::SessionRow {
+        id: id.to_string(),
+        label: id.to_string(),
+        provider: HarnessProvider::Codex,
+        preset: None,
+        state: crate::worker::pty::PtyState::Running,
+        cwd: "/".to_string(),
+        branch: None,
+        launch_root: None,
+        launch_commit: None,
+        launch_checkout_identity: None,
+        session_id: None,
+        thread_name: None,
+        started_at: 0,
+        last_output_at: 0,
+        last_error: None,
+        busy: false,
+        control: crate::worker::pty::SessionControl::Orchestrator,
+        origin: crate::worker::pty::SessionOrigin::Orchestrator,
+        retained: false,
+        name: None,
+        attention: None,
+        mcp_grant_session: None,
+    }
+}
+
 /// The agent rows, in rail order.
 fn agent_ids(app: &App) -> Vec<String> {
     app.rail_rows()
@@ -432,6 +460,13 @@ fn a_row_answers_for_the_agent_and_the_lane_behind_it() {
                 assert_eq!(row.session_id(), None);
                 assert!(row.task().is_none());
             }
+            // A run row is about the session that started it, not about an
+            // agent or a lane of its own.
+            RailRow::WorkflowRun(run) => {
+                assert_eq!(row.session_id(), Some(run.session_id.as_str()));
+                assert_eq!(row.agent_id(), None);
+                assert_eq!(row.lane_index(), None);
+            }
             RailRow::Lane(lane) => assert_eq!(row.lane_index(), lane.lane_index()),
         }
     }
@@ -455,7 +490,8 @@ fn only_the_rows_that_name_something_take_the_cursor() {
             RailRow::Agent(_)
             | RailRow::Session(_)
             | RailRow::NewAgent
-            | RailRow::NewSession { .. } => {
+            | RailRow::NewSession { .. }
+            | RailRow::WorkflowRun(_) => {
                 assert!(row.selectable())
             }
             RailRow::Lane(_) => {}

@@ -14,7 +14,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::ui::app::App;
 use crate::worker::pty::{AttentionKind, HarnessAttention, PtyState, SessionControl, SessionRow};
 
-use super::rows::{display_session_title, running_session_title};
+use super::rows::{display_session_title, lane_title, running_session_title};
 use super::wrap::{flow_path, short_home, wrap_line, wrap_path};
 
 pub(super) fn app() -> App {
@@ -103,14 +103,55 @@ fn the_newest_running_harness_title_identifies_an_agent_lane() {
 }
 
 #[test]
-fn session_titles_are_flattened_and_bounded_before_rail_wrapping() {
+fn session_titles_are_slugged_and_bounded_before_rail_wrapping() {
     let title = format!("first line\n{}", "wide title ".repeat(20));
 
     let displayed = display_session_title(&title);
 
+    assert_eq!(displayed, "first-line-wide");
     assert!(UnicodeWidthStr::width(displayed.as_str()) <= 48);
     assert!(!displayed.contains('\n'));
+}
+
+#[test]
+fn session_titles_of_wide_characters_stay_within_the_rails_cell_budget() {
+    // 48 wide characters pass the slug's character ceiling untouched but would
+    // occupy 96 columns, so the rail clips them a second time by cell width.
+    let title = "界".repeat(48);
+
+    let displayed = display_session_title(&title);
+
+    assert!(UnicodeWidthStr::width(displayed.as_str()) <= 48);
     assert!(displayed.ends_with('…'));
+}
+
+#[test]
+fn a_title_that_slugs_to_nothing_is_not_a_lane_title() {
+    // Punctuation- and control-only titles leave the slug empty. Passing that
+    // on would render a dangling " · " and, since the newest running task wins
+    // the lane, would mask an older task that does advertise a real title.
+    assert_eq!(lane_title("---"), None);
+    assert_eq!(lane_title("  \n\t\u{1b}  "), None);
+    assert_eq!(lane_title(""), None);
+    // An escape sequence is not empty, though: the slug strips the control
+    // bytes and keeps the alphanumerics, which is the safe outcome.
+    assert_eq!(lane_title("\u{1b}[2J"), Some("2j".to_string()));
+    // All-filler input is a different case: slug names it badly-but-stably
+    // rather than emptily, so the lane keeps showing it.
+    assert_eq!(lane_title("okay so the"), Some("okay-so-the".to_string()));
+
+    assert_eq!(
+        lane_title("Fix session titles"),
+        Some("fix-session-titles".to_string())
+    );
+}
+
+#[test]
+fn session_titles_keep_three_words_of_a_harness_sentence() {
+    assert_eq!(
+        display_session_title("Fix session handoff flow and pointer"),
+        "fix-session-handoff"
+    );
 }
 
 #[test]
@@ -152,6 +193,7 @@ fn the_overflow_row_highlights_under_the_cursor() {
 
 pub(super) fn harness_row(cwd: &str) -> SessionRow {
     SessionRow {
+        mcp_grant_session: None,
         id: "w_1".into(),
         label: "local".into(),
         provider: medulla::protocol::HarnessProvider::Codex,
@@ -529,4 +571,64 @@ fn an_unknown_home_leaves_the_path_alone() {
     // inventing a `~` for a directory we cannot place would be a lie.
     assert_eq!(short_home("/srv/repos/auth", None), "/srv/repos/auth");
     assert_eq!(short_home("/srv/repos/auth", Some("")), "/srv/repos/auth");
+}
+
+/// A reported run, as the control plane hands one to the rail.
+fn reported_run(
+    status: medulla::control_socket::HarnessRunStatus,
+) -> medulla::control_socket::HarnessRun {
+    medulla::control_socket::HarnessRun {
+        run_id: "run-1".into(),
+        workflow_id: "review-and-fix".into(),
+        status,
+        started_at: 1,
+        updated_at: 2,
+        detail: Some("review · running the test suite".into()),
+        frames: Vec::new(),
+    }
+}
+
+#[test]
+fn a_workflow_run_row_names_its_workflow_status_and_latest_line() {
+    let app = app();
+    let row =
+        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "w_1".into(),
+            run: reported_run(medulla::control_socket::HarnessRunStatus::Running),
+            last: true,
+        });
+
+    let line = app.rail_row_line(&row, &[lane()], false, &none_waiting(), NOW);
+    let text: String = line
+        .spans
+        .iter()
+        .map(|span| span.content.as_ref())
+        .collect();
+
+    assert!(text.contains("review-and-fix"), "{text}");
+    assert!(text.contains("running"), "{text}");
+    // The latest thing the run said is what makes a long step look alive.
+    assert!(text.contains("running the test suite"), "{text}");
+    // Nested under the session, like a task sublane.
+    assert!(text.starts_with("   └"), "{text}");
+}
+
+#[test]
+fn a_failed_run_row_is_coloured_by_its_status_rather_than_by_the_row() {
+    let app = app();
+    let row =
+        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "w_1".into(),
+            run: reported_run(medulla::control_socket::HarnessRunStatus::Failed),
+            last: false,
+        });
+
+    let line = app.rail_row_line(&row, &[lane()], false, &none_waiting(), NOW);
+    let status = line
+        .spans
+        .iter()
+        .find(|span| span.content.contains("failed"))
+        .expect("a status span");
+
+    assert_eq!(status.style.fg, Some(super::super::super::color("red")));
 }

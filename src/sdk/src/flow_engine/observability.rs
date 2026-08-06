@@ -48,6 +48,27 @@ pub fn null_sink() -> WorkEventSink {
     Arc::new(|_, _| {})
 }
 
+/// Where an `agent` node's harness progress goes, frame by frame.
+///
+/// Called with the node id and one progress frame, in the vocabulary
+/// [`crate::daemon::status_detail`] produces — the same strings the copilot
+/// pane already renders, so a reader can classify them with
+/// [`crate::ui::workflows::classify`](crate::ui::workflows::progress::classify)
+/// rather than parsing them again.
+///
+/// Separate from [`WorkEventSink`] deliberately. A work event describes the
+/// *run* — which step is active, what settled — and arrives only when a step
+/// finishes. This is the harness talking while a step is still going, which is
+/// the half a progress view is silent about without it.
+///
+/// Called on the task forwarding the harness's status stream, once per frame
+/// and as fast as the harness emits. An implementation must not block or the
+/// step's own progress stalls behind it: hand the frame to a channel and let
+/// the reader coalesce, the way
+/// [`RunReporter::progress_sink`](crate::workflows::RunReporter::progress_sink)
+/// does.
+pub type NodeProgressSink = Arc<dyn Fn(&str, &str) + Send + Sync>;
+
 /// One node's place in the plan.
 #[derive(Debug, Clone)]
 struct PlanNode {

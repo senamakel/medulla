@@ -71,6 +71,7 @@ impl Relay for FakeWorker {
                 from: to.to_string(),
                 text: encode_task_frame_with_usage(
                     EncodeFrameInput {
+                        transport: None,
                         kind: TaskFrameKind::SystemInfoResult,
                         task_id: frame.task_id,
                         text,
@@ -98,6 +99,7 @@ impl Relay for FakeWorker {
                     from: to.to_string(),
                     text: encode_task_frame_with_usage(
                         EncodeFrameInput {
+                            transport: None,
                             kind: TaskFrameKind::CapabilitiesResult,
                             task_id: frame.task_id,
                             text: serde_json::to_string(caps).unwrap(),
@@ -139,6 +141,7 @@ impl Relay for FakeWorker {
             from: to.to_string(),
             text: encode_task_frame_with_usage(
                 EncodeFrameInput {
+                    transport: None,
                     kind,
                     task_id: task_id.clone(),
                     text: text.to_string(),
@@ -164,6 +167,7 @@ impl Relay for FakeWorker {
             from: to.to_string(),
             text: encode_task_frame_with_attachments(
                 EncodeFrameInput {
+                    transport: None,
                     kind: TaskFrameKind::Reply,
                     task_id: task_id.clone(),
                     text: text.to_string(),
@@ -207,6 +211,7 @@ impl Relay for FakeWorker {
                     from: impostor.clone(),
                     text: encode_task_frame_with_usage(
                         EncodeFrameInput {
+                            transport: None,
                             kind,
                             task_id: task_id.clone(),
                             text: stolen.clone(),
@@ -287,6 +292,7 @@ impl Relay for FakeWorker {
 /// test can abort by the same id it dispatched under.
 pub(in crate::hub::tests) fn req(instruction: &str) -> TaskRequest {
     TaskRequest {
+        transport: None,
         task_id: "t1".to_string(),
         abort_id: "t1".to_string(),
         cycle_id: Some("c1".to_string()),

@@ -32,6 +32,7 @@ pub(crate) mod mcp;
 pub mod node_contracts;
 pub mod ops;
 mod registry;
+pub mod report;
 pub mod run;
 pub mod skills;
 pub mod store;
@@ -50,6 +51,7 @@ pub use local::{LocalCopilotDispatch, LocalWorkflowHost, LOCAL_WORKER_ADDRESS};
 pub use node_contracts::{all_node_kind_contracts, node_kind_contract};
 pub use ops::discover_store;
 pub use registry::StoreWorkflowResolver;
+pub use report::RunReporter;
 pub use run::{dry_run, resume_workflow, run_workflow, run_workflow_versioned, RunContext};
 pub use store::{
     current_notes, mint_note_id, mint_proposal_id, new_run_record, parse_workflow, require,
@@ -67,6 +69,7 @@ pub use tinyflows::model::{InputType, WorkflowGraph, WorkflowInput};
 pub(crate) use types::bounded_evidence;
 pub use types::{
     fingerprint, record_fingerprint, NoteId, NoteKind, NoteSource, ProposalId, ProposalStatus,
-    ProposalVerification, RunId, RunRecord, RunStatus, RunStep, WorkflowDefaults, WorkflowError,
-    WorkflowId, WorkflowNote, WorkflowProposal, WorkflowRecord, WorkflowRevision, WorkflowSummary,
+    ProposalVerification, RunId, RunOrigin, RunRecord, RunStatus, RunStep, WorkflowDefaults,
+    WorkflowError, WorkflowId, WorkflowNote, WorkflowProposal, WorkflowRecord, WorkflowRevision,
+    WorkflowSummary,
 };
