@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use super::agent::{AgentRoute, HarnessAgentRunner};
-use super::dispatch::HarnessDispatch;
+use super::{AgentRoute, HarnessAgentRunner};
+use crate::flow_engine::caps::dispatch::HarnessDispatch;
 use crate::flow_engine::harness_choice::HarnessChoice;
 use crate::flow_engine::settings::CapabilitySettings;
 use crate::hub::{RunError, TaskOutcome, TaskRequest};
