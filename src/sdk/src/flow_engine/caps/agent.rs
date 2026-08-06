@@ -204,6 +204,21 @@ impl HarnessAgentRunner {
         self
     }
 
+    /// Share an existing task-id sequence instead of this runner's own.
+    ///
+    /// The run builds an agent runner *and* an LLM provider (which wraps a
+    /// second runner), and both mint task ids as `wf:{run}:{route}#{sequence}`.
+    /// Left to themselves each counts from zero, so the first dispatch of each
+    /// along the same route claims the *same* id — which a worker would reject
+    /// as a duplicate, and which collapses two live sessions into one wherever
+    /// the id is used to tell them apart (the run inspector's dispatch
+    /// registry, `fleet_abort`, a worker-side log search).
+    #[must_use]
+    pub(crate) fn with_sequence(mut self, sequence: Arc<AtomicU64>) -> Self {
+        self.sequence = sequence;
+        self
+    }
+
     /// Stream every dispatched harness's progress into `sink`.
     ///
     /// Takes an `Option` so the caller can pass whatever the run was given
