@@ -26,6 +26,7 @@
 //! pending, so a stale or invented resume cannot walk a run past its gate.
 
 pub mod diagnose;
+pub mod dispatches;
 mod registry;
 mod summary;
 
@@ -33,6 +34,7 @@ mod summary;
 mod tests;
 
 pub use diagnose::{diagnose, Diagnosis, DryRun, HiddenError, NeverRan, NullBinding};
+pub use dispatches::{in_flight, DispatchRecorder, InFlightDispatch};
 pub use registry::{cancel, is_running, RunGuard};
 pub use summary::summarize;
 
