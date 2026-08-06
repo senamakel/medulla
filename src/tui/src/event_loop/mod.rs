@@ -54,6 +54,7 @@ pub(crate) async fn run(
         link_obs,
         host,
         local_sessions,
+        harness_runs,
         hook_log,
     } = wiring;
     let mut app = App::new(runtime.clone(), loaded);
@@ -70,6 +71,7 @@ pub(crate) async fn run(
     if let Some(sessions) = local_sessions {
         app.set_local_sessions(sessions);
     }
+    app.set_harness_runs(harness_runs);
     app.set_hook_log(hook_log);
     if let Some(status) = startup_status {
         app.set_status(status);
@@ -155,6 +157,25 @@ pub(crate) async fn run(
                     #[cfg(feature = "workflows")]
                     AppMsg::CopilotStarted { workflow, instruction } => {
                         app.copilot_started(&workflow, &instruction);
+                    }
+                    #[cfg(feature = "workflows")]
+                    AppMsg::WorkflowRunStarted { workflow, run_id } => {
+                        app.workflow_run_started(&workflow, &run_id);
+                    }
+                    #[cfg(feature = "workflows")]
+                    AppMsg::WorkflowRunOutput {
+                        run_id,
+                        node,
+                        line,
+                        // Dropped here, which is what frees the sink's backlog
+                        // slot; see `PendingFrame`.
+                        pending: _pending,
+                    } => {
+                        app.workflow_run_output(&run_id, &node, line);
+                    }
+                    #[cfg(feature = "workflows")]
+                    AppMsg::WorkflowRunFinished { run_id } => {
+                        app.workflow_run_finished(&run_id);
                     }
                     #[cfg(feature = "workflows")]
                     AppMsg::CopilotStatus { workflow, line } => {

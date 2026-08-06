@@ -634,25 +634,18 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // this process rather than to a login session, and rebinding inside the
     // relogin loop below would race this process's own live socket. The server
     // reads the hub slot per request, so a relogin that refills that slot is
-    // picked up with no rebind.
-    #[cfg(feature = "workflows")]
-    let _control_plane = {
-        let primary_address = loaded.config.host.effective_address();
-        let local_default_worker = local_dispatch
-            .hosts
-            .iter()
-            .find(|worker| worker.address == primary_address)
-            .map(|worker| worker.address.clone());
-        crate::control_plane::start(
-            &env,
-            &loaded.config,
-            hub_slot.clone(),
-            local_default_worker,
-            hook_log.clone(),
-            &hub_logs,
-        )
-        .await
-    };
+    // picked up with no rebind. See `control_plane::startup` for what it
+    // resolves and why the registry it hands back is shared with every session.
+    let control_plane = crate::control_plane::startup::start(
+        &env,
+        &loaded.config,
+        hub_slot.clone(),
+        &local_dispatch,
+        hook_log.clone(),
+        &hub_logs,
+    )
+    .await;
+    let harness_runs = control_plane.runs.clone();
 
     // A session, and another after every logout. `run` reports `Relogin` when
     // the Account page's logout landed, and the whole point of that logout is to
@@ -688,6 +681,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 // reflected there — a UI gap, not a hosting one.
                 host: primary_observation.clone(),
                 local_sessions: local_sessions.clone(),
+                harness_runs: harness_runs.clone(),
                 hook_log: hook_log.clone(),
             },
         )

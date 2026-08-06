@@ -40,11 +40,16 @@ use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
 use crate::worker::pty::SessionRow;
 
 pub(in crate::ui::app) mod resolve;
+// Kept apart from `tests` rather than nested inside it: the assembly rules and
+// the served-dispatch merge are separate responsibilities, and one file for
+// both had already grown past this repository's line ceiling.
+#[cfg(test)]
+mod merge_tests;
 #[cfg(test)]
 pub(in crate::ui::app) mod tests;
 mod types;
 
-pub use types::{AgentRailRow, HostRailRow, RailRow, SessionRailRow};
+pub use types::{AgentRailRow, HostRailRow, RailRow, SessionRailRow, WorkflowRunRailRow};
 
 /// The label on the rail's "declare an agent" row.
 ///
@@ -221,6 +226,17 @@ impl App {
             .collect();
         let mut orphans = Vec::new();
         for row in self.own_session_rows() {
+            // A dispatch this device is serving reaches the rail from both
+            // surfaces at once: `split_fold` folded the task from the event
+            // stream, and `own_session_rows` lists the live pty so the runs it
+            // started have a row to nest under. They are one harness, so the
+            // task row takes the local session rather than a second row for the
+            // same process appearing beside it — which is exactly the "carries
+            // either (or … both)" case [`SessionRailRow`] documents.
+            if let Some(existing) = self.task_row_serving(&mut groups, &row.id) {
+                existing.local = Some(row);
+                continue;
+            }
             let agent_id = resolve::agent_for_session(&declarations, &row)
                 .map(|declaration| declaration.agent_id.clone());
             let index = agent_id.as_ref().and_then(|agent_id| {
@@ -241,6 +257,28 @@ impl App {
             }
         }
         orphans
+    }
+
+    /// The already-placed task row this device serves with `session_id`, if any.
+    ///
+    /// Matched through the daemon's running map rather than by name or
+    /// directory: `session_for_task` is the same lookup the harness pane
+    /// resolves a task's screen with, so the two surfaces cannot disagree about
+    /// which pty is serving a dispatch. Rows that already carry a local session
+    /// are skipped, so two live sessions never collapse onto one task.
+    ///
+    /// `None` once the task settles — the runtime drops the record then — which
+    /// is the right answer: a retained session outlives its task row and needs a
+    /// row of its own.
+    fn task_row_serving<'a>(
+        &self,
+        groups: &'a mut [&mut AgentGroup],
+        session_id: &str,
+    ) -> Option<&'a mut SessionRailRow> {
+        let local_sessions = self.local_sessions.as_ref()?;
+        task_row_serving(groups, session_id, |task_id| {
+            local_sessions.session_for_task(task_id)
+        })
     }
 
     /// Flatten the tree into rows, wrapping agents in host rows when needed.
@@ -286,13 +324,16 @@ impl App {
                 let offers_session = declared
                     .iter()
                     .any(|agent_id| agent_id.trim() == group.row.agent_id.trim());
-                push_group(&mut rows, group, offers_session);
+                push_group(&mut rows, group, offers_session, &self.harness_runs);
             }
         }
-        rows.extend(orphans.into_iter().map(|mut session| {
+        for mut session in orphans {
             session.last = true;
-            RailRow::Session(Box::new(session))
-        }));
+            let session = Box::new(session);
+            let runs = run_rows_under(&session, &self.harness_runs);
+            rows.push(RailRow::Session(session));
+            rows.extend(runs);
+        }
         rows
     }
 
@@ -350,6 +391,16 @@ impl App {
     /// Exited ones stay listed: the last screen is often the reason it exited,
     /// and a row that vanishes on failure is a row that hides the failure. They
     /// leave when the operator forgets them.
+    ///
+    /// And a dispatched session that started a workflow run is listed too, task
+    /// row or not. The task row carries `local: None`, so it has no grant to key
+    /// runs by ([`run_rows_under`]) — which meant the runs an orchestrator's own
+    /// harnesses start, the majority of them, were the ones the rail could not
+    /// show. A run is minutes-to-hours of work in another process; leaving it
+    /// invisible is the same failure retention exists to prevent. That does not
+    /// double the row: [`attach_sessions`](Self::attach_sessions) merges such a
+    /// session into the task row already standing for it, which is what gives
+    /// that row the grant it was missing.
     pub(super) fn own_session_rows(&self) -> Vec<SessionRow> {
         let Some(harnesses) = self.local_sessions.as_ref() else {
             return Vec::new();
@@ -362,6 +413,10 @@ impl App {
                 row.origin.is_user()
                     || row.control == crate::worker::pty::SessionControl::User
                     || row.retained
+                    || row
+                        .mcp_grant_session
+                        .as_deref()
+                        .is_some_and(|grant| self.harness_runs.any_for_session(grant))
             })
             .collect();
         rows.sort_by_key(|row| row.started_at);
@@ -455,6 +510,58 @@ fn unplaced_host(hosts: &[HostGroup], host_id: &str) -> Option<usize> {
         .position(|host| !host_id.is_empty() && host.row.host_id.trim() == host_id)
         .or_else(|| hosts.iter().position(|host| host.row.local))
 }
+/// The placed task row `session_id` is serving, given a task-to-session lookup.
+///
+/// Split from the [`App`] method so the row-picking rule is testable without a
+/// daemon: `served` is the only thing the real call needs a running hub for.
+fn task_row_serving<'a>(
+    groups: &'a mut [&mut AgentGroup],
+    session_id: &str,
+    served: impl Fn(&str) -> Option<String>,
+) -> Option<&'a mut SessionRailRow> {
+    groups
+        .iter_mut()
+        .flat_map(|group| group.sessions.iter_mut())
+        .find(|session| {
+            session.local.is_none()
+                && session
+                    .task
+                    .as_ref()
+                    .is_some_and(|task| served(&task.task_id).as_deref() == Some(session_id))
+        })
+}
+
+/// The workflow-run rows that belong under one session, oldest first.
+///
+/// Keyed by the grant session recorded on the PTY row at launch — the same key
+/// the MCP subprocess reports under — so a session Medulla did not spawn, or
+/// one whose harness was never granted the workflow tools, simply has none.
+fn run_rows_under(
+    session: &SessionRailRow,
+    runs: &medulla::control_socket::HarnessRunRegistry,
+) -> Vec<RailRow> {
+    let Some(local) = &session.local else {
+        return Vec::new();
+    };
+    let Some(grant) = local.mcp_grant_session.as_deref() else {
+        return Vec::new();
+    };
+    let reported = runs.for_session(grant);
+    let last_index = reported.len().saturating_sub(1);
+    reported
+        .into_iter()
+        .enumerate()
+        .map(|(index, run)| {
+            RailRow::WorkflowRun(WorkflowRunRailRow {
+                session_id: local.id.clone(),
+                run,
+                // The session's own last-leaf glyph is decided before its runs
+                // exist, so the group's real last row is the last run under it.
+                last: index == last_index && session.last,
+            })
+        })
+        .collect()
+}
 
 /// Push one agent row and the sessions under it, tree-marked.
 ///
@@ -469,7 +576,12 @@ fn unplaced_host(hosts: &[HostGroup], host_id: &str) -> Option<usize> {
 /// is re-emitted under the group and stays selectable, which is what makes
 /// `Enter` on it page the lane open — and, once the lane is fully revealed, fold
 /// it back.
-fn push_group(rows: &mut Vec<RailRow>, group: &mut AgentGroup, offers_session: bool) {
+fn push_group(
+    rows: &mut Vec<RailRow>,
+    group: &mut AgentGroup,
+    offers_session: bool,
+    runs: &medulla::control_socket::HarnessRunRegistry,
+) {
     rows.push(RailRow::Agent(group.row.clone()));
     let shown = group.sessions.len();
     for (index, session) in group.sessions.iter_mut().enumerate() {
@@ -477,7 +589,10 @@ fn push_group(rows: &mut Vec<RailRow>, group: &mut AgentGroup, offers_session: b
         // session is only the tree's last leaf when neither it nor the overflow
         // row follows.
         session.last = !offers_session && !group.overflow && index + 1 == shown;
-        rows.push(RailRow::Session(Box::new(session.clone())));
+        let session = Box::new(session.clone());
+        let run_rows = run_rows_under(&session, runs);
+        rows.push(RailRow::Session(session));
+        rows.extend(run_rows);
     }
     if group.overflow {
         rows.push(RailRow::Lane(AgentRow::More {

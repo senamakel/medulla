@@ -61,6 +61,7 @@ async fn run_once(store: &Arc<dyn WorkflowStore>, home: &std::path::Path, id: &s
         store: store.clone(),
         settings: Arc::new(settings),
         services: HostServices {
+            node_progress: None,
             dispatch: Arc::new(NoHarness),
             resolver: Arc::new(StoreWorkflowResolver::new(
                 store.clone(),
@@ -70,6 +71,7 @@ async fn run_once(store: &Arc<dyn WorkflowStore>, home: &std::path::Path, id: &s
         },
         sink: null_sink(),
         step_snapshot: None,
+        origin: None,
     };
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     run_workflow(context, id, &run_id, json!({}), Default::default())

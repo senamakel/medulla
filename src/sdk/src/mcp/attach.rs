@@ -113,6 +113,27 @@ pub struct ServerSpec {
 }
 
 impl ServerSpec {
+    /// Stamp this server with the session key it is being attached to.
+    ///
+    /// The tool server is a subprocess of a harness Medulla launched, and it is
+    /// the only thing in that process tree that knows which session it belongs
+    /// to — the key its grant was minted under. Carrying it lets a workflow the
+    /// session starts record who started it, which is what nests the run under
+    /// its session in the Agents rail rather than leaving it an anonymous entry
+    /// in a global history.
+    ///
+    /// Non-secret on purpose: it is a correlation key, not a capability. It
+    /// authorizes nothing, so a transport that renders it onto an argv leaks
+    /// only the fact that a session exists.
+    pub fn for_session(mut self, session: &str) -> Self {
+        let session = session.trim();
+        if !session.is_empty() {
+            self.env
+                .push((ORIGIN_SESSION_ENV.to_string(), session.to_string()));
+        }
+        self
+    }
+
     /// The `--mcp-config` document registering this server with Claude Code.
     ///
     /// Only the non-secret environment is rendered; [`Self::secret_env`] reaches
@@ -508,9 +529,29 @@ pub fn local_hook_grant(session: &str) -> Option<(PathBuf, String)> {
 /// session that never wrote a config file (no fleet grant, or the inline
 /// document was enough) leaves nothing to remove. Called when a harness exits
 /// so its token stops working, rather than living until the process does.
+///
+/// **A detached run outlives the harness that started it.** The default
+/// `workflow_run` answers as soon as the run is going and leaves it executing
+/// in the MCP subprocess, which stays alive for it after its parent's stdin
+/// closes. So an agent that starts a workflow and then exits is the ordinary
+/// case, not a rare one, and revoking outright here would cut the run's own
+/// progress reports off mid-flight — the rail would freeze on whatever line
+/// arrived last and never show how the run ended. When the registry says runs
+/// are still executing, the grant is therefore *narrowed* to `run.report`
+/// rather than dropped, and given back by the report that settles the last of
+/// them (see
+/// [`GrantRegistry::restrict_to_reporting`](crate::control_socket::grants::GrantRegistry::restrict_to_reporting)).
+///
+/// The run rows themselves are not dropped either way. They are drawn under a
+/// PTY row whose screen is deliberately kept after its child exits, so they go
+/// when that row goes — see [`forget_session_runs`].
 pub fn revoke_session(session: &str) {
     if let Some(plane) = crate::control_socket::active() {
-        plane.grants.revoke(session);
+        if plane.runs.retire(session) {
+            plane.grants.restrict_to_reporting(session);
+        } else {
+            plane.grants.revoke(session);
+        }
     }
     // `None` for a session that failed `is_safe_session_component`: it never
     // reached a file (`write_config_file` refuses the same key), so there is
@@ -518,6 +559,24 @@ pub fn revoke_session(session: &str) {
     // path for that would not risk removing something unrelated.
     if let Some(path) = config_file_path(session) {
         let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Drop the workflow runs `session` reported, and any grant it still holds.
+///
+/// The counterpart to the retirement [`revoke_session`] performs: that keeps a
+/// session's rows because the PTY row they are drawn under survives its child,
+/// and this is called from the other end — when the operator drops that row —
+/// so the table stays keyed by sessions something still draws.
+///
+/// Also revokes, which matters for the row forgotten while a run was still
+/// executing: the reporting-only grant left alive for that run has nothing left
+/// to report into, and leaving it would be a live token whose session is gone
+/// from every view. Best effort, like everything else here.
+pub fn forget_session_runs(session: &str) {
+    if let Some(plane) = crate::control_socket::active() {
+        plane.grants.revoke(session);
+        plane.runs.forget(session);
     }
 }
 
@@ -537,6 +596,19 @@ pub fn revoke_session(session: &str) {
 /// is honoured only when it points at an existing file, and it never widens what
 /// a session is served — the grant still decides that.
 pub const SERVER_COMMAND_ENV: &str = "MEDULLA_MCP_COMMAND";
+
+/// The harness session a tool server is serving.
+///
+/// Set by [`ServerSpec::for_session`] on every registration, both transports.
+/// Read by the server itself ([`crate::mcp::serve_stdio`]) and stamped onto
+/// every workflow run that session starts, so an operator can see which of the
+/// harnesses on their rail is responsible for a run.
+///
+/// Untrusted in the sense that anything in the process tree can rewrite it: it
+/// is an attribution hint, never an authorization. Nothing is granted on the
+/// strength of it, and the worst a forged value can do is file a run under the
+/// wrong session in a list.
+pub const ORIGIN_SESSION_ENV: &str = "MEDULLA_ORIGIN_SESSION";
 
 /// The binary a spawned tool server runs.
 ///
@@ -691,7 +763,9 @@ pub fn attach_cli(
             ));
         }
     }
-    let Some(spec) = server_spec(tool_mode.as_deref(), fleet, workflows_on) else {
+    let spec = server_spec(tool_mode.as_deref(), fleet, workflows_on)
+        .map(|spec| spec.for_session(session));
+    let Some(spec) = spec else {
         // A grant was minted for a session that will not carry it. Given back
         // rather than left in the registry, where it would be a live token
         // nothing can ever redeem.

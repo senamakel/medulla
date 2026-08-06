@@ -6,6 +6,7 @@
 
 mod hooks;
 mod params;
+mod runs;
 mod tasks;
 mod workers;
 
@@ -14,6 +15,7 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use super::super::grants::{Grant, GrantRegistry};
+use super::super::runs::HarnessRunRegistry;
 use super::super::types::{ControlFailure, ErrorKind, FleetOps, Hello, PROTOCOL_VERSION};
 use super::types::{SessionState, TaskRegistry};
 
@@ -44,6 +46,7 @@ pub async fn handle_control(
     ops: &Arc<dyn FleetOps>,
     grants: &GrantRegistry,
     registry: &TaskRegistry,
+    runs: &HarnessRunRegistry,
     session: &mut SessionState,
     request: &Value,
 ) -> Value {
@@ -91,6 +94,19 @@ pub async fn handle_control(
         );
     }
 
+    // A grant narrowed by `GrantRegistry::restrict_to_reporting` belongs to an
+    // MCP subprocess that has outlived the harness it was spawned for. It is
+    // kept alive for exactly one reason — so the detached run it is still
+    // executing can say how it ends — and must not be a way for a process whose
+    // session is over to start anything new.
+    if grant.report_only && op != "run.report" {
+        return fail(
+            &id,
+            ErrorKind::Unauthenticated,
+            "the session this grant was minted for has ended; it may only report on the run it already started",
+        );
+    }
+
     let result = match op {
         "grant.child" => grant_child(grants, &grant),
         "worker.list" => workers::worker_list(ops).await,
@@ -102,6 +118,8 @@ pub async fn handle_control(
             .map(tasks::task_json)
             .collect::<Vec<_>>() })),
         "task.abort" => tasks::task_abort(ops, registry, &token, &params),
+        // `self::` because the module and the registry argument share a name.
+        "run.report" => self::runs::run_report(grants, runs, &grant, &params),
         "hook.report" => hooks::hook_report(ops, &grant, &params),
         other => Err(ControlFailure::new(
             ErrorKind::BadRequest,
