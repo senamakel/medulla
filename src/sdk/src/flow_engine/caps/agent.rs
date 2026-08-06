@@ -285,6 +285,24 @@ impl HarnessAgentRunner {
             EngineError::Capability("agent node: run concurrency limiter closed".to_string())
         })?;
         let worker = request.worker_address.clone();
+        // Held across the await and dropped with it, so a run inspector asking
+        // "what is this run doing right now" gets an answer even when the
+        // dispatch went to the run's own embedded host — which no outer fleet
+        // roster can see. See [`crate::workflows::run::dispatches`].
+        let _recorded = crate::workflows::run::dispatches::record(
+            &self.run_id,
+            crate::workflows::run::InFlightDispatch {
+                task_id: request.task_id.clone(),
+                worker: worker.clone(),
+                harness: request
+                    .custom_harness
+                    .clone()
+                    .or_else(|| request.provider.map(|provider| provider.as_str().to_string()))
+                    .unwrap_or_default(),
+                workspace: Some(self.settings.workspace.clone())
+                    .filter(|workspace| !workspace.trim().is_empty()),
+            },
+        );
         let outcome = self
             .dispatch
             .dispatch(request)
