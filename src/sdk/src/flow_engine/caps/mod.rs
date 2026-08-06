@@ -143,11 +143,13 @@ fn build_capabilities_inner(
                 evidence.clone(),
             )
             .with_limiter(slots.clone())
+            .with_sequence(sequence.clone())
             .streaming_to(progress.clone()),
         ),
         None => Arc::new(
             HarnessLlm::new(services.dispatch.clone(), settings.clone(), run_id)
                 .with_limiter(slots.clone())
+                .with_sequence(sequence.clone())
                 .streaming_to(progress.clone()),
         ),
     };
@@ -155,11 +157,13 @@ fn build_capabilities_inner(
         Some(evidence) => Arc::new(
             HarnessAgentRunner::recording(services.dispatch, settings.clone(), run_id, evidence)
                 .with_limiter(slots)
+                .with_sequence(sequence)
                 .streaming_to(progress),
         ),
         None => Arc::new(
             HarnessAgentRunner::new(services.dispatch, settings.clone(), run_id)
                 .with_limiter(slots)
+                .with_sequence(sequence)
                 .streaming_to(progress),
         ),
     };
