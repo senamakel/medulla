@@ -130,7 +130,13 @@ pub struct HarnessAgentRunner {
     /// both may omit `agent_ref` — would otherwise share a wire id, and a
     /// worker dedupes on `sender + taskId`. One of the two would be rejected as
     /// a duplicate of the other.
-    sequence: AtomicU64,
+    ///
+    /// Shared across every runner built for the run (see
+    /// [`with_sequence`](Self::with_sequence)), for the same reason the limiter
+    /// is: the run builds an agent runner *and* an LLM provider wrapping a
+    /// second one, and two counters both starting at zero would mint the same
+    /// id for the same route.
+    sequence: Arc<AtomicU64>,
     /// Caps how many harness tasks this run has in flight at once.
     ///
     /// A per-item node fans out into one dispatch per item, and on this host a
