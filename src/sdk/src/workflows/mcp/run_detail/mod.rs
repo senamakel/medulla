@@ -8,17 +8,30 @@
 //! tell a harness working from a harness wedged.
 //!
 //! The missing half is not in the store, and it is not in the engine either. It
-//! is in the hub, which watched the dispatch go out and is watching the frames
-//! come back. This module reaches for it.
+//! is in whichever dispatcher put the session out. This module reaches for it —
+//! in two places, because there are two dispatchers.
 //!
 //! # The join
 //!
 //! Every `agent` dispatch is tagged `wf:{run_id}:{route}#{sequence}` (see
-//! [`crate::flow_engine::caps::agent`]), and the hub's activity log records
-//! which worker each outstanding task id is running on. That id is therefore
-//! the whole of the correlation: filter the roster's `running` lists by the
-//! `wf:{run_id}:` prefix and what is left is exactly this run's live harness
-//! sessions, attributed to machines.
+//! [`crate::flow_engine::caps::agent`]), so that id is the whole of the
+//! correlation. Two sources report ids under it:
+//!
+//! - **The fleet roster.** The hub records which worker each outstanding task
+//!   id is running on, so filtering the roster's `running` lists by the
+//!   `wf:{run_id}:` prefix leaves this run's live sessions attributed to
+//!   machines. This is the only view of a run executing in *another* process.
+//! - **This process's own dispatch registry**
+//!   ([`crate::workflows::run::dispatches`]). A run started here dispatches
+//!   onto a [`LocalWorkflowHost`](crate::workflows::local) it owns and drops
+//!   with itself; that host never registers with the outer control plane, so
+//!   the roster has no row for it and no task id under this prefix. Without
+//!   this half, the runs an MCP caller most often asks about — the ones it
+//!   started itself — would read as doing nothing for the whole of a long
+//!   coding step.
+//!
+//! [`detail::merge`] folds the two, preferring the roster's row for a task id
+//! both report, since it names the machine that actually took the work.
 //!
 //! # What this cannot see
 //!
