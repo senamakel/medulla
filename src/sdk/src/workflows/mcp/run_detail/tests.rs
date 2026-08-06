@@ -133,7 +133,7 @@ fn dispatches_are_attributed_to_their_worker_and_ordered_by_sequence() {
         worker("laptop", &["wf:run-1:default#0", "wf:run-2:default#0"]),
     ];
 
-    let live = dispatches_in(&workers, &dispatch_prefix("run-1"));
+    let live = merge(dispatches_in(&workers, &dispatch_prefix("run-1")), Vec::new());
 
     assert_eq!(live.len(), 2, "{live:?}");
     assert_eq!(live[0].sequence, 0);
@@ -181,7 +181,9 @@ async fn a_run_with_no_fleet_behind_it_still_answers_with_the_record() {
     // The half that could be answered was answered, and the half that could
     // not says why rather than reading as "nothing is running".
     assert_eq!(answer["run"]["stepDetail"], "counts");
-    assert!(answer["live"].get("harnesses").is_none(), "{answer}");
+    // The list is still reported, because this process's own dispatches are in
+    // it — here there are none, which the note rather than a missing key says.
+    assert_eq!(answer["live"]["harnesses"].as_array().unwrap().len(), 0);
     let reason = answer["live"]["fleetUnavailable"].as_str().unwrap();
     assert!(reason.contains("no Medulla fleet is reachable"), "{reason}");
 }
@@ -202,7 +204,7 @@ async fn a_session_without_the_fleet_family_is_not_quietly_given_the_roster() {
         .await
         .expect("the run is in the store");
 
-    assert!(answer["live"].get("harnesses").is_none(), "{answer}");
+    assert_eq!(answer["live"]["harnesses"].as_array().unwrap().len(), 0);
     let reason = answer["live"]["fleetUnavailable"].as_str().unwrap();
     assert!(reason.contains("not granted the fleet tools"), "{reason}");
 }
@@ -244,8 +246,41 @@ async fn a_run_the_store_has_never_seen_is_an_error_the_caller_can_correct() {
 fn the_note_distinguishes_a_run_this_process_is_executing_from_one_it_is_not() {
     // Both have no harness in flight, and the difference between them is the
     // whole reason `executingHere` is reported at all.
-    assert!(note(false, true, 0).contains("between steps"));
-    assert!(note(false, false, 0).contains("another process"));
+    assert!(note(Standing::ExecutingHere, 0).contains("between steps"));
+    assert!(note(Standing::Unaccounted, 0).contains("another process"));
+}
+
+#[test]
+fn an_approval_gated_run_is_told_apart_from_one_nobody_can_account_for() {
+    // `run_workflow` has already returned by the time a run is parked at a
+    // gate, so it is not executing here and has nothing in flight — the same
+    // observations as an interrupted run, with the opposite explanation. The
+    // durable status is what separates them, so it must be read.
+    let parked = json!({ "status": "pending_approval" });
+    assert_eq!(Standing::of(&parked, false), Standing::AwaitingApproval);
+    let waiting = note(Standing::AwaitingApproval, 0);
+    assert!(waiting.contains("approval gate"), "{waiting}");
+    assert!(waiting.contains("resumed or rejected"), "{waiting}");
+    assert!(!waiting.contains("interrupted"), "{waiting}");
+}
+
+#[test]
+fn a_runs_standing_is_read_off_the_record_the_caller_is_handed() {
+    assert_eq!(
+        Standing::of(&json!({ "status": "running" }), true),
+        Standing::ExecutingHere
+    );
+    assert_eq!(
+        Standing::of(&json!({ "status": "running" }), false),
+        Standing::Unaccounted
+    );
+    for terminal in ["succeeded", "failed", "cancelled"] {
+        assert_eq!(
+            Standing::of(&json!({ "status": terminal }), false),
+            Standing::Settled,
+            "{terminal}"
+        );
+    }
 }
 
 #[test]
