@@ -372,13 +372,20 @@ impl HarnessAgentRunner {
             crate::workflows::run::InFlightDispatch {
                 task_id: request.task_id.clone(),
                 worker: worker.clone(),
+                // The *flavor*, not the bare provider: `codex` and
+                // `codex-server` are the same vendor over different
+                // transports, and reporting both as `codex` would point a
+                // reader at the wrong process when they went looking for the
+                // session.
                 harness: request
                     .custom_harness
                     .clone()
                     .or_else(|| {
-                        request
-                            .provider
-                            .map(|provider| provider.as_str().to_string())
+                        request.provider.map(|provider| {
+                            provider
+                                .flavor_name(request.transport.unwrap_or_default())
+                                .to_string()
+                        })
                     })
                     .unwrap_or_default(),
                 workspace: Some(self.settings.workspace.clone())
