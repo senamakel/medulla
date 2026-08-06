@@ -281,7 +281,10 @@ async fn a_trigger_only_session_inspects_its_run_and_cancels_it_after_it_settled
     assert!(detail["live"]["fleetUnavailable"].is_string(), "{detail}");
 
     // Cancelling a run that already finished is an answer, not a failure: the
-    // caller wanted it stopped and it is stopped.
+    // caller wanted it stopped and it is stopped. The other half — a cancel
+    // that lands on a run genuinely mid-harness-session — needs a dispatch that
+    // hangs on demand, so it is exercised where that stand-in lives, in
+    // `workflows::run::tests::cases`.
     let (cancelled, is_error) =
         call(&session, "workflow_run_cancel", json!({ "runId": run_id })).await;
     assert!(!is_error, "{cancelled}");
