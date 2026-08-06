@@ -112,40 +112,6 @@ pub fn in_flight(run_id: &str) -> Vec<InFlightDispatch> {
         .unwrap_or_default()
 }
 
-/// A shared handle for a capability that wants to record its own dispatches.
-///
-/// The `agent` capability is constructed with the run id it belongs to and
-/// nothing else, so this is just that id in a form the capability can hold.
-#[derive(Debug, Clone)]
-pub struct DispatchRecorder {
-    run_id: Arc<str>,
-    workspace: Option<String>,
-}
-
-impl DispatchRecorder {
-    /// A recorder for `run_id`, tagging dispatches with `workspace`.
-    pub fn new(run_id: &str, workspace: Option<String>) -> Self {
-        Self {
-            run_id: Arc::from(run_id),
-            workspace,
-        }
-    }
-
-    /// Record one dispatch until the returned guard drops.
-    #[must_use]
-    pub fn record(&self, task_id: &str, worker: &str, harness: &str) -> DispatchGuard {
-        record(
-            &self.run_id,
-            InFlightDispatch {
-                task_id: task_id.to_string(),
-                worker: worker.to_string(),
-                harness: harness.to_string(),
-                workspace: self.workspace.clone(),
-            },
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
