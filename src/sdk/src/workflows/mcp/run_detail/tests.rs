@@ -301,3 +301,171 @@ fn a_roster_the_control_plane_writes_is_a_roster_this_reader_can_read() {
 
     assert_eq!(read, vec![plain]);
 }
+
+#[test]
+fn a_dispatch_this_process_made_is_visible_without_any_fleet_roster() {
+    // The P1 case: a run started over MCP dispatches onto an embedded host the
+    // outer control plane has no row for, so the roster half is empty however
+    // busy the run is. Without the local half the tool would report nothing.
+    let run = "run-embedded";
+    let prefix = dispatch_prefix(run);
+    let _guard = run::dispatches::record(
+        run,
+        InFlightDispatch {
+            task_id: format!("{prefix}reviewer#2"),
+            worker: "local".to_string(),
+            harness: "codex".to_string(),
+            workspace: Some("/srv/app".to_string()),
+        },
+    );
+
+    let live = dispatches_here(run, &prefix);
+
+    assert_eq!(live.len(), 1, "{live:?}");
+    assert_eq!(live[0].route, "reviewer");
+    assert_eq!(live[0].sequence, 2);
+    assert_eq!(live[0].worker, "local");
+    assert_eq!(live[0].harness, "codex");
+    assert_eq!(live[0].workspace.as_deref(), Some("/srv/app"));
+}
+
+#[test]
+fn a_task_id_the_local_registry_holds_under_another_shape_is_dropped() {
+    // Same guard as the roster half: an id that does not parse is left out
+    // rather than reported with an invented route.
+    let run = "run-odd-id";
+    let _guard = run::dispatches::record(
+        run,
+        InFlightDispatch {
+            task_id: "not-a-workflow-task".to_string(),
+            worker: "local".to_string(),
+            harness: "claude".to_string(),
+            workspace: None,
+        },
+    );
+
+    assert!(dispatches_here(run, &dispatch_prefix(run)).is_empty());
+}
+
+#[test]
+fn the_two_halves_merge_without_double_counting_one_dispatch() {
+    let prefix = dispatch_prefix("run-1");
+    let fleet = dispatches_in(
+        &[worker("laptop", &["wf:run-1:default#0"])],
+        &prefix,
+    );
+    // The same task id the roster already accounted for, plus one only this
+    // process knows about.
+    let run = "run-1";
+    let _shared = run::dispatches::record(
+        run,
+        InFlightDispatch {
+            task_id: "wf:run-1:default#0".to_string(),
+            worker: "default-worker-address".to_string(),
+            harness: String::new(),
+            workspace: None,
+        },
+    );
+    let _only_here = run::dispatches::record(
+        run,
+        InFlightDispatch {
+            task_id: "wf:run-1:builder#1".to_string(),
+            worker: "local".to_string(),
+            harness: "claude".to_string(),
+            workspace: None,
+        },
+    );
+
+    let merged = merge(fleet, dispatches_here(run, &prefix));
+
+    assert_eq!(merged.len(), 2, "{merged:?}");
+    // The roster's row won for the shared id: it names the machine that took
+    // the work rather than the address it was routed to.
+    assert_eq!(merged[0].sequence, 0);
+    assert_eq!(merged[0].worker, "laptop");
+    assert_eq!(merged[1].sequence, 1);
+    assert_eq!(merged[1].worker, "local");
+}
+
+#[tokio::test]
+async fn a_run_executing_here_reports_its_own_harness_session_and_says_it_is_live() {
+    let (_root, store) = store_with_run(crate::workflows::RunStatus::Running);
+    // Registered so the run reads as executing in this process, which is what
+    // a run started over this same MCP server looks like.
+    let (_run_guard, _signal) = run::RunGuard::register("run-1");
+    let _dispatch = run::dispatches::record(
+        "run-1",
+        InFlightDispatch {
+            task_id: "wf:run-1:default#0".to_string(),
+            worker: "local".to_string(),
+            harness: "claude".to_string(),
+            workspace: Some("/srv/app".to_string()),
+        },
+    );
+
+    // An offline fleet on purpose: the embedded host is not in any roster, so
+    // this is exactly the shape the roster-only join answered nothing for.
+    let answer = detail(
+        &session(&store, Arc::new(OfflineFleet)),
+        "run-1",
+        StepDetail::Summary,
+    )
+    .await
+    .expect("the run is in the store");
+
+    assert_eq!(answer["live"]["executingHere"], true);
+    let harnesses = answer["live"]["harnesses"].as_array().unwrap();
+    assert_eq!(harnesses.len(), 1, "{harnesses:?}");
+    assert_eq!(harnesses[0]["worker"], "local");
+    assert_eq!(harnesses[0]["route"], "default");
+    let note = answer["live"]["note"].as_str().unwrap();
+    assert!(note.contains("running now"), "{note}");
+}
+
+#[tokio::test]
+async fn an_approval_gated_run_reads_as_waiting_rather_than_as_lost() {
+    let (_root, store) = store_with_run(crate::workflows::RunStatus::PendingApproval);
+    let fleet = Arc::new(StubFleet {
+        hello: hello(),
+        workers: vec![worker("laptop", &[])],
+    });
+
+    let answer = detail(&session(&store, fleet), "run-1", StepDetail::Summary)
+        .await
+        .expect("the run is in the store");
+
+    assert_eq!(answer["live"]["executingHere"], false);
+    let note = answer["live"]["note"].as_str().unwrap();
+    assert!(note.contains("approval gate"), "{note}");
+}
+
+#[tokio::test]
+async fn a_fleet_that_refuses_the_roster_says_what_it_said() {
+    struct RefusingFleet;
+
+    #[async_trait::async_trait]
+    impl FleetBackend for RefusingFleet {
+        fn hello(&self) -> Option<&crate::control_socket::Hello> {
+            None
+        }
+
+        async fn call(&self, _op: &str, _params: Value) -> Result<Value, ControlError> {
+            Err(ControlError::Transport(
+                "the control socket closed mid-call".to_string(),
+            ))
+        }
+    }
+
+    let (_root, store) = store_with_run(crate::workflows::RunStatus::Running);
+
+    let answer = detail(
+        &session(&store, Arc::new(RefusingFleet)),
+        "run-1",
+        StepDetail::Summary,
+    )
+    .await
+    .expect("the run is in the store");
+
+    let reason = answer["live"]["fleetUnavailable"].as_str().unwrap();
+    assert!(reason.contains("closed mid-call"), "{reason}");
+}
