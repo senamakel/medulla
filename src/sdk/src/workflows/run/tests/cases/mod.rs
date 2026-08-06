@@ -142,6 +142,21 @@ async fn wait_until_running(run_id: &str) {
     .unwrap_or_else(|_| panic!("{run_id} was not registered"));
 }
 
+/// Wait until `run_id` has a harness dispatch recorded as in flight.
+///
+/// Registering the run and dispatching its first node are separate steps, so a
+/// test that checked the dispatch registry the instant the run appeared would
+/// race the engine rather than observe it.
+async fn wait_until_dispatched(run_id: &str) {
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while crate::workflows::run::in_flight(run_id).is_empty() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("{run_id} never dispatched a harness session"));
+}
+
 /// A diamond: the trigger fans out to two agent nodes that run concurrently,
 /// then a `merge` waits for both. Exercises parallel execution and the fan-in
 /// barrier in one graph.
