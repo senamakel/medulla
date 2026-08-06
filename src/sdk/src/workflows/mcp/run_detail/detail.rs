@@ -7,7 +7,7 @@ use crate::mcp::McpSession;
 use crate::workflows::ops::{self, StepDetail};
 use crate::workflows::WorkflowError;
 
-use super::types::LiveDispatch;
+use super::types::{LiveDispatch, Standing};
 
 /// The task-id prefix every `agent` dispatch of `run_id` carries.
 ///
