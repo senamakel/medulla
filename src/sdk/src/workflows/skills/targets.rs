@@ -19,7 +19,7 @@ use super::{SkillScope, SkillTarget};
 pub fn scope_root(scope: SkillScope, env: &HashMap<String, String>, cwd: &Path) -> PathBuf {
     match scope {
         SkillScope::Project => cwd.to_path_buf(),
-        SkillScope::Managed => managed_root(env),
+        SkillScope::Managed => managed_root(env, cwd),
         SkillScope::User => env
             .get("HOME")
             .map(|home| home.trim())
@@ -39,11 +39,32 @@ pub fn scope_root(scope: SkillScope, env: &HashMap<String, String>, cwd: &Path) 
 /// credentials and settings with it — a session started that way is not logged
 /// in. A separate root that the harness is *pointed at* leaves both alone.
 ///
-/// Under the Medulla home rather than the workspace so one install serves every
-/// workspace on the machine, and so the directory is not an untracked artifact
-/// in someone's repository. The home is already per-account
-/// (`<root>/<user id>`), so two accounts on one machine do not share skills.
-pub fn managed_root(env: &HashMap<String, String>) -> PathBuf {
+/// Under the Medulla home rather than the workspace so the directory is not an
+/// untracked artifact in someone's repository, and so it survives a checkout
+/// being deleted. The home is already per-account (`<root>/<user id>`), so two
+/// accounts on one machine do not share skills.
+///
+/// Scoped to one workspace, because the catalog it renders is. A store
+/// discovered for `cwd` reads `<cwd>/.medulla/workflows` as well as the
+/// user-global directory, so two projects genuinely have two catalogs — and a
+/// single account-wide directory would let a session opened in one project be
+/// handed the other project's skills, or watch its own be pruned away by the
+/// other project's refresh. Same digest rule as the store's own per-workspace
+/// state, via [`workspace_scope`].
+pub fn managed_root(env: &HashMap<String, String>, cwd: &Path) -> PathBuf {
+    crate::home::medulla_home(env)
+        .join("skills")
+        .join("scopes")
+        .join(crate::workflows::store::workspace_scope(cwd))
+}
+
+/// Where releases up to 0.8 put the managed skills: the Medulla home itself,
+/// unscoped, so every workspace shared one directory.
+///
+/// Kept only so [`super::refresh`] can retire what it finds there. Nothing
+/// reads it any more — `--add-dir` points at the scoped root above — so a
+/// leftover here is a directory of files for nobody.
+pub(crate) fn legacy_managed_root(env: &HashMap<String, String>) -> PathBuf {
     crate::home::medulla_home(env)
 }
 
@@ -55,9 +76,9 @@ pub fn managed_root(env: &HashMap<String, String>) -> PathBuf {
 /// it is for, since it appears verbatim in the operator's session transcript.
 ///
 /// Laid out inside like a project root, so Claude finds
-/// `<medulla home>/claude-skills/.claude/skills/<slug>/SKILL.md`.
-pub fn managed_dir(target: SkillTarget, env: &HashMap<String, String>) -> PathBuf {
-    managed_root(env).join(format!("{}-skills", target.as_str()))
+/// `<managed root>/claude-skills/.claude/skills/<slug>/SKILL.md`.
+pub fn managed_dir(target: SkillTarget, env: &HashMap<String, String>, cwd: &Path) -> PathBuf {
+    managed_root(env, cwd).join(format!("{}-skills", target.as_str()))
 }
 
 /// The root one target actually writes under, given the scope.
@@ -202,11 +223,12 @@ pub fn default_targets(root: &Path) -> Vec<SkillTarget> {
 pub fn spawn_args(
     provider: crate::protocol::HarnessProvider,
     env: &HashMap<String, String>,
+    cwd: &Path,
 ) -> Vec<String> {
     if provider != crate::protocol::HarnessProvider::Claude {
         return Vec::new();
     }
-    let dir = managed_dir(SkillTarget::Claude, env);
+    let dir = managed_dir(SkillTarget::Claude, env, cwd);
     if !skills_dir(SkillTarget::Claude, &dir).is_dir() {
         return Vec::new();
     }

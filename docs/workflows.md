@@ -292,27 +292,73 @@ the grant into its environment, where `/proc` keeps it readable only by you.
 Claude Code is the only CLI attached this way today; Codex configures its
 servers through `~/.codex/config.toml`, which is what `--with-mcp` writes.
 
-`--scope managed` fills that in without touching the operator's own
-directories:
+The managed scope fills that in without touching the operator's own
+directories, and it maintains itself. Every direct-spawn door — the headless
+executor, the Workers pane's own sessions, the task frames opened on a
+pseudo-terminal — re-renders the workflow store into the managed root on its
+way up, then points the child at it. So the session sees the catalog as it
+stands at that moment: a workflow authored in the TUI, evolved over MCP,
+renamed, disabled, or deleted is reflected in the next session with no command
+to re-run. Previously this was install-time only, and a store that had moved
+since left the harness reading a catalog that no longer existed.
+
+That guarantee holds for a refresh that succeeded. A refresh that could not
+write — a full disk, a permission problem under the Medulla home — does not
+stop the spawn: the session still comes up, and is still pointed at whatever
+the last successful refresh left in the managed root, which may describe an
+older catalog. Refusing to launch a harness over a file Medulla could not write
+under its own state directory would trade a small loss for a total one, so the
+failure is logged rather than raised. Running `medulla skills install --scope
+managed --harness claude` by hand reports the error a refresh swallows.
+
+The root is `<medulla home>/skills/scopes/<workspace>/claude-skills/`, laid out
+like a project root (`.claude/skills/…`), and Medulla adds `--add-dir <that
+directory>` when it spawns Claude Code. Each harness gets its own
+`<harness>-skills` directory, so the path handed to one never exposes another's
+files, and the Medulla home is already per-account. The `<workspace>` segment —
+a digest of the session's working directory, the same one the store uses to
+scope its own state — is there because the catalog is per workspace too: a store
+discovered for a directory layers that directory's `.medulla/workflows` under
+the user-global one. Two projects therefore have two catalogs, and a single
+shared root would hand a session the other project's skills and let either
+project's prune delete the other's. Claude loads `.claude/skills/` from an added directory — a
+documented exception to `--add-dir` being a file-access grant, and the reason
+this works at all; the `permissions.additionalDirectories` *setting* grants
+access without loading skills. The flag is added only once the root actually
+holds skills, so a store with no workflows changes no argv.
+
+The refresh prunes: a skill whose workflow is gone or disabled is removed, which
+re-running an install never did. It is also a diff, not a rewrite — each
+rendered file is compared against the marker revision already on disk — so the
+steady-state cost per spawn is a handful of reads. One exception: when the store
+reports a document it could not parse, pruning is suspended for that pass. An
+unparseable file is simply absent from the listing, and pruning on that would
+delete a good skill because of an unrelated broken edit.
+
+Two spawns can also happen at once — a worker and a task frame coming up
+together, or two sessions opened in the same checkout. Within one workspace the
+whole load-write-prune pass runs under an exclusive lock on that workspace's
+root (`.refresh.lock`), so a pass working from a listing taken before another
+pass's write cannot prune the skill that write just installed. Releases up to
+0.8 wrote to `<medulla home>/<harness>-skills` with no scope and no lock; a
+refresh retires whatever it finds still sitting there, under the same marker
+discipline as every other removal, since nothing points a harness at it any
+more.
+
+The lock only spans the pass, and the session that triggered it starts reading
+after the pass returns, so a later refresh can be rewriting a skill while an
+earlier session's harness walks the directory. Each file is therefore written to
+a sibling temp file and renamed over the target rather than truncated and
+refilled: a reader gets the old file or the new one whole, never a fragment of
+either. The refresh is also handed to a blocking thread rather than run on the
+async executor, so waiting on another process's `.refresh.lock` cannot delay
+unrelated task events.
+
+Writing it by hand still works, and is what a scripted setup wants:
 
 ```sh
 medulla skills install --scope managed --harness claude
 ```
-
-The root is `<medulla home>/claude-skills/`, laid out like a project root
-(`.claude/skills/…`), and Medulla adds `--add-dir <that directory>` when it
-spawns Claude Code. Each harness gets its own `<harness>-skills` directory, so
-the path handed to one never exposes another's files, and the Medulla home is
-already per-account. Claude loads `.claude/skills/` from an added directory — a
-documented exception to `--add-dir` being a file-access grant, and the reason
-this works at all; the `permissions.additionalDirectories` *setting* grants
-access without loading skills. The flag is added only once the root actually
-holds skills, so an install nobody ran changes no argv.
-
-Every direct-spawn door adds it: the headless executor, the Workers pane's own
-sessions, and the task frames opened on a pseudo-terminal. A session that had
-the tools but not the skills could call `workflow_run` and had no way to know
-which workflows it could name.
 
 Two things this deliberately does not do. It does not relocate the harness's
 config directory: `CLAUDE_CONFIG_DIR` and `CODEX_HOME` move credentials and
@@ -321,8 +367,11 @@ logged in. And it does not register an MCP server into the managed root —
 `--with-mcp` there reports `already-attached`, because Medulla attaches the
 server itself, per session, with a grant no config file can express.
 
-Codex has no additional-directory flag, so `--scope managed` writes its files
-but nothing points a spawned Codex session at them yet. The ACP transport is
+Codex has no additional-directory flag, so `medulla skills install --scope
+managed --harness codex` writes its files but nothing points a spawned Codex
+session at them yet. The automatic refresh skips it for that reason — it would
+be rewriting a directory no process reads — and will cover it as soon as there
+is a way to hand Codex the path. The ACP transport is
 the same story for both: Medulla drives `claude-agent-acp` over stdio and does
 not control the underlying CLI's argv, so this applies to the direct spawn path
 only.

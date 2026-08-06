@@ -45,6 +45,21 @@ use super::{FileAction, FileOutcome, InstallOptions, InstallReport, InstalledSki
 /// [`FileAction::SkippedUnmanaged`] or [`FileAction::SlugCollision`] so one bad
 /// path does not abort the rest.
 pub fn install(workflows: &[WorkflowSummary], opts: &InstallOptions) -> io::Result<InstallReport> {
+    install_over(workflows, opts, &BTreeSet::new())
+}
+
+/// [`install`], told which paths a prune in the same pass has just emptied.
+///
+/// Only a dry run needs telling: a real prune has already deleted the file, so
+/// the write sees an absent path by itself. Under `dry_run` nothing was removed
+/// and the stale marker is still on disk, and reading it would report a
+/// [`FileAction::SlugCollision`] for a write the real run performs — the one
+/// thing a dry run must never do is disagree with the run it predicts.
+fn install_over(
+    workflows: &[WorkflowSummary],
+    opts: &InstallOptions,
+    cleared: &BTreeSet<PathBuf>,
+) -> io::Result<InstallReport> {
     let mut report = InstallReport::default();
     // Which workflow has already claimed each path in *this* run. Without it a
     // dry run would report two `Created`s where the real run writes one file
@@ -62,6 +77,7 @@ pub fn install(workflows: &[WorkflowSummary], opts: &InstallOptions) -> io::Resu
                 &summary.id,
                 opts,
                 &mut claimed,
+                cleared,
             )?);
 
             // Codex reads its deprecated `.codex/skills` root as well as the
@@ -87,6 +103,7 @@ pub fn install(workflows: &[WorkflowSummary], opts: &InstallOptions) -> io::Resu
                         &summary.id,
                         opts,
                         &mut claimed,
+                        cleared,
                     )?);
                 }
             }
@@ -95,8 +112,8 @@ pub fn install(workflows: &[WorkflowSummary], opts: &InstallOptions) -> io::Resu
     Ok(report)
 }
 
-/// Installs `workflows` and, with `prune`, removes managed files for anything
-/// else.
+/// Removes managed files for anything outside `workflows` when `prune` is set,
+/// then installs `workflows`.
 ///
 /// The pruned set is "every generated file under the target directories whose
 /// workflow is not in `workflows`" — which covers a deleted workflow, a renamed
@@ -125,41 +142,57 @@ pub fn install(workflows: &[WorkflowSummary], opts: &InstallOptions) -> io::Resu
 /// it would destroy content Medulla never wrote. A marked file reached that way
 /// is still ours to remove: we wrote the marker, so we know what it is.
 ///
+/// Pruning runs *first* because a rename can hand the new id the old one's
+/// path: `deploy.prod` renamed to `deploy-prod` still slugifies to
+/// `medulla-deploy-prod`, and installing first would find the old marker
+/// sitting there, report a [`FileAction::SlugCollision`], and then delete that
+/// file in the prune — leaving the renamed workflow with no skill at all until
+/// some later pass. Clearing the stale owner first lets the same pass write the
+/// new file. The order is otherwise immaterial: prune only ever touches files
+/// whose workflow is absent from `workflows`, which are exactly the ones the
+/// install pass does not write.
+///
 /// # Errors
 ///
-/// Propagates filesystem errors from the install pass or from removal.
+/// Propagates filesystem errors from removal or from the install pass.
 pub fn sync(
     workflows: &[WorkflowSummary],
     opts: &InstallOptions,
     prune: bool,
 ) -> io::Result<InstallReport> {
-    let mut report = install(workflows, opts)?;
-    if !prune {
-        return Ok(report);
-    }
+    let mut report = InstallReport::default();
+    let mut cleared: BTreeSet<PathBuf> = BTreeSet::new();
+    if prune {
+        let enabled = || workflows.iter().filter(|summary| summary.enabled);
+        let keep_ids: BTreeSet<&str> = enabled().map(|summary| summary.id.as_str()).collect();
+        let keep_slugs: BTreeSet<String> = enabled().map(|summary| slug_for(&summary.id)).collect();
 
-    let enabled = || workflows.iter().filter(|summary| summary.enabled);
-    let keep_ids: BTreeSet<&str> = enabled().map(|summary| summary.id.as_str()).collect();
-    let keep_slugs: BTreeSet<String> = enabled().map(|summary| slug_for(&summary.id)).collect();
+        for target in &dedupe_by_skills_dir(&opts.targets, opts.scope, &opts.root) {
+            let root = target_root(*target, opts.scope, &opts.root);
+            let candidates = scan_candidates(*target, &root)?;
+            for stale in prunable(candidates, &keep_ids, &keep_slugs) {
+                cleared.insert(stale.path.clone());
+                report.files.push(remove_managed(&stale, opts)?);
+            }
+        }
 
-    for target in &dedupe_by_skills_dir(&opts.targets, opts.scope, &opts.root) {
-        let root = target_root(*target, opts.scope, &opts.root);
-        let candidates = scan_candidates(*target, &root)?;
-        for stale in prunable(candidates, &keep_ids, &keep_slugs) {
-            report.files.push(remove_managed(&stale, opts)?);
+        // Deliberately outside the loop above and keyed off the requested
+        // targets: the deduped list may have dropped Codex, and `.codex/skills`
+        // is a root no other target shares, so it must be swept exactly once
+        // either way.
+        if opts.targets.contains(&SkillTarget::Codex) {
+            let root = target_root(SkillTarget::Codex, opts.scope, &opts.root);
+            let candidates = scan_skill_dirs(SkillTarget::Codex, &legacy_codex_skills_dir(&root))?;
+            for stale in prunable(candidates, &keep_ids, &keep_slugs) {
+                cleared.insert(stale.path.clone());
+                report.files.push(remove_managed(&stale, opts)?);
+            }
         }
     }
 
-    // Deliberately outside the loop above and keyed off the requested targets:
-    // the deduped list may have dropped Codex, and `.codex/skills` is a root no
-    // other target shares, so it must be swept exactly once either way.
-    if opts.targets.contains(&SkillTarget::Codex) {
-        let root = target_root(SkillTarget::Codex, opts.scope, &opts.root);
-        let candidates = scan_skill_dirs(SkillTarget::Codex, &legacy_codex_skills_dir(&root))?;
-        for stale in prunable(candidates, &keep_ids, &keep_slugs) {
-            report.files.push(remove_managed(&stale, opts)?);
-        }
-    }
+    report
+        .files
+        .extend(install_over(workflows, opts, &cleared)?.files);
     Ok(report)
 }
 
@@ -275,6 +308,9 @@ struct ManagedFile {
 ///
 /// Under `dry_run` the identical decision is made and reported, and nothing is
 /// written — including the parent directories, so a dry run leaves no trace.
+/// `cleared` names the paths this pass's prune emptied, which a dry run must
+/// treat as absent even though the file is still there.
+#[allow(clippy::too_many_arguments)]
 fn write_managed(
     path: &Path,
     body: &str,
@@ -282,6 +318,7 @@ fn write_managed(
     workflow_id: &str,
     opts: &InstallOptions,
     claimed: &mut HashMap<PathBuf, String>,
+    cleared: &BTreeSet<PathBuf>,
 ) -> io::Result<FileOutcome> {
     let outcome = |action| FileOutcome {
         path: path.to_path_buf(),
@@ -294,7 +331,13 @@ fn write_managed(
         return Ok(outcome(FileAction::SlugCollision));
     }
 
-    let action = match read_existing(path)? {
+    let existing = if cleared.contains(path) {
+        Existing::Absent
+    } else {
+        read_existing(path)?
+    };
+
+    let action = match existing {
         Existing::Absent => FileAction::Created,
         // Bytes we cannot even read as text are certainly not a marker of ours.
         Existing::Foreign => FileAction::SkippedUnmanaged,
@@ -321,9 +364,41 @@ fn write_managed(
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(path, body)?;
+        write_atomically(path, body)?;
     }
     Ok(outcome(action))
+}
+
+/// Replaces `path` with `body` in one step, as far as any reader is concerned.
+///
+/// A plain `fs::write` truncates and then fills, so a harness that opens the
+/// file in that window reads a partial skill — and this is the pass that runs
+/// while sessions are starting, so the window is exactly when readers show up.
+/// Writing a sibling temp file and renaming it over the target closes that: a
+/// reader sees either the whole previous file or the whole new one, never a
+/// prefix of either. The temp file is a sibling so the rename stays within one
+/// filesystem, where it is atomic.
+///
+/// The name carries the process id so two Medulla processes writing the same
+/// skill cannot clobber each other's half-written temp file. They cannot
+/// normally race at all — [`RefreshLock`](super::refresh::RefreshLock)
+/// serializes the managed root — but `install` on the user scope takes no lock,
+/// and a leftover temp file from a killed process must not be adopted as the
+/// next writer's buffer.
+///
+/// A failed rename leaves the temp file behind rather than the target damaged,
+/// which is the right way round.
+fn write_atomically(path: &Path, body: &str) -> io::Result<()> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let temp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
+    fs::write(&temp, body)?;
+    match fs::rename(&temp, path) {
+        Ok(()) => Ok(()),
+        Err(source) => {
+            let _ = fs::remove_file(&temp);
+            Err(source)
+        }
+    }
 }
 
 /// The `rev` of freshly rendered content, read back off its own marker.
