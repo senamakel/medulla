@@ -4,10 +4,10 @@ use std::collections::HashSet;
 
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span};
-use unicode_width::UnicodeWidthChar;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::ui::agents::{AgentLane, AgentRole, AgentRow, TaskStatus};
-use crate::ui::util::fmt_tokens;
+use crate::ui::util::{fmt_tokens, slug};
 use crate::worker::pty::{HarnessAttention, SessionControl, SessionRow, ATTENTION_GLYPH};
 
 use super::super::super::super::types::App;
@@ -18,9 +18,11 @@ use super::wrap::{home_dir, wrap_line};
 use super::CONT_INDENT;
 
 /// Maximum terminal-cell width reserved for a session title in an agent label.
+///
+/// [`slug`] bounds its output in Unicode *characters*, which is the right unit
+/// for a name but not for a row: 48 wide characters (`界`) still occupy 96
+/// columns. The rail budgets cells, so the slug is clipped again here.
 const SESSION_TITLE_MAX_CELLS: usize = 48;
-/// Memory bound for zero-width Unicode sequences in a session title.
-const SESSION_TITLE_MAX_CHARS: usize = 96;
 
 impl App {
     /// Format one operator-started harness using the configured status-line layout.
@@ -230,34 +232,60 @@ impl App {
                 .sessions
                 .row(&id)?
                 .thread_name
-                .map(|title| display_session_title(&title))
+                .and_then(|title| lane_title(&title))
         })
     }
 }
 
-/// Flatten and bound an untrusted harness title before rail wrapping.
+/// The rail label for a harness title, or `None` when the title carries no
+/// name worth showing.
+///
+/// A title of pure punctuation or control bytes ("---") slugs to the empty
+/// string. That is not a title: rendering it would leave a dangling ` · ` on
+/// the row and, because the newest running task wins the lane, would hide an
+/// older task that does have a meaningful title. The session-history label
+/// path drops empty slugs the same way.
+pub(super) fn lane_title(title: &str) -> Option<String> {
+    let displayed = display_session_title(title);
+    (!displayed.is_empty()).then_some(displayed)
+}
+
+/// Slug an untrusted harness title before rail wrapping.
+///
+/// The harness advertises a sentence ("Fix session handoff flow and pointer");
+/// the rail has room for a name. [`slug`] keeps the first three meaningful
+/// words and, because it treats every non-alphanumeric byte as a word break,
+/// leaves no control byte, escape sequence, or newline to reach the pane.
+///
+/// The slug is then clipped to [`SESSION_TITLE_MAX_CELLS`], because its own
+/// ceiling counts characters and a title of wide characters would otherwise
+/// render twice as wide as the rail budgeted for it.
 pub(super) fn display_session_title(title: &str) -> String {
-    let mut displayed = String::new();
-    let mut width = 0;
-    for (index, character) in title.chars().enumerate() {
-        if index >= SESSION_TITLE_MAX_CHARS {
-            displayed.push('…');
-            break;
-        }
-        let character = if character.is_control() {
-            ' '
-        } else {
-            character
-        };
-        let character_width = character.width().unwrap_or(0);
-        if width + character_width > SESSION_TITLE_MAX_CELLS.saturating_sub(1) {
-            displayed.push('…');
-            break;
-        }
-        displayed.push(character);
-        width += character_width;
+    clip_cells(&slug(title), SESSION_TITLE_MAX_CELLS)
+}
+
+/// Clip `value` to `width` terminal cells, marking a cut with an ellipsis.
+///
+/// The ellipsis costs a cell of its own, so a clipped value keeps `width - 1`
+/// cells of text. A character that straddles the budget is dropped whole rather
+/// than split, which is what keeps the result a valid grapheme sequence.
+fn clip_cells(value: &str, width: usize) -> String {
+    if value.width() <= width {
+        return value.to_string();
     }
-    displayed
+    let budget = width.saturating_sub(1);
+    let mut out = String::new();
+    let mut used = 0;
+    for character in value.chars() {
+        let character_width = character.width().unwrap_or(0);
+        if used + character_width > budget {
+            break;
+        }
+        used += character_width;
+        out.push(character);
+    }
+    out.push('…');
+    out
 }
 
 /// Resolve the newest running task whose harness has advertised a title.

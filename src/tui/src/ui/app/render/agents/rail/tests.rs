@@ -14,7 +14,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::ui::app::App;
 use crate::worker::pty::{AttentionKind, HarnessAttention, PtyState, SessionControl, SessionRow};
 
-use super::rows::{display_session_title, running_session_title};
+use super::rows::{display_session_title, lane_title, running_session_title};
 use super::wrap::{flow_path, short_home, wrap_line, wrap_path};
 
 pub(super) fn app() -> App {
@@ -103,14 +103,55 @@ fn the_newest_running_harness_title_identifies_an_agent_lane() {
 }
 
 #[test]
-fn session_titles_are_flattened_and_bounded_before_rail_wrapping() {
+fn session_titles_are_slugged_and_bounded_before_rail_wrapping() {
     let title = format!("first line\n{}", "wide title ".repeat(20));
 
     let displayed = display_session_title(&title);
 
+    assert_eq!(displayed, "first-line-wide");
     assert!(UnicodeWidthStr::width(displayed.as_str()) <= 48);
     assert!(!displayed.contains('\n'));
+}
+
+#[test]
+fn session_titles_of_wide_characters_stay_within_the_rails_cell_budget() {
+    // 48 wide characters pass the slug's character ceiling untouched but would
+    // occupy 96 columns, so the rail clips them a second time by cell width.
+    let title = "界".repeat(48);
+
+    let displayed = display_session_title(&title);
+
+    assert!(UnicodeWidthStr::width(displayed.as_str()) <= 48);
     assert!(displayed.ends_with('…'));
+}
+
+#[test]
+fn a_title_that_slugs_to_nothing_is_not_a_lane_title() {
+    // Punctuation- and control-only titles leave the slug empty. Passing that
+    // on would render a dangling " · " and, since the newest running task wins
+    // the lane, would mask an older task that does advertise a real title.
+    assert_eq!(lane_title("---"), None);
+    assert_eq!(lane_title("  \n\t\u{1b}  "), None);
+    assert_eq!(lane_title(""), None);
+    // An escape sequence is not empty, though: the slug strips the control
+    // bytes and keeps the alphanumerics, which is the safe outcome.
+    assert_eq!(lane_title("\u{1b}[2J"), Some("2j".to_string()));
+    // All-filler input is a different case: slug names it badly-but-stably
+    // rather than emptily, so the lane keeps showing it.
+    assert_eq!(lane_title("okay so the"), Some("okay-so-the".to_string()));
+
+    assert_eq!(
+        lane_title("Fix session titles"),
+        Some("fix-session-titles".to_string())
+    );
+}
+
+#[test]
+fn session_titles_keep_three_words_of_a_harness_sentence() {
+    assert_eq!(
+        display_session_title("Fix session handoff flow and pointer"),
+        "fix-session-handoff"
+    );
 }
 
 #[test]
