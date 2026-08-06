@@ -349,8 +349,13 @@ configuration: do not claim the run started, fall back to
 
 `--with-mcp` writes `MEDULLA_WORKFLOW_TOOLS=run` into the registration. That is
 a third tool mode beside `full` and `propose`, and
-it serves exactly six verbs — `workflow_list`, `workflow_get`,
-`workflow_dry_run`, `workflow_run`, `workflow_runs`, `workflow_run_get`.
+it serves exactly eight verbs — `workflow_list`, `workflow_get`,
+`workflow_dry_run`, `workflow_run`, `workflow_runs`, `workflow_run_get`,
+`workflow_run_detail`, `workflow_run_cancel`. The last two are there because
+this is the mode where the session that starts a run is also the process
+executing it: one that could start an hour-long run and then neither see what
+its harnesses were doing nor stop it is the surface that made a cancel verb
+necessary.
 Authoring, deletion, defaults, the journal, and the proposal verbs are withheld
 from `tools/list` *and* refused by `tools/call`, with a refusal that says where
 those things happen instead.
@@ -419,6 +424,8 @@ them tools directly — it offers them. Every ACP session gets an MCP server
 | `workflow_dry_run` | simulate without dispatching |
 | `workflow_run` | run it for real; answers with a run id |
 | `workflow_run_get` | one run, summarized or in full |
+| `workflow_run_detail` | one run, plus the harness sessions it has in flight |
+| `workflow_run_cancel` | stop a run this process is executing |
 | `workflow_runs` | run history |
 
 `workflow_run` starts the run and returns as soon as it is admitted, with the
@@ -437,6 +444,22 @@ step, which is what keeps its idle timer from firing mid-run.
 Reads are summarized by default, for the same reason: `workflow_runs` carries no
 step bodies at all, and `workflow_run_get` bounds each step's output. Pass
 `steps: "full"` when the elided half is the thing you need.
+
+`workflow_run_detail` covers the gap the store cannot: a step is recorded only
+once it has *finished*, so an `agent` node twenty minutes into a coding session
+is invisible to `workflow_run_get` by construction. Every agent dispatch is
+tagged `wf:<runId>:<route>#<n>`, and the hub knows which worker each outstanding
+task id is running on, so filtering the roster by that prefix yields exactly
+this run's live harness sessions attributed to machines. What it does *not*
+carry is the harness's own transcript — no control-plane op exposes the hub's
+activity log, so the honest answer is "this worker is still on this step", not a
+progress bar.
+
+`workflow_run_cancel` stops a run, and reaches only runs executing in the same
+process that serves the call. That is the process that served the `workflow_run`
+which started them, which is the case the verb exists for; a run started from
+the pane or another shell answers `cancelled: false` with the reason rather than
+erroring.
 
 `workflow_apply_ops` is the one that matters for editing. Rewriting a whole
 document loses whatever the model misremembered; a patch is checked op by op, and

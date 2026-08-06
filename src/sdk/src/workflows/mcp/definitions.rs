@@ -232,6 +232,48 @@ pub(crate) fn definitions() -> Vec<Value> {
             ),
         }),
         json!({
+            "name": "workflow_run_detail",
+            "description":
+                "Everything workflow_run_get says about a run, plus what the fleet is doing for \
+                 it right now. Reach for this when a run has been `running` longer than it \
+                 should and the steps do not explain why — the store only learns about a step \
+                 once it has finished, so an `agent` node in its twentieth minute is invisible \
+                 to workflow_run_get by construction, and this is where it becomes visible. \
+                 `live.harnesses` lists each harness session currently dispatched for this run, \
+                 with the worker running it and the task id (`wf:<runId>:<route>#<n>`) to quote \
+                 into a log. `live.executingHere` says whether this server is the process \
+                 running it, which is also whether workflow_run_cancel can stop it. What you \
+                 will not get is the harness's own transcript: this can tell you a worker is \
+                 still working on a step, not what it is typing. An empty `live.harnesses` on a \
+                 run that is still going means it is between steps or on an in-process node — \
+                 read `live.note`, which says which case it is.",
+            "inputSchema": schema(
+                json!({
+                    "runId": { "type": "string", "description": "The run id." },
+                    "steps": { "type": "string", "enum": ["summary", "full", "counts"], "description": "How much of each finished step to include; the live half is unaffected. Defaults to 'summary'. Ask for 'counts' when the live harness view is the only thing you came for." }
+                }),
+                &["runId"],
+            ),
+        }),
+        json!({
+            "name": "workflow_run_cancel",
+            "description":
+                "Stop a run that is still going. Use it on a run you started and no longer want \
+                 — the operator changed their mind, the inputs were wrong, it is looping — \
+                 rather than leaving a harness session burning for another twenty minutes. Not \
+                 a tidy-up: a run someone else started is theirs, and a run you merely find in \
+                 the history is already over. Only reaches runs executing in this same process, \
+                 which is the process that served the workflow_run that started them; a run \
+                 started from Medulla's own pane or from another shell answers \
+                 cancelled:false with the reason, and is not an error to retry. Check \
+                 workflow_run_detail's `live.executingHere` first if you want to know before \
+                 asking.",
+            "inputSchema": schema(
+                json!({ "runId": { "type": "string", "description": "The run to stop." } }),
+                &["runId"],
+            ),
+        }),
+        json!({
             "name": "workflow_history",
             "description":
                 "The versions of a workflow that have been written over, newest first, each with \

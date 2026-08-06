@@ -114,6 +114,14 @@ a failure while the run carries on succeeding. `workflow_run_get` says how far
 it has got and, once it settles, what it did. `wait: true` and `waitMs` are
 there for the short ones.
 
+Two verbs go with it. `workflow_run_detail` answers the question the run record
+cannot: a step is written only once it has *finished*, so an `agent` node twenty
+minutes into a coding session is invisible to `workflow_run_get` — this joins
+the run to the harness sessions the fleet has in flight for it, and says which
+worker each one is on. And `workflow_run_cancel` stops a run, because a model
+that started one over MCP and answered with the id had no way to stop it and
+nobody was watching it in the pane.
+
 `workflow_apply_ops` is the one that matters for editing. Rewriting a whole
 document loses whatever the model misremembered; a patch is checked op by op, and
 a batch that fails anywhere leaves the workflow untouched.

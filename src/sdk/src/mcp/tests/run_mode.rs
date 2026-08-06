@@ -1,24 +1,28 @@
 //! Tool availability and enforcement for trigger-only sessions.
 //!
 //! `ToolMode::Run` is what a skill installed into the operator's everyday
-//! harness gets, so these check the allow-list from both directions: the six
+//! harness gets, so these check the allow-list from both directions: the eight
 //! verbs are served, and everything else is absent from `tools/list` *and*
 //! refused at `tools/call`.
 
 use super::*;
 
 /// The whole surface a trigger-only session is meant to have.
-const TRIGGER_VERBS: [&str; 6] = [
+const TRIGGER_VERBS: [&str; 8] = [
     "workflow_list",
     "workflow_get",
     "workflow_dry_run",
     "workflow_run",
     "workflow_runs",
     "workflow_run_get",
+    // Starting a run this session cannot then follow or stop is the shape that
+    // made these two necessary.
+    "workflow_run_detail",
+    "workflow_run_cancel",
 ];
 
 #[test]
-fn run_mode_serves_exactly_the_six_read_and_trigger_verbs() {
+fn run_mode_serves_exactly_the_read_and_trigger_verbs() {
     let served: Vec<&str> = TOOL_NAMES
         .into_iter()
         .filter(|name| ToolMode::Run.allows(name))
@@ -118,14 +122,18 @@ fn adding_run_mode_left_full_and_propose_untouched() {
         .into_iter()
         .filter(|name| ToolMode::Propose.allows(name))
         .collect();
-    assert_eq!(propose.len(), TOOL_NAMES.len() - 5);
+    assert_eq!(propose.len(), TOOL_NAMES.len() - 6);
     for withheld in [
         "workflow_create",
         "workflow_apply_ops",
         "workflow_defaults",
         "workflow_delete",
         "workflow_run",
+        "workflow_run_cancel",
     ] {
         assert!(!ToolMode::Propose.allows(withheld), "{withheld}");
     }
+    // Reading a run in flight is what a review pass is for, so the inspection
+    // half of the pair stays available even though the cancel half does not.
+    assert!(ToolMode::Propose.allows("workflow_run_detail"));
 }
