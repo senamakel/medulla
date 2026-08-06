@@ -127,6 +127,12 @@ fn build_capabilities_inner(
         settings.max_parallel_agents.max(1),
     ));
 
+    // One task-id sequence for the whole run, for the same reason as the
+    // limiter: both runners mint `wf:{run}:{route}#{sequence}`, so two counters
+    // each starting at zero would hand the same id to the first dispatch each
+    // makes along a shared route.
+    let sequence = Arc::new(std::sync::atomic::AtomicU64::new(0));
+
     let progress = services.node_progress.clone();
     let llm: Arc<dyn tinyflows::caps::LlmProvider> = match &evidence {
         Some(evidence) => Arc::new(
