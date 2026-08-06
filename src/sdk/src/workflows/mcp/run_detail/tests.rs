@@ -145,7 +145,10 @@ fn dispatches_are_attributed_to_their_worker_and_ordered_by_sequence() {
         worker("laptop", &["wf:run-1:default#0", "wf:run-2:default#0"]),
     ];
 
-    let live = merge(dispatches_in(&workers, &dispatch_prefix("run-1")), Vec::new());
+    let live = merge(
+        dispatches_in(&workers, &dispatch_prefix("run-1")),
+        Vec::new(),
+    );
 
     assert_eq!(live.len(), 2, "{live:?}");
     assert_eq!(live[0].sequence, 0);
@@ -415,9 +418,13 @@ async fn a_run_executing_here_reports_its_own_harness_session_and_says_it_is_liv
 
     // An offline fleet on purpose: the embedded host is not in any roster, so
     // this is exactly the shape the roster-only join answered nothing for.
-    let answer = detail(&session(&store, Arc::new(OfflineFleet)), run, StepDetail::Summary)
-        .await
-        .expect("the run is in the store");
+    let answer = detail(
+        &session(&store, Arc::new(OfflineFleet)),
+        run,
+        StepDetail::Summary,
+    )
+    .await
+    .expect("the run is in the store");
 
     assert_eq!(answer["live"]["executingHere"], true);
     let harnesses = answer["live"]["harnesses"].as_array().unwrap();

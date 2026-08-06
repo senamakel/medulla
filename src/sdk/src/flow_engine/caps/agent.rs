@@ -297,7 +297,11 @@ impl HarnessAgentRunner {
                 harness: request
                     .custom_harness
                     .clone()
-                    .or_else(|| request.provider.map(|provider| provider.as_str().to_string()))
+                    .or_else(|| {
+                        request
+                            .provider
+                            .map(|provider| provider.as_str().to_string())
+                    })
                     .unwrap_or_default(),
                 workspace: Some(self.settings.workspace.clone())
                     .filter(|workspace| !workspace.trim().is_empty()),
