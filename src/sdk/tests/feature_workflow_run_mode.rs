@@ -247,7 +247,7 @@ async fn workflow_run_still_answers_with_the_whole_record_when_asked_to_wait() {
 }
 
 #[tokio::test]
-async fn a_trigger_only_session_can_inspect_and_stop_the_run_it_started() {
+async fn a_trigger_only_session_inspects_its_run_and_cancels_it_after_it_settled() {
     let _serial = SERIAL.lock().await;
     let home = tempfile::tempdir().expect("a scratch home");
     pin_process_env(home.path());
