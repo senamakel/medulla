@@ -184,7 +184,7 @@ impl HarnessAgentRunner {
             dispatch,
             settings,
             run_id: run_id.into(),
-            sequence: AtomicU64::new(0),
+            sequence: Arc::new(AtomicU64::new(0)),
             slots: Arc::new(Semaphore::new(settings_max_parallel)),
             evidence: Some(evidence),
             progress: None,
