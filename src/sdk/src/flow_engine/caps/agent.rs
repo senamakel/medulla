@@ -459,6 +459,13 @@ impl HarnessLlm {
         self
     }
 
+    /// Share a task-id sequence — see [`HarnessAgentRunner::with_sequence`].
+    #[must_use]
+    pub(crate) fn with_sequence(mut self, sequence: Arc<AtomicU64>) -> Self {
+        self.inner = self.inner.with_sequence(sequence);
+        self
+    }
+
     /// Stream harness progress — see [`HarnessAgentRunner::streaming_to`].
     #[must_use]
     pub(crate) fn streaming_to(mut self, sink: Option<NodeProgressSink>) -> Self {
