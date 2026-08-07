@@ -110,10 +110,6 @@ pub fn reply_to_value(reply: &str, worker: &str) -> Value {
     })
 }
 
-/// Map a dispatch failure onto a capability error.
-///
-/// An abort keeps its identity in the message because it is the one failure a
-/// retry must not paper over: the orchestrator cancelled the work deliberately.
 /// The harness name a dispatch is recorded under in the in-flight registry.
 ///
 /// The *flavor*, not the bare provider: `codex` and `codex-server` are the same
