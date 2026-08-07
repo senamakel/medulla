@@ -114,6 +114,33 @@ pub fn reply_to_value(reply: &str, worker: &str) -> Value {
 ///
 /// An abort keeps its identity in the message because it is the one failure a
 /// retry must not paper over: the orchestrator cancelled the work deliberately.
+/// The harness name a dispatch is recorded under in the in-flight registry.
+///
+/// The *flavor*, not the bare provider: `codex` and `codex-server` are the same
+/// vendor over different transports, and reporting both as `codex` would point
+/// a reader of `workflow_run_detail` at the wrong process when they went
+/// looking for the session. A custom preset names itself and wins outright.
+///
+/// Empty when the node left the choice to the worker's own configured harness,
+/// which is the honest answer: this side does not know what the worker picked.
+fn dispatch_harness(request: &TaskRequest) -> String {
+    request
+        .custom_harness
+        .clone()
+        .or_else(|| {
+            request.provider.map(|provider| {
+                provider
+                    .flavor_name(request.transport.unwrap_or_default())
+                    .to_string()
+            })
+        })
+        .unwrap_or_default()
+}
+
+/// Map a dispatch failure onto a capability error.
+///
+/// An abort keeps its identity in the message because it is the one failure a
+/// retry must not paper over: the orchestrator cancelled the work deliberately.
 fn dispatch_error(node_kind: &str, err: RunError) -> EngineError {
     EngineError::Capability(format!("{node_kind}: {err}"))
 }
