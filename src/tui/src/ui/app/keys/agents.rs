@@ -22,7 +22,7 @@ use super::super::types::{AgentsFocus, App, Cmd, PaneView};
 use crate::ui::composer::insert_at;
 
 /// What rail-focus handling did with one key press.
-pub(super) enum AgentsKey {
+pub(crate) enum AgentsKey {
     /// The key belonged to the rail; any follow-up command is carried along.
     Handled(Option<Cmd>),
     /// The rail does not claim this key — global and composer handling apply.
