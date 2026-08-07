@@ -1,7 +1,5 @@
 //! Tests for Agents rail workflow-run entries.
 
-use ratatui::style::Color;
-
 use super::super::super::super::color;
 use super::super::workflow_run_elapsed;
 use super::{app, lane, none_waiting, NOW};
