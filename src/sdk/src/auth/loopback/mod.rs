@@ -242,6 +242,13 @@ fn error_html(message: &str) -> String {
 }
 
 /// Spawn the platform browser opener for `url` (best-effort; errors ignored).
+///
+/// The child's stdio is fully detached from ours. Openers are chatty on stderr
+/// — `xdg-open` routes through GIO, which prints warnings such as "The
+/// peer-to-peer connection failed: ... /.cache/gvfsd ... Falling back to the
+/// session bus" — and any byte the child writes lands directly on the terminal,
+/// corrupting the TUI's rendered frame. The exit status is reaped on a detached
+/// thread so the opener does not linger as a zombie.
 pub fn open_browser(url: &str) {
     #[cfg(target_os = "macos")]
     let mut cmd = {
@@ -263,8 +270,25 @@ pub fn open_browser(url: &str) {
     };
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     let mut cmd = std::process::Command::new("true");
-    let _ = cmd.spawn();
+    spawn_detached(&mut cmd);
 }
+
+/// Detach `cmd` from this process' terminal and spawn it, reaping the exit
+/// status on a background thread. Anything the child writes to stdout or stderr
+/// is discarded rather than painted over the caller's terminal.
+fn spawn_detached(cmd: &mut std::process::Command) {
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    if let Ok(mut child) = cmd.spawn() {
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests;
 
 mod types;
 pub use types::LoopbackListener;
