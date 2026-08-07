@@ -1,19 +1,26 @@
 //! Which executor a task reaches — the watchable PTY one or the headless
-//! fallback — per harness.
+//! fallback — per harness, and the directory it reaches it in.
 
 use std::collections::HashMap;
 
+use medulla::bridge::LocalBridgeNetwork;
+use medulla::config::HostSection;
 use medulla::daemon::providers::{Abort, RunTaskOptions};
 use medulla::protocol::HarnessProvider;
+use medulla::runtime::AgentDeclaration;
 use medulla_tui::worker::executor::PtySessionExecutor;
 use medulla_tui::worker::pty::PtyManager;
 
 use crate::local_host::run_task;
 
+use super::env_with_only_claude;
+
 /// Bare-bones `RunTaskOptions` for a dispatch test — no callbacks, no
 /// conversation, just enough to reach the executor the dispatcher picks.
 fn dispatch_options(provider: HarnessProvider, bin_env_key: &str) -> RunTaskOptions {
     RunTaskOptions {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        transport: Default::default(),
         provider,
         prompt: "hi".to_string(),
         cwd: ".".to_string(),
@@ -56,7 +63,7 @@ async fn opencode_falls_back_to_the_headless_executor_rather_than_being_refused(
 
     let error = run(dispatch_options(
         HarnessProvider::Opencode,
-        "TINYPLACE_OPENCODE_BIN",
+        "MEDULLA_OPENCODE_BIN",
     ))
     .await
     .expect_err("a nonexistent binary must fail to spawn");
@@ -93,4 +100,69 @@ async fn claude_and_codex_still_reach_the_pty_executor() {
             "{provider:?} must not take the headless path: {error}"
         );
     }
+}
+
+/// The dispatch a declaration cannot describe.
+///
+/// A host binds one address and serves every agent on it from the one executor
+/// it started in its own workspace; a task frame names a task, a prompt and at
+/// most a harness, never which agent was selected. So two agents declared on one
+/// host for two different repositories would both run in the host's directory
+/// while advertising two — and the orchestrator's placement, the operator's
+/// mental model, and the files that actually change would all disagree.
+///
+/// Until the wire carries the selected agent's id, the second declaration is
+/// dropped at start-up rather than silently served from the wrong checkout —
+/// dropped, not fatal: hosting on this device must not hinge on one roster
+/// entry naming the right directory.
+#[tokio::test]
+async fn two_agents_on_one_host_cannot_claim_two_workspaces() {
+    let network = LocalBridgeNetwork::new();
+    let config = HostSection::default();
+    let env = env_with_only_claude();
+    let options = crate::local_host::options_from_config(
+        &config,
+        &env,
+        None,
+        None,
+        None,
+        &crate::local_host::LaunchPolicy {
+            attribution: true,
+            ..Default::default()
+        },
+    )
+    .expect("valid config");
+    let here = medulla::daemon::embedded::resolve_workspace("");
+    let elsewhere = if cfg!(windows) {
+        "C:\\srv\\web"
+    } else {
+        "/srv/web"
+    };
+
+    let (host, problems) = crate::local_host::start(
+        &config,
+        &HashMap::new(),
+        &network,
+        options,
+        PtyManager::new(),
+        &[
+            AgentDeclaration::new("api-claude", "this-device", "claude", here.clone()),
+            AgentDeclaration::new("web-claude", "this-device", "claude", elsewhere),
+        ],
+    )
+    .expect("the host starts on the declaration it can serve")
+    .expect("hosting is on by default");
+
+    let ids: Vec<&str> = host.specs().iter().map(|spec| spec.id.as_str()).collect();
+    assert_eq!(ids, ["api-claude"], "only the agent that runs here");
+
+    let report = problems.join("\n");
+    assert!(
+        report.contains("web-claude") && report.contains(elsewhere) && report.contains(&here),
+        "the report must name the agent and both directories: {report}"
+    );
+    assert!(
+        report.contains("[[hosts]]"),
+        "…and the way to actually get a second workspace: {report}"
+    );
 }

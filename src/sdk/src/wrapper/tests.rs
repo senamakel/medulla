@@ -58,7 +58,7 @@ fn profile_owner_is_the_last_recipient_fallback() {
     // An env owner beats the profile owner.
     let mut env = HashMap::new();
     env.insert(
-        "TINYPLACE_OPENHUMAN_OWNER".to_string(),
+        "MEDULLA_OPENHUMAN_OWNER".to_string(),
         "@env-owner".to_string(),
     );
     assert_eq!(
@@ -87,7 +87,7 @@ async fn missing_binary_is_a_clear_error() {
     let mut env = HashMap::new();
     env.insert("PATH".to_string(), "/nonexistent".to_string());
     env.insert(
-        "TINYPLACE_CODEX_BIN".to_string(),
+        "MEDULLA_CODEX_BIN".to_string(),
         "/no/such/codex-binary".to_string(),
     );
     let err = run_wrapper_with(WrapperConfig {
@@ -99,10 +99,35 @@ async fn missing_binary_is_a_clear_error() {
         session_id: Some("wsid-test".to_string()),
         pty_spawner: None,
         attribution: true,
+        hooks: crate::harness_hooks::HooksConfig::default(),
     })
     .await
     .unwrap_err();
     assert!(err.to_string().contains("not found on PATH"), "got: {err}");
+}
+
+#[tokio::test]
+async fn claude_rejects_ambiguous_duplicate_settings() {
+    let mut env = HashMap::new();
+    let existing_binary = std::env::current_exe().expect("the test executable has a path");
+    env.insert(
+        "TINYPLACE_CLAUDE_BIN".to_string(),
+        existing_binary.to_string_lossy().into_owned(),
+    );
+    let err = run_wrapper_with(WrapperConfig {
+        provider: HarnessProvider::Claude,
+        child_args: vec!["--settings".to_string(), "{}".to_string()],
+        env,
+        cwd: ".".to_string(),
+        no_bridge: true,
+        session_id: Some("wsid-settings".to_string()),
+        pty_spawner: None,
+        attribution: true,
+        hooks: crate::harness_hooks::HooksConfig::default(),
+    })
+    .await
+    .unwrap_err();
+    assert!(err.to_string().contains("--settings cannot be combined"));
 }
 
 /// Two pinned tailers, one directory, two transcripts — each latches only its
@@ -117,7 +142,7 @@ fn pinned_tailers_latch_by_identity_never_swapping() {
 
     let dir = tempfile::tempdir().unwrap();
     let here = dir.path().to_string_lossy().into_owned();
-    let env: HashMap<String, String> = [("TINYPLACE_CODEX_SESSIONS_DIR".to_string(), here.clone())]
+    let env: HashMap<String, String> = [("MEDULLA_CODEX_SESSIONS_DIR".to_string(), here.clone())]
         .into_iter()
         .collect();
 

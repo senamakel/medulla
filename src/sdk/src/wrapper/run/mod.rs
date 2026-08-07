@@ -1,6 +1,6 @@
 //! Process orchestration for a wrapped session: the [`run_wrapper`] entry point,
 //! the [`run_wrapper_with`] core loop that drives the child CLI and the
-//! tiny.place [`Bridge`](super::bridge::Bridge), and the exit-code / signal
+//! the [`Bridge`](super::bridge::Bridge), and the exit-code / signal
 //! plumbing around it.
 //!
 //! Spawning itself lives in [`child`], which hides whether the harness is on a
@@ -66,13 +66,18 @@ pub async fn run_wrapper(
     // Commit attribution is config-driven (`attribution.commit`, on by default).
     // A config that fails to load must not silently drop attribution, so fall
     // back to the same default the config type carries.
-    let attribution = crate::config::load_config(
+    // Attribution and hooks are both config-driven and both ride the same
+    // `--settings` flag on Claude Code, so they are resolved together from one
+    // load. A config that fails to load must not silently drop attribution, so
+    // fall back to the same default the config type carries; hooks fall back to
+    // none, since an unreadable config declares none.
+    let (attribution, hooks) = crate::config::load_config(
         crate::config::explicit_config_from_env(&env),
         &env,
         std::path::Path::new(&cwd),
     )
-    .map(|loaded| loaded.config.attribution.commit)
-    .unwrap_or(true);
+    .map(|loaded| (loaded.config.attribution.commit, loaded.config.hooks))
+    .unwrap_or((true, crate::harness_hooks::HooksConfig::default()));
 
     run_wrapper_with(WrapperConfig {
         provider,
@@ -83,6 +88,7 @@ pub async fn run_wrapper(
         session_id: None,
         pty_spawner,
         attribution,
+        hooks,
     })
     .await
 }
@@ -90,6 +96,12 @@ pub async fn run_wrapper(
 /// Run the wrapper described by `config`, returning the child's exit code.
 pub async fn run_wrapper_with(mut config: WrapperConfig) -> anyhow::Result<i32> {
     use crate::protocol::env as tp_env;
+    // The embedded core's workspace is not this child's business — see
+    // [`tp_env::CORE_STATE_VARS`] for what a coding harness that inherits it can
+    // destroy. Dropped from both halves of the child's environment: this map is
+    // its explicit overlay, and `spawn_child` removes the inherited value from
+    // the child command without mutating this long-lived process.
+    tp_env::scrub_core_state(&mut config.env, config.provider);
     let bin = tp_env::provider_bin(config.provider, &config.env);
     let lookup = crate::daemon::providers::make_path_lookup(&config.env);
     if !lookup(&bin) {
@@ -110,18 +122,50 @@ pub async fn run_wrapper_with(mut config: WrapperConfig) -> anyhow::Result<i32> 
     let mut bridge = build_bridge(&config, &wrapper_session_id, start_ms).await;
     let receive_active = bridge.as_ref().map(|b| b.receive_active).unwrap_or(false);
 
-    // Extra args from `TINYPLACE_<P>_ARGS` are prepended to the child argv.
+    // Extra args from `MEDULLA_<P>_ARGS` are prepended to the child argv.
     let mut child_args = tp_env::provider_args(config.provider, &config.env);
+    if config.provider == crate::protocol::HarnessProvider::Claude
+        && config
+            .child_args
+            .iter()
+            .chain(child_args.iter())
+            .any(|arg| arg == "--settings" || arg.starts_with("--settings="))
+    {
+        anyhow::bail!(
+            "Claude --settings cannot be combined with Medulla attribution/hooks; move those settings into the normal Claude configuration"
+        );
+    }
     // Attribute commits made through this session to Medulla. Injected per-spawn,
     // so the operator's own `settings.json` is never touched.
-    child_args.extend(crate::attribution::attribution_args(
+    // Commit attribution and the operator's Medulla hooks share Claude Code's
+    // single `--settings` flag, so they are built together rather than appended
+    // independently — see `harness_hooks::launch_args`.
+    let (launch_args, hook_notes) = crate::harness_hooks::launch_args(
         config.provider,
         config.attribution,
-    ));
+        &config.hooks,
+        &config.env,
+    );
+    child_args.extend(launch_args);
+    for note in &hook_notes {
+        tracing::warn!(provider = config.provider.as_str(), "{note}");
+    }
     // Every provider gets the prepare-commit-msg hook env vars; see the
     // attribution module docs for why the CLI flag alone is not enough.
     merge_attribution_env_into_config(&mut config);
     child_args.extend(config.child_args.iter().cloned());
+    // The built-in reporting hooks just installed onto `child_args` need this
+    // to find anything to report to — without it they spawn, find no grant,
+    // and exit, on every one of `PostToolUse`'s per-tool-call firings for the
+    // life of this wrapped session. The key is minted fresh rather than taken
+    // from `wrapper_session_id`, which a caller may supply and reuse: two
+    // concurrent runs sharing one key would share one grant, and the first
+    // guard to drop would revoke the other run's reporting. The guard is
+    // held for the rest of this function and revokes the grant once the
+    // wrapped child has fully exited, rather than leaving it live for the
+    // rest of this process.
+    let hook_grant_session = format!("wrapper-{}", uuid::Uuid::new_v4());
+    let _hook_grant = crate::harness_hooks::seed_hook_grant(hook_grant_session, &mut config.env);
 
     let ChildSession {
         input,

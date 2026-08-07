@@ -4,5 +4,8 @@ mod cases;
 mod harness_facts;
 mod policy;
 mod propose;
+mod run_mode;
+mod run_tools;
+mod runs;
 
 use cases::*;

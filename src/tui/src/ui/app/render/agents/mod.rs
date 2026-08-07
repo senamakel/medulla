@@ -10,10 +10,14 @@
 //! never two jobs.
 //!
 //! Split by responsibility: [`types`] resolves what the cursor is on and where
-//! the panes landed, [`rail`] draws the threads strip and the lane/fleet list,
-//! [`transcript`] the pane beside it, [`work`] the panel showing what the
-//! selected agent is working on, and [`composer`] the input under that. This
-//! module owns only the layout that decides how much room each one gets.
+//! the panes landed, [`session`] resolves which session that row names and what
+//! it arms, [`rail`] draws the threads strip and the lane/fleet list,
+//! [`transcript`] the pane beside it, [`summary`] what that pane shows for a row
+//! with no transcript of its own, [`run`] the workflow run a row names,
+//! [`started`] the sessions each conversation turn spawned, [`work`] the panel
+//! showing what the selected agent is working on, and [`composer`] the input
+//! under that. This module owns only the layout that decides how much room each
+//! one gets.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
@@ -26,10 +30,18 @@ use super::super::types::App;
 mod composer;
 mod harness;
 mod rail;
+mod run;
+mod session;
+mod started;
+mod summary;
 mod transcript;
 mod types;
 mod work;
 
+#[cfg(test)]
+mod run_tests;
+#[cfg(test)]
+mod started_tests;
 #[cfg(test)]
 mod transcript_tests;
 #[cfg(test)]
@@ -76,32 +88,30 @@ impl App {
     /// Resolve what the rail cursor is on, clamping it to the rows that exist.
     fn agents_selection(&mut self) -> Selection {
         let lanes = self.lanes();
-        let rows = self.rail_rows();
-        let active = self.agent_index.min(rows.len().saturating_sub(1));
-        self.agent_index = active;
-        let lane_index = match rows.get(active) {
-            Some(RailRow::Agent(row)) => row.lane_index().unwrap_or(0),
-            _ => 0,
-        };
-        let task = match rows.get(active) {
-            Some(RailRow::Agent(AgentRow::Sub { task, .. })) => Some(task.clone()),
-            _ => None,
-        };
-        // Only a *lane* row can be the orchestrator's. The action row and the
-        // operator's own harnesses fall back to lane 0 for the transcript
-        // behind them, and reading the role off that fallback claimed the
-        // orchestrator's composer for rows that are not it — a text box under a
-        // row with nothing to say to. Mirrors
+        let rows = self.rail_rows_in(&lanes);
+        let active = self.rail_cursor_in(&rows, &lanes);
+        self.set_rail_cursor_in(&rows, &lanes, active);
+        // No fallback: a row with no lane keeps `None`, and the pane renders
+        // what that row *is* rather than whoever happens to hold lane 0 — which
+        // is the orchestrator, so the old `unwrap_or(0)` put its thinking under
+        // `+ New agent`, host headers and idle agents.
+        let lane_index = rows.get(active).and_then(|row| row.lane_index());
+        let task = rows.get(active).and_then(|row| row.task()).cloned();
+        // Only a *lane* row can be the orchestrator's. Agents, sessions, hosts
+        // and the action rows are not lanes, and reading the role off the old
+        // lane-0 fallback claimed the orchestrator's composer for rows that are
+        // not it — a text box under a row with nothing to say to. Mirrors
         // [`App::on_orchestrator_lane`](crate::ui::app), which the keyboard
         // reads, so focus and layout cannot disagree.
         let on_orchestrator = match rows.get(active) {
-            Some(RailRow::Agent(_)) => lanes
-                .get(lane_index)
+            Some(RailRow::Lane(AgentRow::Lane { .. })) => lane_index
+                .and_then(|index| lanes.get(index))
                 .map(|l| l.role == AgentRole::Orchestrator)
                 .unwrap_or(true),
             None => true,
             Some(_) => false,
         };
+        let workflow_run = rows.get(active).and_then(|row| row.workflow_run()).cloned();
         let mut selection = Selection {
             rows,
             active,
@@ -109,21 +119,80 @@ impl App {
             lane_index,
             task,
             on_orchestrator,
-            harness: None,
+            session: None,
+            workflow_run,
         };
-        selection.harness = self.local_harness_session(&selection);
-        // Focus follows the pane, not the other way round. If the cursor moved
-        // off the attached session — or that session ended — the keyboard comes
-        // back to the chrome, because keys landing in a harness the operator is
-        // no longer looking at is the worst failure this feature can have.
-        if let Some(attached) = self.harness_focus.attached_to() {
-            if selection.harness.as_deref() != Some(attached) {
-                self.release_harness();
-            }
-        }
-        self.harness_pane_session = selection.harness.clone();
-        self.selected_harness_session = selection.harness.clone();
+        self.resolve_selected_session(&mut selection);
         selection
+    }
+
+    /// Synchronize the workflow canvas after the rail selection or its reports
+    /// change. This is an input/state transition, never part of drawing.
+    #[cfg(feature = "workflows")]
+    pub(in crate::ui::app) fn sync_selected_workflow_run(&mut self) {
+        let run = self
+            .rail_rows()
+            .get(self.agent_index)
+            .and_then(|row| row.workflow_run())
+            .cloned();
+        self.mirror_selected_workflow_run(run.as_ref());
+    }
+
+    /// Point the workflow state at the run under the cursor, if it moved.
+    ///
+    /// The inline run view is the Workflows tab's own canvas, and that canvas
+    /// reads the selected workflow and overlay out of [`WorkflowsState`]. So
+    /// selecting a run here has to move that state — but only when the selection
+    /// actually changed, because doing it is a run-store read and a graph
+    /// re-layout, and this runs once per frame.
+    ///
+    /// Stepping off a run clears the mark rather than the state: the Workflows
+    /// tab keeps whatever it was last showing, which is what an operator who
+    /// followed a run there and pressed Tab expects to find.
+    ///
+    /// [`WorkflowsState`]: super::super::types::WorkflowsState
+    fn mirror_selected_workflow_run(
+        &mut self,
+        selected_run: Option<&super::super::rail::WorkflowRunRailRow>,
+    ) {
+        let Some(run) = selected_run else {
+            self.wf.mirrored_run = None;
+            self.wf.mirrored_run_updated_at = None;
+            return;
+        };
+        let run = &run.run;
+        let synchronized = self.wf.mirrored_run.as_deref() == Some(run.run_id.as_str())
+            && self.wf.mirrored_run_updated_at == Some(run.updated_at)
+            && self.wf.overlay.as_deref() == Some(run.run_id.as_str())
+            && self
+                .selected_workflow()
+                .is_some_and(|workflow| workflow.id == run.workflow_id);
+        if synchronized {
+            return;
+        }
+        self.wf.mirrored_run = Some(run.run_id.clone());
+        self.wf.mirrored_run_updated_at = Some(run.updated_at);
+        let active_node = run
+            .frames
+            .iter()
+            .rev()
+            .find_map(|frame| frame.node.as_deref());
+        // A report refreshes the same canvas while an operator may be paging
+        // through its live preview. Selecting the workflow reloads the canvas
+        // and normally starts that preview at its tail; retain the operator's
+        // position only when fresher data still describes that same node.
+        let preview_scroll = (self.wf.overlay.as_deref() == Some(run.run_id.as_str())
+            && self
+                .wf
+                .layout
+                .nodes
+                .get(self.wf.node_index)
+                .is_some_and(|node| Some(node.id.as_str()) == active_node))
+        .then_some(self.wf.preview_scroll);
+        self.point_workflows_at_run(&run.workflow_id, &run.run_id, active_node);
+        if let Some(preview_scroll) = preview_scroll {
+            self.wf.preview_scroll = preview_scroll;
+        }
     }
 
     /// Divide `area` between the rail, the pane, and the composer.
@@ -177,7 +246,11 @@ impl App {
         // work panel goes for the same reason: the harness's own screen already
         // shows its todos and edits, and the columns are better spent on the
         // terminal than on our second-hand copy of it.
-        let embedded = selection.harness.is_some();
+        // A workflow run takes the column on the same terms as a harness. It is
+        // the graph plus the live output of the step that is working, and both
+        // want the width; there is also nothing to type at, since the run is
+        // executing in another process entirely.
+        let embedded = selection.session.is_some() || selection.workflow_run.is_some();
         // The composer belongs to the orchestrator lane and nowhere else. That
         // lane *is* the conversation — typing into it is how work starts. Every
         // other row is something already running somewhere: an agent, a task, a

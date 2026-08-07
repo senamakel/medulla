@@ -77,6 +77,7 @@ pub(super) fn base_config() -> DaemonConfig {
         budget: None,
         router: None,
         attribution: true,
+        hooks: crate::harness_hooks::HooksConfig::default(),
         custom_harnesses: Vec::new(),
     }
 }
@@ -84,8 +85,10 @@ pub(super) fn base_config() -> DaemonConfig {
 /// Build a `Task`-kind frame.
 pub(super) fn task_frame(task_id: &str, text: &str, correlation: Option<&str>) -> TaskFrame {
     TaskFrame {
+        transport: None,
         usage: None,
         work: None,
+        session_id: None,
         proto: MEDULLA_TASK_PROTO.to_string(),
         kind: TaskFrameKind::Task,
         task_id: task_id.to_string(),
@@ -110,6 +113,7 @@ pub(super) fn input_frame(task_id: &str, text: &str, correlation: Option<&str>) 
     TaskFrame {
         usage: None,
         work: None,
+        session_id: None,
         kind: TaskFrameKind::Input,
         ..task_frame(task_id, text, correlation)
     }
@@ -120,6 +124,7 @@ pub(super) fn abort_frame(task_id: &str, correlation: Option<&str>) -> TaskFrame
     TaskFrame {
         usage: None,
         work: None,
+        session_id: None,
         kind: TaskFrameKind::Abort,
         ..task_frame(task_id, "", correlation)
     }
@@ -274,6 +279,51 @@ pub(super) fn chatter_status_runner(count: usize) -> RunTaskFn {
     })
 }
 
+/// A runner whose second and third statuses are the control markers a held
+/// session emits, all three inside one throttle window.
+///
+/// The ordinary status first, so the throttle's clock is already primed when the
+/// hold is announced — which is the case that matters: a person taking a session
+/// a second after the last tool call must not have the hold silently dropped.
+pub(super) fn held_then_resumed_runner() -> RunTaskFn {
+    Arc::new(move |mut opts: RunTaskOptions| {
+        Box::pin(async move {
+            if let Some(mut on_event) = opts.on_event.take() {
+                for (state, detail) in [
+                    ("working", "reading the migration".to_string()),
+                    (
+                        "held",
+                        crate::daemon::SESSION_HELD_STATUS_PREFIX.to_string(),
+                    ),
+                    (
+                        "running",
+                        crate::daemon::SESSION_RESUMED_STATUS_PREFIX.to_string(),
+                    ),
+                ] {
+                    on_event(&HarnessSemanticEvent {
+                        line: 0,
+                        timestamp_ms: 0,
+                        record_type: "medulla:control".to_string(),
+                        event: HarnessEvent {
+                            kind: "status".to_string(),
+                            role: "system".to_string(),
+                            payload: json!({ "state": state, "detail": detail }),
+                            ..Default::default()
+                        },
+                    });
+                }
+            }
+            Ok(RunTaskResult {
+                session_id: None,
+                usage: None,
+                provider: opts.provider,
+                reply: "ok".to_string(),
+                events: 3,
+            })
+        })
+    })
+}
+
 /// A runner that emits two cumulative thinking snapshots inside one throttle window.
 pub(super) fn quick_thinking_runner() -> RunTaskFn {
     Arc::new(move |mut opts: RunTaskOptions| {
@@ -414,6 +464,7 @@ pub(super) fn capabilities_frame(task_id: &str, correlation: Option<&str>) -> Ta
     TaskFrame {
         usage: None,
         work: None,
+        session_id: None,
         kind: TaskFrameKind::Capabilities,
         ..task_frame(task_id, "", correlation)
     }

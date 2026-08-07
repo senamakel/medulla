@@ -49,7 +49,7 @@ impl MedullaConfig {
     }
 }
 
-/// One statically-configured tiny.place peer.
+/// One statically-configured host-link peer.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Peer {
@@ -92,7 +92,7 @@ pub struct Peer {
 pub struct HubWorkerConfig {
     /// The `agentId` the backend targets.
     pub id: String,
-    /// tiny.place address (base58 cryptoId or `@handle`).
+    /// link address (node name or `@handle`).
     pub address: String,
     /// Coding-agent harness the worker runs.
     pub harness: String,
@@ -194,6 +194,31 @@ pub struct AttributionConfig {
 impl Default for AttributionConfig {
     fn default() -> Self {
         AttributionConfig { commit: true }
+    }
+}
+
+/// The `hookDefaults` section: whether Medulla installs its own lifecycle
+/// reporting hooks into the harnesses it launches.
+///
+/// On by default, and for the same reason attribution is: a harness Medulla
+/// started should be one Medulla can see. The built-ins only report — they
+/// never deny a tool call or rewrite an input (see
+/// [`crate::harness_hooks::builtin`]) — so leaving them on changes what Medulla
+/// knows, not what the session does.
+///
+/// Turn them off with `[hookDefaults] enabled = false`, which leaves the
+/// operator's own `[[hooks]]` untouched.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct HookDefaultsConfig {
+    /// Whether Medulla's own reporting hooks are installed.
+    #[serde(default = "d_true")]
+    pub enabled: bool,
+}
+
+impl Default for HookDefaultsConfig {
+    fn default() -> Self {
+        HookDefaultsConfig { enabled: true }
     }
 }
 
@@ -375,6 +400,24 @@ pub struct WorkflowsConfig {
     /// it grants a workflow author the daemon's own privileges.
     #[serde(default = "d_true")]
     pub allow_code: bool,
+    /// The interpreter a `shell` script runs under.
+    ///
+    /// Empty keeps `bash`, which is what an existing workflow's scripts were
+    /// written against. `"user"` follows the operator's login shell (`$SHELL`),
+    /// and any other value names a program on `PATH` or an absolute path.
+    ///
+    /// Set this when a step needs the operator's own shell environment rather
+    /// than the daemon's — their functions and `~/bin` on `PATH` — and pair it
+    /// with `shellArgs: ["-l"]`, since a script is otherwise run non-login and
+    /// non-interactive and sources none of their startup files.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub shell: String,
+    /// Arguments passed to `shell` before the script's path.
+    ///
+    /// `["-l"]` for a login shell — `PATH` and exported functions. Add `"-i"`
+    /// as well for aliases, which are never exported.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shell_args: Vec<String>,
     /// Tool slugs a `tool_call` node may invoke, beyond the built-in
     /// `medulla:` operations.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -394,6 +437,22 @@ pub struct WorkflowsConfig {
     /// more is throttled to it rather than refused.
     #[serde(default = "d_max_parallel_agents")]
     pub max_parallel_agents: usize,
+    /// The ceiling on any one `loop` node's `max_iterations`.
+    ///
+    /// A pass through a loop body can be a whole harness session here, so this
+    /// bounds what a graph may ask for. Like `max_parallel_agents`, an
+    /// over-ask is clamped rather than refused.
+    #[serde(default = "d_max_loop_iterations")]
+    pub max_loop_iterations: u64,
+    /// How many of a workflow's runs the Workflows page lists under it.
+    ///
+    /// The store keeps every run it wrote; this is only how much of that
+    /// history the rail shows at once. A nightly workflow accumulates hundreds,
+    /// and a catalogue rail that lists them all is a scrollbar rather than a
+    /// summary — the recent ones are what an operator reads, and the rest is
+    /// reachable with `medulla workflow list-runs`.
+    #[serde(default = "d_max_listed_runs")]
+    pub max_listed_runs: usize,
     /// Whether and how a workflow reviews its own history.
     #[serde(default)]
     pub evolve: EvolveSettings,
@@ -461,12 +520,35 @@ impl Default for EvolveSettings {
     }
 }
 
-/// A run may take ten minutes: long enough for real work on a coding harness,
-/// short enough that a wedged run does not pin its record forever.
+/// Four harness tasks in flight per run: sized by what a worker pool can serve
+/// at once, not by what a graph feels like asking for.
 fn d_max_parallel_agents() -> usize {
     crate::flow_engine::DEFAULT_MAX_PARALLEL_AGENTS
 }
 
+/// Twenty-five passes through a loop body, matching the engine's own default so
+/// the common case is unchanged.
+fn d_max_loop_iterations() -> u64 {
+    crate::flow_engine::DEFAULT_MAX_LOOP_ITERATIONS
+}
+
+impl WorkflowsConfig {
+    /// The default [`max_listed_runs`](Self::max_listed_runs).
+    ///
+    /// Fifteen runs under a workflow: a screen's worth of recent history, so
+    /// the rail still reads as "this workflow and how it has been going" rather
+    /// than as a log. Named so the settings editor can offer the same number it
+    /// would otherwise be silently overwriting.
+    pub const DEFAULT_MAX_LISTED_RUNS: usize = 15;
+}
+
+/// See [`WorkflowsConfig::DEFAULT_MAX_LISTED_RUNS`].
+fn d_max_listed_runs() -> usize {
+    WorkflowsConfig::DEFAULT_MAX_LISTED_RUNS
+}
+
+/// A run may take ten minutes: long enough for real work on a coding harness,
+/// short enough that a wedged run does not pin its record forever.
 fn d_run_timeout_secs() -> u64 {
     600
 }
@@ -479,10 +561,14 @@ impl Default for WorkflowsConfig {
             default_provider: None,
             default_model: String::new(),
             allow_code: true,
+            shell: String::new(),
+            shell_args: Vec::new(),
             tool_allowlist: Vec::new(),
             http_allowlist: Vec::new(),
             run_timeout_secs: d_run_timeout_secs(),
             max_parallel_agents: d_max_parallel_agents(),
+            max_loop_iterations: d_max_loop_iterations(),
+            max_listed_runs: d_max_listed_runs(),
             evolve: EvolveSettings::default(),
         }
     }

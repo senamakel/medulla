@@ -9,7 +9,7 @@ pub struct TuiConfig {
     /// Optional local OpenCode harness configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub opencode: Option<OpencodeConfig>,
-    /// Optional tiny.place identity and discovery configuration.
+    /// Optional host-link identity and discovery configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link: Option<LinkConfig>,
     /// Orchestration limits.
@@ -77,6 +77,15 @@ pub struct TuiConfig {
     /// Medulla. On by default.
     #[serde(default)]
     pub attribution: AttributionConfig,
+    /// Lifecycle hooks Medulla supplies to supported harnesses, declared once
+    /// here rather than once per harness config. Unsupported hooks are dropped
+    /// with a diagnostic. Empty by default.
+    #[serde(default, skip_serializing_if = "HooksConfig::is_empty")]
+    pub hooks: HooksConfig,
+    /// Whether Medulla installs its own lifecycle reporting hooks alongside the
+    /// operator's. On by default; resolved into [`TuiConfig::hooks`] at load.
+    #[serde(default)]
+    pub hook_defaults: HookDefaultsConfig,
     /// Custom OpenAI-compatible router. Absent means routing is off.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub router: Option<RouterConfig>,
@@ -120,6 +129,8 @@ impl Default for TuiConfig {
             hosts: Vec::new(),
             harness: HarnessSection::default(),
             attribution: AttributionConfig::default(),
+            hooks: HooksConfig::default(),
+            hook_defaults: HookDefaultsConfig::default(),
             router: None,
             budget: None,
             routing_strategy: None,

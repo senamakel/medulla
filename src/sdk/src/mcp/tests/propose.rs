@@ -46,7 +46,8 @@ fn a_review_turn_is_not_shown_the_tools_it_may_not_call() {
     assert!(!listed.iter().any(|name| name == "workflow_apply_ops"));
     assert!(!listed.iter().any(|name| name == "workflow_defaults"));
     assert!(listed.iter().any(|name| name == "workflow_propose"));
-    assert_eq!(listed.len(), TOOL_NAMES.len() - 5);
+    assert!(!listed.iter().any(|name| name == "workflow_run_cancel"));
+    assert_eq!(listed.len(), TOOL_NAMES.len() - 6);
 }
 
 #[test]

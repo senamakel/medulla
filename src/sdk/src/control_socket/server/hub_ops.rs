@@ -68,12 +68,29 @@ pub(super) fn activity_key(request: &TaskRequest) -> String {
 pub struct HubFleetOps {
     slot: HubSlot,
     defaults: FleetDefaults,
+    hook_log: crate::harness_hooks::HookEventLog,
 }
 
 impl HubFleetOps {
     /// Serve the fleet reachable through `slot`.
+    ///
+    /// Lifecycle reports go to a log of this instance's own until
+    /// [`Self::with_hook_log`] points them somewhere the operator can see.
     pub fn new(slot: HubSlot, defaults: FleetDefaults) -> Self {
-        HubFleetOps { slot, defaults }
+        HubFleetOps {
+            slot,
+            defaults,
+            hook_log: crate::harness_hooks::HookEventLog::new(),
+        }
+    }
+
+    /// Send lifecycle reports to `log`, which the caller also reads.
+    ///
+    /// The log is shared, not moved: the app holds the same one and renders it
+    /// on the Hooks page.
+    pub fn with_hook_log(mut self, log: crate::harness_hooks::HookEventLog) -> Self {
+        self.hook_log = log;
+        self
     }
 
     /// The handle currently in the slot, if the hub has connected.
@@ -111,13 +128,20 @@ impl FleetOps for HubFleetOps {
                     // set when a *person* does — the orchestrator holding it is
                     // the unmarked common case.
                     let held = worker.control.is_operator();
+                    // The path only: this surface renders a directory, and the
+                    // workspace type has no reader here. Read through
+                    // `workspace_path` rather than off the field, so a blank or
+                    // space-padded declaration is *absent* here exactly as it is
+                    // in the advert — the alternative is one surface calling an
+                    // agent unplaced while another renders it working in "  ".
+                    let workspace = worker.workspace_path().map(str::to_owned);
                     FleetWorker {
                         id: worker.id,
                         address: worker.address,
                         harness: worker.harness,
                         label: worker.label,
                         roles: worker.roles,
-                        workspace: worker.workspace,
+                        workspace,
                         selected: worker.selected,
                         held,
                         held_reason: worker.control_reason,
@@ -214,5 +238,9 @@ impl FleetOps for HubFleetOps {
         } else {
             false
         }
+    }
+
+    fn record_hook_event(&self, report: crate::harness_hooks::HookReport) {
+        self.hook_log.record(report);
     }
 }

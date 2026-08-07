@@ -55,11 +55,8 @@ fn run(args: &[&str], cwd: &std::path::Path, home: &std::path::Path) -> Output {
         .args(args)
         .current_dir(cwd)
         .env("MEDULLA_HOME", home)
-        .env(
-            "TINYPLACE_CLAUDE_SESSIONS_DIR",
-            home.join("claude-sessions"),
-        )
-        .env("TINYPLACE_CODEX_SESSIONS_DIR", home.join("codex-sessions"))
+        .env("MEDULLA_CLAUDE_SESSIONS_DIR", home.join("claude-sessions"))
+        .env("MEDULLA_CODEX_SESSIONS_DIR", home.join("codex-sessions"))
         .env_remove("MEDULLA_TOKEN")
         .env_remove("OPENROUTER_API_KEY")
         .env_remove("MEDULLA_BACKEND_URL")
@@ -104,7 +101,11 @@ fn logout_sweeps_a_retired_credential_file() {
 
     let output = run(&["logout"], dir.path(), dir.path());
 
-    assert!(output.status.success());
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(!credentials.exists(), "the retired file is gone");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Logged out"), "{stdout}");

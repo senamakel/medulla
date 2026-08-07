@@ -10,7 +10,7 @@ use ratatui::Frame;
 
 use crate::ui::app::SPINNER;
 
-use super::types::{LoginScreen, Phase, MENU, MENU_ACTIONS_START};
+use super::types::{provider_label, LoginScreen, Phase, MENU, MENU_ACTIONS_START, PROVIDERS};
 
 impl LoginScreen {
     fn spinner(&self) -> &'static str {
@@ -74,6 +74,59 @@ impl LoginScreen {
                     Style::default().add_modifier(Modifier::DIM),
                 )));
             }
+            Phase::ProviderPick => {
+                lines.push(Line::from(Span::styled(
+                    self.method.provider_prompt(),
+                    Style::default().add_modifier(Modifier::DIM),
+                )));
+                for (i, provider) in PROVIDERS.iter().enumerate() {
+                    let selected = i == self.provider_index;
+                    let style = if selected {
+                        Style::default()
+                            .fg(Color::Black)
+                            .bg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+                    lines.push(Line::from(Span::styled(
+                        format!(
+                            "{} {:<32}",
+                            if selected { "▸" } else { " " },
+                            provider_label(*provider)
+                        ),
+                        style,
+                    )));
+                }
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    "↑↓ choose · Enter select · Esc back",
+                    Style::default().add_modifier(Modifier::DIM),
+                )));
+            }
+            // Numbered because the operator is doing this across two machines
+            // and has to know which step they are on after switching away to a
+            // browser and back.
+            Phase::CodeEntry => {
+                lines.push(Line::from("1. Open this URL on any device:"));
+                if let Some(url) = &self.url {
+                    lines.push(Line::from(Span::styled(
+                        format!("   {url}"),
+                        Style::default().fg(Color::Blue),
+                    )));
+                }
+                lines.push(Line::from("2. Sign in there, then copy the code it shows."));
+                lines.push(Line::from("3. Paste the code here:"));
+                let shown = token_display(&self.input, 46);
+                lines.push(Line::from(vec![
+                    Span::raw("> "),
+                    Span::styled(shown, Style::default().add_modifier(Modifier::DIM)),
+                ]));
+                lines.push(Line::from(Span::styled(
+                    "Enter  submit · Ctrl-O  open here · Esc  back",
+                    Style::default().add_modifier(Modifier::DIM),
+                )));
+            }
             Phase::Starting => {
                 lines.push(Line::from(format!("{} starting loopback…", self.spinner())));
             }
@@ -97,7 +150,7 @@ impl LoginScreen {
             }
             Phase::TokenEntry => {
                 lines.push(Line::from(Span::styled(
-                    "Paste API key, JWT, or login token · Enter submits",
+                    "Paste an API key or JWT · Enter submits",
                     Style::default().add_modifier(Modifier::DIM),
                 )));
                 let shown = token_display(&self.input, 46);

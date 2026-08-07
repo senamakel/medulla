@@ -3,7 +3,7 @@
 //!
 //! Adding a host is a one-string problem. The orchestrator opens the channel and
 //! the daemon auto-accepts the contact, so nothing has to travel *to* the
-//! worker — only the worker's tiny.place address has to travel *back*. The
+//! worker — only the worker's link address has to travel *back*. The
 //! awkward part is that the worker is usually a box you are on over SSH, where
 //! selecting a base58 string out of scrollback is exactly the fiddly,
 //! error-prone step that makes people give up.
@@ -26,7 +26,7 @@
 //! Both are pure functions over their inputs so the wording and the escape are
 //! testable without a terminal; `super::entry` does the writing.
 
-use crate::clipboard::osc52;
+use crate::clipboard::{tmux::operator_sequence, Tmux};
 
 /// The single line to paste into a shell on the machine being added.
 ///
@@ -51,7 +51,12 @@ use crate::clipboard::osc52;
 pub const REMOTE_JOIN_COMMAND: &str = "command -v medulla >/dev/null 2>&1 || \
      curl -fsSL https://raw.githubusercontent.com/tinyhumansai/medulla/main/install.sh | sh";
 
-/// The OSC 52 escape that hands `address` to the operator's terminal clipboard.
+/// The escape that hands `address` to the operator's terminal clipboard.
+///
+/// Inside tmux this is the OSC 52 *and* its passthrough-wrapped twin — see
+/// [`crate::clipboard::tmux`]. A worker is very often started in a tmux on the
+/// far side of the SSH hop, and that is precisely where a bare escape is parsed
+/// by the multiplexer and goes no further.
 ///
 /// Returns `None` when `stdout_is_terminal` is false. A daemon under systemd or
 /// in a pipeline has no terminal to talk to, and emitting the escape anyway
@@ -61,7 +66,7 @@ pub fn clipboard_handoff(address: &str, stdout_is_terminal: bool) -> Option<Stri
     if address.is_empty() || !stdout_is_terminal {
         return None;
     }
-    Some(osc52(address))
+    Some(operator_sequence(address, Tmux::from_env().as_ref()))
 }
 
 /// The framed pairing block printed once the daemon is onboarded.

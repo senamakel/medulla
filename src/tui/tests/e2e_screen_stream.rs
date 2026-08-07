@@ -27,7 +27,7 @@ use medulla::hub::ScreenStore;
 use medulla::protocol::{
     parse_screen_message, ApplyOutcome, HarnessProvider, ScreenMessage, TaskFrameKind,
 };
-use medulla_tui::worker::pty::{HarnessControl, LaunchSpec, PtyManager};
+use medulla_tui::worker::pty::{LaunchSpec, PtyManager, SessionControl};
 use medulla_tui::worker::stream::{send_fn, ScreenRouter};
 
 /// How long to allow for a child to paint and a frame to be sampled.
@@ -49,6 +49,7 @@ fn sh(script: &str, label: &str) -> LaunchSpec {
     env.insert("TERM".to_string(), "xterm-256color".to_string());
     LaunchSpec {
         provider: HarnessProvider::Codex,
+        preset: None,
         bin: "/bin/sh".to_string(),
         cwd: "/".to_string(),
         env,
@@ -57,8 +58,10 @@ fn sh(script: &str, label: &str) -> LaunchSpec {
         label: label.to_string(),
         session_id: None,
         model: None,
-        control: HarnessControl::Orchestrator,
-        user_spawned: false,
+        control: SessionControl::Orchestrator,
+        origin: medulla_tui::worker::pty::SessionOrigin::Orchestrator,
+        name: None,
+        mcp_grant_session: None,
     }
 }
 
@@ -71,6 +74,7 @@ fn sh(script: &str, label: &str) -> LaunchSpec {
 /// thing that lets a subscription resolve.
 fn runtime_serving(sessions: PtyManager, session_id: String) -> DaemonRuntime {
     let config = DaemonConfig {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
         providers: vec![HarnessProvider::Codex],
         default_provider: HarnessProvider::Codex,
         workspace: "/tmp".into(),
@@ -113,6 +117,7 @@ fn runtime_serving(sessions: PtyManager, session_id: String) -> DaemonRuntime {
 /// Dispatch a task frame into `runtime` as `from`, and wait until it is running.
 async fn start_task(runtime: &DaemonRuntime, from: &str, task_id: &str) {
     let body = medulla::protocol::encode_task_frame(medulla::protocol::EncodeFrameInput {
+        transport: None,
         kind: TaskFrameKind::Task,
         task_id: task_id.to_string(),
         text: "watch me".to_string(),

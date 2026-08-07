@@ -21,7 +21,7 @@ use crate::hub::{RunError, TaskOutcome, TaskRequest};
 use crate::protocol::{TaskFrame, TaskFrameKind, TokenUsage, WorkflowAdvert, WorkflowInputAdvert};
 // `trigger_input` is shared with the cloud plane's adapter
 // ([`crate::workflows::bridge`]) rather than defined twice: a frame's text must
-// become the same trigger payload whether it arrived over tiny.place or over the
+// become the same trigger payload whether it arrived over the host link or over the
 // backend socket, and two copies of that rule would eventually disagree.
 use crate::workflows::bridge::trigger_input;
 use crate::workflows::evolve::{EvolveConfig, EvolveSession, EvolveTrigger};
@@ -54,19 +54,126 @@ impl RuntimeDispatch {
             conversation,
         }
     }
+
+    /// The custom harness preset `request` names, resolved against this host.
+    ///
+    /// A workflow node reaches a harness through the same presets an ordinary
+    /// task frame does, so this mirrors `handle_task`'s lookup rather than
+    /// inventing a second rule: an explicitly named preset that this host has
+    /// not configured is an error, and a request that states no preference at
+    /// all inherits the operator's default preset when one is usable.
+    ///
+    /// Resolving it is what makes a preset more than a model string. The preset
+    /// carries the endpoint, the API key name, and the harness's own knobs, and
+    /// a dispatch that reads only [`TaskRequest::model`] sends a routed model
+    /// slug to the harness's *default* account — which fails at the provider,
+    /// far from the configuration that caused it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RunError::Worker`] when `request` names a preset this host has
+    /// no configuration for. Refused rather than silently downgraded to the
+    /// default harness: a node that asked for a specific model and credentials
+    /// must not quietly run on someone else's.
+    fn preset(
+        &self,
+        request: &TaskRequest,
+    ) -> Result<Option<crate::config::CustomHarnessConfig>, RunError> {
+        let config = &self.runtime.inner.config;
+        match request.custom_harness.as_deref() {
+            Some(id) => config
+                .custom_harnesses
+                .iter()
+                .find(|harness| harness.id == id)
+                .cloned()
+                .map(Some)
+                .ok_or_else(|| {
+                    RunError::Worker(format!(
+                        "custom harness \"{id}\" is not configured on this host"
+                    ))
+                }),
+            // Only when the node stated no preference of its own at all: a node
+            // that named a plain provider asked for that provider, not for
+            // whatever preset the operator happens to have marked default.
+            None if request.provider.is_none() => Ok(config
+                .custom_harnesses
+                .iter()
+                .find(|harness| harness.default && harness.key_present(&config.env))
+                .cloned()),
+            None => Ok(None),
+        }
+    }
+
+    /// The provider and transport `request` will actually run on.
+    ///
+    /// An address hint may fall back for portability, but a named preset may
+    /// not: its endpoint, credentials, and model only make sense with its
+    /// base harness. The two callers that need the resolved pair — the
+    /// dispatch itself and the run inspector's harness label — therefore share
+    /// this rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RunError::Worker`] when a named preset's base provider is not
+    /// offered by this daemon. Falling through to another provider would pair
+    /// the preset's routing configuration with the wrong harness.
+    fn resolve(
+        &self,
+        request: &TaskRequest,
+        preset: Option<&crate::config::CustomHarnessConfig>,
+    ) -> Result<
+        (
+            crate::protocol::HarnessProvider,
+            crate::protocol::HarnessTransport,
+        ),
+        RunError,
+    > {
+        let inner = &self.runtime.inner;
+        // A preset outranks the address hint: it is a complete description of
+        // one harness — binary, endpoint, credentials, model — and running it on
+        // any other provider would pair its model with an account that cannot
+        // serve it. A node may name a provider through its `agent_ref`;
+        // anything this worker does not offer falls back to the default rather
+        // than failing.
+        let provider = preset
+            .map(|harness| {
+                self.runtime
+                    .select_provider(Some(harness.base_harness))
+                    .ok_or_else(|| unavailable_provider_error(inner, Some(harness.base_harness)))
+            })
+            .transpose()?
+            .or_else(|| {
+                crate::protocol::HarnessProvider::from_wire(&request.worker_address)
+                    .filter(|p| inner.config.providers.contains(p))
+            })
+            .or_else(|| self.runtime.select_provider(request.provider))
+            .unwrap_or(inner.config.default_provider);
+        // Dropped when the provider fell back, because a transport the chosen
+        // provider cannot speak is not a transport at all.
+        let transport = request
+            .transport
+            .filter(|transport| transport.supported_by(provider))
+            .unwrap_or_default();
+        Ok((provider, transport))
+    }
 }
 
 #[async_trait]
 impl HarnessDispatch for RuntimeDispatch {
     async fn dispatch(&self, request: TaskRequest) -> Result<TaskOutcome, RunError> {
         let inner = &self.runtime.inner;
-        // A node may name a provider through its `agent_ref`; anything this
-        // worker does not offer falls back to the default rather than failing,
-        // because a graph should be portable across workers.
-        let provider = crate::protocol::HarnessProvider::from_wire(&request.worker_address)
-            .filter(|p| inner.config.providers.contains(p))
-            .or_else(|| self.runtime.select_provider(request.provider))
-            .unwrap_or(inner.config.default_provider);
+        let preset = self.preset(&request)?;
+        let (provider, transport) = self.resolve(&request, preset.as_ref())?;
+
+        // The preset's non-secret knobs ride down in the environment, which is
+        // what every spawn seam hands the child unchanged — see
+        // `crate::codex_overrides`, which reads them back there. Without this a
+        // `codexOverrides` preset reaches Codex as a bare `-m <slug>` and Codex
+        // asks its own default account for a model that account cannot serve.
+        let mut run_env = inner.config.env.clone();
+        if let Some(harness) = &preset {
+            run_env.extend(harness.harness_env());
+        }
 
         let options = RunTaskOptions {
             conversation: self.conversation.clone(),
@@ -78,20 +185,34 @@ impl HarnessDispatch for RuntimeDispatch {
             resume_session_id: None,
             workspace_context: Default::default(),
             provider,
+            transport,
             prompt: request.instruction,
             cwd: inner.config.workspace.clone(),
             env: super::with_tool_mode_at_depth(
-                inner.config.env.clone(),
+                run_env,
                 request.tool_mode.as_deref(),
                 request.fleet_depth,
             ),
             timeout_ms: inner.config.task_timeout_ms,
-            model: request.model.or_else(|| inner.config.model.clone()),
+            // The preset's own model sits between the node's hint and this
+            // daemon's pin: a node that selected a preset without naming a model
+            // asked for that preset's model, not for whatever this host runs
+            // when nobody states a preference.
+            model: request
+                .model
+                .or_else(|| preset.as_ref().map(|harness| harness.model.clone()))
+                .or_else(|| inner.config.model.clone()),
             agent: inner.config.agent.clone(),
             extra_args: inner.config.extra_args.clone(),
             skip_permissions: inner.config.skip_permissions,
-            router: inner.config.router.clone(),
+            // The preset's endpoint and API-key name. The key itself is
+            // resolved by name at the spawn seam, never inlined here.
+            router: preset
+                .as_ref()
+                .map(crate::config::CustomHarnessConfig::router)
+                .or_else(|| inner.config.router.clone()),
             attribution: inner.config.attribution,
+            hooks: inner.config.hooks.clone(),
             abort: Abort::new(),
             // The run observer already reports progress per node; forwarding a
             // harness's token-level chatter as well would double-report it.
@@ -118,8 +239,52 @@ impl HarnessDispatch for RuntimeDispatch {
                 output_tokens: 0,
             }),
             harness: Some(provider),
+            session_id: None,
         })
     }
+
+    /// The flavor this worker will really run the node on.
+    ///
+    /// `None` for a request naming a custom harness: this dispatch resolves
+    /// providers, not custom harnesses, so the requested name remains the
+    /// closest thing to the truth and overriding it would lose information.
+    fn effective_harness(&self, request: &TaskRequest) -> Option<String> {
+        if request.custom_harness.is_some() {
+            return None;
+        }
+        // A preset can still be resolved here — the operator's default one, for
+        // a request that named nothing. An unconfigured preset cannot reach this
+        // point (the branch above returned), so the error case is unreachable
+        // and reported as "no preset" rather than widening this signature.
+        let preset = self.preset(request).ok().flatten();
+        let (provider, transport) = self.resolve(request, preset.as_ref()).ok()?;
+        Some(provider.flavor_name(transport).to_string())
+    }
+}
+
+/// Match the task-frame handler's error when a requested provider is absent.
+fn unavailable_provider_error(
+    inner: &super::super::types::Inner,
+    requested_provider: Option<crate::protocol::HarnessProvider>,
+) -> RunError {
+    let offered = inner
+        .config
+        .providers
+        .iter()
+        .map(|provider| provider.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let offered = if offered.is_empty() {
+        "(none)".to_string()
+    } else {
+        offered
+    };
+    let requested = requested_provider
+        .map(|provider| format!(" for requested \"{}\"", provider.as_str()))
+        .unwrap_or_default();
+    RunError::Worker(format!(
+        "no available provider{requested}; daemon offers: {offered}"
+    ))
 }
 
 impl DaemonRuntime {
@@ -269,15 +434,27 @@ impl DaemonRuntime {
         // Kept past the move into the resolver: a failed run gets a review, and
         // the review reads the same store the run wrote to.
         let evolve_store = store.clone();
+        let max_loop_iterations = settings.max_loop_iterations;
         let context = RunContext {
+            // Runs inline, so claiming at the top of the run is early enough.
+            claim: None,
             store: store.clone(),
             settings,
             services: HostServices {
                 dispatch: Arc::new(RuntimeDispatch::new(self.clone(), from.clone())),
-                resolver: Arc::new(StoreWorkflowResolver::new(store)),
+                node_progress: None,
+                resolver: Arc::new(StoreWorkflowResolver::new(store, max_loop_iterations)),
                 http_credentials: Default::default(),
             },
             sink,
+            step_snapshot: None,
+            // A fleet dispatch: this run exists because a peer sent a task
+            // frame, and the address it came from is the only thing that can
+            // say which one.
+            origin: Some(
+                crate::workflows::RunOrigin::of_kind("dispatch")
+                    .labelled(format!("task {} from {from}", frame.task_id)),
+            ),
         };
 
         // The frame's task id becomes the run id, so the orchestrator's existing
@@ -305,7 +482,14 @@ impl DaemonRuntime {
         .await;
 
         let work = fold.lock().ok().map(|fold| fold.snapshot().clone());
-        let attachments = FrameAttachments { usage: None, work };
+        // No session id: a workflow run is a graph, not one harness session —
+        // each `agent` node opens its own. There is no single session that
+        // served this task, so none is claimed.
+        let attachments = FrameAttachments {
+            usage: None,
+            work,
+            ..Default::default()
+        };
 
         match outcome {
             Ok(record) => {

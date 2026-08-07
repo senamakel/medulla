@@ -23,30 +23,97 @@ use std::path::Path;
 use medulla::ui::git_review::CommentAnchor;
 pub(crate) use types::GitChangesState;
 
-use super::types::{App, PromptKind};
+use super::types::{App, Cmd, PaneView, PromptKind, TABS};
 use crate::ui::composer::{Draft, TextPrompt};
 use baseline::select_harness_baseline;
 
 impl App {
+    /// Open the Changes tab for the harness currently shown in the Agents pane.
+    ///
+    /// The draw path records the exact session resolved from the selected rail
+    /// row. Keeping that id before changing tabs lets the forced refresh pick
+    /// the matching launch snapshot instead of falling back to another, newer
+    /// harness in a different checkout. Unlike ordinary tab entry, this also
+    /// replaces an operator-selected commit or manual baseline: `d` means the
+    /// immutable launch diff for the harness under the cursor.
+    pub(super) fn open_selected_harness_changes(&mut self) -> Option<Cmd> {
+        let session = self.pane_session.clone()?;
+        self.rail_session = Some(session);
+        self.tab_index = TABS
+            .iter()
+            .position(|tab| *tab == "Changes")
+            .expect("Changes is a top-level tab");
+        self.selected = 0;
+        self.refresh_changes_from_selected_harness();
+        None
+    }
+
+    /// Swap the harness pane between its terminal and its diff.
+    ///
+    /// The diff is drawn *in the pane* rather than on the Changes tab, because
+    /// the operator asked a question about the row they are sitting on: sending
+    /// them to another tab makes the rail cursor, the pane title and the tab bar
+    /// all move at once to answer "what has this one changed". Same state and
+    /// same bindings as the tab — only the real estate differs — so `d` again
+    /// puts the terminal back.
+    ///
+    /// Each opening re-points Git at this session's launch snapshot, for the
+    /// reason [`open_selected_harness_changes`](Self::open_selected_harness_changes)
+    /// does: the collected diff is shared with the Changes tab, so it may be
+    /// describing a different harness entirely.
+    pub(super) fn toggle_harness_diff_pane(&mut self) {
+        if self.pane_view == PaneView::Diff {
+            self.pane_view = PaneView::Harness;
+            self.set_status("Back to the harness");
+            return;
+        }
+        let Some(session) = self.pane_session.clone() else {
+            self.set_status("No session on this row — select one to see its diff");
+            return;
+        };
+        self.rail_session = Some(session.clone());
+        self.pane_view = PaneView::Diff;
+        self.pane_view_session = Some(session);
+        self.refresh_changes_from_selected_harness();
+    }
+
     /// Reload commits, changed paths, and the selected patch from Git.
     pub(super) fn refresh_changes(&mut self) {
+        self.refresh_changes_with_harness(false);
+    }
+
+    /// Reload Changes and activate the selected harness's launch snapshot.
+    fn refresh_changes_from_selected_harness(&mut self) {
+        self.refresh_changes_with_harness(true);
+    }
+
+    /// Reload Changes, optionally overriding an operator-selected baseline.
+    fn refresh_changes_with_harness(&mut self, activate_harness: bool) {
         let preferred_id = self
-            .attached_harness()
+            .attached_session()
             .map(str::to_owned)
-            .or_else(|| self.selected_harness_session.clone());
-        let selected = self.harnesses.as_ref().map(|harnesses| {
+            .or_else(|| self.rail_session.clone());
+        let selected = self.local_sessions.as_ref().map(|harnesses| {
             select_harness_baseline(harnesses.sessions.rows(), preferred_id.as_deref())
         });
         match selected {
             Some(Ok(Some((row, commit)))) => {
                 let root = row.launch_root.as_deref().unwrap_or(&row.cwd);
-                self.changes.follow_harness(
+                self.changes.follow_session(
                     Path::new(root),
                     &commit,
                     row.launch_checkout_identity
                         .as_deref()
                         .expect("validated harness identity"),
                 );
+                if activate_harness {
+                    if let Err(error) = self.changes.choose_session_baseline() {
+                        self.set_status(error);
+                    } else {
+                        self.set_status(self.changes.status_message());
+                    }
+                    return;
+                }
             }
             Some(Err(error)) => {
                 self.changes.clear_repository(error);

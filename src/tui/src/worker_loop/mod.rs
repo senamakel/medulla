@@ -1,6 +1,6 @@
 //! The worker TUI's entry point and event loop — `medulla daemon --tui`.
 //!
-//! One process: the tiny.place identity and contact poll, the harness PTYs, and
+//! One process: the host-link identity, the harness PTYs, and
 //! the UI all live here. That is why closing the TUI stops the daemon — there is
 //! no daemon behind it to keep running.
 //!
@@ -19,7 +19,6 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use medulla::bridge::{Bridge as _, LinkBridge};
-use medulla::contacts::ContactDesk;
 use medulla::daemon::{DaemonConfig, DaemonRuntime};
 use medulla::protocol::{decode_task_frame, HarnessProvider};
 
@@ -54,7 +53,6 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
         masters,
         config_path,
         credential_dir,
-        contacts,
         agent_id,
         startup_status,
         transport,
@@ -65,6 +63,7 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
         router,
         budget,
         attribution,
+        hooks,
     } = config;
     let providers = medulla::daemon::providers::detect_providers(&env, None, None);
     let sessions = PtyManager::new();
@@ -74,22 +73,23 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
     // afterwards.
     let log_path = logs.attach_file(&medulla_tui::log::default_log_dir(&env), "worker");
 
-    // State the wallet and the relay together, first thing. Two peers pointed at
-    // different relays both start cleanly, publish keys and report healthy — the
-    // only symptom is that neither ever hears from the other. Side by side with
-    // the orchestrator's own line, a mismatch is immediate.
+    // State the identity and the forwarder together, first thing. Two peers
+    // pointed at different forwarders both start cleanly and report healthy —
+    // the only symptom is that neither ever hears from the other. Side by side
+    // with the orchestrator's own line, a mismatch is immediate.
     match &endpoint {
         Some(endpoint) => logs.push(format!(
             "host link: {} on {endpoint}",
             agent_id.as_deref().unwrap_or("(no identity)")
         )),
         // Unconditional, because the silent case is the one that needs saying.
-        // A worker with no relay serves nobody, and if this line is skipped the
-        // log's last entry is from whenever the machine last had an identity —
-        // so a worker that has been up for hours doing nothing is
+        // A worker with no forwarder serves nobody, and if this line is skipped
+        // the log's last entry is from whenever the machine last had an identity
+        // — so a worker that has been up for hours doing nothing is
         // indistinguishable from one that was never started at all.
         None => logs.push(
-            "tiny.place: no relay configured — this worker serves local sessions only".to_string(),
+            "host link: no forwarder configured — this worker serves local sessions only"
+                .to_string(),
         ),
     }
 
@@ -104,18 +104,6 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
             .to_string(),
     );
 
-    // The contact queue narrates into the same log as everything else, so
-    // "nobody asked" and "the worker never saw it" stop looking alike.
-    // No `spawn_poll` here: `TinyplaceService::start` already polls this same
-    // desk, and a second loop would double the relay traffic and interleave the
-    // snapshots — which shows up as duplicate "new request(s)" narration. The
-    // sink is shared across handles, so attaching it here reaches the poll the
-    // service owns.
-    let contacts = contacts.map(|desk| {
-        let logs = logs.clone();
-        desk.with_log(Arc::new(move |line: &str| logs.push(line)))
-    });
-
     // The inbox is not drained until the operator has answered the launch step.
     // A worker should not accept peer work before it has been told how to run
     // it — and the mode decides which executor the runtime is even built with.
@@ -129,7 +117,6 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
     };
     let mut app = WorkerApp::new(WorkerWiring {
         sessions: sessions.clone(),
-        contacts,
         agent_id,
         providers: providers.clone(),
         startup_status,
@@ -161,6 +148,7 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
         router,
         budget,
         attribution,
+        hooks,
     };
     let result = drive(&mut terminal, &mut app, &start, &mut inbox, &mut runtime).await;
 
@@ -193,6 +181,7 @@ pub(super) fn worker_runtime(
         router,
         budget,
         attribution,
+        hooks,
         ..
     } = start;
     let config = DaemonConfig {
@@ -223,6 +212,7 @@ pub(super) fn worker_runtime(
         // headless daemon uses, so `--tui` and headless route identically.
         router: router.clone(),
         attribution: *attribution,
+        hooks: hooks.clone(),
         // The standalone worker TUI does not yet expose a config editor; named
         // presets are loaded by the orchestrator's embedded host.
         custom_harnesses: Vec::new(),
@@ -239,6 +229,7 @@ pub(super) fn worker_runtime(
         }) as medulla::daemon::providers::RunTaskFn,
         ExecutionMode::Interactive => {
             PtySessionExecutor::new(sessions.clone(), env.clone(), workspace.to_string())
+                .with_log(logs.sink())
                 .into_run_task()
         }
     };

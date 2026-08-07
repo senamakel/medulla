@@ -84,6 +84,14 @@ impl SessionHandle {
         lock(&self.cold).session_id.clone()
     }
 
+    /// The key this session's MCP grant was minted under, when one was.
+    ///
+    /// Immutable, so it is readable without touching either lock — which is
+    /// what lets the manager reach the control plane after releasing its own.
+    pub(in super::super) fn grant_session(&self) -> Option<&str> {
+        self.meta.mcp_grant_session.as_deref()
+    }
+
     /// Whether this session's child environment selects a GitHub repository.
     pub(in super::super) fn gh_repo_is_set(&self) -> bool {
         self.meta.gh_repo_is_set
@@ -98,6 +106,17 @@ impl SessionHandle {
         if cold.session_id.is_none() {
             cold.session_id = Some(harness_session_id);
         }
+    }
+
+    /// Give this session the display name a person chose for it.
+    ///
+    /// Naming is not ownership and not provenance: renaming a session neither
+    /// takes it (that is [`set_control`](Self::set_control)) nor changes who
+    /// started it (that is fixed at birth). A blank name clears it back to
+    /// unnamed rather than storing an empty label the rail would render as a
+    /// gap.
+    pub(in super::super) fn set_name(&self, name: Option<String>) {
+        lock(&self.cold).name = name.filter(|name| !name.trim().is_empty());
     }
 
     /// Record why a queued write never reached the child.
@@ -118,6 +137,7 @@ impl SessionHandle {
             id: self.meta.id.clone(),
             label: cold.label.clone(),
             provider: self.meta.provider,
+            preset: self.meta.preset.clone(),
             state: self.state(),
             cwd: self.meta.cwd.clone(),
             branch: self.meta.branch.clone(),
@@ -131,8 +151,11 @@ impl SessionHandle {
             last_error: cold.last_error.clone(),
             busy: self.is_busy(),
             control: self.control(),
-            user_spawned: self.meta.user_spawned,
+            origin: self.meta.origin,
+            retained: self.is_retained(),
+            name: cold.name.clone(),
             attention: lock(&self.attention).cue.clone(),
+            mcp_grant_session: self.meta.mcp_grant_session.clone(),
         }
     }
 }

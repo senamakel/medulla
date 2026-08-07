@@ -40,6 +40,8 @@ jobs:
           key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}
           cache-on-failure: true
 
+      - uses: ./.github/actions/sccache
+
       # The e2e suite exercises the real opencode CLI when it is on PATH.
       # Install the pinned release artifact rather than the development
       # monorepo: old frozen lockfiles can reference ephemeral pkg.pr.new
@@ -71,6 +73,12 @@ jobs:
       - name: Build
         run: cargo build --locked --all-targets
 
+      # Surfaces a regression that is otherwise invisible: if the hit rate goes
+      # to zero the lane still passes, just slowly.
+      - name: Compiler cache stats
+        if: always()
+        run: sccache --show-stats
+
   coverage:
     name: Coverage (>= 80% lines)
     runs-on: ubuntu-latest
@@ -97,6 +105,8 @@ jobs:
           # so without this a submodule bump reuses a stale cache.
           key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}
           cache-on-failure: true
+
+      - uses: ./.github/actions/sccache
 
       - uses: taiki-e/install-action@v2
         with:
@@ -130,6 +140,12 @@ jobs:
           --fail-under-lines 80
           --summary-only
 
+      # Surfaces a regression that is otherwise invisible: if the hit rate goes
+      # to zero the lane still passes, just slowly.
+      - name: Compiler cache stats
+        if: always()
+        run: sccache --show-stats
+
   embedded-core:
     name: Vendored core resolution
     runs-on: ubuntu-latest
@@ -151,6 +167,8 @@ jobs:
           workspaces: .
           key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}-embedded
           cache-on-failure: true
+
+      - uses: ./.github/actions/sccache
 
       - uses: ./.github/actions/native-deps
 
@@ -177,6 +195,12 @@ jobs:
             exit 1
           fi
           echo "OK: one copy of each vendored crate, resolved from vendor/openhuman."
+
+      # Surfaces a regression that is otherwise invisible: if the hit rate goes
+      # to zero the lane still passes, just slowly.
+      - name: Compiler cache stats
+        if: always()
+        run: sccache --show-stats
 
   e2e-docker:
     name: E2E (docker + tmux + opencode)
@@ -241,6 +265,8 @@ jobs:
           key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}
           cache-on-failure: true
 
+      - uses: ./.github/actions/sccache
+
       # No bun/opencode leg here: the core-socket runtime and the `/bin/sh`
       # e2e suites are unix-only (gated `#[cfg(unix)]`), so Windows just needs
       # the crate to compile and its cross-platform lib tests to pass.
@@ -250,3 +276,9 @@ jobs:
       - name: Test (lib)
         timeout-minutes: 20
         run: cargo test --locked --lib
+
+      # Surfaces a regression that is otherwise invisible: if the hit rate goes
+      # to zero the lane still passes, just slowly.
+      - name: Compiler cache stats
+        if: always()
+        run: sccache --show-stats

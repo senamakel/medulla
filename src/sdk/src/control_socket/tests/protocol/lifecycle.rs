@@ -146,3 +146,42 @@ async fn aborting_an_unknown_task_is_refused_rather_than_guessed_at() {
         .await;
     assert_eq!(kind(&response), "noSuchTask");
 }
+
+#[tokio::test]
+async fn a_reported_run_is_recorded_under_the_grants_own_session() {
+    let mut harness = Harness::new();
+    let response = harness
+        .call(
+            "run.report",
+            json!({
+                "runId": "run-1",
+                "workflowId": "review",
+                "status": "running",
+                "detail": "reading src/",
+                "node": "review",
+            }),
+        )
+        .await;
+    assert_eq!(response["ok"], json!(true), "{response}");
+
+    // Under the grant's session, not under anything the caller claimed: the
+    // session is what the rail draws the row beneath.
+    let runs = harness.runs.for_session("session-1");
+    assert_eq!(runs.len(), 1, "{runs:?}");
+    assert_eq!(runs[0].workflow_id, "review");
+    assert_eq!(runs[0].detail.as_deref(), Some("reading src/"));
+    assert_eq!(runs[0].frames[0].node.as_deref(), Some("review"));
+}
+
+#[tokio::test]
+async fn a_run_report_missing_its_identity_is_refused_rather_than_recorded() {
+    let mut harness = Harness::new();
+    let response = harness
+        .call("run.report", json!({ "status": "running" }))
+        .await;
+    assert_eq!(kind(&response), "badRequest");
+    // The second half of the name: refusing it must also mean nothing landed
+    // in the registry, or the rail would grow a row for a report the handler
+    // said no to.
+    assert!(harness.runs.for_session("session-1").is_empty());
+}

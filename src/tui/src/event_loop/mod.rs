@@ -46,16 +46,20 @@ pub(crate) async fn run(
         local_hosts,
         startup_status,
         config_path,
+        hooks_config_path,
         medulla_home,
         account,
         mut sharing,
         onboarding_path,
         link_obs,
         host,
-        harnesses,
+        local_sessions,
+        harness_runs,
+        hook_log,
     } = wiring;
     let mut app = App::new(runtime.clone(), loaded);
     app.set_config_path(config_path);
+    app.set_hooks_config_path(hooks_config_path);
     app.set_medulla_home(medulla_home);
     app.set_account(account);
     if let Some(obs) = link_obs {
@@ -64,9 +68,11 @@ pub(crate) async fn run(
     if let Some(host) = host {
         app.set_host_observation(host);
     }
-    if let Some(harnesses) = harnesses {
-        app.set_local_harnesses(harnesses);
+    if let Some(sessions) = local_sessions {
+        app.set_local_sessions(sessions);
     }
+    app.set_harness_runs(harness_runs);
+    app.set_hook_log(hook_log);
     if let Some(status) = startup_status {
         app.set_status(status);
     }
@@ -99,7 +105,7 @@ pub(crate) async fn run(
                         run_cmd(
                             cmd,
                             &runtime,
-                            &app.loaded.config.workflows,
+                            &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
                         );
@@ -112,7 +118,7 @@ pub(crate) async fn run(
                         run_cmd(
                             cmd,
                             &runtime,
-                            &app.loaded.config.workflows,
+                            &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
                         );
@@ -126,7 +132,7 @@ pub(crate) async fn run(
                         run_cmd(
                             Cmd::InspectContext,
                             &runtime,
-                            &app.loaded.config.workflows,
+                            &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
                         );
@@ -153,6 +159,25 @@ pub(crate) async fn run(
                         app.copilot_started(&workflow, &instruction);
                     }
                     #[cfg(feature = "workflows")]
+                    AppMsg::WorkflowRunStarted { workflow, run_id } => {
+                        app.workflow_run_started(&workflow, &run_id);
+                    }
+                    #[cfg(feature = "workflows")]
+                    AppMsg::WorkflowRunOutput {
+                        run_id,
+                        node,
+                        line,
+                        // Dropped here, which is what frees the sink's backlog
+                        // slot; see `PendingFrame`.
+                        pending: _pending,
+                    } => {
+                        app.workflow_run_output(&run_id, &node, line);
+                    }
+                    #[cfg(feature = "workflows")]
+                    AppMsg::WorkflowRunFinished { run_id } => {
+                        app.workflow_run_finished(&run_id);
+                    }
+                    #[cfg(feature = "workflows")]
                     AppMsg::CopilotStatus { workflow, line } => {
                         app.copilot_status(&workflow, line);
                     }
@@ -176,6 +201,10 @@ pub(crate) async fn run(
                         // daemon and its harness processes alive for it.
                         if removed {
                             cmd_dispatch::close_copilot_host(&workflow);
+                            // And the saved conversation with it: kept, it
+                            // would be handed wholesale to the next workflow
+                            // that reused the id.
+                            app.forget_copilot(&workflow);
                         }
                         // A queued follow-up comes back as a command to run:
                         // the drain happens after the catalogue refresh, so it
@@ -185,7 +214,7 @@ pub(crate) async fn run(
                             run_cmd(
                                 cmd,
                                 &runtime,
-                                &app.loaded.config.workflows,
+                                &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
                             );
@@ -210,7 +239,7 @@ pub(crate) async fn run(
                             run_cmd(
                                 cmd,
                                 &runtime,
-                                &app.loaded.config.workflows,
+                                &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
                             );
@@ -234,7 +263,7 @@ pub(crate) async fn run(
                         run_cmd(
                             Cmd::LoadFeedback(app.feedback_query()),
                             &runtime,
-                            &app.loaded.config.workflows,
+                            &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
                         );
@@ -264,9 +293,16 @@ pub(crate) async fn run(
                 }
             }
             _ = tick.tick() => {
-                if app.snapshot.running {
-                    app.frame = app.frame.wrapping_add(1);
-                }
+                // Advanced every tick rather than only while a cycle is
+                // running: it is the whole UI's animation clock now, and the
+                // workflow canvas's wires flow whether or not this process
+                // happens to be mid-cycle. The spinner it also drives is only
+                // drawn while running, so it is unaffected.
+                app.frame = app.frame.wrapping_add(1);
+                // And the rail's own clock: a harness that exited since the
+                // last tick stops being listed, and the record it was holding
+                // is dropped with it.
+                app.sweep_finished_sessions();
             }
         }
     }

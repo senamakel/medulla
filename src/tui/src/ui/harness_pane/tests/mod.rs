@@ -2,7 +2,9 @@
 //! repo's 500-line ceiling: this module covers key encoding, mouse-wheel
 //! encoding, and focus; [`buttons`] covers click/drag/release encoding and the
 //! per-mode gate on it; [`session`] drives a real child on a real
-//! pseudo-terminal to cover the session-facing half of [`super::LocalHarnesses`].
+//! pseudo-terminal to cover the session-facing half of [`super::LocalSessions`];
+//! [`spawn`] covers what a session is opened *with* — provider choice,
+//! attribution, and the argv a real spawn produces.
 //!
 //! The encoder is where a mistake is invisible until an operator is sitting in
 //! front of a harness that ignores their arrow keys, so every family it emits is
@@ -17,6 +19,16 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 // half of its tests is not.
 #[cfg(unix)]
 mod session;
+
+// Same constraint as [`session`]: it opens real sessions to check what each
+// creation door stamps on them.
+#[cfg(unix)]
+mod origin;
+
+// Same constraint as [`session`]: it spawns real children (or stand-ins) to
+// check what a real spawn produces, not just the argv builder in isolation.
+#[cfg(unix)]
+mod spawn;
 
 mod buttons;
 

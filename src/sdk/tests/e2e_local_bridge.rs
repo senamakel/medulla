@@ -1,4 +1,4 @@
-//! End-to-end task dispatch over the device-local bridge with no tiny.place
+//! End-to-end task dispatch over the device-local bridge with no remote forwarder
 //! client, identity, contact graph, or network server.
 
 use std::sync::Arc;
@@ -29,6 +29,7 @@ async fn task_runner_round_trips_entirely_over_the_local_bridge() {
                         .send(
                             &message.from,
                             &encode_task_frame(EncodeFrameInput {
+                                transport: None,
                                 kind,
                                 task_id: frame.task_id.clone(),
                                 text: text.to_string(),
@@ -59,6 +60,7 @@ async fn task_runner_round_trips_entirely_over_the_local_bridge() {
     let outcome = runner
         .run(
             TaskRequest {
+                transport: None,
                 task_id: "local-task".to_string(),
                 abort_id: "local-task".to_string(),
                 cycle_id: Some("local-cycle".to_string()),

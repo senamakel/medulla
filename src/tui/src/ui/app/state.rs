@@ -60,18 +60,21 @@ impl App {
             history: Vec::new(),
             history_index: -1,
             selected: 0,
+            frame: 0,
+            graph: Default::default(),
             status: "Ready".into(),
             update_notice: None,
             contexts: Vec::new(),
             context_index: 0,
             agent_index: 0,
+            agent_anchor: None,
+            subtask_pages: std::collections::HashMap::new(),
             watching: None,
             kill_armed: None,
             agents_focus: super::types::AgentsFocus::default(),
             agent_scroll: 0,
             chat_scroll: 0,
             command_index: 0,
-            add_host_provider_cache: std::cell::OnceCell::new(),
             host_index: 0,
             host_roles_focus: false,
             host_role_index: 0,
@@ -79,6 +82,8 @@ impl App {
             template_index: 0,
             custom_harnesses: Vec::new(),
             custom_harness_index: 0,
+            hook_index: 0,
+            hook_log: medulla::harness_hooks::HookEventLog::new(),
             template_scroll: 0,
             template_modal: false,
             #[cfg(feature = "workflows")]
@@ -97,9 +102,6 @@ impl App {
             wf: Default::default(),
             #[cfg(feature = "workflows")]
             workflow_store_override: None,
-            add_host_kind: 0,
-            add_host_harness: 0,
-            add_host_kind_chosen: false,
             routing_index: 0,
             routing_focused: false,
             routing_strategy_index,
@@ -113,7 +115,6 @@ impl App {
             decision_index: 0,
             dismissed_decisions: Default::default(),
             prompt: None,
-            frame: 0,
             mouse_capture: true,
             account_usage: None,
             settings_index: 0,
@@ -130,14 +131,16 @@ impl App {
             medulla_home: None,
             theme,
             config_path: None,
+            hooks_config_path: None,
             resume_picker: None,
             should_quit: false,
             area: Rect::new(0, 0, 80, 24),
             hit_tabs: Vec::new(),
             hit_tabs_row: 0,
             hit_agents: None,
-            hit_harness: None,
+            hit_session: None,
             hit_threads: None,
+            hit_started_sessions: None,
             hit_context: None,
             hit_workflow_preview: None,
             hit_nav: Default::default(),
@@ -148,15 +151,26 @@ impl App {
             last_events_len: 0,
             link_obs: None,
             host_obs: None,
-            harnesses: None,
+            local_sessions: None,
+            harness_runs: Default::default(),
+            #[cfg(feature = "workflows")]
+            live_runs: Default::default(),
             harness_focus: crate::ui::harness_pane::HarnessFocus::default(),
-            harness_pane_session: None,
-            selected_harness_session: None,
-            harness_picker: None,
+            pane_session: None,
+            pane_view: Default::default(),
+            pane_view_session: None,
+            harness_close_armed: None,
+            pane_remote_session: None,
+            rail_session: None,
+            agent_picker: None,
             handback_prompt: None,
+            pointer_grab: None,
+            hit_handback: Vec::new(),
+            hit_agent_picker: None,
             help_scroll: 0,
             handback_policy,
-            harness_took_control: false,
+            sessions_taken: std::collections::HashMap::new(),
+            orchestrator_claimed: std::collections::HashSet::new(),
             pending_cmds: std::collections::VecDeque::new(),
             harness_skip_permissions,
             copy_capture: None,
@@ -170,9 +184,27 @@ impl App {
 
     /// Point appearance persistence at the user-global `config.toml`; injectable
     /// so feature tests avoid the real home.
+    ///
+    /// Also defaults [`Self::hooks_config_path`] to the same file: most tests
+    /// and the common case (no project-local config in effect) have exactly one
+    /// writable path, and [`Self::set_hooks_config_path`] is there for the
+    /// caller that knows the two must differ.
     pub fn set_config_path(&mut self, path: std::path::PathBuf) {
-        self.config_path = Some(path);
+        self.config_path = Some(path.clone());
+        self.hooks_config_path = Some(path);
         self.reload_custom_harnesses();
+    }
+
+    /// Point hook persistence at a file distinct from [`Self::config_path`].
+    ///
+    /// Call after [`Self::set_config_path`], which otherwise defaults this to
+    /// the same file — needed whenever `config_path` resolved to a
+    /// project-local layer, since `medulla::config::load_config` strips
+    /// `[[hooks]]` from every layer but an explicit `--config` file and the
+    /// user-global config. See [`super::types::App::hooks_config_path`]'s own
+    /// docs for why the distinction exists at all.
+    pub fn set_hooks_config_path(&mut self, path: std::path::PathBuf) {
+        self.hooks_config_path = Some(path);
     }
 
     /// Record who the core is signed in as, for the Account subpage.
@@ -238,7 +270,7 @@ impl App {
 
     /// Where the Agents rail cursor is. Test/inspection seam.
     pub fn agent_index(&self) -> usize {
-        self.agent_index
+        self.rail_cursor()
     }
 
     /// The current composer draft text. Test/inspection seam.
@@ -330,31 +362,79 @@ impl App {
         self.host_obs.as_ref()
     }
 
-    /// Attach the live harness sessions this device is running.
+    /// Attach the live sessions this device is running.
     ///
     /// Only called when this machine hosts: without a host nothing runs here, so
     /// there is no screen to render and no PTY to type into.
-    pub fn set_local_harnesses(&mut self, harnesses: crate::ui::harness_pane::LocalHarnesses) {
-        self.harnesses = Some(harnesses);
+    pub fn set_local_sessions(&mut self, sessions: crate::ui::harness_pane::LocalSessions) {
+        self.local_sessions = Some(sessions);
     }
 
-    /// The live harness sessions this device is running, if it hosts.
-    pub fn local_harnesses(&self) -> Option<&crate::ui::harness_pane::LocalHarnesses> {
-        self.harnesses.as_ref()
+    /// Read lifecycle reports out of the log the control socket writes into.
+    ///
+    /// Shared, not copied: the point is to render what is arriving now.
+    pub fn set_hook_log(&mut self, log: medulla::harness_hooks::HookEventLog) {
+        self.hook_log = log;
     }
 
-    /// The harness session the last draw resolved for the rail cursor.
+    /// The live sessions this device is running, if it hosts.
+    pub fn local_sessions(&self) -> Option<&crate::ui::harness_pane::LocalSessions> {
+        self.local_sessions.as_ref()
+    }
+
+    /// Read workflow runs reported by spawned harnesses from `registry`.
+    ///
+    /// Shared with the control plane rather than copied: a run reported between
+    /// two frames must be on screen at the next one, and a snapshot taken at
+    /// startup would be permanently empty.
+    pub fn set_harness_runs(&mut self, registry: medulla::control_socket::HarnessRunRegistry) {
+        self.harness_runs = registry;
+        #[cfg(feature = "workflows")]
+        self.sync_selected_workflow_run();
+    }
+
+    /// The session the last draw resolved for the rail cursor.
     ///
     /// Inspection seam: it is set during render, so a test that wants to act on
-    /// "the selected harness" has to be able to see when the cursor has reached
+    /// "the selected session" has to be able to see when the cursor has reached
     /// one rather than counting rows it does not control.
-    pub fn harness_pane_session_for_test(&self) -> Option<&str> {
-        self.harness_pane_session.as_deref()
+    pub fn pane_session_for_test(&self) -> Option<&str> {
+        self.pane_session.as_deref()
     }
 
-    /// The harness session currently receiving the operator's keystrokes.
-    pub fn attached_harness(&self) -> Option<&str> {
+    /// Stand a remote session under the rail cursor, as a draw against a linked
+    /// host would.
+    ///
+    /// Injection seam: reaching this state honestly needs a second machine, and
+    /// what reads it is a *refusal* — so a test that cannot set it cannot tell
+    /// the refusal apart from the silent wrong handover it exists to prevent.
+    pub fn set_pane_remote_session_for_test(&mut self, agent: Option<String>) {
+        self.pane_remote_session = agent;
+    }
+
+    /// Whether the "start a session" picker is on screen.
+    ///
+    /// Inspection seam for the pointer rules: several of them are about a click
+    /// the picker must *absorb* — one off a row, one outside its box — and
+    /// "nothing happened" is only distinguishable from "the modal closed" by
+    /// being able to ask.
+    pub fn agent_picker_open_for_test(&self) -> bool {
+        self.agent_picker.is_some()
+    }
+
+    /// The session currently receiving the operator's keystrokes.
+    pub fn attached_session(&self) -> Option<&str> {
         self.harness_focus.attached_to()
+    }
+
+    /// Where the last draw put the embedded harness pane, and whose it is.
+    ///
+    /// Inspection seam for pointer tests: every mouse rule in
+    /// [`on_mouse`](Self::on_mouse) is stated in terms of this rect, so a test
+    /// that wants to click "inside the pane" or "just outside it" has to be
+    /// able to read it rather than hardcode a layout it does not control.
+    pub fn harness_pane_rect_for_test(&self) -> Option<(Rect, String)> {
+        self.hit_session.clone()
     }
 
     /// Re-read the runtime snapshot and merge in the host-link observation.
@@ -386,14 +466,26 @@ impl App {
         // A destructive confirmation is valid only while its question remains
         // visible. Any asynchronous status replacement cancels it.
         self.kill_armed = None;
+        // The harness close question is the same kind of promise: it is only
+        // answerable while the sentence asking it is the one on screen.
+        self.harness_close_armed = None;
         self.status = s.into();
     }
 
-    /// Show and arm the harness-kill confirmation as one invariant-preserving
+    /// Show and arm the session-kill confirmation as one invariant-preserving
     /// state transition.
     pub(super) fn arm_kill(&mut self, target: (String, String)) {
-        self.set_status("Kill this harness? y confirm · any other key cancels");
+        self.set_status("Kill this session? y confirm · any other key cancels");
         self.kill_armed = Some(target);
+    }
+
+    /// Show and arm the "close this harness" confirmation for `session`.
+    ///
+    /// Set after the status line, never before: [`set_status`](Self::set_status)
+    /// disarms, so arming first would leave the question visible and unanswerable.
+    pub(super) fn arm_harness_close(&mut self, session: String) {
+        self.set_status("Close this harness? y confirm · any other key cancels");
+        self.harness_close_armed = Some(session);
     }
 
     /// Replace the Context-tab chunks.
@@ -463,7 +555,7 @@ impl App {
     /// Derive the current agent lanes from the snapshot, harness, and roster.
     ///
     /// The roster is the snapshot's (what the backend advertises, plus any
-    /// tiny.place peers the observation overlays) merged with the runtime's own
+    /// host-link peers the observation overlays) merged with the runtime's own
     /// worker registry. Both are needed: a worker added at runtime lives only in
     /// the registry — which is what resolves a delegated task's address — so
     /// reading the snapshot alone left a live, dispatchable worker off this tab.
@@ -547,23 +639,28 @@ impl App {
     /// shows an agent's own turns and answers its questions.
     ///
     /// Reads the *rail's* rows, not the lane list's: `agent_index` walks the
-    /// rail, which carries the `+ New harness` action and the operator's own
+    /// rail, which carries the `+ New session` action and the operator's own
     /// harness rows as well as the lanes. Indexing the shorter list with it
     /// reported a lane for rows that name none, and the composer's visibility
-    /// hangs off this answer — so a harness row claimed a text box that was
+    /// hangs off this answer — so a session row claimed a text box that was
     /// never drawn, and every keystroke went into it.
     pub fn on_orchestrator_lane(&self) -> bool {
         let lanes = self.lanes();
-        let rows = self.rail_rows();
-        match rows.get(self.agent_index.min(rows.len().saturating_sub(1))) {
-            Some(super::rail::RailRow::Agent(row)) => row
-                .lane_index()
-                .and_then(|index| lanes.get(index))
+        let rows = self.rail_rows_in(&lanes);
+        match rows.get(self.rail_cursor_in(&rows, &lanes)) {
+            // Only a lane's *own* row is a conversation. `AgentRow` also wraps
+            // the `+N more` overflow control, which carries the lane index of
+            // the lane it pages — matching it here would have read that index
+            // out of a row that is a button, and an overflow row on a rail with
+            // no folded lanes yet would fall through to the `true` below and
+            // hand the orchestrator's composer to it.
+            Some(super::rail::RailRow::Lane(AgentRow::Lane { lane_index })) => lanes
+                .get(*lane_index)
                 .map(|lane| lane.role == AgentRole::Orchestrator)
                 // An empty lane list means the orchestrator lane is all there is.
                 .unwrap_or(true),
-            // The action row and the operator's own harnesses are not lanes and
-            // have no conversation of their own.
+            // Hosts, agents, sessions, the overflow control and the action row
+            // are not lanes and have no conversation of their own.
             Some(_) => false,
             None => true,
         }
@@ -582,7 +679,7 @@ impl App {
     pub(in crate::ui::app) fn orchestrator_row_index(&self) -> Option<usize> {
         let lanes = self.lanes();
         self.rail_rows().iter().position(|row| match row {
-            super::rail::RailRow::Agent(AgentRow::Lane { lane_index }) => lanes
+            super::rail::RailRow::Lane(AgentRow::Lane { lane_index }) => lanes
                 .get(*lane_index)
                 .map(|lane| lane.role == AgentRole::Orchestrator)
                 // Matches the same fallback `on_orchestrator_lane` makes: with

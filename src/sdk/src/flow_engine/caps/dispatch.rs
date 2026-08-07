@@ -38,6 +38,21 @@ pub trait HarnessDispatch: Send + Sync {
         self.dispatch(request).await
     }
 
+    /// The harness `request` would actually run on, when this handle knows.
+    ///
+    /// A request names the harness a node *asked* for, and a dispatch is free to
+    /// substitute: a worker that does not offer the named provider falls back to
+    /// its default rather than failing a portable graph. A run inspector joining
+    /// on the recorded harness would then name something that is not executing,
+    /// so the dispatch that performs the substitution gets to answer for it.
+    ///
+    /// Defaulted to `None`, meaning "no better answer than the request itself" —
+    /// a dispatch that substitutes nothing has nothing to correct.
+    fn effective_harness(&self, request: &TaskRequest) -> Option<String> {
+        let _ = request;
+        None
+    }
+
     /// Stop every dispatch this handle currently has in flight.
     ///
     /// Deliberately not per-task. The caller that wants this is the copilot

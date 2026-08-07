@@ -106,3 +106,81 @@ fn shortening_trims_surrounding_whitespace() {
         "7xKX…gAsU"
     );
 }
+
+#[test]
+fn slug_keeps_three_lowercase_words() {
+    assert_eq!(
+        slug("Fix session handoff flow and pointer"),
+        "fix-session-handoff"
+    );
+    assert_eq!(slug("Launch Plan"), "launch-plan");
+}
+
+#[test]
+fn slug_drops_leading_filler() {
+    assert_eq!(
+        slug("okay so can you please fix the session handoff"),
+        "fix-session-handoff"
+    );
+}
+
+#[test]
+fn slug_falls_back_to_filler_when_that_is_all_there_is() {
+    assert_eq!(slug("can you please"), "can-you-please");
+}
+
+#[test]
+fn slug_treats_punctuation_and_control_bytes_as_word_breaks() {
+    assert_eq!(
+        slug("**Debugging deploys:** retry"),
+        "debugging-deploys-retry"
+    );
+    assert_eq!(slug("hello\u{1b}[31m world\nagain"), "hello-31m-world");
+}
+
+#[test]
+fn slug_keeps_a_contraction_whole_rather_than_leaving_its_tail_behind() {
+    // Splitting on the apostrophe would filter `let`/`i` and keep the orphan
+    // `s`/`m`, naming the session `s-fix-flaky` and `m-seeing-an`.
+    assert_eq!(slug("let's fix the flaky test"), "fix-flaky-test");
+    assert_eq!(slug("I'm seeing an error"), "seeing-error");
+    // The typographic apostrophe an editor substitutes behaves the same.
+    assert_eq!(slug("let\u{2019}s fix the flaky test"), "fix-flaky-test");
+    // A contraction that is not filler survives as one word.
+    assert_eq!(slug("the runner's cache broke"), "runners-cache-broke");
+}
+
+#[test]
+fn slug_bounds_total_length() {
+    let long = format!("{} {} {}", "a".repeat(30), "b".repeat(30), "c".repeat(30));
+    let out = slug(&long);
+    assert!(out.chars().count() <= SLUG_MAX_CHARS);
+    // A word that does not fit whole is truncated, never dropped.
+    assert!(out.starts_with(&"a".repeat(30)));
+}
+
+#[test]
+fn slug_is_empty_without_a_word() {
+    assert_eq!(slug(""), "");
+    assert_eq!(slug("   \n\t  "), "");
+    assert_eq!(slug("///"), "");
+}
+
+#[test]
+fn slug_stops_scanning_once_three_meaningful_words_are_found() {
+    // Real content up front, followed by megabytes of filler: the scan must
+    // not walk the whole string to produce a result.
+    let huge_tail = "so ".repeat(1_000_000);
+    let title = format!("fix session handoff {huge_tail}");
+    assert_eq!(slug(&title), "fix-session-handoff");
+}
+
+#[test]
+fn slug_bounds_the_scan_even_when_every_word_is_filler() {
+    // All filler, and long enough that scanning it unbounded would be the
+    // regression this guards against. The fallback still has to produce
+    // something stable rather than hang or allocate without limit.
+    let huge_filler = "so ".repeat(1_000_000);
+    let out = slug(&huge_filler);
+    assert_eq!(out, "so-so-so");
+}

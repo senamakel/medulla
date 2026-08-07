@@ -1,5 +1,5 @@
 //! The Overview tab: the logo, the this-device and orchestration panels, and
-//! the live-activity feed.
+//! the animated workflow graph.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -13,7 +13,7 @@ use crate::ui::util::{clip, clip_middle, wrap};
 use super::super::types::App;
 
 impl App {
-    /// Draw the Overview tab: logo, top panels, and live activity.
+    /// Draw the Overview tab: logo, top panels, and the animated workflow graph.
     pub(super) fn draw_overview(&mut self, f: &mut Frame, area: Rect) {
         let rows = Layout::default()
             .direction(Direction::Vertical)
@@ -89,33 +89,18 @@ impl App {
                 Style::default().fg(Color::Yellow),
             )));
         }
-        // tiny.place is a property of the wider run rather than of this device,
-        // so its presence summary rides along in this column when enabled.
-        orch.extend(self.tinyplace_lines());
+        // The host link is a property of the wider run rather than of this
+        // device, so its presence summary rides along in this column when enabled.
+        orch.extend(self.host_link_lines());
         f.render_widget(
             Paragraph::new(Text::from(orch)).block(self.panel("Orchestration")),
             orch_area,
         );
 
-        // Live activity.
-        let take = self.visible_count().saturating_sub(1).max(5);
-        let start = self.snapshot.events.len().saturating_sub(take);
-        let recent: Vec<TLine> = self.snapshot.events[start..]
-            .iter()
-            .map(|e| self.event_line(e, area.width.saturating_sub(6) as usize, false))
-            .collect();
-        let body = if recent.is_empty() {
-            Text::from(TLine::from(Span::styled(
-                "No events yet.",
-                Style::default().add_modifier(Modifier::DIM),
-            )))
-        } else {
-            Text::from(recent)
-        };
-        f.render_widget(
-            Paragraph::new(body).block(self.panel("Live activity")),
-            rows[1],
-        );
+        // The workflow graph takes the rest of the tab. It replaced the live
+        // event feed, which the Trace tab already shows in full and which said
+        // nothing about the *shape* of a run.
+        self.draw_overview_graph(f, rows[1]);
     }
 
     /// The "This Device" column: what this machine will run for the fleet,
@@ -194,12 +179,12 @@ impl App {
         );
     }
 
-    /// The tiny.place presence summary appended to the Orchestration panel, or
-    /// nothing at all when tiny.place is not configured.
+    /// The host-link presence summary appended to the Orchestration panel, or
+    /// nothing at all when no `[link]` section is configured.
     ///
     /// Kept to two lines — peers online and who this node is — because the panel
     /// it joins already spends most of its height on the run's own counters.
-    pub(super) fn tinyplace_lines(&self) -> Vec<TLine<'static>> {
+    pub(super) fn host_link_lines(&self) -> Vec<TLine<'static>> {
         if self.loaded.config.link.is_none() {
             return Vec::new();
         }
@@ -226,12 +211,12 @@ impl App {
         let mut lines = Vec::new();
         if readings > 0 {
             lines.push(TLine::from(Span::styled(
-                format!("tiny.place {online}/{} online", peers.len()),
+                format!("hosts {online}/{} online", peers.len()),
                 Style::default().fg(if online > 0 { Color::Green } else { Color::Red }),
             )));
         } else {
             lines.push(TLine::from(format!(
-                "tiny.place {} peers · presence pending",
+                "hosts {} peers · presence pending",
                 peers.len()
             )));
         }

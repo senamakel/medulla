@@ -14,8 +14,20 @@ use super::super::types::{DaemonRuntime, LogFn};
 /// local bus is an in-memory queue: there is no relay to be polite to, and this
 /// interval is the floor on how quickly a locally-dispatched task starts.
 pub const DEFAULT_LOCAL_POLL: Duration = Duration::from_millis(150);
-/// Default concurrent task executions for an embedded host.
-pub const DEFAULT_CONCURRENCY: usize = 2;
+/// Default concurrent task executions for an embedded host — effectively
+/// unlimited.
+///
+/// A host-wide cap predates declared agents: it made sense when a machine was
+/// one worker with one implicit session. It is the wrong grain now, and it
+/// queued invisibly — a third concurrent task waited for a slot even when it
+/// targeted a different agent in a different workspace, where nothing could
+/// collide. The limits that own the real hazard live where the hazard is:
+/// per-agent `max_sessions` from the workspace strategy, and the checkout
+/// serialization that keeps a second writer out of a tree someone is in.
+///
+/// The semaphore stays as the accounting mechanism behind `active_count`, and
+/// an operator can still set `concurrency` to impose a real cap.
+pub const DEFAULT_CONCURRENCY: usize = 1024;
 /// Default per-task execution timeout, in ms.
 pub const DEFAULT_TASK_TIMEOUT_MS: u64 = 600_000;
 
@@ -65,6 +77,8 @@ pub struct EmbeddedDaemonOptions {
     /// Medulla — the resolved `attribution.commit` config value (on by default;
     /// see [`crate::config::AttributionConfig`]).
     pub attribution: bool,
+    /// Lifecycle hooks carried into provider-specific launch injection.
+    pub hooks: crate::harness_hooks::HooksConfig,
     /// Named OpenRouter presets exposed by this host.
     pub custom_harnesses: Vec<crate::config::CustomHarnessConfig>,
     /// Operator-declared per-provider token budgets.
@@ -90,10 +104,28 @@ impl Default for EmbeddedDaemonOptions {
             env: HashMap::new(),
             router: None,
             attribution: true,
+            hooks: crate::harness_hooks::HooksConfig::default(),
             custom_harnesses: Vec::new(),
             budget: None,
             log: None,
         }
+    }
+}
+
+impl EmbeddedDaemonOptions {
+    /// Apply the launch policy this machine's config describes.
+    ///
+    /// The counterpart to spelling `attribution` and `hooks` out field by field:
+    /// a door that takes [`Default`] for the rest cannot then forget one of them
+    /// and launch every harness with no lifecycle hooks and attribution nobody
+    /// asked for. Every host that spawns harnesses on an operator's behalf —
+    /// including the short-lived ones a workflow run, the authoring copilot, and
+    /// an evolution review each start — goes through here.
+    #[must_use]
+    pub fn with_launch_policy(mut self, launch: &crate::harness_hooks::LaunchPolicy) -> Self {
+        self.attribution = launch.attribution;
+        self.hooks = launch.hooks.clone();
+        self
     }
 }
 

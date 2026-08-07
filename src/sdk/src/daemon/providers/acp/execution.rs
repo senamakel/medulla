@@ -46,100 +46,38 @@ pub(super) async fn medulla_mcp_servers(
     }
     #[cfg(feature = "workflows")]
     {
-        use agent_client_protocol::schema::v1::{McpServer, McpServerStdio};
+        use crate::mcp::attach;
+        use agent_client_protocol::schema::v1::{EnvVariable, McpServer, McpServerStdio};
+
         // An operator who turned workflows off should not have harnesses handed
-        // tools that would be refused.
-        let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-        // Respects the parent's `--config`, if one was recorded — see
-        // `crate::config::CONFIG_PATH_ENV`. Rediscovering here regardless of
-        // that would let a policy the operator explicitly chose (say,
-        // `allowCode = false`) be silently overridden by whatever config this
-        // subprocess's own `cwd` happens to discover.
-        let workflows_enabled = crate::config::load_config(
-            crate::config::explicit_config_from_env(task_env),
-            task_env,
-            &cwd,
-        )
-        .map(|loaded| loaded.config.workflows.enabled)
-        .unwrap_or(true);
-        let active_plane = crate::control_socket::active();
-        let parent_grant = crate::control_socket::parent_grant_from_env(task_env);
-        // With neither family available there is no server worth attaching.
-        // A host running a fleet still attaches it when workflow authoring is
-        // disabled; the grant below withholds only the workflow family.
-        if !workflows_enabled && active_plane.is_none() && parent_grant.is_none() {
-            return Vec::new();
-        }
-        let Ok(binary) = std::env::current_exe() else {
+        // tools that would be refused. Resolved through the shared policy so
+        // this transport and the CLI one cannot come to disagree about which
+        // sessions get a server at all.
+        let workflows_enabled = attach::workflows_enabled(task_env);
+        // The fleet grant, when this process has a control plane to grant
+        // against. Minted per session — an inherited one would hand a second
+        // harness the first one's capability. A process with no local plane can
+        // still exchange a verified parent handoff for a child grant, which is
+        // the one thing this transport does that the CLI one cannot.
+        let fleet = match attach::local_fleet_grant(session, task_env, tool_mode, workflows_enabled)
+        {
+            Some(local) => Some(local),
+            None => match crate::control_socket::parent_grant_from_env(task_env) {
+                Some((socket, token)) => exchange_parent_grant(socket, token).await,
+                None => None,
+            },
+        };
+        let Some(spec) = attach::server_spec(tool_mode, fleet, workflows_enabled)
+            .map(|spec| spec.for_session(session))
+        else {
             return Vec::new();
         };
         // The subprocess inherits this process's environment, which is what
         // carries MEDULLA_HOME — so the harness edits the same workflow store
-        // the operator sees.
-        //
-        // The tool mode is passed *explicitly* rather than inherited, because
-        // it is the one setting that differs per task: this daemon serves
-        // authoring turns and review turns from one process, so an inherited
-        // value could only ever be right for one of them. A review turn that
-        // silently got the full surface could rewrite the graph it was asked
-        // only to review, which is exactly what the mode exists to prevent.
-        let mut server =
-            McpServerStdio::new(crate::mcp::SERVER_NAME, binary).args(vec!["mcp".to_string()]);
-        // The fleet grant, when this process has a control plane to grant
-        // against. Pushed explicitly rather than inherited for the same reason
-        // the tool mode is: it is minted per session, and an inherited one would
-        // hand a second harness the first one's capability.
-        let fleet_grant = if let Some(plane) = active_plane {
-            // The depth this task was dispatched at, written into the harness
-            // environment by the daemon from the task frame. Read here and
-            // recorded in the grant, so every later check consults the grant
-            // rather than an environment the harness itself could rewrite.
-            let grant = session_grant(
-                session,
-                task_env,
-                tool_mode,
-                workflows_enabled,
-                plane.max_depth,
-                plane.max_in_flight,
-            );
-            Some((plane.socket.clone(), plane.grants.mint(grant)))
-        } else if let Some((socket, token)) = parent_grant {
-            exchange_parent_grant(socket, token).await
-        } else {
-            None
-        };
-        if let Some((socket, token)) = fleet_grant {
-            server
-                .env
-                .push(agent_client_protocol::schema::v1::EnvVariable::new(
-                    crate::control_socket::MCP_SOCKET_ENV,
-                    socket.to_string_lossy().as_ref(),
-                ));
-            server
-                .env
-                .push(agent_client_protocol::schema::v1::EnvVariable::new(
-                    crate::control_socket::MCP_GRANT_ENV,
-                    token,
-                ));
-        }
-        if let Some(mode) = tool_mode {
-            let (mode, scope) = mode
-                .split_once(':')
-                .map_or((mode, None), |(mode, scope)| (mode, Some(scope)));
-            server
-                .env
-                .push(agent_client_protocol::schema::v1::EnvVariable::new(
-                    crate::mcp::TOOL_MODE_ENV,
-                    mode,
-                ));
-            if let Some(scope) = scope {
-                server
-                    .env
-                    .push(agent_client_protocol::schema::v1::EnvVariable::new(
-                        crate::mcp::TOOL_SCOPE_ENV,
-                        scope,
-                    ));
-            }
+        // the operator sees. Only what differs per session is pushed here.
+        let mut server = McpServerStdio::new(spec.name, spec.command).args(spec.args.clone());
+        for (key, value) in spec.env.iter().chain(spec.secret_env.iter()) {
+            server.env.push(EnvVariable::new(key.as_str(), value));
         }
         vec![McpServer::Stdio(server)]
     }
@@ -173,31 +111,6 @@ async fn exchange_parent_grant(_socket: PathBuf, _token: String) -> Option<(Path
     None
 }
 
-/// Build the capability for one ACP session from that task's own environment.
-///
-/// The daemon process serves tasks at many depths concurrently, so ambient
-/// process variables cannot describe the session being created.
-#[cfg(feature = "workflows")]
-pub(super) fn session_grant(
-    session: &str,
-    task_env: &HashMap<String, String>,
-    tool_mode: Option<&str>,
-    workflows_enabled: bool,
-    max_depth: u8,
-    max_in_flight: usize,
-) -> crate::control_socket::Grant {
-    let depth = crate::control_socket::depth_from_env(task_env);
-    let families = if workflows_enabled {
-        crate::control_socket::ToolFamilies::default()
-    } else {
-        crate::control_socket::ToolFamilies::fleet_only()
-    };
-    crate::control_socket::Grant::new(session, depth, max_depth)
-        .with_families(families)
-        .with_max_in_flight(max_in_flight)
-        .with_tool_mode(tool_mode)
-}
-
 /// Environment switch selecting ACP instead of legacy provider JSONL.
 pub const HARNESS_PROTOCOL_ENV: &str = "MEDULLA_HARNESS_PROTOCOL";
 
@@ -211,7 +124,7 @@ pub(in crate::daemon::providers) fn uses_acp(options: &RunTaskOptions) -> bool {
 
 /// Execute one task through the standard Agent Client Protocol.
 pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, String> {
-    let agent = agent_for(&options);
+    let agent = agent_for(&options)?;
     // Read before `options` is picked apart below, and cloned because the
     // session setup runs inside an async move closure.
     #[cfg(feature = "workflows")]
@@ -382,14 +295,16 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 }
 
 /// Construct the ACP server command for a supported harness.
-fn agent_for(options: &RunTaskOptions) -> AcpAgent {
+pub(super) fn agent_for(options: &RunTaskOptions) -> Result<AcpAgent, String> {
+    // Built once and shared: the model flags below are derived from the same
+    // map the child receives, and `router_env` writing `OPENAI_BASE_URL` into it
+    // is what tells `codex_overrides` the run is routed at all.
+    let env = acp_env(options)?;
     let config = match options.provider {
         HarnessProvider::Claude => {
             AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/claude-agent-acp@latest"])
         }
-        HarnessProvider::Codex => {
-            AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/codex-acp@latest"])
-        }
+        HarnessProvider::Codex => AcpAgentConfig::new("npx").args(codex_acp_args(options, &env)?),
         HarnessProvider::Opencode => AcpAgentConfig::new(crate::protocol::env::provider_bin(
             HarnessProvider::Opencode,
             &options.env,
@@ -399,7 +314,57 @@ fn agent_for(options: &RunTaskOptions) -> AcpAgent {
             unreachable!("OpenHuman's operator TUI is not an ACP coding provider")
         }
     };
-    AcpAgent::new(config.envs(acp_env(options)))
+    // `AcpAgentConfig::envs` overlays an inheriting command instead of clearing
+    // it. Run the actual ACP command through `env -u` as well as scrubbing the
+    // overlay so the embedded core workspace cannot leak from Medulla's own
+    // process environment into an external harness.
+    #[cfg(unix)]
+    let config = config
+        .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
+        .envs(env);
+    #[cfg(windows)]
+    let config = config
+        .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
+        .envs(env);
+
+    Ok(AcpAgent::new(config))
+}
+
+/// The `codex-acp` argv, including the model and the routed-provider overrides.
+///
+/// The direct spawn seam builds these in two places — `-m <slug>` in
+/// [`crate::daemon::providers::detect::build_resumed_run_args`] and the `-c`
+/// block in [`crate::codex_overrides::launch_args`] — and ACP dispatch used to
+/// build neither. A preset therefore reached Codex as a bare `codex-acp` with
+/// its `model` silently dropped, so Codex ran the operator's own configured
+/// default on the operator's own ChatGPT account: the routed endpoint was in the
+/// environment but nothing selected it, and the preset's model never appeared in
+/// a single upstream request.
+fn codex_acp_args(
+    options: &RunTaskOptions,
+    env: &HashMap<String, String>,
+) -> Result<Vec<String>, String> {
+    let mut args = vec![
+        "-y".to_string(),
+        "@agentclientprotocol/codex-acp@latest".to_string(),
+    ];
+    let model = options
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|model| !model.is_empty());
+    if let Some(model) = model {
+        args.push("-m".to_string());
+        args.push(model.to_string());
+    }
+    // A routed run cannot safely fall back to the operator's default account
+    // or endpoint: its catalog governs the provider's supported tool shapes.
+    // Match the direct spawn seam and return a usable error before ACP starts.
+    args.extend(
+        crate::codex_overrides::launch_args(options.provider, model, env)
+            .map_err(|error| error.to_string())?,
+    );
+    Ok(args)
 }
 
 /// The environment handed to the ACP agent process.
@@ -414,12 +379,13 @@ fn agent_for(options: &RunTaskOptions) -> AcpAgent {
 /// and for OpenRouter that endpoint is the local attribution proxy, which an
 /// unrouted ACP agent would walk straight past.
 ///
-/// A configured `apiKeyEnv` whose variable is unset is *not* fatal here, unlike
-/// the direct spawn seam: the ACP server may hold its own credentials, and this
-/// path has no error frame to surface a refusal through. The endpoint is applied
-/// and the key left to the agent.
-pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
+/// A configured `apiKeyEnv` whose variable is unset is a hard error, matching
+/// direct execution. Continuing would start Codex with routed-provider
+/// overrides but no routed credential, allowing an unrelated inherited key to
+/// be sent to the configured gateway.
+pub(super) fn acp_env(options: &RunTaskOptions) -> Result<HashMap<String, String>, String> {
     let mut env = options.env.clone();
+    crate::protocol::env::scrub_core_state(&mut env, options.provider);
     // A fleet capability belongs only to the per-session MCP subprocess. The
     // ACP agent itself inherits this map, so retaining an ambient pair here
     // would let it redeem a grant minted for another process or session.
@@ -435,10 +401,91 @@ pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
             env.insert(key, value);
         }
         for (child_var, source_name) in injection.secret_env {
-            if let Some(secret) = options.env.get(&source_name).filter(|v| !v.is_empty()) {
-                env.insert(child_var, secret.clone());
-            }
+            let secret = options
+                .env
+                .get(&source_name)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    format!(
+                        "router API key env var `{source_name}` is not set; \
+                         export it or remove apiKeyEnv from [router]"
+                    )
+                })?;
+            env.insert(child_var, secret.clone());
         }
     }
-    env
+    Ok(env)
+}
+
+/// Adds a Unix `env -u` shim around an ACP command.
+///
+/// The ACP SDK deliberately preserves the ambient process environment, while
+/// `AcpAgentConfig` can only add or replace values.  The shim is therefore the
+/// launch-level counterpart to [`acp_env`]'s map scrubbing.
+#[cfg(unix)]
+trait AcpAgentConfigExt {
+    /// Return a command whose inherited values in `names` are removed before
+    /// it starts the original ACP executable.
+    fn command_with_env_removals(self, names: &[&str]) -> Self;
+}
+
+#[cfg(unix)]
+impl AcpAgentConfigExt for AcpAgentConfig {
+    fn command_with_env_removals(self, names: &[&str]) -> Self {
+        let mut args = names
+            .iter()
+            .flat_map(|name| ["-u".to_string(), (*name).to_string()])
+            .collect::<Vec<_>>();
+        args.push(self.command().to_string_lossy().into_owned());
+        args.extend(self.arguments().iter().cloned());
+        AcpAgentConfig::new("env").args(args)
+    }
+}
+
+/// Adds a Windows `cmd` shim that clears inherited variables before launching
+/// an ACP command. `AcpAgentConfig` itself can only overlay values.
+#[cfg(windows)]
+trait AcpAgentConfigExt {
+    /// Return a command which clears `names` from its child environment before
+    /// it invokes the original ACP executable.
+    fn command_with_env_removals(self, names: &[&str]) -> Self;
+}
+
+#[cfg(windows)]
+impl AcpAgentConfigExt for AcpAgentConfig {
+    fn command_with_env_removals(self, names: &[&str]) -> Self {
+        let clears = names
+            .iter()
+            .map(|name| format!("set {name}="))
+            .collect::<Vec<_>>()
+            .join(" && ");
+        let command = std::iter::once(quote_windows_cmd_arg(&self.command().to_string_lossy()))
+            .chain(
+                self.arguments()
+                    .iter()
+                    .map(|argument| quote_windows_cmd_arg(argument)),
+            )
+            .collect::<Vec<_>>()
+            .join(" ");
+        AcpAgentConfig::new("cmd.exe").args(["/D", "/S", "/C", &format!("{clears} && {command}")])
+    }
+}
+
+/// Quote a command argument for `cmd.exe` without allowing its metacharacters
+/// to turn an operator-configured provider path into another command.
+#[cfg(windows)]
+pub(super) fn quote_windows_cmd_arg(argument: &str) -> String {
+    let escaped = argument.replace('^', "^^").replace('%', "%%");
+    let escaped = escaped
+        .chars()
+        .flat_map(|character| match character {
+            '&' | '|' | '<' | '>' | '(' | ')' => vec!['^', character],
+            _ => vec![character],
+        })
+        .collect::<String>();
+    // `cmd.exe` passes doubled quotes through a double-quoted argument as a
+    // literal quote. A caret would instead be preserved by `npx`'s Windows
+    // wrapper, turning TOML values such as `model_provider="medulla"` into
+    // invalid `^"`-prefixed values when Codex parses its `-c` overrides.
+    format!("\"{}\"", escaped.replace('"', "\"\""))
 }

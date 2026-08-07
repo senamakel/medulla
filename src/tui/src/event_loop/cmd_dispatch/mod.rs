@@ -17,6 +17,8 @@ mod copilot_hosts;
 mod feedback;
 mod handoff;
 #[cfg(feature = "workflows")]
+mod workflow_evolution;
+#[cfg(feature = "workflows")]
 mod workflows;
 
 /// Move a copilot conversation onto the id of the workflow it just created.
@@ -57,18 +59,21 @@ mod tests;
 /// is reported back over the [`AppMsg`] channel. Memory queries touch SQLite so
 /// they run on `spawn_blocking` off the UI thread.
 ///
-/// `workflows_config` is the app's already-loaded `[workflows]` section,
-/// threaded in for the two commands that dispatch a harness off-thread
-/// ([`Cmd::RunWorkflow`] and [`Cmd::CopilotTurn`]) so they use the config the
-/// TUI actually started with — including an explicit `--config` — rather than
-/// rediscovering defaults from a fresh load. Named with a leading underscore
-/// because a build without the `workflows` feature has no arm that reads it.
+/// `config` is the app's already-loaded configuration, threaded in for the
+/// commands that dispatch a harness off-thread ([`Cmd::RunWorkflow`],
+/// [`Cmd::CopilotTurn`] and the rest) so they use the config the TUI actually
+/// started with — including an explicit `--config` — rather than rediscovering
+/// defaults from a fresh load. The whole document rather than its `[workflows]`
+/// section alone, because those commands each start an embedded host and need
+/// the launch policy — attribution and `[[hooks]]` — that lives outside it.
+/// Named with a leading underscore because a build without the `workflows`
+/// feature has no arm that reads it.
 pub(super) fn run_cmd(
     cmd: Cmd,
     runtime: &Arc<dyn Runtime>,
-    _workflows_config: &medulla::config::WorkflowsConfig,
+    _config: &medulla::config::TuiConfig,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
-    local_hosts: Option<&crate::local_host::LocalHostSpawner>,
+    local_hosts: Option<&crate::local_host::LocalHostHarnesses>,
 ) {
     let cmd = match feedback::run_feedback_cmd(cmd, runtime, msg_tx) {
         Some(cmd) => *cmd,
@@ -87,7 +92,7 @@ pub(super) fn run_cmd(
         | Cmd::SubmitFeedback { .. } => {
             unreachable!("feedback commands return before main dispatch")
         }
-        Cmd::HandOffHarness(_) | Cmd::HoldHarness { .. } => {
+        Cmd::HandOffSession(_) | Cmd::HoldSession { .. } => {
             unreachable!("handoff commands return before main dispatch")
         }
         Cmd::Submit(input) => {
@@ -191,46 +196,6 @@ pub(super) fn run_cmd(
                 let _ = tx.send(AppMsg::Status(status));
             });
         }
-        Cmd::StartLocalHost { host, index } => {
-            let Some(spawner) = local_hosts.cloned() else {
-                let _ = msg_tx.send(AppMsg::Status(
-                    "This device is not hosting, so a local host cannot start here".to_string(),
-                ));
-                return;
-            };
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                // Start it first, register it second. A roster entry whose
-                // address nothing answers on is the failure this whole feature
-                // exists to avoid — the orchestrator would dispatch to it and
-                // the task would vanish.
-                let spec = match spawner.spawn(&host, index) {
-                    Ok(spec) => spec,
-                    Err(error) => {
-                        let _ =
-                            tx.send(AppMsg::Status(format!("Local host did not start: {error}")));
-                        return;
-                    }
-                };
-                let workspace = spec.workspace.clone().unwrap_or_default();
-                // Registered through the same op a remote add uses, so both
-                // kinds reach the roster by one path.
-                let status = match rt
-                    .worker_op(medulla::runtime::WorkerOp::Add {
-                        address: Some(spec.address.clone()),
-                        handle: None,
-                        label: Some(spec.name.clone()),
-                        harness: Some(spec.harness.clone()),
-                    })
-                    .await
-                {
-                    Ok(()) => format!("Local host running · {workspace}"),
-                    Err(e) => format!("Started, but not registered: {e}"),
-                };
-                let _ = tx.send(AppMsg::Status(status));
-            });
-        }
         Cmd::WorkerOp(op) => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();
@@ -238,6 +203,37 @@ pub(super) fn run_cmd(
                 let status = match rt.worker_op(op).await {
                     Ok(()) => "Worker registry updated".to_string(),
                     Err(e) => e.to_string(),
+                };
+                let _ = tx.send(AppMsg::Status(status));
+            });
+        }
+        Cmd::WorkerOps(ops) => {
+            let rt = runtime.clone();
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                let total = ops.len();
+                let mut applied = 0usize;
+                let mut failure = None;
+                for op in ops {
+                    // Stop at the first failure rather than pressing on. The
+                    // ops are one operator action, and continuing past a
+                    // refusal would half-remove a host — some agents gone, the
+                    // rest still routed to — which is the state hardest to
+                    // reason about from the screen.
+                    match rt.worker_op(op).await {
+                        Ok(()) => applied += 1,
+                        Err(e) => {
+                            failure = Some(e.to_string());
+                            break;
+                        }
+                    }
+                }
+                let status = match failure {
+                    None => "Worker registry updated".to_string(),
+                    Some(e) if applied == 0 => e,
+                    // Says what landed as well as what stopped it: the operator
+                    // is looking at a list that is now partly changed.
+                    Some(e) => format!("Removed {applied} of {total}, then: {e}"),
                 };
                 let _ = tx.send(AppMsg::Status(status));
             });
@@ -250,8 +246,9 @@ pub(super) fn run_cmd(
             workflows::spawn_run(
                 id,
                 inputs,
-                _workflows_config.clone(),
+                _config.workflows.clone(),
                 custom_harnesses,
+                medulla::harness_hooks::LaunchPolicy::from_config(_config),
                 msg_tx,
             )
         }
@@ -280,13 +277,18 @@ pub(super) fn run_cmd(
             workflow,
             instruction,
             run_id,
-            _workflows_config.clone(),
+            _config.workflows.clone(),
+            medulla::harness_hooks::LaunchPolicy::from_config(_config),
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
-        Cmd::EvolveWorkflow { workflow, run_id } => {
-            workflows::spawn_evolve(workflow, run_id, _workflows_config.clone(), msg_tx)
-        }
+        Cmd::EvolveWorkflow { workflow, run_id } => workflow_evolution::spawn_evolve(
+            workflow,
+            run_id,
+            _config.workflows.clone(),
+            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            msg_tx,
+        ),
         #[cfg(feature = "workflows")]
         Cmd::AcceptProposal {
             workflow,
@@ -302,14 +304,24 @@ pub(super) fn run_cmd(
         Cmd::CopilotTurn {
             workflow,
             instruction,
-        } => workflows::spawn_copilot(workflow, instruction, _workflows_config.clone(), msg_tx),
+        } => workflows::spawn_copilot(
+            workflow,
+            instruction,
+            _config.workflows.clone(),
+            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            msg_tx,
+        ),
         #[cfg(feature = "workflows")]
         Cmd::CreateWorkflow {
             thread,
             instruction,
-        } => {
-            workflows::spawn_copilot_create(thread, instruction, _workflows_config.clone(), msg_tx)
-        }
+        } => workflows::spawn_copilot_create(
+            thread,
+            instruction,
+            _config.workflows.clone(),
+            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            msg_tx,
+        ),
         Cmd::RefreshFleet => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();

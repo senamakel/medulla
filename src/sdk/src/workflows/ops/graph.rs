@@ -191,6 +191,13 @@ pub struct HostPolicy {
     /// preset's credentials and routing have no business riding along with
     /// it just to answer "what can I name".
     pub custom_harness_configs: Vec<crate::config::CustomHarnessConfig>,
+    /// Commit attribution and the lifecycle hooks a run started through
+    /// `workflow_run` launches its harnesses with.
+    ///
+    /// Held here for the same reason as `custom_harness_configs`: the embedded
+    /// daemon [`ops::run`](super::run) starts is a real spawn door on this
+    /// machine, and it can only install what this policy carried to it.
+    pub launch: crate::harness_hooks::LaunchPolicy,
 }
 
 /// What this host will actually permit a workflow to do.
@@ -232,6 +239,7 @@ pub fn host_facts(policy: &HostPolicy) -> Value {
         "allowCode": config.allow_code,
         "runTimeoutSecs": config.run_timeout_secs,
         "maxParallelAgents": config.max_parallel_agents,
+        "maxLoopIterations": config.max_loop_iterations,
         "shellScriptsAvailable": shell_available,
         "notes": [
             if config.default_worker.trim().is_empty() {

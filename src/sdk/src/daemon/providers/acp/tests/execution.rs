@@ -37,7 +37,7 @@ done
     options.provider = HarnessProvider::Opencode;
     options.cwd = dir.path().to_string_lossy().into_owned();
     options.env.insert(
-        "TINYPLACE_OPENCODE_BIN".to_string(),
+        "MEDULLA_OPENCODE_BIN".to_string(),
         agent.to_string_lossy().into_owned(),
     );
     options.on_session = Some({
@@ -129,8 +129,7 @@ fn session_grants_read_depth_from_the_task_environment() {
         "2".to_string(),
     )]);
 
-    let grant =
-        super::super::execution::session_grant("nested", &env, Some("propose:demo"), true, 3, 5);
+    let grant = crate::mcp::attach::session_grant("nested", &env, Some("propose:demo"), true, 3, 5);
 
     assert_eq!(grant.depth, 2);
     assert_eq!(grant.max_depth, 3);
@@ -141,8 +140,7 @@ fn session_grants_read_depth_from_the_task_environment() {
 #[cfg(feature = "workflows")]
 #[test]
 fn disabling_workflows_keeps_the_fleet_family_on_the_session_grant() {
-    let grant =
-        super::super::execution::session_grant("fleet-only", &HashMap::new(), None, false, 2, 4);
+    let grant = crate::mcp::attach::session_grant("fleet-only", &HashMap::new(), None, false, 2, 4);
 
     assert!(!grant.families.workflows);
     assert!(grant.families.fleet);
@@ -154,6 +152,8 @@ fn disabling_workflows_keeps_the_fleet_family_on_the_session_grant() {
 /// A `RunTaskOptions` carrying `attribution`, with everything else inert.
 fn attribution_options(attribution: bool) -> RunTaskOptions {
     RunTaskOptions {
+        hooks: crate::harness_hooks::HooksConfig::default(),
+        transport: Default::default(),
         conversation: String::new(),
         session_class: crate::sessions::SessionClass::Bounded,
         resume_session_id: None,
@@ -183,7 +183,7 @@ fn attribution_options(attribution: bool) -> RunTaskOptions {
 #[cfg(unix)]
 #[test]
 fn agent_env_carries_attribution() {
-    let env = super::super::execution::acp_env(&attribution_options(true));
+    let env = super::super::execution::acp_env(&attribution_options(true)).unwrap();
     assert!(
         env.contains_key("MEDULLA_ATTRIBUTION"),
         "ACP agent env must carry the attribution trailer"
@@ -198,7 +198,7 @@ fn agent_env_carries_attribution() {
 /// Turning attribution off leaves the ACP env untouched.
 #[test]
 fn agent_env_omits_attribution_when_off() {
-    let env = super::super::execution::acp_env(&attribution_options(false));
+    let env = super::super::execution::acp_env(&attribution_options(false)).unwrap();
     assert!(!env.contains_key("MEDULLA_ATTRIBUTION"));
     assert!(!env.contains_key("GIT_CONFIG_KEY_0"));
 }
@@ -215,8 +215,213 @@ fn agent_env_strips_inherited_fleet_capabilities() {
         "another-session-token".to_string(),
     );
 
-    let env = super::super::execution::acp_env(&options);
+    let env = super::super::execution::acp_env(&options).unwrap();
 
     assert!(!env.contains_key(crate::control_socket::MCP_SOCKET_ENV));
     assert!(!env.contains_key(crate::control_socket::MCP_GRANT_ENV));
+}
+
+#[test]
+fn agent_env_strips_the_embedded_core_workspace() {
+    let mut options = attribution_options(false);
+    options.env.insert(
+        "OPENHUMAN_WORKSPACE".to_string(),
+        "/live-core-workspace".to_string(),
+    );
+
+    let env = super::super::execution::acp_env(&options).unwrap();
+
+    assert!(!env.contains_key("OPENHUMAN_WORKSPACE"));
+}
+
+/// ACP's client library overlays configured values on an inherited process
+/// environment, so the final command must remove the workspace as well as its
+/// configured map omitting it.
+#[cfg(unix)]
+#[test]
+fn agent_command_removes_the_embedded_core_workspace() {
+    let agent = super::super::execution::agent_for(&attribution_options(false)).unwrap();
+    let config = agent.config();
+
+    assert_eq!(config.command().to_string_lossy(), "env");
+    assert_eq!(
+        config.arguments(),
+        [
+            "-u",
+            "OPENHUMAN_WORKSPACE",
+            "npx",
+            "-y",
+            "@agentclientprotocol/claude-agent-acp@latest"
+        ]
+    );
+}
+
+/// A routed Codex preset reaching ACP dispatch must carry its model and its
+/// provider overrides on the argv.
+///
+/// The regression this pins: ACP built a bare `codex-acp`, so the preset's
+/// `model` was dropped and `codex_overrides` never ran. Codex then served the
+/// operator's own default model from their own ChatGPT account while the routed
+/// endpoint sat unused in the environment — the run looked healthy and not one
+/// request reached the configured provider.
+#[cfg(unix)]
+#[test]
+fn codex_acp_command_carries_the_routed_model_and_overrides() {
+    let dir = tempfile::tempdir().unwrap();
+    let codex_home = dir.path().join("codex");
+    std::fs::create_dir_all(&codex_home).unwrap();
+    // Routed runs derive a provider-safe catalog from Codex's local template.
+    // Seed the smallest usable template so this argv regression stays offline
+    // and independent of the developer or CI runner's Codex home.
+    std::fs::write(
+        codex_home.join("models_cache.json"),
+        r#"{"models":[{"slug":"gpt-5.4","priority":1,"context_window":200000}]}"#,
+    )
+    .unwrap();
+    let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Codex;
+    options.model = Some("deepseek/deepseek-v4-flash-0731".to_string());
+    options.env.insert(
+        crate::codex_overrides::OVERRIDES_ENV.to_string(),
+        "1".to_string(),
+    );
+    options.env.insert(
+        "OPENAI_BASE_URL".to_string(),
+        "http://127.0.0.1:36277/openai".to_string(),
+    );
+    options.env.insert(
+        "CODEX_HOME".to_string(),
+        codex_home.to_string_lossy().into_owned(),
+    );
+    options.env.insert(
+        "MEDULLA_HOME".to_string(),
+        dir.path().join("medulla").to_string_lossy().into_owned(),
+    );
+
+    let agent = super::super::execution::agent_for(&options).unwrap();
+    let args: Vec<String> = agent
+        .config()
+        .arguments()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+
+    let model_at = args
+        .iter()
+        .position(|argument| argument == "-m")
+        .expect("routed Codex ACP argv must select the preset's model");
+    assert_eq!(
+        args.get(model_at + 1).map(String::as_str),
+        Some("deepseek/deepseek-v4-flash-0731")
+    );
+    // The `-c` block is only derivable where the installed Codex has cached a
+    // model catalog, which a unit environment need not have. Assert the argv
+    // carries whatever `launch_args` yields for these same inputs, so the
+    // wiring is pinned without depending on that cache being present.
+    let expected = crate::codex_overrides::launch_args(
+        HarnessProvider::Codex,
+        options.model.as_deref(),
+        &super::super::execution::acp_env(&options).unwrap(),
+    )
+    .unwrap_or_default();
+    for argument in &expected {
+        assert!(
+            args.contains(argument),
+            "routed Codex ACP argv must carry {argument:?}: {args:?}"
+        );
+    }
+    if !expected.is_empty() {
+        assert!(
+            args.iter()
+                .any(|argument| argument == "preferred_auth_method=\"apikey\""),
+            "without this a signed-in ChatGPT account outranks the routed key: {args:?}"
+        );
+    }
+}
+
+/// An unrouted Codex ACP run is left exactly as it was: no endpoint means no
+/// provider block, and overriding `model_provider` would move a run that never
+/// asked to be routed off the operator's own account.
+#[cfg(unix)]
+#[test]
+fn codex_acp_command_stays_unrouted_without_an_endpoint() {
+    let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Codex;
+
+    let agent = super::super::execution::agent_for(&options).unwrap();
+    let args: Vec<String> = agent
+        .config()
+        .arguments()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+
+    assert!(
+        !args.iter().any(|argument| argument == "-m"),
+        "no model was configured, so none may be selected: {args:?}"
+    );
+    assert!(
+        !args
+            .iter()
+            .any(|argument| argument.starts_with("model_provider=")),
+        "an unrouted run must keep Codex's own provider: {args:?}"
+    );
+}
+
+/// A routed ACP run must fail before launching when its derived catalog cannot
+/// be built; starting without it silently selects the wrong account or emits
+/// unsupported tool shapes at the routed provider.
+#[test]
+fn routed_codex_acp_rejects_missing_override_catalog() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Codex;
+    options.model = Some("deepseek/deepseek-v4-flash-0731".to_string());
+    options.env.insert(
+        crate::codex_overrides::OVERRIDES_ENV.to_string(),
+        "1".to_string(),
+    );
+    options.env.insert(
+        "OPENAI_BASE_URL".to_string(),
+        "http://127.0.0.1:36277/openai".to_string(),
+    );
+    options.env.insert(
+        "CODEX_HOME".to_string(),
+        dir.path().join("codex").to_string_lossy().into_owned(),
+    );
+
+    let error = super::super::execution::agent_for(&options).unwrap_err();
+
+    assert!(error.contains("models_cache.json"), "{error}");
+}
+
+/// ACP must reject a routed provider whose configured key source is absent,
+/// before its provider overrides can select that endpoint.
+#[test]
+fn routed_acp_rejects_missing_router_api_key() {
+    let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Codex;
+    options.router = Some(crate::config::RouterConfig {
+        base_url: Some("https://gateway.example/v1".to_string()),
+        api_key_env: Some("MISSING_ROUTER_KEY".to_string()),
+        ..Default::default()
+    });
+
+    let error = super::super::execution::agent_for(&options).unwrap_err();
+
+    assert_eq!(
+        error,
+        "router API key env var `MISSING_ROUTER_KEY` is not set; export it or remove apiKeyEnv from [router]"
+    );
+}
+
+/// Windows command wrapping must preserve the TOML quotes in Codex's `-c`
+/// arguments; Codex parses the text after `=` as TOML rather than a shell word.
+#[cfg(windows)]
+#[test]
+fn windows_cmd_quoting_preserves_embedded_toml_quotes() {
+    assert_eq!(
+        super::super::execution::quote_windows_cmd_arg("model_provider=\"medulla\""),
+        "\"model_provider=\"\"medulla\"\"\""
+    );
 }

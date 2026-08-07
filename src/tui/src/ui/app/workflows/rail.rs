@@ -198,6 +198,90 @@ impl App {
         self.sync_workflow_overlay();
     }
 
+    /// Open the Workflows tab on `workflow`, overlaid with `run` if it is known.
+    ///
+    /// Reached from the Agents rail, where a run started over MCP is listed
+    /// under the session that started it. The run may not be in the history yet
+    /// — it is still executing, and the record is written when it settles — so a
+    /// missing one selects the workflow and leaves the overlay for the run rows
+    /// to catch up with, rather than refusing the jump.
+    pub(in crate::ui::app) fn open_workflow_run(&mut self, workflow: &str, run: &str) {
+        // The Agents rail already mirrors its selected run into this canvas.
+        // Keep that reported node when Enter moves the operator to the
+        // Workflows tab: `point_workflows_at_run` reloads the graph and would
+        // otherwise put the cursor back on its first node.
+        let active_node = (self.wf.mirrored_run.as_deref() == Some(run)
+            && self
+                .selected_workflow()
+                .is_some_and(|selected| selected.id == workflow))
+        .then(|| {
+            self.wf
+                .layout
+                .nodes
+                .get(self.wf.node_index)
+                .map(|node| node.id.clone())
+        })
+        .flatten();
+        if !self.point_workflows_at_run(workflow, run, active_node.as_deref()) {
+            self.set_status(format!("Workflow '{workflow}' is not in this catalogue"));
+            return;
+        }
+        self.tab_index = super::super::types::tab_pos("Workflows");
+    }
+
+    /// Select `workflow` and overlay `run` on it, without leaving this tab.
+    ///
+    /// The half of [`open_workflow_run`](Self::open_workflow_run) that moves the
+    /// selection, split out because the Agents tab now draws this same run view
+    /// inline: arrowing onto a run row in the Agents rail has to point the
+    /// workflow state at that run so the shared canvas draws it, but must *not*
+    /// throw the operator onto another tab for moving the cursor one row.
+    ///
+    /// `false` when this machine's catalogue has no such workflow, which is a
+    /// real state rather than an error — a run reported by a session working in
+    /// a directory whose workflows are not installed here. The caller decides
+    /// what to say about it; there is no graph to draw either way.
+    pub(in crate::ui::app) fn point_workflows_at_run(
+        &mut self,
+        workflow: &str,
+        run: &str,
+        active_node: Option<&str>,
+    ) -> bool {
+        let Some(index) = self
+            .workflows
+            .iter()
+            .position(|summary| summary.id == workflow)
+        else {
+            return false;
+        };
+        self.select_workflow(index);
+        self.wf.run_index = self
+            .workflow_runs()
+            .iter()
+            .position(|record| record.id == run);
+        // Set whether or not the record was found. A run still executing in the
+        // MCP subprocess has no record on disk yet — the store is written when it
+        // settles — but `live_run_view` resolves reported runs by this same id,
+        // so the overlay is what gets the streamed frames onto the graph.
+        self.wf.overlay = Some(run.to_string());
+        // A reported run can already be mid-graph when its row first reaches
+        // Agents. Start its shared canvas at the most recently reporting node,
+        // rather than the graph's first node, whose preview has no live output.
+        if let Some(node) = active_node {
+            if let Some(index) = self
+                .wf
+                .layout
+                .nodes
+                .iter()
+                .position(|placed| placed.id == node)
+            {
+                self.wf.node_index = index;
+                self.scroll_canvas_to_cursor();
+            }
+        }
+        true
+    }
+
     /// Select workflow `index`, reloading everything that hangs off it.
     ///
     /// Leaves the New row, since a workflow and "no workflow yet" cannot both
@@ -208,8 +292,7 @@ impl App {
         self.wf.run_index = None;
         self.wf.overlay = None;
         self.wf.node_index = 0;
-        self.wf.canvas_layer = 0;
-        self.wf.canvas_lane = 0;
+        self.wf.canvas_row = 0;
         self.wf.preview_scroll = 0;
         self.wf.copilot_scroll = 0;
         self.reload_workflow_runs();

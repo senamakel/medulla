@@ -3,6 +3,10 @@
 //! The graph answers where a step sits; this pane answers what it will do.
 //! Each common node kind gets a purpose-built presentation, while unknown
 //! configuration remains inspectable as redacted, pretty-printed JSON.
+//!
+//! While a run is in flight the pane leads with [`live`]: the harness output
+//! this step is producing right now, which is the only part of the box that
+//! changes between frames and therefore the part being watched.
 
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
@@ -16,18 +20,22 @@ use medulla::workflows::RunStatus;
 use super::super::super::types::App;
 
 mod kinds;
+mod live;
 mod prompt;
 mod run_detail;
 mod syntax;
 mod types;
 
 #[cfg(test)]
+mod live_tests;
+#[cfg(test)]
 mod syntax_tests;
 #[cfg(test)]
 mod tests;
 
 use kinds::kind_lines;
-use run_detail::{connection_line, run_lines};
+pub(in crate::ui::app::render) use live::live_lines;
+use run_detail::{connection_line, run_header, run_lines};
 use types::AgentDefaults;
 
 impl App {
@@ -82,7 +90,21 @@ impl App {
         };
 
         let mut lines = Vec::new();
+        // First, because it is the answer to "what is happening" — a reader
+        // watching a run should not have to scroll past the plan to find it.
+        if let Some(live) = self.live_run_view() {
+            let live_lines = live_lines(live.frames(&selected.id), live.running);
+            if !live_lines.is_empty() {
+                lines.extend(live_lines);
+                lines.push(Line::from(""));
+            }
+        }
         if let Some(run) = &run {
+            // The run first, then the step. A step's evidence read without
+            // knowing what the run was started with is a paragraph out of
+            // context — and the inputs are exactly what the operator is
+            // comparing two runs of one workflow by.
+            lines.extend(run_header(run));
             let state = RunOverlay::new(run).node(&selected.id);
             let duration = state
                 .duration_ms

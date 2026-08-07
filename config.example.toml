@@ -11,7 +11,9 @@
 #
 #   1. CLI flags                    (e.g. --config, --core, --no-alt-screen)
 #   2. environment variables        (MEDULLA_API_URL, MEDULLA_TOKEN via tokenEnv,
-#                                     MEDULLA_STAGING, MEDULLA_STATE_DIR, TINYPLACE_*)
+#                                     MEDULLA_STAGING, MEDULLA_STATE_DIR, MEDULLA_*
+#                                     harness knobs; the old TINYPLACE_* spelling
+#                                     of those is deprecated but still read)
 #   3. project-local config file    ./.medulla/config.toml  or  ./medulla.toml
 #   4. user-global config file      <medulla_home>/config.toml
 #   5. built-in defaults            (production endpoints)
@@ -162,6 +164,10 @@ tokenEnv = "MEDULLA_TOKEN"
 # runTimeoutSecs = 600
 # toolAllowlist = []
 # httpAllowlist = []
+# How many of a workflow's runs the Workflows page lists under it, newest
+# first. Only the listing: every run stays in the store, and `medulla workflow
+# list-runs` still shows the lot. Settings › Config edits this live.
+# maxListedRuns = 15
 
 # ---------------------------------------------------------------------------
 # mcp — Medulla's tool server, as offered to the harnesses it spawns
@@ -213,9 +219,10 @@ tokenEnv = "MEDULLA_TOKEN"
 # <stateDir>/node.json — never in a config file, which gets copied, shared and
 # pasted into issues.
 # [link]
-# Backend fronting the forwarder and the host registry (the env staging switch
-# applies as for backend). Default: https://api.tiny.place
-# forwarderUrl = "https://api.tiny.place"
+# Backend fronting the forwarder and the host registry. Defaults to whatever
+# backend.baseUrl resolved to — the forwarder is served by the same backend, so
+# moving one moves the other. Set this only for a deliberately split deployment.
+# forwarderUrl = "https://api.tinyhumans.ai"
 # This endpoint's node name, as issued at enrollment.
 # nodeName = "my-orchestrator"
 # Link identity directory. Default: <home>/link
@@ -251,9 +258,9 @@ tokenEnv = "MEDULLA_TOKEN"
 # subpage edits these live and writes them back here.
 # ---------------------------------------------------------------------------
 # [theme]
-# primary = "cyan"        # selection highlight + brand/panel titles/accents
+# primary = "red"         # selection highlight + brand/panel titles/accents
 # accent = "magenta"      # inline overlay borders (prompt / resume picker)
-# selectionFg = "black"   # text drawn on top of the primary selection background
+# selectionFg = "white"   # text drawn on top of the primary selection background
 # dimBorder = "darkgray"  # panel borders
 
 # Legacy harness-row toggles, kept so an older config keeps working. They are
@@ -268,27 +275,31 @@ tokenEnv = "MEDULLA_TOKEN"
 # out. Settings › Status line edits these live and previews the result, which
 # is by far the easier way to arrive at a layout you like.
 #
-# Every field answers three questions:
-#   where   "line1" | "line2" | "line3" | "hidden"  (at most three lines)
-#   when    "always" | "active" (only the selected row) | "alert" (only a
-#           harness that failed, exited non-zero, or recorded an error)
-#   spelled per-field, see below
+# Every field answers the same three questions, which are the rows the settings
+# page shows under each field's name:
+#   position "line1" | "line2" | "line3" | "hidden"  (at most three lines)
+#   shown    "always" | "active" (only the selected row) | "alert" (only a
+#            harness that failed, exited non-zero, or recorded an error)
+#   spelled  per-field, see below
 #
-# The defaults below reproduce the historical single-line row:
+# The defaults below are the identifying line plus the thread beneath it:
 #   ● codex · unmanaged · main · ~/work/medulla
+#     Ship the status line
 # ---------------------------------------------------------------------------
 # [statusLine]
-# state = "line1"                # the ● / ✓ / ✕ run-state glyph
+# state = "line1"                # State glyph: the ●/✓/✕ symbol, running, finished, or failed
 # stateWhen = "always"
-# harness = "line1"
+# harness = "line1"              # Harness name: which CLI is driving the session
 # harnessWhen = "always"
 # harnessStyle = "short"         # "long" (Claude Code) | "short" (claude) | "icon"
-# control = "line1"              # managed / unmanaged
+# control = "line1"              # Managed / unmanaged: Medulla's session or yours
 # controlWhen = "always"
 # controlStyle = "text"          # "text" (unmanaged) | "icon" (⊘ / ⊙)
-# branch = "line1"
+# thread = "line2"               # Thread name: the conversation being worked on
+# threadWhen = "always"
+# branch = "line1"               # Git branch: the branch the checkout is on
 # branchWhen = "always"
-# path = "line1"
+# path = "line1"                 # Working path: the checkout it is running in
 # pathWhen = "always"
 # pathStyle = "shortened"        # "full" | "shortened" (~/…/tail) | "last"
 
@@ -336,8 +347,87 @@ tokenEnv = "MEDULLA_TOKEN"
 # workspaceId = "medulla"
 # templateId = "implementer"
 
+# agentDeclarations — the agents *you* declare on your own machines, and the
+# source of this client's roster. One per (harness × workspace): a machine with
+# claude and codex in two checkouts declares four, and each is separately
+# addressable by the orchestrator. Distinct from [[fleet.agents]] above, which
+# describes a fleet somebody else published.
+#
+# hostId matches the local bus address of the [host] / [[hosts]] entry that runs
+# it ("this-device" by default). strategy = "checkout" is the only implemented
+# one: sessions share the directory, so one runs at a time and the next queues.
+# Declare nothing and each host seeds one agent per CLI it detects, so an
+# install that predates this keeps exactly the roster it had.
+# [[fleet.agentDeclarations]]
+# agentId = "medulla-claude"
+# hostId = "this-device"
+# harness = "claude"           # claude · codex · opencode · a custom harness id
+# name = "medulla"             # optional; the rail falls back to the host's name
+# roles = ["implementer"]      # optional agentTemplate ids this agent is offered for
+# strategy = "checkout"
+# workspace = { path = "/srv/repos/medulla", type = "checkout" }
+
 # [[fleet.agentTemplates]]
 # id = "implementer"
 # name = "Implementer"
 # description = "Implements a scoped change and reports what it did."
 # model = "reasoning"        # an abstract tier, never a concrete SKU
+
+# ---------------------------------------------------------------------------
+# Lifecycle hooks
+# ---------------------------------------------------------------------------
+#
+# Commands Medulla installs into every harness it launches. Declared once here
+# rather than once per harness, in each harness's own config language: a hook
+# written here reaches Claude Code (through `--settings`) and Codex (through a
+# `-c` override) from the same three lines, and cannot drift between them.
+#
+# These are *Medulla's* hooks. Your own `~/.claude/settings.json` hooks keep
+# running exactly as they do outside Medulla — nothing here replaces them.
+#
+# event    — required. Both spellings are accepted: the canonical PascalCase
+#            name the harnesses themselves use, and its camelCase form, which
+#            is what the rest of this file's key style would lead you to write.
+#            "PostToolUse" and "postToolUse" mean the same thing.
+#
+#            PreToolUse · PostToolUse · PermissionRequest · UserPromptSubmit
+#            Stop · SubagentStart · SubagentStop · PreCompact · PostCompact
+#            SessionStart · SessionEnd · Notification
+#
+#            Notification is Claude Code only. A hook on an event a harness
+#            does not implement is dropped for that harness, with a line in
+#            the log saying which and why — never silently.
+#
+# type     — required, and "command" is the only handler. The command runs
+#            through your shell, receives the harness's native hook payload on
+#            stdin, and speaks the harness's native decision protocol back on
+#            stdout.
+#
+# command  — required. The command line to run.
+#
+# matcher  — optional, default "*". A tool-name pattern for the tool-scoped
+#            events; ignored by events that carry no tool.
+#
+# timeout  — optional. Seconds before the harness gives up on the hook. The
+#            harness's own default when omitted.
+#
+# harnesses — optional, default every harness that supports the event. Note
+#            these are lowercase (claude · codex · opencode · openhuman),
+#            unlike the event names.
+#
+# An event name that is neither spelling fails the whole config load, naming
+# the value it rejected. That is deliberate: a hook you believe is installed
+# and is not is worse than a startup that stops and tells you.
+#
+# [[hooks]]
+# event = "PostToolUse"
+# matcher = "Edit|Write"
+# type = "command"
+# command = "just fmt"
+#
+# [[hooks]]
+# event = "sessionStart"        # camelCase is accepted too
+# type = "command"
+# command = "git fetch --all --prune"
+# timeout = 30
+# harnesses = ["claude"]        # this one only, and lowercase

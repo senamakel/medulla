@@ -105,7 +105,31 @@ Medulla drives Claude Code and Codex over [ACP](https://github.com/tinyhumansai/
 as a *client*, so it cannot hand them tools directly — it offers them. Every ACP
 session gets an MCP server (`medulla workflow mcp`, the same binary) exposing the
 catalogue, `workflow_create`, `workflow_apply_ops` / `workflow_preview_ops`,
-`workflow_validate`, `workflow_dry_run`, and `workflow_runs`.
+`workflow_validate`, `workflow_dry_run`, `workflow_run`, and `workflow_runs`.
+
+`workflow_run` starts the run and answers with its id rather than waiting for
+it. A real workflow outlives any client's idle ceiling — a measured three-pass
+babysit ran 35 minutes, one step of it 20 — so a call that waits is reported as
+a failure while the run carries on succeeding. `workflow_run_get` says how far
+it has got and, once it settles, what it did. `wait: true` and `waitMs` are
+there for the short ones.
+
+Two verbs go with it. `workflow_run_detail` answers the question the run record
+cannot: a step is written only once it has *finished*, so an `agent` node twenty
+minutes into a coding session is invisible to `workflow_run_get` — this joins
+the run to the harness sessions in flight for it, and says which worker each one
+is on. It looks in two places: the sessions this server dispatched itself, and
+the fleet roster, which is the only view of a run executing somewhere else.
+
+And `workflow_run_cancel` stops a run, because a model that started one over MCP
+and answered with the id had no way to stop it and nobody was watching it in the
+pane. Cancellation is *process-local*: it reaches the runs the serving process
+is executing, which for a session that started its own run is the case that
+matters. A run started elsewhere — the TUI, another MCP server, a daemon —
+answers `cancelled: false` with a reason rather than an error, and stopping it
+means going to the process that owns it. `workflow_run_detail`'s
+`live.executingHere` is the same fact read ahead of time: true there means a
+cancel will land.
 
 `workflow_apply_ops` is the one that matters for editing. Rewriting a whole
 document loses whatever the model misremembered; a patch is checked op by op, and

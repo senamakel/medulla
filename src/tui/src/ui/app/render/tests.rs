@@ -32,18 +32,18 @@ fn compact_tab_labels_shorten_the_current_wide_destinations() {
 #[test]
 fn harness_choice_window_keeps_the_selection_visible() {
     assert_eq!(
-        super::harness_modals::harness_choice_window(20, 0, 13),
+        super::session_modals::harness_choice_window(20, 0, 13),
         0..13
     );
     assert_eq!(
-        super::harness_modals::harness_choice_window(20, 10, 13),
+        super::session_modals::harness_choice_window(20, 10, 13),
         4..17
     );
     assert_eq!(
-        super::harness_modals::harness_choice_window(20, 19, 13),
+        super::session_modals::harness_choice_window(20, 19, 13),
         7..20
     );
-    assert_eq!(super::harness_modals::harness_choice_window(2, 1, 13), 0..2);
+    assert_eq!(super::session_modals::harness_choice_window(2, 1, 13), 0..2);
 }
 
 fn lane(role: AgentRole) -> AgentLane {
@@ -366,7 +366,7 @@ fn a_huge_argument_payload_is_clipped_not_dumped() {
 
 #[test]
 fn leaving_the_agents_tab_takes_the_keyboard_back_from_an_attached_harness() {
-    // The bug this pins: `release_harness` was only reached from
+    // The bug this pins: `release_session` was only reached from
     // `agents_selection`, which runs only while the Agents tab is being drawn.
     // It notices the *cursor* moving off the attached session and has nothing to
     // say once the operator has left the tab altogether — so focus stayed
@@ -391,10 +391,32 @@ fn leaving_the_agents_tab_takes_the_keyboard_back_from_an_attached_harness() {
     terminal.draw(|f| app.draw(f)).expect("draw");
 
     assert_eq!(
-        app.attached_harness(),
+        app.attached_session(),
         None,
         "keys must not reach a harness the operator has navigated away from"
     );
+}
+
+#[test]
+fn a_stale_harness_diff_does_not_advertise_agents_shortcuts_on_another_tab() {
+    use crate::ui::app::types::{tab_pos, PaneView};
+
+    let mut app = app();
+    app.tab_index = tab_pos("Overview");
+    app.pane_view = PaneView::Diff;
+    let mut terminal =
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).expect("terminal");
+    terminal.draw(|frame| app.draw(frame)).expect("draw");
+    let output: String = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect();
+
+    assert!(output.contains("d session diff"), "{output}");
+    assert!(!output.contains("d/Esc harness"), "{output}");
 }
 
 /// Put the Changes tab in front of a patch whose selected line is far wider

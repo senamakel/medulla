@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use super::*;
+use medulla::hub::WorkerSpec;
 
 /// A host running inside the TUI process, with the bus it shares with the hub.
 ///
@@ -13,8 +14,10 @@ pub(crate) struct LocalHost {
     /// The running host. Kept private so the UI reads it through this type's
     /// accessors rather than reaching into the SDK handle.
     pub(super) daemon: EmbeddedDaemon,
-    /// A roster entry naming this host, for the hub to advertise.
-    pub(super) spec: WorkerSpec,
+    /// One roster entry per agent declared on this host, for the hub to
+    /// advertise. Never empty: a host with no declarations is seeded from what
+    /// its daemon detected (see [`specs_for`](super::specs_for)).
+    pub(super) specs: Vec<WorkerSpec>,
 }
 
 impl LocalHost {
@@ -42,9 +45,10 @@ impl LocalHost {
         self.daemon.observation()
     }
 
-    /// The roster entry the hub should advertise for this host.
-    pub(crate) fn spec(&self) -> &WorkerSpec {
-        &self.spec
+    /// The roster entries the hub should advertise for this host — one per
+    /// declared agent.
+    pub(crate) fn specs(&self) -> &[WorkerSpec] {
+        &self.specs
     }
 
     /// A clone of the host's task state machine.
@@ -59,3 +63,12 @@ impl LocalHost {
         self.daemon.runtime().clone()
     }
 }
+
+/// What Medulla imposes on every harness a host launches: commit attribution and
+/// the operator's lifecycle hooks.
+///
+/// The SDK owns the type, because the TUI's hosts are not the only doors that
+/// need it — a workflow run, the authoring copilot, and an evolution review each
+/// start an embedded host of their own inside the SDK, and all four must be able
+/// to say the same thing in the same words.
+pub(crate) use medulla::harness_hooks::LaunchPolicy;

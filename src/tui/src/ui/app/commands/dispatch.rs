@@ -1,10 +1,10 @@
 //! Runtime, prompt, clipboard, slash-command, and settings command dispatch.
 
-use crate::ui::agents::{AgentRow, TaskState};
-use crate::ui::clipboard::{copy_for_operator, copy_to_clipboard, current_platform, OSC_52};
+use crate::ui::agents::TaskState;
+use crate::ui::clipboard::{copy_for_operator, copy_to_clipboard, current_platform};
 use crate::ui::command::{self, CopyScope, SlashCommand};
 use crate::ui::composer::Draft;
-use medulla::runtime::{WorkerInfo, WorkerOp};
+use medulla::runtime::WorkerOp;
 
 use super::super::types::{
     tab_pos, App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES, SP_APPEARANCE, SP_CONFIG, SP_HELP,
@@ -12,28 +12,17 @@ use super::super::types::{
 };
 
 impl App {
-    /// The worker under the Workers-list cursor, if the fleet is non-empty.
-    pub(in crate::ui::app) fn selected_host(&self) -> Option<WorkerInfo> {
-        let ws = self.runtime.workers();
-        if ws.is_empty() {
-            return None;
-        }
-        ws.get(self.host_index.min(ws.len() - 1)).cloned()
-    }
-
     /// The task under the Agents-list cursor, when a `Sub` (task) row is selected.
     ///
     /// Indexes the rail's rows, which is what `agent_index` counts — the lane
     /// list alone is shorter than the rail and reading it here would answer for
     /// whichever row happened to share the offset.
     pub(in crate::ui::app) fn selected_agent_task(&self) -> Option<TaskState> {
-        let rows = self.rail_rows();
-        match rows.get(self.agent_index.min(rows.len().saturating_sub(1))) {
-            Some(super::super::rail::RailRow::Agent(AgentRow::Sub { task, .. })) => {
-                Some(task.clone())
-            }
-            _ => None,
-        }
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        rows.get(self.rail_cursor_in(&rows, &lanes))
+            .and_then(|row| row.task())
+            .cloned()
     }
 
     /// Request cancellation of the selected running task, or note why it cannot.
@@ -152,6 +141,16 @@ impl App {
                 self.add_workspace(&text);
                 None
             }
+            // Blank is an answer here, not a cancellation: the id minted from
+            // the directory is the name most agents keep.
+            PromptKind::AgentName { harness, workspace } => {
+                self.declare_new_agent(&harness, &workspace, &text);
+                None
+            }
+            PromptKind::SessionName { agent_id, managed } => {
+                self.start_agent_session(&agent_id, &text, managed);
+                None
+            }
             PromptKind::CustomHarnessAdd => {
                 self.save_custom_harness(None, &text);
                 None
@@ -160,7 +159,14 @@ impl App {
                 self.save_custom_harness(Some(&id), &text);
                 None
             }
-            PromptKind::LocalHostWorkspace(harness) => self.add_local_host(harness, &text),
+            PromptKind::HookAdd => {
+                self.save_hook(None, &text);
+                None
+            }
+            PromptKind::HookEdit(index) => {
+                self.save_hook(Some(index), &text);
+                None
+            }
             PromptKind::RejectProposal {
                 workflow,
                 proposal_id,
@@ -178,8 +184,16 @@ impl App {
             }
             PromptKind::HostEditLabel(id) => {
                 let mut patch = serde_json::Map::new();
-                patch.insert("label".into(), serde_json::Value::String(text));
+                patch.insert("label".into(), serde_json::Value::String(text.clone()));
+                // Set first so the persist can overrule it: renaming has two
+                // outcomes worth more than "Updating label…" — a write that
+                // failed, and an install with no config file, where the new name
+                // lasts one run and the operator has to be told so.
                 self.set_status("Updating label…");
+                // The roster label is this run's; the declaration's name is the
+                // one that comes back after a restart, so an agent this machine
+                // declared is renamed in both places or the edit half-survives.
+                self.persist_agent_name(&id, &text);
                 Some(Cmd::WorkerOp(WorkerOp::Update { id, patch }))
             }
             PromptKind::AnswerQuestion {
@@ -358,7 +372,7 @@ impl App {
             ));
             return;
         }
-        let via = copy_to_clipboard(&text, current_platform(), |osc| {
+        let report = copy_to_clipboard(&text, current_platform(), |osc| {
             use std::io::Write;
             let _ = std::io::stdout().write_all(osc.as_bytes());
             let _ = std::io::stdout().flush();
@@ -373,10 +387,10 @@ impl App {
             if rows == 1 { "" } else { "s" },
             text.len()
         );
-        self.set_status(if via == OSC_52 {
-            format!("Sent {what} · {size} → terminal (OSC 52); check your clipboard")
+        self.set_status(if report.confirmed() {
+            format!("Copied {what} · {size} → clipboard ({})", report.describe())
         } else {
-            format!("Copied {what} · {size} → clipboard ({via})")
+            format!("Sent {what} · {size} → terminal (OSC 52); check your clipboard")
         });
     }
 
@@ -397,14 +411,15 @@ impl App {
             self.set_status(format!("Copied {what} (captured)"));
             return;
         }
-        let via = copy_for_operator(text, current_platform(), |osc| {
+        let report = copy_for_operator(text, current_platform(), |osc| {
             use std::io::Write;
             let _ = std::io::stdout().write_all(osc.as_bytes());
             let _ = std::io::stdout().flush();
         });
-        self.set_status(match via {
-            Some(writer) => format!("Copied {what} → clipboard ({writer})"),
-            None => format!("Sent {what} → terminal (OSC 52); check your clipboard"),
+        self.set_status(if report.confirmed() {
+            format!("Copied {what} → clipboard ({})", report.describe())
+        } else {
+            format!("Sent {what} → terminal (OSC 52); check your clipboard")
         });
     }
 
@@ -438,11 +453,11 @@ impl App {
                 self.new_thread();
             }
             SlashCommand::Resume => return Some(Cmd::ListChats),
-            SlashCommand::NewHarness { provider, path } => {
-                self.start_harness_command(provider.as_deref(), path.as_deref());
+            SlashCommand::StartSession { provider, path } => {
+                self.start_session_command(provider.as_deref(), path.as_deref());
             }
-            SlashCommand::TakeControl => self.take_harness_control(),
-            SlashCommand::HandOff { note } => self.hand_harness_back(note),
+            SlashCommand::TakeControl => self.take_session_control(),
+            SlashCommand::HandOff { note } => self.hand_session_back(note),
             SlashCommand::Abort => {
                 self.runtime.abort();
                 self.set_status("Abort requested");

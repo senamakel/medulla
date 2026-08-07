@@ -7,6 +7,7 @@
 
 use std::path::PathBuf;
 
+use crate::flow_engine::caps::script::Interpreter;
 use crate::protocol::HarnessProvider;
 
 /// Settings governing one workflow run's capabilities.
@@ -65,11 +66,26 @@ pub struct CapabilitySettings {
     /// node's `concurrency` past this slows the run down instead of breaking
     /// it.
     pub max_parallel_agents: usize,
+    /// The ceiling this host puts on any one `loop` node's `max_iterations`.
+    ///
+    /// A loop's cap is an authoring decision, but on this host a pass through
+    /// the body can be a whole harness session, so a graph asking for a
+    /// thousand of them is asking for something the operator never agreed to.
+    /// Like `max_parallel_agents`, an over-ask is *clamped, never refused* —
+    /// the workflow still runs, just not for as long as it asked.
+    pub max_loop_iterations: u64,
     /// The fleet depth inherited by every harness node in this run.
     ///
     /// A workflow received through `fleet_dispatch` is already delegated work;
     /// its child nodes must stay at that depth rather than becoming new roots.
     pub fleet_depth: u8,
+    /// The interpreter a `shell` script runs under when its node names none.
+    ///
+    /// Resolved once, here, rather than at each spawn: `workflows.shell = "user"`
+    /// reads `$SHELL`, and a run whose steps disagreed about the answer because
+    /// the environment changed under them would be a genuinely confusing thing
+    /// to debug.
+    pub shell: Interpreter,
     /// The directory a `medulla:shell` script runs in.
     ///
     /// The operator's project, normally: a step that shells out almost always
@@ -90,6 +106,13 @@ pub const DEFAULT_RUN_TIMEOUT_SECS: u64 = 600;
 /// ceiling is set by how many a worker can actually serve at once, not by how
 /// many a graph feels like asking for. An operator with a bigger pool raises it.
 pub const DEFAULT_MAX_PARALLEL_AGENTS: usize = 4;
+
+/// A loop may run its body twenty-five times before this host clamps it.
+///
+/// Matches the engine's own default for a `loop` node that declares no cap, so
+/// the common case is unchanged and this only bites a graph that asked for
+/// noticeably more. An operator whose loops are cheap raises it.
+pub const DEFAULT_MAX_LOOP_ITERATIONS: u64 = 25;
 
 impl CapabilitySettings {
     /// Settings rooted under a Medulla home.
@@ -112,7 +135,9 @@ impl CapabilitySettings {
             http_allowlist: Vec::new(),
             run_timeout_secs: DEFAULT_RUN_TIMEOUT_SECS,
             max_parallel_agents: DEFAULT_MAX_PARALLEL_AGENTS,
+            max_loop_iterations: DEFAULT_MAX_LOOP_ITERATIONS,
             fleet_depth: 0,
+            shell: Interpreter::default_shell(),
             workspace: String::new(),
         }
     }
@@ -155,9 +180,13 @@ impl CapabilitySettings {
                 // A named preset wins: only a workflow's own defaults can set
                 // it, which is more specific than anything host config says.
                 (Some(id), _) => Some(crate::flow_engine::HarnessSelector::Custom(id.clone())),
-                (None, Some(provider)) => {
-                    Some(crate::flow_engine::HarnessSelector::Builtin(provider))
-                }
+                (None, Some(provider)) => Some(crate::flow_engine::HarnessSelector::Builtin {
+                    provider,
+                    // Host config pins a provider, not a flavor: an operator who
+                    // wants the shared process says so per node or in the
+                    // workflow's own defaults, where it is visible in the graph.
+                    transport: crate::protocol::HarnessTransport::Cli,
+                }),
                 (None, None) => None,
             },
             model: self.default_model.clone(),
@@ -195,6 +224,23 @@ impl CapabilitySettings {
         settings.default_model =
             (!config.default_model.is_empty()).then(|| config.default_model.clone());
         settings.allow_code = config.allow_code;
+        // A shell this host cannot accept is a configuration mistake worth
+        // saying out loud, but it is not worth refusing to run workflows over:
+        // the default still works, and a hard failure here would take out every
+        // `code` node too, none of which use it.
+        settings.shell = Interpreter::resolve(
+            &config.shell,
+            &config.shell_args,
+            Interpreter::login_shell().as_deref(),
+        )
+        .unwrap_or_else(|err| {
+            tracing::warn!(
+                configured = %config.shell,
+                %err,
+                "workflows.shell is unusable; falling back to the default shell"
+            );
+            Interpreter::default_shell()
+        });
         settings.tool_allowlist = config.tool_allowlist.clone();
         settings.http_allowlist = config.http_allowlist.clone();
         // A zero timeout would abandon every run instantly, which reads as the
@@ -211,6 +257,13 @@ impl CapabilitySettings {
             DEFAULT_MAX_PARALLEL_AGENTS
         } else {
             config.max_parallel_agents
+        };
+        // And again: a zero ceiling would clamp every loop to no iterations at
+        // all, so a workflow that looks correct would silently do nothing.
+        settings.max_loop_iterations = if config.max_loop_iterations == 0 {
+            DEFAULT_MAX_LOOP_ITERATIONS
+        } else {
+            config.max_loop_iterations
         };
         settings
     }

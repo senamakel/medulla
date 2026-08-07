@@ -1,10 +1,15 @@
-//! Tests for the session-facing half of [`LocalHarnesses`], against a real
-//! child on a real pseudo-terminal.
+//! Tests for the session-facing half of [`LocalSessions`], against a real
+//! child on a real pseudo-terminal: screen reading, resizing, key input, and
+//! mouse-wheel forwarding.
 //!
 //! `/bin/sh` stands in for a coding agent: it is a genuine pty client with a
 //! genuine terminal, so reads, resizes, writes and exit detection are exercised
 //! exactly as they will be against `claude`, while staying fast, offline, and
 //! deterministic.
+//!
+//! What a session is opened *with* — provider choice, attribution, and the
+//! argv a real spawn produces — is covered separately in [`super::spawn`],
+//! which also owns the `harnesses()`/`sh()` fixtures both files share.
 //!
 //! Unix-only, for the same reason the pty layer's own tests are: Windows has no
 //! `/bin/sh` to drive.
@@ -14,17 +19,16 @@ use std::time::{Duration, Instant};
 
 use medulla::protocol::HarnessProvider;
 
-use crate::worker::pty::{HarnessControl, LaunchSpec, PtyManager};
+use crate::worker::pty::{LaunchSpec, PtyManager, SessionControl};
 
-use super::super::HarnessChoice;
-use super::super::LocalHarnesses;
+use super::super::LocalSessions;
 
 /// A spec that runs `sh -c <script>` on a pty.
 ///
 /// Codex rather than Claude: Claude's interactive argv carries a minted
 /// `--session-id`, which `/bin/sh` would reject as an unknown option. Codex
 /// takes no preset id, so its argv is empty and the script is the whole command.
-fn sh(script: &str) -> LaunchSpec {
+pub(super) fn sh(script: &str) -> LaunchSpec {
     let mut env = HashMap::new();
     if let Ok(path) = std::env::var("PATH") {
         env.insert("PATH".to_string(), path);
@@ -32,6 +36,7 @@ fn sh(script: &str) -> LaunchSpec {
     env.insert("TERM".to_string(), "xterm-256color".to_string());
     LaunchSpec {
         provider: HarnessProvider::Codex,
+        preset: None,
         bin: "/bin/sh".to_string(),
         cwd: "/".to_string(),
         env,
@@ -40,18 +45,21 @@ fn sh(script: &str) -> LaunchSpec {
         label: "test".to_string(),
         session_id: None,
         model: None,
-        control: HarnessControl::Orchestrator,
-        user_spawned: false,
+        control: SessionControl::Orchestrator,
+        origin: crate::worker::pty::SessionOrigin::Orchestrator,
+        name: None,
+        mcp_grant_session: None,
     }
 }
 
-/// A [`LocalHarnesses`] over `sessions`, with a runtime that serves no tasks.
+/// A [`LocalSessions`] over `sessions`, with a runtime that serves no tasks.
 ///
 /// Task resolution needs a live host and is covered by the daemon's own screen
 /// e2e; everything here is about what the pane does *once* a session is named,
 /// so the runtime is inert on purpose.
-fn harnesses(sessions: PtyManager) -> LocalHarnesses {
+pub(super) fn harnesses(sessions: PtyManager) -> LocalSessions {
     let config = medulla::daemon::DaemonConfig {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
         providers: vec![HarnessProvider::Codex],
         default_provider: HarnessProvider::Codex,
         workspace: "/".to_string(),
@@ -76,7 +84,9 @@ fn harnesses(sessions: PtyManager) -> LocalHarnesses {
     let send: medulla::daemon::SendFn = std::sync::Arc::new(|_, _| {
         Box::pin(async {}) as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
     });
-    LocalHarnesses {
+    LocalSessions {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        log: None,
         sessions,
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
@@ -91,174 +101,12 @@ fn harnesses(sessions: PtyManager) -> LocalHarnesses {
     }
 }
 
-#[test]
-fn picker_choices_include_every_native_provider_and_registered_preset() {
-    let mut harnesses = harnesses(PtyManager::new());
-    harnesses
-        .env
-        .insert("OPENHUMAN_BIN".to_string(), "/bin/sh".to_string());
-    harnesses.providers = vec![
-        HarnessProvider::Claude,
-        HarnessProvider::Codex,
-        HarnessProvider::Opencode,
-    ];
-    harnesses.custom_harnesses = vec![medulla::config::CustomHarnessConfig::from_editor_line(
-        "deepseek | DeepSeek Codex | codex | deepseek/deepseek-chat | | this-device",
-    )
-    .unwrap()];
-
-    let choices = harnesses.choices();
-    let labels = choices
-        .iter()
-        .map(HarnessChoice::display_name)
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        labels,
-        [
-            "Claude Code",
-            "Codex",
-            "OpenCode",
-            "OpenHuman",
-            "DeepSeek Codex"
-        ]
-    );
-    assert_eq!(choices[3].id(), "openhuman");
-    assert_eq!(choices[3].provider, HarnessProvider::Openhuman);
-    assert_eq!(choices[4].id(), "deepseek");
-    assert_eq!(choices[4].provider, HarnessProvider::Codex);
-}
-
-#[test]
-fn picker_hides_openhuman_when_its_binary_is_unavailable() {
-    let harnesses = harnesses(PtyManager::new());
-
-    assert!(!harnesses
-        .choices()
-        .iter()
-        .any(|choice| choice.provider == HarnessProvider::Openhuman));
-}
-
-#[test]
-fn registered_openrouter_preset_uses_the_proxy_without_leaking_its_key() {
-    let mut harnesses = harnesses(PtyManager::new());
-    // This test is about the router injection, and attribution adds argv and
-    // environment of its own; it has its own tests below.
-    harnesses.attribution = false;
-    harnesses
-        .env
-        .insert("OPENROUTER_API_KEY".into(), "secret".into());
-    harnesses.env.insert(
-        medulla::inference_proxy::UPSTREAM_URL_ENV.into(),
-        "http://127.0.0.1:1/api".into(),
-    );
-    let preset = medulla::config::CustomHarnessConfig::from_editor_line(
-        "deepseek | DeepSeek Claude | claude | deepseek/deepseek-chat | deepseek/fast | this-device",
-    )
-    .unwrap();
-
-    let (env, extra_args) = harnesses
-        .spawn_env(&HarnessChoice::custom(preset))
-        .expect("registered preset is launchable");
-
-    let base_url = &env["ANTHROPIC_BASE_URL"];
-    assert!(
-        base_url.starts_with("http://127.0.0.1:") && base_url.ends_with("/anthropic"),
-        "Claude must use the proxy's Anthropic mount: {base_url}"
-    );
-    let token = &env["ANTHROPIC_AUTH_TOKEN"];
-    assert!(
-        token.starts_with("mdl-"),
-        "child must receive a proxy token"
-    );
-    assert_eq!(
-        env.get(medulla::inference_proxy::PROXY_TOKEN_ENV),
-        Some(token),
-        "router injection must resolve the minted proxy token"
-    );
-    assert!(
-        !env.contains_key("OPENROUTER_API_KEY"),
-        "the upstream key must not survive in the child environment"
-    );
-    assert_ne!(
-        token, "secret",
-        "the upstream key must not be passed through"
-    );
-    assert_eq!(
-        env["ANTHROPIC_DEFAULT_OPUS_MODEL"],
-        "deepseek/deepseek-chat"
-    );
-    assert_eq!(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"], "deepseek/fast");
-    assert!(extra_args.is_empty());
-}
-
-/// A harness the operator opens by hand is still one Medulla launched, and was
-/// the last spawn seam that produced unattributed commits with
-/// `attribution.commit = true` — the executor's own path had been fixed, this
-/// one had not.
-#[test]
-fn an_operator_started_harness_carries_commit_attribution() {
-    let harnesses = harnesses(PtyManager::new());
-
-    let (env, extra_args) = harnesses
-        .spawn_env(&HarnessChoice::native(HarnessProvider::Claude))
-        .expect("a native provider is launchable");
-
-    assert!(
-        env.get("MEDULLA_ATTRIBUTION")
-            .is_some_and(|v| v.contains("Co-authored-by: Medulla")),
-        "the child must carry the trailer: {env:?}"
-    );
-    assert_eq!(
-        env.get("GIT_CONFIG_KEY_0").map(String::as_str),
-        Some("core.hooksPath"),
-        "the hook is the mechanism of record and must be activated: {env:?}"
-    );
-    assert!(
-        env.contains_key("GIT_CONFIG_VALUE_0"),
-        "the hook directory must be named: {env:?}"
-    );
-    // Claude additionally takes the advisory `--settings` hint.
-    assert!(
-        extra_args.windows(2).any(|w| w[0] == "--settings"),
-        "claude also gets the inline settings hint: {extra_args:?}"
-    );
-}
-
-#[test]
-fn an_operator_started_harness_omits_attribution_when_configured_off() {
-    let mut harnesses = harnesses(PtyManager::new());
-    harnesses.attribution = false;
-
-    let (env, extra_args) = harnesses
-        .spawn_env(&HarnessChoice::native(HarnessProvider::Claude))
-        .expect("a native provider is launchable");
-
-    assert!(!env.contains_key("MEDULLA_ATTRIBUTION"), "{env:?}");
-    assert!(!env.contains_key("GIT_CONFIG_KEY_0"), "{env:?}");
-    assert!(extra_args.is_empty(), "{extra_args:?}");
-}
-
-/// Codex has no `--settings` equivalent, so its attribution is the hook alone.
-/// Inventing a flag for it would be a spawn that exits on an unknown argument.
-#[test]
-fn a_codex_harness_is_attributed_by_hook_without_extra_argv() {
-    let harnesses = harnesses(PtyManager::new());
-
-    let (env, extra_args) = harnesses
-        .spawn_env(&HarnessChoice::native(HarnessProvider::Codex))
-        .expect("a native provider is launchable");
-
-    assert!(env.contains_key("MEDULLA_ATTRIBUTION"), "{env:?}");
-    assert!(extra_args.is_empty(), "{extra_args:?}");
-}
-
 /// Spin until `check` passes or the deadline expires.
 ///
 /// The budget is far larger than these conditions actually need: real children
 /// on real ptys are at the mercy of machine load, and a tight deadline turns
 /// "the box was busy" into a red test.
-fn wait_for(what: &str, mut check: impl FnMut() -> bool) {
+pub(super) fn wait_for(what: &str, mut check: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
         if check() {
@@ -270,7 +118,7 @@ fn wait_for(what: &str, mut check: impl FnMut() -> bool) {
 }
 
 /// The whole screen as one string.
-fn text(harnesses: &LocalHarnesses, id: &str) -> String {
+fn text(harnesses: &LocalSessions, id: &str) -> String {
     harnesses
         .screen(id)
         .expect("the session has a screen")
@@ -409,6 +257,61 @@ fn a_child_that_asks_for_the_mouse_has_wheel_notches_forwarded_to_it() {
     wait_for("the child to receive the wheel report", || {
         text(&harnesses, &id).contains("[<64;4;5M")
     });
+    sessions.close(&id);
+}
+
+#[test]
+fn alternate_scroll_without_mouse_reporting_gets_arrow_scroll_events() {
+    let sessions = PtyManager::new();
+    let harnesses = harnesses(sessions.clone());
+    // Codex uses the terminal's alternate-scroll behaviour instead of mouse
+    // reporting: while mode 1007 is active, a terminal translates each wheel
+    // notch into cursor-key input for the child.
+    let id = sessions
+        .open(sh(
+            "printf '\\033[?1049h\\033[?1007h'; sleep 0.3; cat -v; sleep 30",
+        ))
+        .unwrap();
+
+    wait_for("the child to enable alternate scrolling", || {
+        sessions
+            .alternate_scroll(&id)
+            .is_some_and(std::convert::identity)
+    });
+
+    harnesses.scroll(&id, 3, 4, true, 3);
+
+    wait_for("the child to receive translated wheel input", || {
+        text(&harnesses, &id).contains("^[[A^[[A^[[A")
+    });
+    harnesses.scroll(&id, 3, 4, false, 2);
+    wait_for("the child to receive downward wheel input", || {
+        text(&harnesses, &id).contains("^[[B^[[B")
+    });
+    sessions.close(&id);
+}
+
+#[test]
+fn alternate_screen_without_alternate_scroll_does_not_receive_arrows() {
+    let sessions = PtyManager::new();
+    let harnesses = harnesses(sessions.clone());
+    let id = sessions
+        .open(sh(
+            "printf '\\033[?1049h\\033[?1007lready'; sleep 0.3; cat -v; sleep 30",
+        ))
+        .unwrap();
+
+    wait_for("the child to enter its alternate screen", || {
+        text(&harnesses, &id).contains("ready")
+    });
+    assert_eq!(sessions.alternate_scroll(&id), Some(false));
+
+    harnesses.scroll(&id, 3, 4, true, 3);
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert!(
+        !text(&harnesses, &id).contains("^[[A"),
+        "mode 1049 alone must not synthesize cursor input"
+    );
     sessions.close(&id);
 }
 

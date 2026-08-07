@@ -42,10 +42,17 @@ pub struct TaskRequest {
     pub cycle_id: Option<String>,
     /// The instruction/prompt the worker runs.
     pub instruction: String,
-    /// The worker's bridge address: a local endpoint name or tiny.place id.
+    /// The worker's bridge address: a local endpoint name or link node name.
     pub worker_address: String,
     /// Optional harness hint (`claude`/`codex`/`opencode`).
     pub provider: Option<HarnessProvider>,
+    /// Optional transport hint pairing with [`provider`](Self::provider).
+    ///
+    /// `None` — every dispatch that named a plain provider — leaves the worker
+    /// on that provider's default. `Some(AppServer)` is what naming
+    /// `codex-server` resolves to, and asks the worker to run the task as a
+    /// thread on its shared Codex process.
+    pub transport: Option<crate::protocol::HarnessTransport>,
     /// Optional named custom harness preset exposed by the worker.
     pub custom_harness: Option<String>,
     /// Optional model hint (the worker maps it to `--model`/`-m`, else its
@@ -114,6 +121,19 @@ pub struct TaskOutcome {
     pub usage: TokenUsage,
     /// The provider that actually ran the task, when the worker reported it.
     pub harness: Option<HarnessProvider>,
+    /// The harness session that served the task, when the worker reported one.
+    ///
+    /// Reported, never requested: the worker opens or resumes exactly one
+    /// session per task and is the only party that knows which, so this is the
+    /// sole path by which a session id travels back up. The hub forwards it to
+    /// the backend as `task_result.sessionId`, which is where a manager's task
+    /// ledger records *where* a piece of work happened.
+    ///
+    /// `None` for a worker that predates the key, for a failed dispatch (no
+    /// outcome to attach it to), and for a workflow run — a graph is not one
+    /// session, and claiming one of its nodes' sessions would name the wrong
+    /// place.
+    pub session_id: Option<String>,
 }
 
 /// Why a dispatch failed.

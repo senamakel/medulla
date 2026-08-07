@@ -40,6 +40,7 @@ fn config(spawner: Option<crate::wrapper::PtySpawner>) -> WrapperConfig {
         session_id: None,
         pty_spawner: spawner,
         attribution: true,
+        hooks: crate::harness_hooks::HooksConfig::default(),
     }
 }
 
@@ -91,6 +92,11 @@ async fn interactive_injection_uses_the_pty_spawner() {
     assert_eq!(request.bin, "codex");
     assert_eq!(request.args, args);
     assert_eq!(request.cwd, "/");
+    assert_eq!(
+        request.env_remove,
+        vec!["OPENHUMAN_WORKSPACE"],
+        "the PTY child, not the Medulla process, drops the core workspace"
+    );
 
     // Injection reaches the PTY writer.
     session

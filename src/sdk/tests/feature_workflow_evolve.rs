@@ -56,15 +56,24 @@ fn install_failing(store: &Arc<dyn WorkflowStore>, id: &str) {
 async fn run_once(store: &Arc<dyn WorkflowStore>, home: &std::path::Path, id: &str) -> RunStatus {
     let mut settings = CapabilitySettings::rooted_at(home.to_path_buf());
     settings.allow_code = false;
+    let max_loop_iterations = settings.max_loop_iterations;
     let context = RunContext {
+        // Runs inline, so claiming at the top of the run is early enough.
+        claim: None,
         store: store.clone(),
         settings: Arc::new(settings),
         services: HostServices {
+            node_progress: None,
             dispatch: Arc::new(NoHarness),
-            resolver: Arc::new(StoreWorkflowResolver::new(store.clone())),
+            resolver: Arc::new(StoreWorkflowResolver::new(
+                store.clone(),
+                max_loop_iterations,
+            )),
             http_credentials: HashMap::new(),
         },
         sink: null_sink(),
+        step_snapshot: None,
+        origin: None,
     };
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     run_workflow(context, id, &run_id, json!({}), Default::default())

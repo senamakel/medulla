@@ -27,6 +27,19 @@ pub const CAPABILITY_PROMPT: &str = "Report your own capabilities for an orchest
 /// A capability probe should answer in seconds; a slow one must not stall a query.
 pub const DEFAULT_PROBE_TIMEOUT_MS: u64 = 60_000;
 
+/// The non-default harness flavors a host offering `providers` can serve.
+///
+/// A flavor is only advertised when its provider is: `codex-server` is Codex on
+/// a shared process, so a host without Codex cannot serve it however the
+/// transport is implemented.
+fn harness_flavors(providers: &[crate::protocol::HarnessProvider]) -> Vec<String> {
+    crate::protocol::dispatchable_flavors()
+        .into_iter()
+        .filter(|(provider, transport)| !transport.is_default() && providers.contains(provider))
+        .map(|(provider, transport)| provider.flavor_name(transport).to_string())
+        .collect()
+}
+
 /// Ask the agent what it can do, merged over the facts we already know. Never
 /// fails — a failed probe yields the cheap facts and empty arrays.
 pub async fn probe_capabilities(options: ProbeOptions) -> AgentCapabilities {
@@ -56,6 +69,9 @@ pub async fn probe_capabilities(options: ProbeOptions) -> AgentCapabilities {
         project: git.project.clone(),
         branch: git.branch.clone(),
         providers: options.providers.clone(),
+        // Derived from the providers actually offered, so a host that has no
+        // Codex never advertises the flavor built on it.
+        harness_flavors: harness_flavors(&options.providers),
         custom_harnesses: Vec::new(),
         tools: Vec::new(),
         mcp_servers: Vec::new(),
@@ -88,6 +104,10 @@ pub async fn probe_capabilities(options: ProbeOptions) -> AgentCapabilities {
         resume_session_id: None,
         workspace_context: Default::default(),
         provider: options.provider,
+        // A readiness probe asks whether the provider's CLI answers at all, so it
+        // must run the CLI — a pooled process would report on a transport the
+        // probe is not testing.
+        transport: crate::protocol::HarnessTransport::Cli,
         prompt,
         cwd: cwd.clone(),
         env: options.env.clone(),
@@ -103,6 +123,10 @@ pub async fn probe_capabilities(options: ProbeOptions) -> AgentCapabilities {
         // when the only credential is bound to the gateway via `apiKeyEnv`).
         router: options.router.clone(),
         attribution: options.attribution,
+        // The capability probe is Medulla's own introspection, not the
+        // operator's work: running their hooks against it would fire
+        // checkpoint/commit side effects for a prompt they never issued.
+        hooks: crate::harness_hooks::HooksConfig::default(),
         on_event: None,
         on_stdin: None,
         on_session: None,

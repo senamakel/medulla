@@ -26,6 +26,8 @@
 //! pending, so a stale or invented resume cannot walk a run past its gate.
 
 pub mod diagnose;
+pub mod dispatches;
+mod preflight;
 mod registry;
 mod summary;
 
@@ -33,7 +35,9 @@ mod summary;
 mod tests;
 
 pub use diagnose::{diagnose, Diagnosis, DryRun, HiddenError, NeverRan, NullBinding};
-pub use registry::{cancel, is_running, RunGuard};
+pub use dispatches::{in_flight, InFlightDispatch};
+pub(crate) use preflight::clamp_loop_iterations;
+pub use registry::{cancel, is_running, CancelSignal, RunClaim, RunGuard};
 pub use summary::summarize;
 
 use std::sync::Arc;
@@ -42,7 +46,7 @@ use std::time::Duration;
 use serde_json::{Map, Value};
 
 use crate::flow_engine::execute;
-use crate::flow_engine::observability::{WorkEventSink, WorkflowRunObserver};
+use crate::flow_engine::observability::{StepSnapshot, WorkEventSink, WorkflowRunObserver};
 use crate::flow_engine::{
     agent_evidence, build_capabilities_with_agent_evidence, open_checkpointer, CapabilitySettings,
     HostServices,
@@ -60,6 +64,27 @@ pub struct RunContext {
     pub services: HostServices,
     /// Where progress events go.
     pub sink: WorkEventSink,
+    /// Persists completed-step snapshots while the run is still executing.
+    pub step_snapshot: Option<StepSnapshot>,
+    /// Who asked for this run, when the caller can say.
+    ///
+    /// Carried on the context rather than passed alongside the inputs because
+    /// it is a property of the *door* the run came through, which every caller
+    /// already knows once and none of them learn per run.
+    pub origin: Option<crate::workflows::RunOrigin>,
+    /// A registration the caller already took out for this run id.
+    ///
+    /// A caller that hands the run id back before the run future is first
+    /// polled — [`crate::workflows::local::LocalRun::start`], which spawns and
+    /// returns — has to claim the id *itself*, or a cancel arriving in that
+    /// window finds an empty registry and reports having cancelled nothing
+    /// while the run carries on. Such a caller claims before it returns the id
+    /// and passes the claim here; the run adopts it instead of taking out a
+    /// second one, which would collide with the first and refuse the run.
+    ///
+    /// `None` for a caller that runs the future inline, where claiming at the
+    /// top of the run is already early enough.
+    pub claim: Option<registry::RunClaim>,
 }
 
 /// Write a terminal status onto a run record unless a settled path already did.
@@ -152,7 +177,7 @@ pub async fn run_workflow_versioned(
 
 /// Shared execution body for local and definition-bound remote runs.
 async fn run_workflow_inner(
-    context: RunContext,
+    mut context: RunContext,
     workflow_id: &str,
     run_id: &str,
     input: Value,
@@ -177,9 +202,9 @@ async fn run_workflow_inner(
             "workflow '{workflow_id}' is disabled"
         )));
     }
-    refuse_unresolved_harness(&workflow)?;
+    preflight::refuse_unresolved_harness(&workflow)?;
 
-    let settings = settings_for(&context.settings, &workflow)?;
+    let settings = preflight::settings_for(&context.settings, &workflow)?;
 
     // Resolved here, before the run is claimed or a record written, so a bad
     // call leaves no trace in the operator's run history. The engine re-checks
@@ -187,28 +212,34 @@ async fn run_workflow_inner(
     let resolved_inputs = tinyflows::model::resolve_inputs(&workflow.graph.inputs, &inputs)
         .map_err(|err| WorkflowError::Engine(err.to_string()))?;
 
-    let execution_graph = agent_evidence::instrumented(&workflow.graph);
+    let execution_graph = preflight::clamp_loop_iterations(
+        agent_evidence::instrumented(&workflow.graph),
+        settings.max_loop_iterations,
+    );
     let compiled = execute::compile(&execution_graph).map_err(WorkflowError::Engine)?;
 
     // Claimed before anything can await, so a cancel arriving during setup is
     // not dropped on the floor — and so two dispatches of the same run id
     // cannot both start, which would run every node's side effects twice and
     // race to overwrite one run record.
-    let Some((_guard, cancelled)) = RunGuard::claim(run_id) else {
-        return Err(WorkflowError::Engine(format!(
-            "run '{run_id}' is already executing"
-        )));
-    };
+    let (_guard, cancelled) = preflight::adopt_or_claim(run_id, context.claim.take())?;
 
-    let record = new_run_record(run_id, workflow_id, crate::clock::now_millis() as u64);
+    // The *resolved* inputs, not the supplied ones: a caller that relied on a
+    // declared default gets a record saying what the run actually used, which
+    // is the value an operator would otherwise have to reconstruct from the
+    // graph. Written onto the first record rather than only the settled one, so
+    // a run that is still going — or that never settles — still says what it
+    // was asked to do.
+    let record = new_run_record(run_id, workflow_id, crate::clock::now_millis() as u64)
+        .with_inputs(&resolved_inputs, &input)
+        .with_origin(context.origin.clone());
     context.store.record_run(&record)?;
     let mut finalizer = RunFinalizer::new(context.store.clone(), record.clone());
 
-    let observer = Arc::new(WorkflowRunObserver::new(
-        workflow_id,
-        &workflow.graph,
-        context.sink,
-    ));
+    let observer = Arc::new(
+        WorkflowRunObserver::new(workflow_id, &workflow.graph, context.sink)
+            .with_step_snapshot(context.step_snapshot),
+    );
     let agent_evidence = Arc::new(agent_evidence::AgentEvidence::default());
     let capabilities = build_capabilities_with_agent_evidence(
         settings.clone(),
@@ -310,76 +341,6 @@ fn remember_failure(store: &Arc<dyn WorkflowStore>, record: &RunRecord) {
     }
 }
 
-/// The settings one run of `workflow` uses.
-///
-/// The host's settings with the workflow's own `defaults` block layered over
-/// them, so an `agent` node that names no harness of its own inherits the
-/// workflow's rather than the machine's. Returned unchanged — and without a
-/// clone of the whole struct — when the workflow states no preference, which is
-/// most workflows.
-///
-/// Applied here rather than inside the dispatch path because the run is where
-/// the workflow record and the capability settings are both in hand, and because
-/// a sub-workflow's nodes should then inherit *its* defaults, not its parent's.
-///
-/// # Errors
-///
-/// Returns [`WorkflowError::Invalid`] when the block names something that cannot
-/// be a harness. A stored workflow is checked on the way in, so this only fires
-/// for a record built in memory.
-fn settings_for(
-    host: &Arc<CapabilitySettings>,
-    workflow: &crate::workflows::WorkflowRecord,
-) -> Result<Arc<CapabilitySettings>, WorkflowError> {
-    if workflow.defaults.is_empty() {
-        return Ok(host.clone());
-    }
-    let preference = workflow
-        .defaults
-        .preference()
-        .map_err(|message| WorkflowError::Invalid {
-            id: workflow.id.clone(),
-            messages: vec![format!("`defaults`: {message}")],
-        })?;
-    let choice =
-        crate::flow_engine::HarnessChoice::resolve(&[preference, host.harness_preference()]);
-    let mut settings = CapabilitySettings::clone(host);
-    settings.default_provider = choice.provider;
-    settings.default_custom_harness = choice.custom_harness;
-    settings.default_model = choice.model;
-    Ok(Arc::new(settings))
-}
-
-/// Refuse to run `workflow` if any `agent` node's `harness`/`provider` is an
-/// unresolved `=`-expression.
-///
-/// [`crate::workflows::gates::harness_failures`] is the same check
-/// `authoring::apply_ops`/`create` run before a write lands — but a graph can
-/// reach a run without ever passing through that write path (an operator hand-
-/// editing the saved JSON file directly, or a future store implementation that
-/// does not route through authoring), and by the time a node dispatches the
-/// engine has already resolved its config: an expression is indistinguishable
-/// from a name typed by hand. This is the last point before that happens where
-/// the raw, unresolved graph is still in hand, so it is the last point this can
-/// still be caught rather than silently letting upstream data or a model's own
-/// output choose which binary and which credentials run the step.
-///
-/// # Errors
-///
-/// Returns [`WorkflowError::Invalid`] naming every offending node.
-fn refuse_unresolved_harness(
-    workflow: &crate::workflows::WorkflowRecord,
-) -> Result<(), WorkflowError> {
-    let failures = crate::workflows::gates::harness_failures(&workflow.graph);
-    if failures.is_empty() {
-        return Ok(());
-    }
-    Err(WorkflowError::Invalid {
-        id: workflow.id.clone(),
-        messages: failures,
-    })
-}
-
 /// How a run stopped, when it did not produce an outcome.
 enum Settle {
     /// An operator or an abort frame cancelled it.
@@ -429,9 +390,12 @@ pub async fn resume_workflow(
     }
 
     let workflow = require(context.store.as_ref(), &record.workflow_id)?;
-    refuse_unresolved_harness(&workflow)?;
-    let settings = settings_for(&context.settings, &workflow)?;
-    let execution_graph = agent_evidence::instrumented(&workflow.graph);
+    preflight::refuse_unresolved_harness(&workflow)?;
+    let settings = preflight::settings_for(&context.settings, &workflow)?;
+    let execution_graph = preflight::clamp_loop_iterations(
+        agent_evidence::instrumented(&workflow.graph),
+        settings.max_loop_iterations,
+    );
     let compiled = execute::compile(&execution_graph).map_err(WorkflowError::Engine)?;
 
     let Some((_guard, cancelled)) = RunGuard::claim(run_id) else {
@@ -444,11 +408,10 @@ pub async fn resume_workflow(
     context.store.record_run(&record)?;
     let mut finalizer = RunFinalizer::new(context.store.clone(), record.clone());
 
-    let observer = Arc::new(WorkflowRunObserver::new(
-        &record.workflow_id,
-        &workflow.graph,
-        context.sink,
-    ));
+    let observer = Arc::new(
+        WorkflowRunObserver::new(&record.workflow_id, &workflow.graph, context.sink)
+            .with_step_snapshot(context.step_snapshot),
+    );
     let agent_evidence = Arc::new(agent_evidence::AgentEvidence::default());
     let capabilities = build_capabilities_with_agent_evidence(
         settings.clone(),

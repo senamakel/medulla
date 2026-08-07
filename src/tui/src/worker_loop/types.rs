@@ -9,7 +9,6 @@ pub struct WorkerTuiConfig {
     pub masters: Vec<medulla::config::Peer>,
     pub config_path: std::path::PathBuf,
     pub credential_dir: std::path::PathBuf,
-    pub contacts: Option<ContactDesk>,
     pub agent_id: Option<String>,
     pub startup_status: Option<String>,
     pub transport: Option<LinkBridge>,
@@ -29,6 +28,9 @@ pub struct WorkerTuiConfig {
     /// to Medulla — the resolved `attribution.commit` config value (on by
     /// default; see [`medulla::config::AttributionConfig`]).
     pub attribution: bool,
+    /// Lifecycle hooks installed into every harness this worker launches — the
+    /// resolved `[[hooks]]` config section (see [`medulla::harness_hooks`]).
+    pub hooks: medulla::harness_hooks::HooksConfig,
 }
 /// The select loop.
 /// What building the daemon runtime needs, once the launch step is answered.
@@ -56,4 +58,7 @@ pub(in super::super) struct StartWiring {
     /// to Medulla — the resolved `attribution.commit` config value (on by
     /// default; see [`medulla::config::AttributionConfig`]).
     pub(in super::super) attribution: bool,
+    /// Lifecycle hooks installed into every harness this worker launches — the
+    /// resolved `[[hooks]]` config section (see [`medulla::harness_hooks`]).
+    pub(in super::super) hooks: medulla::harness_hooks::HooksConfig,
 }

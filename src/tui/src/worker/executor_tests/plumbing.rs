@@ -79,7 +79,7 @@ async fn the_configured_model_reaches_the_spawned_harnesss_argv() {
     let (executor, env) = harness_with_env(
         dir.path(),
         &cwd,
-        &[("TINYPLACE_CODEX_BIN", &bin.to_string_lossy())],
+        &[("MEDULLA_CODEX_BIN", &bin.to_string_lossy())],
     );
     let mut opts = options(&env, "peer-model", "unused", &cwd);
     opts.extra_args = Vec::new();
@@ -112,7 +112,7 @@ async fn a_configured_router_layers_its_endpoint_and_resolved_key_into_the_spawn
         dir.path(),
         &cwd,
         &[
-            ("TINYPLACE_CODEX_BIN", &bin.to_string_lossy()),
+            ("MEDULLA_CODEX_BIN", &bin.to_string_lossy()),
             ("MY_ROUTER_KEY", "sekrit-value"),
         ],
     );
@@ -158,7 +158,7 @@ async fn task_scoped_environment_reaches_the_spawned_harness() {
     let (executor, env) = harness_with_env(
         dir.path(),
         &cwd,
-        &[("TINYPLACE_CODEX_BIN", &bin.to_string_lossy())],
+        &[("MEDULLA_CODEX_BIN", &bin.to_string_lossy())],
     );
     let mut opts = options(&env, "peer-task-env", "unused", &cwd);
     opts.extra_args = Vec::new();
@@ -374,7 +374,7 @@ async fn the_pty_spawn_env_carries_commit_attribution() {
     let (executor, env) = harness_with_env(
         dir.path(),
         &cwd,
-        &[("TINYPLACE_CODEX_BIN", &bin.to_string_lossy())],
+        &[("MEDULLA_CODEX_BIN", &bin.to_string_lossy())],
     );
 
     let mut opts = options(&env, "peer-attribution", "unused", &cwd);
@@ -398,6 +398,39 @@ async fn the_pty_spawn_env_carries_commit_attribution() {
     executor.sessions_for_test().shutdown();
 }
 
+/// The watched PTY path bypasses `run_provider_task`, so it independently
+/// strips the embedded core workspace before the external harness starts.
+#[tokio::test]
+async fn the_pty_spawn_env_strips_the_embedded_core_workspace() {
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = dir.path().to_string_lossy().into_owned();
+    let rollout = dir.path().join("rollout-core-workspace.jsonl");
+    let bin = recording_fake_harness(dir.path(), &rollout.to_string_lossy(), &cwd, "ok");
+
+    let (executor, env) = harness_with_env(
+        dir.path(),
+        &cwd,
+        &[
+            ("MEDULLA_CODEX_BIN", &bin.to_string_lossy()),
+            ("OPENHUMAN_WORKSPACE", "/live-core-workspace"),
+        ],
+    );
+    let mut opts = options(&env, "peer-core-workspace", "unused", &cwd);
+    opts.extra_args = Vec::new();
+
+    tokio::time::timeout(Duration::from_secs(30), executor.clone().run_for_test(opts))
+        .await
+        .expect("must settle")
+        .expect("must succeed");
+
+    let spawned_env = read_captured(&dir.path().join("env.txt"));
+    assert!(
+        !spawned_env.contains("OPENHUMAN_WORKSPACE="),
+        "the PTY child must not inherit the core workspace: {spawned_env}"
+    );
+    executor.sessions_for_test().shutdown();
+}
+
 /// And it must stay off when config says so.
 #[tokio::test]
 async fn the_pty_spawn_env_omits_attribution_when_configured_off() {
@@ -409,7 +442,7 @@ async fn the_pty_spawn_env_omits_attribution_when_configured_off() {
     let (executor, env) = harness_with_env(
         dir.path(),
         &cwd,
-        &[("TINYPLACE_CODEX_BIN", &bin.to_string_lossy())],
+        &[("MEDULLA_CODEX_BIN", &bin.to_string_lossy())],
     );
 
     let mut opts = options(&env, "peer-no-attribution", "unused", &cwd);

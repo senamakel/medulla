@@ -61,6 +61,9 @@ pub fn build_interactive_args(spec: &InteractiveSpec) -> Vec<String> {
         args.push("--dangerously-skip-permissions".to_string());
     }
     args.extend(spec.extra_args.iter().cloned());
+    let (launch_args, _) =
+        crate::harness_hooks::launch_args(spec.provider, false, &spec.hooks, &spec.env);
+    args.extend(launch_args);
     args
 }
 
@@ -83,11 +86,27 @@ impl InteractiveSession {
             ));
         }
         let args = build_interactive_args(spec);
+        let mut env = spec.env.clone();
+        // The embedded core's workspace is not this child's business — see
+        // [`crate::protocol::env::CORE_STATE_VARS`] for what a coding harness
+        // that inherits it can destroy.
+        crate::protocol::env::scrub_core_state(&mut env, spec.provider);
+        // The built-in reporting hooks just installed onto `args` need this to
+        // find anything to report to — without it they spawn, find no grant,
+        // and exit, on every one of `PostToolUse`'s per-tool-call firings for
+        // as long as this session lives. Unique per session: two sessions
+        // sharing a key would share a grant. The guard is stored on the
+        // session itself (see below) rather than dropped at the end of this
+        // function, since this process outlives `open` by however many turns
+        // the operator runs — it must be revoked when the *session* ends, not
+        // when it starts.
+        let hook_grant_session = format!("interactive-{}", uuid::Uuid::new_v4());
+        let hook_grant = crate::harness_hooks::seed_hook_grant(hook_grant_session, &mut env);
         let mut child = Command::new(&spec.bin)
             .args(&args)
             .current_dir(&spec.cwd)
             .env_clear()
-            .envs(&spec.env)
+            .envs(&env)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -136,6 +155,7 @@ impl InteractiveSession {
             events: AsyncMutex::new(rx),
             harness_session_id: Mutex::new(None),
             interrupt_seq: AtomicU64::new(0),
+            _hook_grant: hook_grant,
         }))
     }
 

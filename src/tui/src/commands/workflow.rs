@@ -66,8 +66,10 @@ pub(crate) async fn run_workflow_cmd(args: &[String]) -> anyhow::Result<()> {
             let inputs = declared_inputs(&parsed, &declarations(&store, id))?;
             ops::dry_run(&store, id, trigger_input(&parsed)?, inputs).await?
         }
-        WorkflowAction::ListRuns(id) => ops::list_runs(&store, id)?,
-        WorkflowAction::GetRun(run_id) => ops::get_run(&store, run_id)?,
+        // The CLI prints whole records: its reader is an operator with a
+        // terminal and `jq`, not a model with a context window.
+        WorkflowAction::ListRuns(id) => ops::list_runs(&store, id, ops::StepDetail::Full)?,
+        WorkflowAction::GetRun(run_id) => ops::get_run(&store, run_id, ops::StepDetail::Full)?,
         WorkflowAction::Cancel(run_id) => ops::cancel_run(run_id),
         WorkflowAction::Catalog(kind) => ops::catalog(kind.as_deref())?,
         WorkflowAction::Run(id) => execute(&parsed, &store, &env, &cwd, id).await?,
@@ -106,8 +108,47 @@ pub(crate) async fn run_workflow_cmd(args: &[String]) -> anyhow::Result<()> {
             if let Some(path) = parsed.config.as_deref() {
                 std::env::set_var(medulla::config::CONFIG_PATH_ENV, path);
             }
-            let config = load_workflows_config(&parsed, &env, &cwd)?;
-            ops::evolve(&store, &config, &cwd, id, parsed.run_id.as_deref()).await?
+            let (config, launch) = load_workflows_config(&parsed, &env, &cwd)?;
+            ops::evolve(&store, &config, &launch, &cwd, id, parsed.run_id.as_deref()).await?
+        }
+        WorkflowAction::Author(id) => {
+            if let Some(path) = parsed.config.as_deref() {
+                std::env::set_var(medulla::config::CONFIG_PATH_ENV, path);
+            }
+            let (config, launch) = load_workflows_config(&parsed, &env, &cwd)?;
+            let instruction = parsed.text.as_deref().unwrap_or_default();
+            if instruction.trim().is_empty() {
+                anyhow::bail!("author needs an instruction: pass it with --text \"<what to do>\"");
+            }
+            // Progress goes to stderr, never stdout: stdout is the JSON result
+            // a caller parses, and interleaving a harness's chatter into it
+            // would break every consumer of this command.
+            let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+            let forward = tokio::spawn(async move {
+                while let Some(line) = status_rx.recv().await {
+                    // Classified rather than printed raw, for the same reason
+                    // the pane classifies it: a frame carries the provider's
+                    // call id after an invisible separator, so echoing it
+                    // whole prints `workflow_listtoolu_01Vu…` and reads as a
+                    // corrupted tool name.
+                    eprintln!("{}", progress_line(&line));
+                }
+            });
+            let result = ops::author(
+                &store,
+                &config,
+                &launch,
+                &cwd,
+                id.as_deref(),
+                instruction,
+                Some(status_tx),
+            )
+            .await;
+            // The sender is dropped with the turn, so this ends on its own;
+            // awaiting it keeps a trailing progress line from landing after
+            // the result.
+            let _ = forward.await;
+            result?
         }
         WorkflowAction::Mcp => unreachable!("handled above, before stdout is claimed"),
     };
@@ -192,14 +233,23 @@ fn local_context(
     // to this device's own `[host]` id, matching how the interactive TUI
     // advertises presets to its primary host in `app_loop.rs`.
     let custom_harnesses = local_custom_harnesses(&loaded);
-    let host = LocalWorkflowHost::start(EmbeddedDaemonOptions {
-        workspace: cwd.to_string_lossy().to_string(),
-        model: (!loaded.config.workflows.default_model.is_empty())
-            .then(|| loaded.config.workflows.default_model.clone()),
-        default_provider: loaded.config.workflows.default_provider,
-        custom_harnesses,
-        ..Default::default()
-    })
+    // The same policy every other Medulla spawn door applies. Without it this
+    // command's harnesses ran with no lifecycle hooks at all — neither the
+    // operator's nor Medulla's own reporting ones — and attributed their
+    // commits regardless of `[attribution] commit`.
+    let launch =
+        medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config).without_builtin_hooks();
+    let host = LocalWorkflowHost::start(
+        EmbeddedDaemonOptions {
+            workspace: cwd.to_string_lossy().to_string(),
+            model: (!loaded.config.workflows.default_model.is_empty())
+                .then(|| loaded.config.workflows.default_model.clone()),
+            default_provider: loaded.config.workflows.default_provider,
+            custom_harnesses,
+            ..Default::default()
+        }
+        .with_launch_policy(&launch),
+    )
     .map_err(anyhow::Error::msg)?;
     let dispatch = host.dispatch();
     // The host owns the embedded daemon's drain loop; leaking it keeps the
@@ -214,17 +264,33 @@ fn local_context(
     // A folding sink rather than a null one: the fold is cheap, and it keeps
     // the door open for this command to print progress without re-wiring.
     let (sink, _fold) = folding_sink();
+    let max_loop_iterations = settings.max_loop_iterations;
 
     Ok((
         RunContext {
+            // Runs inline, so claiming at the top of the run is early enough.
+            claim: None,
             store: store.clone(),
             settings: Arc::new(settings),
-            services: HostServices {
+            services: HostServices::new(
                 dispatch,
-                resolver: Arc::new(StoreWorkflowResolver::new(store.clone())),
-                http_credentials: HashMap::new(),
-            },
+                Arc::new(StoreWorkflowResolver::new(
+                    store.clone(),
+                    max_loop_iterations,
+                )),
+                HashMap::new(),
+            ),
             sink,
+            step_snapshot: None,
+            // `medulla workflow run` on a terminal. The workspace is worth
+            // recording even though nothing else about the caller is: a run
+            // that touched the wrong checkout is a common enough mistake that
+            // the record should be able to prove which one it used.
+            origin: Some(
+                medulla::workflows::RunOrigin::of_kind(medulla::workflows::RunOrigin::CLI)
+                    .labelled("medulla workflow run")
+                    .in_workspace(cwd.to_string_lossy()),
+            ),
         },
         run_id,
     ))
@@ -345,19 +411,51 @@ fn local_custom_harnesses(
         .collect()
 }
 
-/// This machine's workflow settings.
+/// This machine's workflow settings, and the policy its harnesses launch under.
 ///
 /// An explicitly selected config is part of the command contract, so a read or
 /// parse failure is returned instead of silently launching a review under
-/// defaults the operator did not request.
+/// defaults the operator did not request. The launch policy travels with the
+/// settings for the same reason: the embedded host these commands start spawns
+/// real harnesses, and one started without it installs no lifecycle hooks and
+/// attributes its commits to whatever the default happens to be.
 fn load_workflows_config(
     parsed: &WorkflowArgs,
     env: &HashMap<String, String>,
     cwd: &std::path::Path,
-) -> anyhow::Result<medulla::config::WorkflowsConfig> {
-    Ok(
-        medulla::config::load_config(parsed.config.as_deref(), env, cwd)?
-            .config
-            .workflows,
-    )
+) -> anyhow::Result<(
+    medulla::config::WorkflowsConfig,
+    medulla::harness_hooks::LaunchPolicy,
+)> {
+    let loaded = medulla::config::load_config(parsed.config.as_deref(), env, cwd)?;
+    let launch =
+        medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config).without_builtin_hooks();
+    Ok((loaded.config.workflows, launch))
+}
+
+/// One harness progress frame, as a line for a terminal.
+///
+/// The pane draws these as coloured rows with a glyph per kind; a terminal gets
+/// the same distinctions as ASCII markers. Shares
+/// [`classify_progress`](medulla::ui::workflows::classify_progress) with the
+/// pane so the two cannot come to disagree about what counts as a tool call.
+fn progress_line(frame: &str) -> String {
+    use medulla::ui::workflows::{classify_progress, Progress};
+
+    match classify_progress(frame) {
+        Progress::Tool { text, .. } => format!("↻ {text}"),
+        Progress::ToolResult { failed, detail, .. } => {
+            let mark = if failed { "✗" } else { "✓" };
+            if detail.is_empty() {
+                mark.to_string()
+            } else {
+                format!("{mark} {detail}")
+            }
+        }
+        // Reasoning streams in fragments and would otherwise scroll a terminal
+        // off its own output; the pane keeps one updating row, which a stream
+        // of lines cannot do, so it is summarised to the fact that it happened.
+        Progress::Thinking(_) => "· thinking".to_string(),
+        Progress::Status(text) => format!("· {text}"),
+    }
 }
