@@ -21,6 +21,9 @@ use medulla::config::{SidebarGrouping, SidebarSort};
 
 use super::{AgentGroup, GroupRailRow, HostGroup, HostRailRow, SessionRailRow};
 
+#[cfg(test)]
+mod tests;
+
 /// What heads one section of the rail.
 pub(super) enum SectionHeader {
     /// A host row — emitted only when a second host exists to tell it from.

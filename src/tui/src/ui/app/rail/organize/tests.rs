@@ -6,9 +6,9 @@
 use medulla::config::{SidebarGrouping, SidebarSort};
 use medulla::runtime::AgentDeclaration;
 
-use super::organize::sort_sessions;
-use super::tests::{app, stub_session};
-use super::{RailRow, SessionRailRow};
+use super::super::tests::{app, stub_session};
+use super::super::{AgentGroup, AgentRailRow, GroupRailRow, RailRow, SessionRailRow};
+use super::{order_sections, sort_agents, sort_sessions, Section, SectionHeader};
 use crate::ui::app::App;
 
 /// Three agents across two checkouts and two harnesses, in declaration order.
@@ -214,4 +214,75 @@ fn name_sorts_sessions_by_what_the_operator_called_them() {
         sorted(rows, SidebarSort::Name),
         vec!["alpha", "mike", "zulu"]
     );
+}
+
+/// An agent group with one task whose activity timestamp controls recent order.
+fn active_agent(label: &str, last_at: i64) -> AgentGroup {
+    AgentGroup {
+        row: AgentRailRow {
+            agent_id: label.into(),
+            host_id: String::new(),
+            agent: None,
+            lane_index: None,
+        },
+        sessions: vec![SessionRailRow {
+            agent_id: Some(label.into()),
+            lane_index: None,
+            task: Some(medulla::ui::agents::TaskState {
+                task_id: format!("task-{label}"),
+                status: medulla::ui::agents::TaskStatus::Running,
+                turns: 0,
+                last_at,
+                turn_blocks: Vec::new(),
+                attention: None,
+                question_id: None,
+                work: None,
+            }),
+            local: None,
+            last: false,
+        }],
+        visible_tasks: 1,
+        hidden: 0,
+        overflow: false,
+    }
+}
+
+#[test]
+fn recent_sorts_agents_by_their_most_recent_session() {
+    let mut agents = vec![active_agent("quiet", 100), active_agent("loud", 900)];
+
+    sort_agents(&mut agents, SidebarSort::Recent);
+
+    assert_eq!(
+        agents
+            .iter()
+            .map(|agent| agent.row.agent_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["loud", "quiet"]
+    );
+}
+
+#[test]
+fn recent_sorts_path_sections_by_their_most_recent_agent() {
+    let mut sections = vec![
+        Section {
+            header: SectionHeader::Group(GroupRailRow {
+                label: "/work/older".into(),
+            }),
+            agents: vec![active_agent("older", 100)],
+        },
+        Section {
+            header: SectionHeader::Group(GroupRailRow {
+                label: "/work/newer".into(),
+            }),
+            agents: vec![active_agent("newer", 900)],
+        },
+    ];
+
+    order_sections(&mut sections, SidebarSort::Recent);
+
+    assert!(matches!(
+        &sections[0].header,
+        SectionHeader::Group(group) if group.label == "/work/newer"
+    ));
 }

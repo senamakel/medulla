@@ -46,8 +46,6 @@ mod cursor;
 #[cfg(test)]
 mod cursor_tests;
 mod organize;
-#[cfg(test)]
-mod organize_tests;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
@@ -84,6 +82,12 @@ struct AgentGroup {
     row: AgentRailRow,
     /// Its sessions, dispatched and operator-started alike.
     sessions: Vec<SessionRailRow>,
+    /// How many task-backed sessions the fold has currently revealed.
+    ///
+    /// The complete task set stays here until [`organize`] applies the chosen
+    /// order. Keeping this boundary separate from the task data means a name
+    /// or activity sort cannot be applied only to the first visible page.
+    visible_tasks: usize,
     /// Sessions the fold's own page already hid, carried so the counts add up.
     hidden: usize,
     /// Whether the fold drew an overflow row under this agent's lane.
@@ -184,19 +188,11 @@ impl App {
                     }
                     groups.push(self.group_for_lane(lane, lane_index));
                 }
-                AgentRow::Sub {
-                    lane_index, task, ..
-                } => {
+                AgentRow::Sub { .. } => {
                     let Some(group) = groups.last_mut() else {
                         continue;
                     };
-                    group.sessions.push(SessionRailRow {
-                        agent_id: Some(group.row.agent_id.clone()),
-                        lane_index: Some(lane_index),
-                        task: Some(task),
-                        local: None,
-                        last: false,
-                    });
+                    group.visible_tasks += 1;
                 }
                 AgentRow::More { hidden, .. } => {
                     if let Some(group) = groups.last_mut() {
@@ -229,12 +225,24 @@ impl App {
             .unwrap_or_default();
         AgentGroup {
             row: AgentRailRow {
-                agent_id,
+                agent_id: agent_id.clone(),
                 host_id,
                 agent: None,
                 lane_index: Some(lane_index),
             },
-            sessions: Vec::new(),
+            sessions: lane
+                .tasks
+                .iter()
+                .cloned()
+                .map(|task| SessionRailRow {
+                    agent_id: Some(agent_id.clone()),
+                    lane_index: Some(lane_index),
+                    task: Some(task),
+                    local: None,
+                    last: false,
+                })
+                .collect(),
+            visible_tasks: 0,
             hidden: 0,
             overflow: false,
         }
@@ -527,6 +535,7 @@ fn placed_agent(
             lane_index: None,
         },
         sessions: Vec::new(),
+        visible_tasks: 0,
         hidden: 0,
         overflow: false,
     });
@@ -617,12 +626,11 @@ fn run_rows_under(
 /// the fold produced for an agent declared somewhere else — because the flow it
 /// opens reads the declaration for the harness and the directory to start in.
 ///
-/// Paging is the fold's, not the rail's (#171): `agent_rows` reveals a page of
-/// task sublanes at a time and marks the rest with an overflow row, so a second
-/// cap here would clip the page the operator just asked to see. The overflow row
-/// is re-emitted under the group and stays selectable, which is what makes
-/// `Enter` on it page the lane open — and, once the lane is fully revealed, fold
-/// it back.
+/// The fold determines the page size and overflow state (#171), while this
+/// function selects that many task rows only after [`organize`] has applied the
+/// configured order. The overflow row is re-emitted under the group and stays
+/// selectable, which is what makes `Enter` on it page the lane open — and, once
+/// the lane is fully revealed, fold it back.
 fn push_group(
     rows: &mut Vec<RailRow>,
     group: &mut AgentGroup,
@@ -630,8 +638,21 @@ fn push_group(
     runs: &medulla::control_socket::HarnessRunRegistry,
 ) {
     rows.push(RailRow::Agent(group.row.clone()));
-    let shown = group.sessions.len();
-    for (index, session) in group.sessions.iter_mut().enumerate() {
+    let task_limit = group.visible_tasks;
+    let mut visible_tasks = 0;
+    let mut shown_sessions: Vec<_> = group
+        .sessions
+        .iter_mut()
+        .filter(|session| {
+            if session.task.is_none() {
+                return true;
+            }
+            visible_tasks += 1;
+            visible_tasks <= task_limit
+        })
+        .collect();
+    let shown = shown_sessions.len();
+    for (index, session) in shown_sessions.iter_mut().enumerate() {
         // The action row below closes the group when it is offered, so the last
         // session is only the tree's last leaf when neither it nor the overflow
         // row follows.
