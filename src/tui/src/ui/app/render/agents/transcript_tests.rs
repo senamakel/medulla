@@ -362,6 +362,15 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     // run here has to move it.
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.workflows = vec![medulla::workflows::WorkflowSummary {
+        id: "release-train".into(),
+        name: "Release train".into(),
+        description: String::new(),
+        enabled: true,
+        node_count: 0,
+        trigger_kind: None,
+        inputs: Vec::new(),
+    }];
 
     let mut selection = Selection {
         rows: vec![reported_run()],
@@ -387,17 +396,16 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     };
 
     app.mirror_selected_workflow_run(&selection);
-    // The workflow is not in this app's catalogue, so there is no graph to point
-    // at — but the run is still marked, so the next frame does not re-read the
-    // store looking for it again.
     assert_eq!(app.wf.mirrored_run.as_deref(), Some("run-77"));
     assert_eq!(app.wf.mirrored_run_updated_at, Some(4_000));
 
     // A run keeps its id as it moves through the graph. Its newer report must
-    // refresh the mirror rather than leaving the first active node selected.
+    // refresh the mirror without dropping the operator's preview position.
+    app.wf.preview_scroll = 7;
     selection.workflow_run.as_mut().unwrap().run.updated_at = 5_000;
     app.mirror_selected_workflow_run(&selection);
     assert_eq!(app.wf.mirrored_run_updated_at, Some(5_000));
+    assert_eq!(app.wf.preview_scroll, 7);
 
     // Stepping off a run clears the mark, so returning to it re-syncs rather
     // than trusting a graph the store may have changed underneath.

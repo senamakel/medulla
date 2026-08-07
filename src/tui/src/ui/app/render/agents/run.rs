@@ -29,11 +29,10 @@ use super::super::color;
 
 /// Count terminal rows a set of paragraph lines occupies after word wrapping.
 ///
-/// This mirrors Ratatui's word packing: words share a row when their separating
-/// space and display widths fit, while oversized words consume as many rows as
-/// needed. Counting every word separately would wrongly spend a whole row on
-/// each short word and hide live progress in an otherwise roomy pane.
-fn wrapped_rows(lines: &[TLine<'_>], width: u16) -> usize {
+/// This mirrors the paragraph's preserved-width wrapping. `trim: false` means
+/// leading and trailing whitespace consumes cells too, so measuring words after
+/// `split_whitespace` would undercount indented live-output lines.
+pub(super) fn wrapped_rows(lines: &[TLine<'_>], width: u16) -> usize {
     let width = usize::from(width).max(1);
     lines
         .iter()
@@ -44,29 +43,7 @@ fn wrapped_rows(lines: &[TLine<'_>], width: u16) -> usize {
                 .map(|span| span.content.as_ref())
                 .collect();
             text.lines()
-                .map(|paragraph| {
-                    let mut rows = 1;
-                    let mut used = 0;
-                    for word in paragraph.split_whitespace() {
-                        let word_width = word.width().max(1);
-                        if used == 0 {
-                            rows += word_width.saturating_sub(1) / width;
-                            used = word_width % width;
-                            if used == 0 {
-                                used = width;
-                            }
-                        } else if used + 1 + word_width <= width {
-                            used += 1 + word_width;
-                        } else {
-                            rows += 1 + word_width.saturating_sub(1) / width;
-                            used = word_width % width;
-                            if used == 0 {
-                                used = width;
-                            }
-                        }
-                    }
-                    rows
-                })
+                .map(|paragraph| paragraph.width().max(1).div_ceil(width))
                 .sum::<usize>()
                 .max(1)
         })

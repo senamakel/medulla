@@ -1,8 +1,4 @@
-//! Tests for the Agents rail's line layout: the width cap, how a row that does
-//! not fit is re-flowed, and what a working directory keeps when it cannot.
-
-//! Focused wrapping and workflow-run cases live in child modules so this test
-//! entry point remains within the repository's source-file size limit.
+//! Unit-test fixtures and focused coverage for the Agents rail.
 
 mod workflow_run_tests;
 mod wrap_tests;
@@ -13,7 +9,7 @@ use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
 use medulla::ui::agents::{AgentLane, AgentRole, AgentRow, TaskState, TaskStatus};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Modifier};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ui::app::App;
