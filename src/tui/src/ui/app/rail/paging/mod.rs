@@ -77,3 +77,6 @@ pub(super) fn push_group(
         });
     }
 }
+
+#[cfg(test)]
+mod tests;
