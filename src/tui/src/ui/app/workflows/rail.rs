@@ -206,7 +206,16 @@ impl App {
     /// missing one selects the workflow and leaves the overlay for the run rows
     /// to catch up with, rather than refusing the jump.
     pub(in crate::ui::app) fn open_workflow_run(&mut self, workflow: &str, run: &str) {
-        if !self.point_workflows_at_run(workflow, run, None) {
+        // The Agents rail already mirrors its selected run into this canvas.
+        // Keep that reported node when Enter moves the operator to the
+        // Workflows tab: `point_workflows_at_run` reloads the graph and would
+        // otherwise put the cursor back on its first node.
+        let active_node = (self.wf.mirrored_run.as_deref() == Some(run)
+            && self
+                .selected_workflow()
+                .is_some_and(|selected| selected.id == workflow))
+        .then(|| self.wf.layout.nodes.get(self.wf.node_index)?.id.clone());
+        if !self.point_workflows_at_run(workflow, run, active_node.as_deref()) {
             self.set_status(format!("Workflow '{workflow}' is not in this catalogue"));
             return;
         }

@@ -399,13 +399,14 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     assert_eq!(app.wf.mirrored_run.as_deref(), Some("run-77"));
     assert_eq!(app.wf.mirrored_run_updated_at, Some(4_000));
 
-    // A run keeps its id as it moves through the graph. Its newer report must
-    // refresh the mirror without dropping the operator's preview position.
+    // A run keeps its id as it moves through the graph. Without a selected
+    // graph node there is no evidence that this newer report still describes
+    // the preview the operator was reading, so reset to its live tail.
     app.wf.preview_scroll = 7;
     selection.workflow_run.as_mut().unwrap().run.updated_at = 5_000;
     app.mirror_selected_workflow_run(&selection);
     assert_eq!(app.wf.mirrored_run_updated_at, Some(5_000));
-    assert_eq!(app.wf.preview_scroll, 7);
+    assert_eq!(app.wf.preview_scroll, 0);
 
     // Stepping off a run clears the mark, so returning to it re-syncs rather
     // than trusting a graph the store may have changed underneath.

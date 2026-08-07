@@ -21,7 +21,6 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
-use unicode_width::UnicodeWidthStr;
 
 use super::super::super::rail::WorkflowRunRailRow;
 use super::super::super::types::App;
@@ -29,25 +28,13 @@ use super::super::color;
 
 /// Count terminal rows a set of paragraph lines occupies after word wrapping.
 ///
-/// This mirrors the paragraph's preserved-width wrapping. `trim: false` means
-/// leading and trailing whitespace consumes cells too, so measuring words after
+/// This uses the paragraph's own word-wrapper. `trim: false` means leading and
+/// trailing whitespace consumes cells too, so measuring words after
 /// `split_whitespace` would undercount indented live-output lines.
 pub(super) fn wrapped_rows(lines: &[TLine<'_>], width: u16) -> usize {
-    let width = usize::from(width).max(1);
-    lines
-        .iter()
-        .map(|line| {
-            let text: String = line
-                .spans
-                .iter()
-                .map(|span| span.content.as_ref())
-                .collect();
-            text.lines()
-                .map(|paragraph| paragraph.width().max(1).div_ceil(width))
-                .sum::<usize>()
-                .max(1)
-        })
-        .sum()
+    Paragraph::new(Text::from(lines.to_vec()))
+        .wrap(Wrap { trim: false })
+        .line_count(width.max(1))
 }
 
 impl App {

@@ -13,3 +13,10 @@ fn wrapped_rows_counts_indented_live_output() {
 
     assert_eq!(wrapped_rows(&lines, 10), 2);
 }
+
+#[test]
+fn wrapped_rows_follows_paragraph_word_boundaries() {
+    let lines = [Line::from(Span::raw("aaaaaa bbbbbb cccccc"))];
+
+    assert_eq!(wrapped_rows(&lines, 10), 3);
+}

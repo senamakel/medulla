@@ -158,17 +158,23 @@ impl App {
         }
         self.wf.mirrored_run = Some(run.run_id.clone());
         self.wf.mirrored_run_updated_at = Some(run.updated_at);
-        // A report refreshes the same canvas while an operator may be paging
-        // through its live preview. Selecting the workflow reloads the canvas
-        // and normally starts that preview at its tail; retain the operator's
-        // position when this is merely fresher data for the same run.
-        let preview_scroll = (self.wf.overlay.as_deref() == Some(run.run_id.as_str()))
-            .then_some(self.wf.preview_scroll);
         let active_node = run
             .frames
             .iter()
             .rev()
             .find_map(|frame| frame.node.as_deref());
+        // A report refreshes the same canvas while an operator may be paging
+        // through its live preview. Selecting the workflow reloads the canvas
+        // and normally starts that preview at its tail; retain the operator's
+        // position only when fresher data still describes that same node.
+        let preview_scroll = (self.wf.overlay.as_deref() == Some(run.run_id.as_str())
+            && self
+                .wf
+                .layout
+                .nodes
+                .get(self.wf.node_index)
+                .is_some_and(|node| Some(node.id.as_str()) == active_node))
+        .then_some(self.wf.preview_scroll);
         self.point_workflows_at_run(&run.workflow_id, &run.run_id, active_node);
         if let Some(preview_scroll) = preview_scroll {
             self.wf.preview_scroll = preview_scroll;
