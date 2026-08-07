@@ -349,6 +349,11 @@ pub struct LoginArgs {
     pub config: Option<String>,
     pub provider: Provider,
     pub no_browser: bool,
+    /// `--code`: run the terminal sign-in — print a URL to open on any device
+    /// and read the one-time code it produces from stdin. Binds no listener, so
+    /// it is the flow that works over SSH, where the loopback callback would
+    /// land on the browser host rather than this one.
+    pub code: bool,
     /// A 64-hex one-time login token (headless fallback); skips the listener.
     pub token: Option<String>,
 }

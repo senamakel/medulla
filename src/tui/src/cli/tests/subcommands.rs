@@ -97,8 +97,15 @@ fn login_args_parse() {
     assert!(a.no_browser);
     assert_eq!(a.token.as_deref(), Some("deadbeef"));
     assert_eq!(a.config.as_deref(), Some("c.json"));
+    assert!(!a.code, "--code is off unless asked for");
     // Unknown provider is a friendly error.
     assert!(parse_login_args(&argv(&["--provider", "myspace"])).is_err());
+
+    // The terminal flow is its own opt-in, and composes with --provider.
+    let c = parse_login_args(&argv(&["--code", "--provider", "github"])).unwrap();
+    assert!(c.code);
+    assert_eq!(c.provider, Provider::Github);
+    assert_eq!(c.token, None, "--code fetches its own code, none is given");
 }
 
 #[test]

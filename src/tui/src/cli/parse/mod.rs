@@ -1,17 +1,20 @@
-//! Argument parsing for `main`: subcommand dispatch ([`parse_command`]) and the
-//! per-subcommand flag parsers ([`parse_login_args`],
-//! [`parse_update_args`], [`parse_tui_args`]), plus the [`help_text`] shown by
-//! `medulla help`/`--help`. Every function is pure over its input args.
+//! Argument parsing for `main`: subcommand dispatch ([`parse_command`]) and
+//! per-subcommand flag parsers, plus the [`help_text`] shown by
+//! `medulla help`/`--help`. Login-specific parsing lives in [`login`]; every
+//! function is pure over its input args.
 
-use medulla::auth::Provider;
 use medulla::protocol::HarnessProvider;
 
 use super::types::{
-    Command, InitArgs, LoginArgs, RunArgs, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs,
-    WorkspaceAction, WorkspaceArgs,
+    Command, InitArgs, RunArgs, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs, WorkspaceAction,
+    WorkspaceArgs,
 };
 #[cfg(feature = "workflows")]
 use super::types::{SkillsAction, SkillsArgs};
+
+mod login;
+
+pub use login::parse_login_args;
 
 /// Dispatch on the first argument. Anything else (including TUI flags) is the TUI.
 pub fn parse_command(args: &[String]) -> Command {
@@ -41,36 +44,6 @@ pub fn parse_command(args: &[String]) -> Command {
         Some("opencode") => Command::Wrapper(HarnessProvider::Opencode),
         _ => Command::Tui,
     }
-}
-
-/// Parse `medulla login` flags out of the args following `login`. Returns the
-/// offending flag name on an unknown `--provider` value.
-pub fn parse_login_args(args: &[String]) -> Result<LoginArgs, String> {
-    let mut out = LoginArgs::default();
-    let mut it = args.iter();
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--config" => {
-                if let Some(v) = it.next() {
-                    out.config = Some(v.clone());
-                }
-            }
-            "--provider" => {
-                if let Some(v) = it.next() {
-                    out.provider =
-                        Provider::parse(v).ok_or_else(|| format!("unknown provider '{v}'"))?;
-                }
-            }
-            "--token" => {
-                if let Some(v) = it.next() {
-                    out.token = Some(v.clone());
-                }
-            }
-            "--no-browser" => out.no_browser = true,
-            _ => {}
-        }
-    }
-    Ok(out)
 }
 
 /// Parse the flags following `medulla update`.
@@ -598,6 +571,8 @@ Skills flags:\n  \
 Login flags:\n  \
 --provider <name>       OAuth provider: google (default), github, twitter\n  \
 --no-browser            Print the login URL without launching a browser\n  \
+--code                  Sign in by pasting a code: open a URL on any device\n                          \
+        (works over SSH, where loopback cannot)\n  \
 --token <64-hex>        Redeem a one-time login token instead (headless)\n  \
 --config <path>         Config file to read backend.baseUrl from (.toml or .json)\n\n\
 Init flags:\n  \

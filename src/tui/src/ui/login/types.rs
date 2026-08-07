@@ -30,7 +30,9 @@ pub enum LoginCmd {
     },
     /// Abort a running loopback task (Esc while waiting).
     CancelLoopback,
-    /// Redeem/verify a pasted API key, JWT, or 64-hex one-time token.
+    /// Redeem/verify a pasted API key, JWT, or 64-hex one-time code. A 64-hex
+    /// value is redeemed via `/auth/login-token/consume`; anything else is
+    /// treated as a ready-made credential and verified directly.
     SubmitToken(String),
     /// Open `url` in the platform browser. Fire-and-forget: the screen stays put.
     OpenUrl(String),
@@ -51,15 +53,41 @@ pub enum LoginEvent {
     VerifyFailed(String),
 }
 
+/// How the browser half of a sign-in reaches this terminal.
+///
+/// The choice is made before the provider because it is the one the operator
+/// cannot get wrong by guessing: [`SignInMethod::Browser`] needs a browser on
+/// *this* machine, and [`SignInMethod::Code`] works from anywhere. Both end at
+/// the same provider list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignInMethod {
+    /// RFC 8252 loopback: open the browser here and catch the callback on
+    /// `127.0.0.1`.
+    Browser,
+    /// Open a URL on any device, then paste the one-time code it shows back
+    /// into this terminal.
+    Code,
+}
+
+impl SignInMethod {
+    /// The heading shown above the provider list once the method is chosen.
+    pub(super) fn provider_prompt(self) -> &'static str {
+        match self {
+            SignInMethod::Browser => "Sign in with a browser — choose a provider",
+            SignInMethod::Code => "Sign in with a code — choose a provider",
+        }
+    }
+}
+
 /// One row of the Idle menu.
 ///
-/// Sign-in providers and the non-provider actions share a single list so the
-/// whole screen is navigated one way — arrow keys and Enter — rather than by
+/// The two sign-in methods and the non-sign-in actions share a single list so
+/// the whole screen is navigated one way — arrow keys and Enter — rather than by
 /// remembering a letter per action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum MenuItem {
-    /// Start the browser loopback flow with this provider.
-    Provider(Provider),
+    /// Pick a provider, then run that method's flow.
+    Method(SignInMethod),
     /// Switch to the key-entry phase.
     PasteKey,
     /// Open the documentation in the browser. Does not leave the screen.
@@ -74,12 +102,9 @@ impl MenuItem {
     /// The row's label.
     pub(super) fn label(self) -> &'static str {
         match self {
-            MenuItem::Provider(Provider::Google) => "Continue with Google",
-            MenuItem::Provider(Provider::Github) => "Continue with GitHub",
-            MenuItem::Provider(Provider::Twitter) => "Continue with X (Twitter)",
-            // Not reachable from MENU; kept so the match stays exhaustive.
-            MenuItem::Provider(Provider::Discord) => "Continue with Discord",
-            MenuItem::PasteKey => "Paste an API key instead",
+            MenuItem::Method(SignInMethod::Browser) => "Sign in with a browser",
+            MenuItem::Method(SignInMethod::Code) => "Sign in with a code (SSH / no browser)",
+            MenuItem::PasteKey => "Paste an API key",
             MenuItem::Docs => "Read the docs",
             MenuItem::Star => "Star us on GitHub",
             MenuItem::Quit => "Quit",
@@ -87,21 +112,33 @@ impl MenuItem {
     }
 }
 
-/// The Idle menu, in display order: every sign-in provider first, then the
+/// The Idle menu, in display order: the two sign-in methods first, then the
 /// fallbacks and the exit.
-///
-/// `Provider::Discord` exists in the wire enum but the backend has no Discord
-/// login, so it is deliberately absent — offering a row that cannot succeed is
-/// worse than not offering it.
-pub(super) const MENU: [MenuItem; 7] = [
-    MenuItem::Provider(Provider::Google),
-    MenuItem::Provider(Provider::Github),
-    MenuItem::Provider(Provider::Twitter),
+pub(super) const MENU: [MenuItem; 6] = [
+    MenuItem::Method(SignInMethod::Browser),
+    MenuItem::Method(SignInMethod::Code),
     MenuItem::PasteKey,
     MenuItem::Docs,
     MenuItem::Star,
     MenuItem::Quit,
 ];
+
+/// The providers offered on the provider step, in display order.
+///
+/// `Provider::Discord` exists in the wire enum but the backend has no Discord
+/// login, so it is deliberately absent — offering a row that cannot succeed is
+/// worse than not offering it.
+pub(super) const PROVIDERS: [Provider; 3] = [Provider::Google, Provider::Github, Provider::Twitter];
+
+/// The label for one provider row.
+pub(super) fn provider_label(provider: Provider) -> &'static str {
+    match provider {
+        Provider::Google => "Google",
+        Provider::Github => "GitHub",
+        Provider::Twitter => "X (Twitter)",
+        Provider::Discord => "Discord",
+    }
+}
 
 /// Where "Read the docs" points.
 pub(super) const DOCS_URL: &str = "https://tinyhumans.gitbook.io/medulla";
@@ -115,12 +152,17 @@ pub(super) const MENU_ACTIONS_START: usize = 3;
 /// Where the screen currently is in the flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Phase {
-    /// The provider/action menu.
+    /// The sign-in-method / action menu.
     Idle,
+    /// The provider list for the method chosen on [`Phase::Idle`].
+    ProviderPick,
     /// A `StartLoopback` was issued; awaiting `LoopbackStarted`.
     Starting,
     /// The loopback listener is live; browser round-trip in progress.
     Waiting,
+    /// The terminal flow: the verification URL is shown and the one-time code
+    /// it produces is being typed or pasted in.
+    CodeEntry,
     /// A focused single-line API-key / token input.
     TokenEntry,
     /// A captured/pasted token is being verified.
@@ -135,9 +177,20 @@ pub(super) enum Phase {
 pub struct LoginScreen {
     pub(super) base_url: String,
     pub(super) provider: Provider,
+    /// The method chosen on the Idle menu, which decides what the provider step
+    /// starts. Retained after the flow begins so a retry after an error repeats
+    /// the same one.
+    pub(super) method: SignInMethod,
     /// The highlighted row of the Idle menu (index into [`MENU`]).
     pub(super) menu_index: usize,
+    /// The highlighted row of the provider step (index into [`PROVIDERS`]).
+    pub(super) provider_index: usize,
     pub(super) phase: Phase,
+    /// Where a failed verification returns to — the phase that submitted the
+    /// value. [`Phase::Idle`] when nothing did (a loopback callback).
+    pub(super) resume_phase: Phase,
+    /// The URL being shown: the loopback login URL while waiting, or the
+    /// verification URL to open on another device during [`Phase::CodeEntry`].
     pub(super) url: Option<String>,
     pub(super) port: Option<u16>,
     pub(super) input: String,
@@ -153,8 +206,11 @@ impl LoginScreen {
         LoginScreen {
             base_url: base_url.into(),
             provider: Provider::default(),
+            method: SignInMethod::Browser,
             menu_index: 0,
+            provider_index: 0,
             phase: Phase::Idle,
+            resume_phase: Phase::Idle,
             url: None,
             port: None,
             input: String::new(),
@@ -173,6 +229,11 @@ impl LoginScreen {
     /// The currently-selected provider.
     pub fn provider(&self) -> Provider {
         self.provider
+    }
+
+    /// The sign-in method chosen on the menu.
+    pub fn method(&self) -> SignInMethod {
+        self.method
     }
 
     /// Advance the spinner (called on the pre-app loop tick).

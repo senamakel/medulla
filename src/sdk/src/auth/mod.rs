@@ -1,10 +1,21 @@
-//! Login plumbing: an RFC 8252 loopback OAuth flow against the Medulla backend
-//! and the pure URL/query helpers the CLI and tests share.
+//! Login plumbing: two OAuth flows against the Medulla backend, and the pure
+//! URL/query helpers the CLI and tests share.
 //!
-//! The flow: bind an ephemeral loopback port, point the browser at
+//! **Loopback (RFC 8252)** — for a terminal on the same machine as a browser:
+//! bind an ephemeral loopback port, point the browser at
 //! `<baseUrl>/auth/<provider>/login?redirect=app&redirectUri=<loopback>`, and
 //! wait for the backend to redirect the browser back to the loopback URI with a
 //! ready-to-use JWT (`?token=<jwt>&key=auth`) or an error (`?error=<msg>`).
+//!
+//! **Code (terminal)** — for SSH sessions and anywhere else the browser is on a
+//! different machine, where loopback cannot work at all: the redirect would
+//! reach the *browser* host's `127.0.0.1`, never the listener. So there is no
+//! listener. [`code_login_url`] points at
+//! `<baseUrl>/auth/<provider>/login?redirect=cli`, which the operator opens on
+//! any device; the backend ends that round-trip on a page showing a one-time
+//! login token, and the operator pastes it back into the terminal, where
+//! [`crate::client::MedullaClient::consume_login_token`] exchanges it for a JWT.
+//! Both flows converge on the same verified JWT.
 //!
 //! # Where the session is kept
 //!
@@ -34,4 +45,6 @@ pub use loopback::{open_browser, run_login_flow, start_loopback, LoopbackListene
 pub use migrate::remove_retired_credentials;
 pub use token::{is_one_time_login_token, resolve_backend_token};
 pub use types::{Credentials, LoginError, LoopbackConfig, Provider, DEFAULT_LOGIN_TIMEOUT};
-pub use url::{describe_me, login_url, random_state_nonce, redirect_uri, user_id_from_me};
+pub use url::{
+    code_login_url, describe_me, login_url, random_state_nonce, redirect_uri, user_id_from_me,
+};
