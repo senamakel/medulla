@@ -99,13 +99,16 @@ impl App {
         // local PTY registry can change while this event is handled; rebuilding
         // here would let an insertion above the target retarget the cursor.
         let rows = self.rail_rows();
-        let Some(row_index) = rows.iter().position(|row| {
-            matches!(row, RailRow::Session(session) if session
-                .task
-                .as_ref()
-                .is_some_and(|task| task.task_id == task_id)
-                && !session.origin().is_user())
-        }) else {
+        let Some((row_index, agent, session_task_id)) =
+            rows.iter().enumerate().find_map(|(index, row)| {
+                let RailRow::Session(session) = row else {
+                    return None;
+                };
+                let task = session.task.as_ref()?;
+                (task.task_id == task_id && !session.origin().is_user())
+                    .then(|| (index, session.agent.clone(), task.task_id.clone()))
+            })
+        else {
             self.set_status(format!("No session is running {task_id}"));
             return false;
         };
@@ -120,7 +123,7 @@ impl App {
         self.focus_agents_rail();
         self.set_status(format!(
             "{} · {} · ^O returns to the orchestrator",
-            session.agent, session.task_id
+            agent, session_task_id
         ));
         true
     }

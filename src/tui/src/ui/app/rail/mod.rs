@@ -39,6 +39,7 @@ use super::types::App;
 use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
 use crate::worker::pty::SessionRow;
 
+mod cursor;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
@@ -51,6 +52,7 @@ mod merge_tests;
 pub(in crate::ui::app) mod tests;
 mod types;
 
+pub(in crate::ui::app) use cursor::{rail_anchor, resolve_rail_cursor};
 pub use types::{
     AgentRailRow, HostRailRow, RailAnchor, RailRow, SessionRailRow, WorkflowRunRailRow,
 };
@@ -66,61 +68,6 @@ pub(in crate::ui::app) const NEW_AGENT_LABEL: &str = "+ New agent";
 /// Indented and lower-cased beside [`NEW_AGENT_LABEL`] because it is a leaf of
 /// one agent's group rather than an action on the machine.
 pub(in crate::ui::app) const NEW_SESSION_LABEL: &str = "+ new session";
-
-/// The identity of a selectable `row`, if it has one.
-pub(in crate::ui::app) fn rail_anchor(row: &RailRow, lanes: &[AgentLane]) -> Option<RailAnchor> {
-    match row {
-        RailRow::NewAgent => Some(RailAnchor::NewAgent),
-        RailRow::Agent(agent) => Some(RailAnchor::Agent(agent.agent_id.clone())),
-        RailRow::Session(session) => session
-            .local
-            .as_ref()
-            .map(|local| RailAnchor::Session(local.id.clone()))
-            .or_else(|| {
-                session.task.as_ref().and_then(|task| {
-                    session.lane_index.and_then(|index| {
-                        lanes.get(index).map(|lane| RailAnchor::Task {
-                            lane: lane.key.clone(),
-                            task_id: task.task_id.clone(),
-                        })
-                    })
-                })
-            }),
-        RailRow::NewSession { agent_id } => Some(RailAnchor::NewSession(agent_id.clone())),
-        RailRow::WorkflowRun(row) => Some(RailAnchor::WorkflowRun(row.run.run_id.clone())),
-        RailRow::Lane(AgentRow::Lane { lane_index }) => lanes
-            .get(*lane_index)
-            .map(|lane| RailAnchor::Lane(lane.key.clone())),
-        RailRow::Lane(AgentRow::Sub {
-            lane_index, task, ..
-        }) => lanes.get(*lane_index).map(|lane| RailAnchor::Task {
-            lane: lane.key.clone(),
-            task_id: task.task_id.clone(),
-        }),
-        RailRow::Lane(AgentRow::More { lane_index, .. }) => lanes
-            .get(*lane_index)
-            .map(|lane| RailAnchor::Overflow(lane.key.clone())),
-        RailRow::Host(_) | RailRow::AgentsHeader | RailRow::Lane(_) => None,
-    }
-}
-
-/// Resolves an anchored cursor to its present offset, using `fallback` when gone.
-pub(in crate::ui::app) fn resolve_rail_cursor(
-    rows: &[RailRow],
-    lanes: &[AgentLane],
-    anchor: Option<&RailAnchor>,
-    fallback: usize,
-) -> usize {
-    if rows.is_empty() {
-        return 0;
-    }
-    anchor
-        .and_then(|anchor| {
-            rows.iter()
-                .position(|row| rail_anchor(row, lanes).as_ref() == Some(anchor))
-        })
-        .unwrap_or_else(|| fallback.min(rows.len() - 1))
-}
 
 /// One agent and the sessions hanging off it, before the tree is flattened.
 struct AgentGroup {
@@ -150,46 +97,6 @@ struct HostGroup {
 }
 
 impl App {
-    /// The rail offset the cursor is on, re-derived from its stable anchor.
-    pub(in crate::ui::app) fn rail_cursor(&self) -> usize {
-        self.rail_cursor_in(&self.rail_rows(), &self.lanes())
-    }
-
-    /// Resolves the rail cursor against rows and lanes already collected by a caller.
-    pub(in crate::ui::app) fn rail_cursor_in(
-        &self,
-        rows: &[RailRow],
-        lanes: &[AgentLane],
-    ) -> usize {
-        resolve_rail_cursor(rows, lanes, self.agent_anchor.as_ref(), self.agent_index)
-    }
-
-    /// Moves the cursor to `index` and remembers the selected row by identity.
-    pub(in crate::ui::app) fn set_rail_cursor(&mut self, index: usize) {
-        let rows = self.rail_rows();
-        let lanes = self.lanes();
-        self.set_rail_cursor_in(&rows, &lanes, index);
-    }
-
-    /// Moves the cursor using rows and lanes already collected by a caller.
-    pub(in crate::ui::app) fn set_rail_cursor_in(
-        &mut self,
-        rows: &[RailRow],
-        lanes: &[AgentLane],
-        index: usize,
-    ) {
-        self.agent_index = index.min(rows.len().saturating_sub(1));
-        self.agent_anchor = rows
-            .get(self.agent_index)
-            .and_then(|row| rail_anchor(row, lanes));
-    }
-
-    /// Returns the rail cursor to its initial position without retaining its anchor.
-    pub(in crate::ui::app) fn reset_rail_cursor(&mut self) {
-        self.agent_index = 0;
-        self.agent_anchor = None;
-    }
-
     /// The agent declarations this machine's config records.
     ///
     /// Read live rather than cached: [`declare_agent`](medulla::config::declare_agent)
