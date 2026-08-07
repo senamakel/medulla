@@ -59,12 +59,23 @@ impl App {
     }
 
     /// The workflow run the rail cursor sits on, when it sits on one.
+    #[cfg(feature = "workflows")]
     pub(in crate::ui::app) fn on_workflow_run_row(&self) -> Option<(String, String)> {
         let rows = self.rail_rows();
         rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
             .and_then(|row| row.workflow_run())
             .map(|row| (row.run.workflow_id.clone(), row.run.run_id.clone()))
     }
+
+    /// Open the selected run in the Workflows tab when that feature is present.
+    #[cfg(feature = "workflows")]
+    fn follow_workflow_run(&mut self, workflow: &str, run: &str) {
+        self.open_workflow_run(workflow, run);
+    }
+
+    /// A slim build still lists reported runs, but has no workflow tab to open.
+    #[cfg(not(feature = "workflows"))]
+    fn follow_workflow_run(&mut self, _workflow: &str, _run: &str) {}
 
     /// The agent whose `+ new session` action row the cursor sits on, if it does.
     pub(in crate::ui::app) fn on_new_session_row(&self) -> Option<String> {
@@ -180,13 +191,17 @@ impl App {
             // sessions into view. A visible session pane consumes it earlier and
             // takes the keyboard instead.
             KeyCode::Enter => {
+                #[cfg(feature = "workflows")]
+                let workflow_run = self.on_workflow_run_row();
+                #[cfg(not(feature = "workflows"))]
+                let workflow_run: Option<(String, String)> = None;
                 if self.on_new_agent_row() {
                     self.open_new_agent_picker();
-                } else if let Some((workflow, run)) = self.on_workflow_run_row() {
+                } else if let Some((workflow, run)) = workflow_run {
                     // A run row exists to be followed: the rail is where the
                     // operator learns the session started one, and the graph is
                     // where they find out what it is doing.
-                    self.open_workflow_run(&workflow, &run);
+                    self.follow_workflow_run(&workflow, &run);
                 } else if let Some(agent_id) = self.on_new_session_row() {
                     // The same flow `Ctrl-T` opens on an agent row: the name
                     // prompt, then a session in that agent's declared harness

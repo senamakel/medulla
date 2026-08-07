@@ -139,6 +139,8 @@ impl App {
         } else {
             next as usize
         };
+        #[cfg(feature = "workflows")]
+        self.sync_selected_workflow_run();
     }
 
     /// Open a new thread and focus the conversation.

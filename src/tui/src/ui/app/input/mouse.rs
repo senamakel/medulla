@@ -390,19 +390,25 @@ impl App {
                     .is_some_and(|(rail, _)| rail.contains((x, y).into()));
                 if over_rail {
                     self.move_agent_index(up);
-                } else if self
-                    .hit_workflow_preview
-                    .is_some_and(|area| area.contains((x, y).into()))
-                {
-                    self.wf.preview_scroll = if up {
-                        self.wf.preview_scroll.saturating_sub(SCROLL_ROWS)
-                    } else {
-                        self.wf.preview_scroll.saturating_add(SCROLL_ROWS)
-                    };
                 } else {
+                    #[cfg(feature = "workflows")]
+                    if self
+                        .hit_workflow_preview
+                        .is_some_and(|area| area.contains((x, y).into()))
+                    {
+                        self.wf.preview_scroll = if up {
+                            self.wf.preview_scroll.saturating_sub(SCROLL_ROWS)
+                        } else {
+                            self.wf.preview_scroll.saturating_add(SCROLL_ROWS)
+                        };
+                    } else {
+                        self.scroll_transcript(up, 3);
+                    }
+                    #[cfg(not(feature = "workflows"))]
                     self.scroll_transcript(up, 3);
                 }
             }
+            #[cfg(feature = "workflows")]
             "Workflows" => {
                 if self
                     .hit_workflow_preview
@@ -554,6 +560,8 @@ impl App {
                             self.agent_scroll = 0;
                             self.chat_scroll = 0;
                             self.agent_index = idx;
+                            #[cfg(feature = "workflows")]
+                            self.sync_selected_workflow_run();
                             // A click is a focus gesture: the arrows should now
                             // continue from the row that was just picked.
                             self.focus_agents_rail();

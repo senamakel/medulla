@@ -337,6 +337,7 @@ impl App {
                 self.selected = 0;
                 return self.tab_enter_cmd();
             }
+            #[cfg(feature = "workflows")]
             KeyCode::PageUp if tab == "Agents" => {
                 if self.on_workflow_run_row().is_some() {
                     self.wf.preview_scroll = self.wf.preview_scroll.saturating_sub(6);
@@ -345,6 +346,7 @@ impl App {
                     self.scroll_transcript(true, step);
                 }
             }
+            #[cfg(feature = "workflows")]
             KeyCode::PageDown if tab == "Agents" => {
                 if self.on_workflow_run_row().is_some() {
                     self.wf.preview_scroll = self.wf.preview_scroll.saturating_add(6);
@@ -352,6 +354,16 @@ impl App {
                     let step = self.visible_count().saturating_sub(1).max(1);
                     self.scroll_transcript(false, step);
                 }
+            }
+            #[cfg(not(feature = "workflows"))]
+            KeyCode::PageUp if tab == "Agents" => {
+                let step = self.visible_count().saturating_sub(1).max(1);
+                self.scroll_transcript(true, step);
+            }
+            #[cfg(not(feature = "workflows"))]
+            KeyCode::PageDown if tab == "Agents" => {
+                let step = self.visible_count().saturating_sub(1).max(1);
+                self.scroll_transcript(false, step);
             }
             KeyCode::Enter if tab == "Agents" && (shift || alt) => {
                 self.draft = insert_at(&self.draft.text, self.draft.cursor, "\n");

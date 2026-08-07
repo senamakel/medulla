@@ -50,6 +50,7 @@ impl App {
         area: Rect,
         row: &WorkflowRunRailRow,
     ) {
+        #[cfg(feature = "workflows")]
         if self.workflows.iter().any(|w| w.id == row.run.workflow_id) {
             self.draw_workflow_canvas(f, area);
             return;
@@ -115,8 +116,11 @@ impl App {
         // The same frame vocabulary the step preview uses, so a run read here and
         // a run read on the Workflows tab look like the same kind of thing.
         let frames: Vec<String> = run.frames.iter().map(|frame| frame.text.clone()).collect();
+        #[cfg(feature = "workflows")]
         let live_lines =
             crate::ui::app::render::workflows::live_lines(&frames, !run.status.is_terminal());
+        #[cfg(not(feature = "workflows"))]
+        let live_lines = fallback_live_lines(&frames, !run.status.is_terminal());
         // This pane has no independent scroll state. Keep its context, then
         // spend the remaining rows on the newest reported progress: the reason
         // an operator opens a live run is to see what it is doing now.
@@ -124,10 +128,6 @@ impl App {
         if live_rows > 0 && !live_lines.is_empty() {
             let header_rows = wrapped_rows(&live_lines[..1], inner.width);
             let mut tail_rows = live_rows;
-            if header_rows <= tail_rows {
-                lines.push(live_lines[0].clone());
-                tail_rows -= header_rows;
-            }
             let mut tail = Vec::new();
             for line in live_lines[1..].iter().rev() {
                 let rows = wrapped_rows(std::slice::from_ref(line), inner.width);
@@ -137,6 +137,12 @@ impl App {
                 tail.push(line.clone());
                 tail_rows = tail_rows.saturating_sub(rows);
             }
+            // A one-row pane must show the run's newest evidence, not the
+            // decorative live header. Spend only the rows left after progress
+            // on that header, so it cannot push the first frame below view.
+            if header_rows <= tail_rows {
+                lines.push(live_lines[0].clone());
+            }
             lines.extend(tail.into_iter().rev());
         }
 
@@ -145,4 +151,30 @@ impl App {
             inner,
         );
     }
+}
+
+/// Format reported progress without the optional workflow engine.
+///
+/// The slim build cannot use the Workflows tab's richer frame classifier, but
+/// reports must remain inspectable from the Agents rail.
+#[cfg(not(feature = "workflows"))]
+fn fallback_live_lines(frames: &[String], running: bool) -> Vec<TLine<'static>> {
+    if frames.is_empty() {
+        return Vec::new();
+    }
+    let label = if running { " live " } else { " last " };
+    std::iter::once(TLine::from(Span::styled(
+        label,
+        Style::default().add_modifier(Modifier::DIM),
+    )))
+    .chain(frames.iter().map(|frame| {
+        TLine::from(
+            frame
+                .trim()
+                .chars()
+                .filter(|character| !character.is_control())
+                .collect::<String>(),
+        )
+    }))
+    .collect()
 }

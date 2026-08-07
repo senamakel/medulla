@@ -123,8 +123,19 @@ impl App {
             workflow_run,
         };
         self.resolve_selected_session(&mut selection);
-        self.mirror_selected_workflow_run(&selection);
         selection
+    }
+
+    /// Synchronize the workflow canvas after the rail selection or its reports
+    /// change. This is an input/state transition, never part of drawing.
+    #[cfg(feature = "workflows")]
+    pub(in crate::ui::app) fn sync_selected_workflow_run(&mut self) {
+        let run = self
+            .rail_rows()
+            .get(self.agent_index)
+            .and_then(|row| row.workflow_run())
+            .cloned();
+        self.mirror_selected_workflow_run(run.as_ref());
     }
 
     /// Point the workflow state at the run under the cursor, if it moved.
@@ -140,8 +151,11 @@ impl App {
     /// followed a run there and pressed Tab expects to find.
     ///
     /// [`WorkflowsState`]: super::super::types::WorkflowsState
-    fn mirror_selected_workflow_run(&mut self, selection: &Selection) {
-        let Some(run) = &selection.workflow_run else {
+    fn mirror_selected_workflow_run(
+        &mut self,
+        selected_run: Option<&super::super::rail::WorkflowRunRailRow>,
+    ) {
+        let Some(run) = selected_run else {
             self.wf.mirrored_run = None;
             self.wf.mirrored_run_updated_at = None;
             return;
