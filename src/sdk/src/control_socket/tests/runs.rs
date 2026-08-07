@@ -306,3 +306,31 @@ fn forgetting_a_session_drops_its_rows_and_its_retirement() {
         report("run-1", "review", HarnessRunStatus::Succeeded, None),
     ));
 }
+
+#[test]
+fn only_an_unsettled_run_makes_a_session_active() {
+    let registry = HarnessRunRegistry::new();
+    registry.report(
+        "pty-1",
+        report("run-1", "review", HarnessRunStatus::Running, None),
+    );
+    assert!(registry.any_active_for_session("pty-1"));
+
+    registry.report(
+        "pty-1",
+        report("run-1", "review", HarnessRunStatus::Succeeded, None),
+    );
+
+    assert!(
+        !registry.any_active_for_session("pty-1"),
+        "nothing is still executing under this session"
+    );
+    assert!(
+        registry.any_for_session("pty-1"),
+        "but it did report a run, which is the other question"
+    );
+    assert!(
+        !registry.any_active_for_session("pty-none"),
+        "a session that reported nothing is not active either"
+    );
+}

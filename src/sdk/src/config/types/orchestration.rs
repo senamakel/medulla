@@ -444,6 +444,15 @@ pub struct WorkflowsConfig {
     /// over-ask is clamped rather than refused.
     #[serde(default = "d_max_loop_iterations")]
     pub max_loop_iterations: u64,
+    /// How many of a workflow's runs the Workflows page lists under it.
+    ///
+    /// The store keeps every run it wrote; this is only how much of that
+    /// history the rail shows at once. A nightly workflow accumulates hundreds,
+    /// and a catalogue rail that lists them all is a scrollbar rather than a
+    /// summary — the recent ones are what an operator reads, and the rest is
+    /// reachable with `medulla workflow list-runs`.
+    #[serde(default = "d_max_listed_runs")]
+    pub max_listed_runs: usize,
     /// Whether and how a workflow reviews its own history.
     #[serde(default)]
     pub evolve: EvolveSettings,
@@ -523,6 +532,21 @@ fn d_max_loop_iterations() -> u64 {
     crate::flow_engine::DEFAULT_MAX_LOOP_ITERATIONS
 }
 
+impl WorkflowsConfig {
+    /// The default [`max_listed_runs`](Self::max_listed_runs).
+    ///
+    /// Fifteen runs under a workflow: a screen's worth of recent history, so
+    /// the rail still reads as "this workflow and how it has been going" rather
+    /// than as a log. Named so the settings editor can offer the same number it
+    /// would otherwise be silently overwriting.
+    pub const DEFAULT_MAX_LISTED_RUNS: usize = 15;
+}
+
+/// See [`WorkflowsConfig::DEFAULT_MAX_LISTED_RUNS`].
+fn d_max_listed_runs() -> usize {
+    WorkflowsConfig::DEFAULT_MAX_LISTED_RUNS
+}
+
 /// A run may take ten minutes: long enough for real work on a coding harness,
 /// short enough that a wedged run does not pin its record forever.
 fn d_run_timeout_secs() -> u64 {
@@ -544,6 +568,7 @@ impl Default for WorkflowsConfig {
             run_timeout_secs: d_run_timeout_secs(),
             max_parallel_agents: d_max_parallel_agents(),
             max_loop_iterations: d_max_loop_iterations(),
+            max_listed_runs: d_max_listed_runs(),
             evolve: EvolveSettings::default(),
         }
     }
