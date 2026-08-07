@@ -206,7 +206,7 @@ impl App {
     /// missing one selects the workflow and leaves the overlay for the run rows
     /// to catch up with, rather than refusing the jump.
     pub(in crate::ui::app) fn open_workflow_run(&mut self, workflow: &str, run: &str) {
-        if !self.point_workflows_at_run(workflow, run) {
+        if !self.point_workflows_at_run(workflow, run, None) {
             self.set_status(format!("Workflow '{workflow}' is not in this catalogue"));
             return;
         }
@@ -225,7 +225,12 @@ impl App {
     /// real state rather than an error — a run reported by a session working in
     /// a directory whose workflows are not installed here. The caller decides
     /// what to say about it; there is no graph to draw either way.
-    pub(in crate::ui::app) fn point_workflows_at_run(&mut self, workflow: &str, run: &str) -> bool {
+    pub(in crate::ui::app) fn point_workflows_at_run(
+        &mut self,
+        workflow: &str,
+        run: &str,
+        active_node: Option<&str>,
+    ) -> bool {
         let Some(index) = self
             .workflows
             .iter()
@@ -243,6 +248,21 @@ impl App {
         // settles — but `live_run_view` resolves reported runs by this same id,
         // so the overlay is what gets the streamed frames onto the graph.
         self.wf.overlay = Some(run.to_string());
+        // A reported run can already be mid-graph when its row first reaches
+        // Agents. Start its shared canvas at the most recently reporting node,
+        // rather than the graph's first node, whose preview has no live output.
+        if let Some(node) = active_node {
+            if let Some(index) = self
+                .wf
+                .layout
+                .nodes
+                .iter()
+                .position(|placed| placed.id == node)
+            {
+                self.wf.node_index = index;
+                self.scroll_canvas_to_cursor();
+            }
+        }
         true
     }
 

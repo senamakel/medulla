@@ -26,6 +26,8 @@ use super::types::{AgentsPanes, Selection};
 mod attention_tests;
 mod device_footer;
 mod harness_line;
+#[cfg(test)]
+mod path_tests;
 mod rows;
 mod state;
 mod status;
@@ -34,6 +36,8 @@ mod status_line_tests;
 #[cfg(test)]
 mod tests;
 mod types;
+#[cfg(test)]
+mod workflow_run_tests;
 mod wrap;
 
 use types::DeviceFooter;

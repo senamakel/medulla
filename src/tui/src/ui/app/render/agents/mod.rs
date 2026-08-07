@@ -144,11 +144,21 @@ impl App {
             return;
         };
         let run = &run.run;
-        if self.wf.mirrored_run.as_deref() == Some(run.run_id.as_str()) {
+        let synchronized = self.wf.mirrored_run.as_deref() == Some(run.run_id.as_str())
+            && self.wf.overlay.as_deref() == Some(run.run_id.as_str())
+            && self
+                .selected_workflow()
+                .is_some_and(|workflow| workflow.id == run.workflow_id);
+        if synchronized {
             return;
         }
         self.wf.mirrored_run = Some(run.run_id.clone());
-        self.point_workflows_at_run(&run.workflow_id, &run.run_id);
+        let active_node = run
+            .frames
+            .iter()
+            .rev()
+            .find_map(|frame| frame.node.as_deref());
+        self.point_workflows_at_run(&run.workflow_id, &run.run_id, active_node);
     }
 
     /// Divide `area` between the rail, the pane, and the composer.

@@ -104,10 +104,20 @@ impl App {
         // The same frame vocabulary the step preview uses, so a run read here and
         // a run read on the Workflows tab look like the same kind of thing.
         let frames: Vec<String> = run.frames.iter().map(|frame| frame.text.clone()).collect();
-        lines.extend(crate::ui::app::render::workflows::live_lines(
-            &frames,
-            !run.status.is_terminal(),
-        ));
+        let live_lines =
+            crate::ui::app::render::workflows::live_lines(&frames, !run.status.is_terminal());
+        // This pane has no independent scroll state. Keep its context, then
+        // spend the remaining rows on the newest reported progress: the reason
+        // an operator opens a live run is to see what it is doing now.
+        let live_rows = (inner.height as usize).saturating_sub(lines.len());
+        if live_rows > 0 && !live_lines.is_empty() {
+            lines.push(live_lines[0].clone());
+            let tail_rows = live_rows.saturating_sub(1);
+            if tail_rows > 0 {
+                let tail_start = live_lines.len().saturating_sub(tail_rows).max(1);
+                lines.extend(live_lines.into_iter().skip(tail_start));
+            }
+        }
 
         f.render_widget(
             Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
