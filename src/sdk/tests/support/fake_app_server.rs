@@ -203,9 +203,17 @@ def fail(request_id, text):
 
 pending = {{}}
 pending_lock = threading.Lock()
+next_ask_id = itertools.count(9001)
 
-def ask(request_id, method, params):
+def ask(method, params):
     """Send a request *to* the client and block until it answers.
+
+    The id is allocated here rather than written into the script because turns
+    are served concurrently: two overlapping turns asking under one hard-coded
+    id would be indistinguishable on the wire, and both answers would release
+    whichever wait registered last, leaving the other turn stuck until its
+    timeout. The id the fake chose is recorded to ASK_LOG so a test can still
+    correlate an answer against the question it answers.
 
     The answer arrives on stdin and is recorded like any other inbound line.
     Blocking here is what a real server does, and it is also what makes the
@@ -213,10 +221,14 @@ def ask(request_id, method, params):
     straight away would let the client's task finish before the reader loop had
     written the answer, so a test reading the request log would race it.
     """
-    event = threading.Event()
     with pending_lock:
+        request_id = next(next_ask_id)
+        event = threading.Event()
         pending[request_id] = event
-    write({{"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}})
+    payload = {{"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}}
+    with open(ASK_LOG, "a") as handle:
+        handle.write(json.dumps(payload) + "\n")
+    write(payload)
     # Bounded, so a client that never answers hangs the turn rather than the
     # whole process — the test's own timeout then reports it.
     event.wait(30)
