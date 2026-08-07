@@ -140,6 +140,7 @@ fn empty_grouped_sections_do_not_emit_a_header() {
             }],
         }],
         Vec::new(),
+        &[],
     );
 
     assert!(
