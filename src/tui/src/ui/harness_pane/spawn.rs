@@ -168,8 +168,12 @@ impl LocalSessions {
         // attribution depended on which door the session came through.
         let attribution_env = medulla::attribution::attribution_env(self.attribution, &env);
         env.extend(attribution_env);
-        let (launch_args, hook_notes) =
-            medulla::harness_hooks::launch_args(choice.provider, self.attribution, &self.hooks);
+        let (launch_args, hook_notes) = medulla::harness_hooks::launch_args(
+            choice.provider,
+            self.attribution,
+            &self.hooks,
+            &env,
+        );
         extra_args.extend(launch_args);
         // Routed to the log rather than stderr: this crate draws a full-screen
         // TUI, where a stray line corrupts the pane. Covers both hooks the
