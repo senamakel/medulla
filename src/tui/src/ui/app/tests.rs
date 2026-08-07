@@ -272,6 +272,21 @@ fn esc_closes_the_pane_diff() {
 }
 
 #[test]
+fn esc_cancels_the_open_diff_baseline_picker_before_closing_the_diff() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+    a.pane_view = PaneView::Diff;
+    a.open_change_baseline_picker();
+
+    a.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+    assert!(!a.changes.picking_baseline);
+    assert_eq!(a.pane_view, PaneView::Diff);
+}
+
+#[test]
 fn the_open_diff_owns_its_own_navigation_keys() {
     // `k` kills the harness from the terminal view; over the diff it is the
     // Changes cursor, exactly as on the tab. A view that replaced the pane but

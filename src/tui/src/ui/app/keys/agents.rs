@@ -99,6 +99,7 @@ impl App {
         }
         match self.pane_view {
             PaneView::Harness => false,
+            PaneView::Diff if self.changes.picking_baseline => self.on_changes_key(k.code),
             PaneView::Diff => match k.code {
                 KeyCode::Char('d') | KeyCode::Esc => {
                     self.toggle_harness_diff_pane();

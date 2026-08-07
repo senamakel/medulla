@@ -16,7 +16,7 @@ impl App {
     }
 
     /// Take one named session from the orchestrator and record why.
-    pub(crate) fn take_session(&mut self, session: &str, origin: TakeOrigin) {
+    pub(super) fn take_session(&mut self, session: &str, origin: TakeOrigin) {
         let Some(harnesses) = self.local_sessions.clone() else {
             self.set_status("This device is not hosting, so it has no sessions");
             return;

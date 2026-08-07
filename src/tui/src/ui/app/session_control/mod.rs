@@ -7,3 +7,5 @@
 mod close;
 mod handoff;
 mod picker;
+
+pub(super) use picker::is_text_input;
