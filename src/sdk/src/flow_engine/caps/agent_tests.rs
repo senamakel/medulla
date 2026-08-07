@@ -27,6 +27,45 @@ impl HarnessDispatch for UnusedDispatch {
     }
 }
 
+/// A dispatch that substitutes the harness the node asked for, the way a worker
+/// without the named provider does.
+///
+/// It reads the dispatch registry from *inside* the dispatch, because that is
+/// the only moment the entry exists: the recording guard is dropped as the
+/// await returns.
+struct SubstitutingDispatch {
+    /// The run whose registry entry is read.
+    run_id: String,
+    /// The harness this dispatch really runs on, whatever was requested.
+    substitute: String,
+    /// What the registry named while the dispatch was in flight.
+    recorded: std::sync::Mutex<Option<String>>,
+}
+
+#[async_trait]
+impl HarnessDispatch for SubstitutingDispatch {
+    async fn dispatch(&self, _request: TaskRequest) -> Result<TaskOutcome, RunError> {
+        *self.recorded.lock().expect("recorded lock") =
+            crate::workflows::run::dispatches::in_flight(&self.run_id)
+                .into_iter()
+                .next()
+                .map(|dispatch| dispatch.harness);
+        Ok(TaskOutcome {
+            reply: "done".to_string(),
+            usage: crate::protocol::TokenUsage {
+                input_tokens: 0,
+                output_tokens: 0,
+            },
+            harness: None,
+            session_id: None,
+        })
+    }
+
+    fn effective_harness(&self, _request: &TaskRequest) -> Option<String> {
+        Some(self.substitute.clone())
+    }
+}
+
 /// A runner for `run`, sharing `sequence` when one is given.
 fn runner(run: &str, sequence: Option<Arc<AtomicU64>>) -> HarnessAgentRunner {
     let root = std::env::temp_dir().join("medulla-agent-tests");
