@@ -55,6 +55,19 @@ impl App {
             return None;
         }
 
+        // Closing a harness ends whatever turn it was in the middle of, so the
+        // same one-keypress contract applies: `y` closes it, anything else is a
+        // "no" — including the keys that would otherwise have done something,
+        // which is the point of the question owning the keyboard.
+        if let Some(session) = self.harness_close_armed.take() {
+            if k.code == KeyCode::Char('y') && k.modifiers.is_empty() {
+                self.close_session(&session);
+            } else {
+                self.set_status("Harness close cancelled");
+            }
+            return None;
+        }
+
         // The hand-back question outranks even the attached harness, and has to:
         // it is asked *while still attached*, because releasing the keyboard
         // before it is answered would hide the pane the question is about. So

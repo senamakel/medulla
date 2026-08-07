@@ -1,0 +1,88 @@
+//! Regression tests for harness-pane-only keyboard commands.
+
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use medulla::config::LoadedConfig;
+use medulla::runtime::mock::MockRuntime;
+use std::sync::Arc;
+
+use super::super::types::{tab_pos, App, PaneView};
+
+/// Build the standard app fixture with the harness pane available.
+fn app() -> App {
+    let runtime = Arc::new(MockRuntime::demo());
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.link = Some(medulla::config::LinkConfig::default());
+    App::new(runtime, loaded)
+}
+
+/// Find a tab by its visible label so the test survives tab reordering.
+fn tab(name: &str) -> usize {
+    tab_pos(name)
+}
+
+#[test]
+fn shift_d_on_a_selected_harness_opens_its_changes_tab() {
+    let mut app = app();
+    app.tab_index = tab("Agents");
+    app.focus_agents_rail();
+    app.pane_session = Some("selected-harness".to_owned());
+
+    let cmd = app.on_key(KeyEvent::new(KeyCode::Char('D'), KeyModifiers::SHIFT));
+
+    assert!(cmd.is_none());
+    assert_eq!(app.tab(), "Changes");
+    assert_eq!(app.pane_view, PaneView::Harness);
+    assert_eq!(app.rail_session.as_deref(), Some("selected-harness"));
+}
+
+#[test]
+fn k_on_a_selected_harness_asks_before_closing_it() {
+    let mut app = app();
+    app.tab_index = tab("Agents");
+    app.focus_agents_rail();
+    app.pane_session = Some("selected-harness".to_owned());
+
+    let cmd = app.on_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+
+    assert!(cmd.is_none());
+    assert!(app.harness_close_armed.is_none());
+    assert!(app.status().contains("already exited"), "{}", app.status());
+    assert_eq!(app.draft.text, "", "the shortcut must not type into chat");
+}
+
+#[test]
+fn k_without_a_selected_harness_remains_composer_input() {
+    let mut app = app();
+    app.tab_index = tab("Agents");
+    app.focus_agents_rail();
+
+    app.on_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+
+    assert!(app.harness_close_armed.is_none());
+    assert_eq!(app.draft.text, "k");
+}
+
+#[test]
+fn an_armed_harness_close_takes_only_y() {
+    let mut app = app();
+    app.tab_index = tab("Agents");
+    app.arm_harness_close("selected-harness".to_owned());
+
+    app.on_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
+
+    assert!(app.harness_close_armed.is_none());
+    assert!(app.status().contains("cancelled"), "{}", app.status());
+    assert_eq!(app.draft.text, "", "the answer must not reach the composer");
+}
+
+#[test]
+fn d_without_a_selected_harness_remains_composer_input() {
+    let mut app = app();
+    app.tab_index = tab("Agents");
+    app.focus_agents_rail();
+
+    app.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+
+    assert_eq!(app.tab(), "Agents");
+    assert_eq!(app.draft.text, "d");
+}

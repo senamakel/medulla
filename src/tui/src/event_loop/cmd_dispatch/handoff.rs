@@ -9,12 +9,45 @@
 //! the harness was handed back, believe the orchestrator had their note, and
 //! never find out otherwise.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use medulla::runtime::Runtime;
 use medulla_tui::ui::app::Cmd;
 
 use super::super::AppMsg;
+
+/// Queue one workspace ownership mutation after its earlier mutation.
+///
+/// The event loop submits commands in UI order but executes their backend calls
+/// asynchronously. The completion watch preserves order per workspace without
+/// making unrelated workspaces wait for one another.
+fn queue_ownership(
+    workspace: &str,
+) -> (
+    Option<tokio::sync::watch::Receiver<bool>>,
+    tokio::sync::watch::Sender<bool>,
+) {
+    static QUEUES: OnceLock<Mutex<HashMap<String, tokio::sync::watch::Receiver<bool>>>> =
+        OnceLock::new();
+    let (complete, receiver) = tokio::sync::watch::channel(false);
+    let mut queues = QUEUES
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("ownership queue lock is not poisoned");
+    let previous = queues.insert(workspace.to_string(), receiver);
+    (previous, complete)
+}
+
+/// Wait for an earlier ownership mutation, even if its task ended in failure.
+async fn wait_for_prior(mut previous: Option<tokio::sync::watch::Receiver<bool>>) {
+    let Some(previous) = previous.as_mut() else {
+        return;
+    };
+    if !*previous.borrow() {
+        let _ = previous.changed().await;
+    }
+}
 
 /// Spawn a handoff command, returning anything else to the caller.
 pub(super) fn run_handoff_cmd(
@@ -24,46 +57,40 @@ pub(super) fn run_handoff_cmd(
 ) -> Option<Box<Cmd>> {
     match cmd {
         Cmd::HandOffSession(brief) => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
+            let (previous, complete) = queue_ownership(&brief.workspace_path);
+            let runtime = runtime.clone();
+            let status_tx = msg_tx.clone();
             tokio::spawn(async move {
+                wait_for_prior(previous).await;
                 let mut brief = *brief;
-                // Read here rather than in the UI: this is the one fact in the
-                // brief that costs a subprocess. Best-effort — a workspace that
-                // is not a git repo simply hands over without a branch, which is
-                // still a useful brief.
                 let facts =
                     medulla::daemon::capabilities::read_git_facts(&brief.workspace_path).await;
                 brief.branch = facts.branch;
                 brief.project = facts.project;
-
-                let message = match rt.hand_off_harness(brief).await {
+                let message = match runtime.hand_off_harness(brief).await {
                     Ok(()) => "Handed back · the orchestrator has your brief".to_string(),
-                    // Names both halves: the harness *was* handed back (that
-                    // part is local and already done), and what was lost is the
-                    // context. An operator who reads this knows to say it again
-                    // in chat rather than assuming the work is queued.
-                    Err(e) => format!(
-                        "Handed back · your brief did not send: {e} \
+                    Err(error) => format!(
+                        "Handed back · your brief did not send: {error} \
                          (the orchestrator may pick it up without context)"
                     ),
                 };
-                let _ = tx.send(AppMsg::Status(message));
+                let _ = status_tx.send(AppMsg::Status(message));
+                let _ = complete.send(true);
             });
             None
         }
         Cmd::HoldSession { workspace, reason } => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
+            let (previous, complete) = queue_ownership(&workspace);
+            let runtime = runtime.clone();
+            let status_tx = msg_tx.clone();
             tokio::spawn(async move {
-                // Only the failure is narrated. Taking a harness already reports
-                // itself on the status line the moment the key is pressed, and
-                // a second line saying the same thing would push it off.
-                if let Err(e) = rt.hold_harness(workspace, reason).await {
-                    let _ = tx.send(AppMsg::Status(format!(
-                        "You have this harness · the orchestrator was not told: {e}"
+                wait_for_prior(previous).await;
+                if let Err(error) = runtime.hold_harness(workspace, reason).await {
+                    let _ = status_tx.send(AppMsg::Status(format!(
+                        "You have this harness · the orchestrator was not told: {error}"
                     )));
                 }
+                let _ = complete.send(true);
             });
             None
         }
