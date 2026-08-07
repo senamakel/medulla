@@ -267,6 +267,17 @@ fn agent_command_removes_the_embedded_core_workspace() {
 #[cfg(unix)]
 #[test]
 fn codex_acp_command_carries_the_routed_model_and_overrides() {
+    let dir = tempfile::tempdir().unwrap();
+    let codex_home = dir.path().join("codex");
+    std::fs::create_dir_all(&codex_home).unwrap();
+    // Routed runs derive a provider-safe catalog from Codex's local template.
+    // Seed the smallest usable template so this argv regression stays offline
+    // and independent of the developer or CI runner's Codex home.
+    std::fs::write(
+        codex_home.join("models_cache.json"),
+        r#"{"models":[{"slug":"gpt-5.4","priority":1,"context_window":200000}]}"#,
+    )
+    .unwrap();
     let mut options = attribution_options(false);
     options.provider = HarnessProvider::Codex;
     options.model = Some("deepseek/deepseek-v4-flash-0731".to_string());
@@ -277,6 +288,14 @@ fn codex_acp_command_carries_the_routed_model_and_overrides() {
     options.env.insert(
         "OPENAI_BASE_URL".to_string(),
         "http://127.0.0.1:36277/openai".to_string(),
+    );
+    options.env.insert(
+        "CODEX_HOME".to_string(),
+        codex_home.to_string_lossy().into_owned(),
+    );
+    options.env.insert(
+        "MEDULLA_HOME".to_string(),
+        dir.path().join("medulla").to_string_lossy().into_owned(),
     );
 
     let agent = super::super::execution::agent_for(&options).unwrap();

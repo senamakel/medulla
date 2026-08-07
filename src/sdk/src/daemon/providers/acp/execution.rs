@@ -466,7 +466,7 @@ impl AcpAgentConfigExt for AcpAgentConfig {
 /// Quote a command argument for `cmd.exe` without allowing its metacharacters
 /// to turn an operator-configured provider path into another command.
 #[cfg(windows)]
-fn quote_windows_cmd_arg(argument: &str) -> String {
+pub(super) fn quote_windows_cmd_arg(argument: &str) -> String {
     let escaped = argument.replace('^', "^^").replace('%', "%%");
     let escaped = escaped
         .chars()
