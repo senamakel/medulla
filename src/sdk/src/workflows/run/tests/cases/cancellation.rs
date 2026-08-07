@@ -42,6 +42,38 @@ async fn a_claim_taken_before_the_run_starts_is_adopted() {
     );
 }
 
+/// A claim belongs to the id it was taken out under. Adopting one for a
+/// different run would register the wrong id: `cancel` for the run actually
+/// executing would answer "not found", and a second dispatch of that id could
+/// start beside it. The mismatch is refused instead.
+#[tokio::test]
+async fn a_claim_for_another_run_is_refused_rather_than_adopted() {
+    let harness = Harness::new();
+    harness.install(&gated(), "gated");
+    let claim = RunGuard::claim("run-elsewhere").expect("a fresh id is claimable");
+    let mut context = harness.context(Arc::new(HangingDispatch));
+    context.claim = Some(claim);
+
+    let err = run_workflow(
+        context,
+        "gated",
+        "run-here",
+        json!({ "approvals": ["review"] }),
+        Default::default(),
+    )
+    .await
+    .expect_err("a claim for another id cannot start this run");
+
+    assert!(
+        err.to_string().contains("run-elsewhere"),
+        "the refusal names the mismatched claim: {err}"
+    );
+    assert!(
+        !is_running("run-here"),
+        "the refused run never registered its own id"
+    );
+}
+
 /// The case the claim exists for: a cancel arriving *before the run future has
 /// ever been polled* is both answered honestly and honoured. Calling an async
 /// fn only builds the future, so nothing in this test has run the workflow yet
