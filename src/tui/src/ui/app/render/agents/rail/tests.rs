@@ -589,7 +589,7 @@ fn reported_run(
 }
 
 #[test]
-fn a_workflow_run_row_names_its_workflow_status_and_latest_line() {
+fn a_workflow_run_row_names_its_workflow_status_and_elapsed_time() {
     let app = app();
     let row =
         crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
@@ -605,12 +605,64 @@ fn a_workflow_run_row_names_its_workflow_status_and_latest_line() {
         .map(|span| span.content.as_ref())
         .collect();
 
+    // No workflow of this id is installed in the test catalogue, so the row
+    // falls back to the reported id rather than refusing to name itself.
     assert!(text.contains("review-and-fix"), "{text}");
     assert!(text.contains("running"), "{text}");
-    // The latest thing the run said is what makes a long step look alive.
-    assert!(text.contains("running the test suite"), "{text}");
+    // Still going, so the age is measured to `now` rather than to the last
+    // report — `NOW` is 9s past the run's `started_at`.
+    assert!(text.contains("9s"), "{text}");
     // Nested under the session, like a task sublane.
     assert!(text.starts_with("   └"), "{text}");
+}
+
+#[test]
+fn a_workflow_run_row_carries_no_harness_output() {
+    // The reported `detail` is a harness's own stdout, and putting it on the row
+    // rendered whole shell command lines into a 36-column rail — one run buried
+    // the rows either side of it under its wrapped `$ cargo test …`. The pane
+    // draws live progress now; the rail says what, how, and how long.
+    let app = app();
+    let row =
+        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "w_1".into(),
+            run: reported_run(medulla::control_socket::HarnessRunStatus::Running),
+            last: true,
+        });
+
+    let line = app.rail_row_line(&row, &[lane()], false, &none_waiting(), NOW);
+    let text: String = line
+        .spans
+        .iter()
+        .map(|span| span.content.as_ref())
+        .collect();
+
+    assert!(!text.contains("running the test suite"), "{text}");
+}
+
+#[test]
+fn a_settled_run_row_stops_ageing_at_its_last_report() {
+    // A finished run on a rail nobody has touched would otherwise count upwards
+    // forever, reading as though it were still working.
+    let mut run = reported_run(medulla::control_socket::HarnessRunStatus::Succeeded);
+    run.started_at = 1_000;
+    run.updated_at = 4_000;
+    let app = app();
+    let row =
+        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "w_1".into(),
+            run,
+            last: true,
+        });
+
+    let line = app.rail_row_line(&row, &[lane()], false, &none_waiting(), NOW + 600_000);
+    let text: String = line
+        .spans
+        .iter()
+        .map(|span| span.content.as_ref())
+        .collect();
+
+    assert!(text.contains("3s"), "{text}");
 }
 
 #[test]

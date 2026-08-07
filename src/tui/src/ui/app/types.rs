@@ -275,6 +275,17 @@ pub struct WorkflowsState {
     pub(super) inspector_open: bool,
     /// The run being overlaid on the graph, when a run row is selected.
     pub(super) overlay: Option<medulla::workflows::RunId>,
+    /// The Agents-rail run this state was last pointed at, so the mirror is
+    /// re-established only when the rail cursor actually moves.
+    ///
+    /// The Agents tab draws the workflow canvas inline for a selected run, which
+    /// means every frame would otherwise call
+    /// [`select_workflow`](crate::ui::app::App::select_workflow) — and that
+    /// re-reads the run store and re-lays out the graph, both off the disk, at
+    /// the app's full draw rate. Remembering the id turns that into one read per
+    /// cursor move. `None` while the Agents cursor is not on a run, so stepping
+    /// off a run and back onto it re-syncs rather than trusting a stale graph.
+    pub(super) mirrored_run: Option<String>,
     /// One copilot thread per workflow, so switching in the rail does not show
     /// the previous workflow's conversation or lose this one's.
     pub(super) copilots: std::collections::HashMap<String, medulla::ui::workflows::CopilotState>,

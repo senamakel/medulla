@@ -25,7 +25,10 @@ const VISIBLE_FRAMES: usize = 40;
 /// `running` distinguishes a step still working from one whose frames are the
 /// last thing it said before the run ended — the same lines mean different
 /// things, and a spinner over a finished run is a lie.
-pub(super) fn live_lines(frames: &[String], running: bool) -> Vec<Line<'static>> {
+pub(in crate::ui::app::render) fn live_lines(
+    frames: &[String],
+    running: bool,
+) -> Vec<Line<'static>> {
     if frames.is_empty() {
         return Vec::new();
     }

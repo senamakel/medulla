@@ -13,10 +13,11 @@
 //! the panes landed, [`session`] resolves which session that row names and what
 //! it arms, [`rail`] draws the threads strip and the lane/fleet list,
 //! [`transcript`] the pane beside it, [`summary`] what that pane shows for a row
-//! with no transcript of its own, [`started`] the sessions each conversation
-//! turn spawned, [`work`] the panel showing what the selected agent is working
-//! on, and [`composer`] the input under that. This module owns only the layout
-//! that decides how much room each one gets.
+//! with no transcript of its own, [`run`] the workflow run a row names,
+//! [`started`] the sessions each conversation turn spawned, [`work`] the panel
+//! showing what the selected agent is working on, and [`composer`] the input
+//! under that. This module owns only the layout that decides how much room each
+//! one gets.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
@@ -29,6 +30,7 @@ use super::super::types::App;
 mod composer;
 mod harness;
 mod rail;
+mod run;
 mod session;
 mod started;
 mod summary;
@@ -107,6 +109,7 @@ impl App {
             None => true,
             Some(_) => false,
         };
+        let workflow_run = rows.get(active).and_then(|row| row.workflow_run()).cloned();
         let mut selection = Selection {
             rows,
             active,
@@ -115,9 +118,37 @@ impl App {
             task,
             on_orchestrator,
             session: None,
+            workflow_run,
         };
         self.resolve_selected_session(&mut selection);
+        self.mirror_selected_workflow_run(&selection);
         selection
+    }
+
+    /// Point the workflow state at the run under the cursor, if it moved.
+    ///
+    /// The inline run view is the Workflows tab's own canvas, and that canvas
+    /// reads the selected workflow and overlay out of [`WorkflowsState`]. So
+    /// selecting a run here has to move that state — but only when the selection
+    /// actually changed, because doing it is a run-store read and a graph
+    /// re-layout, and this runs once per frame.
+    ///
+    /// Stepping off a run clears the mark rather than the state: the Workflows
+    /// tab keeps whatever it was last showing, which is what an operator who
+    /// followed a run there and pressed Tab expects to find.
+    ///
+    /// [`WorkflowsState`]: super::super::types::WorkflowsState
+    fn mirror_selected_workflow_run(&mut self, selection: &Selection) {
+        let Some(run) = &selection.workflow_run else {
+            self.wf.mirrored_run = None;
+            return;
+        };
+        let run = &run.run;
+        if self.wf.mirrored_run.as_deref() == Some(run.run_id.as_str()) {
+            return;
+        }
+        self.wf.mirrored_run = Some(run.run_id.clone());
+        self.point_workflows_at_run(&run.workflow_id, &run.run_id);
     }
 
     /// Divide `area` between the rail, the pane, and the composer.
@@ -171,7 +202,11 @@ impl App {
         // work panel goes for the same reason: the harness's own screen already
         // shows its todos and edits, and the columns are better spent on the
         // terminal than on our second-hand copy of it.
-        let embedded = selection.session.is_some();
+        // A workflow run takes the column on the same terms as a harness. It is
+        // the graph plus the live output of the step that is working, and both
+        // want the width; there is also nothing to type at, since the run is
+        // executing in another process entirely.
+        let embedded = selection.session.is_some() || selection.workflow_run.is_some();
         // The composer belongs to the orchestrator lane and nowhere else. That
         // lane *is* the conversation — typing into it is how work starts. Every
         // other row is something already running somewhere: an agent, a task, a

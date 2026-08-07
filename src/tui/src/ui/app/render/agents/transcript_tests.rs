@@ -54,6 +54,7 @@ fn descriptorless_lanes_still_show_their_pull_request_context() {
         task: None,
         on_orchestrator: false,
         session: None,
+        workflow_run: None,
     };
     let mut terminal = Terminal::new(TestBackend::new(100, 12)).unwrap();
     terminal
@@ -124,6 +125,10 @@ fn orchestrator_lane() -> AgentLane {
 fn pane_for(row: RailRow) -> String {
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+    // Derived from the row rather than defaulted, exactly as `agents_selection`
+    // does it: the pane chooses what to draw from this field, so a fixture that
+    // left it empty would test a selection the app never builds.
+    let workflow_run = row.workflow_run().cloned();
     let selection = Selection {
         rows: vec![row],
         active: 0,
@@ -134,6 +139,7 @@ fn pane_for(row: RailRow) -> String {
         task: None,
         on_orchestrator: false,
         session: None,
+        workflow_run,
     };
     let mut terminal = Terminal::new(TestBackend::new(90, 20)).unwrap();
     terminal
@@ -269,4 +275,105 @@ fn the_selection_gives_a_laneless_row_no_lane_at_all() {
             );
         }
     }
+}
+
+/// A run reported by a session, as the control plane hands one to the rail.
+fn reported_run() -> RailRow {
+    RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+        session_id: "pty-abcdef0123456789".into(),
+        run: medulla::control_socket::HarnessRun {
+            run_id: "run-77".into(),
+            workflow_id: "release-train".into(),
+            status: medulla::control_socket::HarnessRunStatus::Running,
+            started_at: 1_000,
+            updated_at: 4_000,
+            detail: Some("running Terminal · $ cargo test".into()),
+            frames: vec![medulla::control_socket::HarnessRunFrame {
+                node: Some("verify".into()),
+                text: "running the test suite".into(),
+            }],
+        },
+        last: true,
+    })
+}
+
+#[test]
+fn a_run_row_draws_the_run_rather_than_the_session_that_started_it() {
+    // The whole of the second complaint: arrowing onto a run showed the parent
+    // harness's terminal, because the row answered `session_id()` with its
+    // parent's. The cursor is on the run, so the pane is the run's.
+    let pane = pane_for(reported_run());
+
+    assert!(pane.contains("release-train"), "{pane}");
+    assert!(pane.contains("running"), "{pane}");
+    // The frames the run has reported, in the same vocabulary the Workflows
+    // tab's step preview uses — which classifies this one as a tool call and
+    // renders it under its own glyph rather than verbatim.
+    assert!(pane.contains("test suite"), "{pane}");
+    // The session is named as provenance, not drawn as a terminal.
+    assert!(pane.contains("abcdef01"), "{pane}");
+    assert!(!pane.contains(ORCHESTRATOR_ONLY), "{pane}");
+}
+
+#[test]
+fn a_run_row_names_no_session_so_nothing_attaches_to_its_parent() {
+    // `session_id()` means "the session this row is". A run row answering with
+    // its parent made the pane draw that harness, a click attach to it, and
+    // `select_session_row` able to land on a run.
+    let row = reported_run();
+    assert!(row.session_id().is_none());
+    assert!(row.workflow_run().is_some(), "the run is still reachable");
+}
+
+#[test]
+fn selecting_a_run_points_the_workflow_state_at_it() {
+    // The mirror is what lets the Agents pane reuse the Workflows tab's canvas:
+    // that canvas reads the overlay out of the workflow state, so selecting a
+    // run here has to move it.
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+
+    let selection = Selection {
+        rows: vec![reported_run()],
+        active: 0,
+        lanes: vec![orchestrator_lane()],
+        lane_index: None,
+        task: None,
+        on_orchestrator: false,
+        session: None,
+        workflow_run: Some(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "pty-abcdef0123456789".into(),
+            run: medulla::control_socket::HarnessRun {
+                run_id: "run-77".into(),
+                workflow_id: "release-train".into(),
+                status: medulla::control_socket::HarnessRunStatus::Running,
+                started_at: 1_000,
+                updated_at: 4_000,
+                detail: None,
+                frames: Vec::new(),
+            },
+            last: true,
+        }),
+    };
+
+    app.mirror_selected_workflow_run(&selection);
+    // The workflow is not in this app's catalogue, so there is no graph to point
+    // at — but the run is still marked, so the next frame does not re-read the
+    // store looking for it again.
+    assert_eq!(app.wf.mirrored_run.as_deref(), Some("run-77"));
+
+    // Stepping off a run clears the mark, so returning to it re-syncs rather
+    // than trusting a graph the store may have changed underneath.
+    let empty = Selection {
+        rows: Vec::new(),
+        active: 0,
+        lanes: vec![orchestrator_lane()],
+        lane_index: None,
+        task: None,
+        on_orchestrator: false,
+        session: None,
+        workflow_run: None,
+    };
+    app.mirror_selected_workflow_run(&empty);
+    assert!(app.wf.mirrored_run.is_none());
 }

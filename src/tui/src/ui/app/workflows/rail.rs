@@ -206,28 +206,44 @@ impl App {
     /// missing one selects the workflow and leaves the overlay for the run rows
     /// to catch up with, rather than refusing the jump.
     pub(in crate::ui::app) fn open_workflow_run(&mut self, workflow: &str, run: &str) {
+        if !self.point_workflows_at_run(workflow, run) {
+            self.set_status(format!("Workflow '{workflow}' is not in this catalogue"));
+            return;
+        }
         self.tab_index = super::super::types::tab_pos("Workflows");
+    }
+
+    /// Select `workflow` and overlay `run` on it, without leaving this tab.
+    ///
+    /// The half of [`open_workflow_run`](Self::open_workflow_run) that moves the
+    /// selection, split out because the Agents tab now draws this same run view
+    /// inline: arrowing onto a run row in the Agents rail has to point the
+    /// workflow state at that run so the shared canvas draws it, but must *not*
+    /// throw the operator onto another tab for moving the cursor one row.
+    ///
+    /// `false` when this machine's catalogue has no such workflow, which is a
+    /// real state rather than an error — a run reported by a session working in
+    /// a directory whose workflows are not installed here. The caller decides
+    /// what to say about it; there is no graph to draw either way.
+    pub(in crate::ui::app) fn point_workflows_at_run(&mut self, workflow: &str, run: &str) -> bool {
         let Some(index) = self
             .workflows
             .iter()
             .position(|summary| summary.id == workflow)
         else {
-            self.set_status(format!("Workflow '{workflow}' is not in this catalogue"));
-            return;
+            return false;
         };
         self.select_workflow(index);
-        if let Some(position) = self
+        self.wf.run_index = self
             .workflow_runs()
             .iter()
-            .position(|record| record.id == run)
-        {
-            self.wf.run_index = Some(position);
-            self.wf.overlay = Some(run.to_string());
-        } else {
-            // The graph still overlays the live run: the node preview reads its
-            // streamed output by run id, and that arrives before the record.
-            self.wf.overlay = Some(run.to_string());
-        }
+            .position(|record| record.id == run);
+        // Set whether or not the record was found. A run still executing in the
+        // MCP subprocess has no record on disk yet — the store is written when it
+        // settles — but `live_run_view` resolves reported runs by this same id,
+        // so the overlay is what gets the streamed frames onto the graph.
+        self.wf.overlay = Some(run.to_string());
+        true
     }
 
     /// Select workflow `index`, reloading everything that hangs off it.

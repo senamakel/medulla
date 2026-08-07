@@ -227,12 +227,19 @@ impl RailRow {
     }
 
     /// The PTY session this row names, when it names one directly.
+    ///
+    /// A workflow run row answers `None`, though it knows the session it hangs
+    /// under. Every caller asks this to mean "the session this row *is*": the
+    /// pane draws that session's terminal, a click attaches the keyboard to it,
+    /// and `select_session_row` puts the cursor on it. A run row answering with
+    /// its *parent* made all three act on the harness instead of the run — which
+    /// is why arrowing onto a run showed the session's terminal rather than the
+    /// run, and clicking one attached to a harness the operator had not selected.
+    /// The parent is still reachable through
+    /// [`workflow_run`](Self::workflow_run) for anything that genuinely wants it.
     pub fn session_id(&self) -> Option<&str> {
         match self {
             RailRow::Session(row) => row.session_id(),
-            // A run row names the session it hangs under: the harness is what
-            // the operator is looking at, and a run is something it did.
-            RailRow::WorkflowRun(row) => Some(row.session_id.as_str()),
             _ => None,
         }
     }
