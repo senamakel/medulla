@@ -56,6 +56,11 @@ pub fn with_auth_hint(message: &str) -> String {
 /// Run one delegated task headlessly, retrying transient opencode SQLite-lock
 /// exits with jittered exponential backoff.
 pub async fn run_provider_task(mut options: RunTaskOptions) -> Result<RunTaskResult, String> {
+    // This has to precede every transport choice below. ACP and the pooled
+    // app-server return before the CLI spawn seam, but each child is still an
+    // external harness and must never inherit the embedded core's credential
+    // workspace.
+    crate::protocol::env::scrub_core_state(&mut options.env, options.provider);
     // Ahead of the ACP branch on purpose: both transports end up talking to the
     // same endpoint with the same credential, so both must be routed through
     // Medulla's loopback proxy for the attribution headers on the wire to be ours
@@ -186,6 +191,10 @@ async fn run_provider_attempt(
     // For providers that use the git-hook path (Codex, Opencode), merge the
     // prepare-commit-msg hook env vars into the child's environment.
     let mut merged_env = spec.env.clone();
+    // The embedded core's workspace is not this child's business — see
+    // [`crate::protocol::env::CORE_STATE_VARS`] for what a coding harness that
+    // inherits it can destroy.
+    crate::protocol::env::scrub_core_state(&mut merged_env, spec.provider);
     let attribution_env = crate::attribution::attribution_env(spec.attribution, &merged_env);
     merged_env.extend(attribution_env);
     // The built-in reporting hooks just installed onto `extra_args` need this

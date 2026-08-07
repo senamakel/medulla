@@ -19,6 +19,11 @@ pub struct PtyRequest {
     pub cwd: String,
     /// Environment overlay applied on top of the inherited environment.
     pub env: HashMap<String, String>,
+    /// Names inherited from Medulla that must be removed for this child only.
+    ///
+    /// This lets the wrapper keep the embedded core's state binding in its own
+    /// process while preventing an external coding harness from inheriting it.
+    pub env_remove: Vec<String>,
 }
 
 /// A harness running on a pseudo-terminal, handed back by a [`PtySpawner`].

@@ -295,7 +295,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 }
 
 /// Construct the ACP server command for a supported harness.
-fn agent_for(options: &RunTaskOptions) -> AcpAgent {
+pub(super) fn agent_for(options: &RunTaskOptions) -> AcpAgent {
     let config = match options.provider {
         HarnessProvider::Claude => {
             AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/claude-agent-acp@latest"])
@@ -312,7 +312,20 @@ fn agent_for(options: &RunTaskOptions) -> AcpAgent {
             unreachable!("OpenHuman's operator TUI is not an ACP coding provider")
         }
     };
-    AcpAgent::new(config.envs(acp_env(options)))
+    // `AcpAgentConfig::envs` overlays an inheriting command instead of clearing
+    // it. Run the actual ACP command through `env -u` as well as scrubbing the
+    // overlay so the embedded core workspace cannot leak from Medulla's own
+    // process environment into an external harness.
+    #[cfg(unix)]
+    let config = config
+        .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
+        .envs(acp_env(options));
+    #[cfg(windows)]
+    let config = config
+        .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
+        .envs(acp_env(options));
+
+    AcpAgent::new(config)
 }
 
 /// The environment handed to the ACP agent process.
@@ -333,6 +346,7 @@ fn agent_for(options: &RunTaskOptions) -> AcpAgent {
 /// and the key left to the agent.
 pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
     let mut env = options.env.clone();
+    crate::protocol::env::scrub_core_state(&mut env, options.provider);
     // A fleet capability belongs only to the per-session MCP subprocess. The
     // ACP agent itself inherits this map, so retaining an ambient pair here
     // would let it redeem a grant minted for another process or session.
@@ -354,4 +368,73 @@ pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
         }
     }
     env
+}
+
+/// Adds a Unix `env -u` shim around an ACP command.
+///
+/// The ACP SDK deliberately preserves the ambient process environment, while
+/// `AcpAgentConfig` can only add or replace values.  The shim is therefore the
+/// launch-level counterpart to [`acp_env`]'s map scrubbing.
+#[cfg(unix)]
+trait AcpAgentConfigExt {
+    /// Return a command whose inherited values in `names` are removed before
+    /// it starts the original ACP executable.
+    fn command_with_env_removals(self, names: &[&str]) -> Self;
+}
+
+#[cfg(unix)]
+impl AcpAgentConfigExt for AcpAgentConfig {
+    fn command_with_env_removals(self, names: &[&str]) -> Self {
+        let mut args = names
+            .iter()
+            .flat_map(|name| ["-u".to_string(), (*name).to_string()])
+            .collect::<Vec<_>>();
+        args.push(self.command().to_string_lossy().into_owned());
+        args.extend(self.arguments().iter().cloned());
+        AcpAgentConfig::new("env").args(args)
+    }
+}
+
+/// Adds a Windows `cmd` shim that clears inherited variables before launching
+/// an ACP command. `AcpAgentConfig` itself can only overlay values.
+#[cfg(windows)]
+trait AcpAgentConfigExt {
+    /// Return a command which clears `names` from its child environment before
+    /// it invokes the original ACP executable.
+    fn command_with_env_removals(self, names: &[&str]) -> Self;
+}
+
+#[cfg(windows)]
+impl AcpAgentConfigExt for AcpAgentConfig {
+    fn command_with_env_removals(self, names: &[&str]) -> Self {
+        let clears = names
+            .iter()
+            .map(|name| format!("set {name}="))
+            .collect::<Vec<_>>()
+            .join(" && ");
+        let command = std::iter::once(quote_windows_cmd_arg(&self.command().to_string_lossy()))
+            .chain(
+                self.arguments()
+                    .iter()
+                    .map(|argument| quote_windows_cmd_arg(argument)),
+            )
+            .collect::<Vec<_>>()
+            .join(" ");
+        AcpAgentConfig::new("cmd.exe").args(["/D", "/S", "/C", &format!("{clears} && {command}")])
+    }
+}
+
+/// Quote a command argument for `cmd.exe` without allowing its metacharacters
+/// to turn an operator-configured provider path into another command.
+#[cfg(windows)]
+fn quote_windows_cmd_arg(argument: &str) -> String {
+    let escaped = argument.replace('^', "^^").replace('%', "%%");
+    let escaped = escaped
+        .chars()
+        .flat_map(|character| match character {
+            '&' | '|' | '<' | '>' | '(' | ')' | '"' => vec!['^', character],
+            _ => vec![character],
+        })
+        .collect::<String>();
+    format!("\"{escaped}\"")
 }
