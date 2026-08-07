@@ -291,6 +291,27 @@ fn the_open_diff_owns_its_own_navigation_keys() {
 }
 
 #[test]
+fn enter_applies_the_open_diff_baseline_picker() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+    a.pane_view = PaneView::Diff;
+    a.open_change_baseline_picker();
+
+    a.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert!(a.changes.picking_baseline);
+    assert!(a.handback_prompt.is_none());
+    assert_eq!(a.attached_session(), None);
+    assert!(
+        a.status().contains("No session Git repository"),
+        "{}",
+        a.status()
+    );
+}
+
+#[test]
 fn shift_d_on_a_selected_harness_opens_its_changes_tab() {
     let mut a = app();
     a.tab_index = tab("Agents");

@@ -105,6 +105,7 @@ impl App {
         // had happened.
         let enter_on_harness = key.code == KeyCode::Enter
             && key.modifiers == KeyModifiers::NONE
+            && self.pane_view == PaneView::Harness
             && self.pane_session.is_some()
             && self.agents_rail_focused();
         // Enter asks first. It is a navigation key, and walking the rail onto a
