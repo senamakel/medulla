@@ -98,7 +98,8 @@ impl App {
         // Keep the rows that yielded the offset through the cursor write. The
         // local PTY registry can change while this event is handled; rebuilding
         // here would let an insertion above the target retarget the cursor.
-        let rows = self.rail_rows();
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
         let Some((row_index, agent, session_task_id)) =
             rows.iter().enumerate().find_map(|(index, row)| {
                 let RailRow::Session(session) = row else {
@@ -118,7 +119,6 @@ impl App {
             return false;
         };
         self.tab_index = super::types::tab_pos("Agents");
-        let lanes = self.lanes();
         self.set_rail_cursor_in(&rows, &lanes, row_index);
         self.agent_scroll = 0;
         self.chat_scroll = 0;

@@ -149,8 +149,9 @@ impl App {
 
     /// The agent the rail cursor is on, or the one owning the session it is on.
     pub(in crate::ui::app) fn selected_agent_id(&self) -> Option<String> {
-        let rows = self.rail_rows();
-        rows.get(self.rail_cursor_in(&rows, &self.lanes()))
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        rows.get(self.rail_cursor_in(&rows, &lanes))
             .and_then(|row| row.agent_id())
             .map(str::to_string)
     }
@@ -273,11 +274,12 @@ impl App {
 
     /// Put the rail cursor on `agent_id`'s row, if it has one.
     pub(in crate::ui::app) fn select_agent_row(&mut self, agent_id: &str) {
-        let rows = self.rail_rows();
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
         if let Some(index) = rows.iter().position(
             |row| matches!(row, super::rail::RailRow::Agent(agent) if agent.agent_id == agent_id),
         ) {
-            self.set_rail_cursor_in(&rows, &self.lanes(), index);
+            self.set_rail_cursor_in(&rows, &lanes, index);
         }
     }
 
@@ -287,12 +289,13 @@ impl App {
     /// somewhere below the fold, with the pane still showing whatever was
     /// selected before, reads as "nothing happened".
     pub(in crate::ui::app) fn select_session_row(&mut self, session_id: &str) {
-        let rows = self.rail_rows();
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
         if let Some(index) = rows
             .iter()
             .position(|row| row.session_id() == Some(session_id))
         {
-            self.set_rail_cursor_in(&rows, &self.lanes(), index);
+            self.set_rail_cursor_in(&rows, &lanes, index);
         }
     }
 }

@@ -85,7 +85,7 @@ impl App {
                 SUBTASK_PAGE.min(total)
             ));
         }
-        self.follow_overflow_row(lane_index);
+        self.follow_overflow_row(&key);
         true
     }
 
@@ -105,17 +105,18 @@ impl App {
     /// Falls back to the lane's own header, and then to clamping, so a lane that
     /// no longer has an overflow row cannot strand the cursor past the end of
     /// the rail.
-    fn follow_overflow_row(&mut self, lane_index: usize) {
+    fn follow_overflow_row(&mut self, lane_key: &str) {
         let lanes = self.lanes();
         let rows = self.rail_rows_in(&lanes);
+        let lane_index = lanes.iter().position(|lane| lane.key == lane_key);
         let found = rows
             .iter()
             .position(|row| {
-                matches!(row, RailRow::Lane(AgentRow::More { lane_index: l, .. }) if *l == lane_index)
+                matches!(row, RailRow::Lane(AgentRow::More { lane_index: l, .. }) if Some(*l) == lane_index)
             })
             .or_else(|| {
                 rows.iter()
-                    .position(|row| matches!(row, RailRow::Agent(agent) if agent.lane_index == Some(lane_index)))
+                    .position(|row| matches!(row, RailRow::Agent(agent) if agent.lane_index == lane_index))
             });
         self.set_rail_cursor_in(
             &rows,
