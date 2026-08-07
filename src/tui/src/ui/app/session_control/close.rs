@@ -37,7 +37,7 @@ impl App {
     /// instead of being turned into a hand-back prompt about a corpse — and the
     /// keyboard comes back to the chrome, because the pane it was in has stopped
     /// listening.
-    pub(super) fn close_session(&mut self, session: &str) {
+    pub(crate) fn close_session(&mut self, session: &str) {
         let Some(harnesses) = self.local_sessions.clone() else {
             self.set_status("This device is not hosting, so it has no sessions");
             return;

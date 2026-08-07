@@ -1,8 +1,8 @@
 //! Starting local harness sessions and presenting the harness-type picker.
 //!
-//! Workspace completion and key routing remain in the parent session-control
-//! module because they share the picker state with handback input handling.
+//! This module owns both picker state transitions and workspace-key routing.
 
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::protocol::HarnessProvider;
 
 use crate::ui::harness_pane::HarnessChoice;
@@ -16,7 +16,7 @@ impl App {
     /// `/session` with no harness type opens the picker rather than guessing:
     /// starting the wrong CLI in the operator's workspace is not something they
     /// find out about until it has already done something.
-    pub(super) fn start_session_command(&mut self, provider: Option<&str>, path: Option<&str>) {
+    pub(crate) fn start_session_command(&mut self, provider: Option<&str>, path: Option<&str>) {
         let Some(harnesses) = self.local_sessions.clone() else {
             self.set_status("This device is not hosting, so it has no sessions to start");
             return;
@@ -66,7 +66,7 @@ impl App {
     /// Selecting the new row matters more than it sounds: a session that
     /// appears somewhere below the fold, with the pane still showing whatever
     /// was selected before, reads as "nothing happened".
-    pub(super) fn spawn_session(&mut self, choice: HarnessChoice, cwd: &str) {
+    pub(crate) fn spawn_session(&mut self, choice: HarnessChoice, cwd: &str) {
         let Some(harnesses) = self.local_sessions.clone() else {
             self.set_status("This device is not hosting, so it has no sessions to start");
             return;
@@ -101,4 +101,113 @@ impl App {
             }
         }
     }
+
+    /// Route a key while the harness picker is open.
+    pub(crate) fn handle_agent_picker_key(&mut self, event: KeyEvent) {
+        let step = self
+            .agent_picker
+            .as_ref()
+            .map(|picker| picker.step)
+            .unwrap_or(AgentPickerStep::Harness);
+        if step == AgentPickerStep::Workspace {
+            self.handle_harness_workspace_key(event);
+            return;
+        }
+        match event.code {
+            KeyCode::Esc => {
+                self.agent_picker = None;
+                self.set_status("Cancelled");
+            }
+            KeyCode::Up => {
+                if let Some(picker) = &mut self.agent_picker {
+                    picker.index = picker.index.saturating_sub(1);
+                }
+            }
+            KeyCode::Down => {
+                if let Some(picker) = &mut self.agent_picker {
+                    picker.index = (picker.index + 1).min(picker.choices.len().saturating_sub(1));
+                }
+            }
+            KeyCode::Char('e') if is_text_input(event.modifiers) => {
+                self.open_harness_workspace_step(true)
+            }
+            KeyCode::Enter => self.open_harness_workspace_step(false),
+            _ => {}
+        }
+    }
+
+    /// Route a key while completing a workspace directory.
+    fn handle_harness_workspace_key(&mut self, event: KeyEvent) {
+        match event.code {
+            KeyCode::Esc | KeyCode::BackTab => {
+                if let Some(picker) = &mut self.agent_picker {
+                    picker.step = AgentPickerStep::Harness;
+                }
+                self.set_status("Pick a harness type · Enter workspace · Esc cancel");
+            }
+            KeyCode::Up => {
+                if let Some(picker) = &mut self.agent_picker {
+                    picker.workspace_index = picker.workspace_index.saturating_sub(1);
+                    picker.workspace_picked = !picker.workspace_choices.is_empty();
+                }
+            }
+            KeyCode::Down => {
+                if let Some(picker) = &mut self.agent_picker {
+                    picker.workspace_index = (picker.workspace_index + 1)
+                        .min(picker.workspace_choices.len().saturating_sub(1));
+                    picker.workspace_picked = !picker.workspace_choices.is_empty();
+                }
+            }
+            KeyCode::Tab => self.complete_harness_workspace(),
+            KeyCode::Backspace => {
+                if let Some(picker) = &mut self.agent_picker {
+                    picker.workspace_query.pop();
+                    picker.workspace_index = 0;
+                    picker.workspace_picked = false;
+                }
+                self.refresh_harness_workspace_choices();
+            }
+            KeyCode::Char(character) if is_text_input(event.modifiers) => {
+                if let Some(picker) = &mut self.agent_picker {
+                    picker.workspace_query.push(character);
+                    picker.workspace_index = 0;
+                    picker.workspace_picked = false;
+                }
+                self.refresh_harness_workspace_choices();
+            }
+            KeyCode::Enter => {
+                let Some(workspace) = self.selected_picker_workspace() else {
+                    self.set_status("Choose an existing directory");
+                    return;
+                };
+                let purpose = self
+                    .agent_picker
+                    .as_ref()
+                    .map(|picker| picker.purpose.clone())
+                    .unwrap_or(PickerPurpose::Spawn);
+                let Some(choice) = self
+                    .agent_picker
+                    .as_ref()
+                    .and_then(|picker| picker.choices.get(picker.index).cloned())
+                else {
+                    self.set_status("Choose a harness type first");
+                    return;
+                };
+                self.agent_picker = None;
+                if purpose == PickerPurpose::DeclareAgent {
+                    self.prompt_agent_name(choice.id(), &workspace);
+                    return;
+                }
+                self.spawn_session(choice, &workspace);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Return whether modifiers represent ordinary printable text input.
+pub(super) fn is_text_input(modifiers: KeyModifiers) -> bool {
+    modifiers == KeyModifiers::NONE
+        || modifiers == KeyModifiers::SHIFT
+        || modifiers == (KeyModifiers::CONTROL | KeyModifiers::ALT)
 }
