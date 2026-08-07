@@ -53,16 +53,18 @@ impl App {
 
     /// Whether the rail cursor sits on the `+ New agent` action row.
     pub(in crate::ui::app) fn on_new_agent_row(&self) -> bool {
-        let rows = self.rail_rows();
-        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        rows.get(self.rail_cursor_in(&rows, &lanes))
             .is_some_and(|row| row.is_new_agent())
     }
 
     /// The workflow run the rail cursor sits on, when it sits on one.
     #[cfg(feature = "workflows")]
     pub(in crate::ui::app) fn on_workflow_run_row(&self) -> Option<(String, String)> {
-        let rows = self.rail_rows();
-        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        rows.get(self.rail_cursor_in(&rows, &lanes))
             .and_then(|row| row.workflow_run())
             .map(|row| (row.run.workflow_id.clone(), row.run.run_id.clone()))
     }
@@ -79,8 +81,9 @@ impl App {
 
     /// The agent whose `+ new session` action row the cursor sits on, if it does.
     pub(in crate::ui::app) fn on_new_session_row(&self) -> Option<String> {
-        let rows = self.rail_rows();
-        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        rows.get(self.rail_cursor_in(&rows, &lanes))
             .and_then(|row| row.new_session_agent())
             .map(str::to_string)
     }
@@ -239,7 +242,7 @@ impl App {
                         self.set_status("No conversation to type into yet");
                         return AgentsKey::Handled(None);
                     };
-                    self.agent_index = index;
+                    self.set_rail_cursor(index);
                     self.agent_scroll = 0;
                     self.chat_scroll = 0;
                     // Leaving a task row drops its screen stream, exactly as

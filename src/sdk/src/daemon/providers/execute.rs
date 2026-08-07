@@ -183,7 +183,7 @@ async fn run_provider_attempt(
     // `--settings` flag, so they are built together — see
     // `harness_hooks::launch_args`.
     let (launch_args, hook_notes) =
-        crate::harness_hooks::launch_args(spec.provider, spec.attribution, &spec.hooks);
+        crate::harness_hooks::launch_args(spec.provider, spec.attribution, &spec.hooks, &spec.env);
     extra_args.extend(launch_args);
     for note in &hook_notes {
         tracing::warn!(provider = spec.provider.as_str(), "{note}");

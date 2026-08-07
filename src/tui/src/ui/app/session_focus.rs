@@ -95,18 +95,31 @@ impl App {
     /// and a stale index would put the cursor on whatever took its place. A task
     /// that is no longer served is reported instead.
     pub(in crate::ui::app) fn focus_session_for_task(&mut self, task_id: &str) -> bool {
-        let Some(session) = self
-            .started_sessions()
-            .into_iter()
-            .find(|session| session.task_id == task_id)
+        // Keep the rows that yielded the offset through the cursor write. The
+        // local PTY registry can change while this event is handled; rebuilding
+        // here would let an insertion above the target retarget the cursor.
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        let Some((row_index, agent, session_task_id)) =
+            rows.iter().enumerate().find_map(|(index, row)| {
+                let RailRow::Session(session) = row else {
+                    return None;
+                };
+                let task = session.task.as_ref()?;
+                (task.task_id == task_id && !session.origin().is_user()).then(|| {
+                    (
+                        index,
+                        session.agent_id.clone().unwrap_or_default(),
+                        task.task_id.clone(),
+                    )
+                })
+            })
         else {
             self.set_status(format!("No session is running {task_id}"));
             return false;
         };
-        // Safe by construction: the index came from the list this call just
-        // built, so nothing can have moved between resolving it and using it.
         self.tab_index = super::types::tab_pos("Agents");
-        self.agent_index = session.row_index;
+        self.set_rail_cursor_in(&rows, &lanes, row_index);
         self.agent_scroll = 0;
         self.chat_scroll = 0;
         // The rail owns the keyboard on a session row: there is no composer under
@@ -115,7 +128,7 @@ impl App {
         self.focus_agents_rail();
         self.set_status(format!(
             "{} · {} · ^O returns to the orchestrator",
-            session.agent, session.task_id
+            agent, session_task_id
         ));
         true
     }
@@ -131,7 +144,7 @@ impl App {
             return;
         };
         self.tab_index = super::types::tab_pos("Agents");
-        self.agent_index = index;
+        self.set_rail_cursor(index);
         self.agent_scroll = 0;
         self.chat_scroll = 0;
         self.focus_agents_composer();

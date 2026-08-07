@@ -18,6 +18,36 @@ use medulla::ui::hosts::HostAgentRow;
 use crate::ui::agents::{AgentRow, TaskState};
 use crate::worker::pty::{SessionOrigin, SessionRow};
 
+/// A stable identity for a selectable Agents-rail row.
+///
+/// The rail is rebuilt from live state on every frame. Storing an offset would
+/// select a different row whenever a row is inserted above it, so the app
+/// remembers one of these identities and resolves its current offset instead.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RailAnchor {
+    /// The action that declares an agent.
+    NewAgent,
+    /// A declared or discovered agent, keyed by roster id.
+    Agent(String),
+    /// A local session, keyed by PTY id.
+    Session(String),
+    /// A dispatched task without a local PTY row, keyed by its lane and task.
+    Task {
+        /// Stable key of the lane that owns this task.
+        lane: String,
+        /// Backend task id within [`Self::Task::lane`].
+        task_id: String,
+    },
+    /// An action that opens another session for an agent.
+    NewSession(String),
+    /// A workflow run, keyed by its run id.
+    WorkflowRun(String),
+    /// A non-agent lane header, keyed by the fold's stable lane key.
+    Lane(String),
+    /// The paging control for an agent lane, keyed by that lane's stable key.
+    Overflow(String),
+}
+
 /// One host in the tree.
 ///
 /// Emitted **only when there is a second host to tell apart** (progressive

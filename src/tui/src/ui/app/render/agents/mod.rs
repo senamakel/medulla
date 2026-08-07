@@ -88,9 +88,9 @@ impl App {
     /// Resolve what the rail cursor is on, clamping it to the rows that exist.
     fn agents_selection(&mut self) -> Selection {
         let lanes = self.lanes();
-        let rows = self.rail_rows();
-        let active = self.agent_index.min(rows.len().saturating_sub(1));
-        self.agent_index = active;
+        let rows = self.rail_rows_in(&lanes);
+        let active = self.rail_cursor_in(&rows, &lanes);
+        self.set_rail_cursor_in(&rows, &lanes, active);
         // No fallback: a row with no lane keeps `None`, and the pane renders
         // what that row *is* rather than whoever happens to hold lane 0 — which
         // is the orchestrator, so the old `unwrap_or(0)` put its thinking under

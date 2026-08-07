@@ -41,9 +41,14 @@ fn a_harness_that_cannot_run_the_hooks_says_so_once_rather_than_per_hook() {
         out.contains("opencode · 7 hooks not installed"),
         "OpenCode's coverage gap should be summarized once: {out}"
     );
+    // Codex used to warn here that its hooks were inert until trusted. A spawn
+    // now enables its own entries in Codex's trust store, so there is nothing
+    // left for the operator to do and nothing to say — and describing the page
+    // must not itself write to that store, which is why the render path calls
+    // the pure `hook_injection` and never `launch_args`.
     assert!(
-        out.contains("codex · Codex skips hooks"),
-        "the trust requirement is the one warning that is actionable: {out}"
+        !out.contains("codex · "),
+        "Codex has no coverage gap to report: {out}"
     );
 }
 

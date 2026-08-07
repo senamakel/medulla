@@ -115,6 +115,11 @@ fn row_index(app: &App, wanted: impl Fn(&RailRow) -> bool) -> usize {
         .expect("the demo fixture has such a row")
 }
 
+/// Select a rail row through the cursor API so its stable anchor follows it.
+fn select_row(app: &mut App, wanted: impl Fn(&RailRow) -> bool) {
+    app.set_rail_cursor(row_index(app, wanted));
+}
+
 #[test]
 fn selecting_a_session_this_device_does_not_host_arms_the_remote_refusal() {
     // The other half of `taking_a_session_on_another_host_is_refused_by_name`:
@@ -124,7 +129,7 @@ fn selecting_a_session_this_device_does_not_host_arms_the_remote_refusal() {
     // cursor landing on one is the whole of what arms the refusal.
     let mut app = app();
     app.tab_index = tab_pos("Agents");
-    app.agent_index = row_index(&app, |row| matches!(row, RailRow::Session(_)));
+    select_row(&mut app, |row| matches!(row, RailRow::Session(_)));
 
     draw_once(&mut app);
 
@@ -152,12 +157,12 @@ fn moving_off_the_row_or_off_the_tab_disarms_it_again() {
     // somebody else's machine.
     let mut app = app();
     app.tab_index = tab_pos("Agents");
-    app.agent_index = row_index(&app, |row| matches!(row, RailRow::Session(_)));
+    select_row(&mut app, |row| matches!(row, RailRow::Session(_)));
     draw_once(&mut app);
     assert!(app.pane_remote_session.is_some(), "armed to begin with");
 
     // Off the row: the conversation is not a session at all.
-    app.agent_index = row_index(&app, |row| matches!(row, RailRow::Lane(_)));
+    select_row(&mut app, |row| matches!(row, RailRow::Lane(_)));
     draw_once(&mut app);
     assert!(
         app.pane_remote_session.is_none(),
@@ -166,7 +171,7 @@ fn moving_off_the_row_or_off_the_tab_disarms_it_again() {
     );
 
     // Off the tab: nothing on Settings draws the rail, so nothing re-arms it.
-    app.agent_index = row_index(&app, |row| matches!(row, RailRow::Session(_)));
+    select_row(&mut app, |row| matches!(row, RailRow::Session(_)));
     draw_once(&mut app);
     assert!(app.pane_remote_session.is_some(), "armed again");
     app.tab_index = tab_pos("Settings");

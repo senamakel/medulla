@@ -22,8 +22,18 @@ pub(in crate::ui::app) const SUBTASK_PAGE: usize = 10;
 impl App {
     /// The current Agents-list rows, each lane paged to whatever the operator
     /// has expanded it to.
+    #[cfg(test)]
     pub(in crate::ui::app) fn agent_rows(&self) -> Vec<AgentRow> {
-        agent_row_model_paged(&self.lanes(), SUBTASK_PAGE, |lane| {
+        let lanes = self.lanes();
+        self.agent_rows_in(&lanes)
+    }
+
+    /// Build paged fold rows from one already-captured lane snapshot.
+    pub(in crate::ui::app) fn agent_rows_in(
+        &self,
+        lanes: &[crate::ui::agents::AgentLane],
+    ) -> Vec<AgentRow> {
+        agent_row_model_paged(lanes, SUBTASK_PAGE, |lane| {
             self.subtask_pages.get(&lane.key).copied().unwrap_or(0)
         })
     }
@@ -40,17 +50,17 @@ impl App {
     /// slides down as sublanes appear above it, and the viewport follows the
     /// cursor, so the rows just revealed are the ones on screen.
     pub(in crate::ui::app) fn page_subtasks(&mut self) -> bool {
-        let rows = self.rail_rows();
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
         // The overflow row is a fold row, not an agent row: under the
         // `Host → Agent → Session` taxonomy an agent's own row is the declared
         // identity, and everything the fold still owns — the orchestrator lane,
         // the `── functions ──` divider, this counter — arrives as `Lane`.
-        let Some(RailRow::Lane(AgentRow::More { lane_index, hidden })) = rows.get(self.agent_index)
-        else {
+        let cursor = self.rail_cursor_in(&rows, &lanes);
+        let Some(RailRow::Lane(AgentRow::More { lane_index, hidden })) = rows.get(cursor) else {
             return false;
         };
         let (lane_index, hidden) = (*lane_index, *hidden);
-        let lanes = self.lanes();
         let Some(lane) = lanes.get(lane_index) else {
             return false;
         };
@@ -75,7 +85,7 @@ impl App {
                 SUBTASK_PAGE.min(total)
             ));
         }
-        self.follow_overflow_row(lane_index);
+        self.follow_overflow_row(&key);
         true
     }
 
@@ -95,19 +105,24 @@ impl App {
     /// Falls back to the lane's own header, and then to clamping, so a lane that
     /// no longer has an overflow row cannot strand the cursor past the end of
     /// the rail.
-    fn follow_overflow_row(&mut self, lane_index: usize) {
-        let rows = self.rail_rows();
+    fn follow_overflow_row(&mut self, lane_key: &str) {
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        let lane_index = lanes.iter().position(|lane| lane.key == lane_key);
         let found = rows
             .iter()
             .position(|row| {
-                matches!(row, RailRow::Lane(AgentRow::More { lane_index: l, .. }) if *l == lane_index)
+                matches!(row, RailRow::Lane(AgentRow::More { lane_index: l, .. }) if Some(*l) == lane_index)
             })
             .or_else(|| {
                 rows.iter()
-                    .position(|row| matches!(row, RailRow::Agent(agent) if agent.lane_index == Some(lane_index)))
+                    .position(|row| matches!(row, RailRow::Agent(agent) if agent.lane_index == lane_index))
             });
-        self.agent_index =
-            found.unwrap_or_else(|| self.agent_index.min(rows.len().saturating_sub(1)));
+        self.set_rail_cursor_in(
+            &rows,
+            &lanes,
+            found.unwrap_or_else(|| self.agent_index.min(rows.len().saturating_sub(1))),
+        );
     }
 
     /// The number of body rows a list pane can show for the current terminal
@@ -124,21 +139,26 @@ impl App {
     /// where it was. The `+N more` row *is* a destination — it is the control
     /// that pages its lane open.
     pub(in crate::ui::app) fn move_agent_index(&mut self, up: bool) {
-        let rows = self.rail_rows();
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
         if rows.is_empty() {
             return;
         }
-        let clamped = self.agent_index.min(rows.len() - 1);
+        // `agent_index` is only the last rendered offset. Resolve the anchor
+        // first: a local session may have appeared above it since that frame,
+        // and stepping from the old offset would select the wrong neighbour.
+        let clamped = self.rail_cursor_in(&rows, &lanes);
         let step: i64 = if up { -1 } else { 1 };
         let mut next = clamped as i64 + step;
         while next >= 0 && (next as usize) < rows.len() && !rows[next as usize].selectable() {
             next += step;
         }
-        self.agent_index = if next < 0 || next as usize >= rows.len() {
+        let next = if next < 0 || next as usize >= rows.len() {
             clamped
         } else {
             next as usize
         };
+        self.set_rail_cursor_in(&rows, &lanes, next);
         #[cfg(feature = "workflows")]
         self.sync_selected_workflow_run();
     }
@@ -154,7 +174,7 @@ impl App {
         self.draft = crate::ui::composer::Draft::new();
         self.chat_scroll = 0;
         self.agent_scroll = 0;
-        self.agent_index = 0;
+        self.reset_rail_cursor();
         self.tab_index = super::super::types::tab_pos("Agents");
         self.refresh_snapshot();
         let name = self
@@ -238,17 +258,26 @@ impl App {
 
     /// The `(worker address, task id)` the current selection asks to watch.
     pub(in crate::ui::app) fn watch_target(&self) -> Option<(String, String)> {
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        self.watch_target_in(&rows, &lanes)
+    }
+
+    /// Resolve a watch target from one coherent rail and lane snapshot.
+    fn watch_target_in(
+        &self,
+        rows: &[RailRow],
+        lanes: &[crate::ui::agents::AgentLane],
+    ) -> Option<(String, String)> {
         // Only on the Agents tab: leaving it releases the subscription.
         if self.tab() != "Agents" {
             return None;
         }
-        let rows = self.rail_rows();
-        let row = rows.get(self.agent_index.min(rows.len().saturating_sub(1)))?;
+        let row = rows.get(self.rail_cursor_in(rows, lanes))?;
         let RailRow::Session(session) = row else {
             return None;
         };
         let task = session.task.as_ref()?;
-        let lanes = self.lanes();
         let lane = lanes.get(session.lane_index?)?;
         // `Agent` is main's name for a roster agent / delegated task / peer
         // session — the tiers above it (orchestrator, reasoning, compress) run
@@ -272,11 +301,12 @@ impl App {
 
     /// The selected running task eligible for destructive termination.
     pub(in crate::ui::app) fn kill_target(&self) -> Option<(String, String)> {
-        let rows = self.rail_rows();
-        let row = rows.get(self.agent_index.min(rows.len().saturating_sub(1)))?;
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        let row = rows.get(self.rail_cursor_in(&rows, &lanes))?;
         let task = row.task()?;
         (task.status == TaskStatus::Running)
-            .then(|| self.watch_target())
+            .then(|| self.watch_target_in(&rows, &lanes))
             .flatten()
     }
 }
