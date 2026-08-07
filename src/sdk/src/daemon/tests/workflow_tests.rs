@@ -224,6 +224,9 @@ async fn workflow_dispatch_publishes_codex_override_knobs_for_a_preset() {
     });
     let mut config = base_config();
     config
+        .providers
+        .push(crate::protocol::HarnessProvider::Codex);
+    config
         .env
         .insert("OPENROUTER_API_KEY".into(), "secret".into());
     let mut preset = crate::config::CustomHarnessConfig::from_editor_line(
