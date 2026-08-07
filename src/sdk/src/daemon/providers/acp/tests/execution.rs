@@ -255,3 +255,94 @@ fn agent_command_removes_the_embedded_core_workspace() {
         ]
     );
 }
+
+/// A routed Codex preset reaching ACP dispatch must carry its model and its
+/// provider overrides on the argv.
+///
+/// The regression this pins: ACP built a bare `codex-acp`, so the preset's
+/// `model` was dropped and `codex_overrides` never ran. Codex then served the
+/// operator's own default model from their own ChatGPT account while the routed
+/// endpoint sat unused in the environment — the run looked healthy and not one
+/// request reached the configured provider.
+#[cfg(unix)]
+#[test]
+fn codex_acp_command_carries_the_routed_model_and_overrides() {
+    let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Codex;
+    options.model = Some("deepseek/deepseek-v4-flash-0731".to_string());
+    options.env.insert(
+        crate::codex_overrides::OVERRIDES_ENV.to_string(),
+        "1".to_string(),
+    );
+    options.env.insert(
+        "OPENAI_BASE_URL".to_string(),
+        "http://127.0.0.1:36277/openai".to_string(),
+    );
+
+    let agent = super::super::execution::agent_for(&options);
+    let args: Vec<String> = agent
+        .config()
+        .arguments()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+
+    let model_at = args
+        .iter()
+        .position(|argument| argument == "-m")
+        .expect("routed Codex ACP argv must select the preset's model");
+    assert_eq!(
+        args.get(model_at + 1).map(String::as_str),
+        Some("deepseek/deepseek-v4-flash-0731")
+    );
+    // The `-c` block is only derivable where the installed Codex has cached a
+    // model catalog, which a unit environment need not have. Assert the argv
+    // carries whatever `launch_args` yields for these same inputs, so the
+    // wiring is pinned without depending on that cache being present.
+    let expected = crate::codex_overrides::launch_args(
+        HarnessProvider::Codex,
+        options.model.as_deref(),
+        &super::super::execution::acp_env(&options),
+    )
+    .unwrap_or_default();
+    for argument in &expected {
+        assert!(
+            args.contains(argument),
+            "routed Codex ACP argv must carry {argument:?}: {args:?}"
+        );
+    }
+    if !expected.is_empty() {
+        assert!(
+            args.iter()
+                .any(|argument| argument == "preferred_auth_method=\"apikey\""),
+            "without this a signed-in ChatGPT account outranks the routed key: {args:?}"
+        );
+    }
+}
+
+/// An unrouted Codex ACP run is left exactly as it was: no endpoint means no
+/// provider block, and overriding `model_provider` would move a run that never
+/// asked to be routed off the operator's own account.
+#[cfg(unix)]
+#[test]
+fn codex_acp_command_stays_unrouted_without_an_endpoint() {
+    let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Codex;
+
+    let agent = super::super::execution::agent_for(&options);
+    let args: Vec<String> = agent
+        .config()
+        .arguments()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+
+    assert!(
+        !args.iter().any(|argument| argument == "-m"),
+        "no model was configured, so none may be selected: {args:?}"
+    );
+    assert!(
+        !args.iter().any(|argument| argument.starts_with("model_provider=")),
+        "an unrouted run must keep Codex's own provider: {args:?}"
+    );
+}
