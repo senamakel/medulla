@@ -134,6 +134,7 @@ fn empty_grouped_sections_do_not_emit_a_header() {
                 last_at: 0,
                 lane_label: None,
                 harness_label: None,
+                visible_tasks: 0,
                 hidden: 0,
                 overflow: false,
             }],

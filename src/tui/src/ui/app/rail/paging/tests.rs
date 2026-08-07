@@ -81,7 +81,7 @@ fn split_fold_derives_the_first_page_counts_from_the_lane_tasks() {
         })
         .collect();
 
-    let (_, groups) = app().split_fold(&[lane]);
+    let groups = app().split_fold(&[lane]);
     let group = groups.first().expect("the agent lane becomes one group");
 
     assert_eq!(group.visible_tasks, 10);
@@ -147,7 +147,6 @@ fn paging_keeps_the_anchored_task_after_recent_sorting() {
     push_group(
         &mut rows,
         &mut owner,
-        false,
         &medulla::control_socket::HarnessRunRegistry::new(),
         &lanes,
         Some(&RailAnchor::Task {
@@ -186,7 +185,7 @@ fn paging_keeps_a_task_backed_session_with_an_active_workflow_run() {
     );
     let mut rows = Vec::new();
 
-    push_group(&mut rows, &mut owner, false, &runs, &lanes, None);
+    push_group(&mut rows, &mut owner, &runs, &lanes, None);
 
     assert!(rows.iter().any(|row| matches!(
         row,
@@ -206,7 +205,6 @@ fn paging_hides_the_overflow_action_when_retention_shows_every_task() {
     push_group(
         &mut rows,
         &mut owner,
-        false,
         &medulla::control_socket::HarnessRunRegistry::new(),
         &lanes,
         Some(&RailAnchor::Task {
@@ -218,7 +216,7 @@ fn paging_hides_the_overflow_action_when_retention_shows_every_task() {
     assert!(
         !rows
             .iter()
-            .any(|row| matches!(row, RailRow::Lane(AgentRow::More { .. }))),
+            .any(|row| matches!(row, RailRow::Overflow { .. })),
         "the overflow action is absent when retaining a task reveals every task"
     );
 }

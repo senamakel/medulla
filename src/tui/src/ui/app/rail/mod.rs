@@ -35,7 +35,7 @@ use medulla::runtime::AgentDeclaration;
 use medulla::ui::hosts::{HostAgentRow, HostKind, HostRow};
 
 use super::types::App;
-use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
+use crate::ui::agents::{ordered_tasks, AgentLane, AgentRole};
 use crate::worker::pty::SessionRow;
 
 mod cleanup;
@@ -45,6 +45,7 @@ mod cursor;
 #[cfg(test)]
 mod cursor_tests;
 mod organize;
+mod paging;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
@@ -134,7 +135,7 @@ impl App {
             appearance.sidebar_sort,
         );
         organize::sort_sessions(&mut orphans, appearance.sidebar_sort);
-        self.flatten(sections, orphans)
+        self.flatten(sections, orphans, lanes)
     }
 
     /// Fold the lane rows into per-agent groups.
@@ -144,42 +145,29 @@ impl App {
     /// carried through as rows of their own; the rail lists sessions now, and
     /// none of those is one.
     fn split_fold(&self, lanes: &[AgentLane]) -> Vec<AgentGroup> {
-        let mut groups: Vec<AgentGroup> = Vec::new();
-        for row in self.agent_rows_in(lanes) {
-            match row {
-                AgentRow::Lane { lane_index } => {
-                    let Some(lane) = lanes.get(lane_index) else {
-                        continue;
-                    };
-                    if lane.role != AgentRole::Agent {
-                        continue;
-                    }
-                    groups.push(self.group_for_lane(lane, lane_index));
-                }
-                AgentRow::Sub {
-                    lane_index, task, ..
-                } => {
-                    let Some(group) = groups.last_mut() else {
-                        continue;
-                    };
-                    group.sessions.push(SessionRailRow {
+        lanes
+            .iter()
+            .enumerate()
+            .filter(|(_, lane)| lane.role == AgentRole::Agent)
+            .map(|(lane_index, lane)| {
+                let mut group = self.group_for_lane(lane, lane_index);
+                group.sessions = ordered_tasks(&lane.tasks)
+                    .into_iter()
+                    .map(|task| SessionRailRow {
                         agent_id: Some(group.row.agent_id.clone()),
                         lane_index: Some(lane_index),
                         task: Some(task),
                         local: None,
                         last: false,
-                    });
-                }
-                AgentRow::More { hidden, .. } => {
-                    if let Some(group) = groups.last_mut() {
-                        group.hidden += hidden;
-                        group.overflow = true;
-                    }
-                }
-                AgentRow::Separator => continue,
-            }
-        }
-        groups
+                    })
+                    .collect();
+                group.visible_tasks = self.revealed_subtasks(&lane.key).min(group.sessions.len());
+                group.hidden = group.sessions.len().saturating_sub(group.visible_tasks);
+                group.overflow = group.hidden > 0
+                    || group.visible_tasks > crate::ui::app::input::nav::SUBTASK_PAGE;
+                group
+            })
+            .collect()
     }
 
     /// The group an agent-role lane opens.
@@ -210,6 +198,7 @@ impl App {
             last_at: lane.last_at,
             lane_label: Some(lane.label.clone()),
             harness_label: lane.harness_label.clone(),
+            visible_tasks: 0,
             hidden: 0,
             overflow: false,
         }
@@ -293,6 +282,7 @@ impl App {
         &self,
         sections: Vec<organize::Section>,
         orphans: Vec<SessionRailRow>,
+        lanes: &[AgentLane],
     ) -> Vec<RailRow> {
         let mut rows: Vec<RailRow> = Vec::new();
         // A device that hosts nothing has nowhere to start a session, so the
@@ -315,7 +305,13 @@ impl App {
                 organize::SectionHeader::None => {}
             }
             for group in &mut section.agents {
-                push_sessions(&mut rows, group, &self.harness_runs);
+                paging::push_group(
+                    &mut rows,
+                    group,
+                    &self.harness_runs,
+                    lanes,
+                    self.agent_anchor.as_ref(),
+                );
             }
         }
         for mut session in orphans {
@@ -492,6 +488,7 @@ fn placed_agent(
         last_at: 0,
         lane_label: None,
         harness_label: None,
+        visible_tasks: 0,
         hidden: 0,
         overflow: false,
     });

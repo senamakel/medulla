@@ -7,18 +7,16 @@
 use medulla::control_socket::HarnessRunRegistry;
 
 use super::{run_rows_under, AgentGroup, RailAnchor, RailRow};
-use crate::ui::agents::{AgentLane, AgentRow};
+use crate::ui::agents::AgentLane;
 
-/// Push one agent row, its selected session rows, and its optional actions.
+/// Push one agent's selected session rows and its optional paging control.
 pub(super) fn push_group(
     rows: &mut Vec<RailRow>,
     group: &mut AgentGroup,
-    offers_session: bool,
     runs: &HarnessRunRegistry,
     lanes: &[AgentLane],
     anchor: Option<&RailAnchor>,
 ) {
-    rows.push(RailRow::Agent(group.row.clone()));
     let task_limit = group.visible_tasks;
     let mut visible_tasks = 0;
     let mut hidden_tasks = 0;
@@ -59,21 +57,16 @@ pub(super) fn push_group(
     let show_overflow = group.overflow && (group.hidden == 0 || hidden_tasks > 0);
     let shown = shown_sessions.len();
     for (index, session) in shown_sessions.iter_mut().enumerate() {
-        session.last = !offers_session && !show_overflow && index + 1 == shown;
+        session.last = !show_overflow && index + 1 == shown;
         let session = Box::new(session.clone());
         let run_rows = run_rows_under(&session, runs);
         rows.push(RailRow::Session(session));
         rows.extend(run_rows);
     }
     if show_overflow {
-        rows.push(RailRow::Lane(AgentRow::More {
+        rows.push(RailRow::Overflow {
             lane_index: group.row.lane_index.unwrap_or(0),
             hidden: hidden_tasks,
-        }));
-    }
-    if offers_session {
-        rows.push(RailRow::NewSession {
-            agent_id: group.row.agent_id.clone(),
         });
     }
 }

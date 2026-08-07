@@ -110,6 +110,8 @@ pub(super) struct AgentGroup {
     pub(super) lane_label: Option<String>,
     /// Harness label supplied by a lane-only peer agent.
     pub(super) harness_label: Option<String>,
+    /// Number of task-backed sessions currently revealed by the lane pager.
+    pub(super) visible_tasks: usize,
     /// Sessions hidden by the fold's paging boundary.
     pub(super) hidden: usize,
     /// Whether the fold supplied an overflow control for this group.

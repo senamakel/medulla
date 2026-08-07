@@ -5,6 +5,7 @@
 
 use medulla::config::{SidebarGrouping, SidebarSort};
 use medulla::runtime::AgentDeclaration;
+use medulla::ui::hosts::HostAgentRow;
 
 use super::super::tests::{app, stub_session};
 use super::super::{
@@ -58,6 +59,7 @@ fn sections(app: &App) -> Vec<(Option<String>, Vec<String>)> {
             last_at: 0,
             lane_label: None,
             harness_label: None,
+            visible_tasks: 0,
             hidden: 0,
             overflow: false,
         })
@@ -359,6 +361,7 @@ fn active_agent(label: &str, last_at: i64) -> AgentGroup {
         last_at,
         lane_label: None,
         harness_label: None,
+        visible_tasks: 0,
         hidden: 0,
         overflow: false,
     }
@@ -377,6 +380,7 @@ fn peer_agent(label: &str, last_at: i64) -> AgentGroup {
         last_at,
         lane_label: Some(label.into()),
         harness_label: None,
+        visible_tasks: 0,
         hidden: 0,
         overflow: false,
     }

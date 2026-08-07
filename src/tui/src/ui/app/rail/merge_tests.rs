@@ -42,6 +42,7 @@ fn group(sessions: Vec<SessionRailRow>) -> AgentGroup {
         last_at: 0,
         lane_label: None,
         harness_label: None,
+        visible_tasks: 0,
         hidden: 0,
         overflow: false,
     }
