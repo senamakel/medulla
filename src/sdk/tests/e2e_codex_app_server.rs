@@ -309,7 +309,10 @@ async fn refuses_a_request_it_cannot_answer() {
         .find(|request| request.get("error").is_some())
         .expect("a refusal was sent");
     assert_eq!(refusal["error"]["code"], -32601);
-    assert_eq!(refusal["id"], 9002);
+    // Correlated against the id the fake actually asked with, rather than a
+    // constant: the fake allocates ids at run time so concurrent turns cannot
+    // collide on one.
+    assert_eq!(refusal["id"], fake.only_ask_id());
 }
 
 /// A crashed server must fail the waiting lane rather than hanging it, and the
