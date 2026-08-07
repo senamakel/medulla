@@ -10,7 +10,7 @@ use medulla::protocol::HarnessProvider;
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::{AgentDeclaration, Runtime};
 
-use super::{RailRow, NEW_SESSION_LABEL};
+use super::{AgentGroup, AgentRailRow, GroupRailRow, RailRow, NEW_SESSION_LABEL};
 use crate::ui::app::App;
 use crate::worker::pty::PtyManager;
 
@@ -113,6 +113,37 @@ fn the_sessions_of_one_agent_stay_contiguous() {
     assert!(
         !seen.is_empty(),
         "the demo fixture dispatches at least one task"
+    );
+}
+
+#[test]
+fn empty_grouped_sections_do_not_emit_a_header() {
+    let rows = app().flatten(
+        vec![super::organize::Section {
+            header: super::organize::SectionHeader::Group(GroupRailRow {
+                label: "/quiet".to_string(),
+            }),
+            agents: vec![AgentGroup {
+                row: AgentRailRow {
+                    agent_id: "quiet".to_string(),
+                    host_id: String::new(),
+                    agent: None,
+                    lane_index: None,
+                },
+                sessions: Vec::new(),
+                last_at: 0,
+                lane_label: None,
+                harness_label: None,
+                hidden: 0,
+                overflow: false,
+            }],
+        }],
+        Vec::new(),
+    );
+
+    assert!(
+        !rows.iter().any(|row| matches!(row, RailRow::Group(_))),
+        "a group without a rendered session must not leave an empty heading"
     );
 }
 

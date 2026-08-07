@@ -36,7 +36,22 @@ fn sections(app: &App) -> Vec<(Option<String>, Vec<String>)> {
             row: AgentRailRow {
                 agent_id: declaration.agent_id.clone(),
                 host_id: String::new(),
-                agent: None,
+                // `organize` receives the already placed tree in production,
+                // whose rows carry their declaration-derived workspace and
+                // harness. Keep this fixture faithful so path and harness
+                // grouping exercise the values the implementation reads.
+                agent: Some(HostAgentRow {
+                    agent_id: declaration.agent_id.clone(),
+                    label: declaration.agent_id.clone(),
+                    harness: Some(declaration.harness.clone()),
+                    workspace: Some(declaration.workspace.path.clone()),
+                    roles: Vec::new(),
+                    max_sessions: None,
+                    declared: true,
+                    editable: true,
+                    live: false,
+                    selected: false,
+                }),
                 lane_index: None,
             },
             sessions: Vec::new(),

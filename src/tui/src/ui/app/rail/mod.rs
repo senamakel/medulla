@@ -303,7 +303,12 @@ impl App {
         // Progressive disclosure: one host is the common case, and a permanent
         // `mac-studio ▸` wrapper would add a level of nesting to the surface an
         // operator uses most.
-        for mut section in sections {
+        for mut section in sections.into_iter().filter(|section| {
+            section
+                .agents
+                .iter()
+                .any(|group| !group.sessions.is_empty() || group.overflow)
+        }) {
             match section.header {
                 organize::SectionHeader::Host(host) => rows.push(RailRow::Host(host)),
                 organize::SectionHeader::Group(group) => rows.push(RailRow::Group(group)),
