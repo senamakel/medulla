@@ -144,6 +144,7 @@ pub fn enable(config_path: &Path, events: &[HookEvent]) -> anyhow::Result<usize>
         .create(true)
         .read(true)
         .write(true)
+        .truncate(false)
         .open(&lock_path)
         .map_err(|err| anyhow::anyhow!("Cannot open {}: {err}", lock_path.display()))?;
     lock.lock_exclusive()
