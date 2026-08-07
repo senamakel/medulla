@@ -1071,10 +1071,11 @@ pub struct App {
     pub(super) area: Rect,
     pub(super) hit_tabs: Vec<(u16, u16)>,
     pub(super) hit_tabs_row: u16,
-    /// Where the Agents rail drew, and which rail row each of its visible lines
+    /// Where the Agents rail drew, and the rendered row each visible line
     /// belongs to. A row may wrap onto several lines, so a click resolves
-    /// through this map rather than by adding an offset to a first-row index.
-    pub(super) hit_agents: Option<(Rect, Vec<usize>)>,
+    /// through this snapshot rather than by adding an offset to a freshly
+    /// rebuilt row list that may have changed since the frame was drawn.
+    pub(super) hit_agents: Option<(Rect, Vec<RailHit>)>,
     // Where the embedded session screen landed, and whose it is. Recorded so a
     // wheel event can be routed to the terminal under the pointer and given
     // coordinates relative to *its* origin rather than the screen's.
@@ -1244,4 +1245,19 @@ pub struct App {
     /// Whether operator-started sessions launch with the permission-bypass
     /// flag, from `[harness].skipPermissions`.
     pub(super) harness_skip_permissions: bool,
+}
+
+/// One rendered Agents-rail line and the stable cursor state it represented.
+///
+/// Pointer input happens after drawing, when live lanes may have changed. The
+/// hit map therefore retains the row and its anchor from that frame instead of
+/// treating a rendered offset as an offset into a new rail projection.
+#[derive(Clone)]
+pub(super) struct RailHit {
+    /// The rendered row, used to decide which click action to take.
+    pub(super) row: super::rail::RailRow,
+    /// The durable cursor identity resolved while the row was rendered.
+    pub(super) anchor: Option<super::rail::RailAnchor>,
+    /// The row's rendered offset, retained only as a fallback if it has no anchor.
+    pub(super) index: usize,
 }

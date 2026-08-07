@@ -52,7 +52,9 @@ mod merge_tests;
 pub(in crate::ui::app) mod tests;
 mod types;
 
-pub(in crate::ui::app) use cursor::{rail_anchor, resolve_rail_cursor};
+pub(in crate::ui::app) use cursor::rail_anchor;
+#[cfg(test)]
+pub(in crate::ui::app) use cursor::resolve_rail_cursor;
 pub use types::{
     AgentRailRow, HostRailRow, RailAnchor, RailRow, SessionRailRow, WorkflowRunRailRow,
 };

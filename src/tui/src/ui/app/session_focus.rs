@@ -105,8 +105,13 @@ impl App {
                     return None;
                 };
                 let task = session.task.as_ref()?;
-                (task.task_id == task_id && !session.origin().is_user())
-                    .then(|| (index, session.agent.clone(), task.task_id.clone()))
+                (task.task_id == task_id && !session.origin().is_user()).then(|| {
+                    (
+                        index,
+                        session.agent_id.clone().unwrap_or_default(),
+                        task.task_id.clone(),
+                    )
+                })
             })
         else {
             self.set_status(format!("No session is running {task_id}"));

@@ -233,9 +233,9 @@ impl App {
         if !rect.contains((x, y).into()) {
             return None;
         }
-        let index = *owners.get((y - rect.y) as usize)?;
-        self.rail_rows()
-            .get(index)?
+        owners
+            .get((y - rect.y) as usize)?
+            .row
             .session_id()
             .map(str::to_string)
     }
@@ -535,14 +535,12 @@ impl App {
                     // covers the unselectable rows too — the `── functions ──`
                     // separator — because `agent_index` indexes all of them.
                     let rel = (y - rect.y) as usize;
-                    let lanes = self.lanes();
-                    let rows = self.rail_rows();
-                    if let Some(row) = owners.get(rel).and_then(|idx| rows.get(*idx)) {
+                    if let Some(hit) = owners.get(rel) {
+                        let row = &hit.row;
                         if row.selectable() {
-                            let idx = owners[rel];
                             self.agent_scroll = 0;
                             self.chat_scroll = 0;
-                            self.set_rail_cursor_in(&rows, &lanes, idx);
+                            self.set_rendered_rail_cursor(hit);
                             // A click is a focus gesture: the arrows should now
                             // continue from the row that was just picked.
                             self.focus_agents_rail();

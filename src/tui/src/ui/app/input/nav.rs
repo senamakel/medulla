@@ -45,8 +45,8 @@ impl App {
         // `Host → Agent → Session` taxonomy an agent's own row is the declared
         // identity, and everything the fold still owns — the orchestrator lane,
         // the `── functions ──` divider, this counter — arrives as `Lane`.
-        let Some(RailRow::Lane(AgentRow::More { lane_index, hidden })) = rows.get(self.agent_index)
-        else {
+        let cursor = self.rail_cursor_in(&rows, &self.lanes());
+        let Some(RailRow::Lane(AgentRow::More { lane_index, hidden })) = rows.get(cursor) else {
             return false;
         };
         let (lane_index, hidden) = (*lane_index, *hidden);

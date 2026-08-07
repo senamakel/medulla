@@ -150,7 +150,7 @@ impl App {
     /// The agent the rail cursor is on, or the one owning the session it is on.
     pub(in crate::ui::app) fn selected_agent_id(&self) -> Option<String> {
         let rows = self.rail_rows();
-        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+        rows.get(self.rail_cursor_in(&rows, &self.lanes()))
             .and_then(|row| row.agent_id())
             .map(str::to_string)
     }

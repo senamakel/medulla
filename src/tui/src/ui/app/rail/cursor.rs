@@ -5,7 +5,7 @@
 
 use super::{RailAnchor, RailRow};
 use crate::ui::agents::{AgentLane, AgentRow};
-use crate::ui::app::types::App;
+use crate::ui::app::types::{App, RailHit};
 
 /// The identity of a selectable `row`, if it has one.
 pub(in crate::ui::app) fn rail_anchor(row: &RailRow, lanes: &[AgentLane]) -> Option<RailAnchor> {
@@ -63,11 +63,6 @@ pub(in crate::ui::app) fn resolve_rail_cursor(
 }
 
 impl App {
-    /// The rail offset the cursor is on, re-derived from its stable anchor.
-    pub(in crate::ui::app) fn rail_cursor(&self) -> usize {
-        self.rail_cursor_in(&self.rail_rows(), &self.lanes())
-    }
-
     /// Resolves the rail cursor against rows and lanes already collected by a caller.
     pub(in crate::ui::app) fn rail_cursor_in(
         &self,
@@ -95,6 +90,12 @@ impl App {
         self.agent_anchor = rows
             .get(self.agent_index)
             .and_then(|row| rail_anchor(row, lanes));
+    }
+
+    /// Restores the cursor state captured with a rendered pointer target.
+    pub(in crate::ui::app) fn set_rendered_rail_cursor(&mut self, hit: &RailHit) {
+        self.agent_index = hit.index;
+        self.agent_anchor = hit.anchor.clone();
     }
 
     /// Returns the rail cursor to its initial position without retaining its anchor.
