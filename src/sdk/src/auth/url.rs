@@ -27,6 +27,27 @@ pub fn login_url(base_url: &str, provider: Provider, port: u16, state: &str) -> 
     )
 }
 
+/// Build the backend login URL for the terminal ("paste a code") flow.
+///
+/// The counterpart to [`login_url`] for a terminal that cannot host the loopback
+/// listener. There is no `redirectUri`: `redirect=cli` tells the backend to end
+/// the OAuth round-trip on a page that displays a one-time login token, which
+/// the operator copies into the terminal and this crate redeems via
+/// [`crate::client::MedullaClient::consume_login_token`].
+///
+/// # Why this exists at all
+///
+/// Over SSH the loopback flow is not merely inconvenient, it is wrong: the
+/// browser runs on the operator's laptop, so the backend's redirect to
+/// `http://127.0.0.1:<port>` reaches *that* machine's loopback interface and the
+/// listener bound on the remote host never sees it. The URL below is the only
+/// part of the flow that has to cross the gap, and it is device-independent —
+/// it can be opened on a phone.
+pub fn code_login_url(base_url: &str, provider: Provider) -> String {
+    let base = base_url.trim_end_matches('/');
+    format!("{base}/auth/{}/login?redirect=cli", provider.as_str())
+}
+
 /// A random 32-hex-char (128-bit) state nonce derived from OS-seeded std
 /// entropy — no `rand` dependency. `RandomState::new()` reseeds its SipHash keys
 /// from the OS on every call, so the finished hashes vary across calls; we mix in

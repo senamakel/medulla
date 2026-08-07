@@ -81,6 +81,23 @@ fn login_url_shape() {
 }
 
 #[test]
+fn code_login_url_carries_no_redirect_uri() {
+    // The terminal flow has no listener to redirect to — the callback ends on a
+    // backend-rendered page instead. A `redirectUri` here would put the flow
+    // back on the loopback path this exists to avoid.
+    let url = code_login_url("http://localhost:5000/", Provider::Github);
+    assert_eq!(url, "http://localhost:5000/auth/github/login?redirect=cli");
+    assert!(!url.contains("redirectUri"));
+    assert!(!url.contains("127.0.0.1"));
+
+    // The trailing slash is optional, as with `login_url`.
+    assert_eq!(
+        code_login_url("http://localhost:5000", Provider::Google),
+        "http://localhost:5000/auth/google/login?redirect=cli"
+    );
+}
+
+#[test]
 fn random_state_nonce_is_32_hex_and_varies() {
     let a = random_state_nonce();
     let b = random_state_nonce();
