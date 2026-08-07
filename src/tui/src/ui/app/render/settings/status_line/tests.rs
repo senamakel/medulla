@@ -12,3 +12,10 @@ fn footer_height_accounts_for_wrapped_detail_lines() {
 
     assert_eq!(rendered_height(&lines, 10), 7);
 }
+
+#[test]
+fn footer_height_accounts_for_oversized_unbroken_words() {
+    let lines = vec![Line::from("statusLine.harnessStyle")];
+
+    assert_eq!(rendered_height(&lines, 11), 3);
+}

@@ -8,60 +8,22 @@
 
 use medulla::config::StatusLineConfig;
 use ratatui::style::Style;
-use ratatui::text::{Line as TLine, Span};
-use unicode_width::UnicodeWidthStr;
+use ratatui::text::{Line as TLine, Span, Text};
+use ratatui::widgets::{Paragraph, Wrap};
 
 use crate::ui::app::status_line::STATUS_LINE_ROWS;
 use crate::ui::app::types::App;
 
-/// Return the number of terminal rows a wrapped footer will occupy at `width`.
+/// Return the number of terminal rows the rendered, wrapped footer occupies.
 ///
-/// Ratatui wraps each logical line independently at word boundaries. An empty
-/// line still occupies a row. Measuring with the same word-boundary rule before
-/// splitting the page prevents wrapped help from stealing rows reserved for the
-/// bottom of the footer.
+/// The page renders its footer through this exact `Paragraph` configuration.
+/// Asking Ratatui for its line count avoids duplicating its wrapping semantics,
+/// notably for words wider than the available pane.
 pub(super) fn rendered_height(lines: &[TLine<'_>], width: u16) -> u16 {
-    lines
-        .iter()
-        .map(|line| wrapped_line_height(line, width))
-        .sum::<usize>()
+    Paragraph::new(Text::from(lines.to_vec()))
+        .wrap(Wrap { trim: false })
+        .line_count(width)
         .min(usize::from(u16::MAX)) as u16
-}
-
-/// Count rows using the same whitespace-preserving word wrapping as the footer.
-fn wrapped_line_height(line: &TLine<'_>, width: u16) -> usize {
-    let width = width.max(1);
-    let mut rows = 1;
-    let mut row_width = 0;
-    let mut whitespace_width = 0;
-    let mut word_width = 0;
-
-    for grapheme in line.styled_graphemes(Style::default()) {
-        let grapheme_width = grapheme.symbol.width() as u16;
-        if grapheme_width > width {
-            continue;
-        }
-        if grapheme.symbol.chars().all(char::is_whitespace) {
-            if word_width > 0 {
-                if row_width > 0 && row_width + whitespace_width + word_width > width {
-                    rows += 1;
-                    row_width = 0;
-                    whitespace_width = 0;
-                }
-                row_width += whitespace_width + word_width;
-                whitespace_width = 0;
-                word_width = 0;
-            }
-            whitespace_width += grapheme_width;
-        } else {
-            word_width += grapheme_width;
-        }
-    }
-
-    if word_width > 0 && row_width > 0 && row_width + whitespace_width + word_width > width {
-        rows += 1;
-    }
-    rows
 }
 
 impl App {
