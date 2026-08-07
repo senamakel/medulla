@@ -175,7 +175,7 @@ pub async fn run_workflow_versioned(
 
 /// Shared execution body for local and definition-bound remote runs.
 async fn run_workflow_inner(
-    context: RunContext,
+    mut context: RunContext,
     workflow_id: &str,
     run_id: &str,
     input: Value,
