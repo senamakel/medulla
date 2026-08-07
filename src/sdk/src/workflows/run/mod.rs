@@ -36,6 +36,7 @@ mod tests;
 
 pub use diagnose::{diagnose, Diagnosis, DryRun, HiddenError, NeverRan, NullBinding};
 pub use dispatches::{in_flight, InFlightDispatch};
+pub(crate) use preflight::clamp_loop_iterations;
 pub use registry::{cancel, is_running, CancelSignal, RunClaim, RunGuard};
 pub use summary::summarize;
 
