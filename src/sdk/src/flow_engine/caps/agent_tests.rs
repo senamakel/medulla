@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use super::{dispatch_harness, AgentRoute, HarnessAgentRunner};
 use crate::flow_engine::caps::dispatch::HarnessDispatch;
 use crate::flow_engine::harness_choice::HarnessChoice;
+use crate::protocol::{HarnessProvider, HarnessTransport};
 use crate::flow_engine::settings::CapabilitySettings;
 use crate::hub::{RunError, TaskOutcome, TaskRequest};
 
@@ -83,4 +84,68 @@ fn independent_sequences_are_what_the_sharing_prevents() {
     let agent = runner("run-split", None);
     let llm = runner("run-split", None);
     assert_eq!(task_id_of(&agent), task_id_of(&llm));
+}
+
+/// The registry records the *flavor*, so a node that asked for `codex-server`
+/// is not reported as a plain `codex` session — a reader chasing the process
+/// would go looking at the wrong one.
+#[test]
+fn a_transport_specific_harness_is_recorded_under_its_flavor_name() {
+    let runner = runner("run-flavor", None);
+    let request = runner.request(
+        &AgentRoute::Default,
+        "do the thing".to_string(),
+        HarnessChoice {
+            provider: Some(HarnessProvider::Codex),
+            transport: Some(HarnessTransport::AppServer),
+            custom_harness: None,
+            model: None,
+        },
+    );
+
+    assert_eq!(dispatch_harness(&request), "codex-server");
+}
+
+/// The ordinary pair keeps the bare provider name: a default transport must not
+/// grow a suffix nobody wrote.
+#[test]
+fn a_default_transport_is_recorded_under_the_bare_provider_name() {
+    let runner = runner("run-plain", None);
+    let request = runner.request(
+        &AgentRoute::Default,
+        "do the thing".to_string(),
+        HarnessChoice {
+            provider: Some(HarnessProvider::Codex),
+            transport: Some(HarnessTransport::default()),
+            custom_harness: None,
+            model: None,
+        },
+    );
+
+    assert_eq!(dispatch_harness(&request), "codex");
+}
+
+/// A custom preset names itself, and a node that named nothing records nothing
+/// — this side genuinely does not know what the worker's own config will pick.
+#[test]
+fn a_custom_preset_names_itself_and_an_unresolved_choice_names_nothing() {
+    let runner = runner("run-custom", None);
+    let custom = runner.request(
+        &AgentRoute::Default,
+        "do the thing".to_string(),
+        HarnessChoice {
+            provider: None,
+            transport: None,
+            custom_harness: Some("house-style".to_string()),
+            model: None,
+        },
+    );
+    assert_eq!(dispatch_harness(&custom), "house-style");
+
+    let unresolved = runner.request(
+        &AgentRoute::Default,
+        "do the thing".to_string(),
+        HarnessChoice::default(),
+    );
+    assert_eq!(dispatch_harness(&unresolved), "");
 }
