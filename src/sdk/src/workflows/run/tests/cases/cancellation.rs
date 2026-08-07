@@ -17,9 +17,9 @@ use crate::workflows::run::RunGuard;
 async fn a_claim_taken_before_the_run_starts_is_adopted() {
     let harness = Harness::new();
     harness.install(&gated(), "gated");
-    let (guard, _signal) = RunGuard::claim("run-preclaimed").expect("a fresh id is claimable");
+    let claim = RunGuard::claim("run-preclaimed").expect("a fresh id is claimable");
     let mut context = harness.context(Arc::new(HangingDispatch));
-    context.claim = Some((guard, _signal));
+    context.claim = Some(claim);
 
     let run = tokio::spawn(async move {
         run_workflow(
