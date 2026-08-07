@@ -15,7 +15,7 @@ use crate::ui::app::App;
 use crate::worker::pty::{AttentionKind, HarnessAttention, PtyState, SessionControl, SessionRow};
 
 use super::rows::{display_session_title, lane_title, running_session_title};
-use super::wrap::{flow_path, short_home, wrap_line, wrap_path};
+use super::wrap::{flow_path, wrap_line, wrap_path};
 
 pub(super) fn app() -> App {
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());

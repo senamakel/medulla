@@ -21,21 +21,33 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
+use unicode_width::UnicodeWidthStr;
 
 use super::super::super::rail::WorkflowRunRailRow;
 use super::super::super::types::App;
 use super::super::color;
 
-/// Count the terminal rows a set of paragraph lines will occupy after wrapping.
+/// Conservatively count terminal rows a set of paragraph lines can occupy.
 ///
-/// `Paragraph` wraps each logical line independently. The frame tail must use
-/// this physical-row budget, otherwise a long explanatory line can consume the
-/// rows reserved for the newest progress report.
+/// Ratatui wraps on word boundaries, so dividing a line's total display width
+/// can undercount: words that individually fit may not share a row. Counting
+/// every word independently is deliberately an upper bound. It can leave an
+/// unused row, but never places the newest progress below wrapped context.
 fn wrapped_rows(lines: &[TLine<'_>], width: u16) -> usize {
     let width = usize::from(width).max(1);
     lines
         .iter()
-        .map(|line| line.width().max(1).div_ceil(width))
+        .map(|line| {
+            let text: String = line
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect();
+            text.split_whitespace()
+                .map(|word| word.width().max(1).div_ceil(width))
+                .sum::<usize>()
+                .max(1)
+        })
         .sum()
 }
 
