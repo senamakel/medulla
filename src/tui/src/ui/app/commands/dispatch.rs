@@ -28,7 +28,7 @@ impl App {
     /// whichever row happened to share the offset.
     pub(in crate::ui::app) fn selected_agent_task(&self) -> Option<TaskState> {
         let rows = self.rail_rows();
-        match rows.get(self.agent_index.min(rows.len().saturating_sub(1))) {
+        match rows.get(self.rail_cursor_in(&rows, &self.lanes())) {
             Some(super::super::rail::RailRow::Agent(AgentRow::Sub { task, .. })) => {
                 Some(task.clone())
             }

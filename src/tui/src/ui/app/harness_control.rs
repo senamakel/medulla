@@ -122,7 +122,7 @@ impl App {
             .iter()
             .position(|row| row.session_id() == Some(session_id))
         {
-            self.agent_index = index;
+            self.set_rail_cursor(index);
         }
     }
 

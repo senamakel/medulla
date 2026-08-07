@@ -54,7 +54,7 @@ impl App {
     /// Whether the rail cursor sits on the `+ New harness` action row.
     pub(in crate::ui::app) fn on_new_harness_row(&self) -> bool {
         let rows = self.rail_rows();
-        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+        rows.get(self.rail_cursor_in(&rows, &self.lanes()))
             .is_some_and(|row| row.is_new_harness())
     }
 
@@ -135,7 +135,7 @@ impl App {
                         self.set_status("No conversation to type into yet");
                         return AgentsKey::Handled(None);
                     };
-                    self.agent_index = index;
+                    self.set_rail_cursor(index);
                     self.agent_scroll = 0;
                     self.chat_scroll = 0;
                     // Leaving a task row drops its screen stream, exactly as

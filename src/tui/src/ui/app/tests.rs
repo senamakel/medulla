@@ -340,7 +340,7 @@ fn select_first_task(app: &mut App) -> Option<Cmd> {
             super::rail::RailRow::Agent(crate::ui::agents::AgentRow::Sub { .. })
         )
     })?;
-    app.agent_index = idx;
+    app.set_rail_cursor(idx);
     app.retarget_watch()
 }
 
@@ -486,7 +486,7 @@ fn selecting_a_lane_rather_than_a_task_watches_nothing() {
             )
         })
         .expect("the fixture has a lane row");
-    app.agent_index = idx;
+    app.set_rail_cursor(idx);
     assert!(app.retarget_watch().is_none());
     assert!(app.watching.is_none());
 }

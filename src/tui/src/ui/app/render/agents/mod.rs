@@ -77,8 +77,14 @@ impl App {
     fn agents_selection(&mut self) -> Selection {
         let lanes = self.lanes();
         let rows = self.rail_rows();
-        let active = self.agent_index.min(rows.len().saturating_sub(1));
-        self.agent_index = active;
+        // Re-derived from the anchor, not carried over as an offset: the rail is
+        // rebuilt from live state every frame, and an agent the orchestrator
+        // just spawned inserts a lane above the operator's own harness rows.
+        // Keeping the offset would hand the cursor to whatever row slid into it
+        // — releasing the attached harness, restoring the composer, and resizing
+        // the pane, all while the operator was typing into it.
+        let active = self.rail_cursor_in(&rows, &lanes);
+        self.set_rail_cursor_in(&rows, &lanes, active);
         let lane_index = match rows.get(active) {
             Some(RailRow::Agent(row)) => row.lane_index().unwrap_or(0),
             _ => 0,

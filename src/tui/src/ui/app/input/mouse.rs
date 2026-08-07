@@ -335,7 +335,7 @@ impl App {
                             let idx = owners[rel];
                             self.agent_scroll = 0;
                             self.chat_scroll = 0;
-                            self.agent_index = idx;
+                            self.set_rail_cursor(idx);
                             // A click is a focus gesture: the arrows should now
                             // continue from the row that was just picked.
                             self.focus_agents_rail();

@@ -34,17 +34,22 @@ impl App {
         if rows.is_empty() {
             return;
         }
-        let clamped = self.agent_index.min(rows.len() - 1);
+        let lanes = self.lanes();
+        // From where the cursor *is* — resolved from its anchor — not from the
+        // offset it last rendered at. A rail that gained a row since the last
+        // frame would otherwise step from someone else's position.
+        let clamped = self.rail_cursor_in(&rows, &lanes);
         let step: i64 = if up { -1 } else { 1 };
         let mut next = clamped as i64 + step;
         while next >= 0 && (next as usize) < rows.len() && !rows[next as usize].selectable() {
             next += step;
         }
-        self.agent_index = if next < 0 || next as usize >= rows.len() {
+        let target = if next < 0 || next as usize >= rows.len() {
             clamped
         } else {
             next as usize
         };
+        self.set_rail_cursor_in(&rows, &lanes, target);
     }
 
     /// Open a new thread and focus the conversation.
@@ -58,7 +63,7 @@ impl App {
         self.draft = crate::ui::composer::Draft::new();
         self.chat_scroll = 0;
         self.agent_scroll = 0;
-        self.agent_index = 0;
+        self.reset_rail_cursor();
         self.tab_index = super::super::types::tab_pos("Agents");
         self.refresh_snapshot();
         let name = self
@@ -147,7 +152,7 @@ impl App {
             return None;
         }
         let rows = self.rail_rows();
-        let row = rows.get(self.agent_index.min(rows.len().saturating_sub(1)))?;
+        let row = rows.get(self.rail_cursor_in(&rows, &self.lanes()))?;
         let RailRow::Agent(AgentRow::Sub {
             task, lane_index, ..
         }) = row
@@ -179,7 +184,7 @@ impl App {
     /// The selected running task eligible for destructive termination.
     pub(in crate::ui::app) fn kill_target(&self) -> Option<(String, String)> {
         let rows = self.rail_rows();
-        let row = rows.get(self.agent_index.min(rows.len().saturating_sub(1)))?;
+        let row = rows.get(self.rail_cursor_in(&rows, &self.lanes()))?;
         let RailRow::Agent(AgentRow::Sub { task, .. }) = row else {
             return None;
         };

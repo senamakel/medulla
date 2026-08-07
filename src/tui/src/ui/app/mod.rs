@@ -31,6 +31,8 @@ mod overlays;
 #[cfg(test)]
 mod overlays_tests;
 mod rail;
+#[cfg(test)]
+mod rail_tests;
 mod render;
 mod routing_options;
 mod settings_edit;

@@ -819,7 +819,22 @@ pub struct App {
     pub(super) update_notice: Option<String>,
     pub(super) contexts: Vec<ContextItem>,
     pub(super) context_index: usize,
+    /// The Agents-rail cursor as a row offset.
+    ///
+    /// Derived state: [`super::rail::RailAnchor`] below is what the cursor
+    /// actually means, and this is where it last resolved to. Kept as the
+    /// fallback for the frame after an anchored row disappears, and as the
+    /// offset the renderer highlights. Write it through
+    /// [`App::set_rail_cursor`](crate::ui::app::App::set_rail_cursor), never
+    /// directly.
     pub(super) agent_index: usize,
+    /// Which rail row the cursor is on, by identity.
+    ///
+    /// The rail is rebuilt every frame from live state, so a lane appearing
+    /// above the cursor moves every row below it. Holding the identity means the
+    /// selection follows the row instead of the offset — which is what keeps an
+    /// attached harness attached when the orchestrator spawns an agent.
+    pub(super) agent_anchor: Option<super::rail::RailAnchor>,
     /// The `(worker address, task id)` whose screen is currently subscribed.
     ///
     /// Held so a selection change can stop the old stream as well as start the

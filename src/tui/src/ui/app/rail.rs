@@ -11,7 +11,7 @@
 //! is selected, and answers what the detail pane should show.
 
 use super::types::App;
-use crate::ui::agents::{AgentRole, AgentRow};
+use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
 use crate::worker::pty::SessionRow;
 
 /// The label on the rail's "start a harness" row.
@@ -67,6 +67,92 @@ impl RailRow {
     }
 }
 
+/// What the rail cursor is *on*, independent of where that row currently sits.
+///
+/// The rail is rebuilt from scratch every frame out of live state: the fold
+/// gains a lane the moment the orchestrator spawns an agent, sublanes reorder as
+/// tasks start and finish, and the operator's own harnesses hang below all of
+/// it. A cursor stored as a plain row offset therefore points at a *different
+/// row* the instant anything above it appears — and for an operator sitting
+/// inside an attached harness pane that is not a cosmetic jump: the selection
+/// leaves the session, [`App::release_harness`] takes the keyboard back, the
+/// composer and work panel reclaim the columns, and the harness is resized and
+/// repainted underneath them. It reads exactly like the TUI resetting itself.
+///
+/// So the cursor is remembered by identity and the offset is re-derived each
+/// time the rows are rebuilt. Only rows the cursor can land on have one; the
+/// dividers and the `+N more` counter are labels.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RailAnchor {
+    /// The `+ New harness` action row.
+    NewHarness,
+    /// One of the operator's own harnesses, by PTY session id.
+    Harness(String),
+    /// A lane header, by [`AgentLane::key`].
+    Lane(String),
+    /// A task sublane, by owning lane key and task id.
+    ///
+    /// Keyed on the lane as well as the task because sublanes are only unique
+    /// within their lane, and a task row's meaning is "this task, under this
+    /// agent".
+    Task {
+        /// The owning lane's key.
+        lane: String,
+        /// The task's id.
+        task_id: String,
+    },
+}
+
+/// The identity of `row`, when it is one the cursor can hold.
+///
+/// `lanes` must be the same lane list `rows` was built from: lane rows carry an
+/// index into it, and the key behind that index is what survives the list
+/// growing.
+pub(in crate::ui::app) fn rail_anchor(row: &RailRow, lanes: &[AgentLane]) -> Option<RailAnchor> {
+    match row {
+        RailRow::NewHarness => Some(RailAnchor::NewHarness),
+        RailRow::Harness(session) => Some(RailAnchor::Harness(session.id.clone())),
+        RailRow::HarnessSeparator => None,
+        RailRow::Agent(AgentRow::Lane { lane_index }) => lanes
+            .get(*lane_index)
+            .map(|lane| RailAnchor::Lane(lane.key.clone())),
+        RailRow::Agent(AgentRow::Sub {
+            lane_index, task, ..
+        }) => lanes.get(*lane_index).map(|lane| RailAnchor::Task {
+            lane: lane.key.clone(),
+            task_id: task.task_id.clone(),
+        }),
+        // `Separator` and `More` are labels; the cursor steps over them.
+        RailRow::Agent(_) => None,
+    }
+}
+
+/// Where the anchored row sits in `rows` now, or `fallback` when it is gone.
+///
+/// A row can genuinely disappear — a harness exits and is forgotten, a task
+/// scrolls past the sublane cap — and there is no better answer then than the
+/// offset the cursor last held, clamped into range. The caller re-anchors from
+/// whatever that lands on, so the fallback is used for one frame at most.
+pub(in crate::ui::app) fn resolve_rail_cursor(
+    rows: &[RailRow],
+    lanes: &[AgentLane],
+    anchor: Option<&RailAnchor>,
+    fallback: usize,
+) -> usize {
+    if rows.is_empty() {
+        return 0;
+    }
+    if let Some(anchor) = anchor {
+        if let Some(index) = rows
+            .iter()
+            .position(|row| rail_anchor(row, lanes).as_ref() == Some(anchor))
+        {
+            return index;
+        }
+    }
+    fallback.min(rows.len() - 1)
+}
+
 impl App {
     /// The rail's rows: the agent lanes.
     ///
@@ -110,6 +196,60 @@ impl App {
             rows.extend(own.into_iter().map(RailRow::Harness));
         }
         rows
+    }
+
+    /// The rail offset the cursor is on, re-derived from its anchor.
+    ///
+    /// Every read of the cursor goes through this rather than through
+    /// `agent_index` directly, so a rail that grew a row while the operator was
+    /// looking elsewhere still answers with the row they picked.
+    pub(in crate::ui::app) fn rail_cursor(&self) -> usize {
+        self.rail_cursor_in(&self.rail_rows(), &self.lanes())
+    }
+
+    /// [`rail_cursor`](Self::rail_cursor) against rows and lanes the caller
+    /// already has. Both are derived from the event fold, and rebuilding them
+    /// per read costs a full re-fold.
+    pub(in crate::ui::app) fn rail_cursor_in(
+        &self,
+        rows: &[RailRow],
+        lanes: &[AgentLane],
+    ) -> usize {
+        resolve_rail_cursor(rows, lanes, self.agent_anchor.as_ref(), self.agent_index)
+    }
+
+    /// Put the cursor on `index`, remembering *which row* that is.
+    ///
+    /// Every write of the cursor goes through this. Setting `agent_index` alone
+    /// leaves the previous anchor in place, and the next frame would drag the
+    /// cursor straight back to the old row.
+    pub(in crate::ui::app) fn set_rail_cursor(&mut self, index: usize) {
+        let rows = self.rail_rows();
+        let lanes = self.lanes();
+        self.set_rail_cursor_in(&rows, &lanes, index);
+    }
+
+    /// [`set_rail_cursor`](Self::set_rail_cursor) against rows and lanes the
+    /// caller already has.
+    pub(in crate::ui::app) fn set_rail_cursor_in(
+        &mut self,
+        rows: &[RailRow],
+        lanes: &[AgentLane],
+        index: usize,
+    ) {
+        self.agent_index = index.min(rows.len().saturating_sub(1));
+        self.agent_anchor = rows
+            .get(self.agent_index)
+            .and_then(|row| rail_anchor(row, lanes));
+    }
+
+    /// Send the cursor back to the top and forget what it was on.
+    ///
+    /// For the deliberate resets — opening a new thread — where following the
+    /// old row would be the wrong behaviour, not the right one.
+    pub(in crate::ui::app) fn reset_rail_cursor(&mut self) {
+        self.agent_index = 0;
+        self.agent_anchor = None;
     }
 
     /// How many local harnesses are waiting on the operator right now.
