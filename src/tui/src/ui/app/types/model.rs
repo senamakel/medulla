@@ -302,6 +302,24 @@ pub struct WorkflowsState {
     pub(in crate::ui::app) inspector_open: bool,
     /// The run being overlaid on the graph, when a run row is selected.
     pub(in crate::ui::app) overlay: Option<medulla::workflows::RunId>,
+    /// The Agents-rail run this state was last pointed at, so the mirror is
+    /// re-established only when the rail cursor actually moves.
+    ///
+    /// The Agents tab draws the workflow canvas inline for a selected run, which
+    /// means every frame would otherwise call
+    /// [`select_workflow`](crate::ui::app::App::select_workflow) — and that
+    /// re-reads the run store and re-lays out the graph, both off the disk, at
+    /// the app's full draw rate. Remembering the id turns that into one read per
+    /// cursor move. `None` while the Agents cursor is not on a run, so stepping
+    /// off a run and back onto it re-syncs rather than trusting a stale graph.
+    pub(in crate::ui::app) mirrored_run: Option<String>,
+    /// The newest report included in [`mirrored_run`](Self::mirrored_run).
+    ///
+    /// A live run keeps its identity while its current graph node and durable
+    /// record change. Remembering the report generation lets the mirror avoid
+    /// disk work on ordinary redraws without freezing the canvas at its first
+    /// observed node.
+    pub(in crate::ui::app) mirrored_run_updated_at: Option<i64>,
     /// One copilot thread per workflow, so switching in the rail does not show
     /// the previous workflow's conversation or lose this one's.
     pub(in crate::ui::app) copilots:

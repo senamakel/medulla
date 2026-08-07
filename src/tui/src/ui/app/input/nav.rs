@@ -159,6 +159,8 @@ impl App {
             next as usize
         };
         self.set_rail_cursor_in(&rows, &lanes, next);
+        #[cfg(feature = "workflows")]
+        self.sync_selected_workflow_run();
     }
 
     /// Open a new thread and focus the conversation.

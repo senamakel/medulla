@@ -63,7 +63,7 @@ const FLOW_SPEED: f64 = 0.45;
 
 impl App {
     /// Draw the graph of the selected workflow.
-    pub(super) fn draw_workflow_canvas(&mut self, f: &mut Frame, area: Rect) {
+    pub(in crate::ui::app::render) fn draw_workflow_canvas(&mut self, f: &mut Frame, area: Rect) {
         let panes = if area.height >= 16 && self.selected_graph_node().is_some() {
             // Tall enough for every band the fold produced plus the panel's own
             // borders, and no taller: a graph that reserved more would spend the

@@ -31,6 +31,8 @@ mod canvas;
 mod copilot;
 mod inspector;
 mod node_preview;
+
+pub(in crate::ui::app::render) use node_preview::live_lines;
 mod paint;
 pub(in crate::ui::app) mod rail;
 
