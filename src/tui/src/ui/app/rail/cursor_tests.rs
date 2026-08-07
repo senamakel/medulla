@@ -85,7 +85,7 @@ fn an_overflow_anchor_uses_its_lanes_stable_key() {
 #[test]
 fn a_removed_overflow_anchor_relocates_to_its_lanes_first_session() {
     let lanes = vec![lane("builder")];
-    let task = |id| {
+    let task = |id: &str| {
         RailRow::Session(Box::new(SessionRailRow {
             agent_id: Some("builder".to_string()),
             lane_index: Some(0),
