@@ -24,9 +24,8 @@ use medulla::bridge::{Bridge, LocalBridgeNetwork};
 use medulla::config::HostSection;
 use medulla::daemon::embedded::{resolve_workspace, EmbeddedDaemon, EmbeddedDaemonOptions};
 use medulla::daemon::providers::{run_provider_task, RunTaskFn, RunTaskOptions};
-use medulla::hub::WorkerSpec;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::{seed_declarations, AgentDeclaration};
+use medulla::runtime::AgentDeclaration;
 use medulla_tui::worker::executor::{agent_kind, PtySessionExecutor};
 use medulla_tui::worker::pty::PtyManager;
 use std::collections::HashMap;
@@ -258,7 +257,9 @@ fn parse_provider(name: &str) -> Result<HarnessProvider, String> {
         })
 }
 
-/// The roster entries describing the agents declared on a host running here.
+/*
+The former declaration-processing implementation lived here. It was moved to
+the declarations module so this module remains host lifecycle wiring.
 ///
 /// **One entry per declared agent, not one per machine.** A host is a machine
 /// with a bus address; an agent is `harness × workspace` on it. Collapsing the
@@ -298,95 +299,10 @@ fn parse_provider(name: &str) -> Result<HarnessProvider, String> {
 /// A host whose every declaration was dropped falls back to the detection seed,
 /// exactly as one that declared nothing does: hosting is what the rest of the
 /// device depends on, and it must not hinge on a roster entry being right.
-#[allow(dead_code)]
-fn legacy_specs_for(
-    daemon: &EmbeddedDaemon,
-    name: &str,
-    declared: &[AgentDeclaration],
-) -> (Vec<WorkerSpec>, Vec<String>) {
-    let host_id = daemon.address();
-    let mine: Vec<AgentDeclaration> = declared
-        .iter()
-        .filter(|declaration| declaration.on_host(host_id))
-        .cloned()
-        .collect();
-    let mine = if mine.is_empty() {
-        seed_for(daemon)
-    } else {
-        mine
-    };
-    let mut problems = Vec::new();
-    let mut mine: Vec<AgentDeclaration> = mine
-        .into_iter()
-        .filter(
-            |declaration| match check_placement(declaration, host_id, daemon.workspace()) {
-                Ok(()) => true,
-                Err(problem) => {
-                    problems.push(problem);
-                    false
-                }
-            },
-        )
-        .collect();
-    // Every declaration named somewhere else. The host still runs — it just
-    // advertises what it detected, as an install that declared nothing does.
-    if mine.is_empty() {
-        mine = seed_for(daemon);
-    }
-    let single = mine.len() == 1;
-    // The workspace every one of them runs in, now that a declaration naming
-    // another has been refused. Taken from the daemon rather than copied off
-    // the declaration so the advertised spelling is the resolved one the
-    // executor actually launches in, not whatever shorthand was typed.
-    let workspace_path = daemon.workspace().to_string();
-    let specs = mine
-        .iter()
-        .map(|declaration| {
-            let label = declaration.name.clone().unwrap_or_else(|| {
-                if single {
-                    name.to_string()
-                } else if shares_harness(&mine, declaration) {
-                    format!("{name} · {}", declaration.agent_id)
-                } else {
-                    format!("{name} · {}", declaration.harness)
-                }
-            });
-            let mut workspace = declaration.workspace.clone();
-            workspace.path = workspace_path.clone();
-            WorkerSpec {
-                id: declaration.agent_id.clone(),
-                host_id: host_id.to_string(),
-                address: host_id.to_string(),
-                name: label,
-                description: format!(
-                    "{} on this machine · {}",
-                    declaration.harness, workspace.path
-                ),
-                harness: declaration.harness.clone(),
-                // The one placement this process actually knows: the agent works
-                // in this directory. Declaring it is what gives the orchestrator
-                // a placed agent rather than a bare one it treats as having
-                // nowhere to work.
-                workspace: Some(workspace),
-                roles: declaration.roles.clone(),
-                max_sessions: declaration.max_sessions(),
-            }
-        })
-        .collect();
-    (specs, problems)
-}
-
 /// Whether another agent on this host runs the same harness.
 ///
 /// What decides between the two sibling labels: the harness distinguishes
 /// nothing once two agents share it.
-fn shares_harness(mine: &[AgentDeclaration], declaration: &AgentDeclaration) -> bool {
-    mine.iter()
-        .filter(|sibling| sibling.harness == declaration.harness)
-        .count()
-        > 1
-}
-
 /// Reject a declaration that says it works somewhere its host does not.
 ///
 /// **An agent runs where its host runs.** A task is addressed to a *host* — the
@@ -413,25 +329,6 @@ fn shares_harness(mine: &[AgentDeclaration], declaration: &AgentDeclaration) -> 
 /// Per-agent workspaces on one host need the selected agent's id to reach the
 /// worker, which is a protocol change (`TaskFrame` carries no `agentId`) and the
 /// wire branch's job, not this one's.
-fn check_placement(
-    declaration: &AgentDeclaration,
-    host_id: &str,
-    host_workspace: &str,
-) -> Result<(), String> {
-    let Some(declared) = declaration.workspace.path() else {
-        return Ok(());
-    };
-    if resolve_workspace(declared) == host_workspace {
-        return Ok(());
-    }
-    Err(format!(
-        "agent \"{}\" is declared in {declared}, but host \"{host_id}\" runs tasks in \
-         {host_workspace} — every agent on a host works in the host's directory, so declare a \
-         [[hosts]] entry for {declared} and put this agent on it",
-        declaration.agent_id,
-    ))
-}
-
 /// The migration seed for a host that has declared nothing: one agent per
 /// detected provider, at the directory the host runs in.
 ///
@@ -440,19 +337,7 @@ fn check_placement(
 /// machine whose config lives somewhere unwritable) fail or lie. The seeds are
 /// equal to declarations in every other respect, so an operator who never opens
 /// the create-agent flow keeps exactly the roster they had.
-fn seed_for(daemon: &EmbeddedDaemon) -> Vec<AgentDeclaration> {
-    let harnesses: Vec<&str> = daemon
-        .providers()
-        .iter()
-        .map(|provider| provider.as_str())
-        .collect();
-    seed_declarations(
-        daemon.address(),
-        daemon.workspace(),
-        &harnesses,
-        daemon.default_provider().as_str(),
-    )
-}
+*/
 
 /// Start hosting on this device, or explain why not.
 ///

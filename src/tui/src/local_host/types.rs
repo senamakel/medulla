@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use super::*;
+use medulla::hub::WorkerSpec;
 
 /// A host running inside the TUI process, with the bus it shares with the hub.
 ///

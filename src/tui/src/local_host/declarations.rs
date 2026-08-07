@@ -111,8 +111,8 @@ fn check_placement(
         return Ok(());
     }
     Err(format!(
-        "agent \"{}\" is declared in {declared}, but host \"{host_id}\" runs tasks in \\
-         {host_workspace} — every agent on a host works in the host's directory, so declare a \\
+        "agent \"{}\" is declared in {declared}, but host \"{host_id}\" runs tasks in \
+         {host_workspace} — every agent on a host works in the host's directory, so declare a \
          [[hosts]] entry for {declared} and put this agent on it",
         declaration.agent_id,
     ))
