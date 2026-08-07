@@ -380,15 +380,68 @@ fn every_embedded_host_door_applies_a_launch_policy() {
     for door in doors {
         let source = std::fs::read_to_string(root.join(door))
             .unwrap_or_else(|error| panic!("{door}: {error}"));
-        let built = source.matches("EmbeddedDaemonOptions {").count();
-        let applied = source.matches(".with_launch_policy(").count();
-        assert_eq!(
-            applied, built,
-            "{door} builds {built} set(s) of embedded-host options but applies \
-             with_launch_policy {applied} time(s), so at least one host launches \
-             its harnesses with no hooks and attribution nobody chose",
+        assert!(
+            embedded_options_have_launch_policy(&source),
+            "{door} builds an embedded host without applying its launch policy",
         );
     }
+}
+
+/// Return whether every `EmbeddedDaemonOptions` literal is immediately finished
+/// with `with_launch_policy`.
+fn embedded_options_have_launch_policy(source: &str) -> bool {
+    let mut remaining = source;
+    while let Some(start) = remaining.find("EmbeddedDaemonOptions {") {
+        let literal = &remaining[start..];
+        let mut depth = 0;
+        let Some(end) = literal
+            .char_indices()
+            .find_map(|(index, character)| match character {
+                '{' => {
+                    depth += 1;
+                    None
+                }
+                '}' => {
+                    depth -= 1;
+                    (depth == 0).then_some(index)
+                }
+                _ => None,
+            })
+        else {
+            return false;
+        };
+        if !after_comments(&literal[end + 1..]).starts_with(".with_launch_policy(") {
+            return false;
+        }
+        remaining = &literal[end + 1..];
+    }
+    true
+}
+
+/// Skip whitespace and comments between a literal and its builder call.
+fn after_comments(mut source: &str) -> &str {
+    loop {
+        source = source.trim_start();
+        if let Some(rest) = source.strip_prefix("//") {
+            source = rest.split_once('\n').map_or("", |(_, rest)| rest);
+        } else if let Some(rest) = source.strip_prefix("/*") {
+            source = rest.split_once("*/").map_or("", |(_, rest)| rest);
+        } else {
+            return source;
+        }
+    }
+}
+
+#[test]
+fn every_embedded_options_literal_needs_its_own_policy() {
+    let source = r#"
+        let first = EmbeddedDaemonOptions {}.with_launch_policy(policy);
+        let second = EmbeddedDaemonOptions {};
+    "#;
+    assert!(
+        !embedded_options_have_launch_policy(source),
+        "one protected literal must not mask another missing policy",
+    );
 }
 
 #[test]

@@ -78,7 +78,7 @@ pub(super) fn spawn_run(
             instruction: format!("Review this workflow, starting from run {run_id}."),
         });
         let _ = tx.send(AppMsg::Status(format!("Reviewing why {id} failed…")));
-        spawn_evolve(id, Some(run_id), workflows_config, launch, &tx);
+        super::workflow_evolution::spawn_evolve(id, Some(run_id), workflows_config, launch, &tx);
     });
 }
 
@@ -541,132 +541,6 @@ pub(super) fn spawn_dry_run(
         };
         let _ = tx.send(AppMsg::Status(status));
     });
-}
-
-/// Review a workflow against its own history.
-///
-/// Reported through the copilot messages rather than new ones: from the
-/// operator's side this *is* a copilot turn — it runs on the same thread, in
-/// the same pane, and ends with a reply and a list of what it did.
-pub(super) fn spawn_evolve(
-    workflow: String,
-    run_id: Option<String>,
-    workflows_config: medulla::config::WorkflowsConfig,
-    launch: medulla::harness_hooks::LaunchPolicy,
-    msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
-) {
-    let tx = msg_tx.clone();
-    tokio::spawn(async move {
-        let (trigger, instruction) = match run_id {
-            Some(run_id) => (
-                medulla::workflows::evolve::EvolveTrigger::Failure(run_id.clone()),
-                format!("Review this workflow, starting from run {run_id}."),
-            ),
-            None => (
-                medulla::workflows::evolve::EvolveTrigger::Manual,
-                "Review this workflow against its history.".to_string(),
-            ),
-        };
-
-        let result = evolve_turn(&workflow, trigger, &workflows_config, &launch).await;
-        let message = match result {
-            Ok(outcome) if outcome.skipped => AppMsg::CopilotDone {
-                workflow,
-                reply: "A review of this workflow is already running.".to_string(),
-                changes: Vec::new(),
-                created: None,
-                removed: false,
-            },
-            Ok(outcome) => AppMsg::CopilotDone {
-                workflow,
-                reply: outcome.reply.clone(),
-                // Counted rather than listed: a review that wrote six notes
-                // would otherwise push its own reply off the pane.
-                changes: describe_review(&outcome),
-                created: None,
-                // A review cannot delete anything — it has no verb for it.
-                removed: false,
-            },
-            Err(err) => AppMsg::CopilotFailed {
-                workflow,
-                instruction,
-                error: err.to_string(),
-            },
-        };
-        let _ = tx.send(message);
-        // Notes and proposals are read off the store by the page, so it has to
-        // be told to look again even when the graph itself did not move.
-        let _ = tx.send(AppMsg::WorkflowsChanged);
-    });
-}
-
-/// Run an evolution turn on the pane's tracked ACP host.
-///
-/// Sharing the host lifecycle with ordinary copilot turns makes Ctrl-X able to
-/// abort reviews and keeps the MCP tools attached to every evolution session.
-async fn evolve_turn(
-    workflow: &str,
-    trigger: medulla::workflows::evolve::EvolveTrigger,
-    workflows_config: &medulla::config::WorkflowsConfig,
-    launch: &medulla::harness_hooks::LaunchPolicy,
-) -> anyhow::Result<medulla::workflows::evolve::EvolveOutcome> {
-    let mut env: HashMap<String, String> = std::env::vars().collect();
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    env.insert(
-        medulla::daemon::providers::HARNESS_PROTOCOL_ENV.to_string(),
-        "acp".to_string(),
-    );
-    medulla::mcp::preflight(&env, &cwd).map_err(anyhow::Error::msg)?;
-    let store = medulla::workflows::discover_store(&env, &cwd);
-    // A review is grounded in the journal and the run history rather than in
-    // what a pane said, so whether the host is fresh makes no difference here.
-    let (host, _fresh) = super::copilot_hosts::host_for(workflow, || {
-        EmbeddedDaemonOptions {
-            workspace: cwd.to_string_lossy().to_string(),
-            default_provider: workflows_config.default_provider,
-            model: (!workflows_config.default_model.is_empty())
-                .then(|| workflows_config.default_model.clone()),
-            env,
-            ..Default::default()
-        }
-        .with_launch_policy(launch)
-    })
-    .map_err(anyhow::Error::msg)?;
-    let session = medulla::workflows::evolve::EvolveSession {
-        store,
-        dispatch: host.dispatch(),
-        worker_address: LOCAL_WORKER_ADDRESS.to_string(),
-        provider: workflows_config.default_provider,
-        model: (!workflows_config.default_model.is_empty())
-            .then(|| workflows_config.default_model.clone()),
-        conversation: workflow.to_string(),
-        config: medulla::workflows::evolve::EvolveConfig::from_config(workflows_config),
-    };
-    Ok(session.evolve(workflow, trigger, None).await?)
-}
-
-/// What a review left behind, as transcript lines.
-fn describe_review(outcome: &medulla::workflows::evolve::EvolveOutcome) -> Vec<String> {
-    let mut lines = Vec::new();
-    if !outcome.notes.is_empty() {
-        lines.push(format!(
-            "+ {} note{}",
-            outcome.notes.len(),
-            if outcome.notes.len() == 1 { "" } else { "s" }
-        ));
-    }
-    for proposal in &outcome.proposals {
-        lines.push(format!(
-            "~ proposed: {}{}",
-            proposal.rationale.trim(),
-            if proposal.is_applicable() {
-                ""
-            } else {
-                " (will not apply)"
-            }
-        ));
-    }
-    lines
 }
 
 /// Apply or decline a proposed change.

@@ -130,7 +130,10 @@ async fn argv_of_a_run(launch: &LaunchPolicy) -> Vec<String> {
     .start()
     .await
     .expect("the run starts");
-    let _ = started.settled().await;
+    started
+        .settled()
+        .await
+        .expect("the workflow run settles successfully");
 
     std::fs::read_to_string(&log)
         .unwrap_or_default()
@@ -183,6 +186,33 @@ async fn a_workflows_harness_is_launched_with_commit_attribution() {
             .and_then(Value::as_str),
         Some(medulla::attribution::attribution_trailer().as_str()),
         "a workflow's commits must be attributed like every other Medulla spawn",
+    );
+}
+
+#[tokio::test]
+async fn a_workflows_harness_keeps_hooks_and_commit_attribution_together() {
+    let argv = argv_of_a_run(&LaunchPolicy {
+        attribution: true,
+        hooks: one_hook(),
+    })
+    .await;
+
+    let settings = settings_document(&argv).unwrap_or_else(|| {
+        panic!("the workflow's harness was launched with no --settings: {argv:?}")
+    });
+    assert_eq!(
+        settings
+            .pointer("/hooks/PostToolUse/0/hooks/0/command")
+            .and_then(Value::as_str),
+        Some("just checkpoint"),
+        "hooks must not suppress commit attribution: {settings}",
+    );
+    assert_eq!(
+        settings
+            .pointer("/attribution/commit")
+            .and_then(Value::as_str),
+        Some(medulla::attribution::attribution_trailer().as_str()),
+        "commit attribution must not suppress hooks: {settings}",
     );
 }
 

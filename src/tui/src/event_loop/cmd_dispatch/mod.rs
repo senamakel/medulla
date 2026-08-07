@@ -17,6 +17,8 @@ mod copilot_hosts;
 mod feedback;
 mod handoff;
 #[cfg(feature = "workflows")]
+mod workflow_evolution;
+#[cfg(feature = "workflows")]
 mod workflows;
 
 /// Move a copilot conversation onto the id of the workflow it just created.
@@ -280,7 +282,7 @@ pub(super) fn run_cmd(
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
-        Cmd::EvolveWorkflow { workflow, run_id } => workflows::spawn_evolve(
+        Cmd::EvolveWorkflow { workflow, run_id } => workflow_evolution::spawn_evolve(
             workflow,
             run_id,
             _config.workflows.clone(),
