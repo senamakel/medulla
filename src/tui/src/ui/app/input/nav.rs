@@ -24,14 +24,6 @@ impl App {
     #[cfg(test)]
     pub(in crate::ui::app) fn agent_rows(&self) -> Vec<AgentRow> {
         let lanes = self.lanes();
-        self.agent_rows_in(&lanes)
-    }
-
-    /// Build paged fold rows from one already-captured lane snapshot.
-    pub(in crate::ui::app) fn agent_rows_in(
-        &self,
-        lanes: &[crate::ui::agents::AgentLane],
-    ) -> Vec<AgentRow> {
         agent_row_model_paged(lanes, SUBTASK_PAGE, |lane| {
             self.subtask_pages.get(&lane.key).copied().unwrap_or(0)
         })

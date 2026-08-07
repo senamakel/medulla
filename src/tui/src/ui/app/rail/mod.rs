@@ -571,33 +571,3 @@ fn run_rows_under(
         })
         .collect()
 }
-
-/// Push one agent's sessions, tree-marked. The agent itself gets no row.
-///
-/// Paging is the fold's, not the rail's (#171): `agent_rows` reveals a page of
-/// task sublanes at a time and marks the rest with an overflow row, so a second
-/// cap here would clip the page the operator just asked to see. The overflow row
-/// is re-emitted under the sessions and stays selectable, which is what makes
-/// `Enter` on it page the lane open — and, once the lane is fully revealed, fold
-/// it back.
-fn push_sessions(
-    rows: &mut Vec<RailRow>,
-    group: &mut AgentGroup,
-    runs: &medulla::control_socket::HarnessRunRegistry,
-) {
-    let shown = group.sessions.len();
-    for (index, session) in group.sessions.iter_mut().enumerate() {
-        // Only the tree's last leaf when the overflow row does not follow it.
-        session.last = !group.overflow && index + 1 == shown;
-        let session = Box::new(session.clone());
-        let run_rows = run_rows_under(&session, runs);
-        rows.push(RailRow::Session(session));
-        rows.extend(run_rows);
-    }
-    if group.overflow {
-        rows.push(RailRow::Overflow {
-            lane_index: group.row.lane_index.unwrap_or(0),
-            hidden: group.hidden,
-        });
-    }
-}

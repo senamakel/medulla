@@ -6,7 +6,7 @@ use super::super::{AgentGroup, AgentRailRow, RailAnchor, RailRow, SessionRailRow
 use super::push_group;
 use medulla::config::SidebarSort;
 use medulla::control_socket::{HarnessRunStatus, RunReport};
-use medulla::ui::agents::{AgentLane, AgentRole, AgentRow, TaskState, TaskStatus};
+use medulla::ui::agents::{AgentLane, AgentRole, TaskState, TaskStatus};
 
 fn task_row(task_id: &str) -> SessionRailRow {
     SessionRailRow {
