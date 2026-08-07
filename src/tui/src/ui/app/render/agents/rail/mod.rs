@@ -18,7 +18,7 @@ use crate::ui::agents::{AgentLane, TaskStatus};
 use crate::worker::pty::ATTENTION_GLYPH;
 
 use super::super::super::rail::{RailRow, NEW_AGENT_LABEL, NEW_SESSION_LABEL};
-use super::super::super::types::App;
+use super::super::super::types::{App, RailHit};
 use super::super::color;
 use super::types::{AgentsPanes, Selection};
 
@@ -160,7 +160,7 @@ impl App {
         // the same elapsed time throughout the frame, not a new one for each row.
         let now = medulla::clock::now_millis();
         let mut lines: Vec<TLine> = Vec::new();
-        let mut owners: Vec<usize> = Vec::new();
+        let mut owners: Vec<RailHit> = Vec::new();
         let mut active_line = 0;
         let mut active_line_end = 0;
         for (index, row) in selection.rows.iter().enumerate() {
@@ -176,7 +176,11 @@ impl App {
                 now,
             ) {
                 lines.push(line);
-                owners.push(index);
+                owners.push(RailHit::from_row(
+                    row,
+                    super::super::super::rail::rail_anchor(row, &selection.lanes),
+                    index,
+                ));
             }
             if index == selection.active {
                 active_line_end = lines.len();
@@ -196,7 +200,7 @@ impl App {
         };
         self.hit_agents = Some((
             nav_area,
-            owners.iter().skip(start).take(capacity).copied().collect(),
+            owners.into_iter().skip(start).take(capacity).collect(),
         ));
         let mut view: Vec<TLine> = lines.into_iter().skip(start).take(capacity).collect();
         device_footer.append_to(&mut view, Style::default().fg(self.theme.accent));
