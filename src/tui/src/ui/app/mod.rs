@@ -23,6 +23,8 @@ mod credentials;
 mod custom_harnesses;
 mod decisions;
 mod feedback;
+#[cfg(test)]
+mod harness_pane_tests;
 mod harness_workspace;
 #[cfg(test)]
 mod harness_workspace_tests;

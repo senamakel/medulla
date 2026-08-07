@@ -206,7 +206,7 @@ impl App {
 }
 
 /// Return whether modifiers represent ordinary printable text input.
-pub(super) fn is_text_input(modifiers: KeyModifiers) -> bool {
+pub(in crate::ui::app) fn is_text_input(modifiers: KeyModifiers) -> bool {
     modifiers == KeyModifiers::NONE
         || modifiers == KeyModifiers::SHIFT
         || modifiers == (KeyModifiers::CONTROL | KeyModifiers::ALT)

@@ -42,9 +42,17 @@ impl App {
             self.set_status("This device is not hosting, so it has no sessions");
             return;
         };
+        let was_taken = self.sessions_taken.contains_key(session);
         if !harnesses.sessions.close(session) {
             self.set_status("That session is gone");
             return;
+        }
+        // `close` retains the row long enough for `hand_back_session` to build
+        // its brief. A taken session also held its workspace in the backend;
+        // release that hold before discarding our take record so a replacement
+        // harness can be dispatched there after this one exits.
+        if was_taken {
+            self.hand_back_session(session, None);
         }
         if self.harness_focus.is_attached_to(session) {
             self.release_session();

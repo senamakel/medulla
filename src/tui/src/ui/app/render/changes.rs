@@ -28,7 +28,11 @@ impl App {
     /// view already pointed [`GitChangesState`](super::super::changes::GitChangesState)
     /// at this session's launch snapshot.
     pub(in crate::ui::app) fn draw_harness_diff(&mut self, frame: &mut Frame, area: Rect) {
-        self.draw_changes_into(frame, area, " Since launch · d harness · b baseline ");
+        let title = format!(
+            " {} · d harness · b baseline ",
+            self.changes.baseline_label()
+        );
+        self.draw_changes_into(frame, area, &title);
     }
 
     /// Draw the two Changes panes into `area`, titling the rail with `rail_title`.
