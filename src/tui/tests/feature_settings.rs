@@ -127,6 +127,38 @@ fn status_line_selection_scrolls_into_view_on_a_short_terminal() {
 }
 
 #[test]
+fn a_status_line_field_is_headed_described_and_its_choices_spelled_out() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('3'));
+    // Down four times: the harness group's "spelled" row.
+    for _ in 0..4 {
+        let _ = key(&mut app, KeyCode::Down);
+    }
+
+    let out = text_of(&draw(&mut app, 100, 40));
+
+    assert!(
+        out.contains("Harness name") && out.contains("which CLI is driving the session"),
+        "the field is headed and described where its rows are: {out}"
+    );
+    for choice in ["long", "short", "icon"] {
+        assert!(
+            out.contains(choice),
+            "the footer lists every value ←/→ can reach, not only the current one; \
+             missing {choice}: {out}"
+        );
+    }
+    assert!(
+        out.contains("statusLine.harnessStyle"),
+        "the footer names the key the answer is written to: {out}"
+    );
+    assert!(
+        out.contains("Claude Code, claude, or just the provider icon."),
+        "the footer explains what the selected row does: {out}"
+    );
+}
+
+#[test]
 fn appearance_cycling_changes_live_theme() {
     let mut app = settings_app();
     let _ = key(&mut app, KeyCode::Char('2')); // Appearance
