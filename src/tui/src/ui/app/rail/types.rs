@@ -1,9 +1,9 @@
-//! The Sessions rail's row taxonomy: `Host → Session`.
+//! The Sessions rail's row taxonomy: `Host → Group → Session`.
 //!
-//! One shape for the whole tree. A row is a host, one session running on it, a
-//! workflow run that session started, or one of the two controls — the action
-//! that opens a session, and the paging control for a lane whose sessions the
-//! fold hid.
+//! One shape for the whole tree. A row is a host, a grouping heading, one
+//! session running on it, a workflow run that session started, or one of the
+//! two controls — the action that opens a session, and the paging control for a
+//! lane whose sessions the fold hid.
 //!
 //! Two levels have been removed since. `AgentRow::Sub` rendered a *task* and
 //! `RailRow::Harness` a *session*, in two groups separated by a
