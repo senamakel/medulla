@@ -267,7 +267,7 @@ impl App {
 
     /// Where the Agents rail cursor is. Test/inspection seam.
     pub fn agent_index(&self) -> usize {
-        self.agent_index
+        self.rail_cursor()
     }
 
     /// The current composer draft text. Test/inspection seam.
@@ -629,7 +629,7 @@ impl App {
     /// never drawn, and every keystroke went into it.
     pub fn on_orchestrator_lane(&self) -> bool {
         let lanes = self.lanes();
-        let rows = self.rail_rows();
+        let rows = self.rail_rows_in(&lanes);
         match rows.get(self.rail_cursor_in(&rows, &lanes)) {
             // Only a lane's *own* row is a conversation. `AgentRow` also wraps
             // the `+N more` overflow control, which carries the lane index of

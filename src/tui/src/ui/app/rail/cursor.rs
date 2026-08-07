@@ -72,10 +72,17 @@ impl App {
         resolve_rail_cursor(rows, lanes, self.agent_anchor.as_ref(), self.agent_index)
     }
 
+    /// Resolves the stored cursor against one fresh rail and lane snapshot.
+    pub(in crate::ui::app) fn rail_cursor(&self) -> usize {
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        self.rail_cursor_in(&rows, &lanes)
+    }
+
     /// Moves the cursor to `index` and remembers the selected row by identity.
     pub(in crate::ui::app) fn set_rail_cursor(&mut self, index: usize) {
-        let rows = self.rail_rows();
         let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
         self.set_rail_cursor_in(&rows, &lanes, index);
     }
 

@@ -142,7 +142,16 @@ impl App {
     /// more than one host to tell apart.
     pub(super) fn rail_rows(&self) -> Vec<RailRow> {
         let lanes = self.lanes();
-        let (lane_rows, folded) = self.split_fold(&lanes);
+        self.rail_rows_in(&lanes)
+    }
+
+    /// Assemble rail rows from one already-captured lane snapshot.
+    ///
+    /// Callers that also resolve a cursor anchor must use this with that same
+    /// snapshot: lane indexes in fold rows are meaningful only to the lanes
+    /// that produced them.
+    pub(super) fn rail_rows_in(&self, lanes: &[AgentLane]) -> Vec<RailRow> {
+        let (lane_rows, folded) = self.split_fold(lanes);
         let mut hosts = place_agents(&self.host_tree(), folded);
         let orphans = self.attach_sessions(&mut hosts);
         self.flatten(lane_rows, hosts, orphans)

@@ -233,11 +233,7 @@ impl App {
         if !rect.contains((x, y).into()) {
             return None;
         }
-        owners
-            .get((y - rect.y) as usize)?
-            .row
-            .session_id()
-            .map(str::to_string)
+        owners.get((y - rect.y) as usize)?.target.session_id()
     }
 
     /// Deliver a drag or release to the harness that took the matching press.
@@ -536,8 +532,7 @@ impl App {
                     // separator — because `agent_index` indexes all of them.
                     let rel = (y - rect.y) as usize;
                     if let Some(hit) = owners.get(rel) {
-                        let row = &hit.row;
-                        if row.selectable() {
+                        if hit.selectable() {
                             self.agent_scroll = 0;
                             self.chat_scroll = 0;
                             self.set_rendered_rail_cursor(hit);
@@ -555,14 +550,16 @@ impl App {
                             // no task, so a click arriving from one that did has
                             // to stop that stream — and neither open method
                             // clears `watching` on its own.
-                            if row.is_new_agent() {
+                            if matches!(&hit.target, super::super::types::RailHitTarget::NewAgent) {
                                 self.open_new_agent_picker();
                                 return self.retarget_watch();
                             }
                             // Same rule for the per-agent action: a click on
                             // `+ new session` opens the flow it names.
-                            if let Some(agent_id) = row.new_session_agent().map(str::to_string) {
-                                self.open_new_session(&agent_id);
+                            if let super::super::types::RailHitTarget::NewSession(agent_id) =
+                                &hit.target
+                            {
+                                self.open_new_session(agent_id);
                                 return self.retarget_watch();
                             }
                             // So is a lane's `+N more`: the click that lands on
@@ -574,10 +571,12 @@ impl App {
                             // from one has to stop that stream. The keyboard
                             // path is already covered — the arrow that reaches
                             // this row retargets on the way.
-                            if self.page_subtasks() {
+                            if matches!(&hit.target, super::super::types::RailHitTarget::Overflow)
+                                && self.page_subtasks()
+                            {
                                 return self.retarget_watch();
                             }
-                            if let Some(session) = row.session_id() {
+                            if let Some(session) = hit.target.session_id() {
                                 // Clicking the row of the harness the keyboard
                                 // is already in is not a handover request. It
                                 // used to raise "you still have this harness"

@@ -176,11 +176,11 @@ impl App {
                 now,
             ) {
                 lines.push(line);
-                owners.push(RailHit {
-                    row: row.clone(),
-                    anchor: super::super::super::rail::rail_anchor(row, &selection.lanes),
+                owners.push(RailHit::from_row(
+                    row,
+                    super::super::super::rail::rail_anchor(row, &selection.lanes),
                     index,
-                });
+                ));
             }
             if index == selection.active {
                 active_line_end = lines.len();

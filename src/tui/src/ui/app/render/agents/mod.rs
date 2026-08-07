@@ -84,7 +84,7 @@ impl App {
     /// Resolve what the rail cursor is on, clamping it to the rows that exist.
     fn agents_selection(&mut self) -> Selection {
         let lanes = self.lanes();
-        let rows = self.rail_rows();
+        let rows = self.rail_rows_in(&lanes);
         let active = self.rail_cursor_in(&rows, &lanes);
         self.set_rail_cursor_in(&rows, &lanes, active);
         // No fallback: a row with no lane keeps `None`, and the pane renders
