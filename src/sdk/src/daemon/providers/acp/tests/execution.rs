@@ -220,3 +220,38 @@ fn agent_env_strips_inherited_fleet_capabilities() {
     assert!(!env.contains_key(crate::control_socket::MCP_SOCKET_ENV));
     assert!(!env.contains_key(crate::control_socket::MCP_GRANT_ENV));
 }
+
+#[test]
+fn agent_env_strips_the_embedded_core_workspace() {
+    let mut options = attribution_options(false);
+    options.env.insert(
+        "OPENHUMAN_WORKSPACE".to_string(),
+        "/live-core-workspace".to_string(),
+    );
+
+    let env = super::super::execution::acp_env(&options);
+
+    assert!(!env.contains_key("OPENHUMAN_WORKSPACE"));
+}
+
+/// ACP's client library overlays configured values on an inherited process
+/// environment, so the final command must remove the workspace as well as its
+/// configured map omitting it.
+#[cfg(unix)]
+#[test]
+fn agent_command_removes_the_embedded_core_workspace() {
+    let agent = super::super::execution::agent_for(&attribution_options(false));
+    let config = agent.config();
+
+    assert_eq!(config.command().to_string_lossy(), "env");
+    assert_eq!(
+        config.arguments(),
+        [
+            "-u",
+            "OPENHUMAN_WORKSPACE",
+            "npx",
+            "-y",
+            "@agentclientprotocol/claude-agent-acp@latest"
+        ]
+    );
+}
