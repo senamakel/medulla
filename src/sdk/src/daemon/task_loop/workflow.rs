@@ -65,7 +65,10 @@ impl RuntimeDispatch {
     fn resolve(
         &self,
         request: &TaskRequest,
-    ) -> (crate::protocol::HarnessProvider, crate::protocol::HarnessTransport) {
+    ) -> (
+        crate::protocol::HarnessProvider,
+        crate::protocol::HarnessTransport,
+    ) {
         let inner = &self.runtime.inner;
         // A node may name a provider through its `agent_ref`; anything this
         // worker does not offer falls back to the default rather than failing.

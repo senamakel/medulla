@@ -203,8 +203,7 @@ async fn the_registry_records_the_harness_the_dispatch_substituted() {
     let root = std::env::temp_dir().join("medulla-agent-tests");
     let mut settings = CapabilitySettings::rooted_at(&root);
     settings.default_worker_address = "worker".to_string();
-    let runner =
-        HarnessAgentRunner::new(dispatch.clone(), Arc::new(settings), "run-substituted");
+    let runner = HarnessAgentRunner::new(dispatch.clone(), Arc::new(settings), "run-substituted");
 
     runner
         .run_agent(
