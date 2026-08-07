@@ -7,3 +7,6 @@
 mod close;
 mod handoff;
 mod picker;
+
+#[cfg(test)]
+pub(in crate::ui::app) use picker::is_text_input;

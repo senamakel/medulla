@@ -1,6 +1,8 @@
 //! Focused unit tests for the [`App`] screen: that every tab renders, the async
 //! header toggle shows, and the composer/slash-command dispatch behaves.
 
+mod harness_pane;
+
 use super::*;
 use std::sync::Arc;
 

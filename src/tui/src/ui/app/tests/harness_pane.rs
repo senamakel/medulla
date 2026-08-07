@@ -5,7 +5,7 @@ use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 use std::sync::Arc;
 
-use super::types::{tab_pos, App, PaneView};
+use super::super::types::{tab_pos, App, PaneView};
 
 /// Build the standard app fixture with the harness pane available.
 fn app() -> App {
