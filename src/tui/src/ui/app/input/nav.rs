@@ -22,6 +22,7 @@ pub(in crate::ui::app) const SUBTASK_PAGE: usize = 10;
 impl App {
     /// The current Agents-list rows, each lane paged to whatever the operator
     /// has expanded it to.
+    #[cfg(test)]
     pub(in crate::ui::app) fn agent_rows(&self) -> Vec<AgentRow> {
         let lanes = self.lanes();
         self.agent_rows_in(&lanes)
@@ -137,7 +138,7 @@ impl App {
     /// that pages its lane open.
     pub(in crate::ui::app) fn move_agent_index(&mut self, up: bool) {
         let lanes = self.lanes();
-        let rows = self.rail_rows();
+        let rows = self.rail_rows_in(&lanes);
         if rows.is_empty() {
             return;
         }
@@ -253,17 +254,26 @@ impl App {
 
     /// The `(worker address, task id)` the current selection asks to watch.
     pub(in crate::ui::app) fn watch_target(&self) -> Option<(String, String)> {
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        self.watch_target_in(&rows, &lanes)
+    }
+
+    /// Resolve a watch target from one coherent rail and lane snapshot.
+    fn watch_target_in(
+        &self,
+        rows: &[RailRow],
+        lanes: &[crate::ui::agents::AgentLane],
+    ) -> Option<(String, String)> {
         // Only on the Agents tab: leaving it releases the subscription.
         if self.tab() != "Agents" {
             return None;
         }
-        let rows = self.rail_rows();
-        let row = rows.get(self.rail_cursor_in(&rows, &self.lanes()))?;
+        let row = rows.get(self.rail_cursor_in(rows, lanes))?;
         let RailRow::Session(session) = row else {
             return None;
         };
         let task = session.task.as_ref()?;
-        let lanes = self.lanes();
         let lane = lanes.get(session.lane_index?)?;
         // `Agent` is main's name for a roster agent / delegated task / peer
         // session — the tiers above it (orchestrator, reasoning, compress) run
@@ -287,11 +297,12 @@ impl App {
 
     /// The selected running task eligible for destructive termination.
     pub(in crate::ui::app) fn kill_target(&self) -> Option<(String, String)> {
-        let rows = self.rail_rows();
-        let row = rows.get(self.rail_cursor_in(&rows, &self.lanes()))?;
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        let row = rows.get(self.rail_cursor_in(&rows, &lanes))?;
         let task = row.task()?;
         (task.status == TaskStatus::Running)
-            .then(|| self.watch_target())
+            .then(|| self.watch_target_in(&rows, &lanes))
             .flatten()
     }
 }

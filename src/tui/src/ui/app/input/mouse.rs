@@ -595,7 +595,7 @@ impl App {
                                 // used to raise "you still have this harness"
                                 // over the pane the operator was mid-sentence
                                 // in, whose only useful answer was Esc.
-                                if self.harness_focus.is_attached_to(session) {
+                                if self.harness_focus.is_attached_to(&session) {
                                     self.pane_session = Some(session.to_string());
                                     return None;
                                 }

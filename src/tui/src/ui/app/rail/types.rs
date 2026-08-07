@@ -32,7 +32,12 @@ pub enum RailAnchor {
     /// A local session, keyed by PTY id.
     Session(String),
     /// A dispatched task without a local PTY row, keyed by its lane and task.
-    Task { lane: String, task_id: String },
+    Task {
+        /// Stable key of the lane that owns this task.
+        lane: String,
+        /// Backend task id within [`Self::Task::lane`].
+        task_id: String,
+    },
     /// An action that opens another session for an agent.
     NewSession(String),
     /// A workflow run, keyed by its run id.
