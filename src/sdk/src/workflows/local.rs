@@ -30,6 +30,11 @@ async fn nested_harness_env(
     let mut nested = env.clone();
     nested.remove(crate::control_socket::MCP_PARENT_SOCKET_ENV);
     nested.remove(crate::control_socket::MCP_PARENT_GRANT_ENV);
+    // A reporting grant is scoped to the harness whose environment carried it.
+    // This embedded host launches its own children, so keeping the inherited
+    // token would attribute their lifecycle reports to the MCP parent.
+    nested.remove(crate::control_socket::HOOK_SOCKET_ENV);
+    nested.remove(crate::control_socket::HOOK_GRANT_ENV);
     let Some((socket, token)) = crate::control_socket::grant_from_env(env) else {
         return Ok((nested, 0));
     };
