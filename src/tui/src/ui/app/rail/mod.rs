@@ -48,8 +48,6 @@ pub(in crate::ui::app) mod resolve;
 // the served-dispatch merge are separate responsibilities, and one file for
 // both had already grown past this repository's line ceiling.
 #[cfg(test)]
-mod cursor_tests;
-#[cfg(test)]
 mod merge_tests;
 #[cfg(test)]
 pub(in crate::ui::app) mod tests;
@@ -164,7 +162,7 @@ impl App {
     fn split_fold(&self, lanes: &[AgentLane]) -> (Vec<AgentRow>, Vec<AgentGroup>) {
         let mut lane_rows: Vec<AgentRow> = Vec::new();
         let mut groups: Vec<AgentGroup> = Vec::new();
-        for row in self.agent_rows() {
+        for row in self.agent_rows_in(lanes) {
             match row {
                 AgentRow::Lane { lane_index } => {
                     let Some(lane) = lanes.get(lane_index) else {

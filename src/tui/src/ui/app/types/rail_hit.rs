@@ -6,7 +6,7 @@
 /// sessions can retain their transcript, and a per-line hit map must not clone
 /// that transcript for every wrapped or off-screen row.
 #[derive(Clone)]
-pub(super) enum RailHitTarget {
+pub(in crate::ui::app) enum RailHitTarget {
     /// A non-selectable label or host row.
     Inert,
     /// A selectable row with no direct pointer action.
@@ -23,7 +23,7 @@ pub(super) enum RailHitTarget {
 
 impl RailHitTarget {
     /// The local harness session this target names, if it names one.
-    pub(super) fn session_id(&self) -> Option<String> {
+    pub(in crate::ui::app) fn session_id(&self) -> Option<String> {
         match self {
             Self::Session(session) => Some(session.clone()),
             _ => None,
@@ -37,21 +37,21 @@ impl RailHitTarget {
 /// hit map therefore retains the row and its anchor from that frame instead of
 /// treating a rendered offset as an offset into a new rail projection.
 #[derive(Clone)]
-pub(super) struct RailHit {
+pub(in crate::ui::app) struct RailHit {
     /// The compact action selected by this drawn line.
-    pub(super) target: RailHitTarget,
+    pub(in crate::ui::app) target: RailHitTarget,
     /// Test-only copy of the row so focused interaction tests can name it.
     #[cfg(test)]
     pub(super) row: super::super::rail::RailRow,
     /// The durable cursor identity resolved while the row was rendered.
-    pub(super) anchor: Option<super::super::rail::RailAnchor>,
+    pub(in crate::ui::app) anchor: Option<super::super::rail::RailAnchor>,
     /// The row's rendered offset, retained only as a fallback if it has no anchor.
-    pub(super) index: usize,
+    pub(in crate::ui::app) index: usize,
 }
 
 impl RailHit {
     /// Capture just the data pointer routing needs from a rendered rail row.
-    pub(super) fn from_row(
+    pub(in crate::ui::app) fn from_row(
         row: &super::super::rail::RailRow,
         anchor: Option<super::super::rail::RailAnchor>,
         index: usize,
@@ -81,7 +81,7 @@ impl RailHit {
     }
 
     /// Whether the current rail projection still contains this rendered row.
-    pub(super) fn exists_in(
+    pub(in crate::ui::app) fn exists_in(
         &self,
         rows: &[super::super::rail::RailRow],
         lanes: &[crate::ui::agents::AgentLane],
@@ -93,7 +93,7 @@ impl RailHit {
     }
 
     /// Whether the cursor may land on this target.
-    pub(super) fn selectable(&self) -> bool {
+    pub(in crate::ui::app) fn selectable(&self) -> bool {
         !matches!(&self.target, RailHitTarget::Inert)
     }
 }
