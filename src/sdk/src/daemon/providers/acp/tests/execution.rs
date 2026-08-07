@@ -183,7 +183,7 @@ fn attribution_options(attribution: bool) -> RunTaskOptions {
 #[cfg(unix)]
 #[test]
 fn agent_env_carries_attribution() {
-    let env = super::super::execution::acp_env(&attribution_options(true));
+    let env = super::super::execution::acp_env(&attribution_options(true)).unwrap();
     assert!(
         env.contains_key("MEDULLA_ATTRIBUTION"),
         "ACP agent env must carry the attribution trailer"
@@ -198,7 +198,7 @@ fn agent_env_carries_attribution() {
 /// Turning attribution off leaves the ACP env untouched.
 #[test]
 fn agent_env_omits_attribution_when_off() {
-    let env = super::super::execution::acp_env(&attribution_options(false));
+    let env = super::super::execution::acp_env(&attribution_options(false)).unwrap();
     assert!(!env.contains_key("MEDULLA_ATTRIBUTION"));
     assert!(!env.contains_key("GIT_CONFIG_KEY_0"));
 }
@@ -215,7 +215,7 @@ fn agent_env_strips_inherited_fleet_capabilities() {
         "another-session-token".to_string(),
     );
 
-    let env = super::super::execution::acp_env(&options);
+    let env = super::super::execution::acp_env(&options).unwrap();
 
     assert!(!env.contains_key(crate::control_socket::MCP_SOCKET_ENV));
     assert!(!env.contains_key(crate::control_socket::MCP_GRANT_ENV));
@@ -229,7 +229,7 @@ fn agent_env_strips_the_embedded_core_workspace() {
         "/live-core-workspace".to_string(),
     );
 
-    let env = super::super::execution::acp_env(&options);
+    let env = super::super::execution::acp_env(&options).unwrap();
 
     assert!(!env.contains_key("OPENHUMAN_WORKSPACE"));
 }
@@ -321,7 +321,7 @@ fn codex_acp_command_carries_the_routed_model_and_overrides() {
     let expected = crate::codex_overrides::launch_args(
         HarnessProvider::Codex,
         options.model.as_deref(),
-        &super::super::execution::acp_env(&options),
+        &super::super::execution::acp_env(&options).unwrap(),
     )
     .unwrap_or_default();
     for argument in &expected {
@@ -393,6 +393,26 @@ fn routed_codex_acp_rejects_missing_override_catalog() {
     let error = super::super::execution::agent_for(&options).unwrap_err();
 
     assert!(error.contains("models_cache.json"), "{error}");
+}
+
+/// ACP must reject a routed provider whose configured key source is absent,
+/// before its provider overrides can select that endpoint.
+#[test]
+fn routed_acp_rejects_missing_router_api_key() {
+    let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Codex;
+    options.router = Some(crate::config::RouterConfig {
+        base_url: Some("https://gateway.example/v1".to_string()),
+        api_key_env: Some("MISSING_ROUTER_KEY".to_string()),
+        ..Default::default()
+    });
+
+    let error = super::super::execution::agent_for(&options).unwrap_err();
+
+    assert_eq!(
+        error,
+        "router API key env var `MISSING_ROUTER_KEY` is not set; export it or remove apiKeyEnv from [router]"
+    );
 }
 
 /// Windows command wrapping must preserve the TOML quotes in Codex's `-c`

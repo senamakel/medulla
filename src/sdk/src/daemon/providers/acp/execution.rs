@@ -299,7 +299,7 @@ pub(super) fn agent_for(options: &RunTaskOptions) -> Result<AcpAgent, String> {
     // Built once and shared: the model flags below are derived from the same
     // map the child receives, and `router_env` writing `OPENAI_BASE_URL` into it
     // is what tells `codex_overrides` the run is routed at all.
-    let env = acp_env(options);
+    let env = acp_env(options)?;
     let config = match options.provider {
         HarnessProvider::Claude => {
             AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/claude-agent-acp@latest"])
@@ -379,11 +379,11 @@ fn codex_acp_args(
 /// and for OpenRouter that endpoint is the local attribution proxy, which an
 /// unrouted ACP agent would walk straight past.
 ///
-/// A configured `apiKeyEnv` whose variable is unset is *not* fatal here, unlike
-/// the direct spawn seam: the ACP server may hold its own credentials, and this
-/// path has no error frame to surface a refusal through. The endpoint is applied
-/// and the key left to the agent.
-pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
+/// A configured `apiKeyEnv` whose variable is unset is a hard error, matching
+/// direct execution. Continuing would start Codex with routed-provider
+/// overrides but no routed credential, allowing an unrelated inherited key to
+/// be sent to the configured gateway.
+pub(super) fn acp_env(options: &RunTaskOptions) -> Result<HashMap<String, String>, String> {
     let mut env = options.env.clone();
     crate::protocol::env::scrub_core_state(&mut env, options.provider);
     // A fleet capability belongs only to the per-session MCP subprocess. The
@@ -401,12 +401,20 @@ pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
             env.insert(key, value);
         }
         for (child_var, source_name) in injection.secret_env {
-            if let Some(secret) = options.env.get(&source_name).filter(|v| !v.is_empty()) {
-                env.insert(child_var, secret.clone());
-            }
+            let secret = options
+                .env
+                .get(&source_name)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    format!(
+                        "router API key env var `{source_name}` is not set; \
+                         export it or remove apiKeyEnv from [router]"
+                    )
+                })?;
+            env.insert(child_var, secret.clone());
         }
     }
-    env
+    Ok(env)
 }
 
 /// Adds a Unix `env -u` shim around an ACP command.
