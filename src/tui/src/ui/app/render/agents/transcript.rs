@@ -49,6 +49,12 @@ impl App {
             }
             return;
         }
+        // A run supersedes both. The cursor is on the run, not on the session
+        // that started it, and the session's terminal is one row up.
+        if let Some(run) = selection.workflow_run.clone() {
+            self.draw_agents_workflow_run(f, area, &run);
+            return;
+        }
         if let Some(screen) = self.selected_screen(selection) {
             self.draw_worker_screen(f, area, &screen);
             return;

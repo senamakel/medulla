@@ -98,11 +98,13 @@ fn request<'a>(
     env: &'a std::collections::HashMap<String, String>,
     cwd: &'a std::path::Path,
     id: &'a str,
+    launch: &'a medulla::harness_hooks::LaunchPolicy,
 ) -> LocalRun<'a> {
     LocalRun {
         store: store.clone(),
         config,
         custom_harnesses: &[],
+        launch,
         env,
         cwd,
         workflow_id: id,
@@ -134,10 +136,11 @@ async fn a_run_answers_with_its_id_before_it_finishes_and_finishes_anyway() {
     let (root, store) = store();
     save_a_runnable_workflow(&store, "compute");
     let config = medulla::config::WorkflowsConfig::default();
+    let launch = medulla::harness_hooks::LaunchPolicy::default();
     let env = env_with_only_claude();
 
     let answer = ops::run(
-        request(&store, &config, &env, root.path(), "compute"),
+        request(&store, &config, &env, root.path(), "compute", &launch),
         Wait::No,
     )
     .await
@@ -166,10 +169,11 @@ async fn waiting_is_still_available_and_answers_with_the_whole_record() {
     let (root, store) = store();
     save_a_runnable_workflow(&store, "compute");
     let config = medulla::config::WorkflowsConfig::default();
+    let launch = medulla::harness_hooks::LaunchPolicy::default();
     let env = env_with_only_claude();
 
     let answer = ops::run(
-        request(&store, &config, &env, root.path(), "compute"),
+        request(&store, &config, &env, root.path(), "compute", &launch),
         Wait::Forever,
     )
     .await
@@ -187,12 +191,13 @@ async fn a_wait_budget_that_expires_hands_back_the_run_rather_than_an_error() {
     let (root, store) = store();
     save_a_runnable_workflow(&store, "compute");
     let config = medulla::config::WorkflowsConfig::default();
+    let launch = medulla::harness_hooks::LaunchPolicy::default();
     let env = env_with_only_claude();
 
     // A budget no run can beat. The point is the *shape* of what comes back
     // when it expires: a run to follow, not a failure to report.
     let answer = ops::run(
-        request(&store, &config, &env, root.path(), "compute"),
+        request(&store, &config, &env, root.path(), "compute", &launch),
         Wait::Until(Duration::from_nanos(1)),
     )
     .await
@@ -216,10 +221,11 @@ async fn a_run_rejected_for_bad_inputs_is_never_admitted() {
     let (root, store) = store();
     save_a_workflow_requiring_an_input(&store, "needs-input");
     let config = medulla::config::WorkflowsConfig::default();
+    let launch = medulla::harness_hooks::LaunchPolicy::default();
     let env = env_with_only_claude();
 
     let error = ops::run(
-        request(&store, &config, &env, root.path(), "needs-input"),
+        request(&store, &config, &env, root.path(), "needs-input", &launch),
         Wait::No,
     )
     .await
@@ -242,10 +248,11 @@ async fn a_disabled_workflow_is_refused_synchronously_rather_than_admitted() {
     record.enabled = false;
     store.save(&record).expect("disables the workflow");
     let config = medulla::config::WorkflowsConfig::default();
+    let launch = medulla::harness_hooks::LaunchPolicy::default();
     let env = env_with_only_claude();
 
     let err = ops::run(
-        request(&store, &config, &env, root.path(), "compute"),
+        request(&store, &config, &env, root.path(), "compute", &launch),
         Wait::No,
     )
     .await

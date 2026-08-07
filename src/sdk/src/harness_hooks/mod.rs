@@ -67,7 +67,9 @@ mod tests;
 
 pub use grant::{seed_hook_grant, HookGrantGuard};
 pub use report::{HookEventLog, HookReport};
-pub use types::{DroppedHook, HookEvent, HookHandler, HookInjection, HookSpec, HooksConfig};
+pub use types::{
+    DroppedHook, HookEvent, HookHandler, HookInjection, HookSpec, HooksConfig, LaunchPolicy,
+};
 
 /// Build the per-spawn injection that installs `hooks` into `provider`.
 ///

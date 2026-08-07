@@ -67,6 +67,7 @@ impl App {
             contexts: Vec::new(),
             context_index: 0,
             agent_index: 0,
+            agent_anchor: None,
             subtask_pages: std::collections::HashMap::new(),
             watching: None,
             kill_armed: None,
@@ -269,7 +270,7 @@ impl App {
 
     /// Where the Agents rail cursor is. Test/inspection seam.
     pub fn agent_index(&self) -> usize {
-        self.agent_index
+        self.rail_cursor()
     }
 
     /// The current composer draft text. Test/inspection seam.
@@ -388,6 +389,8 @@ impl App {
     /// startup would be permanently empty.
     pub fn set_harness_runs(&mut self, registry: medulla::control_socket::HarnessRunRegistry) {
         self.harness_runs = registry;
+        #[cfg(feature = "workflows")]
+        self.sync_selected_workflow_run();
     }
 
     /// The session the last draw resolved for the rail cursor.
@@ -643,8 +646,8 @@ impl App {
     /// never drawn, and every keystroke went into it.
     pub fn on_orchestrator_lane(&self) -> bool {
         let lanes = self.lanes();
-        let rows = self.rail_rows();
-        match rows.get(self.agent_index.min(rows.len().saturating_sub(1))) {
+        let rows = self.rail_rows_in(&lanes);
+        match rows.get(self.rail_cursor_in(&rows, &lanes)) {
             // Only a lane's *own* row is a conversation. `AgentRow` also wraps
             // the `+N more` overflow control, which carries the lane index of
             // the lane it pages — matching it here would have read that index

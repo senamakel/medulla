@@ -112,7 +112,9 @@ async fn claude_and_codex_still_reach_the_pty_executor() {
 /// mental model, and the files that actually change would all disagree.
 ///
 /// Until the wire carries the selected agent's id, the second declaration is
-/// refused at start-up rather than silently served from the wrong checkout.
+/// dropped at start-up rather than silently served from the wrong checkout —
+/// dropped, not fatal: hosting on this device must not hinge on one roster
+/// entry naming the right directory.
 #[tokio::test]
 async fn two_agents_on_one_host_cannot_claim_two_workspaces() {
     let network = LocalBridgeNetwork::new();
@@ -137,7 +139,7 @@ async fn two_agents_on_one_host_cannot_claim_two_workspaces() {
         "/srv/web"
     };
 
-    let error = crate::local_host::start(
+    let (host, problems) = crate::local_host::start(
         &config,
         &HashMap::new(),
         &network,
@@ -148,14 +150,19 @@ async fn two_agents_on_one_host_cannot_claim_two_workspaces() {
             AgentDeclaration::new("web-claude", "this-device", "claude", elsewhere),
         ],
     )
-    .expect_err("one host cannot run two workspaces");
+    .expect("the host starts on the declaration it can serve")
+    .expect("hosting is on by default");
 
+    let ids: Vec<&str> = host.specs().iter().map(|spec| spec.id.as_str()).collect();
+    assert_eq!(ids, ["api-claude"], "only the agent that runs here");
+
+    let report = problems.join("\n");
     assert!(
-        error.contains("web-claude") && error.contains(elsewhere) && error.contains(&here),
-        "the refusal must name the agent and both directories: {error}"
+        report.contains("web-claude") && report.contains(elsewhere) && report.contains(&here),
+        "the report must name the agent and both directories: {report}"
     );
     assert!(
-        error.contains("[[hosts]]"),
-        "…and the way to actually get a second workspace: {error}"
+        report.contains("[[hosts]]"),
+        "…and the way to actually get a second workspace: {report}"
     );
 }

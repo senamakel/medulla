@@ -84,15 +84,10 @@ fn draw(app: &mut App) {
 /// row offset, so the test exercises the same lookup a real click does.
 fn click_overflow_row(app: &mut App) -> Option<Cmd> {
     draw(app);
-    let overflow = app
-        .rail_rows()
-        .iter()
-        .position(|row| matches!(row, RailRow::Lane(AgentRow::More { .. })))
-        .expect("a lane with hidden sublanes has an overflow row");
     let (rect, owners) = app.hit_agents.clone().expect("the rail was drawn");
     let line = owners
         .iter()
-        .position(|owner| *owner == overflow)
+        .position(|hit| matches!(hit.row, RailRow::Lane(AgentRow::More { .. })))
         .expect("the overflow row is on screen");
     app.handle_click(rect.x, rect.y + line as u16)
 }
@@ -189,15 +184,10 @@ fn clicking_the_overflow_row_stops_a_task_stream_it_left_behind() {
 /// Click the first row `want` accepts, resolved through the rendered hit map.
 fn click_row(app: &mut App, want: impl Fn(&RailRow) -> bool) -> Option<Cmd> {
     draw(app);
-    let index = app
-        .rail_rows()
-        .iter()
-        .position(want)
-        .expect("the rail has the row under test");
     let (rect, owners) = app.hit_agents.clone().expect("the rail was drawn");
     let line = owners
         .iter()
-        .position(|owner| *owner == index)
+        .position(|hit| want(&hit.row))
         .expect("the row is on screen");
     app.handle_click(rect.x, rect.y + line as u16)
 }

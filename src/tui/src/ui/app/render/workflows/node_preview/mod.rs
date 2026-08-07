@@ -34,7 +34,7 @@ mod syntax_tests;
 mod tests;
 
 use kinds::kind_lines;
-use live::live_lines;
+pub(in crate::ui::app::render) use live::live_lines;
 use run_detail::{connection_line, run_header, run_lines};
 use types::AgentDefaults;
 

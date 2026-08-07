@@ -3,11 +3,11 @@
 //! small overlay/state types ([`ResumePicker`], [`Prompt`], [`PromptKind`],
 //! and the central [`App`] struct itself.
 //!
-//! Behaviour lives in the sibling modules ([`super::state`], [`super::input`],
-//! [`super::keys`], [`super::commands`], and [`super::render`]), each of which
+//! Behaviour lives in the sibling modules ([`super::super::state`], [`super::super::input`],
+//! [`super::super::keys`], [`super::super::commands`], and [`super::super::render`]), each of which
 //! adds its own `impl App` block. Because those blocks share `App`'s private
 //! fields, the fields (and the private helper types/consts here) are
-//! `pub(super)` so every sibling submodule can reach them.
+//! `pub(in crate::ui::app)` so every sibling submodule can reach them.
 
 use std::sync::Arc;
 
@@ -18,6 +18,8 @@ use crate::ui::theme::Theme;
 use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery, FeedbackType};
 use medulla::config::LoadedConfig;
 use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
+
+use super::rail_hit::RailHit;
 
 /// The ordered top-level tab names. The tab index selects into this array.
 ///
@@ -91,27 +93,30 @@ pub const ROUTING_SUBPAGES: [&str; 6] = [
     "Strategies",
 ];
 
-pub(super) const RP_HOSTS: usize = 0;
-pub(super) const RP_HARNESSES: usize = 1;
+pub(in crate::ui::app) const RP_HOSTS: usize = 0;
+pub(in crate::ui::app) const RP_HARNESSES: usize = 1;
 // Beside Harness Types on purpose: a hook is a property of every harness
 // Medulla launches, and this page is the one place they are declared for all of
 // them.
-pub(super) const RP_HOOKS: usize = 2;
-pub(super) const RP_TEMPLATES: usize = 3;
-pub(super) const RP_ADD_HOST: usize = 4;
-pub(super) const RP_STRATEGIES: usize = 5;
+pub(in crate::ui::app) const RP_HOOKS: usize = 2;
+pub(in crate::ui::app) const RP_TEMPLATES: usize = 3;
+pub(in crate::ui::app) const RP_ADD_HOST: usize = 4;
+pub(in crate::ui::app) const RP_STRATEGIES: usize = 5;
 // Past the end of `ROUTING_SUBPAGES`, so the nav clamp cannot reach it and its
 // arm is unreachable — the page is off without its code rotting.
-pub(super) const RP_WORKSPACES: usize = 6;
+pub(in crate::ui::app) const RP_WORKSPACES: usize = 6;
 
 /// The TokenMaxxxing tab's sidebar pages.
-pub(super) const TOKENMAXXING_SUBPAGES: [&str; 3] = ["Overview", "Bounties", "Leaderboard"];
+pub(in crate::ui::app) const TOKENMAXXING_SUBPAGES: [&str; 3] =
+    ["Overview", "Bounties", "Leaderboard"];
 
-pub(super) const TM_OVERVIEW: usize = 0;
-pub(super) const TM_BOUNTIES: usize = 1;
-pub(super) const TM_LEADERBOARD: usize = 2;
+pub(in crate::ui::app) const TM_OVERVIEW: usize = 0;
+pub(in crate::ui::app) const TM_BOUNTIES: usize = 1;
+pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
 
-pub(super) use super::routing_options::{ROUTING_STRATEGIES, SUBSCRIPTION_STRATEGIES};
+pub(in crate::ui::app) use super::super::routing_options::{
+    ROUTING_STRATEGIES, SUBSCRIPTION_STRATEGIES,
+};
 
 /// The Settings tab's left-nav subpages, in order (number keys 1-9 jump to them).
 ///
@@ -141,19 +146,19 @@ pub const SETTINGS_GROUPS: [(&str, usize); 3] = [
 ];
 
 // Settings subpage indices.
-pub(super) const SP_USAGE: usize = 0;
-pub(super) const SP_APPEARANCE: usize = 1;
-pub(super) const SP_STATUS_LINE: usize = 2;
-pub(super) const SP_CONFIG: usize = 3;
-pub(super) const SP_FEEDBACK: usize = 4;
-pub(super) const SP_TRACE: usize = 5;
-pub(super) const SP_CONTEXT: usize = 6;
-pub(super) const SP_ACCOUNT: usize = 7;
-pub(super) const SP_HELP: usize = 8;
+pub(in crate::ui::app) const SP_USAGE: usize = 0;
+pub(in crate::ui::app) const SP_APPEARANCE: usize = 1;
+pub(in crate::ui::app) const SP_STATUS_LINE: usize = 2;
+pub(in crate::ui::app) const SP_CONFIG: usize = 3;
+pub(in crate::ui::app) const SP_FEEDBACK: usize = 4;
+pub(in crate::ui::app) const SP_TRACE: usize = 5;
+pub(in crate::ui::app) const SP_CONTEXT: usize = 6;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 7;
+pub(in crate::ui::app) const SP_HELP: usize = 8;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
-pub(super) fn tab_pos(name: &str) -> usize {
+pub(in crate::ui::app) fn tab_pos(name: &str) -> usize {
     TABS.iter().position(|t| *t == name).unwrap_or(0)
 }
 
@@ -248,7 +253,7 @@ pub enum WorkflowView {
 #[derive(Debug, Default)]
 pub struct WorkflowsState {
     /// Which pane has the keyboard.
-    pub(super) focus: WorkflowFocus,
+    pub(in crate::ui::app) focus: WorkflowFocus,
     /// Whether the rail cursor is on the "New workflow" row.
     ///
     /// Its own flag rather than a sentinel value of the catalogue index,
@@ -256,7 +261,7 @@ pub struct WorkflowsState {
     /// to list, and nothing to run. Everything that reads the selection has to
     /// answer "or is it the new one?" and a magic index would let that question
     /// go unasked.
-    pub(super) creating: bool,
+    pub(in crate::ui::app) creating: bool,
     /// The selected workflow's run, when the rail cursor is on one of the run
     /// rows nested under it rather than on the workflow itself.
     ///
@@ -264,20 +269,20 @@ pub struct WorkflowsState {
     /// under a workflow only exist while it is selected, so a flat index would
     /// have to be reinterpreted every time the cursor crossed a workflow
     /// boundary — and gets it wrong the moment a run appears mid-scroll.
-    pub(super) run_index: Option<usize>,
+    pub(in crate::ui::app) run_index: Option<usize>,
     /// The selected workflow's graph, as last read from the store. Cached
     /// because a render pass must not touch the disk, and re-laying it out every
     /// frame would move boxes under the cursor.
-    pub(super) graph: Option<Box<medulla::workflows::WorkflowGraph>>,
+    pub(in crate::ui::app) graph: Option<Box<medulla::workflows::WorkflowGraph>>,
     /// The selected workflow's own choice of harness and model, cached with the
     /// graph and for the same reason. Not part of the graph, so a preview
     /// reading only [`graph`](Self::graph) would report the host's harness for a
     /// workflow that pinned its own.
-    pub(super) defaults: medulla::workflows::WorkflowDefaults,
+    pub(in crate::ui::app) defaults: medulla::workflows::WorkflowDefaults,
     /// The laid-out form of [`graph`](Self::graph).
-    pub(super) layout: medulla::ui::workflows::GraphLayout,
+    pub(in crate::ui::app) layout: medulla::ui::workflows::GraphLayout,
     /// Selected node in the canvas, in the layout's reading order.
-    pub(super) node_index: usize,
+    pub(in crate::ui::app) node_index: usize,
     /// Vertical scroll of the canvas, in rows.
     ///
     /// The only scroll the canvas has: the graph folds onto a new band whenever
@@ -285,25 +290,44 @@ pub struct WorkflowsState {
     /// pane and there is nothing to scroll horizontally. Counted in rows rather
     /// than lanes because a fold puts a band boundary between two lanes, and a
     /// scroll measured in lanes cannot address the gap.
-    pub(super) canvas_row: usize,
+    pub(in crate::ui::app) canvas_row: usize,
     /// Rows inside the graph panel during its most recent render.
     ///
     /// Navigation uses this measured viewport rather than the full terminal
     /// height, because the selected-node preview shares the content column.
-    pub(super) graph_rows: usize,
+    pub(in crate::ui::app) graph_rows: usize,
     /// Top line of the rich selected-step preview.
-    pub(super) preview_scroll: usize,
+    pub(in crate::ui::app) preview_scroll: usize,
     /// Whether the inspector below the canvas is expanded over it.
-    pub(super) inspector_open: bool,
+    pub(in crate::ui::app) inspector_open: bool,
     /// The run being overlaid on the graph, when a run row is selected.
-    pub(super) overlay: Option<medulla::workflows::RunId>,
+    pub(in crate::ui::app) overlay: Option<medulla::workflows::RunId>,
+    /// The Agents-rail run this state was last pointed at, so the mirror is
+    /// re-established only when the rail cursor actually moves.
+    ///
+    /// The Agents tab draws the workflow canvas inline for a selected run, which
+    /// means every frame would otherwise call
+    /// [`select_workflow`](crate::ui::app::App::select_workflow) — and that
+    /// re-reads the run store and re-lays out the graph, both off the disk, at
+    /// the app's full draw rate. Remembering the id turns that into one read per
+    /// cursor move. `None` while the Agents cursor is not on a run, so stepping
+    /// off a run and back onto it re-syncs rather than trusting a stale graph.
+    pub(in crate::ui::app) mirrored_run: Option<String>,
+    /// The newest report included in [`mirrored_run`](Self::mirrored_run).
+    ///
+    /// A live run keeps its identity while its current graph node and durable
+    /// record change. Remembering the report generation lets the mirror avoid
+    /// disk work on ordinary redraws without freezing the canvas at its first
+    /// observed node.
+    pub(in crate::ui::app) mirrored_run_updated_at: Option<i64>,
     /// One copilot thread per workflow, so switching in the rail does not show
     /// the previous workflow's conversation or lose this one's.
-    pub(super) copilots: std::collections::HashMap<String, medulla::ui::workflows::CopilotState>,
+    pub(in crate::ui::app) copilots:
+        std::collections::HashMap<String, medulla::ui::workflows::CopilotState>,
     /// The copilot composer's draft.
-    pub(super) draft: Draft,
+    pub(in crate::ui::app) draft: Draft,
     /// Scroll offset in the copilot transcript, in lines from the bottom.
-    pub(super) copilot_scroll: usize,
+    pub(in crate::ui::app) copilot_scroll: usize,
 }
 
 /// An async action the event loop must run on the app's behalf.
@@ -509,11 +533,11 @@ pub enum Cmd {
 }
 
 /// The modal state for the "resume a chat" picker overlay.
-pub(super) struct ResumePicker {
+pub(in crate::ui::app) struct ResumePicker {
     /// The resumable chats to choose from.
-    pub(super) chats: Vec<crate::ui::chat_store::MainChatSummary>,
+    pub(in crate::ui::app) chats: Vec<crate::ui::chat_store::MainChatSummary>,
     /// The highlighted row.
-    pub(super) index: usize,
+    pub(in crate::ui::app) index: usize,
 }
 
 /// An overlay the app can draw over the content pane.
@@ -523,9 +547,9 @@ pub(super) struct ResumePicker {
 /// released, and finally the two that claim a row of their own below it.
 ///
 /// Produced by [`App::visible_overlays`], which is the single source of truth
-/// for what is in front of the content — see [`super::overlays`].
+/// for what is in front of the content — see [`super::super::overlays`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(super) enum Overlay {
+pub(in crate::ui::app) enum Overlay {
     /// The prepared-decision board.
     Decisions,
     /// The agent-template detail popup.
@@ -548,7 +572,7 @@ pub(super) enum Overlay {
 /// starts a session and declares nothing. Carrying the intent on the picker keeps
 /// one overlay rather than two that would drift apart.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum PickerPurpose {
+pub(in crate::ui::app) enum PickerPurpose {
     /// Start a session here and now, declaring nothing — the `/session` path.
     Spawn,
     /// Declare an agent: `harness × workspace`, named on the step after.
@@ -556,23 +580,23 @@ pub(super) enum PickerPurpose {
 }
 
 /// The modal state for the harness-type/workspace picker overlay.
-pub(super) struct AgentPicker {
+pub(in crate::ui::app) struct AgentPicker {
     /// What confirming the last step will do.
-    pub(super) purpose: PickerPurpose,
+    pub(in crate::ui::app) purpose: PickerPurpose,
     /// Installed providers and registered presets, in offer order.
-    pub(super) choices: Vec<crate::ui::harness_pane::HarnessChoice>,
+    pub(in crate::ui::app) choices: Vec<crate::ui::harness_pane::HarnessChoice>,
     /// The highlighted row.
-    pub(super) index: usize,
+    pub(in crate::ui::app) index: usize,
     /// Which half of the two-step picker owns the keyboard.
-    pub(super) step: AgentPickerStep,
+    pub(in crate::ui::app) step: AgentPickerStep,
     /// Default directory used to seed the editable workspace query.
-    pub(super) cwd: String,
+    pub(in crate::ui::app) cwd: String,
     /// Inline fuzzy-completion text on the workspace step.
-    pub(super) workspace_query: String,
+    pub(in crate::ui::app) workspace_query: String,
     /// Cached workspace rows, refreshed only when the query changes.
-    pub(super) workspace_choices: Vec<WorkspaceChoice>,
+    pub(in crate::ui::app) workspace_choices: Vec<WorkspaceChoice>,
     /// Highlighted workspace completion.
-    pub(super) workspace_index: usize,
+    pub(in crate::ui::app) workspace_index: usize,
     /// Whether the operator has deliberately picked one of the completions.
     ///
     /// Distinct from `workspace_index != 0`, which cannot express it: a query
@@ -581,7 +605,7 @@ pub(super) struct AgentPicker {
     /// query changes, and read by
     /// [`selected_picker_workspace`](App::selected_picker_workspace) to decide
     /// whether an entered directory outranks the completions listed under it.
-    pub(super) workspace_picked: bool,
+    pub(in crate::ui::app) workspace_picked: bool,
 }
 
 /// Active stage of the manual session launcher.
@@ -593,7 +617,7 @@ pub(super) struct AgentPicker {
 /// bought a keystroke, an extra screen, and a freshly started session the
 /// operator then had to take back from the orchestrator before typing into it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum AgentPickerStep {
+pub(in crate::ui::app) enum AgentPickerStep {
     /// Choose an installed CLI or registered preset.
     Harness,
     /// Choose or complete the working directory.
@@ -602,11 +626,11 @@ pub(super) enum AgentPickerStep {
 
 /// One cached workspace completion and why it was suggested.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct WorkspaceChoice {
+pub(in crate::ui::app) struct WorkspaceChoice {
     /// Absolute directory path.
-    pub(super) path: String,
+    pub(in crate::ui::app) path: String,
     /// Short operator-facing provenance such as `recent` or `folder`.
-    pub(super) source: &'static str,
+    pub(in crate::ui::app) source: &'static str,
 }
 
 /// A pointer gesture a harness owns until the button comes back up.
@@ -620,11 +644,11 @@ pub(super) struct WorkspaceChoice {
 /// motion as a drag and anchor their popups to a press the operator has long
 /// since let go of.
 #[derive(Clone)]
-pub(super) struct PointerGrab {
+pub(in crate::ui::app) struct PointerGrab {
     /// The session that received the press.
-    pub(super) session: String,
+    pub(in crate::ui::app) session: String,
     /// The button that went down, so a second button's events are not stolen.
-    pub(super) button: crate::ui::harness_pane::mouse::Button,
+    pub(in crate::ui::app) button: crate::ui::harness_pane::mouse::Button,
     /// Where that session's pane was when the press landed.
     ///
     /// Carried rather than re-read from `hit_session` because the grab has to
@@ -632,7 +656,7 @@ pub(super) struct PointerGrab {
     /// or scrolled the rail can move or remove the rect before the release
     /// arrives, and the release still has to be encoded against the geometry
     /// the child believes it has.
-    pub(super) rect: Rect,
+    pub(in crate::ui::app) rect: Rect,
 }
 
 /// The "you still hold this session" confirmation shown on release.
@@ -642,31 +666,31 @@ pub(super) struct PointerGrab {
 /// of it, and the moment they release the keyboard is the only moment they are
 /// certainly thinking about it. Silently handing it back would be worse — it
 /// would resume dispatch into a session mid-thought.
-pub(super) struct HandbackPrompt {
+pub(in crate::ui::app) struct HandbackPrompt {
     /// The session the question is about.
     ///
     /// Every answer acts on this, never on whatever the rail last resolved: the
     /// question can outlive the frame that raised it, and a `y` that moved
     /// control of a *different* session is the worst outcome this whole flow
     /// has.
-    pub(super) session: String,
+    pub(in crate::ui::app) session: String,
     /// Whether attaching is what took control, as opposed to an explicit
     /// `/takecontrol`. An explicit take is a decision, so the prompt says so
     /// rather than implying the operator got here by accident.
-    pub(super) took_control: bool,
+    pub(in crate::ui::app) took_control: bool,
     /// What the operator wants continued, typed into the prompt.
     ///
     /// This is the moment they actually have the context — they are leaving the
     /// session *now* — so it is the one place worth asking. `/handoff <note>`
     /// exists for the operator who already knows; this is for the one who is
     /// only reminded by being asked.
-    pub(super) note: crate::ui::composer::Draft,
+    pub(in crate::ui::app) note: crate::ui::composer::Draft,
     /// Whether keystrokes are going into the note rather than answering.
     ///
     /// Modal because `y`/`n` have to keep meaning yes and no: an operator who
     /// starts typing a note that begins with "no, ..." must not have the first
     /// letter answer the question for them.
-    pub(super) editing_note: bool,
+    pub(in crate::ui::app) editing_note: bool,
     /// Which direction the question is about: `true` asks whether to take the
     /// session from the orchestrator, `false` whether to hand it back.
     ///
@@ -674,7 +698,7 @@ pub(super) struct HandbackPrompt {
     /// side, and the answer is the same keystroke — but the sentence has to say
     /// which way control is about to move, or the operator confirms the
     /// opposite of what they meant.
-    pub(super) is_takeover: bool,
+    pub(in crate::ui::app) is_takeover: bool,
 }
 
 /// How the operator came to hold a session the orchestrator had.
@@ -684,7 +708,7 @@ pub(super) struct HandbackPrompt {
 /// is "started it myself": that session was never taken from anyone, so it is
 /// absent from [`App::sessions_taken`] rather than being a third variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum TakeOrigin {
+pub(in crate::ui::app) enum TakeOrigin {
     /// Focusing in took it, which the operator may not have realised.
     Focus,
     /// `/takecontrol`, `Ctrl-G`, or answering the takeover question — a decision.
@@ -717,7 +741,7 @@ impl HandbackPolicy {
 }
 
 /// The action a small inline prompt (Hosts add/edit, Agents answer) submits.
-pub(super) enum PromptKind {
+pub(in crate::ui::app) enum PromptKind {
     /// Select an arbitrary Git revision as the Changes comparison baseline.
     ChangesBaseline,
     /// Attach a session-local review comment to a file, hunk, or patch line.
@@ -825,26 +849,26 @@ pub(super) enum PromptKind {
 
 /// The Feedback surface's state: the loaded page, the selected row, that row's
 /// comments, and the active query.
-pub(super) struct FeedbackState {
+pub(in crate::ui::app) struct FeedbackState {
     /// The current page of board items.
-    pub(super) items: Vec<FeedbackItem>,
+    pub(in crate::ui::app) items: Vec<FeedbackItem>,
     /// Total items matching the query across all pages.
-    pub(super) total: i64,
+    pub(in crate::ui::app) total: i64,
     /// The highlighted row.
-    pub(super) index: usize,
+    pub(in crate::ui::app) index: usize,
     /// Comments for [`FeedbackState::detail_id`], loaded lazily on selection.
-    pub(super) comments: Vec<FeedbackComment>,
+    pub(in crate::ui::app) comments: Vec<FeedbackComment>,
     /// Which item [`FeedbackState::comments`] belongs to.
-    pub(super) detail_id: Option<String>,
+    pub(in crate::ui::app) detail_id: Option<String>,
     /// Scroll offset within the detail pane.
-    pub(super) detail_scroll: usize,
+    pub(in crate::ui::app) detail_scroll: usize,
     /// The active filter/sort/pagination.
-    pub(super) query: FeedbackQuery,
+    pub(in crate::ui::app) query: FeedbackQuery,
     /// Whether the runtime serves a board at all. `false` renders a sign-in
     /// hint instead of an empty list.
-    pub(super) supported: bool,
+    pub(in crate::ui::app) supported: bool,
     /// Whether a board load is in flight (drives the header's "loading…").
-    pub(super) loading: bool,
+    pub(in crate::ui::app) loading: bool,
 }
 
 impl Default for FeedbackState {
@@ -864,16 +888,16 @@ impl Default for FeedbackState {
 }
 
 /// A single-line inline input overlay shared with daemon controls.
-pub(super) type Prompt = TextPrompt<PromptKind>;
+pub(in crate::ui::app) type Prompt = TextPrompt<PromptKind>;
 
 /// Cached credential-presence flags displayed by Routing's Manage Keys pane.
 #[derive(Default)]
-pub(super) struct CredentialStatus {
-    pub(super) claude_subscription: bool,
-    pub(super) codex_subscription: bool,
-    pub(super) anthropic_api_key: bool,
-    pub(super) openai_api_key: bool,
-    pub(super) openrouter_api_key: bool,
+pub(in crate::ui::app) struct CredentialStatus {
+    pub(in crate::ui::app) claude_subscription: bool,
+    pub(in crate::ui::app) codex_subscription: bool,
+    pub(in crate::ui::app) anthropic_api_key: bool,
+    pub(in crate::ui::app) openai_api_key: bool,
+    pub(in crate::ui::app) openrouter_api_key: bool,
 }
 
 /// The interactive TUI screen: all tab state, input focus, and render geometry.
@@ -887,22 +911,24 @@ pub struct App {
     /// The active top-level tab index (into [`TABS`]).
     pub tab_index: usize,
     /// Git changes from the selected session or operator-chosen commit.
-    pub(super) changes: super::changes::GitChangesState,
-    pub(super) draft: Draft,
-    pub(super) history: Vec<String>,
-    pub(super) history_index: i64,
-    pub(super) selected: usize,
+    pub(in crate::ui::app) changes: super::super::changes::GitChangesState,
+    pub(in crate::ui::app) draft: Draft,
+    pub(in crate::ui::app) history: Vec<String>,
+    pub(in crate::ui::app) history_index: i64,
+    pub(in crate::ui::app) selected: usize,
     /// The Overview tab's animated workflow graph. Held on the app because its
     /// simulation has to survive between frames; it is advanced by the draw
     /// path, which is the only thing that looks at it.
-    pub(super) graph: super::render::graph::Graph,
-    pub(super) status: String,
+    pub(in crate::ui::app) graph: super::super::render::graph::Graph,
+    pub(in crate::ui::app) status: String,
     /// A persistent "update vX.Y.Z available" banner, set by the background
     /// update checker; shown in the header until the app exits.
-    pub(super) update_notice: Option<String>,
-    pub(super) contexts: Vec<ContextItem>,
-    pub(super) context_index: usize,
-    pub(super) agent_index: usize,
+    pub(in crate::ui::app) update_notice: Option<String>,
+    pub(in crate::ui::app) contexts: Vec<ContextItem>,
+    pub(in crate::ui::app) context_index: usize,
+    pub(in crate::ui::app) agent_index: usize,
+    /// Which selectable rail row remains selected while the live rail is rebuilt.
+    pub(in crate::ui::app) agent_anchor: Option<super::super::rail::RailAnchor>,
     /// Extra pages of sublanes revealed under an agent lane, keyed by lane key.
     ///
     /// Keyed by [`AgentLane::key`](crate::ui::agents::AgentLane::key) rather than
@@ -911,75 +937,75 @@ pub struct App {
     /// expansion tied to a position would silently jump to a different agent.
     /// Absent means the lane shows its first page, which is the default every
     /// lane starts at.
-    pub(super) subtask_pages: std::collections::HashMap<String, usize>,
+    pub(in crate::ui::app) subtask_pages: std::collections::HashMap<String, usize>,
     /// The `(worker address, task id)` whose screen is currently subscribed.
     ///
     /// Held so a selection change can stop the old stream as well as start the
     /// new one: a subscription nobody is looking at costs the worker a sample,
     /// a ratchet advance and a send on every tick.
-    pub(super) watching: Option<(String, String)>,
+    pub(in crate::ui::app) watching: Option<(String, String)>,
     /// The watched `(worker, task)` awaiting destructive-action confirmation.
-    pub(super) kill_armed: Option<(String, String)>,
+    pub(in crate::ui::app) kill_armed: Option<(String, String)>,
     /// Which half of the Agents tab the keyboard is driving.
-    pub(super) agents_focus: AgentsFocus,
-    pub(super) agent_scroll: usize,
-    pub(super) chat_scroll: usize,
+    pub(in crate::ui::app) agents_focus: AgentsFocus,
+    pub(in crate::ui::app) agent_scroll: usize,
+    pub(in crate::ui::app) chat_scroll: usize,
     /// Selected row in the command peek, while it is open.
-    pub(super) command_index: usize,
+    pub(in crate::ui::app) command_index: usize,
     /// Selected row on the Routing Hosts page.
-    pub(super) host_index: usize,
+    pub(in crate::ui::app) host_index: usize,
     /// Whether ↑↓ on the Hosts page drives the role toggles in the preview
     /// rather than the host list above it. Tab moves between the two.
-    pub(super) host_roles_focus: bool,
+    pub(in crate::ui::app) host_roles_focus: bool,
     /// Selected role in the preview's toggle list, while it has focus.
-    pub(super) host_role_index: usize,
+    pub(in crate::ui::app) host_role_index: usize,
     /// Selected row on the Routing Workspaces page.
-    pub(super) workspace_index: usize,
+    pub(in crate::ui::app) workspace_index: usize,
     /// Selected row on the Routing Agent Templates page.
-    pub(super) template_index: usize,
+    pub(in crate::ui::app) template_index: usize,
     /// OpenRouter-backed harness presets loaded from the active config.
-    pub(super) custom_harnesses: Vec<medulla::config::CustomHarnessConfig>,
+    pub(in crate::ui::app) custom_harnesses: Vec<medulla::config::CustomHarnessConfig>,
     /// Selected row on the Routing Harness Types page.
-    pub(super) custom_harness_index: usize,
+    pub(in crate::ui::app) custom_harness_index: usize,
     /// Selected row on the Routing Hooks page.
-    pub(super) hook_index: usize,
+    pub(in crate::ui::app) hook_index: usize,
     /// Lifecycle reports arriving from the harnesses this Medulla launched.
     ///
     /// Written by the control socket's `hook.report` handler and read here; an
     /// app with no control plane bound simply renders an empty log.
-    pub(super) hook_log: medulla::harness_hooks::HookEventLog,
+    pub(in crate::ui::app) hook_log: medulla::harness_hooks::HookEventLog,
     /// Scroll offset inside the open agent-template popup.
-    pub(super) template_scroll: usize,
+    pub(in crate::ui::app) template_scroll: usize,
     /// Whether the agent-template popup is open over the catalog.
-    pub(super) template_modal: bool,
+    pub(in crate::ui::app) template_modal: bool,
     /// Selected row on the Routing Workflows page.
     #[cfg(feature = "workflows")]
-    pub(super) workflow_index: usize,
+    pub(in crate::ui::app) workflow_index: usize,
     /// The installed workflows, as last read from disk.
     ///
     /// Cached rather than re-read every frame: the store is files, and a render
     /// pass should not do I/O. `r` re-reads it, as it does for templates.
     #[cfg(feature = "workflows")]
-    pub(super) workflows: Vec<medulla::workflows::WorkflowSummary>,
+    pub(in crate::ui::app) workflows: Vec<medulla::workflows::WorkflowSummary>,
     /// The selected workflow's runs, read when the selection changes rather
     /// than on every frame.
     #[cfg(feature = "workflows")]
-    pub(super) workflow_runs: Vec<medulla::workflows::RunRecord>,
+    pub(in crate::ui::app) workflow_runs: Vec<medulla::workflows::RunRecord>,
     /// Why the run history could not be read, if it could not.
     #[cfg(feature = "workflows")]
-    pub(super) workflow_runs_error: Option<String>,
+    pub(in crate::ui::app) workflow_runs_error: Option<String>,
     /// What the selected workflow has learned, newest first.
     ///
     /// Cached beside the runs and refreshed with them, for the same reason: a
     /// render pass must not touch the disk.
     #[cfg(feature = "workflows")]
-    pub(super) workflow_notes: Vec<medulla::workflows::WorkflowNote>,
+    pub(in crate::ui::app) workflow_notes: Vec<medulla::workflows::WorkflowNote>,
     /// Changes proposed for the selected workflow, newest first.
     #[cfg(feature = "workflows")]
-    pub(super) workflow_proposals: Vec<medulla::workflows::WorkflowProposal>,
+    pub(in crate::ui::app) workflow_proposals: Vec<medulla::workflows::WorkflowProposal>,
     /// The Workflows tab's panes, cursors, and copilot threads.
     #[cfg(feature = "workflows")]
-    pub(super) wf: WorkflowsState,
+    pub(in crate::ui::app) wf: WorkflowsState,
     /// A workflow store attached directly, overriding the layered one this
     /// client would otherwise resolve.
     ///
@@ -989,33 +1015,34 @@ pub struct App {
     /// wrong under test, where it makes the catalogue depend on the developer's
     /// checkout. `None` resolves the layered store, as a real session does.
     #[cfg(feature = "workflows")]
-    pub(super) workflow_store_override: Option<Arc<dyn medulla::workflows::WorkflowStore>>,
+    pub(in crate::ui::app) workflow_store_override:
+        Option<Arc<dyn medulla::workflows::WorkflowStore>>,
     /// The active Routing subpage (index into [`ROUTING_SUBPAGES`]).
-    pub(super) routing_index: usize,
+    pub(in crate::ui::app) routing_index: usize,
     /// Whether keyboard focus is inside the Routing content pane.
-    pub(super) routing_focused: bool,
+    pub(in crate::ui::app) routing_focused: bool,
     /// Selected row on the Routing strategy page.
-    pub(super) routing_strategy_index: usize,
+    pub(in crate::ui::app) routing_strategy_index: usize,
     /// Selected subscription rule on the Routing strategy page.
-    pub(super) subscription_strategy_index: usize,
+    pub(in crate::ui::app) subscription_strategy_index: usize,
     /// Whether the subscription group, rather than the host group, has focus.
-    pub(super) subscription_strategy_focused: bool,
+    pub(in crate::ui::app) subscription_strategy_focused: bool,
     /// Credential presence captured on startup and refreshed when its pane opens.
-    pub(super) credential_status: CredentialStatus,
+    pub(in crate::ui::app) credential_status: CredentialStatus,
     /// The active TokenMaxxxing sidebar page.
-    pub(super) tokenmaxxing_index: usize,
+    pub(in crate::ui::app) tokenmaxxing_index: usize,
     /// Whether keyboard focus is inside the TokenMaxxxing content pane.
-    pub(super) tokenmaxxing_focused: bool,
+    pub(in crate::ui::app) tokenmaxxing_focused: bool,
     /// Feedback-board state (lazily loaded on entry / refresh).
-    pub(super) feedback: FeedbackState,
+    pub(in crate::ui::app) feedback: FeedbackState,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
     /// Whether the prepared-decision modal is visible.
-    pub(super) decision_open: bool,
+    pub(in crate::ui::app) decision_open: bool,
     /// Highlighted decision row.
-    pub(super) decision_index: usize,
+    pub(in crate::ui::app) decision_index: usize,
     /// Session-local ids intentionally hidden by the operator.
-    pub(super) dismissed_decisions: std::collections::BTreeSet<String>,
-    pub(super) prompt: Option<Prompt>,
+    pub(in crate::ui::app) dismissed_decisions: std::collections::BTreeSet<String>,
+    pub(in crate::ui::app) prompt: Option<Prompt>,
     /// The animation frame counter: one per event-loop tick (~90ms).
     ///
     /// Drives the spinner and the workflow canvas's flowing wires. Held on the
@@ -1027,7 +1054,7 @@ pub struct App {
     /// Account-level usage payload (`/teams/me/usage` data), when fetched.
     pub account_usage: Option<serde_json::Value>,
     /// The active Settings subpage (index into [`SETTINGS_SUBPAGES`]).
-    pub(super) settings_index: usize,
+    pub(in crate::ui::app) settings_index: usize,
     /// Whether keyboard focus is inside the Settings content pane rather than on
     /// the left-hand subpage nav.
     ///
@@ -1036,40 +1063,40 @@ pub struct App {
     /// to get around, and `↑↓` moving the nav meant arrow keys jumped you off
     /// the page entirely. Entering the pane hands `↑↓` to the content and makes
     /// the letter bindings deliberate rather than ambient.
-    pub(super) settings_focused: bool,
+    pub(in crate::ui::app) settings_focused: bool,
     /// The selected theme role on the Appearance subpage.
-    pub(super) appearance_index: usize,
+    pub(in crate::ui::app) appearance_index: usize,
     /// Throttled sampler backing the optional local-process status indicators.
-    pub(super) resource_monitor: crate::ui::resources::ResourceMonitor,
+    pub(in crate::ui::app) resource_monitor: crate::ui::resources::ResourceMonitor,
     /// Throttled sampler backing the optional whole-device sidebar indicators.
-    pub(super) device_monitor: crate::ui::resources::DeviceMonitor,
+    pub(in crate::ui::app) device_monitor: crate::ui::resources::DeviceMonitor,
     /// The selected field row on the Status line subpage.
-    pub(super) status_line_index: usize,
+    pub(in crate::ui::app) status_line_index: usize,
     /// Whether the next persisted status-line edit must write the complete
     /// legacy-derived section rather than one field.
-    pub(super) status_line_promotion_pending: bool,
+    pub(in crate::ui::app) status_line_promotion_pending: bool,
     /// The selected editable row on the Config subpage.
-    pub(super) config_index: usize,
+    pub(in crate::ui::app) config_index: usize,
     /// Whether the Account subpage's logout is armed. Logging out clears stored
     /// credentials, so the first Enter arms and the second confirms; any other
     /// navigation disarms it.
-    pub(super) logout_armed: bool,
+    pub(in crate::ui::app) logout_armed: bool,
     /// Whether the app is quitting in order to re-authenticate rather than to
     /// exit. Set by a successful logout so the caller tears the session down and
     /// returns to the login screen instead of returning to the shell.
-    pub(super) relogin_requested: bool,
+    pub(in crate::ui::app) relogin_requested: bool,
     /// Who the embedded core is signed in as, for the Account subpage.
-    pub(super) account: Option<medulla::core_host::auth::AuthState>,
+    pub(in crate::ui::app) account: Option<medulla::core_host::auth::AuthState>,
     /// The Medulla home directory, used to locate the credential store the
     /// Account subpage clears. Injectable so feature tests never touch the real
     /// home; `None` disables logout.
-    pub(super) medulla_home: Option<std::path::PathBuf>,
+    pub(in crate::ui::app) medulla_home: Option<std::path::PathBuf>,
     /// The resolved color theme; selection highlighting + chrome draw from it.
-    pub(super) theme: Theme,
+    pub(in crate::ui::app) theme: Theme,
     /// Where appearance changes are persisted (the user-global `config.toml`).
     /// Injectable so feature tests never touch the real home. `None` disables
     /// persistence (changes still apply live).
-    pub(super) config_path: Option<std::path::PathBuf>,
+    pub(in crate::ui::app) config_path: Option<std::path::PathBuf>,
     /// Where hook edits are persisted — deliberately not always [`Self::config_path`].
     ///
     /// `config_path` may resolve to a project-local file
@@ -1082,25 +1109,26 @@ pub struct App {
     /// [`Self::set_config_path`] and overridden by
     /// [`Self::set_hooks_config_path`] whenever the caller knows the two must
     /// differ — see `app_loop::run_tui` in the `medulla-tui` crate.
-    pub(super) hooks_config_path: Option<std::path::PathBuf>,
-    pub(super) resume_picker: Option<ResumePicker>,
+    pub(in crate::ui::app) hooks_config_path: Option<std::path::PathBuf>,
+    pub(in crate::ui::app) resume_picker: Option<ResumePicker>,
     /// Whether the event loop should exit after this tick.
     pub should_quit: bool,
 
     // Render geometry, recorded each draw for click hit-testing.
-    pub(super) area: Rect,
-    pub(super) hit_tabs: Vec<(u16, u16)>,
-    pub(super) hit_tabs_row: u16,
-    /// Where the Agents rail drew, and which rail row each of its visible lines
+    pub(in crate::ui::app) area: Rect,
+    pub(in crate::ui::app) hit_tabs: Vec<(u16, u16)>,
+    pub(in crate::ui::app) hit_tabs_row: u16,
+    /// Where the Agents rail drew, and the rendered row each visible line
     /// belongs to. A row may wrap onto several lines, so a click resolves
-    /// through this map rather than by adding an offset to a first-row index.
-    pub(super) hit_agents: Option<(Rect, Vec<usize>)>,
+    /// through this snapshot rather than by adding an offset to a freshly
+    /// rebuilt row list that may have changed since the frame was drawn.
+    pub(in crate::ui::app) hit_agents: Option<(Rect, Vec<RailHit>)>,
     // Where the embedded session screen landed, and whose it is. Recorded so a
     // wheel event can be routed to the terminal under the pointer and given
     // coordinates relative to *its* origin rather than the screen's.
-    pub(super) hit_session: Option<(Rect, String)>,
+    pub(in crate::ui::app) hit_session: Option<(Rect, String)>,
     /// The threads strip's hit box and its first visible row, for click-to-switch.
-    pub(super) hit_threads: Option<(Rect, usize)>,
+    pub(in crate::ui::app) hit_threads: Option<(Rect, usize)>,
     /// Where the orchestrator's conversation drew, and the task each of its
     /// visible lines opens (§A7) — `None` for the lines that are transcript
     /// rather than a session entry.
@@ -1113,78 +1141,80 @@ pub struct App {
     /// Tasks rather than row indices: the rail is rebuilt every frame, so an
     /// index recorded during the draw can name a different row by the time the
     /// click lands. A task id either still has a session or does not.
-    pub(super) hit_started_sessions: Option<(Rect, Vec<Option<String>>)>,
-    pub(super) hit_context: Option<Rect>,
+    pub(in crate::ui::app) hit_started_sessions: Option<(Rect, Vec<Option<String>>)>,
+    pub(in crate::ui::app) hit_context: Option<Rect>,
     /// The selected workflow step's preview, for pointer-wheel scrolling.
-    pub(super) hit_workflow_preview: Option<Rect>,
+    pub(in crate::ui::app) hit_workflow_preview: Option<Rect>,
     /// Where the active tab's subpage nav drew its page rows. Only one nav is on
     /// screen at a time, so one field serves Routing and Settings.
-    pub(super) hit_nav: crate::ui::multi_pane::NavHits,
+    pub(in crate::ui::app) hit_nav: crate::ui::multi_pane::NavHits,
     /// Every pane drawn this frame, in draw order. A pointer selection is
     /// clamped to whichever of these it started in, so a drag reads one pane's
     /// text instead of splicing its neighbour's columns into every row.
-    pub(super) panes: Vec<Rect>,
+    pub(in crate::ui::app) panes: Vec<Rect>,
     /// A drag in progress: where the button went down. Kept apart from
     /// [`Self::selection`] so a click that never moves leaves no selection.
-    pub(super) drag_anchor: Option<(u16, u16)>,
+    pub(in crate::ui::app) drag_anchor: Option<(u16, u16)>,
     /// The block of cells the pointer has swept, normalized to
     /// `(left, top, right, bottom)` inclusive.
-    pub(super) selection: Option<(u16, u16, u16, u16)>,
+    pub(in crate::ui::app) selection: Option<(u16, u16, u16, u16)>,
     /// Set when the button is released over a live selection: the next draw
     /// copies what the selection covers, since only then is the buffer readable.
-    pub(super) copy_selection: bool,
-    pub(super) last_events_len: usize,
+    pub(in crate::ui::app) copy_selection: bool,
+    pub(in crate::ui::app) last_events_len: usize,
 
     // Test-only clipboard capture: when set, `copy_chat` records the copied text
     // here and skips the platform writers (no `pbcopy`/OSC subprocess in tests).
-    pub(super) copy_capture: Option<Arc<std::sync::Mutex<Vec<String>>>>,
+    pub(in crate::ui::app) copy_capture: Option<Arc<std::sync::Mutex<Vec<String>>>>,
 
     // Optional observational overlay from the background host-link service:
     // this endpoint's own identity, its peer roster, and peer presence. Merged
     // into the snapshot on every refresh so the Overview panel and Agents lanes
     // light up without the runtime having to know about the link.
-    pub(super) link_obs: Option<Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>>,
+    pub(in crate::ui::app) link_obs:
+        Option<Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>>,
     // A read-only view of the task host running on this device, when one is.
     // Read live at render rather than merged into the snapshot: its counters
     // move on the host's own schedule, and the snapshot is the *runtime's*
     // picture of the world — the host is a peer to it, not part of it.
-    pub(super) host_obs: Option<medulla::daemon::embedded::HostObservation>,
+    pub(in crate::ui::app) host_obs: Option<medulla::daemon::embedded::HostObservation>,
     // The live sessions this device is running. `None` when this machine
     // does not host, in which case the Agents tab has no local screen to show
     // and falls back to a remote worker's streamed one, or to the transcript.
-    pub(super) local_sessions: Option<crate::ui::harness_pane::LocalSessions>,
+    pub(in crate::ui::app) local_sessions: Option<crate::ui::harness_pane::LocalSessions>,
     // Workflow runs the harnesses on this device started over MCP, keyed by the
     // grant session the launcher recorded on each PTY row. Read at render so a
     // run reported a moment ago is on screen at the next frame, and empty on a
     // build or a host with no control plane bound.
-    pub(super) harness_runs: medulla::control_socket::HarnessRunRegistry,
+    pub(in crate::ui::app) harness_runs: medulla::control_socket::HarnessRunRegistry,
     // Live per-node harness output for runs this TUI started, keyed by run id.
     // Only ever a handful: a settled run keeps its frames until the next run of
     // the same workflow replaces it.
     #[cfg(feature = "workflows")]
-    pub(super) live_runs: std::collections::HashMap<String, super::workflows::LiveRun>,
+    pub(in crate::ui::app) live_runs:
+        std::collections::HashMap<String, super::super::workflows::LiveRun>,
     // Which of the TUI and the selected session owns the keyboard. Reset to
     // `Chrome` whenever the attached session stops being the selected one, so
     // the operator's keys can never land in a session they are not looking at.
-    pub(super) harness_focus: crate::ui::harness_pane::HarnessFocus,
+    pub(in crate::ui::app) harness_focus: crate::ui::harness_pane::HarnessFocus,
     // The session the Agents pane resolved on the last draw, and the
     // only one the attach chord can act on. Recorded during render because that
     // is where the rail cursor is turned into a selection; cleared at the top of
     // every draw so it can never name a pane that is no longer on screen.
-    pub(super) pane_session: Option<String>,
+    pub(in crate::ui::app) pane_session: Option<String>,
     // What the pane is showing for that session: its terminal, or one of the
     // views that replace it. Not cleared per frame — it is the operator's
     // choice, not a record of what the last draw resolved — so it is reset by
     // the selection moving instead.
-    pub(super) pane_view: PaneView,
+    pub(in crate::ui::app) pane_view: PaneView,
     // The session `pane_view` was chosen for. `pane_session` cannot answer this:
     // it is cleared at the top of every draw, so comparing against it would
     // reset the view on every frame.
-    pub(super) pane_view_session: Option<String>,
+    pub(in crate::ui::app) pane_view_session: Option<String>,
     // The session whose close is awaiting confirmation, if one is. Killing a
     // harness ends whatever it was in the middle of, so `k` asks first — the
     // same one-keypress contract `kill_armed` has for a dispatched task.
-    pub(super) harness_close_armed: Option<String>,
+    pub(in crate::ui::app) harness_close_armed: Option<String>,
     // The session that took the press of the button currently held down, if any.
     // A terminal grabs the pointer for the whole gesture: whoever received the
     // press receives the drags and the release too, wherever the pointer has
@@ -1192,19 +1222,19 @@ pub struct App {
     // swallowed by a modal the click itself opened — never reaches the child,
     // which goes on believing the button is still down and misplaces everything
     // it draws in response to the pointer afterwards.
-    pub(super) pointer_grab: Option<PointerGrab>,
+    pub(in crate::ui::app) pointer_grab: Option<PointerGrab>,
     // Where the hand-back question drew each of its answers, and the key each
     // one stands for. Recorded during the draw so a click can be answered by
     // replaying the keystroke rather than by a second copy of the routing: the
     // two would drift, and the direction they would drift in is a pointer that
     // hands a harness back when the operator meant to keep it.
-    pub(super) hit_handback: Vec<(Rect, crossterm::event::KeyCode)>,
+    pub(in crate::ui::app) hit_handback: Vec<(Rect, crossterm::event::KeyCode)>,
     // The "start a session" picker's outer box, and where each offered row was
     // drawn with the index it stands for in that step's list. Recorded during
     // the draw for the same reason the hand-back answers are: the harness step
     // windows a long list, so screen position and list index are not the same
     // number, and only the draw knows which window it used.
-    pub(super) hit_agent_picker: Option<(Rect, Vec<(Rect, usize)>)>,
+    pub(in crate::ui::app) hit_agent_picker: Option<(Rect, Vec<(Rect, usize)>)>,
     // The agent behind a selected session row that this device does NOT run,
     // recorded alongside `pane_session` on the same draw.
     //
@@ -1214,20 +1244,20 @@ pub struct App {
     // path, so a remote session can be watched but not taken (§E7), and an
     // operator who presses the take chord on one deserves that answer rather
     // than "no session on this row".
-    pub(super) pane_remote_session: Option<String>,
+    pub(in crate::ui::app) pane_remote_session: Option<String>,
     // The session selected on the Agents rail, retained while another tab is
     // visible. Unlike `pane_session`, this is navigation state rather than a
     // keyboard-routing capability: Changes uses it to keep following
     // the repository the operator selected after an intervening tab draw.
-    pub(super) rail_session: Option<String>,
+    pub(in crate::ui::app) rail_session: Option<String>,
     /// The "start a session" picker, while it is open.
-    pub(super) agent_picker: Option<AgentPicker>,
+    pub(in crate::ui::app) agent_picker: Option<AgentPicker>,
     /// The "you still hold this session" confirmation, while it is open.
-    pub(super) handback_prompt: Option<HandbackPrompt>,
+    pub(in crate::ui::app) handback_prompt: Option<HandbackPrompt>,
     /// How far the Help page is scrolled, in lines.
-    pub(super) help_scroll: u16,
+    pub(in crate::ui::app) help_scroll: u16,
     /// What releasing a held session does, from `[harness].handback`.
-    pub(super) handback_policy: HandbackPolicy,
+    pub(in crate::ui::app) handback_policy: HandbackPolicy,
     /// The sessions taken *from the orchestrator*, and how each was taken.
     ///
     /// Membership is the whole question the release prompt exists to ask. A
@@ -1247,7 +1277,7 @@ pub struct App {
     /// single flag answered for whichever was touched last: it worded B's
     /// question with A's takeover, and kept asking about sessions nobody had
     /// taken from anyone.
-    pub(super) sessions_taken: std::collections::HashMap<String, TakeOrigin>,
+    pub(in crate::ui::app) sessions_taken: std::collections::HashMap<String, TakeOrigin>,
     /// Sessions the operator has at some point given to the orchestrator.
     ///
     /// Separate from [`sessions_taken`](Self::sessions_taken), which says who
@@ -1263,7 +1293,7 @@ pub struct App {
     /// [`take_session`](App::take_session), leaving a session with origin
     /// `User`, no entry in `sessions_taken`, and dispatch locked out of it.
     /// Releasing that in silence is the bug this set closes.
-    pub(super) orchestrator_claimed: std::collections::HashSet<String>,
+    pub(in crate::ui::app) orchestrator_claimed: std::collections::HashSet<String>,
     /// Commands raised by synchronous input handlers, drained by the event loop.
     ///
     /// The key and mouse handlers that move session control cannot return a
@@ -1273,8 +1303,8 @@ pub struct App {
     /// change to say one thing. So they push here instead, and the loop drains
     /// it right after the event that produced it. Commands run in submission
     /// order.
-    pub(super) pending_cmds: std::collections::VecDeque<Cmd>,
+    pub(in crate::ui::app) pending_cmds: std::collections::VecDeque<Cmd>,
     /// Whether operator-started sessions launch with the permission-bypass
     /// flag, from `[harness].skipPermissions`.
-    pub(super) harness_skip_permissions: bool,
+    pub(in crate::ui::app) harness_skip_permissions: bool,
 }

@@ -112,6 +112,23 @@ impl Default for EmbeddedDaemonOptions {
     }
 }
 
+impl EmbeddedDaemonOptions {
+    /// Apply the launch policy this machine's config describes.
+    ///
+    /// The counterpart to spelling `attribution` and `hooks` out field by field:
+    /// a door that takes [`Default`] for the rest cannot then forget one of them
+    /// and launch every harness with no lifecycle hooks and attribution nobody
+    /// asked for. Every host that spawns harnesses on an operator's behalf —
+    /// including the short-lived ones a workflow run, the authoring copilot, and
+    /// an evolution review each start — goes through here.
+    #[must_use]
+    pub fn with_launch_policy(mut self, launch: &crate::harness_hooks::LaunchPolicy) -> Self {
+        self.attribution = launch.attribution;
+        self.hooks = launch.hooks.clone();
+        self
+    }
+}
+
 /// What the embedded host has been doing, for a UI to render.
 ///
 /// Counters rather than a history: the host is one lane in a fleet view, and the

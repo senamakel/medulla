@@ -48,6 +48,7 @@
 
 pub mod attach;
 pub mod backend;
+mod policy;
 pub(crate) mod progress;
 pub(crate) mod tools;
 mod types;
@@ -65,6 +66,8 @@ pub use tools::{
 };
 pub use types::McpSession;
 pub(crate) use types::RpcError;
+
+use policy::policy_from_loaded;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -451,35 +454,4 @@ pub async fn serve_stdio(env: &HashMap<String, String>, cwd: &Path) -> Result<()
     drop(responses);
     writer.await.map_err(std::io::Error::other)??;
     Ok(())
-}
-
-/// Build the tool-call policy from a loaded config.
-///
-/// A custom-harness preset attaches to a fleet `hostId`; one for another
-/// machine is not this device's to advertise (`workflow_host`) or execute
-/// (`workflow_run`, which reaches [`crate::workflows::local::LocalRun`] and
-/// starts an embedded daemon *on this device*). This is the third local
-/// execution path that starts one — the CLI
-/// (`commands::workflow::local_custom_harnesses` in the `medulla-tui` crate)
-/// and the interactive TUI host (`local_host::options_from_config_with_custom`,
-/// also `medulla-tui`) both filter to the effective local `[host]` address the
-/// same way; this filters to the same address using
-/// [`HostSection::effective_address`](crate::config::HostSection::effective_address),
-/// the shared logic both of those now call through.
-fn policy_from_loaded(loaded: crate::config::LoadedConfig) -> crate::workflows::ops::HostPolicy {
-    let local_host_id = loaded.config.host.effective_address();
-    let custom_harness_configs = crate::config::load_layered_custom_harnesses(&loaded.sources)
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|preset| preset.host_id == local_host_id)
-        .collect::<Vec<_>>();
-    let custom_harnesses = custom_harness_configs
-        .iter()
-        .map(|preset| preset.id.clone())
-        .collect();
-    crate::workflows::ops::HostPolicy {
-        workflows: loaded.config.workflows,
-        custom_harnesses,
-        custom_harness_configs,
-    }
 }

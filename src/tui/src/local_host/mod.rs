@@ -24,19 +24,21 @@ use medulla::bridge::{Bridge, LocalBridgeNetwork};
 use medulla::config::HostSection;
 use medulla::daemon::embedded::{resolve_workspace, EmbeddedDaemon, EmbeddedDaemonOptions};
 use medulla::daemon::providers::{run_provider_task, RunTaskFn, RunTaskOptions};
-use medulla::hub::WorkerSpec;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::{seed_declarations, AgentDeclaration};
+use medulla::runtime::AgentDeclaration;
 use medulla_tui::worker::executor::{agent_kind, PtySessionExecutor};
 use medulla_tui::worker::pty::PtyManager;
 use std::collections::HashMap;
 
+mod declarations;
 mod types;
 
 #[cfg(test)]
 mod tests;
 
 pub(crate) use types::{LaunchPolicy, LocalHost};
+
+use declarations::specs_for;
 
 /// Whether this device should host tasks.
 ///
@@ -193,10 +195,9 @@ pub(crate) fn options_from_config_with_custom_and_hooks(
         custom_harnesses,
         budget,
         log,
-        attribution: launch.attribution,
-        hooks: launch.hooks.clone(),
         ..Default::default()
-    })
+    }
+    .with_launch_policy(launch))
 }
 
 /// The primary's options with the fields an extra host may redefine applied.
@@ -255,7 +256,9 @@ fn parse_provider(name: &str) -> Result<HarnessProvider, String> {
         })
 }
 
-/// The roster entries describing the agents declared on a host running here.
+/*
+The former declaration-processing implementation lived here. It was moved to
+the declarations module so this module remains host lifecycle wiring.
 ///
 /// **One entry per declared agent, not one per machine.** A host is a machine
 /// with a bus address; an agent is `harness × workspace` on it. Collapsing the
@@ -278,84 +281,28 @@ fn parse_provider(name: &str) -> Result<HarnessProvider, String> {
 /// harness are suffixed with their agent id instead, because "this device ·
 /// claude" twice names neither and the id is what a dispatch targets anyway.
 ///
-/// # Errors
+/// # Misplaced declarations
 ///
-/// Rejects a declaration whose workspace is not the one its host runs in. See
+/// A declaration whose workspace is not the one its host runs in is dropped
+/// rather than advertised, and the reason is returned alongside the specs. See
 /// [`check_placement`] — an advert that names a directory the task will not run
-/// in is worse than a host that refuses to start and says why.
-fn specs_for(
-    daemon: &EmbeddedDaemon,
-    name: &str,
-    declared: &[AgentDeclaration],
-) -> Result<Vec<WorkerSpec>, String> {
-    let host_id = daemon.address();
-    let mine: Vec<AgentDeclaration> = declared
-        .iter()
-        .filter(|declaration| declaration.on_host(host_id))
-        .cloned()
-        .collect();
-    let mine = if mine.is_empty() {
-        seed_for(daemon)
-    } else {
-        mine
-    };
-    for declaration in &mine {
-        check_placement(declaration, host_id, daemon.workspace())?;
-    }
-    let single = mine.len() == 1;
-    // The workspace every one of them runs in, now that a declaration naming
-    // another has been refused. Taken from the daemon rather than copied off
-    // the declaration so the advertised spelling is the resolved one the
-    // executor actually launches in, not whatever shorthand was typed.
-    let workspace_path = daemon.workspace().to_string();
-    Ok(mine
-        .iter()
-        .map(|declaration| {
-            let label = declaration.name.clone().unwrap_or_else(|| {
-                if single {
-                    name.to_string()
-                } else if shares_harness(&mine, declaration) {
-                    format!("{name} · {}", declaration.agent_id)
-                } else {
-                    format!("{name} · {}", declaration.harness)
-                }
-            });
-            let mut workspace = declaration.workspace.clone();
-            workspace.path = workspace_path.clone();
-            WorkerSpec {
-                id: declaration.agent_id.clone(),
-                host_id: host_id.to_string(),
-                address: host_id.to_string(),
-                name: label,
-                description: format!(
-                    "{} on this machine · {}",
-                    declaration.harness, workspace.path
-                ),
-                harness: declaration.harness.clone(),
-                // The one placement this process actually knows: the agent works
-                // in this directory. Declaring it is what gives the orchestrator
-                // a placed agent rather than a bare one it treats as having
-                // nowhere to work.
-                workspace: Some(workspace),
-                roles: declaration.roles.clone(),
-                max_sessions: declaration.max_sessions(),
-            }
-        })
-        .collect())
-}
-
+/// in is worse than no advert at all.
+///
+/// Dropping the declaration, and not the host: one mistyped directory used to
+/// take hosting on this device down altogether, which reads on screen as a
+/// device that is simply offline with no sessions to start — the mistake and
+/// the symptom share no vocabulary at all. The agent is still not advertised
+/// where it will not run, which is the whole of what the check was for, and the
+/// operator is told which declaration was dropped and why.
+///
+/// A host whose every declaration was dropped falls back to the detection seed,
+/// exactly as one that declared nothing does: hosting is what the rest of the
+/// device depends on, and it must not hinge on a roster entry being right.
 /// Whether another agent on this host runs the same harness.
 ///
 /// What decides between the two sibling labels: the harness distinguishes
 /// nothing once two agents share it.
-fn shares_harness(mine: &[AgentDeclaration], declaration: &AgentDeclaration) -> bool {
-    mine.iter()
-        .filter(|sibling| sibling.harness == declaration.harness)
-        .count()
-        > 1
-}
-
-/// Refuse a declaration that says it works somewhere its host does not.
+/// Reject a declaration that says it works somewhere its host does not.
 ///
 /// **An agent runs where its host runs.** A task is addressed to a *host* — the
 /// frame carries a task id, a prompt and a harness hint, and nothing that names
@@ -366,12 +313,14 @@ fn shares_harness(mine: &[AgentDeclaration], declaration: &AgentDeclaration) -> 
 /// that runs it in `/srv/api`, and the only evidence is the wrong repository
 /// being edited.
 ///
-/// Refused rather than quietly re-pointed at the host's directory, for the same
-/// reason [`parse_provider`] refuses an unknown harness: a declaration is the
-/// operator saying where work happens, and silently doing it somewhere else is
-/// the failure this check exists to prevent. The remedy is the mechanism that
+/// Rejected rather than quietly re-pointed at the host's directory, for the
+/// same reason [`parse_provider`] refuses an unknown harness: a declaration is
+/// the operator saying where work happens, and silently doing it somewhere else
+/// is the failure this check exists to prevent. The remedy is the mechanism that
 /// already works — a `[[hosts]]` entry for that directory, which binds its own
-/// address and gets its own executor — and the error says so.
+/// address and gets its own executor — and the message says so.
+///
+/// The rejection costs the *declaration*, not the host: see [`specs_for`].
 ///
 /// A blank workspace declares no placement at all and is accepted: the agent
 /// takes its host's directory, which is what it would have done anyway.
@@ -379,25 +328,6 @@ fn shares_harness(mine: &[AgentDeclaration], declaration: &AgentDeclaration) -> 
 /// Per-agent workspaces on one host need the selected agent's id to reach the
 /// worker, which is a protocol change (`TaskFrame` carries no `agentId`) and the
 /// wire branch's job, not this one's.
-fn check_placement(
-    declaration: &AgentDeclaration,
-    host_id: &str,
-    host_workspace: &str,
-) -> Result<(), String> {
-    let Some(declared) = declaration.workspace.path() else {
-        return Ok(());
-    };
-    if resolve_workspace(declared) == host_workspace {
-        return Ok(());
-    }
-    Err(format!(
-        "agent \"{}\" is declared in {declared}, but host \"{host_id}\" runs tasks in \
-         {host_workspace} — every agent on a host works in the host's directory, so declare a \
-         [[hosts]] entry for {declared} and put this agent on it",
-        declaration.agent_id,
-    ))
-}
-
 /// The migration seed for a host that has declared nothing: one agent per
 /// detected provider, at the directory the host runs in.
 ///
@@ -406,28 +336,18 @@ fn check_placement(
 /// machine whose config lives somewhere unwritable) fail or lie. The seeds are
 /// equal to declarations in every other respect, so an operator who never opens
 /// the create-agent flow keeps exactly the roster they had.
-fn seed_for(daemon: &EmbeddedDaemon) -> Vec<AgentDeclaration> {
-    let harnesses: Vec<&str> = daemon
-        .providers()
-        .iter()
-        .map(|provider| provider.as_str())
-        .collect();
-    seed_declarations(
-        daemon.address(),
-        daemon.workspace(),
-        &harnesses,
-        daemon.default_provider().as_str(),
-    )
-}
+*/
 
 /// Start hosting on this device, or explain why not.
 ///
 /// Returns `Ok(None)` when hosting is switched off, which is a choice rather
 /// than a failure. An `Err` means hosting was wanted and could not happen — no
-/// agent CLI installed, the address already bound, or an agent declared in a
-/// directory this host does not work in ([`check_placement`]) — and the caller
-/// surfaces it, because an orchestrator with no host silently does nothing at
-/// all.
+/// agent CLI installed, or the address already bound — and the caller surfaces
+/// it, because an orchestrator with no host silently does nothing at all.
+///
+/// The started host comes with the problems it survived: declarations dropped
+/// for naming a directory it does not run in ([`specs_for`]). Those are
+/// reported, never fatal.
 ///
 /// Tasks run in **live harness sessions** on `sessions`, not in headless
 /// one-shots — for the providers that write a transcript this can tail.
@@ -454,7 +374,7 @@ pub(crate) fn start(
     options: EmbeddedDaemonOptions,
     sessions: PtyManager,
     declared: &[AgentDeclaration],
-) -> Result<Option<LocalHost>, String> {
+) -> Result<Option<(LocalHost, Vec<String>)>, String> {
     if !host_enabled(config, env) {
         return Ok(None);
     }
@@ -501,15 +421,6 @@ impl LocalHostHarnesses {
     pub(crate) fn custom_harnesses(&self) -> &[medulla::config::CustomHarnessConfig] {
         &self.options.custom_harnesses
     }
-
-    /// The resolved `[[hooks]]` this device's primary host was started with.
-    ///
-    /// Exposed for the same reason as [`Self::custom_harnesses`]: a one-shot
-    /// embedded daemon started elsewhere for the same session should install
-    /// the same built-in and operator hooks rather than starting with none.
-    pub(crate) fn hooks(&self) -> &medulla::harness_hooks::HooksConfig {
-        &self.options.hooks
-    }
 }
 
 /// Start every host this machine declares: the `[host]` primary, then each
@@ -544,7 +455,10 @@ pub(crate) fn start_all(
         sessions.clone(),
         declared,
     ) {
-        Ok(Some(host)) => hosts.push(host),
+        Ok(Some((host, dropped))) => {
+            hosts.push(host);
+            problems.extend(dropped);
+        }
         Ok(None) => {}
         Err(error) => problems.push(error),
     }
@@ -571,7 +485,10 @@ pub(crate) fn start_all(
             false,
             declared,
         ) {
-            Ok(host) => hosts.push(host),
+            Ok((host, dropped)) => {
+                hosts.push(host);
+                problems.extend(dropped);
+            }
             Err(error) => problems.push(error),
         }
     }
@@ -581,11 +498,13 @@ pub(crate) fn start_all(
 /// Bind one host at `address` and wrap it in the roster entries for the agents
 /// declared on it.
 ///
+/// Returns the host and the non-fatal problems it started in spite of — one per
+/// declaration dropped for naming a directory this host does not run in
+/// ([`specs_for`]).
+///
 /// # Errors
 ///
-/// The address is already bound, no requested agent CLI is installed, or a
-/// declaration on this host names a workspace the host does not run in
-/// ([`check_placement`]).
+/// The address is already bound, or no requested agent CLI is installed.
 #[allow(clippy::too_many_arguments)]
 fn start_at(
     config: &HostSection,
@@ -596,7 +515,7 @@ fn start_at(
     address: String,
     primary: bool,
     declared: &[AgentDeclaration],
-) -> Result<LocalHost, String> {
+) -> Result<(LocalHost, Vec<String>), String> {
     let bridge = network
         .bind(&address)
         .map_err(|e| format!("could not host on this device ({e})"))?;
@@ -616,8 +535,8 @@ fn start_at(
         run_task(executor),
     )?;
     let name = display_name(config, daemon.workspace(), primary);
-    let specs = specs_for(&daemon, &name, declared)?;
-    Ok(LocalHost { daemon, specs })
+    let (specs, problems) = specs_for(&daemon, &name, declared);
+    Ok((LocalHost { daemon, specs }, problems))
 }
 
 /// Route each task by what it can actually run: [`PtySessionExecutor`] for a
