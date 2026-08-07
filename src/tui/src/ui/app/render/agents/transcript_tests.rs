@@ -313,7 +313,7 @@ fn the_pane_diff_takes_the_harness_screens_real_estate() {
         .map(|cell| cell.symbol())
         .collect();
 
-    assert!(output.contains("Since launch"), "{output}");
+    assert!(output.contains("From app launch"), "{output}");
     assert!(output.contains("d harness"), "the way back: {output}");
     assert!(output.contains("src/lib.rs"), "{output}");
     assert!(output.contains("+added line"), "{output}");
