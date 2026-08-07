@@ -279,6 +279,24 @@ fn name_sorts_sessions_by_what_the_operator_called_them() {
     );
 }
 
+#[test]
+fn name_sorts_local_sessions_by_their_visible_thread_titles() {
+    let mut zulu = session("zulu", 100, 100);
+    let mut alpha = session("alpha", 200, 200);
+    for session in [&mut zulu, &mut alpha] {
+        let local = session.local.as_mut().expect("live pty session");
+        local.name = None;
+    }
+    zulu.local.as_mut().expect("live pty session").thread_name = Some("Zulu thread".into());
+    alpha.local.as_mut().expect("live pty session").thread_name = Some("Alpha thread".into());
+
+    assert_eq!(
+        sorted(vec![zulu, alpha], SidebarSort::Name),
+        vec!["alpha", "zulu"],
+        "local sessions without launch names sort by the titles visible in the rail"
+    );
+}
+
 /// An agent group with one task whose activity timestamp controls recent order.
 fn active_agent(label: &str, last_at: i64) -> AgentGroup {
     AgentGroup {

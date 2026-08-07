@@ -262,7 +262,7 @@ fn session_activity(session: &SessionRailRow) -> i64 {
 }
 
 /// What a session sorts as by name: what the operator called it, else its task,
-/// else the pty's own label.
+/// then its terminal title, else the pty's own label.
 fn session_label(session: &SessionRailRow) -> String {
     if let Some(name) = session.name() {
         return name.to_string();
@@ -273,7 +273,15 @@ fn session_label(session: &SessionRailRow) -> String {
     session
         .local
         .as_ref()
-        .map(|local| local.label.clone())
+        .map(|local| {
+            local
+                .thread_name
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .unwrap_or(&local.label)
+                .to_string()
+        })
         .unwrap_or_default()
 }
 
