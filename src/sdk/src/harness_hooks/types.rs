@@ -408,6 +408,21 @@ impl LaunchPolicy {
             hooks,
         }
     }
+
+    /// Remove Medulla's reporting hooks while retaining operator hooks and
+    /// commit attribution.
+    ///
+    /// Standalone CLI workflow hosts have no control plane on which reporting
+    /// hooks can redeem a grant. Installing those hooks there would spawn a
+    /// no-op `medulla hook` process for every observed event, so callers use
+    /// this policy for that deliberately headless execution path.
+    #[must_use]
+    pub fn without_builtin_hooks(mut self) -> Self {
+        self.hooks = HooksConfig {
+            hooks: self.hooks.operator_hooks(),
+        };
+        self
+    }
 }
 
 /// One hook that could not be installed, and why.

@@ -237,7 +237,8 @@ fn local_context(
     // command's harnesses ran with no lifecycle hooks at all — neither the
     // operator's nor Medulla's own reporting ones — and attributed their
     // commits regardless of `[attribution] commit`.
-    let launch = medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config);
+    let launch =
+        medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config).without_builtin_hooks();
     let host = LocalWorkflowHost::start(
         EmbeddedDaemonOptions {
             workspace: cwd.to_string_lossy().to_string(),
@@ -427,7 +428,8 @@ fn load_workflows_config(
     medulla::harness_hooks::LaunchPolicy,
 )> {
     let loaded = medulla::config::load_config(parsed.config.as_deref(), env, cwd)?;
-    let launch = medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config);
+    let launch =
+        medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config).without_builtin_hooks();
     Ok((loaded.config.workflows, launch))
 }
 

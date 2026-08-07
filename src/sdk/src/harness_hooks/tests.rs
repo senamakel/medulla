@@ -36,6 +36,21 @@ fn event_wire_names_round_trip() {
     assert_eq!(HookEvent::from_wire("Nope"), None);
 }
 
+#[test]
+fn standalone_policy_keeps_operator_hooks_but_drops_inert_reporting_hooks() {
+    let operator = hook(HookEvent::PostToolUse, "Edit", "just checkpoint");
+    let mut builtin = hook(HookEvent::Stop, "*", "medulla hook Stop");
+    builtin.builtin = true;
+    let policy = LaunchPolicy {
+        attribution: true,
+        hooks: config(vec![builtin, operator.clone()]),
+    }
+    .without_builtin_hooks();
+
+    assert!(policy.attribution);
+    assert_eq!(policy.hooks.hooks, vec![operator]);
+}
+
 /// Every event accepts its camelCase spelling in config, because that is the
 /// spelling every *other* key in `medulla.tui.toml` teaches — and getting it
 /// wrong used to fail the whole config load, not just the hook.
