@@ -9,6 +9,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use tinyflows::caps::AgentRunner;
 
 use super::{dispatch_harness, AgentRoute, HarnessAgentRunner};
 use crate::flow_engine::caps::dispatch::HarnessDispatch;
