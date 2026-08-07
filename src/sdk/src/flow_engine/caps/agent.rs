@@ -395,7 +395,15 @@ impl HarnessAgentRunner {
             crate::workflows::run::InFlightDispatch {
                 task_id: request.task_id.clone(),
                 worker: worker.clone(),
-                harness: dispatch_harness(&request),
+                // The dispatch's own answer first: a worker that does not offer
+                // the provider the node named substitutes its own, and an
+                // inspector told the *requested* harness would name one that is
+                // not executing. Falls back to the request for a dispatch that
+                // substitutes nothing.
+                harness: self
+                    .dispatch
+                    .effective_harness(&request)
+                    .unwrap_or_else(|| dispatch_harness(&request)),
                 workspace: Some(self.settings.workspace.clone())
                     .filter(|workspace| !workspace.trim().is_empty()),
             },
