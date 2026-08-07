@@ -220,7 +220,15 @@ async fn run_workflow_inner(
     // not dropped on the floor — and so two dispatches of the same run id
     // cannot both start, which would run every node's side effects twice and
     // race to overwrite one run record.
-    let Some((_guard, cancelled)) = RunGuard::claim(run_id) else {
+    //
+    // A caller that already handed its run id out claims earlier still and
+    // passes the claim down (see [`RunContext::claim`]); adopting it is what
+    // keeps that earlier claim from reading as "already executing" here.
+    let claim = match context.claim.take() {
+        Some(claim) => Some(claim),
+        None => RunGuard::claim(run_id),
+    };
+    let Some((_guard, cancelled)) = claim else {
         return Err(WorkflowError::Engine(format!(
             "run '{run_id}' is already executing"
         )));
