@@ -198,6 +198,7 @@ fn replace(config_path: &Path, contents: &[u8]) -> anyhow::Result<()> {
         })?;
     temporary
         .persist(config_path)
+        .map(|_| ())
         .map_err(|err| anyhow::anyhow!("Cannot replace {}: {}", config_path.display(), err.error))
 }
 
