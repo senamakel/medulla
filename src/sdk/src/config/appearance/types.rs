@@ -1,4 +1,4 @@
-//! Data types for selecting process and whole-device resource display formats.
+//! Appearance configuration types for resource displays and Agents-sidebar layout.
 
 use serde::{Deserialize, Serialize};
 
