@@ -258,6 +258,8 @@ fn local_context(
 
     Ok((
         RunContext {
+            // Runs inline, so claiming at the top of the run is early enough.
+            claim: None,
             store: store.clone(),
             settings: Arc::new(settings),
             services: HostServices::new(

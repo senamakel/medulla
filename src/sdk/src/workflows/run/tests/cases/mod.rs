@@ -116,6 +116,8 @@ impl Harness {
     /// Build a run context using the supplied stand-in dispatch.
     pub(super) fn context(&self, dispatch: Arc<dyn HarnessDispatch>) -> RunContext {
         RunContext {
+            // Runs inline, so claiming at the top of the run is early enough.
+            claim: None,
             store: self.store.clone(),
             settings: self.settings.clone(),
             services: HostServices {
