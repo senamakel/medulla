@@ -17,7 +17,7 @@ use crate::ui::harness::{budget_note, task_board_lines};
 use crate::ui::meters;
 use medulla::harness_contract::AgentBudgetMetadata;
 
-use super::super::super::types::App;
+use super::super::super::types::{App, PaneView};
 use super::super::styled_to_tline;
 use super::types::Selection;
 use super::{started, summary};
@@ -39,7 +39,14 @@ impl App {
         // Resolved in `agents_selection`, not here: it decides the layout as
         // well as the contents, so the split has already been made for it.
         if let Some(session_id) = selection.session.clone() {
-            self.draw_local_harness(f, area, &session_id);
+            // …unless the operator has swapped the pane onto one of the session's
+            // other views. They replace the screen rather than sit beside it: the
+            // pane is already the whole right column, and a diff squeezed into
+            // half of it is a diff nobody can read.
+            match self.pane_view {
+                PaneView::Harness => self.draw_local_harness(f, area, &session_id),
+                PaneView::Diff => self.draw_harness_diff(f, area),
+            }
             return;
         }
         // A run supersedes both. The cursor is on the run, not on the session

@@ -299,6 +299,10 @@ pub(crate) async fn run(
                 // happens to be mid-cycle. The spinner it also drives is only
                 // drawn while running, so it is unaffected.
                 app.frame = app.frame.wrapping_add(1);
+                // And the rail's own clock: a harness that exited since the
+                // last tick stops being listed, and the record it was holding
+                // is dropped with it.
+                app.sweep_finished_sessions();
             }
         }
     }

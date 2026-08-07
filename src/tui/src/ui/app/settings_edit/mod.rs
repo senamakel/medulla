@@ -105,6 +105,23 @@ impl App {
                 help: "Agent sessions Medulla may run at once.",
             },
         ]);
+        // Only where there is a Workflows page for it to bound.
+        #[cfg(feature = "workflows")]
+        rows.push(SettingRow {
+            label: "Runs listed",
+            section: "workflows",
+            key: "maxListedRuns",
+            kind: SettingKind::Count {
+                min: 1,
+                max: 200,
+                step: 5,
+                fallback: medulla::config::WorkflowsConfig::DEFAULT_MAX_LISTED_RUNS as u32,
+                // Always set, through the section's serde default, so there is
+                // no "auto" state to step back into.
+                optional: false,
+            },
+            help: "Recent runs shown under a workflow on the Workflows page.",
+        });
         rows
     }
 
@@ -120,6 +137,9 @@ impl App {
                     .map(|o| o.max_concurrency)
                     .unwrap_or_else(|| OpencodeConfig::default().max_concurrency),
             ),
+            ("workflows", "maxListedRuns") => {
+                SettingValue::Number(cfg.workflows.max_listed_runs as u32)
+            }
             _ => SettingValue::Auto,
         }
     }
@@ -198,7 +218,17 @@ impl App {
                     .get_or_insert_with(OpencodeConfig::default)
                     .max_concurrency = n;
             }
+            ("workflows", "maxListedRuns", SettingValue::Number(n)) => {
+                cfg.workflows.max_listed_runs = n as usize;
+            }
             _ => {}
+        }
+        // The Workflows page caches the runs it read, so a new cap only reaches
+        // the rail on the next reload. Take it now: the operator is watching the
+        // number they just changed.
+        #[cfg(feature = "workflows")]
+        if (row.section, row.key) == ("workflows", "maxListedRuns") {
+            self.reload_workflow_runs();
         }
     }
 

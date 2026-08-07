@@ -424,3 +424,96 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     assert!(app.wf.mirrored_run.is_none());
     assert!(app.wf.mirrored_run_updated_at.is_none());
 }
+
+#[test]
+fn the_pane_diff_takes_the_harness_screens_real_estate() {
+    // The swap is a tab switch inside one pane: the same rectangle that was
+    // painting the terminal now paints the diff, titled with the way back. A
+    // diff opened *beside* the harness would be two half-width panes, and a
+    // unified patch is unreadable in one of those.
+    use crate::ui::app::changes::types::ChangedFile;
+    use crate::ui::app::types::PaneView;
+
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.changes.root = Some(std::path::PathBuf::from("/repo"));
+    app.changes.baseline = Some("baseline".to_owned());
+    app.changes.files = vec![ChangedFile {
+        status: "M".into(),
+        path: std::path::PathBuf::from("src/lib.rs"),
+        origins: Vec::new(),
+    }];
+    app.changes.patch = vec!["@@ -1,1 +1,1 @@".to_owned(), "+added line".to_owned()];
+    app.pane_view = PaneView::Diff;
+
+    let selection = Selection {
+        rows: Vec::new(),
+        active: 0,
+        lanes: Vec::new(),
+        lane_index: None,
+        task: None,
+        on_orchestrator: false,
+        session: Some("live-session".to_owned()),
+        workflow_run: None,
+    };
+    let mut terminal = Terminal::new(TestBackend::new(120, 20)).unwrap();
+    terminal
+        .draw(|frame| app.draw_agents_pane(frame, Rect::new(0, 0, 120, 20), &selection))
+        .unwrap();
+    let output: String = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect();
+
+    assert!(output.contains("From app launch"), "{output}");
+    assert!(output.contains("d harness"), "the way back: {output}");
+    assert!(output.contains("src/lib.rs"), "{output}");
+    assert!(output.contains("+added line"), "{output}");
+}
+
+#[test]
+fn moving_the_cursor_off_a_session_puts_its_pane_back_to_the_harness() {
+    // A view is opened about one session. Left standing across a selection
+    // change it would describe the previous harness's work under the new one's
+    // title — the two are different repositories as often as not.
+    use crate::ui::app::rail::tests::{hosting_app, stub_session};
+    use crate::ui::app::rail::SessionRailRow;
+    use crate::ui::app::types::PaneView;
+
+    let row_for = |id: &str| {
+        RailRow::Session(Box::new(SessionRailRow {
+            agent_id: None,
+            lane_index: None,
+            task: None,
+            local: Some(stub_session(id)),
+            last: true,
+        }))
+    };
+    let selection_on = |id: &str| Selection {
+        rows: vec![row_for(id)],
+        active: 0,
+        lanes: Vec::new(),
+        lane_index: None,
+        task: None,
+        on_orchestrator: false,
+        session: None,
+        workflow_run: None,
+    };
+
+    let mut app = hosting_app();
+    app.pane_view = PaneView::Diff;
+    app.pane_view_session = Some("first-session".to_owned());
+
+    // The same session: the operator has not gone anywhere, so the view stays.
+    let mut selection = selection_on("first-session");
+    app.resolve_selected_session(&mut selection);
+    assert_eq!(app.pane_view, PaneView::Diff);
+
+    let mut selection = selection_on("second-session");
+    app.resolve_selected_session(&mut selection);
+    assert_eq!(app.pane_view, PaneView::Harness);
+    assert_eq!(app.pane_view_session.as_deref(), Some("second-session"));
+}

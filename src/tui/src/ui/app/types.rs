@@ -178,6 +178,28 @@ pub enum AgentsFocus {
     Rail,
 }
 
+/// What the pane beside the rail is showing for the selected harness.
+///
+/// The harness screen is not the only thing worth looking at for a session, and
+/// the alternatives are all *about* that session rather than beside it: what it
+/// has changed, and — as more of them land — what it is running. So they take
+/// the pane's real estate rather than opening somewhere else, the way a tab
+/// switch replaces a page: one thing on screen, one key to swap it, and the
+/// rail cursor never moves.
+///
+/// Scoped to the selected session and reset when the cursor moves off it
+/// ([`App::resolve_selected_session`](crate::ui::app)): a view opened to answer
+/// a question about one harness must not stay open over the next one, where it
+/// would be showing another session's diff under this session's row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PaneView {
+    /// The harness's own terminal — what it is painting right now.
+    #[default]
+    Harness,
+    /// What the harness has changed since it launched.
+    Diff,
+}
+
 /// Which pane of the Workflows tab has the keyboard.
 ///
 /// Focus is split by *mode*, the way Settings and Routing split theirs: the
@@ -1168,6 +1190,19 @@ pub struct App {
     // is where the rail cursor is turned into a selection; cleared at the top of
     // every draw so it can never name a pane that is no longer on screen.
     pub(super) pane_session: Option<String>,
+    // What the pane is showing for that session: its terminal, or one of the
+    // views that replace it. Not cleared per frame — it is the operator's
+    // choice, not a record of what the last draw resolved — so it is reset by
+    // the selection moving instead.
+    pub(super) pane_view: PaneView,
+    // The session `pane_view` was chosen for. `pane_session` cannot answer this:
+    // it is cleared at the top of every draw, so comparing against it would
+    // reset the view on every frame.
+    pub(super) pane_view_session: Option<String>,
+    // The session whose close is awaiting confirmation, if one is. Killing a
+    // harness ends whatever it was in the middle of, so `k` asks first — the
+    // same one-keypress contract `kill_armed` has for a dispatched task.
+    pub(super) harness_close_armed: Option<String>,
     // The session that took the press of the button currently held down, if any.
     // A terminal grabs the pointer for the whole gesture: whoever received the
     // press receives the drags and the release too, wherever the pointer has

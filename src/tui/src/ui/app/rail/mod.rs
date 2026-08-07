@@ -39,6 +39,9 @@ use super::types::App;
 use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
 use crate::worker::pty::SessionRow;
 
+mod cleanup;
+#[cfg(test)]
+mod cleanup_tests;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
@@ -388,9 +391,12 @@ impl App {
     /// reachable by nothing until it is listed here, which is the whole point of
     /// having kept it.
     ///
-    /// Exited ones stay listed: the last screen is often the reason it exited,
-    /// and a row that vanishes on failure is a row that hides the failure. They
-    /// leave when the operator forgets them.
+    /// Exited ones do **not** stay listed. A finished session is history, and a
+    /// rail that keeps every one of them buries the sessions that are still
+    /// doing something under the ones that are not. The two cases where reading
+    /// a dead session still matters keep it — the operator is attached to it, or
+    /// a run it started is still executing — and [`cleanup`] is where that rule
+    /// and the forgetting it drives are written down.
     ///
     /// And a dispatched session that started a workflow run is listed too, task
     /// row or not. The task row carries `local: None`, so it has no grant to key
@@ -413,11 +419,16 @@ impl App {
                 row.origin.is_user()
                     || row.control == crate::worker::pty::SessionControl::User
                     || row.retained
+                    // Only while a run is *still going*: the rows a settled one
+                    // would contribute are dropped by `run_rows_under`, so a
+                    // session held open by finished runs would be a row with
+                    // nothing under it.
                     || row
                         .mcp_grant_session
                         .as_deref()
-                        .is_some_and(|grant| self.harness_runs.any_for_session(grant))
+                        .is_some_and(|grant| self.harness_runs.any_active_for_session(grant))
             })
+            .filter(|row| row.state.is_running() || self.keeps_finished_session(row))
             .collect();
         rows.sort_by_key(|row| row.started_at);
         rows
@@ -536,6 +547,12 @@ fn task_row_serving<'a>(
 /// Keyed by the grant session recorded on the PTY row at launch — the same key
 /// the MCP subprocess reports under — so a session Medulla did not spawn, or
 /// one whose harness was never granted the workflow tools, simply has none.
+///
+/// Only the runs still executing. A settled run is finished work, and the rail
+/// is about work in flight: its record is written to the workflow store the
+/// moment it settles, and the Workflows page lists that history properly —
+/// with the run's steps, its inputs, and its error — where a rail row could
+/// only ever repeat the word "failed" until the session went away.
 fn run_rows_under(
     session: &SessionRailRow,
     runs: &medulla::control_socket::HarnessRunRegistry,
@@ -546,7 +563,11 @@ fn run_rows_under(
     let Some(grant) = local.mcp_grant_session.as_deref() else {
         return Vec::new();
     };
-    let reported = runs.for_session(grant);
+    let reported: Vec<_> = runs
+        .for_session(grant)
+        .into_iter()
+        .filter(|run| !run.status.is_terminal())
+        .collect();
     let last_index = reported.len().saturating_sub(1);
     reported
         .into_iter()
