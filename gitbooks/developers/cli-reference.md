@@ -8,7 +8,7 @@ the host link, and self-updating.
 | --- | --- |
 | `medulla` | Bare invocation starts the [TUI](#the-tui). |
 | `medulla run <instruction>` | [Headless one-shot](#medulla-run): submit one instruction and stream the cycle's events as JSON lines. |
-| `medulla login` / `logout` | [Browser OAuth login](authentication.md); logout clears the session and keeps the account selected. |
+| `medulla login` / `logout` | [OAuth login](authentication.md) — via the browser, or `--code` for SSH and other browserless terminals; logout clears the session and keeps the account selected. |
 | `medulla daemon` | [Coding-agent worker daemon](#medulla-daemon) over the host link (`--headless` for a service process). |
 | `medulla codex` / `claude` / `opencode` | [Harness wrappers](#harness-wrappers): run a CLI, bridged to your orchestrator. |
 | `medulla sessions` | List recent claude/codex sessions as JSON. |

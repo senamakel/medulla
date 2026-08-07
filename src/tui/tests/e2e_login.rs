@@ -253,9 +253,22 @@ async fn run_medulla(
     home: std::path::PathBuf,
     base_url: String,
 ) -> std::process::Output {
+    run_medulla_with_stdin(args, home, base_url, None).await
+}
+
+/// [`run_medulla`], optionally feeding `stdin` to the child.
+///
+/// The terminal login flow reads its code from stdin, so exercising it end to
+/// end means writing to the process rather than only reading from it.
+async fn run_medulla_with_stdin(
+    args: Vec<String>,
+    home: std::path::PathBuf,
+    base_url: String,
+    stdin: Option<String>,
+) -> std::process::Output {
     tokio::task::spawn_blocking(move || {
-        std::process::Command::new(env!("CARGO_BIN_EXE_medulla"))
-            .args(&args)
+        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_medulla"));
+        cmd.args(&args)
             .current_dir(&home)
             .env("MEDULLA_HOME", &home)
             .env("MEDULLA_API_URL", &base_url)
@@ -269,9 +282,26 @@ async fn run_medulla(
             .env_remove("BACKEND_URL")
             .env_remove("VITE_BACKEND_URL")
             .env_remove("OPENHUMAN_MEDULLA_BASE_URL")
-            .env_remove("OPENHUMAN_WORKSPACE")
-            .output()
-            .expect("the medulla binary should run")
+            .env_remove("OPENHUMAN_WORKSPACE");
+
+        let Some(input) = stdin else {
+            return cmd.output().expect("the medulla binary should run");
+        };
+
+        use std::io::Write;
+        let mut child = cmd
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("the medulla binary should run");
+        child
+            .stdin
+            .take()
+            .expect("stdin was piped")
+            .write_all(input.as_bytes())
+            .expect("write the pasted code");
+        child.wait_with_output().expect("binary runs to completion")
     })
     .await
     .expect("binary runs to completion")
@@ -360,6 +390,79 @@ async fn login_still_refuses_a_response_with_no_account_id() {
         !home.path().join("active_user.toml").exists(),
         "nothing was adopted"
     );
+
+    handle.abort();
+}
+
+/// `medulla login --code` is the flow for a shell with no browser of its own,
+/// so the two things it must do are print a URL the operator can open elsewhere
+/// and accept the code that page produces on stdin.
+///
+/// Driven through the real binary because the value of this path is precisely
+/// that it binds nothing: a library-level test could not tell the difference
+/// between "no listener needed" and "listener quietly failed".
+#[tokio::test]
+async fn code_path_prints_a_url_and_redeems_what_is_pasted_back() {
+    let (base_url, handle) = start_auth_stub(LIVE_ME).await;
+    let home = tempfile::TempDir::new().unwrap();
+
+    let out = run_medulla_with_stdin(
+        vec![
+            "login".to_string(),
+            "--code".to_string(),
+            "--provider".to_string(),
+            "github".to_string(),
+        ],
+        home.path().to_path_buf(),
+        base_url.clone(),
+        // Pasted with the trailing newline a copy from the browser carries.
+        Some(format!("{}\n", "deadbeef".repeat(8))),
+    )
+    .await;
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains(&format!("{base_url}/auth/github/login?redirect=cli")),
+        "the URL to open elsewhere is printed: {stdout}"
+    );
+    // No listener is bound and none is advertised: a `redirectUri` here would
+    // put the flow back on the loopback path this exists to avoid. (The stub
+    // backend is itself on 127.0.0.1, so the address alone proves nothing.)
+    assert!(
+        !stdout.contains("redirectUri"),
+        "no loopback redirect is requested: {stdout}"
+    );
+    assert!(
+        out.status.success(),
+        "the pasted code signs in. stdout: {stdout}\nstderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("Logged in as dev@example.com"),
+        "the redeemed session is verified and greeted: {stdout}"
+    );
+
+    handle.abort();
+}
+
+/// An empty paste (or a closed stdin) fails with a sentence about what was
+/// missing, rather than sending a blank code to the backend.
+#[tokio::test]
+async fn code_path_refuses_an_empty_paste() {
+    let (base_url, handle) = start_auth_stub(LIVE_ME).await;
+    let home = tempfile::TempDir::new().unwrap();
+
+    let out = run_medulla_with_stdin(
+        vec!["login".to_string(), "--code".to_string()],
+        home.path().to_path_buf(),
+        base_url,
+        Some("   \n".to_string()),
+    )
+    .await;
+
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "an empty paste is not a login");
+    assert!(stderr.contains("no code was pasted"), "why: {stderr}");
 
     handle.abort();
 }
