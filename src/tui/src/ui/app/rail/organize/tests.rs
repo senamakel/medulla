@@ -128,6 +128,22 @@ fn grouping_by_harness_sections_by_the_cli_each_agent_runs() {
 }
 
 #[test]
+fn grouping_by_harness_ignores_ascii_case() {
+    let mut app = app_with_agents();
+    app.loaded.config.appearance.sidebar_grouping = SidebarGrouping::Harness;
+    app.loaded.config.fleet.agent_declarations[2].harness = "Claude".into();
+
+    assert_eq!(
+        sections(&app),
+        vec![
+            (Some("claude".into()), vec!["zed".into(), "mint".into()]),
+            (Some("codex".into()), vec!["acorn".into()]),
+        ],
+        "the first configured spelling remains the label for one shared harness section"
+    );
+}
+
+#[test]
 fn grouping_by_none_lists_every_agent_without_a_header() {
     let mut app = app_with_agents();
     app.loaded.config.appearance.sidebar_grouping = SidebarGrouping::None;

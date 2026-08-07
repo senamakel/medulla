@@ -42,10 +42,16 @@ pub(super) fn organize(
 ) -> Vec<Section> {
     let mut sections = match grouping {
         SidebarGrouping::Host => by_host(hosts),
-        SidebarGrouping::Path => by_key(flatten_agents(hosts, declarations, sort), agent_path),
-        SidebarGrouping::Harness => {
-            by_key(flatten_agents(hosts, declarations, sort), agent_harness)
-        }
+        SidebarGrouping::Path => by_key(
+            flatten_agents(hosts, declarations, sort),
+            agent_path,
+            str::eq,
+        ),
+        SidebarGrouping::Harness => by_key(
+            flatten_agents(hosts, declarations, sort),
+            agent_harness,
+            str::eq_ignore_ascii_case,
+        ),
         SidebarGrouping::None => vec![Section {
             header: SectionHeader::None,
             agents: flatten_agents(hosts, declarations, sort),
@@ -82,12 +88,16 @@ fn by_host(hosts: Vec<HostGroup>) -> Vec<Section> {
 }
 
 /// Section every agent by one derived key, preserving first-seen order.
-fn by_key(agents: Vec<AgentGroup>, key: fn(&AgentGroup) -> String) -> Vec<Section> {
+fn by_key(
+    agents: Vec<AgentGroup>,
+    key: fn(&AgentGroup) -> String,
+    keys_match: fn(&str, &str) -> bool,
+) -> Vec<Section> {
     let mut sections: Vec<Section> = Vec::new();
     for agent in agents {
         let label = key(&agent);
         match sections.iter_mut().find(|section| match &section.header {
-            SectionHeader::Group(group) => group.label == label,
+            SectionHeader::Group(group) => keys_match(&group.label, &label),
             _ => false,
         }) {
             Some(section) => section.agents.push(agent),
