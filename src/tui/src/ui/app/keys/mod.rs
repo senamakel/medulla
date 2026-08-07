@@ -325,12 +325,20 @@ impl App {
                 return self.tab_enter_cmd();
             }
             KeyCode::PageUp if tab == "Agents" => {
-                let step = self.visible_count().saturating_sub(1).max(1);
-                self.scroll_transcript(true, step);
+                if self.on_workflow_run_row().is_some() {
+                    self.wf.preview_scroll = self.wf.preview_scroll.saturating_sub(6);
+                } else {
+                    let step = self.visible_count().saturating_sub(1).max(1);
+                    self.scroll_transcript(true, step);
+                }
             }
             KeyCode::PageDown if tab == "Agents" => {
-                let step = self.visible_count().saturating_sub(1).max(1);
-                self.scroll_transcript(false, step);
+                if self.on_workflow_run_row().is_some() {
+                    self.wf.preview_scroll = self.wf.preview_scroll.saturating_add(6);
+                } else {
+                    let step = self.visible_count().saturating_sub(1).max(1);
+                    self.scroll_transcript(false, step);
+                }
             }
             KeyCode::Enter if tab == "Agents" && (shift || alt) => {
                 self.draft = insert_at(&self.draft.text, self.draft.cursor, "\n");

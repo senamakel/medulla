@@ -14,8 +14,10 @@ use unicode_width::UnicodeWidthStr;
 use crate::ui::app::App;
 use crate::worker::pty::{AttentionKind, HarnessAttention, PtyState, SessionControl, SessionRow};
 
+use super::super::super::color;
 use super::rows::{display_session_title, lane_title, running_session_title};
-use super::wrap::{flow_path, wrap_line, wrap_path};
+use super::workflow_run_elapsed;
+use super::wrap::{flow_path, short_home, wrap_line, wrap_path};
 
 pub(super) fn app() -> App {
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
@@ -46,11 +48,11 @@ fn attention_uses_the_configured_color_and_can_stay_solid() {
 }
 
 /// No harness is waiting, which is what most of these rows assume.
-pub(super) fn none_waiting() -> std::collections::HashSet<String> {
+fn none_waiting() -> std::collections::HashSet<String> {
     std::collections::HashSet::new()
 }
 
-pub(super) fn lane() -> AgentLane {
+fn lane() -> AgentLane {
     AgentLane {
         key: "k".into(),
         label: "worker".into(),
@@ -495,4 +497,148 @@ fn a_path_too_long_to_fit_keeps_its_tail() {
         joined.starts_with('…'),
         "and the row says it was shortened: {joined:?}"
     );
+}
+
+#[test]
+fn a_path_segment_of_wide_characters_hard_cuts_by_display_column() {
+    let out = flow_path("任务一二三四五六七八九十", 10);
+    assert!(out.iter().all(|line| line.width() <= 10));
+    assert_eq!(out.concat(), "任务一二三四五六七八九十");
+}
+
+#[test]
+fn an_unbreakable_final_segment_keeps_its_own_tail() {
+    let out = wrap_path(
+        "~/work/a/very-long-checkout-name-that-alone-overruns-the-budget-abcdefg",
+        12,
+        2,
+    );
+    assert!(out.len() <= 2);
+    let joined = out.concat();
+    assert!(joined.ends_with("abcdefg"));
+    assert!(joined.starts_with('…'));
+}
+
+#[test]
+fn homes_compact_only_their_own_path_prefix() {
+    let home = Some("/Users/dev");
+    assert_eq!(short_home("/Users/dev/work/repo", home), "~/work/repo");
+    assert_eq!(short_home("/Users/dev", home), "~");
+    assert_eq!(short_home("/Users/developer/x", home), "/Users/developer/x");
+    assert_eq!(short_home("/srv/repos/auth", None), "/srv/repos/auth");
+}
+
+#[test]
+fn a_windows_home_collapses_on_its_own_separator() {
+    let home = Some("C:\\Users\\dev");
+    assert_eq!(
+        short_home("C:\\Users\\dev\\work\\repo", home),
+        "~\\work\\repo"
+    );
+    assert_eq!(short_home("D:\\src\\other", home), "D:\\src\\other");
+}
+
+/// A reported run, as the control plane hands one to the rail.
+fn reported_run(
+    status: medulla::control_socket::HarnessRunStatus,
+) -> medulla::control_socket::HarnessRun {
+    medulla::control_socket::HarnessRun {
+        run_id: "run-1".into(),
+        workflow_id: "review-and-fix".into(),
+        status,
+        started_at: 1,
+        updated_at: 2,
+        detail: Some("review · running the test suite".into()),
+        frames: Vec::new(),
+    }
+}
+
+#[test]
+fn a_workflow_run_row_names_its_workflow_status_and_elapsed_time() {
+    let app = app();
+    let row =
+        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "w_1".into(),
+            run: reported_run(medulla::control_socket::HarnessRunStatus::Running),
+            last: true,
+        });
+    let text = app
+        .rail_row_line(&row, &[lane()], false, &none_waiting(), NOW)
+        .to_string();
+    assert!(text.contains("review-and-fix"), "{text}");
+    assert!(text.contains("running"), "{text}");
+    assert!(text.contains("9s"), "{text}");
+    assert!(text.starts_with("   └"), "{text}");
+}
+
+#[test]
+fn a_workflow_run_row_carries_no_harness_output() {
+    let app = app();
+    let row =
+        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "w_1".into(),
+            run: reported_run(medulla::control_socket::HarnessRunStatus::Running),
+            last: true,
+        });
+    let text = app
+        .rail_row_line(&row, &[lane()], false, &none_waiting(), NOW)
+        .to_string();
+    assert!(!text.contains("running the test suite"), "{text}");
+}
+
+#[test]
+fn a_settled_run_row_stops_ageing_at_its_last_report() {
+    let mut run = reported_run(medulla::control_socket::HarnessRunStatus::Succeeded);
+    run.started_at = 1_000;
+    run.updated_at = 4_000;
+    let app = app();
+    let row =
+        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "w_1".into(),
+            run,
+            last: true,
+        });
+    let text = app
+        .rail_row_line(&row, &[lane()], false, &none_waiting(), NOW + 600_000)
+        .to_string();
+    assert!(text.contains("3s"), "{text}");
+}
+
+#[test]
+fn clock_clamps_an_active_run_that_starts_after_now_to_zero() {
+    let mut run = reported_run(medulla::control_socket::HarnessRunStatus::Running);
+    run.started_at = NOW + 1;
+    assert_eq!(
+        workflow_run_elapsed(&run, NOW),
+        medulla::ui::workflows::human_duration(0)
+    );
+}
+
+#[test]
+fn clock_clamps_a_settled_run_reported_before_it_started_to_zero() {
+    let mut run = reported_run(medulla::control_socket::HarnessRunStatus::Succeeded);
+    run.started_at = NOW;
+    run.updated_at = NOW - 1;
+    assert_eq!(
+        workflow_run_elapsed(&run, NOW + 1),
+        medulla::ui::workflows::human_duration(0)
+    );
+}
+
+#[test]
+fn a_failed_run_row_is_coloured_by_its_status_rather_than_by_the_row() {
+    let app = app();
+    let row =
+        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
+            session_id: "w_1".into(),
+            run: reported_run(medulla::control_socket::HarnessRunStatus::Failed),
+            last: false,
+        });
+    let line = app.rail_row_line(&row, &[lane()], false, &none_waiting(), NOW);
+    let status = line
+        .spans
+        .iter()
+        .find(|span| span.content.contains("failed"))
+        .expect("a status span");
+    assert_eq!(status.style.fg, Some(color("red")));
 }

@@ -26,8 +26,6 @@ use super::types::{AgentsPanes, Selection};
 mod attention_tests;
 mod device_footer;
 mod harness_line;
-#[cfg(test)]
-mod path_tests;
 mod rows;
 mod state;
 mod status;
@@ -36,11 +34,11 @@ mod status_line_tests;
 #[cfg(test)]
 mod tests;
 mod types;
-#[cfg(test)]
-mod workflow_run_tests;
+mod workflow_run;
 mod wrap;
 
 use types::DeviceFooter;
+pub(super) use workflow_run::workflow_run_elapsed;
 use wrap::wrap_line;
 
 /// The most content columns the Agents rail ever takes.
@@ -87,25 +85,6 @@ fn rail_title(rows: &[RailRow], lanes: &[AgentLane], waiting: usize) -> String {
         title.push_str(&format!(" · {ATTENTION_GLYPH} {waiting} waiting on you"));
     }
     title
-}
-
-/// How long a run has been going, or how long it took.
-///
-/// Measured to the last report once the run has settled and to `now` while it is
-/// still executing, so a finished row stops counting instead of ageing forever
-/// on a rail nobody has touched. Rendered through the SDK's own
-/// [`human_duration`](medulla::ui::workflows::human_duration) so the rail, the
-/// graph title and the run overview all say `4m 12s` the same way.
-///
-/// A clock that has gone backwards between the two stamps — a machine that
-/// resynced mid-run — yields nothing rather than a negative span.
-pub(super) fn workflow_run_elapsed(run: &medulla::control_socket::HarnessRun, now: i64) -> String {
-    let end = if run.status.is_terminal() {
-        run.updated_at
-    } else {
-        now.max(run.started_at)
-    };
-    medulla::ui::workflows::human_duration(end.saturating_sub(run.started_at).max(0) as u64)
 }
 
 impl App {
@@ -396,77 +375,6 @@ impl App {
                 (None, None) => TLine::from(""),
             },
         }
-    }
-
-    /// Format a workflow run started by the session above it.
-    ///
-    /// Deliberately shaped like a task sublane — the same branch glyph — because
-    /// that is what it is from the operator's side: work this session set going,
-    /// nested under it.
-    ///
-    /// Three things and no more: what is running, how it is going, and how long
-    /// it has been going. The workflow's *name* leads, resolved from the
-    /// catalogue, because the id is a slug chosen by whoever authored the file
-    /// and a rail full of `pr-babysitter-medulla` reads as machinery rather than
-    /// as work. The status carries the colour, so the row is scannable without
-    /// being read.
-    ///
-    /// What is deliberately absent is the run's latest `detail`. It was appended
-    /// as a dim tail on the theory that a long step should still show movement,
-    /// but the frames are a harness's own stdout: in practice the row rendered
-    /// whole shell command lines — `running Terminal · $ CARGO_TARGET_DIR=…
-    /// exec-ed1195bf-…` — which wrapped over several lines each and buried the
-    /// rows either side. Live progress belongs in the pane, which now draws this
-    /// run's graph and its streamed frames; the rail is an index, not a log.
-    fn workflow_run_line(
-        &self,
-        row: &super::super::super::rail::WorkflowRunRailRow,
-        active: bool,
-        now: i64,
-    ) -> TLine<'static> {
-        let branch = if row.last { "└" } else { "├" };
-        let style = if active {
-            self.theme.selection()
-        } else {
-            Style::default()
-        };
-        let status_style = if active {
-            style
-        } else {
-            Style::default().fg(color(row.run.status.color()))
-        };
-        TLine::from(vec![
-            Span::styled(
-                format!("   {branch} ⚙ {} · ", self.workflow_run_title(&row.run)),
-                style,
-            ),
-            Span::styled(row.run.status.label().to_string(), status_style),
-            Span::styled(
-                format!(" · {}", workflow_run_elapsed(&row.run, now)),
-                if active {
-                    style
-                } else {
-                    style.add_modifier(Modifier::DIM)
-                },
-            ),
-        ])
-    }
-
-    /// What to call the workflow a run is of.
-    ///
-    /// Its catalogue name when this machine has the workflow installed, else the
-    /// id the reporter sent. The fallback is the ordinary case for a run started
-    /// by a *remote* session against a workflow that only exists over there, so
-    /// it is a real answer rather than a defect — and the id is still better than
-    /// refusing to name the row at all.
-    fn workflow_run_title(&self, run: &medulla::control_socket::HarnessRun) -> String {
-        self.workflows
-            .iter()
-            .find(|summary| summary.id == run.workflow_id)
-            .map(|summary| summary.name.trim())
-            .filter(|name| !name.is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| run.workflow_id.clone())
     }
 
     /// Format an agent row.

@@ -27,12 +27,12 @@ use super::super::super::rail::WorkflowRunRailRow;
 use super::super::super::types::App;
 use super::super::color;
 
-/// Conservatively count terminal rows a set of paragraph lines can occupy.
+/// Count terminal rows a set of paragraph lines occupies after word wrapping.
 ///
-/// Ratatui wraps on word boundaries, so dividing a line's total display width
-/// can undercount: words that individually fit may not share a row. Counting
-/// every word independently is deliberately an upper bound. It can leave an
-/// unused row, but never places the newest progress below wrapped context.
+/// This mirrors Ratatui's word packing: words share a row when their separating
+/// space and display widths fit, while oversized words consume as many rows as
+/// needed. Counting every word separately would wrongly spend a whole row on
+/// each short word and hide live progress in an otherwise roomy pane.
 fn wrapped_rows(lines: &[TLine<'_>], width: u16) -> usize {
     let width = usize::from(width).max(1);
     lines
@@ -43,8 +43,30 @@ fn wrapped_rows(lines: &[TLine<'_>], width: u16) -> usize {
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect();
-            text.split_whitespace()
-                .map(|word| word.width().max(1).div_ceil(width))
+            text.lines()
+                .map(|paragraph| {
+                    let mut rows = 1;
+                    let mut used = 0;
+                    for word in paragraph.split_whitespace() {
+                        let word_width = word.width().max(1);
+                        if used == 0 {
+                            rows += word_width.saturating_sub(1) / width;
+                            used = word_width % width;
+                            if used == 0 {
+                                used = width;
+                            }
+                        } else if used + 1 + word_width <= width {
+                            used += 1 + word_width;
+                        } else {
+                            rows += 1 + word_width.saturating_sub(1) / width;
+                            used = word_width % width;
+                            if used == 0 {
+                                used = width;
+                            }
+                        }
+                    }
+                    rows
+                })
                 .sum::<usize>()
                 .max(1)
         })
