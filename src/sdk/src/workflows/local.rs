@@ -412,6 +412,7 @@ impl LocalRun<'_> {
             services,
             sink,
             origin,
+            claim: Some(claim),
             step_snapshot: Some(Arc::new(move |steps| {
                 match snapshot_store.get_run(&snapshot_run_id) {
                     Ok(Some(mut record))
