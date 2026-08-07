@@ -43,15 +43,17 @@ impl App {
             return;
         };
         let was_taken = self.sessions_taken.contains_key(session);
+        let release_workspace =
+            was_taken && !self.workspace_has_another_taken_session(&harnesses, session);
         if !harnesses.sessions.close(session) {
             self.set_status("That session is gone");
             return;
         }
         // `close` retains the row long enough for `hand_back_session` to build
-        // its brief. A taken session also held its workspace in the backend;
-        // release that hold before discarding our take record so a replacement
-        // harness can be dispatched there after this one exits.
-        if was_taken {
+        // its brief. A taken session also held its workspace in the backend,
+        // but that hold is shared by every other locally-held session in the
+        // same workspace. Only the last such session may release it.
+        if release_workspace {
             self.hand_back_session(session, None);
         }
         if self.harness_focus.is_attached_to(session) {
@@ -60,5 +62,28 @@ impl App {
         }
         self.sessions_taken.remove(session);
         self.set_status("Closed the harness");
+    }
+
+    /// Whether another running, operator-held session keeps `session`'s
+    /// workspace reserved from orchestrator dispatch.
+    ///
+    /// Holds are workspace-scoped in the backend, while [`sessions_taken`]
+    /// records individual sessions. Looking up the live rows prevents an old
+    /// record for an already-exited session from indefinitely preserving a hold.
+    fn workspace_has_another_taken_session(
+        &self,
+        harnesses: &crate::ui::harness_pane::LocalSessions,
+        session: &str,
+    ) -> bool {
+        let Some(workspace) = harnesses.sessions.row(session).map(|row| row.cwd) else {
+            return false;
+        };
+        self.sessions_taken.keys().any(|other_session| {
+            other_session != session
+                && harnesses
+                    .sessions
+                    .row(other_session)
+                    .is_some_and(|row| row.state.is_running() && row.cwd == workspace)
+        })
     }
 }

@@ -7,6 +7,8 @@ use std::sync::Arc;
 use crossterm::event::KeyModifiers;
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
+#[cfg(unix)]
+use medulla::runtime::AgentDeclaration;
 use medulla::runtime::Runtime;
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
@@ -14,6 +16,8 @@ use ratatui::Terminal;
 use super::rail::RailRow;
 use super::session_control::is_text_input;
 use super::types::{tab_pos, App};
+#[cfg(unix)]
+use crate::worker::pty::SessionControl;
 
 #[test]
 fn workspace_text_accepts_altgr_but_rejects_control_shortcuts() {
@@ -179,4 +183,41 @@ fn moving_off_the_row_or_off_the_tab_disarms_it_again() {
         !status.contains("another host"),
         "so the chord falls back to the plain answer: {status}"
     );
+}
+
+// Unix-only because the fixture uses `/bin/sh` to stand up real, local
+// harnesses. The ownership behaviour itself is platform-independent.
+#[cfg(unix)]
+#[test]
+fn closing_one_of_two_taken_sessions_keeps_the_shared_workspace_held() {
+    let sessions = crate::worker::pty::PtyManager::new();
+    let mut app = app();
+    app.set_local_sessions(super::rail::tests::shell_harnesses(sessions.clone()));
+    app.loaded.config.fleet.agent_declarations = vec![
+        AgentDeclaration::new("first", "", "codex", "/"),
+        AgentDeclaration::new("second", "", "codex", "/"),
+    ];
+    app.start_agent_session("first", "first", false);
+    app.start_agent_session("second", "second", false);
+    let ids: Vec<String> = sessions.rows().into_iter().map(|row| row.id).collect();
+    assert_eq!(ids.len(), 2, "the fixture opened both sessions");
+    for id in &ids {
+        sessions.set_control(id, SessionControl::User);
+        app.sessions_taken
+            .insert(id.clone(), super::types::TakeOrigin::Explicit);
+    }
+
+    app.close_session(&ids[0]);
+
+    assert!(
+        app.sessions_taken.contains_key(&ids[1]),
+        "the other session remains operator-held"
+    );
+    assert!(
+        app.pending_cmds
+            .iter()
+            .all(|cmd| !matches!(cmd, super::types::Cmd::HandOffSession(_))),
+        "the workspace hold stays in place while another taken session covers it"
+    );
+    sessions.shutdown();
 }
