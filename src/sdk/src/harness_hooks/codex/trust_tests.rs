@@ -182,7 +182,38 @@ fn enable_writes_the_file_and_reports_the_count() {
     assert_eq!(after.matches("enabled = true").count(), 2, "{after}");
     assert_eq!(enable(&path, &INSTALLED).expect("no error"), 0);
     assert!(
-        !dir.path().join("config.toml.medulla-trust").exists(),
-        "the temporary file is renamed away, never left behind"
+        dir.path().join("config.toml.medulla-trust.lock").exists(),
+        "the stable sibling lock coordinates subsequent writers too"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn enable_preserves_a_symlink_and_restrictive_permissions() {
+    use std::os::unix::fs::{symlink, PermissionsExt};
+
+    let dir = tempfile::tempdir().expect("a scratch directory");
+    let target = dir.path().join("dotfiles-config.toml");
+    let link = dir.path().join("config.toml");
+    std::fs::write(&target, entry(&injected("post_tool_use"), "")).expect("the target is writable");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600))
+        .expect("the target permissions can be restricted");
+    symlink(&target, &link).expect("a symlinked configuration");
+
+    assert_eq!(enable(&link, &INSTALLED).expect("rewrite succeeds"), 1);
+    assert!(std::fs::symlink_metadata(&link)
+        .expect("link metadata")
+        .file_type()
+        .is_symlink());
+    assert_eq!(
+        std::fs::metadata(&target)
+            .expect("target metadata")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+    assert!(std::fs::read_to_string(&target)
+        .expect("target contents")
+        .contains("enabled = true"));
 }
