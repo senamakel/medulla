@@ -278,16 +278,28 @@ fn parse_provider(name: &str) -> Result<HarnessProvider, String> {
 /// harness are suffixed with their agent id instead, because "this device ·
 /// claude" twice names neither and the id is what a dispatch targets anyway.
 ///
-/// # Errors
+/// # Misplaced declarations
 ///
-/// Rejects a declaration whose workspace is not the one its host runs in. See
+/// A declaration whose workspace is not the one its host runs in is dropped
+/// rather than advertised, and the reason is returned alongside the specs. See
 /// [`check_placement`] — an advert that names a directory the task will not run
-/// in is worse than a host that refuses to start and says why.
+/// in is worse than no advert at all.
+///
+/// Dropping the declaration, and not the host: one mistyped directory used to
+/// take hosting on this device down altogether, which reads on screen as a
+/// device that is simply offline with no sessions to start — the mistake and
+/// the symptom share no vocabulary at all. The agent is still not advertised
+/// where it will not run, which is the whole of what the check was for, and the
+/// operator is told which declaration was dropped and why.
+///
+/// A host whose every declaration was dropped falls back to the detection seed,
+/// exactly as one that declared nothing does: hosting is what the rest of the
+/// device depends on, and it must not hinge on a roster entry being right.
 fn specs_for(
     daemon: &EmbeddedDaemon,
     name: &str,
     declared: &[AgentDeclaration],
-) -> Result<Vec<WorkerSpec>, String> {
+) -> (Vec<WorkerSpec>, Vec<String>) {
     let host_id = daemon.address();
     let mine: Vec<AgentDeclaration> = declared
         .iter()
@@ -299,8 +311,23 @@ fn specs_for(
     } else {
         mine
     };
-    for declaration in &mine {
-        check_placement(declaration, host_id, daemon.workspace())?;
+    let mut problems = Vec::new();
+    let mut mine: Vec<AgentDeclaration> = mine
+        .into_iter()
+        .filter(
+            |declaration| match check_placement(declaration, host_id, daemon.workspace()) {
+                Ok(()) => true,
+                Err(problem) => {
+                    problems.push(problem);
+                    false
+                }
+            },
+        )
+        .collect();
+    // Every declaration named somewhere else. The host still runs — it just
+    // advertises what it detected, as an install that declared nothing does.
+    if mine.is_empty() {
+        mine = seed_for(daemon);
     }
     let single = mine.len() == 1;
     // The workspace every one of them runs in, now that a declaration naming
@@ -308,7 +335,7 @@ fn specs_for(
     // the declaration so the advertised spelling is the resolved one the
     // executor actually launches in, not whatever shorthand was typed.
     let workspace_path = daemon.workspace().to_string();
-    Ok(mine
+    let specs = mine
         .iter()
         .map(|declaration| {
             let label = declaration.name.clone().unwrap_or_else(|| {
@@ -341,7 +368,8 @@ fn specs_for(
                 max_sessions: declaration.max_sessions(),
             }
         })
-        .collect())
+        .collect();
+    (specs, problems)
 }
 
 /// Whether another agent on this host runs the same harness.
@@ -355,7 +383,7 @@ fn shares_harness(mine: &[AgentDeclaration], declaration: &AgentDeclaration) -> 
         > 1
 }
 
-/// Refuse a declaration that says it works somewhere its host does not.
+/// Reject a declaration that says it works somewhere its host does not.
 ///
 /// **An agent runs where its host runs.** A task is addressed to a *host* — the
 /// frame carries a task id, a prompt and a harness hint, and nothing that names
@@ -366,12 +394,14 @@ fn shares_harness(mine: &[AgentDeclaration], declaration: &AgentDeclaration) -> 
 /// that runs it in `/srv/api`, and the only evidence is the wrong repository
 /// being edited.
 ///
-/// Refused rather than quietly re-pointed at the host's directory, for the same
-/// reason [`parse_provider`] refuses an unknown harness: a declaration is the
-/// operator saying where work happens, and silently doing it somewhere else is
-/// the failure this check exists to prevent. The remedy is the mechanism that
+/// Rejected rather than quietly re-pointed at the host's directory, for the
+/// same reason [`parse_provider`] refuses an unknown harness: a declaration is
+/// the operator saying where work happens, and silently doing it somewhere else
+/// is the failure this check exists to prevent. The remedy is the mechanism that
 /// already works — a `[[hosts]]` entry for that directory, which binds its own
-/// address and gets its own executor — and the error says so.
+/// address and gets its own executor — and the message says so.
+///
+/// The rejection costs the *declaration*, not the host: see [`specs_for`].
 ///
 /// A blank workspace declares no placement at all and is accepted: the agent
 /// takes its host's directory, which is what it would have done anyway.
@@ -424,10 +454,12 @@ fn seed_for(daemon: &EmbeddedDaemon) -> Vec<AgentDeclaration> {
 ///
 /// Returns `Ok(None)` when hosting is switched off, which is a choice rather
 /// than a failure. An `Err` means hosting was wanted and could not happen — no
-/// agent CLI installed, the address already bound, or an agent declared in a
-/// directory this host does not work in ([`check_placement`]) — and the caller
-/// surfaces it, because an orchestrator with no host silently does nothing at
-/// all.
+/// agent CLI installed, or the address already bound — and the caller surfaces
+/// it, because an orchestrator with no host silently does nothing at all.
+///
+/// The started host comes with the problems it survived: declarations dropped
+/// for naming a directory it does not run in ([`specs_for`]). Those are
+/// reported, never fatal.
 ///
 /// Tasks run in **live harness sessions** on `sessions`, not in headless
 /// one-shots — for the providers that write a transcript this can tail.
@@ -454,7 +486,7 @@ pub(crate) fn start(
     options: EmbeddedDaemonOptions,
     sessions: PtyManager,
     declared: &[AgentDeclaration],
-) -> Result<Option<LocalHost>, String> {
+) -> Result<Option<(LocalHost, Vec<String>)>, String> {
     if !host_enabled(config, env) {
         return Ok(None);
     }
@@ -544,7 +576,10 @@ pub(crate) fn start_all(
         sessions.clone(),
         declared,
     ) {
-        Ok(Some(host)) => hosts.push(host),
+        Ok(Some((host, dropped))) => {
+            hosts.push(host);
+            problems.extend(dropped);
+        }
         Ok(None) => {}
         Err(error) => problems.push(error),
     }
@@ -571,7 +606,10 @@ pub(crate) fn start_all(
             false,
             declared,
         ) {
-            Ok(host) => hosts.push(host),
+            Ok((host, dropped)) => {
+                hosts.push(host);
+                problems.extend(dropped);
+            }
             Err(error) => problems.push(error),
         }
     }
@@ -581,11 +619,13 @@ pub(crate) fn start_all(
 /// Bind one host at `address` and wrap it in the roster entries for the agents
 /// declared on it.
 ///
+/// Returns the host and the non-fatal problems it started in spite of — one per
+/// declaration dropped for naming a directory this host does not run in
+/// ([`specs_for`]).
+///
 /// # Errors
 ///
-/// The address is already bound, no requested agent CLI is installed, or a
-/// declaration on this host names a workspace the host does not run in
-/// ([`check_placement`]).
+/// The address is already bound, or no requested agent CLI is installed.
 #[allow(clippy::too_many_arguments)]
 fn start_at(
     config: &HostSection,
@@ -596,7 +636,7 @@ fn start_at(
     address: String,
     primary: bool,
     declared: &[AgentDeclaration],
-) -> Result<LocalHost, String> {
+) -> Result<(LocalHost, Vec<String>), String> {
     let bridge = network
         .bind(&address)
         .map_err(|e| format!("could not host on this device ({e})"))?;
@@ -616,8 +656,8 @@ fn start_at(
         run_task(executor),
     )?;
     let name = display_name(config, daemon.workspace(), primary);
-    let specs = specs_for(&daemon, &name, declared)?;
-    Ok(LocalHost { daemon, specs })
+    let (specs, problems) = specs_for(&daemon, &name, declared);
+    Ok((LocalHost { daemon, specs }, problems))
 }
 
 /// Route each task by what it can actually run: [`PtySessionExecutor`] for a

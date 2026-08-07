@@ -485,13 +485,15 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     }) {
         Ok((hosts, problems)) => {
             for problem in problems {
-                // Reported per host: one mistyped directory should cost that
-                // host, not hosting altogether, and the operator needs to know
-                // *which* one is missing rather than that something is.
-                hub_logs.push(format!(
-                    "host: not hosting one of this device's directories ({problem})"
-                ));
-                startup_status.get_or_insert(format!("not hosting one directory ({problem})"));
+                // Reported one by one, in the words `start_all` used: one
+                // mistyped directory costs that host, and one misplaced agent
+                // declaration costs that declaration — neither costs hosting on
+                // this device, and the operator needs to know *which* thing was
+                // dropped rather than that something was. Wrapping every one of
+                // them in "not hosting one of this device's directories" said
+                // the wrong thing about all but the first kind.
+                hub_logs.push(format!("host: {problem}"));
+                startup_status.get_or_insert(problem);
             }
             hosts
         }

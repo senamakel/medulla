@@ -13,9 +13,9 @@ use crate::local_host::{options_from_config, start};
 
 use super::env_with_only_claude;
 
-/// Start the primary host with `declared`, returning what it advertises or why
-/// it refused to start.
-fn hosted(declared: &[AgentDeclaration]) -> Result<Vec<WorkerSpec>, String> {
+/// Start the primary host with `declared`, returning what it advertises and the
+/// declarations it dropped on the way.
+fn hosted(declared: &[AgentDeclaration]) -> (Vec<WorkerSpec>, Vec<String>) {
     let network = LocalBridgeNetwork::new();
     let config = HostSection::default();
     let env = env_with_only_claude();
@@ -32,22 +32,28 @@ fn hosted(declared: &[AgentDeclaration]) -> Result<Vec<WorkerSpec>, String> {
     )
     .expect("valid config");
 
-    let host = start(
+    let (host, problems) = start(
         &config,
         &HashMap::new(),
         &network,
         options,
         PtyManager::new(),
         declared,
-    )?
+    )
+    .expect("a declaration never stops the host from starting")
     .expect("hosting is on by default");
 
-    Ok(host.specs().to_vec())
+    (host.specs().to_vec(), problems)
 }
 
 /// Start the primary host with `declared` and return what it would advertise.
 fn advertised(declared: &[AgentDeclaration]) -> Vec<WorkerSpec> {
-    hosted(declared).expect("every agent is declared where its host works")
+    let (specs, problems) = hosted(declared);
+    assert!(
+        problems.is_empty(),
+        "every agent is declared where its host works: {problems:?}"
+    );
+    specs
 }
 
 /// The directory the primary host actually runs tasks in — the one every agent
@@ -123,6 +129,49 @@ async fn a_host_advertises_only_the_agents_declared_on_it() {
 
     let ids: Vec<&str> = specs.iter().map(|spec| spec.id.as_str()).collect();
     assert_eq!(ids, ["mine"]);
+}
+
+/// A declaration naming a directory this host does not run in costs *that
+/// declaration*, not hosting on this device.
+///
+/// The regression: it used to fail the whole host, and a device with no host
+/// has no sessions to start and shows up offline in the fleet — so one mistyped
+/// directory read as "my laptop is not part of this any more", with the reason
+/// visible only in the log.
+#[tokio::test]
+async fn a_misplaced_declaration_is_dropped_and_the_host_still_starts() {
+    let (specs, problems) = hosted(&[
+        declaration("here", "claude"),
+        AgentDeclaration::new("elsewhere", "this-device", "claude", "/srv/api"),
+    ]);
+
+    let ids: Vec<&str> = specs.iter().map(|spec| spec.id.as_str()).collect();
+    assert_eq!(ids, ["here"], "the misplaced agent is not advertised");
+    assert_eq!(problems.len(), 1, "and the operator is told which one");
+    assert!(
+        problems[0].contains("elsewhere") && problems[0].contains("/srv/api"),
+        "the report names the agent and the directory: {}",
+        problems[0]
+    );
+}
+
+/// Every declaration misplaced is still a hosting device: it advertises what it
+/// detected, exactly as an install that declared nothing does. Left to fall
+/// through, the host would advertise an empty roster instead — unroutable, and
+/// indistinguishable on screen from not hosting at all.
+#[tokio::test]
+async fn a_host_whose_every_declaration_is_misplaced_falls_back_to_the_seed() {
+    let (specs, problems) = hosted(&[AgentDeclaration::new(
+        "elsewhere",
+        "this-device",
+        "claude",
+        "/srv/api",
+    )]);
+
+    assert_eq!(problems.len(), 1);
+    assert_eq!(specs.len(), 1, "the detection seed stands in");
+    assert_eq!(specs[0].id, "this-device");
+    assert_eq!(specs[0].harness, "claude");
 }
 
 /// The upgrade path: an install that predates declarations must not go from one

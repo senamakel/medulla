@@ -22,7 +22,7 @@ use super::super::types::{AgentsFocus, App, Cmd, PaneView};
 use crate::ui::composer::insert_at;
 
 /// What rail-focus handling did with one key press.
-pub(super) enum AgentsKey {
+pub(in crate::ui::app) enum AgentsKey {
     /// The key belonged to the rail; any follow-up command is carried along.
     Handled(Option<Cmd>),
     /// The rail does not claim this key — global and composer handling apply.
@@ -115,7 +115,9 @@ impl App {
     /// Returns [`AgentsKey::Unhandled`] for anything the rail has no opinion on
     /// — tab switching, transcript paging, the `Alt` steering chords — so those
     /// keep working identically from either side of the tab.
-    pub(super) fn on_agents_rail_key(&mut self, k: KeyEvent) -> AgentsKey {
+    // Visible to the whole `ui::app` module, not just `keys`: the rail's own
+    // tests drive it from `session_control_tests`, one level up.
+    pub(in crate::ui::app) fn on_agents_rail_key(&mut self, k: KeyEvent) -> AgentsKey {
         if !self.agents_rail_focused() {
             return AgentsKey::Unhandled;
         }
@@ -126,15 +128,15 @@ impl App {
         // keys, not the harness's: while the diff is up, `j`/`k` walk the patch
         // exactly as they do on the Changes tab. Anything the view does not
         // claim — Tab, the steering chords — falls through untouched.
-        if self.pane_view != PaneView::Harness && self.pane_session.is_some() {
-            if self.on_pane_view_key(k)
+        if self.pane_view != PaneView::Harness
+            && self.pane_session.is_some()
+            && (self.on_pane_view_key(k)
                 // The diff replaces the composer. An unbound printable key must
                 // stay with that visible view instead of falling through to the
                 // rail's typing shortcut and silently changing a hidden draft.
-                || (!ctrl && !alt && matches!(k.code, KeyCode::Char(_)))
-            {
-                return AgentsKey::Handled(None);
-            }
+                || (!ctrl && !alt && matches!(k.code, KeyCode::Char(_))))
+        {
+            return AgentsKey::Handled(None);
         }
 
         match k.code {
