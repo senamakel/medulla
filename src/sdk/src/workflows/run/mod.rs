@@ -70,6 +70,19 @@ pub struct RunContext {
     /// it is a property of the *door* the run came through, which every caller
     /// already knows once and none of them learn per run.
     pub origin: Option<crate::workflows::RunOrigin>,
+    /// A registration the caller already took out for this run id.
+    ///
+    /// A caller that hands the run id back before the run future is first
+    /// polled — [`crate::workflows::local::LocalRun::start`], which spawns and
+    /// returns — has to claim the id *itself*, or a cancel arriving in that
+    /// window finds an empty registry and reports having cancelled nothing
+    /// while the run carries on. Such a caller claims before it returns the id
+    /// and passes the claim here; the run adopts it instead of taking out a
+    /// second one, which would collide with the first and refuse the run.
+    ///
+    /// `None` for a caller that runs the future inline, where claiming at the
+    /// top of the run is already early enough.
+    pub claim: Option<registry::RunClaim>,
 }
 
 /// Write a terminal status onto a run record unless a settled path already did.
