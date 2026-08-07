@@ -29,7 +29,7 @@ mod tokenmaxxing;
 #[cfg(feature = "workflows")]
 mod workflows;
 
-use agents::AgentsKey;
+pub(in crate::ui::app) use agents::AgentsKey;
 use routing::RoutingKey;
 use settings::SettingsKey;
 use tokenmaxxing::TokenMaxxxingKey;
