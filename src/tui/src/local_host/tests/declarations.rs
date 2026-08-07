@@ -153,6 +153,11 @@ async fn a_misplaced_declaration_is_dropped_and_the_host_still_starts() {
         "the report names the agent and the directory: {}",
         problems[0]
     );
+    assert!(
+        !problems[0].contains('\n'),
+        "startup status renders this warning on one line: {}",
+        problems[0]
+    );
 }
 
 /// Every declaration misplaced is still a hosting device: it advertises what it
