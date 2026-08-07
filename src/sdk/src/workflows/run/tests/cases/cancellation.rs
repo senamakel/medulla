@@ -50,9 +50,9 @@ async fn a_claim_taken_before_the_run_starts_is_adopted() {
 async fn a_cancel_landing_before_the_run_is_polled_still_stops_it() {
     let harness = Harness::new();
     harness.install(&gated(), "gated");
-    let (guard, signal) = RunGuard::claim("run-cancel-first").expect("a fresh id is claimable");
+    let claim = RunGuard::claim("run-cancel-first").expect("a fresh id is claimable");
     let mut context = harness.context(Arc::new(HangingDispatch));
-    context.claim = Some((guard, signal));
+    context.claim = Some(claim);
 
     // Built, deliberately not awaited: the workflow has not executed a step.
     let run = run_workflow(
