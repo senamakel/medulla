@@ -305,6 +305,8 @@ fn active_agent(label: &str, last_at: i64) -> AgentGroup {
             last: false,
         }],
         last_at,
+        lane_label: None,
+        harness_label: None,
         visible_tasks: 1,
         hidden: 0,
         overflow: false,
@@ -322,6 +324,8 @@ fn peer_agent(label: &str, last_at: i64) -> AgentGroup {
         },
         sessions: Vec::new(),
         last_at,
+        lane_label: Some(label.into()),
+        harness_label: None,
         visible_tasks: 0,
         hidden: 0,
         overflow: false,
@@ -356,6 +360,32 @@ fn recent_sorts_agents_by_peer_lane_activity() {
             .collect::<Vec<_>>(),
         vec!["peer", "task"]
     );
+}
+
+#[test]
+fn name_sorts_lane_only_agents_by_their_displayed_labels() {
+    let mut zulu = peer_agent("opaque-a", 0);
+    zulu.lane_label = Some("Zulu".into());
+    let mut alpha = peer_agent("opaque-z", 0);
+    alpha.lane_label = Some("Alpha".into());
+
+    let mut agents = vec![zulu, alpha];
+    sort_agents(&mut agents, SidebarSort::Name);
+
+    assert_eq!(agents[0].row.agent_id, "opaque-z");
+}
+
+#[test]
+fn harness_grouping_uses_a_lane_only_agents_reported_harness() {
+    let mut peer = peer_agent("peer", 0);
+    peer.harness_label = Some("CODEX".into());
+
+    let sections = super::by_key(vec![peer], super::agent_harness, str::eq_ignore_ascii_case);
+
+    assert!(matches!(
+        &sections[0].header,
+        SectionHeader::Group(group) if group.label == "CODEX"
+    ));
 }
 
 #[test]

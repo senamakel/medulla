@@ -166,6 +166,7 @@ fn agent_harness(agent: &AgentGroup) -> String {
     agent
         .row
         .harness()
+        .or(agent.harness_label.as_deref())
         .map(str::trim)
         .filter(|harness| !harness.is_empty())
         .map_or_else(|| "no harness".to_string(), str::to_string)
@@ -215,7 +216,7 @@ fn sort_agents(agents: &mut [AgentGroup], sort: SidebarSort) {
         SidebarSort::Recent => {
             agents.sort_by_key(|agent| std::cmp::Reverse(agent_activity(agent)));
         }
-        SidebarSort::Name => agents.sort_by_key(|agent| agent.row.label().to_lowercase()),
+        SidebarSort::Name => agents.sort_by_key(|agent| agent.label().to_lowercase()),
     }
 }
 

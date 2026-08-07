@@ -102,6 +102,69 @@ pub struct AgentRailRow {
     pub lane_index: Option<usize>,
 }
 
+/// One agent and the sessions hanging off it, before the tree is flattened.
+///
+/// This preserves lane-only metadata that the shared host projection cannot
+/// provide, so peer sessions group and sort by the labels they actually report.
+#[derive(Debug, Clone)]
+pub(super) struct AgentGroup {
+    /// The agent row itself.
+    pub(super) row: AgentRailRow,
+    /// Its sessions, dispatched and operator-started alike.
+    pub(super) sessions: Vec<SessionRailRow>,
+    /// The most recent lane-level event, including activity with no task row.
+    ///
+    /// Peer-session lanes carry transcript activity directly on the lane rather
+    /// than as a task. Preserve that timestamp so recent sorting still moves a
+    /// peer agent whose output is changing.
+    pub(super) last_at: i64,
+    /// The display label reported by a lane-only agent.
+    pub(super) lane_label: Option<String>,
+    /// The harness label reported by a lane-only agent.
+    pub(super) harness_label: Option<String>,
+    /// How many task-backed sessions the fold has currently revealed.
+    ///
+    /// The complete task set stays here until organization applies the chosen
+    /// order. Keeping this boundary separate from task data means a name or
+    /// activity sort cannot be applied only to the first visible page.
+    pub(super) visible_tasks: usize,
+    /// Sessions the fold's own page already hid, carried so the counts add up.
+    pub(super) hidden: usize,
+    /// Whether the fold drew an overflow row under this agent's lane.
+    ///
+    /// The rail does not re-cap what the fold already paged: the fold reveals a
+    /// page of sessions and owns both the `+N more` and `show less` states. A
+    /// second cap here would clip below the page the operator selected.
+    pub(super) overflow: bool,
+}
+
+impl AgentGroup {
+    /// The name to use for ordering this agent in the rail.
+    ///
+    /// A declared agent takes its shared-projection label. A lane-only agent
+    /// instead uses the display label its reporting peer supplied, before
+    /// falling back to the stable id.
+    pub(super) fn label(&self) -> String {
+        if self.row.agent.is_some() {
+            self.row.label()
+        } else {
+            self.lane_label
+                .clone()
+                .filter(|label| !label.trim().is_empty())
+                .unwrap_or_else(|| self.row.label())
+        }
+    }
+}
+
+/// One host and its agents before the tree is flattened.
+#[derive(Debug, Clone)]
+pub(super) struct HostGroup {
+    /// The host row, drawn only once there is more than one of them.
+    pub(super) row: HostRailRow,
+    /// Its agents, in the order the shared projection lists them.
+    pub(super) agents: Vec<AgentGroup>,
+}
+
 impl AgentRailRow {
     /// What to call this agent: whatever the shared projection resolved (its
     /// declared name, else its roster label), falling back to the id itself.

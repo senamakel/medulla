@@ -60,6 +60,7 @@ mod types;
 pub(in crate::ui::app) use cursor::rail_anchor;
 #[cfg(test)]
 pub(in crate::ui::app) use cursor::resolve_rail_cursor;
+use types::{AgentGroup, HostGroup};
 pub use types::{
     AgentRailRow, GroupRailRow, HostRailRow, RailAnchor, RailRow, SessionRailRow,
     WorkflowRunRailRow,
@@ -76,45 +77,6 @@ pub(in crate::ui::app) const NEW_AGENT_LABEL: &str = "+ New agent";
 /// Indented and lower-cased beside [`NEW_AGENT_LABEL`] because it is a leaf of
 /// one agent's group rather than an action on the machine.
 pub(in crate::ui::app) const NEW_SESSION_LABEL: &str = "+ new session";
-
-/// One agent and the sessions hanging off it, before the tree is flattened.
-struct AgentGroup {
-    /// The agent row itself.
-    row: AgentRailRow,
-    /// Its sessions, dispatched and operator-started alike.
-    sessions: Vec<SessionRailRow>,
-    /// The most recent lane-level event, including activity with no task row.
-    ///
-    /// Peer-session lanes carry transcript activity directly on the lane rather
-    /// than as a task. Preserve that timestamp so recent sorting still moves a
-    /// peer agent whose output is changing.
-    last_at: i64,
-    /// How many task-backed sessions the fold has currently revealed.
-    ///
-    /// The complete task set stays here until [`organize`] applies the chosen
-    /// order. Keeping this boundary separate from the task data means a name
-    /// or activity sort cannot be applied only to the first visible page.
-    visible_tasks: usize,
-    /// Sessions the fold's own page already hid, carried so the counts add up.
-    hidden: usize,
-    /// Whether the fold drew an overflow row under this agent's lane.
-    ///
-    /// The rail does **not** re-cap what the fold already paged (#171): the fold
-    /// reveals `SUBTASK_PAGE` sessions per page and decides when the `+N more`
-    /// row exists, including the fully-revealed case where it is instead the
-    /// `show less` control and `hidden` is zero. A second cap here would clip
-    /// below the page the operator just asked for, so this only records that the
-    /// row is owed.
-    overflow: bool,
-}
-
-/// One host and the agents placed on it, before the tree is flattened.
-struct HostGroup {
-    /// The host row, drawn only once there is more than one of them.
-    row: HostRailRow,
-    /// Its agents, in the order the shared projection lists them.
-    agents: Vec<AgentGroup>,
-}
 
 impl App {
     /// The agent declarations this machine's config records.
@@ -252,6 +214,8 @@ impl App {
                 })
                 .collect(),
             last_at: lane.last_at,
+            lane_label: Some(lane.label.clone()),
+            harness_label: lane.harness_label.clone(),
             visible_tasks: 0,
             hidden: 0,
             overflow: false,
@@ -554,6 +518,8 @@ fn placed_agent(
         },
         sessions: Vec::new(),
         last_at: 0,
+        lane_label: None,
+        harness_label: None,
         visible_tasks: 0,
         hidden: 0,
         overflow: false,
