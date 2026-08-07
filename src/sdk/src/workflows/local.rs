@@ -363,6 +363,21 @@ impl LocalRun<'_> {
         let sink = sink.unwrap_or_else(|| folding_sink().0);
         let max_loop_iterations = settings.max_loop_iterations;
         let run_id = format!("run-{}", uuid::Uuid::new_v4());
+        // Claimed here, not by the spawned task: this call hands the run id
+        // back and the caller may cancel with it in its very next breath, while
+        // the task it would be cancelling has not been polled once. Claiming
+        // before returning puts the signal in the registry ahead of the id
+        // leaving this function, so that cancel is recorded rather than
+        // answered with `cancelled: false` on a run that then keeps going. The
+        // claim rides down on the context and the run adopts it.
+        let Some(claim) = crate::workflows::run::RunGuard::claim(&run_id) else {
+            // A fresh v4 uuid, so only a registry that already holds this exact
+            // id gets here. Reported rather than ignored — running a second
+            // time under a claimed id is the outcome the claim exists to stop.
+            return Err(crate::workflows::WorkflowError::Engine(format!(
+                "run '{run_id}' is already executing"
+            )));
+        };
         let started_at = crate::clock::now_millis() as u64;
         // The admission record carries the inputs and the origin from the very
         // first write. A caller that hands back the run id immediately — which
