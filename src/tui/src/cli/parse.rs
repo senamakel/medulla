@@ -67,6 +67,7 @@ pub fn parse_login_args(args: &[String]) -> Result<LoginArgs, String> {
                 }
             }
             "--no-browser" => out.no_browser = true,
+            "--code" => out.code = true,
             _ => {}
         }
     }
@@ -598,6 +599,8 @@ Skills flags:\n  \
 Login flags:\n  \
 --provider <name>       OAuth provider: google (default), github, twitter\n  \
 --no-browser            Print the login URL without launching a browser\n  \
+--code                  Sign in by pasting a code: open a URL on any device\n                          \
+        (works over SSH, where loopback cannot)\n  \
 --token <64-hex>        Redeem a one-time login token instead (headless)\n  \
 --config <path>         Config file to read backend.baseUrl from (.toml or .json)\n\n\
 Init flags:\n  \
