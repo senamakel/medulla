@@ -163,7 +163,7 @@ pub(super) fn refuse_unresolved_harness(
 pub(super) fn adopt_or_claim(
     run_id: &str,
     handed: Option<RunClaim>,
-) -> Result<(RunGuard, tokio_util::sync::CancellationToken), WorkflowError> {
+) -> Result<RunClaim, WorkflowError> {
     let claim = match handed {
         Some(claim) if claim.0.id() != run_id => {
             return Err(WorkflowError::Engine(format!(
