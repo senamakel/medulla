@@ -22,7 +22,7 @@ use super::super::types::{AgentsFocus, App, Cmd, PaneView};
 use crate::ui::composer::insert_at;
 
 /// What rail-focus handling did with one key press.
-pub(in crate::ui::app) enum AgentsKey {
+pub(crate) enum AgentsKey {
     /// The key belonged to the rail; any follow-up command is carried along.
     Handled(Option<Cmd>),
     /// The rail does not claim this key — global and composer handling apply.
@@ -115,7 +115,7 @@ impl App {
     /// Returns [`AgentsKey::Unhandled`] for anything the rail has no opinion on
     /// — tab switching, transcript paging, the `Alt` steering chords — so those
     /// keep working identically from either side of the tab.
-    pub(in crate::ui::app) fn on_agents_rail_key(&mut self, k: KeyEvent) -> AgentsKey {
+    pub(crate) fn on_agents_rail_key(&mut self, k: KeyEvent) -> AgentsKey {
         if !self.agents_rail_focused() {
             return AgentsKey::Unhandled;
         }
