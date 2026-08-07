@@ -83,6 +83,15 @@ pub struct RunGuard {
 }
 
 impl RunGuard {
+    /// The run id this guard holds.
+    ///
+    /// A claim can be taken out by one caller and adopted by another (see
+    /// [`crate::workflows::RunContext::claim`]), and the adopter has to be able
+    /// to check it is being handed the claim for the run it is about to start.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
     /// Register `id` and return its guard plus the signal to await.
     ///
     /// Call this *before* the run starts, not inside it: a cancel that arrives
