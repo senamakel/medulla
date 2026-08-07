@@ -115,7 +115,10 @@ fn paging_starts_with_the_fold_running_first_task_order() {
         },
     ];
 
-    let group = app().group_for_lane(&lane, 0);
+    let group = app()
+        .split_fold(&[lane])
+        .pop()
+        .expect("the agent lane becomes one group");
 
     assert_eq!(
         group
@@ -126,6 +129,36 @@ fn paging_starts_with_the_fold_running_first_task_order() {
         vec!["running-older", "completed-recently"],
         "the first task page must match the fold's running-first order"
     );
+}
+
+#[test]
+fn paging_applies_name_sort_before_selecting_the_visible_tasks() {
+    let lanes = vec![shell_lane()];
+    let mut owner = group(vec![task_row("zulu"), task_row("alpha")]);
+    owner.visible_tasks = 1;
+    owner.hidden = 1;
+    owner.overflow = true;
+    sort_sessions(&mut owner.sessions, SidebarSort::Name);
+    let mut rows = Vec::new();
+
+    push_group(
+        &mut rows,
+        &mut owner,
+        &medulla::control_socket::HarnessRunRegistry::new(),
+        &lanes,
+        None,
+    );
+
+    assert!(rows.iter().any(|row| matches!(
+        row,
+        RailRow::Session(session)
+            if session.task.as_ref().is_some_and(|task| task.task_id == "alpha")
+    )));
+    assert!(!rows.iter().any(|row| matches!(
+        row,
+        RailRow::Session(session)
+            if session.task.as_ref().is_some_and(|task| task.task_id == "zulu")
+    )));
 }
 
 #[test]
