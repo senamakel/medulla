@@ -13,9 +13,9 @@ use async_trait::async_trait;
 use super::{dispatch_harness, AgentRoute, HarnessAgentRunner};
 use crate::flow_engine::caps::dispatch::HarnessDispatch;
 use crate::flow_engine::harness_choice::HarnessChoice;
-use crate::protocol::{HarnessProvider, HarnessTransport};
 use crate::flow_engine::settings::CapabilitySettings;
 use crate::hub::{RunError, TaskOutcome, TaskRequest};
+use crate::protocol::{HarnessProvider, HarnessTransport};
 
 /// A dispatch that is never actually reached: these tests stop at the request.
 struct UnusedDispatch;
