@@ -1,6 +1,12 @@
 //! Tests for the Agents rail's line layout: the width cap, how a row that does
 //! not fit is re-flowed, and what a working directory keeps when it cannot.
 
+//! Focused wrapping and workflow-run cases live in child modules so this test
+//! entry point remains within the repository's source-file size limit.
+
+mod workflow_run_tests;
+mod wrap_tests;
+
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
@@ -8,16 +14,12 @@ use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
 use medulla::ui::agents::{AgentLane, AgentRole, AgentRow, TaskState, TaskStatus};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line as TLine, Span};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ui::app::App;
 use crate::worker::pty::{AttentionKind, HarnessAttention, PtyState, SessionControl, SessionRow};
 
-use super::super::super::color;
 use super::rows::{display_session_title, lane_title, running_session_title};
-use super::workflow_run_elapsed;
-use super::wrap::{flow_path, short_home, wrap_line, wrap_path};
 
 pub(super) fn app() -> App {
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
@@ -397,248 +399,4 @@ fn selected_working_harness_keeps_its_status_color_and_flash() {
     assert_eq!(style.fg, Some(Color::Green));
     assert_eq!(style.bg, Some(app.theme.primary));
     assert!(style.add_modifier.contains(Modifier::SLOW_BLINK));
-}
-
-#[test]
-fn a_row_that_fits_is_left_exactly_as_it_was() {
-    let line = TLine::from(Span::raw("● orchestrator · 1"));
-    let out = wrap_line(&line, 36, 5);
-    assert_eq!(out.len(), 1);
-    assert_eq!(out[0].width(), line.width());
-}
-
-#[test]
-fn an_overlong_row_wraps_and_its_continuation_is_indented() {
-    let line = TLine::from(Span::raw("● [CODEX] dev-1 · 3 · ctx 6.4k · 1/1 sess · 2/4"));
-    let out = wrap_line(&line, 24, 5);
-
-    assert!(out.len() > 1, "the row does not fit on one line");
-    for wrapped in &out {
-        assert!(
-            wrapped.width() <= 24,
-            "no line may overrun the pane: {wrapped:?}"
-        );
-    }
-    let second: String = out[1].spans.iter().map(|s| s.content.to_string()).collect();
-    assert!(
-        second.starts_with("     "),
-        "a continuation line is indented so the row still reads as one: {second:?}"
-    );
-}
-
-#[test]
-fn wrapping_keeps_each_span_style() {
-    // A task row colours its status word by status. Re-flowing through a plain
-    // string would hand the whole row one style and lose that entirely.
-    let coloured = Style::default().add_modifier(Modifier::BOLD);
-    let line = TLine::from(vec![
-        Span::raw("   task-1 aaaa bbbb cccc "),
-        Span::styled("running", coloured),
-        Span::raw(" · 9 turns"),
-    ]);
-    let out = wrap_line(&line, 20, 5);
-
-    let kept: usize = out
-        .iter()
-        .flat_map(|l| l.spans.iter())
-        .filter(|span| span.style == coloured)
-        .map(|span| span.content.chars().count())
-        .sum();
-    assert_eq!(kept, "running".len(), "the styled run survives the wrap");
-}
-
-#[test]
-fn wide_characters_wrap_by_display_column_not_char_count() {
-    // Each CJK character below occupies two terminal columns. A char-count
-    // wrap would accept twice as many as actually fit and clip the row
-    // instead of wrapping it.
-    let line = TLine::from(Span::raw("任务一二三四五六七八九十"));
-    let out = wrap_line(&line, 10, 0);
-
-    assert!(out.len() > 1, "a row this wide must wrap: {out:?}");
-    for wrapped in &out {
-        assert!(
-            wrapped.width() <= 10,
-            "no line may overrun the pane: {wrapped:?}"
-        );
-    }
-}
-
-#[test]
-fn a_path_breaks_on_separators() {
-    let out = flow_path("~/work/tinyhumans/medulla", 12);
-    for line in &out {
-        assert!(line.chars().count() <= 12, "{line:?} overruns");
-    }
-    assert_eq!(out.concat(), "~/work/tinyhumans/medulla");
-}
-
-#[test]
-fn a_path_too_long_to_fit_keeps_its_tail() {
-    // The tail names the checkout; the head is what every sibling harness on
-    // the machine shares, so dropping it loses nothing and dropping the tail
-    // loses the only fact the row was drawn for.
-    let out = wrap_path(
-        "~/work/some-org/some-umbrella/worktrees/agents-ux/medulla-public",
-        28,
-        2,
-    );
-
-    assert!(
-        out.len() <= 2,
-        "the path is held to its line budget: {out:?}"
-    );
-    let joined = out.concat();
-    assert!(
-        joined.ends_with("medulla-public"),
-        "the end of the path survives: {joined:?}"
-    );
-    assert!(
-        joined.starts_with('…'),
-        "and the row says it was shortened: {joined:?}"
-    );
-}
-
-#[test]
-fn a_path_segment_of_wide_characters_hard_cuts_by_display_column() {
-    let out = flow_path("任务一二三四五六七八九十", 10);
-    assert!(out.iter().all(|line| line.width() <= 10));
-    assert_eq!(out.concat(), "任务一二三四五六七八九十");
-}
-
-#[test]
-fn an_unbreakable_final_segment_keeps_its_own_tail() {
-    let out = wrap_path(
-        "~/work/a/very-long-checkout-name-that-alone-overruns-the-budget-abcdefg",
-        12,
-        2,
-    );
-    assert!(out.len() <= 2);
-    let joined = out.concat();
-    assert!(joined.ends_with("abcdefg"));
-    assert!(joined.starts_with('…'));
-}
-
-#[test]
-fn homes_compact_only_their_own_path_prefix() {
-    let home = Some("/Users/dev");
-    assert_eq!(short_home("/Users/dev/work/repo", home), "~/work/repo");
-    assert_eq!(short_home("/Users/dev", home), "~");
-    assert_eq!(short_home("/Users/developer/x", home), "/Users/developer/x");
-    assert_eq!(short_home("/srv/repos/auth", None), "/srv/repos/auth");
-}
-
-#[test]
-fn a_windows_home_collapses_on_its_own_separator() {
-    let home = Some("C:\\Users\\dev");
-    assert_eq!(
-        short_home("C:\\Users\\dev\\work\\repo", home),
-        "~\\work\\repo"
-    );
-    assert_eq!(short_home("D:\\src\\other", home), "D:\\src\\other");
-}
-
-/// A reported run, as the control plane hands one to the rail.
-fn reported_run(
-    status: medulla::control_socket::HarnessRunStatus,
-) -> medulla::control_socket::HarnessRun {
-    medulla::control_socket::HarnessRun {
-        run_id: "run-1".into(),
-        workflow_id: "review-and-fix".into(),
-        status,
-        started_at: 1,
-        updated_at: 2,
-        detail: Some("review · running the test suite".into()),
-        frames: Vec::new(),
-    }
-}
-
-#[test]
-fn a_workflow_run_row_names_its_workflow_status_and_elapsed_time() {
-    let app = app();
-    let row =
-        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
-            session_id: "w_1".into(),
-            run: reported_run(medulla::control_socket::HarnessRunStatus::Running),
-            last: true,
-        });
-    let text = app
-        .rail_row_line(&row, &[lane()], false, &none_waiting(), NOW)
-        .to_string();
-    assert!(text.contains("review-and-fix"), "{text}");
-    assert!(text.contains("running"), "{text}");
-    assert!(text.contains("9s"), "{text}");
-    assert!(text.starts_with("   └"), "{text}");
-}
-
-#[test]
-fn a_workflow_run_row_carries_no_harness_output() {
-    let app = app();
-    let row =
-        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
-            session_id: "w_1".into(),
-            run: reported_run(medulla::control_socket::HarnessRunStatus::Running),
-            last: true,
-        });
-    let text = app
-        .rail_row_line(&row, &[lane()], false, &none_waiting(), NOW)
-        .to_string();
-    assert!(!text.contains("running the test suite"), "{text}");
-}
-
-#[test]
-fn a_settled_run_row_stops_ageing_at_its_last_report() {
-    let mut run = reported_run(medulla::control_socket::HarnessRunStatus::Succeeded);
-    run.started_at = 1_000;
-    run.updated_at = 4_000;
-    let app = app();
-    let row =
-        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
-            session_id: "w_1".into(),
-            run,
-            last: true,
-        });
-    let text = app
-        .rail_row_line(&row, &[lane()], false, &none_waiting(), NOW + 600_000)
-        .to_string();
-    assert!(text.contains("3s"), "{text}");
-}
-
-#[test]
-fn clock_clamps_an_active_run_that_starts_after_now_to_zero() {
-    let mut run = reported_run(medulla::control_socket::HarnessRunStatus::Running);
-    run.started_at = NOW + 1;
-    assert_eq!(
-        workflow_run_elapsed(&run, NOW),
-        medulla::ui::workflows::human_duration(0)
-    );
-}
-
-#[test]
-fn clock_clamps_a_settled_run_reported_before_it_started_to_zero() {
-    let mut run = reported_run(medulla::control_socket::HarnessRunStatus::Succeeded);
-    run.started_at = NOW;
-    run.updated_at = NOW - 1;
-    assert_eq!(
-        workflow_run_elapsed(&run, NOW + 1),
-        medulla::ui::workflows::human_duration(0)
-    );
-}
-
-#[test]
-fn a_failed_run_row_is_coloured_by_its_status_rather_than_by_the_row() {
-    let app = app();
-    let row =
-        crate::ui::app::rail::RailRow::WorkflowRun(crate::ui::app::rail::WorkflowRunRailRow {
-            session_id: "w_1".into(),
-            run: reported_run(medulla::control_socket::HarnessRunStatus::Failed),
-            last: false,
-        });
-    let line = app.rail_row_line(&row, &[lane()], false, &none_waiting(), NOW);
-    let status = line
-        .spans
-        .iter()
-        .find(|span| span.content.contains("failed"))
-        .expect("a status span");
-    assert_eq!(status.style.fg, Some(color("red")));
 }
