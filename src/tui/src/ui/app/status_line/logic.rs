@@ -9,7 +9,7 @@ use super::super::types::App;
 use super::{StatusLineField, StatusLineGroup, StatusLineRow};
 
 /// The page's rows, in display order, grouped by the field they describe.
-pub(super) const STATUS_LINE_ROWS: [StatusLineRow; 15] = [
+pub(in crate::ui::app) const STATUS_LINE_ROWS: [StatusLineRow; 15] = [
     row(
         "position",
         StatusLineField::State,
@@ -105,7 +105,7 @@ pub(super) const STATUS_LINE_ROWS: [StatusLineRow; 15] = [
     ),
 ];
 /// Number of selectable rows on the Status line page.
-pub(super) const STATUS_LINE_ROW_COUNT: usize = STATUS_LINE_ROWS.len();
+pub(in crate::ui::app) const STATUS_LINE_ROW_COUNT: usize = STATUS_LINE_ROWS.len();
 /// `const fn` shorthand so the table above reads as a table.
 const fn row(
     label: &'static str,
@@ -127,7 +127,7 @@ const fn head(title: &'static str, description: &'static str) -> Option<StatusLi
 
 impl StatusLineField {
     /// Every value this field can take, in the order `←/→` walks them.
-    pub(super) fn choices(self) -> Vec<&'static str> {
+    pub(in crate::ui::app) fn choices(self) -> Vec<&'static str> {
         match self {
             Self::State
             | Self::Harness
@@ -147,7 +147,7 @@ impl StatusLineField {
         }
     }
     /// The config key this field persists under, matching serde's camelCase spelling.
-    pub(super) fn key(self) -> &'static str {
+    pub(in crate::ui::app) fn key(self) -> &'static str {
         match self {
             Self::State => "state",
             Self::StateWhen => "stateWhen",
@@ -167,7 +167,7 @@ impl StatusLineField {
         }
     }
     /// This field's full name, for the status bar.
-    fn name(self) -> &'static str {
+    pub(super) fn name(self) -> &'static str {
         match self {
             Self::State => "state glyph",
             Self::StateWhen => "state glyph shown",
@@ -187,7 +187,7 @@ impl StatusLineField {
         }
     }
     /// This field's current display label and persisted wire value.
-    pub(super) fn value(self, cfg: &StatusLineConfig) -> (&'static str, String) {
+    pub(in crate::ui::app) fn value(self, cfg: &StatusLineConfig) -> (&'static str, String) {
         match self {
             Self::State => (cfg.state.label(), wire_value(&cfg.state)),
             Self::StateWhen => (cfg.state_when.label(), wire_value(&cfg.state_when)),
@@ -230,11 +230,11 @@ impl StatusLineField {
 
 impl App {
     /// The status-line layout the settings page is editing.
-    pub(super) fn status_line_config(&self) -> StatusLineConfig {
+    pub(in crate::ui::app) fn status_line_config(&self) -> StatusLineConfig {
         self.loaded.config.status_line()
     }
     /// Move the Status line page's selection.
-    pub(super) fn move_status_line_index(&mut self, up: bool) {
+    pub(in crate::ui::app) fn move_status_line_index(&mut self, up: bool) {
         self.status_line_index = if up {
             self.status_line_index.saturating_sub(1)
         } else {
@@ -242,7 +242,7 @@ impl App {
         };
     }
     /// Cycle the selected row's value, apply it live, and persist it.
-    pub(super) fn cycle_status_line_row(&mut self, forward: bool) {
+    pub(in crate::ui::app) fn cycle_status_line_row(&mut self, forward: bool) {
         let row = STATUS_LINE_ROWS[self.status_line_index.min(STATUS_LINE_ROW_COUNT - 1)];
         let mut cfg = self.status_line_config();
         row.field.cycle(&mut cfg, forward);
