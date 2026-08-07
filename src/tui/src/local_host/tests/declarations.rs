@@ -174,6 +174,23 @@ async fn a_host_whose_every_declaration_is_misplaced_falls_back_to_the_seed() {
     assert_eq!(specs[0].harness, "claude");
 }
 
+/// A rejected declaration must not be replaced by a fallback with the same ID:
+/// routing for the rejected placement would otherwise reach this host.
+#[tokio::test]
+async fn a_fallback_does_not_reuse_a_misplaced_declarations_agent_id() {
+    let (specs, problems) = hosted(&[AgentDeclaration::new(
+        "this-device",
+        "this-device",
+        "claude",
+        "/srv/api",
+    )]);
+
+    assert_eq!(problems.len(), 1);
+    assert_eq!(specs.len(), 1, "the detected provider still has a fallback");
+    assert_ne!(specs[0].id, "this-device");
+    assert_eq!(specs[0].id, "this-device-fallback-1");
+}
+
 /// The upgrade path: an install that predates declarations must not go from one
 /// worker in the roster to none.
 #[tokio::test]

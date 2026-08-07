@@ -31,12 +31,15 @@ use medulla_tui::worker::executor::{agent_kind, PtySessionExecutor};
 use medulla_tui::worker::pty::PtyManager;
 use std::collections::HashMap;
 
+mod declarations;
 mod types;
 
 #[cfg(test)]
 mod tests;
 
 pub(crate) use types::{LaunchPolicy, LocalHost};
+
+use declarations::specs_for;
 
 /// Whether this device should host tasks.
 ///
@@ -295,7 +298,8 @@ fn parse_provider(name: &str) -> Result<HarnessProvider, String> {
 /// A host whose every declaration was dropped falls back to the detection seed,
 /// exactly as one that declared nothing does: hosting is what the rest of the
 /// device depends on, and it must not hinge on a roster entry being right.
-fn specs_for(
+#[allow(dead_code)]
+fn legacy_specs_for(
     daemon: &EmbeddedDaemon,
     name: &str,
     declared: &[AgentDeclaration],
