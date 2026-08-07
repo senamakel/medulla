@@ -21,7 +21,7 @@ fn run_cmd(
     dispatch_cmd(
         cmd,
         runtime,
-        &medulla::config::WorkflowsConfig::default(),
+        &medulla::config::TuiConfig::default(),
         tx,
         None,
     );

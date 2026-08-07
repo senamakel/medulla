@@ -45,7 +45,7 @@ pub(super) fn spawn_run(
     inputs: serde_json::Map<String, serde_json::Value>,
     workflows_config: medulla::config::WorkflowsConfig,
     custom_harnesses: Vec<medulla::config::CustomHarnessConfig>,
-    hooks: medulla::harness_hooks::HooksConfig,
+    launch: medulla::harness_hooks::LaunchPolicy,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) {
     let tx = msg_tx.clone();
@@ -56,7 +56,7 @@ pub(super) fn spawn_run(
             &workflows_config,
             &custom_harnesses,
             &tx,
-            &hooks,
+            &launch,
         )
         .await;
         let (status, failed) = match outcome {
@@ -78,7 +78,7 @@ pub(super) fn spawn_run(
             instruction: format!("Review this workflow, starting from run {run_id}."),
         });
         let _ = tx.send(AppMsg::Status(format!("Reviewing why {id} failed…")));
-        spawn_evolve(id, Some(run_id), workflows_config, &tx);
+        super::workflow_evolution::spawn_evolve(id, Some(run_id), workflows_config, launch, &tx);
     });
 }
 
@@ -89,7 +89,7 @@ async fn run(
     workflows_config: &medulla::config::WorkflowsConfig,
     custom_harnesses: &[medulla::config::CustomHarnessConfig],
     tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
-    hooks: &medulla::harness_hooks::HooksConfig,
+    launch: &medulla::harness_hooks::LaunchPolicy,
 ) -> anyhow::Result<(String, Option<String>)> {
     let env: HashMap<String, String> = std::env::vars().collect();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -104,22 +104,25 @@ async fn run(
         settings.default_worker_address = LOCAL_WORKER_ADDRESS.to_string();
     }
 
-    let host = LocalWorkflowHost::start(EmbeddedDaemonOptions {
-        workspace: cwd.to_string_lossy().to_string(),
-        default_provider: workflows_config.default_provider,
-        model: (!workflows_config.default_model.is_empty())
-            .then(|| workflows_config.default_model.clone()),
-        // The same presets this session's primary host advertises (see
-        // `LocalHostHarnesses::custom_harnesses`), so an `agent` step naming a
-        // custom harness preset does not fail with "not configured on this
-        // host" purely because this one-shot daemon started with none.
-        custom_harnesses: custom_harnesses.to_vec(),
-        // Same reasoning as `custom_harnesses` above: this one-shot daemon
-        // should install the same built-in and operator lifecycle hooks the
-        // session's primary host resolved, not start with none.
-        hooks: hooks.clone(),
-        ..Default::default()
-    })
+    let host = LocalWorkflowHost::start(
+        EmbeddedDaemonOptions {
+            workspace: cwd.to_string_lossy().to_string(),
+            default_provider: workflows_config.default_provider,
+            model: (!workflows_config.default_model.is_empty())
+                .then(|| workflows_config.default_model.clone()),
+            // The same presets this session's primary host advertises (see
+            // `LocalHostHarnesses::custom_harnesses`), so an `agent` step naming a
+            // custom harness preset does not fail with "not configured on this
+            // host" purely because this one-shot daemon started with none.
+            custom_harnesses: custom_harnesses.to_vec(),
+            ..Default::default()
+        }
+        // Same reasoning as `custom_harnesses` above: this one-shot daemon should
+        // install the same built-in and operator lifecycle hooks the session's
+        // primary host resolved — and attribute its commits the same way — rather
+        // than starting with none.
+        .with_launch_policy(launch),
+    )
     .map_err(anyhow::Error::msg)?;
 
     // The host is held for the whole run and dropped with it, which unbinds the
@@ -220,6 +223,7 @@ pub(super) fn spawn_copilot(
     workflow: String,
     instruction: String,
     workflows_config: medulla::config::WorkflowsConfig,
+    launch: medulla::harness_hooks::LaunchPolicy,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) {
     spawn_turn(
@@ -227,6 +231,7 @@ pub(super) fn spawn_copilot(
         workflow,
         instruction,
         workflows_config,
+        launch,
         msg_tx,
     );
 }
@@ -240,9 +245,17 @@ pub(super) fn spawn_copilot_create(
     thread: String,
     instruction: String,
     workflows_config: medulla::config::WorkflowsConfig,
+    launch: medulla::harness_hooks::LaunchPolicy,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) {
-    spawn_turn(Turn::Create, thread, instruction, workflows_config, msg_tx);
+    spawn_turn(
+        Turn::Create,
+        thread,
+        instruction,
+        workflows_config,
+        launch,
+        msg_tx,
+    );
 }
 
 /// Spawn a copilot turn that diagnoses `run_id` and fixes what caused it.
@@ -262,6 +275,7 @@ pub(super) fn spawn_repair(
     instruction: String,
     run_id: String,
     workflows_config: medulla::config::WorkflowsConfig,
+    launch: medulla::harness_hooks::LaunchPolicy,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) {
     let tx = msg_tx.clone();
@@ -298,6 +312,7 @@ pub(super) fn spawn_repair(
             workflow,
             instruction,
             workflows_config,
+            launch,
             &tx,
         );
     });
@@ -309,6 +324,7 @@ fn spawn_turn(
     thread: String,
     instruction: String,
     workflows_config: medulla::config::WorkflowsConfig,
+    launch: medulla::harness_hooks::LaunchPolicy,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) {
     let tx = msg_tx.clone();
@@ -329,21 +345,29 @@ fn spawn_turn(
             }
         });
 
-        let message =
-            match copilot_turn(&turn, &thread, &instruction, status_tx, &workflows_config).await {
-                Ok(outcome) => AppMsg::CopilotDone {
-                    workflow: thread.clone(),
-                    reply: outcome.reply,
-                    changes: outcome.changes,
-                    created: outcome.created,
-                    removed: outcome.removed,
-                },
-                Err(err) => AppMsg::CopilotFailed {
-                    workflow: thread.clone(),
-                    instruction: instruction.clone(),
-                    error: err.to_string(),
-                },
-            };
+        let message = match copilot_turn(
+            &turn,
+            &thread,
+            &instruction,
+            status_tx,
+            &workflows_config,
+            &launch,
+        )
+        .await
+        {
+            Ok(outcome) => AppMsg::CopilotDone {
+                workflow: thread.clone(),
+                reply: outcome.reply,
+                changes: outcome.changes,
+                created: outcome.created,
+                removed: outcome.removed,
+            },
+            Err(err) => AppMsg::CopilotFailed {
+                workflow: thread.clone(),
+                instruction: instruction.clone(),
+                error: err.to_string(),
+            },
+        };
         // The forwarder ends when the session drops its sender, which it has by
         // now; awaiting it keeps a trailing status line from arriving after the
         // reply and reading as part of the next turn.
@@ -366,6 +390,7 @@ async fn copilot_turn(
     instruction: &str,
     status: tokio::sync::mpsc::UnboundedSender<String>,
     workflows_config: &medulla::config::WorkflowsConfig,
+    launch: &medulla::harness_hooks::LaunchPolicy,
 ) -> anyhow::Result<medulla::workflows::CopilotOutcome> {
     let mut env: HashMap<String, String> = std::env::vars().collect();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -393,13 +418,19 @@ async fn copilot_turn(
     // The daemon takes ownership of its environment; the transcript lookup
     // below still needs one to resolve the Medulla home from.
     let host_env = env.clone();
-    let (host, fresh) = super::copilot_hosts::host_for(thread, || EmbeddedDaemonOptions {
-        workspace: cwd.to_string_lossy().to_string(),
-        default_provider: workflows_config.default_provider,
-        model: (!workflows_config.default_model.is_empty())
-            .then(|| workflows_config.default_model.clone()),
-        env: host_env,
-        ..Default::default()
+    let (host, fresh) = super::copilot_hosts::host_for(thread, || {
+        EmbeddedDaemonOptions {
+            workspace: cwd.to_string_lossy().to_string(),
+            default_provider: workflows_config.default_provider,
+            model: (!workflows_config.default_model.is_empty())
+                .then(|| workflows_config.default_model.clone()),
+            env: host_env,
+            ..Default::default()
+        }
+        // A copilot turn commits nothing itself, but the harness it opens is a
+        // real session in the operator's checkout: it carries the same policy
+        // every other Medulla-launched harness does.
+        .with_launch_policy(launch)
     })
     .map_err(anyhow::Error::msg)?;
 
@@ -510,127 +541,6 @@ pub(super) fn spawn_dry_run(
         };
         let _ = tx.send(AppMsg::Status(status));
     });
-}
-
-/// Review a workflow against its own history.
-///
-/// Reported through the copilot messages rather than new ones: from the
-/// operator's side this *is* a copilot turn — it runs on the same thread, in
-/// the same pane, and ends with a reply and a list of what it did.
-pub(super) fn spawn_evolve(
-    workflow: String,
-    run_id: Option<String>,
-    workflows_config: medulla::config::WorkflowsConfig,
-    msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
-) {
-    let tx = msg_tx.clone();
-    tokio::spawn(async move {
-        let (trigger, instruction) = match run_id {
-            Some(run_id) => (
-                medulla::workflows::evolve::EvolveTrigger::Failure(run_id.clone()),
-                format!("Review this workflow, starting from run {run_id}."),
-            ),
-            None => (
-                medulla::workflows::evolve::EvolveTrigger::Manual,
-                "Review this workflow against its history.".to_string(),
-            ),
-        };
-
-        let result = evolve_turn(&workflow, trigger, &workflows_config).await;
-        let message = match result {
-            Ok(outcome) if outcome.skipped => AppMsg::CopilotDone {
-                workflow,
-                reply: "A review of this workflow is already running.".to_string(),
-                changes: Vec::new(),
-                created: None,
-                removed: false,
-            },
-            Ok(outcome) => AppMsg::CopilotDone {
-                workflow,
-                reply: outcome.reply.clone(),
-                // Counted rather than listed: a review that wrote six notes
-                // would otherwise push its own reply off the pane.
-                changes: describe_review(&outcome),
-                created: None,
-                // A review cannot delete anything — it has no verb for it.
-                removed: false,
-            },
-            Err(err) => AppMsg::CopilotFailed {
-                workflow,
-                instruction,
-                error: err.to_string(),
-            },
-        };
-        let _ = tx.send(message);
-        // Notes and proposals are read off the store by the page, so it has to
-        // be told to look again even when the graph itself did not move.
-        let _ = tx.send(AppMsg::WorkflowsChanged);
-    });
-}
-
-/// Run an evolution turn on the pane's tracked ACP host.
-///
-/// Sharing the host lifecycle with ordinary copilot turns makes Ctrl-X able to
-/// abort reviews and keeps the MCP tools attached to every evolution session.
-async fn evolve_turn(
-    workflow: &str,
-    trigger: medulla::workflows::evolve::EvolveTrigger,
-    workflows_config: &medulla::config::WorkflowsConfig,
-) -> anyhow::Result<medulla::workflows::evolve::EvolveOutcome> {
-    let mut env: HashMap<String, String> = std::env::vars().collect();
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    env.insert(
-        medulla::daemon::providers::HARNESS_PROTOCOL_ENV.to_string(),
-        "acp".to_string(),
-    );
-    medulla::mcp::preflight(&env, &cwd).map_err(anyhow::Error::msg)?;
-    let store = medulla::workflows::discover_store(&env, &cwd);
-    // A review is grounded in the journal and the run history rather than in
-    // what a pane said, so whether the host is fresh makes no difference here.
-    let (host, _fresh) = super::copilot_hosts::host_for(workflow, || EmbeddedDaemonOptions {
-        workspace: cwd.to_string_lossy().to_string(),
-        default_provider: workflows_config.default_provider,
-        model: (!workflows_config.default_model.is_empty())
-            .then(|| workflows_config.default_model.clone()),
-        env,
-        ..Default::default()
-    })
-    .map_err(anyhow::Error::msg)?;
-    let session = medulla::workflows::evolve::EvolveSession {
-        store,
-        dispatch: host.dispatch(),
-        worker_address: LOCAL_WORKER_ADDRESS.to_string(),
-        provider: workflows_config.default_provider,
-        model: (!workflows_config.default_model.is_empty())
-            .then(|| workflows_config.default_model.clone()),
-        conversation: workflow.to_string(),
-        config: medulla::workflows::evolve::EvolveConfig::from_config(workflows_config),
-    };
-    Ok(session.evolve(workflow, trigger, None).await?)
-}
-
-/// What a review left behind, as transcript lines.
-fn describe_review(outcome: &medulla::workflows::evolve::EvolveOutcome) -> Vec<String> {
-    let mut lines = Vec::new();
-    if !outcome.notes.is_empty() {
-        lines.push(format!(
-            "+ {} note{}",
-            outcome.notes.len(),
-            if outcome.notes.len() == 1 { "" } else { "s" }
-        ));
-    }
-    for proposal in &outcome.proposals {
-        lines.push(format!(
-            "~ proposed: {}{}",
-            proposal.rationale.trim(),
-            if proposal.is_applicable() {
-                ""
-            } else {
-                " (will not apply)"
-            }
-        ));
-    }
-    lines
 }
 
 /// Apply or decline a proposed change.

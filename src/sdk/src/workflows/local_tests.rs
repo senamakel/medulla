@@ -50,6 +50,14 @@ async fn a_workflow_run_converts_its_parent_grant_into_a_verified_handoff() {
             crate::control_socket::MCP_GRANT_ENV.to_string(),
             token.clone(),
         ),
+        (
+            crate::control_socket::HOOK_SOCKET_ENV.to_string(),
+            path.to_string_lossy().into_owned(),
+        ),
+        (
+            crate::control_socket::HOOK_GRANT_ENV.to_string(),
+            "parent-hook-grant".to_string(),
+        ),
     ]);
 
     let (nested, depth) = nested_harness_env(&env).await.unwrap();
@@ -57,6 +65,8 @@ async fn a_workflow_run_converts_its_parent_grant_into_a_verified_handoff() {
     assert_eq!(depth, 2);
     assert!(!nested.contains_key(crate::control_socket::MCP_SOCKET_ENV));
     assert!(!nested.contains_key(crate::control_socket::MCP_GRANT_ENV));
+    assert!(!nested.contains_key(crate::control_socket::HOOK_SOCKET_ENV));
+    assert!(!nested.contains_key(crate::control_socket::HOOK_GRANT_ENV));
     assert_eq!(
         nested.get(crate::control_socket::MCP_PARENT_GRANT_ENV),
         Some(&token)

@@ -9,6 +9,19 @@ use super::native::{hook_document, to_inline_toml};
 use super::*;
 use crate::protocol::HarnessProvider;
 
+/// An environment pointing Codex's config — and so its hook trust store — at a
+/// scratch directory.
+///
+/// [`launch_args`] approves a Codex spawn's own hooks as it builds the argv, so
+/// a test that forgot this would edit the developer's real
+/// `~/.codex/config.toml` when it ran.
+fn scratch_codex_env(dir: &std::path::Path) -> std::collections::HashMap<String, String> {
+    std::collections::HashMap::from([(
+        "CODEX_HOME".to_string(),
+        dir.to_string_lossy().into_owned(),
+    )])
+}
+
 fn hook(event: HookEvent, matcher: &str, command: &str) -> HookSpec {
     HookSpec {
         event,
@@ -34,6 +47,21 @@ fn event_wire_names_round_trip() {
     }
     assert_eq!(HookEvent::from_wire("pre_tool_use"), None);
     assert_eq!(HookEvent::from_wire("Nope"), None);
+}
+
+#[test]
+fn standalone_policy_keeps_operator_hooks_but_drops_inert_reporting_hooks() {
+    let operator = hook(HookEvent::PostToolUse, "Edit", "just checkpoint");
+    let mut builtin = hook(HookEvent::Stop, "*", "medulla hook Stop");
+    builtin.builtin = true;
+    let policy = LaunchPolicy {
+        attribution: true,
+        hooks: config(vec![builtin, operator.clone()]),
+    }
+    .without_builtin_hooks();
+
+    assert!(policy.attribution);
+    assert_eq!(policy.hooks.hooks, vec![operator]);
 }
 
 /// Every event accepts its camelCase spelling in config, because that is the
@@ -236,7 +264,12 @@ fn no_hooks_means_no_injection() {
 #[test]
 fn claude_launch_args_merge_attribution_and_hooks_into_a_single_settings_flag() {
     let hooks = config(vec![hook(HookEvent::SessionStart, "*", "echo hi")]);
-    let (args, _) = launch_args(HarnessProvider::Claude, true, &hooks);
+    let (args, _) = launch_args(
+        HarnessProvider::Claude,
+        true,
+        &hooks,
+        &std::collections::HashMap::new(),
+    );
 
     assert_eq!(
         args.iter().filter(|arg| *arg == "--settings").count(),
@@ -254,7 +287,12 @@ fn claude_launch_args_merge_attribution_and_hooks_into_a_single_settings_flag() 
 #[test]
 fn claude_launch_args_carry_hooks_even_with_attribution_off() {
     let hooks = config(vec![hook(HookEvent::SessionStart, "*", "echo hi")]);
-    let (args, _) = launch_args(HarnessProvider::Claude, false, &hooks);
+    let (args, _) = launch_args(
+        HarnessProvider::Claude,
+        false,
+        &hooks,
+        &std::collections::HashMap::new(),
+    );
 
     let settings: Value = serde_json::from_str(&args[1]).expect("valid JSON");
     assert!(settings.get("attribution").is_none());
@@ -263,14 +301,25 @@ fn claude_launch_args_carry_hooks_even_with_attribution_off() {
 
 #[test]
 fn claude_launch_args_are_empty_when_nothing_is_configured() {
-    let (args, _) = launch_args(HarnessProvider::Claude, false, &HooksConfig::default());
+    let (args, _) = launch_args(
+        HarnessProvider::Claude,
+        false,
+        &HooksConfig::default(),
+        &std::collections::HashMap::new(),
+    );
     assert!(args.is_empty());
 }
 
 #[test]
 fn codex_launch_args_keep_attribution_and_hooks_side_by_side() {
     let hooks = config(vec![hook(HookEvent::SessionStart, "*", "echo hi")]);
-    let (args, _) = launch_args(HarnessProvider::Codex, true, &hooks);
+    let dir = tempfile::tempdir().expect("a scratch directory");
+    let (args, _) = launch_args(
+        HarnessProvider::Codex,
+        true,
+        &hooks,
+        &scratch_codex_env(dir.path()),
+    );
     assert!(args.contains(&"-c".to_string()));
     assert!(!args.iter().any(|arg| arg.contains("bypass-hook-trust")));
 }
@@ -357,27 +406,144 @@ fn every_spawn_seam_uses_the_merged_launch_builder() {
 }
 
 #[test]
-fn codex_reports_that_its_hooks_are_inert_until_trusted() {
+fn every_embedded_host_door_applies_a_launch_policy() {
+    // These do not build an argv themselves — they start an embedded daemon,
+    // which does it for them at its own spawn seam. What they *can* get wrong is
+    // never saying what to install: `EmbeddedDaemonOptions`'s `Default` carries
+    // no hooks, so a door that fills the field in with `..Default::default()`
+    // launches every harness under it with none, silently. That is exactly how
+    // workflow runs came to ignore a hook the same config file installed
+    // everywhere else. Pin them: every options literal in these files must have
+    // a `with_launch_policy` applied to it.
+    let doors = [
+        "src/sdk/src/workflows/local.rs",
+        "src/tui/src/commands/workflow.rs",
+        "src/tui/src/event_loop/cmd_dispatch/workflows.rs",
+        "src/tui/src/hub_relay/mod.rs",
+        "src/tui/src/local_host/mod.rs",
+    ];
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("workspace root");
+    for door in doors {
+        let source = std::fs::read_to_string(root.join(door))
+            .unwrap_or_else(|error| panic!("{door}: {error}"));
+        assert!(
+            embedded_options_have_launch_policy(&source),
+            "{door} builds an embedded host without applying its launch policy",
+        );
+    }
+}
+
+/// Return whether every `EmbeddedDaemonOptions` literal is immediately finished
+/// with `with_launch_policy`.
+fn embedded_options_have_launch_policy(source: &str) -> bool {
+    let mut remaining = source;
+    while let Some(start) = remaining.find("EmbeddedDaemonOptions {") {
+        let literal = &remaining[start..];
+        let mut depth = 0;
+        let Some(end) = literal
+            .char_indices()
+            .find_map(|(index, character)| match character {
+                '{' => {
+                    depth += 1;
+                    None
+                }
+                '}' => {
+                    depth -= 1;
+                    (depth == 0).then_some(index)
+                }
+                _ => None,
+            })
+        else {
+            return false;
+        };
+        if !after_comments(&literal[end + 1..]).starts_with(".with_launch_policy(") {
+            return false;
+        }
+        remaining = &literal[end + 1..];
+    }
+    true
+}
+
+/// Skip whitespace and comments between a literal and its builder call.
+fn after_comments(mut source: &str) -> &str {
+    loop {
+        source = source.trim_start();
+        if let Some(rest) = source.strip_prefix("//") {
+            source = rest.split_once('\n').map_or("", |(_, rest)| rest);
+        } else if let Some(rest) = source.strip_prefix("/*") {
+            source = rest.split_once("*/").map_or("", |(_, rest)| rest);
+        } else {
+            return source;
+        }
+    }
+}
+
+#[test]
+fn every_embedded_options_literal_needs_its_own_policy() {
+    let source = r#"
+        let first = EmbeddedDaemonOptions {}.with_launch_policy(policy);
+        let second = EmbeddedDaemonOptions {};
+    "#;
+    assert!(
+        !embedded_options_have_launch_policy(source),
+        "one protected literal must not mask another missing policy",
+    );
+}
+
+#[test]
+fn a_codex_spawn_trusts_its_own_hooks_and_bypasses_nothing() {
     // Codex skips hooks absent from its trust store, and a per-spawn injection
-    // always is. Medulla does not pass `--dangerously-bypass-hook-trust`,
-    // because that flag is invocation-wide and would also authorize whatever
-    // hooks the checked-out repository declares. The cost is that the feature
-    // does nothing until the operator trusts it — which must be said, or this
-    // module reproduces the exact silent failure it exists to prevent.
+    // always is until Medulla enables it. That enabling happens here, on the
+    // spawn path, scoped to the entries Medulla itself injected — which is what
+    // `--dangerously-bypass-hook-trust` cannot be, being invocation-wide and so
+    // also authorizing whatever the checked-out repository declares.
+    let dir = tempfile::tempdir().expect("a scratch directory");
+    let config_path = dir.path().join("config.toml");
+    std::fs::write(
+        &config_path,
+        format!(
+            "[hooks.state.\"{}:session_start:0:0\"]\ntrusted_hash = \"sha256:abc\"\n",
+            codex::trust::INJECTED_SOURCE
+        ),
+    )
+    .expect("the config is writable");
+
     let hooks = config(vec![hook(HookEvent::SessionStart, "*", "echo hi")]);
-    let injection = hook_injection(HarnessProvider::Codex, &hooks);
+    let (args, notes) = launch_args(
+        HarnessProvider::Codex,
+        false,
+        &hooks,
+        &scratch_codex_env(dir.path()),
+    );
 
     assert!(
-        !injection
-            .args
-            .iter()
-            .any(|arg| arg.contains("bypass-hook-trust")),
+        !args.iter().any(|arg| arg.contains("bypass-hook-trust")),
         "the invocation-wide trust bypass must never be passed",
     );
-    assert_eq!(injection.warnings.len(), 1);
-    assert!(injection.warnings[0].contains("trust"));
-    // The warning reaches callers through the same channel dropped hooks do.
-    assert!(injection.notes().iter().any(|note| note.contains("trust")));
+    let after = std::fs::read_to_string(&config_path).expect("readable");
+    assert!(
+        after.contains("enabled = true"),
+        "the spawn's own hook must be enabled: {after}"
+    );
+    assert_eq!(
+        notes.len(),
+        1,
+        "the first-time enabling is reported: {notes:?}"
+    );
+}
+
+#[test]
+fn describing_a_codex_injection_never_writes_to_the_trust_store() {
+    // `hook_injection` is what the Hooks page calls, once per frame. Writing
+    // there would edit Codex's config continuously while an operator merely
+    // looked at the screen.
+    let hooks = config(vec![hook(HookEvent::SessionStart, "*", "echo hi")]);
+    let injection = hook_injection(HarnessProvider::Codex, &hooks);
+    assert!(injection.args.contains(&"-c".to_string()));
+    assert!(injection.warnings.is_empty());
 }
 
 #[test]

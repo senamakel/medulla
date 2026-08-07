@@ -220,6 +220,7 @@ pub(crate) async fn call(
                     store: store.clone(),
                     config: &policy.workflows,
                     custom_harnesses: &policy.custom_harness_configs,
+                    launch: &policy.launch,
                     env: &env,
                     cwd: &cwd,
                     workflow_id: id,

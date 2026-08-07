@@ -65,7 +65,7 @@ async fn a_started_host_advertises_this_machine_to_the_hub() {
     )
     .expect("valid config");
 
-    let host = start(
+    let (host, problems) = start(
         &config,
         &HashMap::new(),
         &network,
@@ -76,6 +76,7 @@ async fn a_started_host_advertises_this_machine_to_the_hub() {
     .unwrap()
     .expect("hosting is on by default");
 
+    assert!(problems.is_empty(), "nothing was declared to be dropped");
     assert_eq!(host.address(), "this-device");
     assert_eq!(host.providers(), [HarnessProvider::Claude]);
     // With nothing declared the daemon's own detection seeds one agent, and it

@@ -140,8 +140,12 @@ pub async fn run_wrapper_with(mut config: WrapperConfig) -> anyhow::Result<i32> 
     // Commit attribution and the operator's Medulla hooks share Claude Code's
     // single `--settings` flag, so they are built together rather than appended
     // independently — see `harness_hooks::launch_args`.
-    let (launch_args, hook_notes) =
-        crate::harness_hooks::launch_args(config.provider, config.attribution, &config.hooks);
+    let (launch_args, hook_notes) = crate::harness_hooks::launch_args(
+        config.provider,
+        config.attribution,
+        &config.hooks,
+        &config.env,
+    );
     child_args.extend(launch_args);
     for note in &hook_notes {
         tracing::warn!(provider = config.provider.as_str(), "{note}");

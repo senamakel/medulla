@@ -42,6 +42,9 @@ use crate::worker::pty::SessionRow;
 mod cleanup;
 #[cfg(test)]
 mod cleanup_tests;
+mod cursor;
+#[cfg(test)]
+mod cursor_tests;
 mod organize;
 #[cfg(test)]
 mod organize_tests;
@@ -55,8 +58,12 @@ mod merge_tests;
 pub(in crate::ui::app) mod tests;
 mod types;
 
+pub(in crate::ui::app) use cursor::rail_anchor;
+#[cfg(test)]
+pub(in crate::ui::app) use cursor::resolve_rail_cursor;
 pub use types::{
-    AgentRailRow, GroupRailRow, HostRailRow, RailRow, SessionRailRow, WorkflowRunRailRow,
+    AgentRailRow, GroupRailRow, HostRailRow, RailAnchor, RailRow, SessionRailRow,
+    WorkflowRunRailRow,
 };
 
 /// The label on the rail's "declare an agent" row.
@@ -142,7 +149,16 @@ impl App {
     /// more than one host to tell apart.
     pub(super) fn rail_rows(&self) -> Vec<RailRow> {
         let lanes = self.lanes();
-        let (lane_rows, folded) = self.split_fold(&lanes);
+        self.rail_rows_in(&lanes)
+    }
+
+    /// Assemble rail rows from one already-captured lane snapshot.
+    ///
+    /// Callers that also resolve a cursor anchor must use this with that same
+    /// snapshot: lane indexes in fold rows are meaningful only to the lanes
+    /// that produced them.
+    pub(super) fn rail_rows_in(&self, lanes: &[AgentLane]) -> Vec<RailRow> {
+        let (lane_rows, folded) = self.split_fold(lanes);
         let mut hosts = place_agents(&self.host_tree(), folded);
         let mut orphans = self.attach_sessions(&mut hosts);
         let appearance = &self.loaded.config.appearance;
@@ -156,7 +172,7 @@ impl App {
     fn split_fold(&self, lanes: &[AgentLane]) -> (Vec<AgentRow>, Vec<AgentGroup>) {
         let mut lane_rows: Vec<AgentRow> = Vec::new();
         let mut groups: Vec<AgentGroup> = Vec::new();
-        for row in self.agent_rows() {
+        for row in self.agent_rows_in(lanes) {
             match row {
                 AgentRow::Lane { lane_index } => {
                     let Some(lane) = lanes.get(lane_index) else {

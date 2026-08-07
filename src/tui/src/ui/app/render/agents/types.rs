@@ -42,6 +42,13 @@ pub(super) struct Selection {
     /// rows and the work panel no columns. Resolving it after the split would
     /// mean laying out for a transcript and then drawing a terminal into it.
     pub(super) session: Option<String>,
+    /// The workflow run under the cursor, when the cursor is on a run row.
+    ///
+    /// Resolved alongside the session, and for the same reason: a run takes the
+    /// whole content column — it draws the graph and the streamed output of the
+    /// step that is working — so the composer and the work panel have to be laid
+    /// out knowing that before anything is drawn into it.
+    pub(super) workflow_run: Option<super::super::super::rail::WorkflowRunRailRow>,
 }
 
 impl Selection {

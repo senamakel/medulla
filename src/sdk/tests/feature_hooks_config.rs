@@ -39,7 +39,8 @@ fn load(body: &str) -> medulla::config::LoadedConfig {
 
 /// The `--settings` document Claude Code would be launched with.
 fn claude_settings(hooks: &medulla::harness_hooks::HooksConfig) -> serde_json::Value {
-    let (args, _notes) = medulla::harness_hooks::launch_args(HarnessProvider::Claude, false, hooks);
+    let (args, _notes) =
+        medulla::harness_hooks::launch_args(HarnessProvider::Claude, false, hooks, &HashMap::new());
     let index = args
         .iter()
         .position(|arg| arg == "--settings")
@@ -147,8 +148,12 @@ harnesses = ["codex"]
 "#,
     );
 
-    let (claude_args, _) =
-        medulla::harness_hooks::launch_args(HarnessProvider::Claude, false, &loaded.config.hooks);
+    let (claude_args, _) = medulla::harness_hooks::launch_args(
+        HarnessProvider::Claude,
+        false,
+        &loaded.config.hooks,
+        &HashMap::new(),
+    );
     assert!(
         claude_args.is_empty(),
         "a codex-only hook must not reach claude: {claude_args:?}"

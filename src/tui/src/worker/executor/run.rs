@@ -549,6 +549,7 @@ impl PtySessionExecutor {
             options.provider,
             options.attribution,
             &options.hooks,
+            &env,
         );
         extra_args.extend(launch_args);
         // Routed to the log rather than stderr: this crate draws a full-screen

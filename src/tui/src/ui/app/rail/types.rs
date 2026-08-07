@@ -18,6 +18,36 @@ use medulla::ui::hosts::HostAgentRow;
 use crate::ui::agents::{AgentRow, TaskState};
 use crate::worker::pty::{SessionOrigin, SessionRow};
 
+/// A stable identity for a selectable Agents-rail row.
+///
+/// The rail is rebuilt from live state on every frame. Storing an offset would
+/// select a different row whenever a row is inserted above it, so the app
+/// remembers one of these identities and resolves its current offset instead.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RailAnchor {
+    /// The action that declares an agent.
+    NewAgent,
+    /// A declared or discovered agent, keyed by roster id.
+    Agent(String),
+    /// A local session, keyed by PTY id.
+    Session(String),
+    /// A dispatched task without a local PTY row, keyed by its lane and task.
+    Task {
+        /// Stable key of the lane that owns this task.
+        lane: String,
+        /// Backend task id within [`Self::Task::lane`].
+        task_id: String,
+    },
+    /// An action that opens another session for an agent.
+    NewSession(String),
+    /// A workflow run, keyed by its run id.
+    WorkflowRun(String),
+    /// A non-agent lane header, keyed by the fold's stable lane key.
+    Lane(String),
+    /// The paging control for an agent lane, keyed by that lane's stable key.
+    Overflow(String),
+}
+
 /// One host in the tree.
 ///
 /// Emitted **only when there is a second host to tell apart** (progressive
@@ -245,12 +275,19 @@ impl RailRow {
     }
 
     /// The PTY session this row names, when it names one directly.
+    ///
+    /// A workflow run row answers `None`, though it knows the session it hangs
+    /// under. Every caller asks this to mean "the session this row *is*": the
+    /// pane draws that session's terminal, a click attaches the keyboard to it,
+    /// and `select_session_row` puts the cursor on it. A run row answering with
+    /// its *parent* made all three act on the harness instead of the run — which
+    /// is why arrowing onto a run showed the session's terminal rather than the
+    /// run, and clicking one attached to a harness the operator had not selected.
+    /// The parent is still reachable through
+    /// [`workflow_run`](Self::workflow_run) for anything that genuinely wants it.
     pub fn session_id(&self) -> Option<&str> {
         match self {
             RailRow::Session(row) => row.session_id(),
-            // A run row names the session it hangs under: the harness is what
-            // the operator is looking at, and a run is something it did.
-            RailRow::WorkflowRun(row) => Some(row.session_id.as_str()),
             _ => None,
         }
     }

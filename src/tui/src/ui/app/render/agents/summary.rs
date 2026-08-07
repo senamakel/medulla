@@ -225,8 +225,8 @@ fn agents_under(selection: &Selection) -> usize {
 
 /// What to call the host an agent is placed on.
 ///
-/// The rail's own host row when there is one, else this machine when the id is
-/// the local host's, else the bare id — which is all a lane-only agent carries.
+/// The configured host tree provides labels even when the selected grouping
+/// omits host headers; otherwise use this machine or the bare lane host id.
 fn host_label(app: &App, selection: &Selection, host_id: &str) -> String {
     let host_id = host_id.trim();
     if let Some(host) = selection.rows.iter().find_map(|row| match row {
@@ -234,6 +234,13 @@ fn host_label(app: &App, selection: &Selection, host_id: &str) -> String {
         _ => None,
     }) {
         return host.label.clone();
+    }
+    if let Some(host) = app
+        .host_tree()
+        .into_iter()
+        .find(|host| host.id.trim() == host_id && !host_id.is_empty())
+    {
+        return host.label;
     }
     if host_id.is_empty() || host_id == app.local_host_id().trim() {
         return "this device".to_string();

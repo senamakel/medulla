@@ -22,7 +22,7 @@ use super::super::types::{AgentsFocus, App, Cmd, PaneView};
 use crate::ui::composer::insert_at;
 
 /// What rail-focus handling did with one key press.
-pub(crate) enum AgentsKey {
+pub(in crate::ui::app) enum AgentsKey {
     /// The key belonged to the rail; any follow-up command is carried along.
     Handled(Option<Cmd>),
     /// The rail does not claim this key — global and composer handling apply.
@@ -53,23 +53,37 @@ impl App {
 
     /// Whether the rail cursor sits on the `+ New agent` action row.
     pub(in crate::ui::app) fn on_new_agent_row(&self) -> bool {
-        let rows = self.rail_rows();
-        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        rows.get(self.rail_cursor_in(&rows, &lanes))
             .is_some_and(|row| row.is_new_agent())
     }
 
     /// The workflow run the rail cursor sits on, when it sits on one.
+    #[cfg(feature = "workflows")]
     pub(in crate::ui::app) fn on_workflow_run_row(&self) -> Option<(String, String)> {
-        let rows = self.rail_rows();
-        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        rows.get(self.rail_cursor_in(&rows, &lanes))
             .and_then(|row| row.workflow_run())
             .map(|row| (row.run.workflow_id.clone(), row.run.run_id.clone()))
     }
 
+    /// Open the selected run in the Workflows tab when that feature is present.
+    #[cfg(feature = "workflows")]
+    fn follow_workflow_run(&mut self, workflow: &str, run: &str) {
+        self.open_workflow_run(workflow, run);
+    }
+
+    /// A slim build still lists reported runs, but has no workflow tab to open.
+    #[cfg(not(feature = "workflows"))]
+    fn follow_workflow_run(&mut self, _workflow: &str, _run: &str) {}
+
     /// The agent whose `+ new session` action row the cursor sits on, if it does.
     pub(in crate::ui::app) fn on_new_session_row(&self) -> Option<String> {
-        let rows = self.rail_rows();
-        rows.get(self.agent_index.min(rows.len().saturating_sub(1)))
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
+        rows.get(self.rail_cursor_in(&rows, &lanes))
             .and_then(|row| row.new_session_agent())
             .map(str::to_string)
     }
@@ -115,7 +129,9 @@ impl App {
     /// Returns [`AgentsKey::Unhandled`] for anything the rail has no opinion on
     /// — tab switching, transcript paging, the `Alt` steering chords — so those
     /// keep working identically from either side of the tab.
-    pub(crate) fn on_agents_rail_key(&mut self, k: KeyEvent) -> AgentsKey {
+    // Visible to the whole `ui::app` module, not just `keys`: the rail's own
+    // tests drive it from `session_control_tests`, one level up.
+    pub(in crate::ui::app) fn on_agents_rail_key(&mut self, k: KeyEvent) -> AgentsKey {
         if !self.agents_rail_focused() {
             return AgentsKey::Unhandled;
         }
@@ -180,13 +196,17 @@ impl App {
             // sessions into view. A visible session pane consumes it earlier and
             // takes the keyboard instead.
             KeyCode::Enter => {
+                #[cfg(feature = "workflows")]
+                let workflow_run = self.on_workflow_run_row();
+                #[cfg(not(feature = "workflows"))]
+                let workflow_run: Option<(String, String)> = None;
                 if self.on_new_agent_row() {
                     self.open_new_agent_picker();
-                } else if let Some((workflow, run)) = self.on_workflow_run_row() {
+                } else if let Some((workflow, run)) = workflow_run {
                     // A run row exists to be followed: the rail is where the
                     // operator learns the session started one, and the graph is
                     // where they find out what it is doing.
-                    self.open_workflow_run(&workflow, &run);
+                    self.follow_workflow_run(&workflow, &run);
                 } else if let Some(agent_id) = self.on_new_session_row() {
                     // The same flow `Ctrl-T` opens on an agent row: the name
                     // prompt, then a session in that agent's declared harness
@@ -224,7 +244,7 @@ impl App {
                         self.set_status("No conversation to type into yet");
                         return AgentsKey::Handled(None);
                     };
-                    self.agent_index = index;
+                    self.set_rail_cursor(index);
                     self.agent_scroll = 0;
                     self.chat_scroll = 0;
                     // Leaving a task row drops its screen stream, exactly as
