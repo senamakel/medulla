@@ -303,5 +303,6 @@ while True:
         bin,
         spawn_log,
         request_log,
+        ask_log,
     }
 }
