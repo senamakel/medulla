@@ -214,7 +214,14 @@ impl App {
             && self
                 .selected_workflow()
                 .is_some_and(|selected| selected.id == workflow))
-        .then(|| self.wf.layout.nodes.get(self.wf.node_index)?.id.clone());
+        .then(|| {
+            self.wf
+                .layout
+                .nodes
+                .get(self.wf.node_index)
+                .map(|node| node.id.clone())
+        })
+        .flatten();
         if !self.point_workflows_at_run(workflow, run, active_node.as_deref()) {
             self.set_status(format!("Workflow '{workflow}' is not in this catalogue"));
             return;
