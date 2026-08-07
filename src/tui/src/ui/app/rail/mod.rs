@@ -37,6 +37,7 @@ use medulla::ui::hosts::{HostAgentRow, HostKind, HostRow};
 
 use super::types::App;
 use crate::ui::agents::{ordered_tasks, AgentLane, AgentRole, AgentRow};
+use crate::ui::app::input::SUBTASK_PAGE;
 use crate::worker::pty::SessionRow;
 
 mod cleanup;
@@ -149,32 +150,24 @@ impl App {
     fn split_fold(&self, lanes: &[AgentLane]) -> (Vec<AgentRow>, Vec<AgentGroup>) {
         let mut lane_rows: Vec<AgentRow> = Vec::new();
         let mut groups: Vec<AgentGroup> = Vec::new();
-        for row in self.agent_rows_in(lanes) {
-            match row {
-                AgentRow::Lane { lane_index } => {
-                    let Some(lane) = lanes.get(lane_index) else {
-                        continue;
-                    };
-                    if lane.role != AgentRole::Agent {
-                        lane_rows.push(row);
-                        continue;
-                    }
-                    groups.push(self.group_for_lane(lane, lane_index));
-                }
-                AgentRow::Sub { .. } => {
-                    let Some(group) = groups.last_mut() else {
-                        continue;
-                    };
-                    group.visible_tasks += 1;
-                }
-                AgentRow::More { hidden, .. } => {
-                    if let Some(group) = groups.last_mut() {
-                        group.hidden += hidden;
-                        group.overflow = true;
-                    }
-                }
-                AgentRow::Separator => lane_rows.push(row),
+        let first_function = lanes.iter().position(|lane| lane.role.is_function());
+        for (lane_index, lane) in lanes.iter().enumerate() {
+            if Some(lane_index) == first_function {
+                lane_rows.push(AgentRow::Separator);
             }
+            if lane.role != AgentRole::Agent {
+                lane_rows.push(AgentRow::Lane { lane_index });
+                continue;
+            }
+
+            let mut group = self.group_for_lane(lane, lane_index);
+            if lane.key.starts_with("agent:") && !lane.tasks.is_empty() {
+                let task_limit = self.revealed_subtasks(&lane.key);
+                group.visible_tasks = lane.tasks.len().min(task_limit);
+                group.hidden = lane.tasks.len() - group.visible_tasks;
+                group.overflow = group.hidden > 0 || group.visible_tasks > SUBTASK_PAGE;
+            }
+            groups.push(group);
         }
         (lane_rows, groups)
     }

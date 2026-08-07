@@ -66,6 +66,30 @@ fn shell_lane() -> AgentLane {
 }
 
 #[test]
+fn split_fold_derives_the_first_page_counts_from_the_lane_tasks() {
+    let mut lane = shell_lane();
+    lane.tasks = (0..11)
+        .map(|index| TaskState {
+            task_id: format!("task-{index}"),
+            status: TaskStatus::Done,
+            turns: 0,
+            last_at: index,
+            turn_blocks: Vec::new(),
+            attention: None,
+            question_id: None,
+            work: None,
+        })
+        .collect();
+
+    let (_, groups) = app().split_fold(&[lane]);
+    let group = groups.first().expect("the agent lane becomes one group");
+
+    assert_eq!(group.visible_tasks, 10);
+    assert_eq!(group.hidden, 1);
+    assert!(group.overflow);
+}
+
+#[test]
 fn paging_starts_with_the_fold_running_first_task_order() {
     let mut lane = shell_lane();
     lane.tasks = vec![
