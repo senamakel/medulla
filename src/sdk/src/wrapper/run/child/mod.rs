@@ -57,6 +57,7 @@ pub(super) fn spawn_child_with(
                 args: args.to_vec(),
                 cwd: config.cwd.clone(),
                 env: config.env.clone(),
+                env_remove: core_state_vars_to_remove(config),
             };
             match spawn_pty(request) {
                 Ok(harness) => {
@@ -93,9 +94,11 @@ fn spawn_stdio(
     inject: bool,
 ) -> anyhow::Result<ChildSession> {
     let mut command = Command::new(bin);
+    command.args(args).envs(&config.env);
+    for key in core_state_vars_to_remove(config) {
+        command.env_remove(key);
+    }
     command
-        .args(args)
-        .envs(&config.env)
         .current_dir(&config.cwd)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -147,6 +150,22 @@ fn spawn_stdio(
         restore: None,
     })
 }
+
+/// Keep the embedded core's workspace binding out of external harness children
+/// without mutating the long-lived Medulla process that launched them.
+fn core_state_vars_to_remove(config: &WrapperConfig) -> Vec<String> {
+    if config.provider != crate::protocol::HarnessProvider::Openhuman {
+        crate::protocol::env::CORE_STATE_VARS
+            .iter()
+            .map(|key| (*key).to_string())
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
+#[cfg(test)]
+mod tests;
 
 /// Translate a child [`ExitStatus`](std::process::ExitStatus) into a shell-style
 /// exit code (`128 + signal` for signal termination on Unix).

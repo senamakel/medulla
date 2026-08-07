@@ -203,6 +203,42 @@ pub fn provider_bin(provider: HarnessProvider, env: &HashMap<String, String>) ->
     default_bin(provider).to_string()
 }
 
+/// Variables that aim a process at the **embedded OpenHuman core's** state
+/// directory — the workspace holding its credential store.
+///
+/// [`crate::core_host::bind_workspace`] sets `OPENHUMAN_WORKSPACE` on this
+/// process so the in-process core resolves the account's home rather than the
+/// developer's `~/.openhuman`. That is right for the core and wrong for
+/// everything else this process starts: `std::env::set_var` is inherited by
+/// every child, and the app hands the same environment snapshot to the coding
+/// harnesses it spawns.
+///
+/// A `claude` or `codex` session has no use for the core's workspace, and one
+/// concrete use it *does* find is destructive. Every secret the core owns lives
+/// in one file there, rewritten whole on each `set`. A `cargo test` run started
+/// from a Medulla-spawned shell inherits the variable, so OpenHuman's own test
+/// suite resolves that file as its keyring and writes thousands of per-test
+/// entries into it — beside the live app session, through the same
+/// read-modify-write cycle. Losing the session to one of those writes is what
+/// "I rebuilt and got logged out" was.
+pub const CORE_STATE_VARS: &[&str] = &["OPENHUMAN_WORKSPACE"];
+
+/// Remove the core's state variables from a harness's spawn environment —
+/// unless that harness *is* the core.
+///
+/// [`HarnessProvider::Openhuman`] is the one child that must keep them: it runs
+/// the same core against the same account, and stripping them would send it to
+/// `~/.openhuman` with a different set of agents, memory, and credentials than
+/// the Medulla process it was started from.
+pub fn scrub_core_state(env: &mut HashMap<String, String>, provider: HarnessProvider) {
+    if provider == HarnessProvider::Openhuman {
+        return;
+    }
+    for key in CORE_STATE_VARS {
+        env.remove(*key);
+    }
+}
+
 /// Extra args prepended to the child argv, from `MEDULLA_<P>_ARGS` (or the
 /// deprecated `TINYPLACE_<P>_ARGS`), whitespace-split. Empty / unset yields no
 /// args.

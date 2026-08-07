@@ -86,6 +86,10 @@ impl InteractiveSession {
         }
         let args = build_interactive_args(spec);
         let mut env = spec.env.clone();
+        // The embedded core's workspace is not this child's business — see
+        // [`crate::protocol::env::CORE_STATE_VARS`] for what a coding harness
+        // that inherits it can destroy.
+        crate::protocol::env::scrub_core_state(&mut env, spec.provider);
         // The built-in reporting hooks just installed onto `args` need this to
         // find anything to report to — without it they spawn, find no grant,
         // and exit, on every one of `PostToolUse`'s per-tool-call firings for

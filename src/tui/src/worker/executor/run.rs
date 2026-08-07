@@ -532,6 +532,11 @@ impl PtySessionExecutor {
         options: &RunTaskOptions,
     ) -> Result<(HashMap<String, String>, Vec<String>), String> {
         let mut env = options.env.clone();
+        // This executor launches the watched harness itself, bypassing the
+        // daemon's transport dispatcher. Keep the embedded core workspace out
+        // of that child for the same credential-store isolation as headless
+        // and alternate transports.
+        medulla::protocol::env::scrub_core_state(&mut env, options.provider);
         let mut extra_args = options.extra_args.clone();
         // Commits made in a watched PTY session are just as much Medulla's work
         // as headless ones, so this path carries the same attribution.

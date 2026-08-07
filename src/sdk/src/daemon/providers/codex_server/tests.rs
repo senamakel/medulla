@@ -11,7 +11,7 @@ use crate::protocol::{HarnessProvider, HarnessTransport};
 use crate::sessions::SessionClass;
 
 use super::super::types::{Abort, RunTaskOptions};
-use super::execution::{uses_app_server, HARNESS_TRANSPORT_ENV};
+use super::execution::{child_env, uses_app_server, HARNESS_TRANSPORT_ENV};
 use super::fold::FoldState;
 
 /// Run options carrying a transport and an environment, and nothing else that
@@ -89,6 +89,16 @@ fn selects_the_app_server_from_the_environment_switch() {
 
     let nonsense = options(HarnessTransport::Cli, &[(HARNESS_TRANSPORT_ENV, "wat")]);
     assert!(!uses_app_server(&nonsense));
+}
+
+#[test]
+fn app_server_child_env_strips_the_embedded_core_workspace() {
+    let env = child_env(&options(
+        HarnessTransport::AppServer,
+        &[("OPENHUMAN_WORKSPACE", "/live-core-workspace")],
+    ));
+
+    assert!(!env.contains_key("OPENHUMAN_WORKSPACE"));
 }
 
 #[tokio::test]
