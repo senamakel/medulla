@@ -94,6 +94,24 @@ fn grouping_by_path_heads_each_checkout_once() {
 }
 
 #[test]
+fn grouping_by_path_ignores_a_trailing_separator() {
+    let mut app = app_with_agents();
+    app.loaded.config.appearance.sidebar_grouping = SidebarGrouping::Path;
+    app.loaded.config.fleet.agent_declarations[2].workspace.path = "/work/alpha/".into();
+
+    assert_eq!(
+        sections(&app),
+        vec![
+            (
+                Some("/work/alpha".into()),
+                vec!["acorn".into(), "mint".into()]
+            ),
+            (Some("/work/beta".into()), vec!["zed".into()]),
+        ]
+    );
+}
+
+#[test]
 fn grouping_by_harness_sections_by_the_cli_each_agent_runs() {
     let mut app = app_with_agents();
     app.loaded.config.appearance.sidebar_grouping = SidebarGrouping::Harness;
@@ -270,7 +288,25 @@ fn active_agent(label: &str, last_at: i64) -> AgentGroup {
             local: None,
             last: false,
         }],
+        last_at,
         visible_tasks: 1,
+        hidden: 0,
+        overflow: false,
+    }
+}
+
+/// An agent group whose activity is reported only at the lane level.
+fn peer_agent(label: &str, last_at: i64) -> AgentGroup {
+    AgentGroup {
+        row: AgentRailRow {
+            agent_id: label.into(),
+            host_id: String::new(),
+            agent: None,
+            lane_index: None,
+        },
+        sessions: Vec::new(),
+        last_at,
+        visible_tasks: 0,
         hidden: 0,
         overflow: false,
     }
@@ -289,6 +325,46 @@ fn recent_sorts_agents_by_their_most_recent_session() {
             .collect::<Vec<_>>(),
         vec!["loud", "quiet"]
     );
+}
+
+#[test]
+fn recent_sorts_agents_by_peer_lane_activity() {
+    let mut agents = vec![active_agent("task", 500), peer_agent("peer", 900)];
+
+    sort_agents(&mut agents, SidebarSort::Recent);
+
+    assert_eq!(
+        agents
+            .iter()
+            .map(|agent| agent.row.agent_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["peer", "task"]
+    );
+}
+
+#[test]
+fn recent_sorts_sections_by_peer_lane_activity() {
+    let mut sections = vec![
+        Section {
+            header: SectionHeader::Group(GroupRailRow {
+                label: "/work/task".into(),
+            }),
+            agents: vec![active_agent("task", 500)],
+        },
+        Section {
+            header: SectionHeader::Group(GroupRailRow {
+                label: "/work/peer".into(),
+            }),
+            agents: vec![peer_agent("peer", 900)],
+        },
+    ];
+
+    order_sections(&mut sections, SidebarSort::Recent);
+
+    assert!(matches!(
+        &sections[0].header,
+        SectionHeader::Group(group) if group.label == "/work/peer"
+    ));
 }
 
 #[test]

@@ -130,9 +130,25 @@ fn agent_path(agent: &AgentGroup) -> String {
     agent
         .row
         .workspace()
-        .map(str::trim)
+        .map(normalize_path_label)
         .filter(|workspace| !workspace.is_empty())
-        .map_or_else(|| "no path".to_string(), str::to_string)
+        .unwrap_or_else(|| "no path".to_string())
+}
+
+/// Normalize a workspace directory for grouping without changing the root.
+///
+/// Declarations and spawned working directories commonly differ only by a
+/// trailing separator. Grouping uses the same comparison rule as session
+/// ownership resolution so that representation detail does not create a second
+/// section header.
+fn normalize_path_label(path: &str) -> String {
+    let trimmed = path.trim();
+    let stripped = trimmed.trim_end_matches('/');
+    if stripped.is_empty() {
+        trimmed.to_string()
+    } else {
+        stripped.to_string()
+    }
 }
 
 /// The harness an agent runs, as its section label.
@@ -252,10 +268,8 @@ fn session_label(session: &SessionRailRow) -> String {
 
 /// The most recent activity under an agent, for the activity orders.
 fn agent_activity(agent: &AgentGroup) -> i64 {
-    agent
-        .sessions
-        .iter()
-        .map(session_activity)
+    std::iter::once(agent.last_at)
+        .chain(agent.sessions.iter().map(session_activity))
         .max()
         .unwrap_or(i64::MIN)
 }

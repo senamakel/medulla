@@ -83,6 +83,12 @@ struct AgentGroup {
     row: AgentRailRow,
     /// Its sessions, dispatched and operator-started alike.
     sessions: Vec<SessionRailRow>,
+    /// The most recent lane-level event, including activity with no task row.
+    ///
+    /// Peer-session lanes carry transcript activity directly on the lane rather
+    /// than as a task. Preserve that timestamp so recent sorting still moves a
+    /// peer agent whose output is changing.
+    last_at: i64,
     /// How many task-backed sessions the fold has currently revealed.
     ///
     /// The complete task set stays here until [`organize`] applies the chosen
@@ -245,6 +251,7 @@ impl App {
                     last: false,
                 })
                 .collect(),
+            last_at: lane.last_at,
             visible_tasks: 0,
             hidden: 0,
             overflow: false,
@@ -546,6 +553,7 @@ fn placed_agent(
             lane_index: None,
         },
         sessions: Vec::new(),
+        last_at: 0,
         visible_tasks: 0,
         hidden: 0,
         overflow: false,
