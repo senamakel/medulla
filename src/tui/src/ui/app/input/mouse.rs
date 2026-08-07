@@ -536,6 +536,16 @@ impl App {
                     let rel = (y - rect.y) as usize;
                     if let Some(hit) = owners.get(rel) {
                         if hit.selectable() {
+                            // The hit map describes the frame the operator saw,
+                            // but actions below read the current rail. A row
+                            // that vanished must not use its old numeric offset
+                            // as a substitute target: that can page or watch a
+                            // different row that happened to move into place.
+                            let lanes = self.lanes();
+                            let rows = self.rail_rows_in(&lanes);
+                            if !hit.exists_in(&rows, &lanes) {
+                                return None;
+                            }
                             self.agent_scroll = 0;
                             self.chat_scroll = 0;
                             self.set_rendered_rail_cursor(hit);

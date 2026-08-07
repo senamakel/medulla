@@ -3,9 +3,9 @@
 //! The live rail is rebuilt on every frame, so these cover the stable-anchor
 //! resolver independently of the `App` rendering loop.
 
-use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
+use crate::ui::agents::{AgentLane, AgentRole, AgentRow, TaskState, TaskStatus};
 
-use super::{rail_anchor, resolve_rail_cursor, AgentRailRow, RailAnchor, RailRow};
+use super::{rail_anchor, resolve_rail_cursor, AgentRailRow, RailAnchor, RailRow, SessionRailRow};
 
 fn agent(id: &str) -> RailRow {
     RailRow::Agent(AgentRailRow {
@@ -65,4 +65,40 @@ fn an_overflow_anchor_uses_its_lanes_stable_key() {
 
     let rows = vec![RailRow::NewAgent, agent("new"), overflow];
     assert_eq!(resolve_rail_cursor(&rows, &lanes, anchor.as_ref(), 0), 2);
+}
+
+#[test]
+fn a_task_anchor_survives_local_pty_enrichment() {
+    let lanes = vec![lane("builder")];
+    let task = TaskState {
+        task_id: "t-1".to_string(),
+        status: TaskStatus::Running,
+        turns: 0,
+        last_at: 0,
+        turn_blocks: Vec::new(),
+        attention: None,
+        question_id: None,
+        work: None,
+    };
+    let before = RailRow::Session(Box::new(SessionRailRow {
+        agent_id: Some("builder".to_string()),
+        lane_index: Some(0),
+        task: Some(task.clone()),
+        local: None,
+        last: true,
+    }));
+    let anchor = rail_anchor(&before, &lanes);
+    let after = RailRow::Session(Box::new(SessionRailRow {
+        local: Some(super::tests::stub_session("w_1")),
+        ..match before {
+            RailRow::Session(session) => *session,
+            _ => unreachable!("the fixture is a session"),
+        }
+    }));
+
+    assert_eq!(rail_anchor(&after, &lanes), anchor);
+    assert_eq!(
+        resolve_rail_cursor(&[RailRow::NewAgent, after], &lanes, anchor.as_ref(), 0),
+        1
+    );
 }

@@ -12,19 +12,25 @@ pub(in crate::ui::app) fn rail_anchor(row: &RailRow, lanes: &[AgentLane]) -> Opt
     match row {
         RailRow::NewAgent => Some(RailAnchor::NewAgent),
         RailRow::Agent(agent) => Some(RailAnchor::Agent(agent.agent_id.clone())),
+        // A dispatched row remains identified by its task after the local PTY
+        // is discovered. PTY enrichment must not move the cursor off that task
+        // while the live rail is being rebuilt asynchronously.
         RailRow::Session(session) => session
-            .local
+            .task
             .as_ref()
-            .map(|local| RailAnchor::Session(local.id.clone()))
-            .or_else(|| {
-                session.task.as_ref().and_then(|task| {
-                    session.lane_index.and_then(|index| {
-                        lanes.get(index).map(|lane| RailAnchor::Task {
-                            lane: lane.key.clone(),
-                            task_id: task.task_id.clone(),
-                        })
+            .and_then(|task| {
+                session.lane_index.and_then(|index| {
+                    lanes.get(index).map(|lane| RailAnchor::Task {
+                        lane: lane.key.clone(),
+                        task_id: task.task_id.clone(),
                     })
                 })
+            })
+            .or_else(|| {
+                session
+                    .local
+                    .as_ref()
+                    .map(|local| RailAnchor::Session(local.id.clone()))
             }),
         RailRow::NewSession { agent_id } => Some(RailAnchor::NewSession(agent_id.clone())),
         RailRow::WorkflowRun(row) => Some(RailAnchor::WorkflowRun(row.run.run_id.clone())),

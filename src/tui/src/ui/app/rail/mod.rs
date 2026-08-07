@@ -39,10 +39,10 @@ use super::types::App;
 use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
 use crate::worker::pty::SessionRow;
 
-mod cursor;
 mod cleanup;
 #[cfg(test)]
 mod cleanup_tests;
+mod cursor;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
