@@ -133,8 +133,10 @@ impl HarnessRunRegistry {
     /// Whether `session` has reported any run at all.
     ///
     /// Separate from [`for_session`](Self::for_session) because a reader that
-    /// only wants the yes/no — the rail, deciding per frame whether a session is
-    /// worth listing — would otherwise clone every run to throw them away.
+    /// only wants the yes/no would otherwise clone every run to throw them
+    /// away. A surface asking whether there is still something to watch wants
+    /// [`any_active_for_session`](Self::any_active_for_session) instead — this
+    /// one stays `true` for a session whose runs have all settled.
     pub fn any_for_session(&self, session: &str) -> bool {
         self.inner.lock().ok().is_some_and(|table| {
             table
@@ -142,6 +144,19 @@ impl HarnessRunRegistry {
                 .get(session)
                 .is_some_and(|runs| !runs.is_empty())
         })
+    }
+
+    /// Whether `session` has a run that has not settled yet.
+    ///
+    /// A narrower question than [`any_for_session`](Self::any_for_session), and
+    /// the one a surface that prunes finished work asks: a session whose runs
+    /// have all settled is one nothing is still waiting on, even though it did
+    /// report runs and so still answers `true` there.
+    pub fn any_active_for_session(&self, session: &str) -> bool {
+        self.inner
+            .lock()
+            .ok()
+            .is_some_and(|table| has_unsettled(&table, session))
     }
 
     /// What `session` has running and recently ran, oldest first.
