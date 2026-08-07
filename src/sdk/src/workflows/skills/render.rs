@@ -389,10 +389,7 @@ fn description_for(summary: &WorkflowSummary) -> String {
 /// template exists to remove, but silently losing the tail of a long one would
 /// be worse.
 fn description_was_condensed(summary: &WorkflowSummary) -> bool {
-    match condense(&summary.description, MAX_FRONTMATTER_DESCRIPTION_CHARS) {
-        Some(condensed) => condensed != normalise_ws(&summary.description),
-        None => false,
-    }
+    was_condensed(&summary.description, MAX_FRONTMATTER_DESCRIPTION_CHARS)
 }
 
 /// Collapses all whitespace runs — newlines included — to single spaces.
@@ -402,6 +399,16 @@ fn description_was_condensed(summary: &WorkflowSummary) -> bool {
 /// scalar, a list item), so the normalisation happens once, up front.
 fn normalise_ws(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Whether rendering prose at `max` characters omits any of its words.
+///
+/// [`condense`] closes a short unterminated sentence with punctuation, which is
+/// presentation rather than truncation. Track omission from the normalised
+/// source length so that punctuation alone does not advertise a needless
+/// workflow lookup.
+fn was_condensed(text: &str, max: usize) -> bool {
+    normalise_ws(text).chars().count() > max
 }
 
 /// Shortens prose to `max` characters, or `None` when there is no prose at all.
@@ -571,7 +578,7 @@ fn inputs_section(summary: &WorkflowSummary) -> String {
         }
         let note = input.description.as_deref().unwrap_or_default();
         if let Some(condensed) = condense(note, MAX_INPUT_NOTE_CHARS) {
-            condensed_any |= condensed != normalise_ws(note);
+            condensed_any |= was_condensed(note, MAX_INPUT_NOTE_CHARS);
             out.push_str(&format!(" — {condensed}"));
         }
         out.push('\n');

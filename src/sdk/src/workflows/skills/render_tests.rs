@@ -299,6 +299,20 @@ fn an_uncondensed_signature_does_not_advertise_the_lookup() {
     assert!(!skill.body.contains("workflow_get"), "{}", skill.body);
 }
 
+#[test]
+fn unterminated_short_text_does_not_advertise_the_lookup() {
+    let inputs = vec![WorkflowInput::new("pr", InputType::Number)
+        .required()
+        .with_description("The pull request number")];
+    let skill = render(&summary("babysit", "Watch a pull request", inputs));
+
+    // `condense` supplies terminal punctuation for rendering, but neither
+    // source was shortened, so the complete text is already in the skill.
+    assert!(skill.description.starts_with("Watch a pull request."));
+    assert!(skill.body.contains("The pull request number."));
+    assert!(!skill.body.contains("workflow_get"), "{}", skill.body);
+}
+
 /// The budget this whole rewrite exists to meet.
 ///
 /// Roughly four characters to a token, so 1200 characters is about 300 tokens
