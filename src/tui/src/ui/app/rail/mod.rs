@@ -235,8 +235,7 @@ impl App {
                 lane_index: Some(lane_index),
             },
             sessions: ordered_tasks(&lane.tasks)
-                .iter()
-                .cloned()
+                .into_iter()
                 .map(|task| SessionRailRow {
                     agent_id: Some(agent_id.clone()),
                     lane_index: Some(lane_index),
