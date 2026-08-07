@@ -221,31 +221,7 @@ async fn run_workflow_inner(
     // not dropped on the floor — and so two dispatches of the same run id
     // cannot both start, which would run every node's side effects twice and
     // race to overwrite one run record.
-    //
-    // A caller that already handed its run id out claims earlier still and
-    // passes the claim down (see [`RunContext::claim`]); adopting it is what
-    // keeps that earlier claim from reading as "already executing" here.
-    let claim = match context.claim.take() {
-        // Adopting a claim taken out under a *different* id would leave the
-        // registry holding only that other id: a cancel for this run would find
-        // nothing to stop, and a second dispatch of this id could start
-        // alongside this one — the two outcomes claiming exists to prevent. A
-        // mismatch is a caller wiring bug, so it is refused rather than quietly
-        // re-claimed under the right id.
-        Some(claim) if claim.0.id() != run_id => {
-            return Err(WorkflowError::Engine(format!(
-                "run '{run_id}' was handed a claim for '{}'",
-                claim.0.id()
-            )));
-        }
-        Some(claim) => Some(claim),
-        None => RunGuard::claim(run_id),
-    };
-    let Some((_guard, cancelled)) = claim else {
-        return Err(WorkflowError::Engine(format!(
-            "run '{run_id}' is already executing"
-        )));
-    };
+    let (_guard, cancelled) = preflight::adopt_or_claim(run_id, context.claim.take())?;
 
     // The *resolved* inputs, not the supplied ones: a caller that relied on a
     // declared default gets a record saying what the run actually used, which
