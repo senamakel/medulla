@@ -27,6 +27,7 @@
 
 pub mod diagnose;
 pub mod dispatches;
+mod preflight;
 mod registry;
 mod summary;
 
