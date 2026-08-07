@@ -1,10 +1,12 @@
 //! Focused unit tests for the [`App`] screen: that every tab renders, the async
 //! header toggle shows, and the composer/slash-command dispatch behaves.
 
+mod harness_pane;
+
 use super::*;
 use std::sync::Arc;
 
-use super::types::RP_HARNESSES;
+use super::types::{PaneView, RP_HARNESSES};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
@@ -229,7 +231,7 @@ fn enter_on_a_harness_asks_before_taking_it() {
 }
 
 #[test]
-fn d_on_a_selected_harness_opens_its_changes_tab() {
+fn d_on_a_selected_harness_swaps_the_pane_for_its_diff() {
     let mut a = app();
     a.tab_index = tab("Agents");
     a.focus_agents_rail();
@@ -238,21 +240,92 @@ fn d_on_a_selected_harness_opens_its_changes_tab() {
     let cmd = a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
 
     assert!(cmd.is_none());
-    assert_eq!(a.tab(), "Changes");
+    assert_eq!(a.tab(), "Agents", "the diff replaces the pane, not the tab");
+    assert_eq!(a.pane_view, PaneView::Diff);
     assert_eq!(a.rail_session.as_deref(), Some("selected-harness"));
     assert_eq!(a.draft.text, "", "the shortcut must not type into chat");
 }
 
 #[test]
-fn d_without_a_selected_harness_remains_composer_input() {
+fn d_again_puts_the_harness_back_in_the_pane() {
     let mut a = app();
     a.tab_index = tab("Agents");
     a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
 
     a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+    a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
 
-    assert_eq!(a.tab(), "Agents");
-    assert_eq!(a.draft.text, "d");
+    assert_eq!(a.pane_view, PaneView::Harness);
+    assert_eq!(a.draft.text, "", "neither press may reach the composer");
+}
+
+#[test]
+fn esc_closes_the_pane_diff() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+    a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+
+    a.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+    assert_eq!(a.pane_view, PaneView::Harness);
+}
+
+#[test]
+fn esc_cancels_the_open_diff_baseline_picker_before_closing_the_diff() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+    a.pane_view = PaneView::Diff;
+    a.open_change_baseline_picker();
+
+    a.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+    assert!(!a.changes.picking_baseline);
+    assert_eq!(a.pane_view, PaneView::Diff);
+}
+
+#[test]
+fn the_open_diff_owns_its_own_navigation_keys() {
+    // `k` kills the harness from the terminal view; over the diff it is the
+    // Changes cursor, exactly as on the tab. A view that replaced the pane but
+    // left the pane's bindings in place would kill a session on a keypress the
+    // operator meant as "move down one line".
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+    a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+
+    a.on_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+
+    assert!(a.harness_close_armed.is_none(), "{}", a.status());
+    assert_eq!(a.pane_view, PaneView::Diff);
+    assert_eq!(a.draft.text, "");
+}
+
+#[test]
+fn enter_applies_the_open_diff_baseline_picker() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+    a.pane_view = PaneView::Diff;
+    a.open_change_baseline_picker();
+
+    a.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert!(a.changes.picking_baseline);
+    assert!(a.handback_prompt.is_none());
+    assert_eq!(a.attached_session(), None);
+    assert!(
+        a.status().contains("No session Git repository"),
+        "{}",
+        a.status()
+    );
 }
 
 #[test]

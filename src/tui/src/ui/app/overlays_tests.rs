@@ -139,6 +139,22 @@ fn handback_prompt_swallows_clicks_behind_it() {
 }
 
 #[test]
+fn pointer_input_cancels_an_armed_harness_close() {
+    let mut app = app();
+    app.arm_harness_close("session-a".into());
+
+    let _ = app.on_mouse(MouseEvent {
+        kind: MouseEventKind::ScrollDown,
+        column: 0,
+        row: 0,
+        modifiers: KeyModifiers::NONE,
+    });
+
+    assert!(app.harness_close_armed.is_none());
+    assert!(app.status().contains("cancelled"), "{}", app.status());
+}
+
+#[test]
 fn no_overlay_lets_a_paste_through_to_the_composer_behind_it() {
     // The whole point of deriving `overlay_owns_keys` from this list. Asserted
     // per overlay rather than once, because the failure mode is always a single
