@@ -26,6 +26,13 @@ pub struct FakeAppServer {
     pub spawn_log: String,
     /// File each process appends one JSON request line to.
     pub request_log: String,
+    /// File each process appends one line per request it sent *to* the client.
+    ///
+    /// Separate from [`Self::request_log`], which records the other direction.
+    /// A test asserting that the client answered an elicitation needs the id the
+    /// fake asked with, and that id is allocated at run time rather than written
+    /// into the script, so it cannot be a constant in the test.
+    pub ask_log: String,
 }
 
 impl FakeAppServer {
