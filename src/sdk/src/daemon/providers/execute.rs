@@ -186,6 +186,10 @@ async fn run_provider_attempt(
     // For providers that use the git-hook path (Codex, Opencode), merge the
     // prepare-commit-msg hook env vars into the child's environment.
     let mut merged_env = spec.env.clone();
+    // The embedded core's workspace is not this child's business — see
+    // [`crate::protocol::env::CORE_STATE_VARS`] for what a coding harness that
+    // inherits it can destroy.
+    crate::protocol::env::scrub_core_state(&mut merged_env, spec.provider);
     let attribution_env = crate::attribution::attribution_env(spec.attribution, &merged_env);
     merged_env.extend(attribution_env);
     // The built-in reporting hooks just installed onto `extra_args` need this
