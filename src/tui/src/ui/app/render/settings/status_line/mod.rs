@@ -27,6 +27,8 @@ use super::super::super::types::App;
 mod fields;
 mod footer;
 mod preview;
+#[cfg(test)]
+mod tests;
 
 impl App {
     /// Draw the Status line subpage: the scrolling preview and fields, over the
@@ -43,9 +45,8 @@ impl App {
         // The footer is only worth its height while the fields still have room
         // to be walked, so it never takes more than half the pane. What is cut
         // is cut from the bottom, where the least specific lines sit.
-        let mut footer = self.status_line_footer(selected, &cfg, dim, usize::from(inner.width));
-        let footer_height = (footer.len() as u16).min(inner.height / 2);
-        footer.truncate(usize::from(footer_height));
+        let footer = self.status_line_footer(selected, &cfg, dim, usize::from(inner.width));
+        let footer_height = footer::rendered_height(&footer, inner.width).min(inner.height / 2);
 
         let split = Layout::default()
             .direction(Direction::Vertical)

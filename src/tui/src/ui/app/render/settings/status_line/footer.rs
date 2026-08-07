@@ -13,6 +13,21 @@ use ratatui::text::{Line as TLine, Span};
 use crate::ui::app::status_line::STATUS_LINE_ROWS;
 use crate::ui::app::types::App;
 
+/// Return the number of terminal rows a wrapped footer will occupy at `width`.
+///
+/// Ratatui wraps each logical line independently. An empty line still occupies
+/// a row, while a non-empty line needs one row for every `width` display cells.
+/// Measuring before splitting the page prevents wrapped help from stealing the
+/// rows reserved for the bottom of the footer.
+pub(super) fn rendered_height(lines: &[TLine<'_>], width: u16) -> u16 {
+    let width = usize::from(width.max(1));
+    lines
+        .iter()
+        .map(|line| line.width().max(1).div_ceil(width))
+        .sum::<usize>()
+        .min(usize::from(u16::MAX)) as u16
+}
+
 impl App {
     /// Build the footer lines for the selected row, most specific first.
     ///
