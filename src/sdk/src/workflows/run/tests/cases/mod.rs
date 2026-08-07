@@ -4,6 +4,7 @@
 //! only the harness dispatch is a stand-in, because the alternative is starting
 //! a coding agent.
 
+mod cancellation;
 mod continuation;
 mod loops;
 
