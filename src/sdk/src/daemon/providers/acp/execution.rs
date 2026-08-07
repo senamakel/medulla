@@ -320,8 +320,10 @@ pub(super) fn agent_for(options: &RunTaskOptions) -> AcpAgent {
     let config = config
         .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
         .envs(acp_env(options));
-    #[cfg(not(unix))]
-    let config = config.envs(acp_env(options));
+    #[cfg(windows)]
+    let config = config
+        .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
+        .envs(acp_env(options));
 
     AcpAgent::new(config)
 }
@@ -391,4 +393,48 @@ impl AcpAgentConfigExt for AcpAgentConfig {
         args.extend(self.arguments().iter().cloned());
         AcpAgentConfig::new("env").args(args)
     }
+}
+
+/// Adds a Windows `cmd` shim that clears inherited variables before launching
+/// an ACP command. `AcpAgentConfig` itself can only overlay values.
+#[cfg(windows)]
+trait AcpAgentConfigExt {
+    /// Return a command which clears `names` from its child environment before
+    /// it invokes the original ACP executable.
+    fn command_with_env_removals(self, names: &[&str]) -> Self;
+}
+
+#[cfg(windows)]
+impl AcpAgentConfigExt for AcpAgentConfig {
+    fn command_with_env_removals(self, names: &[&str]) -> Self {
+        let clears = names
+            .iter()
+            .map(|name| format!("set {name}="))
+            .collect::<Vec<_>>()
+            .join(" && ");
+        let command = std::iter::once(quote_windows_cmd_arg(&self.command().to_string_lossy()))
+            .chain(
+                self.arguments()
+                    .iter()
+                    .map(|argument| quote_windows_cmd_arg(argument)),
+            )
+            .collect::<Vec<_>>()
+            .join(" ");
+        AcpAgentConfig::new("cmd.exe").args(["/D", "/S", "/C", &format!("{clears} && {command}")])
+    }
+}
+
+/// Quote a command argument for `cmd.exe` without allowing its metacharacters
+/// to turn an operator-configured provider path into another command.
+#[cfg(windows)]
+fn quote_windows_cmd_arg(argument: &str) -> String {
+    let escaped = argument.replace('^', "^^").replace('%', "%%");
+    let escaped = escaped
+        .chars()
+        .flat_map(|character| match character {
+            '&' | '|' | '<' | '>' | '(' | ')' | '"' => vec!['^', character],
+            _ => vec![character],
+        })
+        .collect::<String>();
+    format!("\"{escaped}\"")
 }

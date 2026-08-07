@@ -157,6 +157,11 @@ impl LocalSessions {
     ) -> Result<(std::collections::HashMap<String, String>, Vec<String>), String> {
         let mut env = self.env.clone();
         let mut extra_args = Vec::new();
+        // This is an independent spawn seam from dispatched PTY work. A
+        // harness opened by the operator must not inherit the embedded core's
+        // workspace either, or its own nested OpenHuman commands can mutate
+        // the live credential store.
+        medulla::protocol::env::scrub_core_state(&mut env, choice.provider);
         // A harness the operator opened by hand is still one Medulla launched,
         // so its commits carry the same trailer a dispatched task's do. This is
         // the seam the executor's own `spawn_env` cannot reach — without it,
