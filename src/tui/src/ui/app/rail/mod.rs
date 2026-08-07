@@ -97,6 +97,9 @@ pub(in crate::ui::app) fn rail_anchor(row: &RailRow, lanes: &[AgentLane]) -> Opt
             lane: lane.key.clone(),
             task_id: task.task_id.clone(),
         }),
+        RailRow::Lane(AgentRow::More { lane_index, .. }) => lanes
+            .get(*lane_index)
+            .map(|lane| RailAnchor::Overflow(lane.key.clone())),
         RailRow::Host(_) | RailRow::AgentsHeader | RailRow::Lane(_) => None,
     }
 }

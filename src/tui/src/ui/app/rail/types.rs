@@ -39,6 +39,8 @@ pub enum RailAnchor {
     WorkflowRun(String),
     /// A non-agent lane header, keyed by the fold's stable lane key.
     Lane(String),
+    /// The paging control for an agent lane, keyed by that lane's stable key.
+    Overflow(String),
 }
 
 /// One host in the tree.
