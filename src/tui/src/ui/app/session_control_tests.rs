@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crossterm::event::KeyModifiers;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 #[cfg(unix)]
@@ -182,6 +182,20 @@ fn moving_off_the_row_or_off_the_tab_disarms_it_again() {
     assert!(
         !status.contains("another host"),
         "so the chord falls back to the plain answer: {status}"
+    );
+}
+
+#[test]
+fn an_unbound_character_in_a_harness_diff_does_not_type_into_the_hidden_draft() {
+    let mut app = app();
+    app.pane_session = Some("session-a".to_string());
+    app.pane_view = super::types::PaneView::Diff;
+
+    let _ = app.on_agents_rail_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
+
+    assert!(
+        app.draft.text.is_empty(),
+        "the diff has no visible composer to receive this character"
     );
 }
 

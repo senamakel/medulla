@@ -126,11 +126,15 @@ impl App {
         // keys, not the harness's: while the diff is up, `j`/`k` walk the patch
         // exactly as they do on the Changes tab. Anything the view does not
         // claim — Tab, the steering chords — falls through untouched.
-        if self.pane_view != PaneView::Harness
-            && self.pane_session.is_some()
-            && self.on_pane_view_key(k)
-        {
-            return AgentsKey::Handled(None);
+        if self.pane_view != PaneView::Harness && self.pane_session.is_some() {
+            if self.on_pane_view_key(k)
+                // The diff replaces the composer. An unbound printable key must
+                // stay with that visible view instead of falling through to the
+                // rail's typing shortcut and silently changing a hidden draft.
+                || (!ctrl && !alt && matches!(k.code, KeyCode::Char(_)))
+            {
+                return AgentsKey::Handled(None);
+            }
         }
 
         match k.code {
