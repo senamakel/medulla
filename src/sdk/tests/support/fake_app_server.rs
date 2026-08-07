@@ -52,6 +52,25 @@ impl FakeAppServer {
             .collect()
     }
 
+    /// Every request the fake sent *to* the client, in send order.
+    pub fn asks(&self) -> Vec<serde_json::Value> {
+        read_lines(&self.ask_log)
+            .iter()
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect()
+    }
+
+    /// The id of the single request the fake asked the client.
+    ///
+    /// Panics when the fake asked anything other than exactly one, because a
+    /// test correlating one answer against one question has nothing to say
+    /// about which of several it meant.
+    pub fn only_ask_id(&self) -> serde_json::Value {
+        let asks = self.asks();
+        assert_eq!(asks.len(), 1, "expected exactly one ask, got {asks:?}");
+        asks[0]["id"].clone()
+    }
+
     /// The methods requested, in order.
     pub fn methods(&self) -> Vec<String> {
         self.requests()
