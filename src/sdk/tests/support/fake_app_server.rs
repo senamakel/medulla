@@ -170,6 +170,7 @@ pub fn fake_app_server(dir: &TempDir, script: TurnScript) -> FakeAppServer {
         .join("requests.log")
         .to_string_lossy()
         .into_owned();
+    let ask_log = dir.path().join("asks.log").to_string_lossy().into_owned();
     let body = format!(
         r#"#!/usr/bin/env python3
 import itertools, json, os, sys, threading, uuid
