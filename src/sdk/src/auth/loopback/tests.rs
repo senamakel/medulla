@@ -13,13 +13,15 @@ fn spawn_detached_gives_the_child_null_stdio() {
     let report = dir.path().join("fds.txt");
     // Duplicate the inherited descriptors before redirecting stdout at the
     // report file, so the readlinks report what `spawn_detached` handed us.
-    let script = format!(
-        "exec 3>&1 4>&2; {{ readlink /proc/self/fd/3; readlink /proc/self/fd/4; }} > {}",
-        report.display()
-    );
+    let script = "exec 3>&1 4>&2; { readlink /proc/self/fd/3; readlink /proc/self/fd/4; } > \"$1\"";
 
     let mut cmd = Command::new("sh");
-    cmd.args(["-c", &script]);
+    cmd.args([
+        "-c",
+        script,
+        "sh",
+        report.to_str().expect("UTF-8 tempdir path"),
+    ]);
     super::spawn_detached(&mut cmd);
 
     // The child is reaped on a detached thread, so poll for its output.
