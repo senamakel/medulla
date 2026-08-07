@@ -357,6 +357,41 @@ fn every_spawn_seam_uses_the_merged_launch_builder() {
 }
 
 #[test]
+fn every_embedded_host_door_applies_a_launch_policy() {
+    // These do not build an argv themselves — they start an embedded daemon,
+    // which does it for them at its own spawn seam. What they *can* get wrong is
+    // never saying what to install: `EmbeddedDaemonOptions`'s `Default` carries
+    // no hooks, so a door that fills the field in with `..Default::default()`
+    // launches every harness under it with none, silently. That is exactly how
+    // workflow runs came to ignore a hook the same config file installed
+    // everywhere else. Pin them: every options literal in these files must have
+    // a `with_launch_policy` applied to it.
+    let doors = [
+        "src/sdk/src/workflows/local.rs",
+        "src/tui/src/commands/workflow.rs",
+        "src/tui/src/event_loop/cmd_dispatch/workflows.rs",
+        "src/tui/src/hub_relay/mod.rs",
+        "src/tui/src/local_host/mod.rs",
+    ];
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("workspace root");
+    for door in doors {
+        let source = std::fs::read_to_string(root.join(door))
+            .unwrap_or_else(|error| panic!("{door}: {error}"));
+        let built = source.matches("EmbeddedDaemonOptions {").count();
+        let applied = source.matches(".with_launch_policy(").count();
+        assert_eq!(
+            applied, built,
+            "{door} builds {built} set(s) of embedded-host options but applies \
+             with_launch_policy {applied} time(s), so at least one host launches \
+             its harnesses with no hooks and attribution nobody chose",
+        );
+    }
+}
+
+#[test]
 fn codex_reports_that_its_hooks_are_inert_until_trusted() {
     // Codex skips hooks absent from its trust store, and a per-spawn injection
     // always is. Medulla does not pass `--dangerously-bypass-hook-trust`,

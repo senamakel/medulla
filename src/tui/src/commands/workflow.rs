@@ -108,14 +108,14 @@ pub(crate) async fn run_workflow_cmd(args: &[String]) -> anyhow::Result<()> {
             if let Some(path) = parsed.config.as_deref() {
                 std::env::set_var(medulla::config::CONFIG_PATH_ENV, path);
             }
-            let config = load_workflows_config(&parsed, &env, &cwd)?;
-            ops::evolve(&store, &config, &cwd, id, parsed.run_id.as_deref()).await?
+            let (config, launch) = load_workflows_config(&parsed, &env, &cwd)?;
+            ops::evolve(&store, &config, &launch, &cwd, id, parsed.run_id.as_deref()).await?
         }
         WorkflowAction::Author(id) => {
             if let Some(path) = parsed.config.as_deref() {
                 std::env::set_var(medulla::config::CONFIG_PATH_ENV, path);
             }
-            let config = load_workflows_config(&parsed, &env, &cwd)?;
+            let (config, launch) = load_workflows_config(&parsed, &env, &cwd)?;
             let instruction = parsed.text.as_deref().unwrap_or_default();
             if instruction.trim().is_empty() {
                 anyhow::bail!("author needs an instruction: pass it with --text \"<what to do>\"");
@@ -137,6 +137,7 @@ pub(crate) async fn run_workflow_cmd(args: &[String]) -> anyhow::Result<()> {
             let result = ops::author(
                 &store,
                 &config,
+                &launch,
                 &cwd,
                 id.as_deref(),
                 instruction,
@@ -232,14 +233,22 @@ fn local_context(
     // to this device's own `[host]` id, matching how the interactive TUI
     // advertises presets to its primary host in `app_loop.rs`.
     let custom_harnesses = local_custom_harnesses(&loaded);
-    let host = LocalWorkflowHost::start(EmbeddedDaemonOptions {
-        workspace: cwd.to_string_lossy().to_string(),
-        model: (!loaded.config.workflows.default_model.is_empty())
-            .then(|| loaded.config.workflows.default_model.clone()),
-        default_provider: loaded.config.workflows.default_provider,
-        custom_harnesses,
-        ..Default::default()
-    })
+    // The same policy every other Medulla spawn door applies. Without it this
+    // command's harnesses ran with no lifecycle hooks at all — neither the
+    // operator's nor Medulla's own reporting ones — and attributed their
+    // commits regardless of `[attribution] commit`.
+    let launch = medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config);
+    let host = LocalWorkflowHost::start(
+        EmbeddedDaemonOptions {
+            workspace: cwd.to_string_lossy().to_string(),
+            model: (!loaded.config.workflows.default_model.is_empty())
+                .then(|| loaded.config.workflows.default_model.clone()),
+            default_provider: loaded.config.workflows.default_provider,
+            custom_harnesses,
+            ..Default::default()
+        }
+        .with_launch_policy(&launch),
+    )
     .map_err(anyhow::Error::msg)?;
     let dispatch = host.dispatch();
     // The host owns the embedded daemon's drain loop; leaking it keeps the
@@ -401,21 +410,25 @@ fn local_custom_harnesses(
         .collect()
 }
 
-/// This machine's workflow settings.
+/// This machine's workflow settings, and the policy its harnesses launch under.
 ///
 /// An explicitly selected config is part of the command contract, so a read or
 /// parse failure is returned instead of silently launching a review under
-/// defaults the operator did not request.
+/// defaults the operator did not request. The launch policy travels with the
+/// settings for the same reason: the embedded host these commands start spawns
+/// real harnesses, and one started without it installs no lifecycle hooks and
+/// attributes its commits to whatever the default happens to be.
 fn load_workflows_config(
     parsed: &WorkflowArgs,
     env: &HashMap<String, String>,
     cwd: &std::path::Path,
-) -> anyhow::Result<medulla::config::WorkflowsConfig> {
-    Ok(
-        medulla::config::load_config(parsed.config.as_deref(), env, cwd)?
-            .config
-            .workflows,
-    )
+) -> anyhow::Result<(
+    medulla::config::WorkflowsConfig,
+    medulla::harness_hooks::LaunchPolicy,
+)> {
+    let loaded = medulla::config::load_config(parsed.config.as_deref(), env, cwd)?;
+    let launch = medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config);
+    Ok((loaded.config.workflows, launch))
 }
 
 /// One harness progress frame, as a line for a terminal.

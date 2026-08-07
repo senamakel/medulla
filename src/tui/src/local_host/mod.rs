@@ -193,10 +193,9 @@ pub(crate) fn options_from_config_with_custom_and_hooks(
         custom_harnesses,
         budget,
         log,
-        attribution: launch.attribution,
-        hooks: launch.hooks.clone(),
         ..Default::default()
-    })
+    }
+    .with_launch_policy(launch))
 }
 
 /// The primary's options with the fields an extra host may redefine applied.
@@ -500,15 +499,6 @@ impl LocalHostHarnesses {
     /// rejecting a step that names one.
     pub(crate) fn custom_harnesses(&self) -> &[medulla::config::CustomHarnessConfig] {
         &self.options.custom_harnesses
-    }
-
-    /// The resolved `[[hooks]]` this device's primary host was started with.
-    ///
-    /// Exposed for the same reason as [`Self::custom_harnesses`]: a one-shot
-    /// embedded daemon started elsewhere for the same session should install
-    /// the same built-in and operator hooks rather than starting with none.
-    pub(crate) fn hooks(&self) -> &medulla::harness_hooks::HooksConfig {
-        &self.options.hooks
     }
 }
 

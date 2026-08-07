@@ -360,6 +360,56 @@ impl HooksConfig {
     }
 }
 
+/// What Medulla imposes on every harness it launches: commit attribution and
+/// the operator's lifecycle hooks.
+///
+/// The two always travel together — both come from the same loaded config, and
+/// on Claude Code they are delivered through the same `--settings` flag — so
+/// they cross a spawn-door boundary as one value rather than as two positional
+/// arguments that could be passed in the wrong order, or as a pair that a door
+/// can fill in with `..Default::default()` and quietly launch every harness
+/// with no hooks at all.
+///
+/// [`Default`] is *no* attribution and *no* hooks, which is deliberate: a
+/// default-constructed policy is the absence of a decision, and the on-by-default
+/// value of `[attribution] commit` belongs to the config, not to this type. Every
+/// door builds one with [`LaunchPolicy::from_config`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LaunchPolicy {
+    /// Whether commits carry the `Co-authored-by: Medulla` trailer — the
+    /// resolved `[attribution] commit` value.
+    pub attribution: bool,
+    /// The resolved `[[hooks]]` section, built-ins included.
+    pub hooks: HooksConfig,
+}
+
+impl LaunchPolicy {
+    /// The policy a config document describes.
+    ///
+    /// Medulla's own reporting hooks are re-resolved here rather than assumed.
+    /// [`crate::config::load_config`] already folds them in, and folding twice
+    /// is not additive ([`HooksConfig::with_builtin`] replaces them) — but not
+    /// every caller holds a *loaded* config: a document parsed straight off disk
+    /// carries only the operator's own `[[hooks]]`, and a door built from one of
+    /// those would install a strictly smaller set than its neighbours for no
+    /// reason an operator could see. `[hookDefaults] enabled = false` is still
+    /// honoured, because that is the switch that means "none of Medulla's".
+    #[must_use]
+    pub fn from_config(config: &crate::config::TuiConfig) -> Self {
+        let hooks = if config.hook_defaults.enabled {
+            config
+                .hooks
+                .with_builtin(super::builtin::hooks(&super::builtin::medulla_bin()))
+        } else {
+            config.hooks.clone()
+        };
+        Self {
+            attribution: config.attribution.commit,
+            hooks,
+        }
+    }
+}
+
 /// One hook that could not be installed, and why.
 ///
 /// Surfaced rather than swallowed so an operator can see that a hook they
