@@ -98,16 +98,10 @@ pub async fn run_wrapper_with(mut config: WrapperConfig) -> anyhow::Result<i32> 
     use crate::protocol::env as tp_env;
     // The embedded core's workspace is not this child's business — see
     // [`tp_env::CORE_STATE_VARS`] for what a coding harness that inherits it can
-    // destroy. Dropped from *both* halves of the child's environment: the child
-    // takes `config.env` as an overlay on this process's own environment, so
-    // scrubbing the map alone would leave an inherited value in place. The
-    // wrapper never boots a core itself, so nothing here needs them either.
+    // destroy. Dropped from both halves of the child's environment: this map is
+    // its explicit overlay, and `spawn_child` removes the inherited value from
+    // the child command without mutating this long-lived process.
     tp_env::scrub_core_state(&mut config.env, config.provider);
-    if config.provider != crate::protocol::HarnessProvider::Openhuman {
-        for key in tp_env::CORE_STATE_VARS {
-            std::env::remove_var(key);
-        }
-    }
     let bin = tp_env::provider_bin(config.provider, &config.env);
     let lookup = crate::daemon::providers::make_path_lookup(&config.env);
     if !lookup(&bin) {
