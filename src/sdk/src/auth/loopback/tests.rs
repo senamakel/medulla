@@ -29,6 +29,16 @@ fn spawn_detached_gives_the_child_null_stdio() {
     assert_eq!(lines.next(), Some("/dev/null"), "child stderr must be null");
 }
 
+/// A missing browser opener is a best-effort failure: it must not interrupt
+/// the login flow or cause the caller to panic.
+#[cfg(target_os = "linux")]
+#[test]
+fn spawn_detached_ignores_spawn_failure() {
+    let mut cmd = Command::new("/definitely-not-an-executable");
+
+    super::spawn_detached(&mut cmd);
+}
+
 /// Poll `path` until the detached child has written it, failing the test rather
 /// than hanging if the child never produces output.
 #[cfg(target_os = "linux")]
