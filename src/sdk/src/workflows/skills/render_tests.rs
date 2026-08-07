@@ -261,6 +261,19 @@ fn fallback_passes_the_declared_input_object_to_the_cli() {
 }
 
 #[test]
+fn fallback_fences_commands_with_backticks_in_the_workflow_id() {
+    let skill = render(&summary("run`this", "Run a command.", vec![]));
+
+    assert!(
+        skill
+            .body
+            .contains("```sh\nmedulla workflow run 'run`this' --inputs '{}'\n```"),
+        "{}",
+        skill.body
+    );
+}
+
+#[test]
 fn a_condensed_input_note_points_at_the_tool_that_serves_it_whole() {
     let inputs = vec![WorkflowInput::new("ci_wait_secs", InputType::Number)
         .with_default(json!(1200))

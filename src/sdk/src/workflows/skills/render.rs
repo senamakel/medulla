@@ -538,8 +538,8 @@ fn fallback_line(summary: &WorkflowSummary) -> String {
         serde_json::to_string(&example_input_map(summary)).unwrap_or_else(|_| "{}".to_string());
     format!(
         "No `{RUN_TOOL}`? The Medulla MCP server is not attached — say so rather than \
-         claiming a start, and run `medulla workflow run {id} --inputs {inputs}` or attach it \
-         once with `medulla skills install --with-mcp`.\n",
+         claiming a start, and run:\n\n```sh\nmedulla workflow run {id} --inputs {inputs}\n```\n\n\
+         Or attach it once with `medulla skills install --with-mcp`.\n",
         id = shell_quote_arg(&summary.id),
         inputs = shell_quote_arg(&inputs),
     )
