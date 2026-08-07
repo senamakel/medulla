@@ -46,7 +46,7 @@ pub const TOOL_MODE_ENV: &str = "MEDULLA_WORKFLOW_TOOLS";
 pub const TOOL_SCOPE_ENV: &str = "MEDULLA_WORKFLOW_SCOPE";
 
 /// The tools a [`ToolMode::Propose`] session does not get.
-const WITHHELD_IN_PROPOSE: [&str; 5] = [
+const WITHHELD_IN_PROPOSE: [&str; 6] = [
     "workflow_create",
     "workflow_apply_ops",
     // Not part of the graph, but every bit as much an edit: changing the
@@ -54,21 +54,34 @@ const WITHHELD_IN_PROPOSE: [&str; 5] = [
     "workflow_defaults",
     "workflow_delete",
     "workflow_run",
+    // A review pass cannot start a run, so every run it could cancel is one
+    // somebody else is waiting on. Reading a run in flight is the whole point
+    // of the pass, which is why `workflow_run_detail` is not withheld beside
+    // it — but killing one on a hypothesis is not review, it is intervention.
+    "workflow_run_cancel",
 ];
 
 /// The only `workflow_*` verbs a [`ToolMode::Run`] session is served.
 ///
-/// Read the catalogue, read one workflow, and start it — the whole of what
-/// triggering a saved workflow needs. Authoring, deletion, the journal, and the
-/// proposal verbs are all absent: they belong to a Medulla session, where an
-/// operator is watching.
-const ALLOWED_IN_RUN: [&str; 6] = [
+/// Read the catalogue, read one workflow, start it, follow it, and stop it —
+/// the whole of what triggering a saved workflow needs. Authoring, deletion, the
+/// journal, and the proposal verbs are all absent: they belong to a Medulla
+/// session, where an operator is watching.
+///
+/// The two run verbs beyond `workflow_run_get` are here because this is the one
+/// mode where the session that started a run is also the process executing it.
+/// A trigger-only session that could start an hour-long run and then neither see
+/// what its harnesses were doing nor stop it would be the surface that made a
+/// cancel verb necessary in the first place.
+const ALLOWED_IN_RUN: [&str; 8] = [
     "workflow_list",
     "workflow_get",
     "workflow_dry_run",
     "workflow_run",
     "workflow_runs",
     "workflow_run_get",
+    "workflow_run_detail",
+    "workflow_run_cancel",
 ];
 
 impl ToolMode {

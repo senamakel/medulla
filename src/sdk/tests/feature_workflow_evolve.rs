@@ -58,6 +58,8 @@ async fn run_once(store: &Arc<dyn WorkflowStore>, home: &std::path::Path, id: &s
     settings.allow_code = false;
     let max_loop_iterations = settings.max_loop_iterations;
     let context = RunContext {
+        // Runs inline, so claiming at the top of the run is early enough.
+        claim: None,
         store: store.clone(),
         settings: Arc::new(settings),
         services: HostServices {

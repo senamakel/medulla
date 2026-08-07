@@ -7,7 +7,7 @@
 //! in `MEDULLA_WORKFLOW_TOOLS=run` mode. The unit tests in
 //! `src/sdk/src/mcp/tests/run_mode.rs` check the allow-list against the tool
 //! table; this checks the two things a skill actually depends on — that
-//! `tools/list` shows exactly the six read/run verbs, and that `workflow_run`
+//! `tools/list` shows exactly the read/run verbs, and that `workflow_run`
 //! reaches a run record, whether the skill follows the run id it is handed or
 //! asks to wait for the whole thing.
 //!
@@ -27,13 +27,15 @@ use medulla::workflows::{ops, FileWorkflowStore, WorkflowStore};
 use tokio::sync::Mutex;
 
 /// Exactly what a trigger-only session may see and call.
-const TRIGGER_VERBS: [&str; 6] = [
+const TRIGGER_VERBS: [&str; 8] = [
     "workflow_list",
     "workflow_get",
     "workflow_dry_run",
     "workflow_run",
     "workflow_runs",
     "workflow_run_get",
+    "workflow_run_detail",
+    "workflow_run_cancel",
 ];
 
 /// A store rooted in a scratch directory; the tempdir is returned so the caller
@@ -128,7 +130,7 @@ async fn call(session: &McpSession, name: &str, arguments: Value) -> (Value, boo
 }
 
 #[tokio::test]
-async fn a_trigger_only_session_lists_exactly_the_six_read_and_run_verbs() {
+async fn a_trigger_only_session_lists_exactly_the_read_and_run_verbs() {
     let _serial = SERIAL.lock().await;
     let (_root, store) = store();
     ops::create(&store, &arithmetic_workflow("double"), "double").expect("installs");
@@ -242,4 +244,50 @@ async fn workflow_run_still_answers_with_the_whole_record_when_asked_to_wait() {
         json!(42),
         "the declared input reached the graph: {result}"
     );
+}
+
+#[tokio::test]
+async fn a_trigger_only_session_inspects_its_run_and_cancels_it_after_it_settled() {
+    let _serial = SERIAL.lock().await;
+    let home = tempfile::tempdir().expect("a scratch home");
+    pin_process_env(home.path());
+    let (_root, store) = store();
+    ops::create(&store, &arithmetic_workflow("double"), "double").expect("installs");
+    let session = session(&store);
+
+    let (started, is_error) = call(
+        &session,
+        "workflow_run",
+        json!({ "id": "double", "inputs": { "count": 21 } }),
+    )
+    .await;
+    assert!(!is_error, "{started}");
+    let run_id = started["runId"].as_str().expect("a run id").to_string();
+    let settled = settled(&session, &run_id).await;
+    assert_eq!(settled["status"], json!("succeeded"), "{settled}");
+
+    // The in-depth read is the same record plus the live half beside it. This
+    // session has no fleet behind it, so the live half says so rather than
+    // reporting an empty roster as "nothing is running".
+    let (detail, is_error) =
+        call(&session, "workflow_run_detail", json!({ "runId": run_id })).await;
+    assert!(!is_error, "{detail}");
+    assert_eq!(detail["run"]["id"], json!(run_id), "{detail}");
+    assert_eq!(
+        detail["live"]["taskIdPrefix"],
+        json!(format!("wf:{run_id}:")),
+        "{detail}"
+    );
+    assert!(detail["live"]["fleetUnavailable"].is_string(), "{detail}");
+
+    // Cancelling a run that already finished is an answer, not a failure: the
+    // caller wanted it stopped and it is stopped. The other half — a cancel
+    // that lands on a run genuinely mid-harness-session — needs a dispatch that
+    // hangs on demand, so it is exercised where that stand-in lives, in
+    // `workflows::run::tests::cases`.
+    let (cancelled, is_error) =
+        call(&session, "workflow_run_cancel", json!({ "runId": run_id })).await;
+    assert!(!is_error, "{cancelled}");
+    assert_eq!(cancelled["cancelled"], json!(false), "{cancelled}");
+    assert_eq!(cancelled["runId"], json!(run_id), "{cancelled}");
 }

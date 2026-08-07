@@ -110,6 +110,29 @@ pub fn reply_to_value(reply: &str, worker: &str) -> Value {
     })
 }
 
+/// The harness name a dispatch is recorded under in the in-flight registry.
+///
+/// The *flavor*, not the bare provider: `codex` and `codex-server` are the same
+/// vendor over different transports, and reporting both as `codex` would point
+/// a reader of `workflow_run_detail` at the wrong process when they went
+/// looking for the session. A custom preset names itself and wins outright.
+///
+/// Empty when the node left the choice to the worker's own configured harness,
+/// which is the honest answer: this side does not know what the worker picked.
+fn dispatch_harness(request: &TaskRequest) -> String {
+    request
+        .custom_harness
+        .clone()
+        .or_else(|| {
+            request.provider.map(|provider| {
+                provider
+                    .flavor_name(request.transport.unwrap_or_default())
+                    .to_string()
+            })
+        })
+        .unwrap_or_default()
+}
+
 /// Map a dispatch failure onto a capability error.
 ///
 /// An abort keeps its identity in the message because it is the one failure a
@@ -130,7 +153,13 @@ pub struct HarnessAgentRunner {
     /// both may omit `agent_ref` — would otherwise share a wire id, and a
     /// worker dedupes on `sender + taskId`. One of the two would be rejected as
     /// a duplicate of the other.
-    sequence: AtomicU64,
+    ///
+    /// Shared across every runner built for the run (see
+    /// [`with_sequence`](Self::with_sequence)), for the same reason the limiter
+    /// is: the run builds an agent runner *and* an LLM provider wrapping a
+    /// second one, and two counters both starting at zero would mint the same
+    /// id for the same route.
+    sequence: Arc<AtomicU64>,
     /// Caps how many harness tasks this run has in flight at once.
     ///
     /// A per-item node fans out into one dispatch per item, and on this host a
@@ -159,7 +188,7 @@ impl HarnessAgentRunner {
             dispatch,
             settings,
             run_id: run_id.into(),
-            sequence: AtomicU64::new(0),
+            sequence: Arc::new(AtomicU64::new(0)),
             slots,
             evidence: None,
             progress: None,
@@ -178,7 +207,7 @@ impl HarnessAgentRunner {
             dispatch,
             settings,
             run_id: run_id.into(),
-            sequence: AtomicU64::new(0),
+            sequence: Arc::new(AtomicU64::new(0)),
             slots: Arc::new(Semaphore::new(settings_max_parallel)),
             evidence: Some(evidence),
             progress: None,
@@ -195,6 +224,21 @@ impl HarnessAgentRunner {
     #[must_use]
     pub(crate) fn with_limiter(mut self, slots: Arc<Semaphore>) -> Self {
         self.slots = slots;
+        self
+    }
+
+    /// Share an existing task-id sequence instead of this runner's own.
+    ///
+    /// The run builds an agent runner *and* an LLM provider (which wraps a
+    /// second runner), and both mint task ids as `wf:{run}:{route}#{sequence}`.
+    /// Left to themselves each counts from zero, so the first dispatch of each
+    /// along the same route claims the *same* id — which a worker would reject
+    /// as a duplicate, and which collapses two live sessions into one wherever
+    /// the id is used to tell them apart (the run inspector's dispatch
+    /// registry, `fleet_abort`, a worker-side log search).
+    #[must_use]
+    pub(crate) fn with_sequence(mut self, sequence: Arc<AtomicU64>) -> Self {
+        self.sequence = sequence;
         self
     }
 
@@ -342,6 +386,20 @@ impl HarnessAgentRunner {
             EngineError::Capability("agent node: run concurrency limiter closed".to_string())
         })?;
         let worker = request.worker_address.clone();
+        // Held across the await and dropped with it, so a run inspector asking
+        // "what is this run doing right now" gets an answer even when the
+        // dispatch went to the run's own embedded host — which no outer fleet
+        // roster can see. See [`crate::workflows::run::dispatches`].
+        let _recorded = crate::workflows::run::dispatches::record(
+            &self.run_id,
+            crate::workflows::run::InFlightDispatch {
+                task_id: request.task_id.clone(),
+                worker: worker.clone(),
+                harness: dispatch_harness(&request),
+                workspace: Some(self.settings.workspace.clone())
+                    .filter(|workspace| !workspace.trim().is_empty()),
+            },
+        );
         let status = self.stream_for(node_id);
         let outcome = self
             .dispatch
@@ -416,6 +474,13 @@ impl HarnessLlm {
         self
     }
 
+    /// Share a task-id sequence — see [`HarnessAgentRunner::with_sequence`].
+    #[must_use]
+    pub(crate) fn with_sequence(mut self, sequence: Arc<AtomicU64>) -> Self {
+        self.inner = self.inner.with_sequence(sequence);
+        self
+    }
+
     /// Stream harness progress — see [`HarnessAgentRunner::streaming_to`].
     #[must_use]
     pub(crate) fn streaming_to(mut self, sink: Option<NodeProgressSink>) -> Self {
@@ -440,3 +505,7 @@ impl LlmProvider for HarnessLlm {
             .await
     }
 }
+
+#[cfg(test)]
+#[path = "agent_tests.rs"]
+mod tests;

@@ -218,6 +218,12 @@ impl ToolFamilies {
 /// A projection of [`crate::hub::HubWorker`] rather than the type itself: the
 /// roster entry carries transport details (public keys, handoff briefs) that a
 /// model has no use for and should not have to reason about.
+///
+/// Every optional field is `default` as well as `skip_serializing_if`, so this
+/// round-trips its own output. Without that a worker with no roles serializes to
+/// a document this same type refuses to read, which is invisible until something
+/// deserializes a roster back — as [`crate::workflows::mcp`]'s run inspection
+/// does — and then fails on the ordinary case rather than an exotic one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FleetWorker {
@@ -228,13 +234,13 @@ pub struct FleetWorker {
     /// The coding harness it runs.
     pub harness: String,
     /// A human label, when the operator set one.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     /// Agent-template ids this worker is offered for. Empty means unspecified.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub roles: Vec<String>,
     /// The directory it runs tasks in, when known.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
     /// Whether this is the fleet's currently-selected default worker.
     pub selected: bool,
@@ -244,10 +250,10 @@ pub struct FleetWorker {
     /// routing work somewhere it will run and somewhere it will bounce.
     pub held: bool,
     /// Why they hold it, when they said.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub held_reason: Option<String>,
     /// Ids of the tasks it is running right now.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub running: Vec<String>,
     /// Workflows this worker advertised, including the definition fingerprint
     /// a safe workflow dispatch must echo.

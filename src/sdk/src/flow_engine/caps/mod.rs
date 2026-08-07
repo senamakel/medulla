@@ -127,6 +127,12 @@ fn build_capabilities_inner(
         settings.max_parallel_agents.max(1),
     ));
 
+    // One task-id sequence for the whole run, for the same reason as the
+    // limiter: both runners mint `wf:{run}:{route}#{sequence}`, so two counters
+    // each starting at zero would hand the same id to the first dispatch each
+    // makes along a shared route.
+    let sequence = Arc::new(std::sync::atomic::AtomicU64::new(0));
+
     let progress = services.node_progress.clone();
     let llm: Arc<dyn tinyflows::caps::LlmProvider> = match &evidence {
         Some(evidence) => Arc::new(
@@ -137,11 +143,13 @@ fn build_capabilities_inner(
                 evidence.clone(),
             )
             .with_limiter(slots.clone())
+            .with_sequence(sequence.clone())
             .streaming_to(progress.clone()),
         ),
         None => Arc::new(
             HarnessLlm::new(services.dispatch.clone(), settings.clone(), run_id)
                 .with_limiter(slots.clone())
+                .with_sequence(sequence.clone())
                 .streaming_to(progress.clone()),
         ),
     };
@@ -149,11 +157,13 @@ fn build_capabilities_inner(
         Some(evidence) => Arc::new(
             HarnessAgentRunner::recording(services.dispatch, settings.clone(), run_id, evidence)
                 .with_limiter(slots)
+                .with_sequence(sequence)
                 .streaming_to(progress),
         ),
         None => Arc::new(
             HarnessAgentRunner::new(services.dispatch, settings.clone(), run_id)
                 .with_limiter(slots)
+                .with_sequence(sequence)
                 .streaming_to(progress),
         ),
     };

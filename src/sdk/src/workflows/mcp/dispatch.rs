@@ -13,7 +13,7 @@ use crate::workflows::authoring::GraphHandle;
 use crate::workflows::ops::{self, StepDetail, Wait};
 
 use super::evolve::ToolMode;
-use super::run_progress;
+use super::{run_detail, run_progress};
 
 /// Every tool this server exposes, in the order a model meets them.
 ///
@@ -24,9 +24,14 @@ use super::run_progress;
 /// `agent` node's real reply. The operator's own switches still apply
 /// (`workflows.enabled`, and the workflow's own `enabled`).
 ///
-/// There is still no tool to *cancel* a run. A copilot that started one is
-/// awaiting it; the operator cancels from the pane, where they can see it.
-pub const TOOL_NAMES: [&str; 19] = [
+/// `workflow_run_cancel` reverses an earlier decision here. The reasoning was
+/// that a copilot which started a run is awaiting it, and the operator cancels
+/// from the pane where they can see it — which holds right up until the run was
+/// started over MCP by a model that then answered with a run id and went away.
+/// Nothing was watching that run in the pane, and the caller that started it
+/// had no verb to stop it. Cancelling reaches the same process-local registry
+/// the pane's key does, so this adds a caller rather than a mechanism.
+pub const TOOL_NAMES: [&str; 21] = [
     "workflow_list",
     "workflow_get",
     "workflow_host",
@@ -40,6 +45,8 @@ pub const TOOL_NAMES: [&str; 19] = [
     "workflow_run",
     "workflow_runs",
     "workflow_run_get",
+    "workflow_run_detail",
+    "workflow_run_cancel",
     "workflow_history",
     "workflow_delete",
     "workflow_notes",
@@ -53,6 +60,13 @@ pub const TOOL_NAMES: [&str; 19] = [
 /// Runs deliberately stay concurrent: they have unique run ids and may take
 /// minutes. These authoring calls are short and include read-modify-write paths
 /// that would otherwise lose one of two pipelined edits.
+///
+/// `workflow_run_cancel` is not one of them, despite the name reading like a
+/// write. It mutates no stored definition — it flips a flag in the process-local
+/// in-flight registry, which does its own locking — so the guard would buy no
+/// safety, and taking it would queue a cancel behind whatever authoring call
+/// happened to be in progress. A cancel is the one call whose whole value is
+/// arriving promptly.
 fn mutates_workflow(name: &str) -> bool {
     matches!(
         name,
@@ -254,6 +268,21 @@ pub(crate) async fn call(
             step_detail(&arguments, StepDetail::Summary)?,
         )
         .map_err(to_rpc),
+        "workflow_run_detail" => run_detail::detail(
+            session,
+            arg(&arguments, "runId")?,
+            // Summary rather than counts: this tool is reached for when a run
+            // needs explaining, and the elided half of a step is usually part
+            // of the explanation.
+            step_detail(&arguments, StepDetail::Summary)?,
+        )
+        .await
+        .map_err(to_rpc),
+        // No store read first to check the id exists. Cancelling is a race with
+        // the run finishing by definition, and `cancel_run` already answers
+        // "nothing here was executing that" in words — a preflight would only
+        // add a second way to say the same thing, one call earlier.
+        "workflow_run_cancel" => Ok(ops::cancel_run(arg(&arguments, "runId")?)),
         "workflow_defaults" => {
             let id = arg(&arguments, "id")?;
             let harness = arguments.get("harness").and_then(Value::as_str);

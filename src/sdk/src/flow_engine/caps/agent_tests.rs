@@ -1,0 +1,151 @@
+//! Tests for how an `agent` dispatch is addressed.
+//!
+//! The subject here is the task id, which is the whole of the correlation
+//! between a run and the harness sessions it has out: the run inspector joins
+//! on it, `fleet_abort` cancels by it, and a worker dedupes on it. A duplicate
+//! is therefore not a cosmetic clash — it silently merges two sessions.
+
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use super::{dispatch_harness, AgentRoute, HarnessAgentRunner};
+use crate::flow_engine::caps::dispatch::HarnessDispatch;
+use crate::flow_engine::harness_choice::HarnessChoice;
+use crate::flow_engine::settings::CapabilitySettings;
+use crate::hub::{RunError, TaskOutcome, TaskRequest};
+use crate::protocol::{HarnessProvider, HarnessTransport};
+
+/// A dispatch that is never actually reached: these tests stop at the request.
+struct UnusedDispatch;
+
+#[async_trait]
+impl HarnessDispatch for UnusedDispatch {
+    async fn dispatch(&self, _request: TaskRequest) -> Result<TaskOutcome, RunError> {
+        unreachable!("these tests build requests rather than dispatching them")
+    }
+}
+
+/// A runner for `run`, sharing `sequence` when one is given.
+fn runner(run: &str, sequence: Option<Arc<AtomicU64>>) -> HarnessAgentRunner {
+    let root = std::env::temp_dir().join("medulla-agent-tests");
+    let mut settings = CapabilitySettings::rooted_at(&root);
+    settings.default_worker_address = "worker".to_string();
+    let built = HarnessAgentRunner::new(Arc::new(UnusedDispatch), Arc::new(settings), run);
+    match sequence {
+        Some(sequence) => built.with_sequence(sequence),
+        None => built,
+    }
+}
+
+/// The route both runners take when a node names no `agent_ref`.
+fn task_id_of(runner: &HarnessAgentRunner) -> String {
+    runner
+        .request(
+            &AgentRoute::Default,
+            "do the thing".to_string(),
+            HarnessChoice::default(),
+        )
+        .task_id
+}
+
+#[test]
+fn one_runner_numbers_its_dispatches_in_order() {
+    let runner = runner("run-ordered", None);
+    assert_eq!(task_id_of(&runner), "wf:run-ordered:default#0");
+    assert_eq!(task_id_of(&runner), "wf:run-ordered:default#1");
+}
+
+#[test]
+fn two_runners_sharing_a_sequence_never_mint_the_same_task_id() {
+    // The shape the run actually builds: an agent runner and the LLM provider's
+    // own runner, both tagged with one run id and both routing to `default`.
+    let sequence = Arc::new(AtomicU64::new(0));
+    let agent = runner("run-shared", Some(sequence.clone()));
+    let llm = runner("run-shared", Some(sequence));
+
+    let first = task_id_of(&agent);
+    let second = task_id_of(&llm);
+
+    assert_ne!(
+        first, second,
+        "a shared sequence must not hand the same id to both runners"
+    );
+    assert_eq!(first, "wf:run-shared:default#0");
+    assert_eq!(second, "wf:run-shared:default#1");
+}
+
+#[test]
+fn independent_sequences_are_what_the_sharing_prevents() {
+    // Guards the premise rather than the fix: if two unshared runners ever stop
+    // colliding, `with_sequence` is no longer load-bearing and this test says so
+    // instead of the collision resurfacing somewhere subtler.
+    let agent = runner("run-split", None);
+    let llm = runner("run-split", None);
+    assert_eq!(task_id_of(&agent), task_id_of(&llm));
+}
+
+/// The registry records the *flavor*, so a node that asked for `codex-server`
+/// is not reported as a plain `codex` session — a reader chasing the process
+/// would go looking at the wrong one.
+#[test]
+fn a_transport_specific_harness_is_recorded_under_its_flavor_name() {
+    let runner = runner("run-flavor", None);
+    let request = runner.request(
+        &AgentRoute::Default,
+        "do the thing".to_string(),
+        HarnessChoice {
+            provider: Some(HarnessProvider::Codex),
+            transport: Some(HarnessTransport::AppServer),
+            custom_harness: None,
+            model: None,
+        },
+    );
+
+    assert_eq!(dispatch_harness(&request), "codex-server");
+}
+
+/// The ordinary pair keeps the bare provider name: a default transport must not
+/// grow a suffix nobody wrote.
+#[test]
+fn a_default_transport_is_recorded_under_the_bare_provider_name() {
+    let runner = runner("run-plain", None);
+    let request = runner.request(
+        &AgentRoute::Default,
+        "do the thing".to_string(),
+        HarnessChoice {
+            provider: Some(HarnessProvider::Codex),
+            transport: Some(HarnessTransport::default()),
+            custom_harness: None,
+            model: None,
+        },
+    );
+
+    assert_eq!(dispatch_harness(&request), "codex");
+}
+
+/// A custom preset names itself, and a node that named nothing records nothing
+/// — this side genuinely does not know what the worker's own config will pick.
+#[test]
+fn a_custom_preset_names_itself_and_an_unresolved_choice_names_nothing() {
+    let runner = runner("run-custom", None);
+    let custom = runner.request(
+        &AgentRoute::Default,
+        "do the thing".to_string(),
+        HarnessChoice {
+            provider: None,
+            transport: None,
+            custom_harness: Some("house-style".to_string()),
+            model: None,
+        },
+    );
+    assert_eq!(dispatch_harness(&custom), "house-style");
+
+    let unresolved = runner.request(
+        &AgentRoute::Default,
+        "do the thing".to_string(),
+        HarnessChoice::default(),
+    );
+    assert_eq!(dispatch_harness(&unresolved), "");
+}

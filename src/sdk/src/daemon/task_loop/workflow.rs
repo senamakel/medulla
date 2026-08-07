@@ -281,6 +281,8 @@ impl DaemonRuntime {
         let evolve_store = store.clone();
         let max_loop_iterations = settings.max_loop_iterations;
         let context = RunContext {
+            // Runs inline, so claiming at the top of the run is early enough.
+            claim: None,
             store: store.clone(),
             settings,
             services: HostServices {

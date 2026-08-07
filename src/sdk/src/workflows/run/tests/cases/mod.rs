@@ -4,6 +4,7 @@
 //! only the harness dispatch is a stand-in, because the alternative is starting
 //! a coding agent.
 
+mod cancellation;
 mod continuation;
 mod loops;
 
@@ -116,6 +117,8 @@ impl Harness {
     /// Build a run context using the supplied stand-in dispatch.
     pub(super) fn context(&self, dispatch: Arc<dyn HarnessDispatch>) -> RunContext {
         RunContext {
+            // Runs inline, so claiming at the top of the run is early enough.
+            claim: None,
             store: self.store.clone(),
             settings: self.settings.clone(),
             services: HostServices {
@@ -143,6 +146,21 @@ async fn wait_until_running(run_id: &str) {
     })
     .await
     .unwrap_or_else(|_| panic!("{run_id} was not registered"));
+}
+
+/// Wait until `run_id` has a harness dispatch recorded as in flight.
+///
+/// Registering the run and dispatching its first node are separate steps, so a
+/// test that checked the dispatch registry the instant the run appeared would
+/// race the engine rather than observe it.
+async fn wait_until_dispatched(run_id: &str) {
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while crate::workflows::run::in_flight(run_id).is_empty() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("{run_id} never dispatched a harness session"));
 }
 
 /// A diamond: the trigger fans out to two agent nodes that run concurrently,
@@ -319,6 +337,49 @@ async fn cancelling_an_in_flight_run_settles_it_as_cancelled() {
     assert!(
         !is_running("run-7"),
         "the guard must deregister the run on every exit path"
+    );
+}
+
+#[tokio::test]
+async fn the_cancel_tool_stops_a_run_that_is_genuinely_mid_harness_session() {
+    // The path `workflow_run_cancel` takes, against a run that has a harness
+    // session out — the case a settled-run test cannot reach, and the only one
+    // where `cancelled: true` is the honest answer.
+    let harness = Harness::new();
+    harness.install(&gated(), "gated");
+    let context = harness.context(Arc::new(HangingDispatch));
+
+    let run = tokio::spawn(async move {
+        run_workflow(
+            context,
+            "gated",
+            "run-tool-cancel",
+            json!({ "approvals": ["review"] }),
+            Default::default(),
+        )
+        .await
+    });
+    wait_until_running("run-tool-cancel").await;
+    // The dispatch is registered from the moment it goes out, so a run
+    // inspector can see the session this process has in flight even though no
+    // outer fleet roster knows about the embedded host running it.
+    wait_until_dispatched("run-tool-cancel").await;
+    let live = crate::workflows::run::in_flight("run-tool-cancel");
+    assert_eq!(live.len(), 1, "{live:?}");
+    assert!(
+        live[0].task_id.starts_with("wf:run-tool-cancel:"),
+        "{live:?}"
+    );
+
+    let answer = crate::workflows::ops::cancel_run("run-tool-cancel");
+
+    assert_eq!(answer["cancelled"], json!(true), "{answer}");
+    assert_eq!(answer["runId"], json!("run-tool-cancel"), "{answer}");
+    let record = run.await.unwrap().expect("settles");
+    assert_eq!(record.status, RunStatus::Cancelled);
+    assert!(
+        crate::workflows::run::in_flight("run-tool-cancel").is_empty(),
+        "the dispatch guard must be withdrawn when the run is dropped"
     );
 }
 
