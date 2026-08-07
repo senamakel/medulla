@@ -154,14 +154,14 @@ fn spawn_stdio(
 /// Keep the embedded core's workspace binding out of external harness children
 /// without mutating the long-lived Medulla process that launched them.
 fn core_state_vars_to_remove(config: &WrapperConfig) -> Vec<String> {
-    (config.provider != crate::protocol::HarnessProvider::Openhuman)
-        .then(|| {
-            crate::protocol::env::CORE_STATE_VARS
-                .iter()
-                .map(|key| (*key).to_string())
-                .collect()
-        })
-        .unwrap_or_default()
+    if config.provider != crate::protocol::HarnessProvider::Openhuman {
+        crate::protocol::env::CORE_STATE_VARS
+            .iter()
+            .map(|key| (*key).to_string())
+            .collect()
+    } else {
+        Vec::new()
+    }
 }
 
 #[cfg(test)]

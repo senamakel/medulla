@@ -233,3 +233,25 @@ fn agent_env_strips_the_embedded_core_workspace() {
 
     assert!(!env.contains_key("OPENHUMAN_WORKSPACE"));
 }
+
+/// ACP's client library overlays configured values on an inherited process
+/// environment, so the final command must remove the workspace as well as its
+/// configured map omitting it.
+#[cfg(unix)]
+#[test]
+fn agent_command_removes_the_embedded_core_workspace() {
+    let agent = super::super::execution::agent_for(&attribution_options(false));
+    let config = agent.config();
+
+    assert_eq!(config.command().to_string_lossy(), "env");
+    assert_eq!(
+        config.arguments(),
+        [
+            "-u",
+            "OPENHUMAN_WORKSPACE",
+            "npx",
+            "-y",
+            "@agentclientprotocol/claude-agent-acp@latest"
+        ]
+    );
+}

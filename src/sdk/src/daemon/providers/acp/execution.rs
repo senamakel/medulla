@@ -295,7 +295,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 }
 
 /// Construct the ACP server command for a supported harness.
-fn agent_for(options: &RunTaskOptions) -> AcpAgent {
+pub(super) fn agent_for(options: &RunTaskOptions) -> AcpAgent {
     let config = match options.provider {
         HarnessProvider::Claude => {
             AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/claude-agent-acp@latest"])
@@ -312,7 +312,18 @@ fn agent_for(options: &RunTaskOptions) -> AcpAgent {
             unreachable!("OpenHuman's operator TUI is not an ACP coding provider")
         }
     };
-    AcpAgent::new(config.envs(acp_env(options)))
+    // `AcpAgentConfig::envs` overlays an inheriting command instead of clearing
+    // it. Run the actual ACP command through `env -u` as well as scrubbing the
+    // overlay so the embedded core workspace cannot leak from Medulla's own
+    // process environment into an external harness.
+    #[cfg(unix)]
+    let config = config
+        .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
+        .envs(acp_env(options));
+    #[cfg(not(unix))]
+    let config = config.envs(acp_env(options));
+
+    AcpAgent::new(config)
 }
 
 /// The environment handed to the ACP agent process.
@@ -355,4 +366,29 @@ pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
         }
     }
     env
+}
+
+/// Adds a Unix `env -u` shim around an ACP command.
+///
+/// The ACP SDK deliberately preserves the ambient process environment, while
+/// `AcpAgentConfig` can only add or replace values.  The shim is therefore the
+/// launch-level counterpart to [`acp_env`]'s map scrubbing.
+#[cfg(unix)]
+trait AcpAgentConfigExt {
+    /// Return a command whose inherited values in `names` are removed before
+    /// it starts the original ACP executable.
+    fn command_with_env_removals(self, names: &[&str]) -> Self;
+}
+
+#[cfg(unix)]
+impl AcpAgentConfigExt for AcpAgentConfig {
+    fn command_with_env_removals(self, names: &[&str]) -> Self {
+        let mut args = names
+            .iter()
+            .flat_map(|name| ["-u".to_string(), (*name).to_string()])
+            .collect::<Vec<_>>();
+        args.push(self.command().to_string_lossy().into_owned());
+        args.extend(self.arguments().iter().cloned());
+        AcpAgentConfig::new("env").args(args)
+    }
 }
