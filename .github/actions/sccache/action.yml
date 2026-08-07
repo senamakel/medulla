@@ -38,12 +38,15 @@ runs:
   using: composite
   steps:
     - uses: mozilla-actions/sccache-action@v0.0.9
+      # The action starts the server in this step, so its GHA backend must be
+      # selected here instead of via GITHUB_ENV for the following steps.
+      env:
+        SCCACHE_GHA_ENABLED: "true"
 
     - name: Route rustc through sccache
       shell: bash
       run: |
         set -euo pipefail
-        echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
         echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
         # sccache cannot cache incremental compilation and silently degrades to
         # a pass-through when it is on. rust-cache already exports this, but
