@@ -242,8 +242,10 @@ while True:
         handle.write(line + "\n")
     message = json.loads(line)
     # A line with no method is the client answering something this fake asked.
-    # It is recorded above, which is all a test needs; there is nothing to serve.
+    # It is recorded above, which is all a test needs; there is nothing to serve
+    # beyond releasing the `ask` that is waiting on it.
     if "method" not in message:
+        answered(message)
         continue
     if "id" not in message and message.get("method") != "turn/start":
         continue
