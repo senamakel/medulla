@@ -144,6 +144,19 @@ impl HarnessDispatch for RuntimeDispatch {
             session_id: None,
         })
     }
+
+    /// The flavor this worker will really run the node on.
+    ///
+    /// `None` for a request naming a custom harness: this dispatch resolves
+    /// providers, not custom harnesses, so the requested name remains the
+    /// closest thing to the truth and overriding it would lose information.
+    fn effective_harness(&self, request: &TaskRequest) -> Option<String> {
+        if request.custom_harness.is_some() {
+            return None;
+        }
+        let (provider, transport) = self.resolve(request);
+        Some(provider.flavor_name(transport).to_string())
+    }
 }
 
 impl DaemonRuntime {
