@@ -121,7 +121,7 @@ async fn run(options: RunTaskOptions) -> Result<RunTaskResult, AppServerError> {
 /// A fleet grant is stripped. Unlike the CLI transport, this environment belongs
 /// to a process *shared by several tasks*, so an ambient capability here would
 /// be redeemable by every lane on it, not just the one it was minted for.
-fn child_env(options: &RunTaskOptions) -> HashMap<String, String> {
+pub(super) fn child_env(options: &RunTaskOptions) -> HashMap<String, String> {
     let mut env = options.env.clone();
     crate::protocol::env::scrub_core_state(&mut env, options.provider);
     env.remove(crate::control_socket::MCP_SOCKET_ENV);

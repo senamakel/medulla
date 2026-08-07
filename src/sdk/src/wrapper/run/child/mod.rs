@@ -94,10 +94,11 @@ fn spawn_stdio(
     inject: bool,
 ) -> anyhow::Result<ChildSession> {
     let mut command = Command::new(bin);
+    command.args(args).envs(&config.env);
+    for key in core_state_vars_to_remove(config) {
+        command.env_remove(key);
+    }
     command
-        .args(args)
-        .envs(&config.env)
-        .env_remove(core_state_vars_to_remove(config))
         .current_dir(&config.cwd)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
