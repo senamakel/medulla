@@ -240,7 +240,7 @@ fn agent_env_strips_the_embedded_core_workspace() {
 #[cfg(unix)]
 #[test]
 fn agent_command_removes_the_embedded_core_workspace() {
-    let agent = super::super::execution::agent_for(&attribution_options(false));
+    let agent = super::super::execution::agent_for(&attribution_options(false)).unwrap();
     let config = agent.config();
 
     assert_eq!(config.command().to_string_lossy(), "env");
@@ -279,7 +279,7 @@ fn codex_acp_command_carries_the_routed_model_and_overrides() {
         "http://127.0.0.1:36277/openai".to_string(),
     );
 
-    let agent = super::super::execution::agent_for(&options);
+    let agent = super::super::execution::agent_for(&options).unwrap();
     let args: Vec<String> = agent
         .config()
         .arguments()
@@ -329,7 +329,7 @@ fn codex_acp_command_stays_unrouted_without_an_endpoint() {
     let mut options = attribution_options(false);
     options.provider = HarnessProvider::Codex;
 
-    let agent = super::super::execution::agent_for(&options);
+    let agent = super::super::execution::agent_for(&options).unwrap();
     let args: Vec<String> = agent
         .config()
         .arguments()
@@ -347,4 +347,31 @@ fn codex_acp_command_stays_unrouted_without_an_endpoint() {
             .any(|argument| argument.starts_with("model_provider=")),
         "an unrouted run must keep Codex's own provider: {args:?}"
     );
+}
+
+/// A routed ACP run must fail before launching when its derived catalog cannot
+/// be built; starting without it silently selects the wrong account or emits
+/// unsupported tool shapes at the routed provider.
+#[test]
+fn routed_codex_acp_rejects_missing_override_catalog() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Codex;
+    options.model = Some("deepseek/deepseek-v4-flash-0731".to_string());
+    options.env.insert(
+        crate::codex_overrides::OVERRIDES_ENV.to_string(),
+        "1".to_string(),
+    );
+    options.env.insert(
+        "OPENAI_BASE_URL".to_string(),
+        "http://127.0.0.1:36277/openai".to_string(),
+    );
+    options.env.insert(
+        "CODEX_HOME".to_string(),
+        dir.path().join("codex").to_string_lossy().into_owned(),
+    );
+
+    let error = super::super::execution::agent_for(&options).unwrap_err();
+
+    assert!(error.contains("models_cache.json"), "{error}");
 }
