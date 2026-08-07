@@ -11,7 +11,10 @@
 //! [`persist_setting`](medulla::config::persist_setting) understands both the
 //! JSON and TOML forms.
 
-use medulla::config::{wire_value, StatusLineConfig};
+use medulla::config::{
+    wire_value, ControlStyle, FieldPlacement, FieldVisibility, HarnessNameStyle, PathStyle,
+    StatusLineConfig,
+};
 
 use super::types::App;
 
@@ -22,41 +25,164 @@ mod tests;
 
 pub(super) use types::*;
 
-/// The page's rows, in display order. A field's qualifiers follow it.
+/// The page's rows, in display order, grouped by the field they describe.
+///
+/// Every group asks the same questions in the same order — where it sits, when
+/// it is drawn, and (where there is more than one sensible spelling) how it is
+/// written — so moving down the page is moving through one repeated form rather
+/// than through fifteen unrelated switches.
 pub(super) const STATUS_LINE_ROWS: [StatusLineRow; 15] = [
-    row("State glyph", StatusLineField::State, false),
-    row("shown", StatusLineField::StateWhen, true),
-    row("Harness name", StatusLineField::Harness, false),
-    row("shown", StatusLineField::HarnessWhen, true),
-    row("spelled", StatusLineField::HarnessStyle, true),
-    row("Managed / unmanaged", StatusLineField::Control, false),
-    row("shown", StatusLineField::ControlWhen, true),
-    row("spelled", StatusLineField::ControlStyle, true),
-    row("Thread name", StatusLineField::Thread, false),
-    row("shown", StatusLineField::ThreadWhen, true),
-    row("Git branch", StatusLineField::Branch, false),
-    row("shown", StatusLineField::BranchWhen, true),
-    row("Working path", StatusLineField::Path, false),
-    row("shown", StatusLineField::PathWhen, true),
-    row("spelled", StatusLineField::PathStyle, true),
+    row(
+        "position",
+        StatusLineField::State,
+        head("State glyph", "the ●/✓/✕ dot: running, finished, or failed"),
+        "Which line the state glyph sits on, or hide it.",
+    ),
+    row(
+        "shown",
+        StatusLineField::StateWhen,
+        None,
+        "On every row, only the selected one, or only alerts.",
+    ),
+    row(
+        "position",
+        StatusLineField::Harness,
+        head("Harness name", "which CLI is driving the session"),
+        "Which line the harness name sits on, or hide it.",
+    ),
+    row(
+        "shown",
+        StatusLineField::HarnessWhen,
+        None,
+        "On every row, only the selected one, or only alerts.",
+    ),
+    row(
+        "spelled",
+        StatusLineField::HarnessStyle,
+        None,
+        "Claude Code, claude, or just the provider icon.",
+    ),
+    row(
+        "position",
+        StatusLineField::Control,
+        head(
+            "Managed / unmanaged",
+            "whether Medulla or you are driving the session",
+        ),
+        "Which line the control state sits on, or hide it.",
+    ),
+    row(
+        "shown",
+        StatusLineField::ControlWhen,
+        None,
+        "On every row, only the selected one, or only alerts.",
+    ),
+    row(
+        "spelled",
+        StatusLineField::ControlStyle,
+        None,
+        "Words (unmanaged), or the ⊘ / ⊙ symbols.",
+    ),
+    row(
+        "position",
+        StatusLineField::Thread,
+        head("Thread name", "the conversation this session is working on"),
+        "Which line the thread name sits on, or hide it.",
+    ),
+    row(
+        "shown",
+        StatusLineField::ThreadWhen,
+        None,
+        "On every row, only the selected one, or only alerts.",
+    ),
+    row(
+        "position",
+        StatusLineField::Branch,
+        head("Git branch", "the branch the checkout is on"),
+        "Which line the branch sits on, or hide it.",
+    ),
+    row(
+        "shown",
+        StatusLineField::BranchWhen,
+        None,
+        "On every row, only the selected one, or only alerts.",
+    ),
+    row(
+        "position",
+        StatusLineField::Path,
+        head("Working path", "the checkout the harness is running in"),
+        "Which line the working path sits on, or hide it.",
+    ),
+    row(
+        "shown",
+        StatusLineField::PathWhen,
+        None,
+        "On every row, only the selected one, or only alerts.",
+    ),
+    row(
+        "spelled",
+        StatusLineField::PathStyle,
+        None,
+        "The whole path, ~/…/tail, or the last segment alone.",
+    ),
 ];
 
 /// Number of selectable rows on the Status line page.
 pub(super) const STATUS_LINE_ROW_COUNT: usize = STATUS_LINE_ROWS.len();
 
 /// `const fn` shorthand so the table above reads as a table.
-const fn row(label: &'static str, field: StatusLineField, is_qualifier: bool) -> StatusLineRow {
+const fn row(
+    label: &'static str,
+    field: StatusLineField,
+    group: Option<StatusLineGroup>,
+    help: &'static str,
+) -> StatusLineRow {
     StatusLineRow {
         label,
         field,
-        is_qualifier,
+        group,
+        help,
     }
 }
 
+/// `const fn` shorthand for the heading a group's first row opens.
+const fn head(title: &'static str, description: &'static str) -> Option<StatusLineGroup> {
+    Some(StatusLineGroup { title, description })
+}
+
 impl StatusLineField {
+    /// Every value this field can take, in the order `←/→` walks them.
+    ///
+    /// The page shows the whole set for the selected row, because a row that
+    /// displays only its current value gives an operator no way to learn what
+    /// else is on offer short of pressing a key and watching the preview. Built
+    /// from each enum's `ALL`, so the advertised list cannot drift from the
+    /// sequence [`cycle`](Self::cycle) actually produces.
+    pub(super) fn choices(self) -> Vec<&'static str> {
+        match self {
+            StatusLineField::State
+            | StatusLineField::Harness
+            | StatusLineField::Control
+            | StatusLineField::Thread
+            | StatusLineField::Branch
+            | StatusLineField::Path => FieldPlacement::ALL.iter().map(|v| v.label()).collect(),
+            StatusLineField::StateWhen
+            | StatusLineField::HarnessWhen
+            | StatusLineField::ControlWhen
+            | StatusLineField::ThreadWhen
+            | StatusLineField::BranchWhen
+            | StatusLineField::PathWhen => FieldVisibility::ALL.iter().map(|v| v.label()).collect(),
+            StatusLineField::HarnessStyle => {
+                HarnessNameStyle::ALL.iter().map(|v| v.label()).collect()
+            }
+            StatusLineField::ControlStyle => ControlStyle::ALL.iter().map(|v| v.label()).collect(),
+            StatusLineField::PathStyle => PathStyle::ALL.iter().map(|v| v.label()).collect(),
+        }
+    }
+
     /// The config key this field persists under, matching serde's camelCase
     /// spelling of [`StatusLineConfig`].
-    fn key(self) -> &'static str {
+    pub(super) fn key(self) -> &'static str {
         match self {
             StatusLineField::State => "state",
             StatusLineField::StateWhen => "stateWhen",

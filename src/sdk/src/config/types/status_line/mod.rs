@@ -23,6 +23,19 @@ mod tests;
 pub use types::*;
 
 impl FieldPlacement {
+    /// Every placement, in the order `cycled` steps through them.
+    ///
+    /// Public because the settings page lists the whole set beside the current
+    /// one: an operator cannot discover what `←/→` will do from a single value.
+    /// Sharing one constant with [`cycled`](Self::cycled) is what keeps the list
+    /// the page advertises and the sequence the key actually walks identical.
+    pub const ALL: [FieldPlacement; 4] = [
+        FieldPlacement::Line1,
+        FieldPlacement::Line2,
+        FieldPlacement::Line3,
+        FieldPlacement::Hidden,
+    ];
+
     /// The label shown on the Status line settings page.
     pub fn label(self) -> &'static str {
         match self {
@@ -35,13 +48,7 @@ impl FieldPlacement {
 
     /// The next placement in the cycle, forwards or backwards.
     pub fn cycled(self, forward: bool) -> Self {
-        const ORDER: [FieldPlacement; 4] = [
-            FieldPlacement::Line1,
-            FieldPlacement::Line2,
-            FieldPlacement::Line3,
-            FieldPlacement::Hidden,
-        ];
-        cycle(&ORDER, self, forward)
+        cycle(&Self::ALL, self, forward)
     }
 
     /// Which line index this field belongs on, if it is drawn at all.
@@ -56,6 +63,13 @@ impl FieldPlacement {
 }
 
 impl FieldVisibility {
+    /// Every visibility, in the order `cycled` steps through them.
+    pub const ALL: [FieldVisibility; 3] = [
+        FieldVisibility::Always,
+        FieldVisibility::Active,
+        FieldVisibility::Alert,
+    ];
+
     /// The label shown on the Status line settings page.
     pub fn label(self) -> &'static str {
         match self {
@@ -67,12 +81,7 @@ impl FieldVisibility {
 
     /// The next visibility in the cycle, forwards or backwards.
     pub fn cycled(self, forward: bool) -> Self {
-        const ORDER: [FieldVisibility; 3] = [
-            FieldVisibility::Always,
-            FieldVisibility::Active,
-            FieldVisibility::Alert,
-        ];
-        cycle(&ORDER, self, forward)
+        cycle(&Self::ALL, self, forward)
     }
 
     /// Whether a field with this visibility is drawn on a row that is currently
@@ -87,6 +96,13 @@ impl FieldVisibility {
 }
 
 impl HarnessNameStyle {
+    /// Every spelling, in the order `cycled` steps through them.
+    pub const ALL: [HarnessNameStyle; 3] = [
+        HarnessNameStyle::Long,
+        HarnessNameStyle::Short,
+        HarnessNameStyle::Icon,
+    ];
+
     /// The label shown on the Status line settings page.
     pub fn label(self) -> &'static str {
         match self {
@@ -98,16 +114,14 @@ impl HarnessNameStyle {
 
     /// The next style in the cycle, forwards or backwards.
     pub fn cycled(self, forward: bool) -> Self {
-        const ORDER: [HarnessNameStyle; 3] = [
-            HarnessNameStyle::Long,
-            HarnessNameStyle::Short,
-            HarnessNameStyle::Icon,
-        ];
-        cycle(&ORDER, self, forward)
+        cycle(&Self::ALL, self, forward)
     }
 }
 
 impl ControlStyle {
+    /// Every spelling, in the order `cycled` steps through them.
+    pub const ALL: [ControlStyle; 2] = [ControlStyle::Text, ControlStyle::Icon];
+
     /// The label shown on the Status line settings page.
     pub fn label(self) -> &'static str {
         match self {
@@ -118,12 +132,14 @@ impl ControlStyle {
 
     /// The next style in the cycle, forwards or backwards.
     pub fn cycled(self, forward: bool) -> Self {
-        const ORDER: [ControlStyle; 2] = [ControlStyle::Text, ControlStyle::Icon];
-        cycle(&ORDER, self, forward)
+        cycle(&Self::ALL, self, forward)
     }
 }
 
 impl PathStyle {
+    /// Every spelling, in the order `cycled` steps through them.
+    pub const ALL: [PathStyle; 3] = [PathStyle::Full, PathStyle::Shortened, PathStyle::Last];
+
     /// The label shown on the Status line settings page.
     pub fn label(self) -> &'static str {
         match self {
@@ -135,8 +151,7 @@ impl PathStyle {
 
     /// The next style in the cycle, forwards or backwards.
     pub fn cycled(self, forward: bool) -> Self {
-        const ORDER: [PathStyle; 3] = [PathStyle::Full, PathStyle::Shortened, PathStyle::Last];
-        cycle(&ORDER, self, forward)
+        cycle(&Self::ALL, self, forward)
     }
 }
 

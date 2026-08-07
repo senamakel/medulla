@@ -275,27 +275,31 @@ tokenEnv = "MEDULLA_TOKEN"
 # out. Settings › Status line edits these live and previews the result, which
 # is by far the easier way to arrive at a layout you like.
 #
-# Every field answers three questions:
-#   where   "line1" | "line2" | "line3" | "hidden"  (at most three lines)
-#   when    "always" | "active" (only the selected row) | "alert" (only a
-#           harness that failed, exited non-zero, or recorded an error)
-#   spelled per-field, see below
+# Every field answers the same three questions, which are the rows the settings
+# page shows under each field's name:
+#   position "line1" | "line2" | "line3" | "hidden"  (at most three lines)
+#   shown    "always" | "active" (only the selected row) | "alert" (only a
+#            harness that failed, exited non-zero, or recorded an error)
+#   spelled  per-field, see below
 #
-# The defaults below reproduce the historical single-line row:
+# The defaults below are the identifying line plus the thread beneath it:
 #   ● codex · unmanaged · main · ~/work/medulla
+#     Ship the status line
 # ---------------------------------------------------------------------------
 # [statusLine]
-# state = "line1"                # the ● / ✓ / ✕ run-state glyph
+# state = "line1"                # State glyph: the ●/✓/✕ dot, running or failed
 # stateWhen = "always"
-# harness = "line1"
+# harness = "line1"              # Harness name: which CLI is driving the session
 # harnessWhen = "always"
 # harnessStyle = "short"         # "long" (Claude Code) | "short" (claude) | "icon"
-# control = "line1"              # managed / unmanaged
+# control = "line1"              # Managed / unmanaged: Medulla's session or yours
 # controlWhen = "always"
 # controlStyle = "text"          # "text" (unmanaged) | "icon" (⊘ / ⊙)
-# branch = "line1"
+# thread = "line2"               # Thread name: the conversation being worked on
+# threadWhen = "always"
+# branch = "line1"               # Git branch: the branch the checkout is on
 # branchWhen = "always"
-# path = "line1"
+# path = "line1"                 # Working path: the checkout it is running in
 # pathWhen = "always"
 # pathStyle = "shortened"        # "full" | "shortened" (~/…/tail) | "last"
 
