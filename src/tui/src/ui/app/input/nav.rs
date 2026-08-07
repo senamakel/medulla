@@ -85,7 +85,7 @@ impl App {
     }
 
     /// How many sublanes a lane reveals at its current expansion.
-    fn revealed_subtasks(&self, key: &str) -> usize {
+    pub(in crate::ui::app) fn revealed_subtasks(&self, key: &str) -> usize {
         SUBTASK_PAGE.saturating_mul(
             self.subtask_pages
                 .get(key)
