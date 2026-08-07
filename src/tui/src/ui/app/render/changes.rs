@@ -17,6 +17,22 @@ use super::super::types::App;
 impl App {
     /// Draw the session-start summary/file rail and selected unified patch.
     pub(super) fn draw_changes(&mut self, frame: &mut Frame, area: Rect) {
+        self.draw_changes_into(frame, area, " Git changes · b baseline ");
+    }
+
+    /// The same two panes, drawn over the Agents harness pane.
+    ///
+    /// Same state, same bindings, different real estate: `d` on a harness row
+    /// swaps its terminal for this, so the hint has to say how to get the
+    /// terminal back. Nothing is re-collected here — the key that opened the
+    /// view already pointed [`GitChangesState`](super::super::changes::GitChangesState)
+    /// at this session's launch snapshot.
+    pub(in crate::ui::app) fn draw_harness_diff(&mut self, frame: &mut Frame, area: Rect) {
+        self.draw_changes_into(frame, area, " Since launch · d harness · b baseline ");
+    }
+
+    /// Draw the two Changes panes into `area`, titling the rail with `rail_title`.
+    fn draw_changes_into(&mut self, frame: &mut Frame, area: Rect, rail_title: &str) {
         let panes = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
@@ -75,7 +91,7 @@ impl App {
             .block(self.panel(if self.changes.picking_baseline {
                 " Select baseline "
             } else {
-                " Git changes · b baseline "
+                rail_title
             }))
             .highlight_style(self.theme.selection())
             .highlight_symbol("› ");

@@ -4,7 +4,7 @@
 use super::*;
 use std::sync::Arc;
 
-use super::types::RP_HARNESSES;
+use super::types::{PaneView, RP_HARNESSES};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
@@ -229,7 +229,7 @@ fn enter_on_a_harness_asks_before_taking_it() {
 }
 
 #[test]
-fn d_on_a_selected_harness_opens_its_changes_tab() {
+fn d_on_a_selected_harness_swaps_the_pane_for_its_diff() {
     let mut a = app();
     a.tab_index = tab("Agents");
     a.focus_agents_rail();
@@ -238,9 +238,114 @@ fn d_on_a_selected_harness_opens_its_changes_tab() {
     let cmd = a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
 
     assert!(cmd.is_none());
-    assert_eq!(a.tab(), "Changes");
+    assert_eq!(a.tab(), "Agents", "the diff replaces the pane, not the tab");
+    assert_eq!(a.pane_view, PaneView::Diff);
     assert_eq!(a.rail_session.as_deref(), Some("selected-harness"));
     assert_eq!(a.draft.text, "", "the shortcut must not type into chat");
+}
+
+#[test]
+fn d_again_puts_the_harness_back_in_the_pane() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+
+    a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+    a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+
+    assert_eq!(a.pane_view, PaneView::Harness);
+    assert_eq!(a.draft.text, "", "neither press may reach the composer");
+}
+
+#[test]
+fn esc_closes_the_pane_diff() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+    a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+
+    a.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+    assert_eq!(a.pane_view, PaneView::Harness);
+}
+
+#[test]
+fn the_open_diff_owns_its_own_navigation_keys() {
+    // `k` kills the harness from the terminal view; over the diff it is the
+    // Changes cursor, exactly as on the tab. A view that replaced the pane but
+    // left the pane's bindings in place would kill a session on a keypress the
+    // operator meant as "move down one line".
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+    a.on_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+
+    a.on_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+
+    assert!(a.harness_close_armed.is_none(), "{}", a.status());
+    assert_eq!(a.pane_view, PaneView::Diff);
+    assert_eq!(a.draft.text, "");
+}
+
+#[test]
+fn shift_d_on_a_selected_harness_opens_its_changes_tab() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    a.pane_session = Some("selected-harness".to_owned());
+
+    let cmd = a.on_key(KeyEvent::new(KeyCode::Char('D'), KeyModifiers::SHIFT));
+
+    assert!(cmd.is_none());
+    assert_eq!(a.tab(), "Changes");
+    assert_eq!(a.pane_view, PaneView::Harness);
+    assert_eq!(a.rail_session.as_deref(), Some("selected-harness"));
+}
+
+#[test]
+fn k_on_a_selected_harness_asks_before_closing_it() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+    // This app hosts nothing, so the session cannot be confirmed running and
+    // the question is refused with a reason. What matters here is that `k` is
+    // consumed by the harness path rather than typed into the conversation.
+    a.pane_session = Some("selected-harness".to_owned());
+
+    let cmd = a.on_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+
+    assert!(cmd.is_none());
+    assert!(a.harness_close_armed.is_none());
+    assert!(a.status().contains("already exited"), "{}", a.status());
+    assert_eq!(a.draft.text, "", "the shortcut must not type into chat");
+}
+
+#[test]
+fn k_without_a_selected_harness_remains_composer_input() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.focus_agents_rail();
+
+    a.on_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+
+    assert!(a.harness_close_armed.is_none());
+    assert_eq!(a.draft.text, "k");
+}
+
+#[test]
+fn an_armed_harness_close_takes_only_y() {
+    let mut a = app();
+    a.tab_index = tab("Agents");
+    a.arm_harness_close("selected-harness".to_owned());
+
+    a.on_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
+
+    assert!(a.harness_close_armed.is_none());
+    assert!(a.status().contains("cancelled"), "{}", a.status());
+    assert_eq!(a.draft.text, "", "the answer must not reach the composer");
 }
 
 #[test]

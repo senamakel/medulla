@@ -17,7 +17,7 @@ use crate::ui::events::{describe_event, EventEnvelope, TuiEvent};
 use crate::ui::util::{clip, clock, wrap};
 use crate::worker::pty::ATTENTION_GLYPH;
 
-use super::types::{App, Overlay, TABS};
+use super::types::{App, Overlay, PaneView, TABS};
 
 mod agents;
 mod changes;
@@ -469,8 +469,13 @@ impl App {
             "Tab views · ↑↓ files · j/k line · [ ] hunk · b baseline · c comment · C file · e edit · r refresh"
         } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ lanes · i inspect · c copilot · x run · d dry-run · r refresh"
+        } else if self.pane_view == PaneView::Diff {
+            // The pane is showing a session's diff, so it binds the Changes
+            // keys — read from `pane_view` rather than from `pane_session`,
+            // which the content draw has not filled in yet this frame.
+            "Tab views · ↑↓ files · j/k line · [ ] hunk · b baseline · c comment · d/Esc harness"
         } else {
-            "Tab views · Esc/↑↓ rail · ⏎/^] session · d session diff · ⇧⏎ newline · ⌥X cancel · ⌥A answer · ^N thread · ^↑↓ switch · ^Y copy · ^X abort"
+            "Tab views · Esc/↑↓ rail · ⏎/^] session · d session diff · k close session · ⌥X cancel · ⌥A answer · ^N thread · ^Y copy · ^X abort"
         };
         f.render_widget(
             Paragraph::new(TLine::from(Span::styled(

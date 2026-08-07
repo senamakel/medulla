@@ -24,9 +24,19 @@ use crate::ui::harness_pane::{
 use crate::worker::pty::launch::bracket_paste;
 use crate::worker::pty::SessionControl;
 
-use super::super::types::{App, TakeOrigin};
+use super::super::types::{App, PaneView, TakeOrigin};
 
 impl App {
+    /// Put the harness's own terminal back in the pane.
+    ///
+    /// A no-op when it is already there, which is the common case: every path
+    /// that hands the keyboard to a harness calls this first rather than
+    /// checking, because "the pane shows what the keys reach" is an invariant,
+    /// not a special case.
+    pub(in crate::ui::app) fn show_harness_pane(&mut self) {
+        self.pane_view = PaneView::Harness;
+    }
+
     /// Take the keyboard back from whatever harness has it.
     ///
     /// Safe to call when nothing is attached; that is the common case on the
@@ -101,6 +111,11 @@ impl App {
         // managed harness must not silently take it away from the orchestrator;
         // the chord below is the deliberate spelling and still attaches outright.
         if enter_on_harness {
+            // Typing into a harness means looking at it. If the pane was showing
+            // the session's diff instead, the terminal comes back first —
+            // keystrokes landing in a screen that is not on the screen is the
+            // one failure the whole focus model exists to prevent.
+            self.show_harness_pane();
             self.open_session_enter_prompt();
             // Consumed either way: Enter reaches this branch only when the
             // visible pane resolved to a harness, so it must not submit a
@@ -125,6 +140,9 @@ impl App {
     /// here", and requiring a chord to do it made the embedded pane the one
     /// exception.
     pub(in crate::ui::app) fn attach_to_pane_session(&mut self) {
+        // Same reason as the Enter path: the keyboard may only go somewhere the
+        // operator can see it land.
+        self.show_harness_pane();
         let Some(session) = self.pane_session.clone() else {
             self.set_status("No session on this row — select a running one to type into");
             return;
