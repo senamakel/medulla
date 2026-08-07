@@ -438,7 +438,7 @@ fn select_first_task(app: &mut App) -> Option<Cmd> {
         // its lane: one row type for everything an agent is running.
         matches!(r, super::rail::RailRow::Session(session) if session.task.is_some())
     })?;
-    app.agent_index = idx;
+    app.set_rail_cursor(idx);
     app.retarget_watch()
 }
 
@@ -579,7 +579,7 @@ fn selecting_a_lane_rather_than_a_task_watches_nothing() {
         .iter()
         .position(|r| matches!(r, super::rail::RailRow::Agent(_)))
         .expect("the fixture has a lane row");
-    app.agent_index = idx;
+    app.set_rail_cursor(idx);
     assert!(app.retarget_watch().is_none());
     assert!(app.watching.is_none());
 }
