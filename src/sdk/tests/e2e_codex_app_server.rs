@@ -289,7 +289,11 @@ async fn answers_concurrent_approvals_independently() {
         result.expect("each lane runs");
     }
 
-    let asked: Vec<serde_json::Value> = fake.asks().into_iter().map(|ask| ask["id"].clone()).collect();
+    let asked: Vec<serde_json::Value> = fake
+        .asks()
+        .into_iter()
+        .map(|ask| ask["id"].clone())
+        .collect();
     assert_eq!(asked.len(), 2, "both lanes asked");
     assert_ne!(asked[0], asked[1], "each ask got its own id");
 
