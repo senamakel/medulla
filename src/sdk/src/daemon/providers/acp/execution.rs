@@ -296,13 +296,15 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 
 /// Construct the ACP server command for a supported harness.
 pub(super) fn agent_for(options: &RunTaskOptions) -> AcpAgent {
+    // Built once and shared: the model flags below are derived from the same
+    // map the child receives, and `router_env` writing `OPENAI_BASE_URL` into it
+    // is what tells `codex_overrides` the run is routed at all.
+    let env = acp_env(options);
     let config = match options.provider {
         HarnessProvider::Claude => {
             AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/claude-agent-acp@latest"])
         }
-        HarnessProvider::Codex => {
-            AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/codex-acp@latest"])
-        }
+        HarnessProvider::Codex => AcpAgentConfig::new("npx").args(codex_acp_args(options, &env)),
         HarnessProvider::Opencode => AcpAgentConfig::new(crate::protocol::env::provider_bin(
             HarnessProvider::Opencode,
             &options.env,
@@ -319,13 +321,51 @@ pub(super) fn agent_for(options: &RunTaskOptions) -> AcpAgent {
     #[cfg(unix)]
     let config = config
         .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
-        .envs(acp_env(options));
+        .envs(env);
     #[cfg(windows)]
     let config = config
         .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
-        .envs(acp_env(options));
+        .envs(env);
 
     AcpAgent::new(config)
+}
+
+/// The `codex-acp` argv, including the model and the routed-provider overrides.
+///
+/// The direct spawn seam builds these in two places — `-m <slug>` in
+/// [`crate::daemon::providers::detect::build_resumed_run_args`] and the `-c`
+/// block in [`crate::codex_overrides::launch_args`] — and ACP dispatch used to
+/// build neither. A preset therefore reached Codex as a bare `codex-acp` with
+/// its `model` silently dropped, so Codex ran the operator's own configured
+/// default on the operator's own ChatGPT account: the routed endpoint was in the
+/// environment but nothing selected it, and the preset's model never appeared in
+/// a single upstream request.
+fn codex_acp_args(options: &RunTaskOptions, env: &HashMap<String, String>) -> Vec<String> {
+    let mut args = vec![
+        "-y".to_string(),
+        "@agentclientprotocol/codex-acp@latest".to_string(),
+    ];
+    let model = options
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|model| !model.is_empty());
+    if let Some(model) = model {
+        args.push("-m".to_string());
+        args.push(model.to_string());
+    }
+    // A catalog that cannot be derived is fatal at the direct seam. Here there
+    // is no error frame to fail through, so it is logged and the overrides are
+    // dropped — the run still starts, on the operator's default model, which is
+    // the behaviour that existed before this function and is visible in the log
+    // rather than silent.
+    match crate::codex_overrides::launch_args(options.provider, model, env) {
+        Ok(overrides) => args.extend(overrides),
+        Err(error) => {
+            tracing::warn!(%error, "codex ACP overrides unavailable; running unrouted");
+        }
+    }
+    args
 }
 
 /// The environment handed to the ACP agent process.
