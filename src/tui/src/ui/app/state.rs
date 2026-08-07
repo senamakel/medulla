@@ -389,6 +389,8 @@ impl App {
     /// startup would be permanently empty.
     pub fn set_harness_runs(&mut self, registry: medulla::control_socket::HarnessRunRegistry) {
         self.harness_runs = registry;
+        #[cfg(feature = "workflows")]
+        self.sync_selected_workflow_run();
     }
 
     /// The session the last draw resolved for the rail cursor.
