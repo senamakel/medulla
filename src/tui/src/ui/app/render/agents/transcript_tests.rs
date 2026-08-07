@@ -46,7 +46,7 @@ fn descriptorless_lanes_still_show_their_pull_request_context() {
             ..Default::default()
         })),
     };
-    let mut selection = Selection {
+    let selection = Selection {
         rows: Vec::new(),
         active: 0,
         lanes: vec![lane],
@@ -123,6 +123,11 @@ fn orchestrator_lane() -> AgentLane {
 
 /// Draw one rail row's pane and return everything it painted.
 fn pane_for(row: RailRow) -> String {
+    pane_for_size(row, 90, 20)
+}
+
+/// Draw one rail row's pane at a particular terminal size.
+fn pane_for_size(row: RailRow, width: u16, height: u16) -> String {
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     // Derived from the row rather than defaulted, exactly as `agents_selection`
@@ -141,9 +146,9 @@ fn pane_for(row: RailRow) -> String {
         session: None,
         workflow_run,
     };
-    let mut terminal = Terminal::new(TestBackend::new(90, 20)).unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal
-        .draw(|frame| app.draw_agents_pane(frame, Rect::new(0, 0, 90, 20), &selection))
+        .draw(|frame| app.draw_agents_pane(frame, Rect::new(0, 0, width, height), &selection))
         .unwrap();
     terminal
         .backend()
@@ -316,6 +321,31 @@ fn a_run_row_draws_the_run_rather_than_the_session_that_started_it() {
 }
 
 #[test]
+fn a_narrow_uninstalled_run_keeps_its_newest_progress_visible() {
+    let mut row = reported_run();
+    let RailRow::WorkflowRun(run) = &mut row else {
+        unreachable!("the fixture is a workflow run");
+    };
+    run.run.frames = (0..12)
+        .map(|index| medulla::control_socket::HarnessRunFrame {
+            node: None,
+            text: format!("old progress frame {index}"),
+        })
+        .collect();
+    run.run
+        .frames
+        .push(medulla::control_socket::HarnessRunFrame {
+            node: None,
+            text: "newest progress".into(),
+        });
+
+    // The description wraps to many physical rows at this width. A logical-line
+    // budget would choose an old frame tail that never reaches the viewport.
+    let pane = pane_for_size(row, 28, 20);
+    assert!(pane.contains("newest progress"), "{pane}");
+}
+
+#[test]
 fn a_run_row_names_no_session_so_nothing_attaches_to_its_parent() {
     // `session_id()` means "the session this row is". A run row answering with
     // its parent made the pane draw that harness, a click attach to it, and
@@ -333,7 +363,7 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
 
-    let selection = Selection {
+    let mut selection = Selection {
         rows: vec![reported_run()],
         active: 0,
         lanes: vec![orchestrator_lane()],
@@ -361,6 +391,13 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     // at — but the run is still marked, so the next frame does not re-read the
     // store looking for it again.
     assert_eq!(app.wf.mirrored_run.as_deref(), Some("run-77"));
+    assert_eq!(app.wf.mirrored_run_updated_at, Some(4_000));
+
+    // A run keeps its id as it moves through the graph. Its newer report must
+    // refresh the mirror rather than leaving the first active node selected.
+    selection.workflow_run.as_mut().unwrap().run.updated_at = 5_000;
+    app.mirror_selected_workflow_run(&selection);
+    assert_eq!(app.wf.mirrored_run_updated_at, Some(5_000));
 
     // Stepping off a run clears the mark, so returning to it re-syncs rather
     // than trusting a graph the store may have changed underneath.
@@ -376,4 +413,5 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     };
     app.mirror_selected_workflow_run(&empty);
     assert!(app.wf.mirrored_run.is_none());
+    assert!(app.wf.mirrored_run_updated_at.is_none());
 }

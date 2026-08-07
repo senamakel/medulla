@@ -141,10 +141,12 @@ impl App {
     fn mirror_selected_workflow_run(&mut self, selection: &Selection) {
         let Some(run) = &selection.workflow_run else {
             self.wf.mirrored_run = None;
+            self.wf.mirrored_run_updated_at = None;
             return;
         };
         let run = &run.run;
         let synchronized = self.wf.mirrored_run.as_deref() == Some(run.run_id.as_str())
+            && self.wf.mirrored_run_updated_at == Some(run.updated_at)
             && self.wf.overlay.as_deref() == Some(run.run_id.as_str())
             && self
                 .selected_workflow()
@@ -153,6 +155,7 @@ impl App {
             return;
         }
         self.wf.mirrored_run = Some(run.run_id.clone());
+        self.wf.mirrored_run_updated_at = Some(run.updated_at);
         let active_node = run
             .frames
             .iter()

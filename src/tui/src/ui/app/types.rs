@@ -286,6 +286,13 @@ pub struct WorkflowsState {
     /// cursor move. `None` while the Agents cursor is not on a run, so stepping
     /// off a run and back onto it re-syncs rather than trusting a stale graph.
     pub(super) mirrored_run: Option<String>,
+    /// The newest report included in [`mirrored_run`](Self::mirrored_run).
+    ///
+    /// A live run keeps its identity while its current graph node and durable
+    /// record change. Remembering the report generation lets the mirror avoid
+    /// disk work on ordinary redraws without freezing the canvas at its first
+    /// observed node.
+    pub(super) mirrored_run_updated_at: Option<i64>,
     /// One copilot thread per workflow, so switching in the rail does not show
     /// the previous workflow's conversation or lose this one's.
     pub(super) copilots: std::collections::HashMap<String, medulla::ui::workflows::CopilotState>,

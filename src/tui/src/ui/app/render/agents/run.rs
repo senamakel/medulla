@@ -26,6 +26,19 @@ use super::super::super::rail::WorkflowRunRailRow;
 use super::super::super::types::App;
 use super::super::color;
 
+/// Count the terminal rows a set of paragraph lines will occupy after wrapping.
+///
+/// `Paragraph` wraps each logical line independently. The frame tail must use
+/// this physical-row budget, otherwise a long explanatory line can consume the
+/// rows reserved for the newest progress report.
+fn wrapped_rows(lines: &[TLine<'_>], width: u16) -> usize {
+    let width = usize::from(width).max(1);
+    lines
+        .iter()
+        .map(|line| line.width().max(1).div_ceil(width))
+        .sum()
+}
+
 impl App {
     /// Draw the selected workflow run into `area`.
     ///
@@ -109,14 +122,24 @@ impl App {
         // This pane has no independent scroll state. Keep its context, then
         // spend the remaining rows on the newest reported progress: the reason
         // an operator opens a live run is to see what it is doing now.
-        let live_rows = (inner.height as usize).saturating_sub(lines.len());
+        let live_rows = (inner.height as usize).saturating_sub(wrapped_rows(&lines, inner.width));
         if live_rows > 0 && !live_lines.is_empty() {
-            lines.push(live_lines[0].clone());
-            let tail_rows = live_rows.saturating_sub(1);
-            if tail_rows > 0 {
-                let tail_start = live_lines.len().saturating_sub(tail_rows).max(1);
-                lines.extend(live_lines.into_iter().skip(tail_start));
+            let header_rows = wrapped_rows(&live_lines[..1], inner.width);
+            let mut tail_rows = live_rows;
+            if header_rows <= tail_rows {
+                lines.push(live_lines[0].clone());
+                tail_rows -= header_rows;
             }
+            let mut tail = Vec::new();
+            for line in live_lines[1..].iter().rev() {
+                let rows = wrapped_rows(std::slice::from_ref(line), inner.width);
+                if rows > tail_rows && !tail.is_empty() {
+                    break;
+                }
+                tail.push(line.clone());
+                tail_rows = tail_rows.saturating_sub(rows);
+            }
+            lines.extend(tail.into_iter().rev());
         }
 
         f.render_widget(
