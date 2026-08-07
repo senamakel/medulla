@@ -46,7 +46,7 @@ fn descriptorless_lanes_still_show_their_pull_request_context() {
             ..Default::default()
         })),
     };
-    let selection = Selection {
+    let mut selection = Selection {
         rows: Vec::new(),
         active: 0,
         lanes: vec![lane],

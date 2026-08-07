@@ -1,6 +1,6 @@
 //! Tests for workflow-run rows in the Agents rail.
 
-use super::super::color;
+use super::super::super::color;
 use super::tests::{app, lane, none_waiting, NOW};
 
 /// A reported run, as the control plane hands one to the rail.

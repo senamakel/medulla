@@ -46,11 +46,11 @@ fn attention_uses_the_configured_color_and_can_stay_solid() {
 }
 
 /// No harness is waiting, which is what most of these rows assume.
-fn none_waiting() -> std::collections::HashSet<String> {
+pub(super) fn none_waiting() -> std::collections::HashSet<String> {
     std::collections::HashSet::new()
 }
 
-fn lane() -> AgentLane {
+pub(super) fn lane() -> AgentLane {
     AgentLane {
         key: "k".into(),
         label: "worker".into(),
