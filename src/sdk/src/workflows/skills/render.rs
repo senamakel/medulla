@@ -527,11 +527,14 @@ fn skill_content(summary: &WorkflowSummary, slug: &str, description: &str) -> St
 /// a model that dead-ends there, or worse reports a run it never started, is
 /// worse than no skill at all. Hence this line, and only this line.
 fn fallback_line(summary: &WorkflowSummary) -> String {
+    let inputs =
+        serde_json::to_string(&example_input_map(summary)).unwrap_or_else(|_| "{}".to_string());
     format!(
         "No `{RUN_TOOL}`? The Medulla MCP server is not attached — say so rather than \
-         claiming a start, and run `medulla workflow run {id} --inputs` with the JSON \
-         above, or attach it once with `medulla skills install --with-mcp`.\n",
+         claiming a start, and run `medulla workflow run {id} --inputs {inputs}` or attach it \
+         once with `medulla skills install --with-mcp`.\n",
         id = shell_quote_arg(&summary.id),
+        inputs = shell_quote_arg(&inputs),
     )
 }
 
@@ -658,18 +661,19 @@ fn yaml_scalar(text: &str) -> String {
     out
 }
 
-/// Renders a workflow id as a single shell word.
+/// Renders text as a single shell word.
 ///
-/// Ids are normally plain, but the fallback line is a command an operator will
-/// paste, so an id with a space in it must not silently become two arguments.
-fn shell_quote_arg(id: &str) -> String {
-    if id
+/// The fallback line is a command an operator will paste, so a workflow id or
+/// JSON value with shell-significant characters must not become multiple
+/// arguments or change the command's meaning.
+fn shell_quote_arg(value: &str) -> String {
+    if value
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
-        && !id.is_empty()
+        && !value.is_empty()
     {
-        id.to_string()
+        value.to_string()
     } else {
-        format!("'{}'", id.replace('\'', "'\\''"))
+        format!("'{}'", value.replace('\'', "'\\''"))
     }
 }

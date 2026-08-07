@@ -237,6 +237,24 @@ fn required_inputs_are_marked_and_placeheld() {
 }
 
 #[test]
+fn fallback_passes_the_declared_input_object_to_the_cli() {
+    let inputs = vec![
+        WorkflowInput::new("pr", InputType::Number).required(),
+        WorkflowInput::new("payload", InputType::Json).required(),
+    ];
+    let skill = render(&summary("babysit", "Watch a PR.", inputs));
+
+    assert!(
+        skill
+            .body
+            .contains("medulla workflow run babysit --inputs '{\"pr\":0,\"payload\":{}}'"),
+        "{}",
+        skill.body
+    );
+    assert!(!skill.body.contains("--inputs {\"id\":"), "{}", skill.body);
+}
+
+#[test]
 fn a_condensed_input_note_points_at_the_tool_that_serves_it_whole() {
     let inputs = vec![WorkflowInput::new("ci_wait_secs", InputType::Number)
         .with_default(json!(1200))
