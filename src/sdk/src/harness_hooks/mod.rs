@@ -32,14 +32,16 @@
 //!   must not add `--settings` separately.
 //! - **Codex** takes it as a `-c hooks=<inline TOML>` config override. Config
 //!   layers are additive in Codex, so this adds to the operator's own
-//!   `hooks.json` rather than replacing it. Codex records trust against a hook's
-//!   hash and *silently skips* hooks it has not seen before, and a per-spawn
-//!   injection is by construction never in that store — so a Medulla hook does
-//!   nothing on Codex until the operator trusts it once (`/hooks`). Medulla does
-//!   **not** pass `--dangerously-bypass-hook-trust`: it is invocation-wide and
-//!   would also authorize hooks the checked-out repository ships in its own
-//!   `.codex/hooks.json`. Requiring one explicit trust is the safe direction to
-//!   fail, and the requirement is reported through
+//!   `hooks.json` rather than replacing it. Codex also records trust against a
+//!   hook's hash and *silently skips* hooks it has not been told to run, so
+//!   delivery alone is not enough: [`codex::trust`] enables this spawn's own
+//!   entries in `$CODEX_HOME/config.toml` as part of building the injection.
+//!   That is scoped to the hooks Medulla injected and no others, which is
+//!   exactly what `--dangerously-bypass-hook-trust` cannot do — it is
+//!   invocation-wide and would also authorize hooks the checked-out repository
+//!   ships in its own `.codex/hooks.json`, so Medulla still does **not** pass
+//!   it. A hook Codex has never seen costs one launch before it starts firing;
+//!   that, and any failure to write the trust store, are reported through
 //!   [`HookInjection::warnings`] rather than left to be discovered.
 //! - **OpenCode** exposes hooks as a scripted plugin API rather than a
 //!   declarative command hook, and is not adapted yet; its hooks are reported as
@@ -77,6 +79,11 @@ pub use types::{DroppedHook, HookEvent, HookHandler, HookInjection, HookSpec, Ho
 /// [`launch_args`] instead of combining this with
 /// [`crate::attribution::attribution_args`]: both want `--settings`, and passing
 /// it twice loses one of them.
+///
+/// This function is pure, and has to stay that way: the Hooks page calls it on
+/// every frame to describe what each harness would carry. Approving Medulla's
+/// hooks in Codex's trust store — the one part of installation that writes
+/// anything — happens in [`launch_args`], which only a real spawn calls.
 pub fn hook_injection(provider: HarnessProvider, hooks: &HooksConfig) -> HookInjection {
     let mut injection = HookInjection {
         dropped: dropped_for(provider, hooks),
@@ -89,14 +96,19 @@ pub fn hook_injection(provider: HarnessProvider, hooks: &HooksConfig) -> HookInj
     let document = native::hook_document(&applicable);
     match provider {
         HarnessProvider::Claude => injection.args = claude::settings_args(&document),
-        HarnessProvider::Codex => {
-            let (args, warning) = codex::config_args(&document);
-            injection.args = args;
-            injection.warnings.push(warning);
-        }
+        HarnessProvider::Codex => injection.args = codex::config_args(&document),
         HarnessProvider::Opencode | HarnessProvider::Openhuman => {}
     }
     injection
+}
+
+/// The events `provider` will actually be installing from `hooks`.
+fn installed_events(provider: HarnessProvider, hooks: &HooksConfig) -> Vec<HookEvent> {
+    hooks
+        .for_provider(provider)
+        .iter()
+        .map(|hook| hook.event)
+        .collect()
 }
 
 /// The complete argv prefix for a Medulla-launched `provider`: commit
@@ -107,13 +119,28 @@ pub fn hook_injection(provider: HarnessProvider, hooks: &HooksConfig) -> HookInj
 /// first, so the two settings fragments are merged into a single object here.
 /// Every other provider simply concatenates.
 ///
-/// `attribution` is the resolved `attribution.commit` config value.
+/// `attribution` is the resolved `attribution.commit` config value; `env` is the
+/// environment the child will be spawned with.
+///
+/// This is the spawn path, and the one place installation *writes* anything: a
+/// Codex launch approves its own injected hooks in the trust store under `env`'s
+/// `CODEX_HOME` (see [`codex::trust`]) before handing them over, because Codex
+/// silently skips a hook it has not been told to run. Nothing else is touched
+/// there, and no other provider is written to at all. Callers that only want to
+/// *describe* an injection want [`hook_injection`], which stays pure.
 pub fn launch_args(
     provider: HarnessProvider,
     attribution: bool,
     hooks: &HooksConfig,
+    env: &std::collections::HashMap<String, String>,
 ) -> (Vec<String>, Vec<String>) {
-    let injection = hook_injection(provider, hooks);
+    let mut injection = hook_injection(provider, hooks);
+    if provider == HarnessProvider::Codex && !injection.args.is_empty() {
+        injection.warnings.extend(codex::trust_injected(
+            &installed_events(provider, hooks),
+            env,
+        ));
+    }
     if provider != HarnessProvider::Claude {
         let mut args = crate::attribution::attribution_args(provider, attribution);
         args.extend(injection.args.iter().cloned());
