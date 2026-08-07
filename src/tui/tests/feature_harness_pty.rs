@@ -26,6 +26,7 @@ fn spawn_sh(script: &str) -> anyhow::Result<PtyHarness> {
         args: vec!["-c".to_string(), script.to_string()],
         cwd: "/".to_string(),
         env,
+        env_remove: Vec::new(),
     })
 }
 
@@ -99,6 +100,7 @@ async fn missing_binary_is_an_error() {
         args: Vec::new(),
         cwd: "/".to_string(),
         env: HashMap::new(),
+        env_remove: Vec::new(),
     });
     assert!(result.is_err(), "spawning a missing binary should fail");
 }

@@ -83,6 +83,9 @@ fn spawn(request: PtyRequest) -> anyhow::Result<PtyHarness> {
     for (key, value) in &request.env {
         cmd.env(key, value);
     }
+    for key in &request.env_remove {
+        cmd.env_remove(key);
+    }
 
     let mut child = pair.slave.spawn_command(cmd)?;
     // Drop our handle on the slave: once the child's own copy closes, the master
