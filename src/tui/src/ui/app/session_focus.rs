@@ -95,18 +95,23 @@ impl App {
     /// and a stale index would put the cursor on whatever took its place. A task
     /// that is no longer served is reported instead.
     pub(in crate::ui::app) fn focus_session_for_task(&mut self, task_id: &str) -> bool {
-        let Some(session) = self
-            .started_sessions()
-            .into_iter()
-            .find(|session| session.task_id == task_id)
-        else {
+        // Keep the rows that yielded the offset through the cursor write. The
+        // local PTY registry can change while this event is handled; rebuilding
+        // here would let an insertion above the target retarget the cursor.
+        let rows = self.rail_rows();
+        let Some(row_index) = rows.iter().position(|row| {
+            matches!(row, RailRow::Session(session) if session
+                .task
+                .as_ref()
+                .is_some_and(|task| task.task_id == task_id)
+                && !session.origin().is_user())
+        }) else {
             self.set_status(format!("No session is running {task_id}"));
             return false;
         };
-        // Safe by construction: the index came from the list this call just
-        // built, so nothing can have moved between resolving it and using it.
         self.tab_index = super::types::tab_pos("Agents");
-        self.set_rail_cursor(session.row_index);
+        let lanes = self.lanes();
+        self.set_rail_cursor_in(&rows, &lanes, row_index);
         self.agent_scroll = 0;
         self.chat_scroll = 0;
         // The rail owns the keyboard on a session row: there is no composer under

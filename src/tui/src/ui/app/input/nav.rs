@@ -127,11 +127,15 @@ impl App {
     /// where it was. The `+N more` row *is* a destination — it is the control
     /// that pages its lane open.
     pub(in crate::ui::app) fn move_agent_index(&mut self, up: bool) {
+        let lanes = self.lanes();
         let rows = self.rail_rows();
         if rows.is_empty() {
             return;
         }
-        let clamped = self.agent_index.min(rows.len() - 1);
+        // `agent_index` is only the last rendered offset. Resolve the anchor
+        // first: a local session may have appeared above it since that frame,
+        // and stepping from the old offset would select the wrong neighbour.
+        let clamped = self.rail_cursor_in(&rows, &lanes);
         let step: i64 = if up { -1 } else { 1 };
         let mut next = clamped as i64 + step;
         while next >= 0 && (next as usize) < rows.len() && !rows[next as usize].selectable() {
@@ -142,7 +146,7 @@ impl App {
         } else {
             next as usize
         };
-        self.set_rail_cursor_in(&rows, &self.lanes(), next);
+        self.set_rail_cursor_in(&rows, &lanes, next);
     }
 
     /// Open a new thread and focus the conversation.
