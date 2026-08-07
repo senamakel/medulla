@@ -209,6 +209,10 @@ impl PathStyle {
 }
 
 /// The camelCase string serde writes for `value`, for persisting one key.
+///
+/// If `value` cannot serialize to a string, this retries with [`Default::default`].
+/// If neither value serializes to a string, it returns an empty string rather
+/// than reporting a serialization error.
 pub fn wire_value<T: Serialize + Default>(value: &T) -> String {
     fn as_string<T: Serialize>(value: &T) -> Option<String> {
         match serde_json::to_value(value).ok()? {
