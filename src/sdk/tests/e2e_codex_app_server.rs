@@ -266,7 +266,48 @@ async fn accepts_approvals_for_a_consented_task() {
         })
         .expect("a decision was sent");
     assert_eq!(decision["result"]["decision"], "accept");
-    assert_eq!(decision["id"], 9001);
+    assert_eq!(decision["id"], fake.only_ask_id());
+}
+
+/// Two lanes approving at once are answered independently.
+///
+/// The fake blocks each turn until its approval is answered, so a shared
+/// request id would make both answers release whichever wait registered last
+/// and strand the other turn until its timeout. Ids are allocated per ask for
+/// exactly this reason, and this is what would catch losing that.
+#[tokio::test]
+async fn answers_concurrent_approvals_independently() {
+    let dir = TempDir::new();
+    let fake = fake_app_server(&dir, TurnScript::AskApproval);
+    let home = home(&dir, "concurrent-approvals");
+
+    let runs = (0..2).map(|index| {
+        let (options, _) = options(&fake, &home, &format!("lane {index}"), 10_000);
+        run_provider_task(options)
+    });
+    for result in futures::future::join_all(runs).await {
+        result.expect("each lane runs");
+    }
+
+    let asked: Vec<serde_json::Value> = fake.asks().into_iter().map(|ask| ask["id"].clone()).collect();
+    assert_eq!(asked.len(), 2, "both lanes asked");
+    assert_ne!(asked[0], asked[1], "each ask got its own id");
+
+    let mut answered: Vec<serde_json::Value> = fake
+        .requests()
+        .into_iter()
+        .filter(|request| {
+            request
+                .get("result")
+                .and_then(|r| r.get("decision"))
+                .is_some()
+        })
+        .map(|request| request["id"].clone())
+        .collect();
+    answered.sort_by_key(|id| id.as_u64());
+    let mut expected = asked;
+    expected.sort_by_key(|id| id.as_u64());
+    assert_eq!(answered, expected, "each ask was answered under its own id");
 }
 
 /// …and a task the operator did not consent to has them declined, rather than
