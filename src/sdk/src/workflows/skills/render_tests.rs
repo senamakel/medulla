@@ -221,9 +221,15 @@ fn required_inputs_are_marked_and_placeheld() {
     );
     assert!(skill.body.contains("- `payload`* json\n"), "{}", skill.body);
     assert!(skill.body.contains("\"pr\":0"));
-    // The input schema already rejects a missing or misnamed value and says so;
-    // the skill does not re-explain it.
-    assert!(!skill.body.contains("invent"), "{}", skill.body);
+    // Examples are type-shaped, so the body must explicitly say that a required
+    // value absent from the operator's request cannot be invented from one.
+    assert!(
+        skill.body.contains(
+            "ask the operator for every required `*` input they did not supply; never use an example placeholder as its value."
+        ),
+        "{}",
+        skill.body
+    );
 
     let command = render_command(&skill, &summary("babysit", "Watch a PR.", inputs));
     assert!(command.contains("argument-hint: \"<pr> <payload>\""));

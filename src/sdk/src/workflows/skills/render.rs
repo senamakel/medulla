@@ -576,9 +576,14 @@ fn inputs_section(summary: &WorkflowSummary) -> String {
         }
         out.push('\n');
     }
-    // No "ask before you invent one" sentence: `workflow_run`'s own input schema
-    // already says a missing, mistyped, or undeclared value is rejected and
-    // nothing runs, and the model reads that schema on every call.
+    // Examples include type-shaped values for every input, including required
+    // ones. Make clear that those placeholders demonstrate the call shape; they
+    // are not authorisation to invent an operator's required values.
+    if summary.inputs.iter().any(|input| input.required) {
+        out.push_str(
+            "\nBefore calling, ask the operator for every required `*` input they did not supply; never use an example placeholder as its value.\n",
+        );
+    }
     if condensed_any {
         out.push_str(&format!("\n{}\n", full_text_pointer().trim()));
     }
