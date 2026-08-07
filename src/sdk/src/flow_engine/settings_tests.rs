@@ -93,6 +93,8 @@ fn config_becomes_settings_with_every_field_carried_across() {
         run_timeout_secs: 30,
         max_parallel_agents: 6,
         max_loop_iterations: 12,
+        // A listing bound, not a capability: nothing here reads it.
+        max_listed_runs: 15,
         evolve: Default::default(),
     };
 

@@ -146,15 +146,28 @@ impl App {
             // naming it beats a title that claims a provider we no longer know.
             None => "session".to_string(),
         };
+        // The keys the pane offers while nobody is typing into it go in the
+        // title beside the way in, because an unfocused terminal shows no hint
+        // of its own and the operator is reading this line to find out what the
+        // row can do. Dropped once attached: every key belongs to the harness
+        // then, and advertising `k` over a pane where it types a letter would be
+        // worse than saying nothing. `k` is dropped for an exited session too —
+        // its screen is still worth reading, but there is nothing left to close.
+        let running = row.as_ref().is_some_and(|row| row.state.is_running());
+        let keys = if running {
+            "d diff · k kill"
+        } else {
+            "d diff"
+        };
         if attached {
             format!("{what} · typing here · {FOCUS_CHORD_LABEL} to release")
         } else if let Some(cue) = waiting {
             format!(
-                "{what} · {ATTENTION_GLYPH} {} · Enter or {FOCUS_CHORD_LABEL} to answer · d diff",
+                "{what} · {ATTENTION_GLYPH} {} · Enter or {FOCUS_CHORD_LABEL} to answer · {keys}",
                 cue.label(medulla::clock::now_millis())
             )
         } else {
-            format!("{what} · Enter or {FOCUS_CHORD_LABEL} to type · d diff")
+            format!("{what} · Enter or {FOCUS_CHORD_LABEL} to type · {keys}")
         }
     }
 }

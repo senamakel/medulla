@@ -397,6 +397,28 @@ fn leaving_the_agents_tab_takes_the_keyboard_back_from_an_attached_harness() {
     );
 }
 
+#[test]
+fn a_stale_harness_diff_does_not_advertise_agents_shortcuts_on_another_tab() {
+    use crate::ui::app::types::{tab_pos, PaneView};
+
+    let mut app = app();
+    app.tab_index = tab_pos("Overview");
+    app.pane_view = PaneView::Diff;
+    let mut terminal =
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).expect("terminal");
+    terminal.draw(|frame| app.draw(frame)).expect("draw");
+    let output: String = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect();
+
+    assert!(output.contains("d session diff"), "{output}");
+    assert!(!output.contains("d/Esc harness"), "{output}");
+}
+
 /// Put the Changes tab in front of a patch whose selected line is far wider
 /// than the diff pane, so one rendered row wraps past the whole viewport.
 fn app_on_an_oversized_diff_line() -> App {

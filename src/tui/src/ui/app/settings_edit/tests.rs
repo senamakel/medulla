@@ -221,3 +221,30 @@ fn the_cursor_stays_in_range_however_far_it_is_driven() {
     }
     assert_eq!(app.config_row_index(), app.config_rows().len() - 1);
 }
+
+#[cfg(feature = "workflows")]
+#[test]
+fn the_listed_run_cap_starts_at_its_default_and_persists() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut app = app_in(dir.path());
+    app.config_index = row_at(&app, "Runs listed");
+    let row = app.config_rows()[app.config_index];
+    let SettingKind::Count { step, .. } = row.kind else {
+        panic!("Runs listed should be a count");
+    };
+    let default = medulla::config::WorkflowsConfig::DEFAULT_MAX_LISTED_RUNS as u32;
+    assert_eq!(
+        app.read_setting(&row),
+        SettingValue::Number(default),
+        "the row opens on the cap the page is already using"
+    );
+
+    app.adjust_setting(1);
+
+    assert_eq!(app.read_setting(&row), SettingValue::Number(default + step));
+    assert_eq!(
+        written(dir.path()).workflows.max_listed_runs,
+        (default + step) as usize,
+        "persisted under [workflows]"
+    );
+}

@@ -23,7 +23,7 @@ use std::path::Path;
 use medulla::ui::git_review::CommentAnchor;
 pub(crate) use types::GitChangesState;
 
-use super::types::{App, Cmd, PromptKind, TABS};
+use super::types::{App, Cmd, PaneView, PromptKind, TABS};
 use crate::ui::composer::{Draft, TextPrompt};
 use baseline::select_harness_baseline;
 
@@ -46,6 +46,35 @@ impl App {
         self.selected = 0;
         self.refresh_changes_from_selected_harness();
         None
+    }
+
+    /// Swap the harness pane between its terminal and its diff.
+    ///
+    /// The diff is drawn *in the pane* rather than on the Changes tab, because
+    /// the operator asked a question about the row they are sitting on: sending
+    /// them to another tab makes the rail cursor, the pane title and the tab bar
+    /// all move at once to answer "what has this one changed". Same state and
+    /// same bindings as the tab — only the real estate differs — so `d` again
+    /// puts the terminal back.
+    ///
+    /// Each opening re-points Git at this session's launch snapshot, for the
+    /// reason [`open_selected_harness_changes`](Self::open_selected_harness_changes)
+    /// does: the collected diff is shared with the Changes tab, so it may be
+    /// describing a different harness entirely.
+    pub(super) fn toggle_harness_diff_pane(&mut self) {
+        if self.pane_view == PaneView::Diff {
+            self.pane_view = PaneView::Harness;
+            self.set_status("Back to the harness");
+            return;
+        }
+        let Some(session) = self.pane_session.clone() else {
+            self.set_status("No session on this row — select one to see its diff");
+            return;
+        };
+        self.rail_session = Some(session.clone());
+        self.pane_view = PaneView::Diff;
+        self.pane_view_session = Some(session);
+        self.refresh_changes_from_selected_harness();
     }
 
     /// Reload commits, changed paths, and the selected patch from Git.

@@ -48,6 +48,9 @@ impl App {
         if self.kill_armed.take().is_some() {
             self.set_status("Session kill cancelled");
         }
+        if self.harness_close_armed.take().is_some() {
+            self.set_status("Harness close cancelled");
+        }
         // Ahead of every other rule, including the modal one below: a button
         // that went down in a harness has to come back up in it. The grab is
         // the whole gesture, so it outranks whatever the pointer has since

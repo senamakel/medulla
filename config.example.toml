@@ -164,6 +164,10 @@ tokenEnv = "MEDULLA_TOKEN"
 # runTimeoutSecs = 600
 # toolAllowlist = []
 # httpAllowlist = []
+# How many of a workflow's runs the Workflows page lists under it, newest
+# first. Only the listing: every run stays in the store, and `medulla workflow
+# list-runs` still shows the lot. Settings › Config edits this live.
+# maxListedRuns = 15
 
 # ---------------------------------------------------------------------------
 # mcp — Medulla's tool server, as offered to the harnesses it spawns

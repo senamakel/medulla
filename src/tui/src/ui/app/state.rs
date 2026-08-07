@@ -157,6 +157,9 @@ impl App {
             live_runs: Default::default(),
             harness_focus: crate::ui::harness_pane::HarnessFocus::default(),
             pane_session: None,
+            pane_view: Default::default(),
+            pane_view_session: None,
+            harness_close_armed: None,
             pane_remote_session: None,
             rail_session: None,
             agent_picker: None,
@@ -461,6 +464,9 @@ impl App {
         // A destructive confirmation is valid only while its question remains
         // visible. Any asynchronous status replacement cancels it.
         self.kill_armed = None;
+        // The harness close question is the same kind of promise: it is only
+        // answerable while the sentence asking it is the one on screen.
+        self.harness_close_armed = None;
         self.status = s.into();
     }
 
@@ -469,6 +475,15 @@ impl App {
     pub(super) fn arm_kill(&mut self, target: (String, String)) {
         self.set_status("Kill this session? y confirm · any other key cancels");
         self.kill_armed = Some(target);
+    }
+
+    /// Show and arm the "close this harness" confirmation for `session`.
+    ///
+    /// Set after the status line, never before: [`set_status`](Self::set_status)
+    /// disarms, so arming first would leave the question visible and unanswerable.
+    pub(super) fn arm_harness_close(&mut self, session: String) {
+        self.set_status("Close this harness? y confirm · any other key cancels");
+        self.harness_close_armed = Some(session);
     }
 
     /// Replace the Context-tab chunks.
