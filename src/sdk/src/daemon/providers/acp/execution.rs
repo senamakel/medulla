@@ -124,7 +124,7 @@ pub(in crate::daemon::providers) fn uses_acp(options: &RunTaskOptions) -> bool {
 
 /// Execute one task through the standard Agent Client Protocol.
 pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, String> {
-    let agent = agent_for(&options);
+    let agent = agent_for(&options)?;
     // Read before `options` is picked apart below, and cloned because the
     // session setup runs inside an async move closure.
     #[cfg(feature = "workflows")]
@@ -295,14 +295,16 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 }
 
 /// Construct the ACP server command for a supported harness.
-pub(super) fn agent_for(options: &RunTaskOptions) -> AcpAgent {
+pub(super) fn agent_for(options: &RunTaskOptions) -> Result<AcpAgent, String> {
+    // Built once and shared: the model flags below are derived from the same
+    // map the child receives, and `router_env` writing `OPENAI_BASE_URL` into it
+    // is what tells `codex_overrides` the run is routed at all.
+    let env = acp_env(options)?;
     let config = match options.provider {
         HarnessProvider::Claude => {
             AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/claude-agent-acp@latest"])
         }
-        HarnessProvider::Codex => {
-            AcpAgentConfig::new("npx").args(["-y", "@agentclientprotocol/codex-acp@latest"])
-        }
+        HarnessProvider::Codex => AcpAgentConfig::new("npx").args(codex_acp_args(options, &env)?),
         HarnessProvider::Opencode => AcpAgentConfig::new(crate::protocol::env::provider_bin(
             HarnessProvider::Opencode,
             &options.env,
@@ -319,13 +321,50 @@ pub(super) fn agent_for(options: &RunTaskOptions) -> AcpAgent {
     #[cfg(unix)]
     let config = config
         .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
-        .envs(acp_env(options));
+        .envs(env);
     #[cfg(windows)]
     let config = config
         .command_with_env_removals(crate::protocol::env::CORE_STATE_VARS)
-        .envs(acp_env(options));
+        .envs(env);
 
-    AcpAgent::new(config)
+    Ok(AcpAgent::new(config))
+}
+
+/// The `codex-acp` argv, including the model and the routed-provider overrides.
+///
+/// The direct spawn seam builds these in two places — `-m <slug>` in
+/// [`crate::daemon::providers::detect::build_resumed_run_args`] and the `-c`
+/// block in [`crate::codex_overrides::launch_args`] — and ACP dispatch used to
+/// build neither. A preset therefore reached Codex as a bare `codex-acp` with
+/// its `model` silently dropped, so Codex ran the operator's own configured
+/// default on the operator's own ChatGPT account: the routed endpoint was in the
+/// environment but nothing selected it, and the preset's model never appeared in
+/// a single upstream request.
+fn codex_acp_args(
+    options: &RunTaskOptions,
+    env: &HashMap<String, String>,
+) -> Result<Vec<String>, String> {
+    let mut args = vec![
+        "-y".to_string(),
+        "@agentclientprotocol/codex-acp@latest".to_string(),
+    ];
+    let model = options
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|model| !model.is_empty());
+    if let Some(model) = model {
+        args.push("-m".to_string());
+        args.push(model.to_string());
+    }
+    // A routed run cannot safely fall back to the operator's default account
+    // or endpoint: its catalog governs the provider's supported tool shapes.
+    // Match the direct spawn seam and return a usable error before ACP starts.
+    args.extend(
+        crate::codex_overrides::launch_args(options.provider, model, env)
+            .map_err(|error| error.to_string())?,
+    );
+    Ok(args)
 }
 
 /// The environment handed to the ACP agent process.
@@ -340,11 +379,11 @@ pub(super) fn agent_for(options: &RunTaskOptions) -> AcpAgent {
 /// and for OpenRouter that endpoint is the local attribution proxy, which an
 /// unrouted ACP agent would walk straight past.
 ///
-/// A configured `apiKeyEnv` whose variable is unset is *not* fatal here, unlike
-/// the direct spawn seam: the ACP server may hold its own credentials, and this
-/// path has no error frame to surface a refusal through. The endpoint is applied
-/// and the key left to the agent.
-pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
+/// A configured `apiKeyEnv` whose variable is unset is a hard error, matching
+/// direct execution. Continuing would start Codex with routed-provider
+/// overrides but no routed credential, allowing an unrelated inherited key to
+/// be sent to the configured gateway.
+pub(super) fn acp_env(options: &RunTaskOptions) -> Result<HashMap<String, String>, String> {
     let mut env = options.env.clone();
     crate::protocol::env::scrub_core_state(&mut env, options.provider);
     // A fleet capability belongs only to the per-session MCP subprocess. The
@@ -362,12 +401,20 @@ pub(super) fn acp_env(options: &RunTaskOptions) -> HashMap<String, String> {
             env.insert(key, value);
         }
         for (child_var, source_name) in injection.secret_env {
-            if let Some(secret) = options.env.get(&source_name).filter(|v| !v.is_empty()) {
-                env.insert(child_var, secret.clone());
-            }
+            let secret = options
+                .env
+                .get(&source_name)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    format!(
+                        "router API key env var `{source_name}` is not set; \
+                         export it or remove apiKeyEnv from [router]"
+                    )
+                })?;
+            env.insert(child_var, secret.clone());
         }
     }
-    env
+    Ok(env)
 }
 
 /// Adds a Unix `env -u` shim around an ACP command.
@@ -427,14 +474,18 @@ impl AcpAgentConfigExt for AcpAgentConfig {
 /// Quote a command argument for `cmd.exe` without allowing its metacharacters
 /// to turn an operator-configured provider path into another command.
 #[cfg(windows)]
-fn quote_windows_cmd_arg(argument: &str) -> String {
+pub(super) fn quote_windows_cmd_arg(argument: &str) -> String {
     let escaped = argument.replace('^', "^^").replace('%', "%%");
     let escaped = escaped
         .chars()
         .flat_map(|character| match character {
-            '&' | '|' | '<' | '>' | '(' | ')' | '"' => vec!['^', character],
+            '&' | '|' | '<' | '>' | '(' | ')' => vec!['^', character],
             _ => vec![character],
         })
         .collect::<String>();
-    format!("\"{escaped}\"")
+    // `cmd.exe` passes doubled quotes through a double-quoted argument as a
+    // literal quote. A caret would instead be preserved by `npx`'s Windows
+    // wrapper, turning TOML values such as `model_provider="medulla"` into
+    // invalid `^"`-prefixed values when Codex parses its `-c` overrides.
+    format!("\"{}\"", escaped.replace('"', "\"\""))
 }
