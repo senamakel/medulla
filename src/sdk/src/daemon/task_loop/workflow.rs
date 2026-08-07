@@ -106,19 +106,28 @@ impl RuntimeDispatch {
 
     /// The provider and transport `request` will actually run on.
     ///
-    /// Both fall back, for the same portability reason: a graph authored
-    /// against a harness this worker does not offer should still run here. That
-    /// makes the resolved pair a different thing from what the node asked for,
-    /// and the two callers that need it — the dispatch itself and the run
-    /// inspector's harness label — have to agree, so it is resolved once.
+    /// An address hint may fall back for portability, but a named preset may
+    /// not: its endpoint, credentials, and model only make sense with its
+    /// base harness. The two callers that need the resolved pair — the
+    /// dispatch itself and the run inspector's harness label — therefore share
+    /// this rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RunError::Worker`] when a named preset's base provider is not
+    /// offered by this daemon. Falling through to another provider would pair
+    /// the preset's routing configuration with the wrong harness.
     fn resolve(
         &self,
         request: &TaskRequest,
         preset: Option<&crate::config::CustomHarnessConfig>,
-    ) -> (
-        crate::protocol::HarnessProvider,
-        crate::protocol::HarnessTransport,
-    ) {
+    ) -> Result<
+        (
+            crate::protocol::HarnessProvider,
+            crate::protocol::HarnessTransport,
+        ),
+        RunError,
+    > {
         let inner = &self.runtime.inner;
         // A preset outranks the address hint: it is a complete description of
         // one harness — binary, endpoint, credentials, model — and running it on
@@ -127,8 +136,12 @@ impl RuntimeDispatch {
         // anything this worker does not offer falls back to the default rather
         // than failing.
         let provider = preset
-            .map(|harness| harness.base_harness)
-            .and_then(|base| self.runtime.select_provider(Some(base)))
+            .map(|harness| {
+                self.runtime
+                    .select_provider(Some(harness.base_harness))
+                    .ok_or_else(|| unavailable_provider_error(inner, Some(harness.base_harness)))
+            })
+            .transpose()?
             .or_else(|| {
                 crate::protocol::HarnessProvider::from_wire(&request.worker_address)
                     .filter(|p| inner.config.providers.contains(p))
@@ -141,7 +154,7 @@ impl RuntimeDispatch {
             .transport
             .filter(|transport| transport.supported_by(provider))
             .unwrap_or_default();
-        (provider, transport)
+        Ok((provider, transport))
     }
 }
 
@@ -150,7 +163,7 @@ impl HarnessDispatch for RuntimeDispatch {
     async fn dispatch(&self, request: TaskRequest) -> Result<TaskOutcome, RunError> {
         let inner = &self.runtime.inner;
         let preset = self.preset(&request)?;
-        let (provider, transport) = self.resolve(&request, preset.as_ref());
+        let (provider, transport) = self.resolve(&request, preset.as_ref())?;
 
         // The preset's non-secret knobs ride down in the environment, which is
         // what every spawn seam hands the child unchanged — see
@@ -244,9 +257,34 @@ impl HarnessDispatch for RuntimeDispatch {
         // point (the branch above returned), so the error case is unreachable
         // and reported as "no preset" rather than widening this signature.
         let preset = self.preset(request).ok().flatten();
-        let (provider, transport) = self.resolve(request, preset.as_ref());
+        let (provider, transport) = self.resolve(request, preset.as_ref()).ok()?;
         Some(provider.flavor_name(transport).to_string())
     }
+}
+
+/// Match the task-frame handler's error when a requested provider is absent.
+fn unavailable_provider_error(
+    inner: &super::super::types::Inner,
+    requested_provider: Option<crate::protocol::HarnessProvider>,
+) -> RunError {
+    let offered = inner
+        .config
+        .providers
+        .iter()
+        .map(|provider| provider.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let offered = if offered.is_empty() {
+        "(none)".to_string()
+    } else {
+        offered
+    };
+    let requested = requested_provider
+        .map(|provider| format!(" for requested \"{}\"", provider.as_str()))
+        .unwrap_or_default();
+    RunError::Worker(format!(
+        "no available provider{requested}; daemon offers: {offered}"
+    ))
 }
 
 impl DaemonRuntime {

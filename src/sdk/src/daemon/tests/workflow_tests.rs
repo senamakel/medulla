@@ -320,3 +320,60 @@ async fn workflow_dispatch_refuses_an_unconfigured_preset() {
         "the error must name the preset that is missing, got: {error}"
     );
 }
+
+/// A preset cannot safely run when its base harness is unavailable.
+///
+/// Unlike an address hint, a preset supplies harness-specific endpoint and
+/// credential settings. Falling back to the daemon default would run the
+/// preset's model and router on a different binary, so this must fail with the
+/// same unavailable-provider error as an ordinary task frame.
+#[tokio::test]
+async fn workflow_dispatch_refuses_a_preset_with_an_unavailable_base_provider() {
+    let runner: RunTaskFn = Arc::new(move |options: crate::daemon::providers::RunTaskOptions| {
+        Box::pin(async move {
+            Ok(RunTaskResult {
+                session_id: None,
+                usage: None,
+                provider: options.provider,
+                reply: "done".to_string(),
+                events: 0,
+            })
+        })
+    });
+    let mut config = base_config();
+    config.providers = vec![crate::protocol::HarnessProvider::Codex];
+    config.default_provider = crate::protocol::HarnessProvider::Codex;
+    config.custom_harnesses = vec![crate::config::CustomHarnessConfig::from_editor_line(
+        "deepseek | DeepSeek via Claude | claude | deepseek/pro | deepseek/fast | this-device",
+    )
+    .unwrap()];
+    let (send, _) = recording_send();
+    let runtime = crate::daemon::DaemonRuntime::new(config, runner, send);
+    let dispatch = RuntimeDispatch::new(runtime, "peer".into());
+
+    let error = dispatch
+        .dispatch(TaskRequest {
+            custom_harness: Some("deepseek".into()),
+            worker_address: "codex".into(),
+            transport: None,
+            task_id: "node-1".into(),
+            abort_id: "node-1".into(),
+            cycle_id: None,
+            instruction: "run the node".into(),
+            provider: None,
+            model: None,
+            tool_mode: None,
+            workflow: None,
+            workflow_fingerprint: None,
+            workflow_inputs: Default::default(),
+            conversation: None,
+            fleet_depth: 0,
+        })
+        .await
+        .expect_err("a preset must not fall back to a different provider");
+
+    assert_eq!(
+        format!("{error}"),
+        "worker error: no available provider for requested \"claude\"; daemon offers: codex"
+    );
+}
