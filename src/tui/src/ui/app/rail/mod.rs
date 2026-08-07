@@ -163,8 +163,8 @@ impl App {
                     .collect();
                 group.visible_tasks = self.revealed_subtasks(&lane.key).min(group.sessions.len());
                 group.hidden = group.sessions.len().saturating_sub(group.visible_tasks);
-                group.overflow = group.hidden > 0
-                    || group.visible_tasks > crate::ui::app::input::nav::SUBTASK_PAGE;
+                group.overflow =
+                    group.hidden > 0 || group.visible_tasks > crate::ui::app::input::SUBTASK_PAGE;
                 group
             })
             .collect()

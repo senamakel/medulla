@@ -8,17 +8,16 @@
 //! says rather than how it is laid out across columns.
 
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line as TLine, Span, Text};
+use ratatui::style::Style;
+use ratatui::text::{Line as TLine, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::ui::agents::{AgentLane, TaskStatus};
 use crate::worker::pty::ATTENTION_GLYPH;
 
-use super::super::super::rail::{RailRow, NEW_SESSION_LABEL};
+use super::super::super::rail::RailRow;
 use super::super::super::types::{App, RailHit};
-use super::super::color;
 use super::types::{Selection, SessionsPanes};
 
 mod device_footer;
@@ -35,7 +34,6 @@ mod wrap;
 
 use types::DeviceFooter;
 pub(super) use workflow_run::workflow_run_elapsed;
-use wrap::wrap_line;
 
 /// The most content columns the Sessions rail ever takes.
 ///
