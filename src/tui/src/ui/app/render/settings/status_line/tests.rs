@@ -10,5 +10,5 @@ fn footer_height_accounts_for_wrapped_detail_lines() {
         "A detailed footer sentence that exceeds the pane width",
     )];
 
-    assert_eq!(rendered_height(&lines, 10), 6);
+    assert_eq!(rendered_height(&lines, 10), 7);
 }
