@@ -19,6 +19,13 @@ pub(in crate::ui::app) enum RailHitTarget {
     Overflow,
     /// A row attached to this local harness session.
     Session(String),
+    /// A workflow run whose graph view should open.
+    WorkflowRun {
+        /// Stable workflow identifier.
+        workflow_id: String,
+        /// Stable run identifier within the workflow.
+        run_id: String,
+    },
 }
 
 impl RailHitTarget {
@@ -64,6 +71,11 @@ impl RailHit {
             RailHitTarget::NewSession(agent_id.to_string())
         } else if matches!(row, RailRow::Lane(crate::ui::agents::AgentRow::More { .. })) {
             RailHitTarget::Overflow
+        } else if let Some(run) = row.workflow_run() {
+            RailHitTarget::WorkflowRun {
+                workflow_id: run.run.workflow_id.clone(),
+                run_id: run.run.run_id.clone(),
+            }
         } else if let Some(session) = row.session_id() {
             RailHitTarget::Session(session.to_string())
         } else if row.selectable() {

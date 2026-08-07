@@ -575,6 +575,14 @@ impl App {
                                 self.open_new_session(agent_id);
                                 return self.retarget_watch();
                             }
+                            if let super::super::types::RailHitTarget::WorkflowRun {
+                                workflow_id,
+                                run_id,
+                            } = &hit.target
+                            {
+                                self.open_workflow_run(workflow_id, run_id);
+                                return self.retarget_watch();
+                            }
                             // So is a lane's `+N more`: the click that lands on
                             // it is the request to see what it is counting.
                             //

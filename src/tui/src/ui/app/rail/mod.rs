@@ -43,6 +43,8 @@ mod cleanup;
 #[cfg(test)]
 mod cleanup_tests;
 mod cursor;
+#[cfg(test)]
+mod cursor_tests;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
