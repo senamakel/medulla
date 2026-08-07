@@ -375,3 +375,14 @@ fn routed_codex_acp_rejects_missing_override_catalog() {
 
     assert!(error.contains("models_cache.json"), "{error}");
 }
+
+/// Windows command wrapping must preserve the TOML quotes in Codex's `-c`
+/// arguments; Codex parses the text after `=` as TOML rather than a shell word.
+#[cfg(windows)]
+#[test]
+fn windows_cmd_quoting_preserves_embedded_toml_quotes() {
+    assert_eq!(
+        super::super::execution::quote_windows_cmd_arg("model_provider=\"medulla\""),
+        "\"model_provider=\"\"medulla\"\"\""
+    );
+}

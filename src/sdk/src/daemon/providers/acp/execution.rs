@@ -471,9 +471,13 @@ fn quote_windows_cmd_arg(argument: &str) -> String {
     let escaped = escaped
         .chars()
         .flat_map(|character| match character {
-            '&' | '|' | '<' | '>' | '(' | ')' | '"' => vec!['^', character],
+            '&' | '|' | '<' | '>' | '(' | ')' => vec!['^', character],
             _ => vec![character],
         })
         .collect::<String>();
-    format!("\"{escaped}\"")
+    // `cmd.exe` passes doubled quotes through a double-quoted argument as a
+    // literal quote. A caret would instead be preserved by `npx`'s Windows
+    // wrapper, turning TOML values such as `model_provider="medulla"` into
+    // invalid `^"`-prefixed values when Codex parses its `-c` overrides.
+    format!("\"{}\"", escaped.replace('"', "\"\""))
 }
