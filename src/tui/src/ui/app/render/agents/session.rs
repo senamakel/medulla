@@ -12,7 +12,7 @@
 //! decides how many rows the split has to give away.
 
 use super::super::super::rail::RailRow;
-use super::super::super::types::App;
+use super::super::super::types::{App, PaneView};
 use super::types::Selection;
 
 impl App {
@@ -33,6 +33,15 @@ impl App {
             if selection.session.as_deref() != Some(attached) {
                 self.release_session();
             }
+        }
+        // A pane view belongs to the session it was opened over. Moving the
+        // cursor is leaving that session, so the pane goes back to showing a
+        // harness — otherwise the diff opened for one row stays up over the
+        // next, labelled with this row's title and describing the last one's
+        // work.
+        if self.pane_view_session != selection.session {
+            self.pane_view_session = selection.session.clone();
+            self.pane_view = PaneView::Harness;
         }
         self.pane_session = selection.session.clone();
         self.rail_session = selection.session.clone();

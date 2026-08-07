@@ -121,7 +121,13 @@ impl App {
             .list_proposals(&workflow)
             .unwrap_or_default();
         match self.workflow_store().list_runs(&workflow) {
-            Ok(runs) => {
+            Ok(mut runs) => {
+                // Newest first out of the store, so the cap keeps the recent
+                // runs and drops the tail. The records themselves are untouched:
+                // this bounds the *listing*, and the durable history stays whole
+                // on disk for `medulla workflow list-runs` and for the evolve
+                // pass, which reads its own window of it.
+                runs.truncate(self.listed_run_cap());
                 self.workflow_runs = runs;
                 self.workflow_runs_error = None;
             }
@@ -137,6 +143,15 @@ impl App {
             self.wf.run_index = None;
             self.wf.overlay = None;
         }
+    }
+
+    /// How many runs the rail lists under one workflow.
+    ///
+    /// Floored at one rather than honoured literally: a `maxListedRuns` of zero
+    /// would leave a workflow that has run looking like one that never has,
+    /// which is the one reading the rail must not give.
+    fn listed_run_cap(&self) -> usize {
+        self.loaded.config.workflows.max_listed_runs.max(1)
     }
 
     /// What the selected workflow has learned, newest first.

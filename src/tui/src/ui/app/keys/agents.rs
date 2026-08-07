@@ -18,7 +18,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::super::types::{AgentsFocus, App, Cmd};
+use super::super::types::{AgentsFocus, App, Cmd, PaneView};
 use crate::ui::composer::insert_at;
 
 /// What rail-focus handling did with one key press.
@@ -85,6 +85,31 @@ impl App {
         self.agents_focus = AgentsFocus::Composer;
     }
 
+    /// Handle a key while the pane is showing one of the session's non-terminal
+    /// views. Returns `true` when the view claimed it.
+    ///
+    /// `d` and `Esc` both go back to the harness: one is the key that opened the
+    /// view, the other is what every other overlay in the TUI closes with, and a
+    /// view that replaced the whole pane needs an exit that is guessable.
+    /// Everything else is delegated to the view's own bindings, which are the
+    /// tab's — two copies of "how do I move down a diff" would drift.
+    fn on_pane_view_key(&mut self, k: KeyEvent) -> bool {
+        if k.modifiers.contains(KeyModifiers::CONTROL) || k.modifiers.contains(KeyModifiers::ALT) {
+            return false;
+        }
+        match self.pane_view {
+            PaneView::Harness => false,
+            PaneView::Diff if self.changes.picking_baseline => self.on_changes_key(k.code),
+            PaneView::Diff => match k.code {
+                KeyCode::Char('d') | KeyCode::Esc => {
+                    self.toggle_harness_diff_pane();
+                    true
+                }
+                code => self.on_changes_key(code),
+            },
+        }
+    }
+
     /// Handle a key while the rail holds focus.
     ///
     /// Returns [`AgentsKey::Unhandled`] for anything the rail has no opinion on
@@ -97,13 +122,41 @@ impl App {
         let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
         let alt = k.modifiers.contains(KeyModifiers::ALT);
 
+        // A pane showing one of the session's other views binds that view's
+        // keys, not the harness's: while the diff is up, `j`/`k` walk the patch
+        // exactly as they do on the Changes tab. Anything the view does not
+        // claim — Tab, the steering chords — falls through untouched.
+        if self.pane_view != PaneView::Harness && self.pane_session.is_some() {
+            if self.on_pane_view_key(k)
+                // The diff replaces the composer. An unbound printable key must
+                // stay with that visible view instead of falling through to the
+                // rail's typing shortcut and silently changing a hidden draft.
+                || (!ctrl && !alt && matches!(k.code, KeyCode::Char(_)))
+            {
+                return AgentsKey::Handled(None);
+            }
+        }
+
         match k.code {
-            // A harness row has an immutable launch snapshot. Jump straight to
-            // its diff rather than making the operator tab across and rely on
-            // the Changes view to remember which of several harnesses they had
-            // selected. When no harness is shown, `d` remains ordinary typing.
+            // A harness row has an immutable launch snapshot, so `d` shows what
+            // this session has changed since it launched — in the pane the
+            // terminal was in, because that is the row the question was asked
+            // from. When no harness is shown, `d` remains ordinary typing.
             KeyCode::Char('d') if !ctrl && !alt && self.pane_session.is_some() => {
+                self.toggle_harness_diff_pane();
+                AgentsKey::Handled(None)
+            }
+            // `D` is the same diff on the Changes tab: the pane is half a
+            // screen, and a review with comments on it wants the whole one.
+            KeyCode::Char('D') if !ctrl && !alt && self.pane_session.is_some() => {
                 AgentsKey::Handled(self.open_selected_harness_changes())
+            }
+            // `k` closes the harness the pane is showing — the other half of the
+            // two things an operator wants from a session they are looking at
+            // but not typing into. It asks first; see `close_pane_session_prompt`.
+            KeyCode::Char('k') if !ctrl && !alt && self.pane_session.is_some() => {
+                self.close_pane_session_prompt();
+                AgentsKey::Handled(None)
             }
             KeyCode::Char('K') => {
                 if let Some(target) = self.kill_target() {

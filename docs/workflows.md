@@ -634,6 +634,7 @@ allowCode = true          # set false for untrusted workflows; there is no sandb
 toolAllowlist = []        # beyond the built-in medulla:* tools
 httpAllowlist = []        # a bare domain also permits its subdomains
 runTimeoutSecs = 600
+maxListedRuns = 15        # runs listed under a workflow on the Workflows page
 ```
 
 Note this is `workflows`, plural. The older `workflow` key is unrelated — despite
