@@ -175,10 +175,34 @@ def respond(request_id, result):
 def fail(request_id, text):
     write({{"jsonrpc": "2.0", "id": request_id, "error": {{"code": -32000, "message": text}}}})
 
+pending = {{}}
+pending_lock = threading.Lock()
+
 def ask(request_id, method, params):
-    """Send a request *to* the client. Its answer arrives on stdin and is
-    recorded like any other inbound line."""
+    """Send a request *to* the client and block until it answers.
+
+    The answer arrives on stdin and is recorded like any other inbound line.
+    Blocking here is what a real server does, and it is also what makes the
+    recording observable: a script that asked and then completed the turn
+    straight away would let the client's task finish before the reader loop had
+    written the answer, so a test reading the request log would race it.
+    """
+    event = threading.Event()
+    with pending_lock:
+        pending[request_id] = event
     write({{"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}})
+    # Bounded, so a client that never answers hangs the turn rather than the
+    # whole process — the test's own timeout then reports it.
+    event.wait(30)
+    with pending_lock:
+        pending.pop(request_id, None)
+
+def answered(message):
+    """Release the `ask` waiting on this reply, if any."""
+    with pending_lock:
+        event = pending.get(message.get("id"))
+    if event is not None:
+        event.set()
 
 def serve(message):
     method = message.get("method")
