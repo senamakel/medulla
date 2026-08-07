@@ -173,7 +173,7 @@ impl App {
             appearance.sidebar_sort,
         );
         organize::sort_sessions(&mut orphans, appearance.sidebar_sort);
-        self.flatten(lane_rows, sections, orphans)
+        self.flatten(lane_rows, sections, orphans, lanes)
     }
 
     /// Split the folded rows into the non-agent ones and the per-agent groups.
@@ -326,6 +326,7 @@ impl App {
         lane_rows: Vec<AgentRow>,
         sections: Vec<organize::Section>,
         orphans: Vec<SessionRailRow>,
+        lanes: &[AgentLane],
     ) -> Vec<RailRow> {
         let mut rows: Vec<RailRow> = lane_rows.into_iter().map(RailRow::Lane).collect();
         // A device that hosts nothing cannot declare an agent on itself, so the
@@ -364,7 +365,14 @@ impl App {
                 let offers_session = declared
                     .iter()
                     .any(|agent_id| agent_id.trim() == group.row.agent_id.trim());
-                push_group(&mut rows, group, offers_session, &self.harness_runs);
+                push_group(
+                    &mut rows,
+                    group,
+                    offers_session,
+                    &self.harness_runs,
+                    lanes,
+                    self.agent_anchor.as_ref(),
+                );
             }
         }
         for mut session in orphans {
@@ -639,10 +647,23 @@ fn push_group(
     group: &mut AgentGroup,
     offers_session: bool,
     runs: &medulla::control_socket::HarnessRunRegistry,
+    lanes: &[AgentLane],
+    anchor: Option<&RailAnchor>,
 ) {
     rows.push(RailRow::Agent(group.row.clone()));
     let task_limit = group.visible_tasks;
     let mut visible_tasks = 0;
+    let pinned_task = group
+        .row
+        .lane_index
+        .and_then(|index| lanes.get(index))
+        .and_then(|lane| match anchor {
+            Some(RailAnchor::Task {
+                lane: anchored_lane,
+                task_id,
+            }) if anchored_lane == &lane.key => Some(task_id.as_str()),
+            _ => None,
+        });
     let mut shown_sessions: Vec<_> = group
         .sessions
         .iter_mut()
@@ -652,6 +673,11 @@ fn push_group(
             }
             visible_tasks += 1;
             visible_tasks <= task_limit
+                || session
+                    .task
+                    .as_ref()
+                    .is_some_and(|task| Some(task.task_id.as_str()) == pinned_task)
+                || !run_rows_under(session, runs).is_empty()
         })
         .collect();
     let shown = shown_sessions.len();

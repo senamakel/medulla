@@ -8,7 +8,10 @@
 //! lookup for real.
 
 use super::tests::{app, stub_session};
-use super::{task_row_serving, AgentGroup, AgentRailRow, SessionRailRow};
+use super::{
+    push_group, task_row_serving, AgentGroup, AgentRailRow, RailAnchor, RailRow, SessionRailRow,
+};
+use medulla::control_socket::{HarnessRunStatus, RunReport};
 use medulla::ui::agents::{AgentLane, AgentRole, TaskState, TaskStatus};
 
 fn task_row(task_id: &str) -> SessionRailRow {
@@ -142,4 +145,98 @@ fn paging_starts_with_the_fold_running_first_task_order() {
         vec!["running-older", "completed-recently"],
         "the first task page must match the fold's running-first order"
     );
+}
+
+#[test]
+fn paging_keeps_the_anchored_task_after_recent_sorting() {
+    let lanes = vec![AgentLane {
+        key: "agent:shell".into(),
+        label: "shell".into(),
+        role: AgentRole::Agent,
+        turns: Vec::new(),
+        last_at: 0,
+        tasks: Vec::new(),
+        context_tokens: None,
+        usage: Default::default(),
+        harness_label: None,
+        agent_id: Some("shell".into()),
+        session_id: None,
+        parent_agent_id: None,
+        descriptor: None,
+        active_tasks: 0,
+        work: None,
+    }];
+    let mut owner = group(vec![
+        task_row("newest"),
+        task_row("middle"),
+        task_row("selected"),
+    ]);
+    owner.visible_tasks = 1;
+    owner.overflow = true;
+    let mut rows = Vec::new();
+
+    push_group(
+        &mut rows,
+        &mut owner,
+        false,
+        &medulla::control_socket::HarnessRunRegistry::new(),
+        &lanes,
+        Some(&RailAnchor::Task {
+            lane: "agent:shell".into(),
+            task_id: "selected".into(),
+        }),
+    );
+
+    assert!(rows.iter().any(|row| matches!(
+        row,
+        RailRow::Session(session)
+            if session.task.as_ref().is_some_and(|task| task.task_id == "selected")
+    )));
+}
+
+#[test]
+fn paging_keeps_a_task_backed_session_with_an_active_workflow_run() {
+    let lanes = vec![AgentLane {
+        key: "agent:shell".into(),
+        label: "shell".into(),
+        role: AgentRole::Agent,
+        turns: Vec::new(),
+        last_at: 0,
+        tasks: Vec::new(),
+        context_tokens: None,
+        usage: Default::default(),
+        harness_label: None,
+        agent_id: Some("shell".into()),
+        session_id: None,
+        parent_agent_id: None,
+        descriptor: None,
+        active_tasks: 0,
+        work: None,
+    }];
+    let mut active = task_row("active-workflow");
+    let mut local = stub_session("pty-1");
+    local.mcp_grant_session = Some("grant-1".into());
+    active.local = Some(local);
+    let mut owner = group(vec![task_row("newest"), active]);
+    owner.visible_tasks = 1;
+    owner.overflow = true;
+    let runs = medulla::control_socket::HarnessRunRegistry::new();
+    runs.report(
+        "grant-1",
+        RunReport {
+            run_id: "run-1".into(),
+            workflow_id: "workflow".into(),
+            status: HarnessRunStatus::Running,
+            detail: None,
+            node: None,
+        },
+    );
+    let mut rows = Vec::new();
+
+    push_group(&mut rows, &mut owner, false, &runs, &lanes, None);
+
+    assert!(rows.iter().any(|row| matches!(
+        row,
+        RailRow::WorkflowRun(run) if run.run.run_id == "run-1"
+    )));
 }
