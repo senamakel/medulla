@@ -342,7 +342,9 @@ fn codex_acp_command_stays_unrouted_without_an_endpoint() {
         "no model was configured, so none may be selected: {args:?}"
     );
     assert!(
-        !args.iter().any(|argument| argument.starts_with("model_provider=")),
+        !args
+            .iter()
+            .any(|argument| argument.starts_with("model_provider=")),
         "an unrouted run must keep Codex's own provider: {args:?}"
     );
 }
