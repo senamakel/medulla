@@ -43,13 +43,60 @@ use crate::workflows::types::{
     WorkflowSummary,
 };
 
+use dirs::catalog_identity;
+pub(super) use dirs::definition_state_dir;
 use document::{read_workflow, to_document};
-use paths::{is_json, write_atomic};
+pub(crate) use paths::write_atomic;
+use paths::{is_json, stage_atomic};
 // Re-exported within the crate rather than merely imported: the identifier
 // guard is the one piece of this module worth asserting on from outside it.
 pub(crate) use paths::safe_component;
 
 use super::{ProposalDecisionGuard, WorkflowStore};
+
+/// The host-state directory this environment and working directory resolve to.
+///
+/// Everything a host records *about* workflows rather than as part of them —
+/// runs, journal notes, proposals, copilot transcripts — hangs off this one
+/// path, scoped to the workspace so two checkouts of the same repository do not
+/// read each other's history. Exposed rather than left inside
+/// [`FileWorkflowStore::discover`] because the transcript store
+/// ([`crate::workflows::copilot::Transcripts`]) has to land in the same place,
+/// and a second copy of this derivation is a second thing to keep in step.
+pub fn workspace_state_dir(env: &HashMap<String, String>, cwd: &Path) -> PathBuf {
+    workspace_state_dir_under(&medulla_home(env), cwd)
+}
+
+/// The same path, for a caller that already knows the Medulla home.
+///
+/// The TUI does: it resolved the home once at startup and holds it, and
+/// re-deriving it from the process environment would ignore a `--home` the
+/// operator passed — and, in tests, would write a fixture's conversations into
+/// the developer's own state directory.
+pub fn workspace_state_dir_under(home: &Path, cwd: &Path) -> PathBuf {
+    scoped_state_dir(&home.join("state").join("workflows"), cwd)
+}
+
+/// `state_dir` narrowed to one workspace, by a digest of its canonical path.
+fn scoped_state_dir(state_dir: &Path, workspace: &Path) -> PathBuf {
+    state_dir.join("scopes").join(workspace_scope(workspace))
+}
+
+/// The directory-name digest that identifies one workspace.
+///
+/// Canonical rather than literal so `.` and a symlinked checkout resolve to the
+/// same scope; truncated to sixteen hex characters because this is a directory
+/// name a person occasionally has to read, and collision here would need a
+/// deliberate preimage attack on a path nobody else chooses.
+///
+/// Shared in-crate because the generated skills are scoped the same way and by
+/// the same rule — a second copy of this derivation is a second thing that can
+/// drift.
+pub(crate) fn workspace_scope(workspace: &Path) -> String {
+    let identity = std::fs::canonicalize(workspace).unwrap_or_else(|_| absolute_path(workspace));
+    let digest = Sha256::digest(identity.to_string_lossy().as_bytes());
+    format!("{digest:x}")[..16].to_string()
+}
 
 /// A file-backed proposal decision claim released when dropped.
 struct FileProposalDecisionGuard {
@@ -96,6 +143,13 @@ pub struct FileWorkflowStore {
     journal_dir: PathBuf,
     /// Where proposed graph changes are written, awaiting an operator.
     proposals_dir: PathBuf,
+    /// Where superseded workflow definitions are kept for undo.
+    revisions_dir: PathBuf,
+    /// Where cross-process definition locks live.
+    ///
+    /// Locks are runtime coordination, so they must not appear among authored
+    /// files an operator may sync between machines.
+    definition_locks_dir: PathBuf,
     /// Stable identity for in-process decisions and evolution claims.
     ///
     /// Derived from the persistent proposal directory rather than this
@@ -133,12 +187,19 @@ impl FileWorkflowStore {
             .parent()
             .map(|state| state.join("proposals"))
             .unwrap_or_else(|| PathBuf::from("proposals"));
+        let definition_root = catalog_identity(&dirs)
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("state/workflows");
+        let definition_state = definition_state_dir(&definition_root, &dirs);
         let decision_scope = file_store_scope(&proposals_dir);
         Self {
             dirs,
             runs_dir,
             journal_dir,
             proposals_dir,
+            revisions_dir: definition_state.join("revisions"),
+            definition_locks_dir: definition_state.join("locks"),
             decision_scope,
             write_lock: Arc::new(Mutex::new(())),
         }
@@ -149,11 +210,19 @@ impl FileWorkflowStore {
     /// The explicit form of [`FileWorkflowStore::new`], for callers that know
     /// where state belongs rather than only where runs go.
     pub fn with_state(dirs: Vec<PathBuf>, state_dir: &Path) -> Self {
-        let proposals_dir = state_dir.join("proposals");
+        Self::with_state_roots(dirs, state_dir, state_dir)
+    }
+
+    /// Build with independently selected run and shared definition state roots.
+    fn with_state_roots(dirs: Vec<PathBuf>, run_state: &Path, definition_state: &Path) -> Self {
+        let proposals_dir = run_state.join("proposals");
+        let definition_state = definition_state_dir(definition_state, &dirs);
         Self {
             dirs,
-            runs_dir: state_dir.join("runs"),
-            journal_dir: state_dir.join("journal"),
+            runs_dir: run_state.join("runs"),
+            journal_dir: run_state.join("journal"),
+            revisions_dir: definition_state.join("revisions"),
+            definition_locks_dir: definition_state.join("locks"),
             decision_scope: file_store_scope(&proposals_dir),
             proposals_dir,
             write_lock: Arc::new(Mutex::new(())),
@@ -162,11 +231,7 @@ impl FileWorkflowStore {
 
     /// A store whose host state is isolated to one workspace.
     pub fn with_workspace_state(dirs: Vec<PathBuf>, state_dir: &Path, workspace: &Path) -> Self {
-        let identity =
-            std::fs::canonicalize(workspace).unwrap_or_else(|_| absolute_path(workspace));
-        let digest = Sha256::digest(identity.to_string_lossy().as_bytes());
-        let scope = format!("{digest:x}");
-        Self::with_state(dirs, &state_dir.join("scopes").join(&scope[..16]))
+        Self::with_state_roots(dirs, &scoped_state_dir(state_dir, workspace), state_dir)
     }
 
     /// A store over the conventional locations for this environment and working
@@ -275,12 +340,14 @@ impl FileWorkflowStore {
         workflow_id: &str,
         operation: impl FnOnce() -> Result<T, WorkflowError>,
     ) -> Result<T, WorkflowError> {
-        std::fs::create_dir_all(self.write_dir()).map_err(|source| WorkflowError::Io {
-            path: self.write_dir().to_path_buf(),
-            source,
+        std::fs::create_dir_all(&self.definition_locks_dir).map_err(|source| {
+            WorkflowError::Io {
+                path: self.definition_locks_dir.clone(),
+                source,
+            }
         })?;
         let lock_path = self
-            .write_dir()
+            .definition_locks_dir
             .join(format!(".{}.lock", safe_component(workflow_id)?));
         let file_lock = std::fs::OpenOptions::new()
             .create(true)
@@ -327,8 +394,13 @@ impl FileWorkflowStore {
             let path = self.definition_path(&record.id)?;
             validate_graph(&record.id, &record.graph)?;
             let document = to_document(record)?;
-            revisions::capture(self.write_dir(), &current)?;
-            write_atomic(&path, &document)?;
+            let staged = stage_atomic(&path, &document)?;
+            let revision = revisions::capture(&self.revisions_dir, &current)?;
+            if let Err(error) = staged.commit() {
+                revisions::rollback_capture(&revision);
+                return Err(error);
+            }
+            revisions::commit_capture(&revision)?;
             Ok(true)
         })
     }
@@ -391,7 +463,14 @@ impl WorkflowStore for FileWorkflowStore {
             // here rather than at each call site is what makes every authoring
             // surface undoable without any of them having to opt in.
             if let Some(superseded) = self.superseded_by(&path, &record.id)? {
-                revisions::capture(self.write_dir(), &superseded)?;
+                let staged = stage_atomic(&path, &document)?;
+                let revision = revisions::capture(&self.revisions_dir, &superseded)?;
+                if let Err(error) = staged.commit() {
+                    revisions::rollback_capture(&revision);
+                    return Err(error);
+                }
+                revisions::commit_capture(&revision)?;
+                return Ok(());
             }
             write_atomic(&path, &document)
         })
@@ -444,8 +523,12 @@ impl WorkflowStore for FileWorkflowStore {
             // Snapshot before removing. A delete is the one edit that leaves
             // nothing to diff against afterwards, so without this it is the one
             // edit that cannot be undone.
-            revisions::capture(self.write_dir(), &existing)?;
-            std::fs::remove_file(&path).map_err(|source| WorkflowError::Io { path, source })
+            let revision = revisions::capture(&self.revisions_dir, &existing)?;
+            if let Err(source) = std::fs::remove_file(&path) {
+                revisions::rollback_capture(&revision);
+                return Err(WorkflowError::Io { path, source });
+            }
+            revisions::commit_capture(&revision)
         })
     }
 
@@ -495,7 +578,14 @@ impl WorkflowStore for FileWorkflowStore {
     }
 
     fn list_revisions(&self, workflow_id: &str) -> Result<Vec<WorkflowRevision>, WorkflowError> {
-        revisions::list(self.write_dir(), workflow_id)
+        // Releases before the source/state split kept undo snapshots beside
+        // definitions. Merge that history with new workspace-scoped snapshots
+        // so the first post-upgrade edit does not hide the older entries.
+        revisions::list_merged(
+            &self.revisions_dir,
+            &self.write_dir().join(".revisions"),
+            workflow_id,
+        )
     }
 
     fn revision(
@@ -503,7 +593,14 @@ impl WorkflowStore for FileWorkflowStore {
         workflow_id: &str,
         revision_id: &str,
     ) -> Result<Option<WorkflowRevision>, WorkflowError> {
-        revisions::read(self.write_dir(), workflow_id, revision_id)
+        match revisions::read(&self.revisions_dir, workflow_id, revision_id)? {
+            some @ Some(_) => Ok(some),
+            None => revisions::read(
+                &self.write_dir().join(".revisions"),
+                workflow_id,
+                revision_id,
+            ),
+        }
     }
 
     fn list_notes(&self, workflow_id: &str) -> Result<Vec<WorkflowNote>, WorkflowError> {

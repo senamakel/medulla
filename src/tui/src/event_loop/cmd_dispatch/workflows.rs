@@ -13,6 +13,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use medulla::daemon::embedded::EmbeddedDaemonOptions;
@@ -21,7 +22,17 @@ use medulla::workflows::{
     run_workflow, LocalWorkflowHost, RunContext, StoreWorkflowResolver, LOCAL_WORKER_ADDRESS,
 };
 
+use super::super::types::PendingFrame;
 use super::AppMsg;
+
+/// How many harness progress frames may sit unread before new ones are dropped.
+///
+/// The pane draws a tail of a node's frames, so a frame with this many already
+/// queued ahead of it will have scrolled past before it is ever rendered.
+/// Matches the reporter's own `MAX_PENDING_PROGRESS` — the same trade in the
+/// cross-process direction — so a run watched locally and one watched over the
+/// control socket lose progress at the same point.
+pub(in crate::event_loop) const MAX_PENDING_FRAMES: usize = 64;
 
 /// Spawn a run of the workflow `id`, reporting the outcome on the status line.
 ///
@@ -34,11 +45,20 @@ pub(super) fn spawn_run(
     inputs: serde_json::Map<String, serde_json::Value>,
     workflows_config: medulla::config::WorkflowsConfig,
     custom_harnesses: Vec<medulla::config::CustomHarnessConfig>,
+    hooks: medulla::harness_hooks::HooksConfig,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) {
     let tx = msg_tx.clone();
     tokio::spawn(async move {
-        let outcome = run(&id, inputs, &workflows_config, &custom_harnesses).await;
+        let outcome = run(
+            &id,
+            inputs,
+            &workflows_config,
+            &custom_harnesses,
+            &tx,
+            &hooks,
+        )
+        .await;
         let (status, failed) = match outcome {
             Ok((summary, failed)) => (summary, failed),
             Err(err) => (format!("workflow '{id}' failed: {err}"), None),
@@ -68,6 +88,8 @@ async fn run(
     inputs: serde_json::Map<String, serde_json::Value>,
     workflows_config: &medulla::config::WorkflowsConfig,
     custom_harnesses: &[medulla::config::CustomHarnessConfig],
+    tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
+    hooks: &medulla::harness_hooks::HooksConfig,
 ) -> anyhow::Result<(String, Option<String>)> {
     let env: HashMap<String, String> = std::env::vars().collect();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -88,10 +110,14 @@ async fn run(
         model: (!workflows_config.default_model.is_empty())
             .then(|| workflows_config.default_model.clone()),
         // The same presets this session's primary host advertises (see
-        // `LocalHostSpawner::custom_harnesses`), so an `agent` step naming a
+        // `LocalHostHarnesses::custom_harnesses`), so an `agent` step naming a
         // custom harness preset does not fail with "not configured on this
         // host" purely because this one-shot daemon started with none.
         custom_harnesses: custom_harnesses.to_vec(),
+        // Same reasoning as `custom_harnesses` above: this one-shot daemon
+        // should install the same built-in and operator lifecycle hooks the
+        // session's primary host resolved, not start with none.
+        hooks: hooks.clone(),
         ..Default::default()
     })
     .map_err(anyhow::Error::msg)?;
@@ -100,18 +126,68 @@ async fn run(
     // loopback endpoints so a second run can bind them again.
     let (sink, _fold) = folding_sink();
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
+    let max_loop_iterations = settings.max_loop_iterations;
+    // Announced before the first step, because the point of the live view is
+    // that the pane stops being blank the moment the run starts rather than
+    // when the first agent node happens to say something.
+    let _ = tx.send(AppMsg::WorkflowRunStarted {
+        workflow: id.to_string(),
+        run_id: run_id.clone(),
+    });
+    // Every `agent` node's harness reports through here as it works. Forwarded
+    // rather than folded: the App owns the buffer, and a render pass must not
+    // reach into a run's internals to read it.
+    //
+    // Bounded at the sink, not at the channel: `AppMsg` carries the run's
+    // lifecycle too, and a bounded channel would either block a step's harness
+    // or drop the settle message. Counting frames instead leaves those
+    // unaffected and drops only progress nobody would have read — see
+    // [`PendingFrame`].
+    let progress: medulla::flow_engine::NodeProgressSink = {
+        let tx = tx.clone();
+        let run_id = run_id.clone();
+        let queued = Arc::new(AtomicUsize::new(0));
+        Arc::new(move |node: &str, line: &str| {
+            let Some(pending) = PendingFrame::claim(&queued, MAX_PENDING_FRAMES) else {
+                return;
+            };
+            let _ = tx.send(AppMsg::WorkflowRunOutput {
+                run_id: run_id.clone(),
+                node: node.to_string(),
+                line: line.to_string(),
+                pending,
+            });
+        })
+    };
     let context = RunContext {
+        // Runs inline, so claiming at the top of the run is early enough.
+        claim: None,
         store: store.clone(),
         settings: Arc::new(settings),
-        services: HostServices {
-            dispatch: host.dispatch(),
-            resolver: Arc::new(StoreWorkflowResolver::new(store)),
-            http_credentials: HashMap::new(),
-        },
+        services: HostServices::new(
+            host.dispatch(),
+            Arc::new(StoreWorkflowResolver::new(store, max_loop_iterations)),
+            HashMap::new(),
+        )
+        .watching(progress),
         sink,
+        step_snapshot: None,
+        // Started from the Workflows pane by the person looking at it, which is
+        // what tells this run apart from the ones a session in the Agents rail
+        // kicked off behind their back.
+        origin: Some(
+            medulla::workflows::RunOrigin::of_kind(medulla::workflows::RunOrigin::OPERATOR)
+                .labelled("Workflows pane"),
+        ),
     };
 
-    let record = run_workflow(context, id, &run_id, serde_json::json!({}), inputs).await?;
+    let record = run_workflow(context, id, &run_id, serde_json::json!({}), inputs).await;
+    // Settled before the result is unwrapped: a run that failed still stops
+    // being live, and a `?` here would leave the row spinning forever.
+    let _ = tx.send(AppMsg::WorkflowRunFinished {
+        run_id: run_id.clone(),
+    });
+    let record = record?;
     let summary = format!(
         "{id}: {} · {} step{}",
         medulla::ui::workflows::status_label(record.status),
@@ -314,15 +390,30 @@ async fn copilot_turn(
     // graph, which is the one failure mode that looks like success.
     medulla::mcp::preflight(&env, &cwd).map_err(anyhow::Error::msg)?;
 
-    let host = super::copilot_hosts::host_for(thread, || EmbeddedDaemonOptions {
+    // The daemon takes ownership of its environment; the transcript lookup
+    // below still needs one to resolve the Medulla home from.
+    let host_env = env.clone();
+    let (host, fresh) = super::copilot_hosts::host_for(thread, || EmbeddedDaemonOptions {
         workspace: cwd.to_string_lossy().to_string(),
         default_provider: workflows_config.default_provider,
         model: (!workflows_config.default_model.is_empty())
             .then(|| workflows_config.default_model.clone()),
-        env,
+        env: host_env,
         ..Default::default()
     })
     .map_err(anyhow::Error::msg)?;
+
+    // Only for a session that was just started. A continuing one remembers its
+    // own turns, and handing it a recap of them would have it read its last
+    // reply as a fresh instruction. This is the whole of "resume the
+    // conversation after a restart" from the harness's side.
+    let recap = fresh
+        .then(|| {
+            medulla::workflows::copilot::Transcripts::discover(&env, &cwd)
+                .load(medulla_tui::ui::app::copilot_thread_of(thread))
+                .recap()
+        })
+        .flatten();
 
     let session = medulla::workflows::CopilotSession {
         store,
@@ -335,6 +426,7 @@ async fn copilot_turn(
         // are two threads and therefore two conversations, which is what the
         // operator means by having them open separately.
         conversation: thread.to_string(),
+        recap,
     };
     Ok(match turn {
         Turn::Edit(workflow) => session.turn(workflow, instruction, Some(status)).await?,
@@ -493,7 +585,9 @@ async fn evolve_turn(
     );
     medulla::mcp::preflight(&env, &cwd).map_err(anyhow::Error::msg)?;
     let store = medulla::workflows::discover_store(&env, &cwd);
-    let host = super::copilot_hosts::host_for(workflow, || EmbeddedDaemonOptions {
+    // A review is grounded in the journal and the run history rather than in
+    // what a pane said, so whether the host is fresh makes no difference here.
+    let (host, _fresh) = super::copilot_hosts::host_for(workflow, || EmbeddedDaemonOptions {
         workspace: cwd.to_string_lossy().to_string(),
         default_provider: workflows_config.default_provider,
         model: (!workflows_config.default_model.is_empty())

@@ -79,7 +79,7 @@ const ADDRESS_EDGE: usize = 4;
 
 /// Shorten a machine address for display: `abcd…1234`.
 ///
-/// A tiny.place address is a Solana public key — 32 to 44 base58 characters of
+/// A link address is a Solana public key — 32 to 44 base58 characters of
 /// pure entropy. Rendered whole it is the widest thing in the Agents rail, and
 /// it sizes the whole sidebar, because the rail is measured against its widest
 /// row. It also distinguishes nothing a human reads: the middle is noise, and
@@ -189,6 +189,124 @@ pub fn wrap(text: &str, width: usize) -> Vec<String> {
         }
     }
     out
+}
+
+/// Words a session slug carries at most.
+///
+/// A session name is scanned in a rail or a list, never read: the fourth word
+/// is always the one that pushes the identifying words off the end of a narrow
+/// row, so the shape stops at three.
+pub const SLUG_MAX_WORDS: usize = 3;
+/// Hard character ceiling on a slug, so one very long word cannot widen a row.
+pub const SLUG_MAX_CHARS: usize = 48;
+
+/// How much of the input [`slug`] scans before giving up on finding three
+/// meaningful words.
+///
+/// `slug` runs on every rail render against an untrusted harness/PTY title.
+/// Without a scan bound, a title that is megabytes of filler ("so so so
+/// so…") makes every render walk the whole string looking for words that
+/// never arrive. This is generous enough to skip a realistic run of leading
+/// filler while staying independent of how large the source title is.
+const SLUG_SCAN_MAX_CHARS: usize = 512;
+
+/// Filler a slug is better off without.
+///
+/// Prompts open with conversational scaffolding ("okay so can you please…"),
+/// and taking the first three words verbatim would spend the whole slug on it.
+/// Only words that never identify a session on their own are listed.
+/// Contractions are folded to their letters before this list is consulted (see
+/// [`APOSTROPHES`]), so the elided forms of the words above are listed too:
+/// `let's` arrives here as `lets`, `I'm` as `im`.
+const FILLER_WORDS: &[&str] = &[
+    "a", "about", "an", "and", "are", "arent", "as", "at", "be", "but", "by", "can", "cant",
+    "could", "couldnt", "do", "does", "doesnt", "dont", "for", "from", "hey", "hi", "how", "i",
+    "id", "if", "ill", "im", "in", "into", "is", "isnt", "it", "its", "ive", "just", "let", "lets",
+    "like", "me", "my", "of", "ok", "okay", "on", "or", "our", "please", "so", "thanks", "that",
+    "thats", "the", "their", "then", "there", "theres", "these", "they", "theyre", "theyve",
+    "this", "to", "uh", "um", "us", "was", "wasnt", "we", "well", "were", "weve", "what", "whats",
+    "when", "which", "will", "with", "wont", "would", "wouldnt", "you", "youd", "youll", "youre",
+    "youve", "your",
+];
+
+/// Apostrophes a contraction may be written with: ASCII, the typographic right
+/// single quote most editors substitute, and the modifier letter Unicode
+/// recommends for exactly this use.
+///
+/// These are dropped rather than treated as word breaks. Splitting on them
+/// would cut `let's` into `let` and `s`, and the orphan `s` — meaningless on
+/// its own, and not something a filler list can usefully enumerate — would
+/// survive into the slug as its first word.
+const APOSTROPHES: [char; 3] = ['\'', '\u{2019}', '\u{02bc}'];
+
+/// Reduce any text to a session slug: at most [`SLUG_MAX_WORDS`] lowercase
+/// words joined by hyphens, e.g. `fix-session-handoff`.
+///
+/// Everything that is not alphanumeric is a word break — except an apostrophe,
+/// which is dropped so a contraction stays one word. That is also what makes
+/// this safe for untrusted text: control bytes, escape sequences, and newlines
+/// cannot survive into a rendered row.
+///
+/// The output is bounded in characters, not terminal cells. A caller rendering
+/// into a fixed number of columns clips the result again.
+///
+/// Returns an empty string when no word survives — callers decide what an
+/// unnameable session shows instead.
+pub fn slug(text: &str) -> String {
+    // Bound the scan itself, not just the output: split/lowercase/collect over
+    // the whole string would let an unbounded title allocate and scan without
+    // limit before the three-word cap below ever applies.
+    // Apostrophes are dropped, not split on, so a contraction stays one word.
+    // The scan bound is applied to the source characters, before the drop, so
+    // the work this does still cannot exceed it.
+    let bounded: String = text
+        .chars()
+        .take(SLUG_SCAN_MAX_CHARS)
+        .filter(|c| !APOSTROPHES.contains(c))
+        .collect();
+
+    let mut first_words: Vec<String> = Vec::with_capacity(SLUG_MAX_WORDS);
+    let mut meaningful: Vec<String> = Vec::with_capacity(SLUG_MAX_WORDS);
+    for word in bounded.split(|c: char| !c.is_alphanumeric()) {
+        if word.is_empty() {
+            continue;
+        }
+        let word = word.to_lowercase();
+        if first_words.len() < SLUG_MAX_WORDS {
+            first_words.push(word.clone());
+        }
+        if meaningful.len() < SLUG_MAX_WORDS && !FILLER_WORDS.contains(&word.as_str()) {
+            meaningful.push(word);
+        }
+        // Once three meaningful words are in hand nothing later in the title
+        // can change the result, so stop walking it.
+        if meaningful.len() == SLUG_MAX_WORDS {
+            break;
+        }
+    }
+    // All-filler input ("can you please") still gets a name, badly-but-stably,
+    // rather than rendering as nothing at all.
+    let source = if meaningful.is_empty() {
+        first_words
+    } else {
+        meaningful
+    };
+
+    let mut slug = String::new();
+    for word in source.into_iter().take(SLUG_MAX_WORDS) {
+        let separator = usize::from(!slug.is_empty());
+        let room = SLUG_MAX_CHARS.saturating_sub(slug.chars().count() + separator);
+        if room == 0 {
+            break;
+        }
+        if !slug.is_empty() {
+            slug.push('-');
+        }
+        // A single word longer than the ceiling is truncated rather than
+        // dropped: dropping it can empty an otherwise usable slug.
+        slug.extend(word.chars().take(room));
+    }
+    slug
 }
 
 /// Braille spinner frames shared by the app, login, and onboarding screens.

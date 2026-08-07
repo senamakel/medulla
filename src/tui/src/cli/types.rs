@@ -25,7 +25,7 @@ pub enum Command {
     Login,
     /// Clear stored credentials.
     Logout,
-    /// Launch a coding-agent CLI as a transparent tiny.place-bridged wrapper.
+    /// Launch a coding-agent CLI as a transparent host-link-bridged wrapper.
     Wrapper(HarnessProvider),
     /// Check for / install a newer release (`update [--check]`).
     Update,
@@ -34,7 +34,7 @@ pub enum Command {
     /// Manage the workspace registry (`add`/`list`/`remove`) — the directories
     /// the orchestrator knows about and can place work in.
     Workspace,
-    /// Run the orchestrator hub: relay hosted-backend tasks to tiny.place
+    /// Run the orchestrator hub: relay hosted-backend tasks to host-link
     /// workers over Signal DMs; carries the remaining args.
     Hub,
     /// Author, inspect, and run workflows (`list`/`get`/`create`/`apply-ops`/…).
@@ -45,6 +45,113 @@ pub enum Command {
     /// harness, handing the child a socket path and a grant token in its
     /// environment; run by hand it serves the workflow tools and no fleet.
     Mcp,
+    /// Generate harness-native skills that trigger saved workflows
+    /// (`list`/`install`/`sync`/`uninstall`).
+    Skills,
+    /// Report one harness lifecycle event (`hook <Event>`).
+    ///
+    /// Not for a human to run either. Medulla installs this as a hook into the
+    /// harnesses it launches; the harness runs it, pipes its native hook payload
+    /// to it, and it files a one-line report on the control socket the same
+    /// spawn was handed.
+    Hook,
+}
+
+/// The `medulla skills` action.
+///
+/// Deliberately four verbs and no more: everything an operator does to a
+/// generated skill is "show me", "put it there", "make it match the store
+/// again", or "take it away".
+#[cfg(feature = "workflows")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SkillsAction {
+    /// `list` — the managed skills currently on disk. The default, because it
+    /// is the read-only answer to a half-remembered command.
+    #[default]
+    List,
+    /// `install [<id>…]` — write skills for the named workflows, or all of them.
+    Install,
+    /// `sync` — reinstall every enabled workflow; with `--prune`, drop the rest.
+    Sync,
+    /// `uninstall [<id>…]` — remove managed skills.
+    Uninstall,
+}
+
+/// Parsed `medulla skills` flags.
+///
+/// The struct is the whole contract between [`parse_skills_args`] and the
+/// command: parsing resolves nothing about the filesystem, so every field here
+/// is either a literal from the command line or a validated enum. Where the
+/// root actually lands, and which harnesses exist on this machine, is decided
+/// by the runner.
+///
+/// [`parse_skills_args`]: super::parse_skills_args
+#[cfg(feature = "workflows")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillsArgs {
+    /// The selected verb.
+    pub action: SkillsAction,
+    /// Workflow ids named after the verb. Empty means "whatever the verb's
+    /// default set is" — every enabled workflow for `install` and `sync`, and,
+    /// for `uninstall`, everything managed on disk *only* once [`all`] says so.
+    ///
+    /// [`all`]: SkillsArgs::all
+    pub ids: Vec<String>,
+    /// `--harness <a,b>` (repeatable, comma-joined), or `all`. `None` means the
+    /// operator named none, and the runner should pick the harnesses whose
+    /// directories already exist.
+    pub targets: Option<Vec<medulla::workflows::skills::SkillTarget>>,
+    /// `--scope user|project|managed`: whether the root is `$HOME`, the project,
+    /// or Medulla's own root that harnesses it spawns are pointed at.
+    pub scope: medulla::workflows::skills::SkillScope,
+    /// `--dir <path>`: an explicit root, overriding whatever `--scope` would
+    /// have resolved to. Relative paths are resolved against the cwd by the
+    /// runner, not here.
+    pub dir: Option<String>,
+    /// `--with-mcp`: also register `medulla mcp` with each harness, without
+    /// which a generated skill has no tool to call.
+    pub with_mcp: bool,
+    /// `--with-commands`: also emit the slash-command variant.
+    pub with_commands: bool,
+    /// `--tools run|full`: the tool surface a skill-triggered MCP session gets.
+    /// Defaults to `run` — a trigger-only session has no business rewriting a
+    /// graph.
+    pub tools: String,
+    /// `--dry-run`: report the identical outcome and write nothing.
+    pub dry_run: bool,
+    /// `--prune` (`sync` only): delete managed skills for workflows that are no
+    /// longer enabled or no longer exist, plus any other `medulla-*` skill or
+    /// command with no enabled workflow behind it — a marker this build cannot
+    /// read leaves the slug prefix as the only identity a leftover has.
+    pub prune: bool,
+    /// `--all` (`uninstall` only): the explicit consent a blanket removal
+    /// needs. Without it a bare `uninstall` lists what it would delete and
+    /// fails, because "remove every managed skill" is one typo away from
+    /// `uninstall babysit` and is not recoverable from the output. Ignored when
+    /// ids are named — those are already an explicit choice.
+    pub all: bool,
+    /// `--json`: machine-readable output instead of the human summary.
+    pub json: bool,
+}
+
+#[cfg(feature = "workflows")]
+impl Default for SkillsArgs {
+    fn default() -> Self {
+        SkillsArgs {
+            action: SkillsAction::List,
+            ids: Vec::new(),
+            targets: None,
+            scope: medulla::workflows::skills::SkillScope::User,
+            dir: None,
+            with_mcp: false,
+            with_commands: false,
+            tools: "run".to_string(),
+            dry_run: false,
+            prune: false,
+            all: false,
+            json: false,
+        }
+    }
 }
 
 /// Parsed `medulla init` flags.
@@ -152,6 +259,13 @@ pub enum WorkflowAction {
     AddNote(String),
     /// `evolve <id>` — review a workflow against its own history.
     Evolve(String),
+    /// `author [id]` — run one copilot turn; `--text` carries the instruction.
+    ///
+    /// With an id it revises that workflow, without one it builds a new one.
+    /// The same turn the Workflows pane runs, reachable without a terminal —
+    /// which is what makes "does the harness actually get its tools?" a
+    /// question a test can ask.
+    Author(Option<String>),
     /// `proposals <id>` — changes proposed for a workflow.
     Proposals(String),
     /// `accept <proposal-id>` — apply a proposal to the saved graph.
@@ -235,6 +349,11 @@ pub struct LoginArgs {
     pub config: Option<String>,
     pub provider: Provider,
     pub no_browser: bool,
+    /// `--code`: run the terminal sign-in — print a URL to open on any device
+    /// and read the one-time code it produces from stdin. Binds no listener, so
+    /// it is the flow that works over SSH, where the loopback callback would
+    /// land on the browser host rather than this one.
+    pub code: bool,
     /// A 64-hex one-time login token (headless fallback); skips the listener.
     pub token: Option<String>,
 }

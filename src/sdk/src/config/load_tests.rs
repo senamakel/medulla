@@ -52,9 +52,11 @@ fn load_config_applies_staging_switch_to_both_urls() {
         loaded.config.backend.base_url,
         "https://staging-api.tinyhumans.ai"
     );
+    // The forwarder follows the resolved backend rather than naming a second
+    // host, so the staging switch moves both together.
     assert_eq!(
         loaded.config.link.unwrap().forwarder_url,
-        "https://staging-api.tiny.place"
+        "https://staging-api.tinyhumans.ai"
     );
     let _ = std::fs::remove_dir_all(&home);
     let _ = std::fs::remove_dir_all(&cwd);
@@ -244,6 +246,61 @@ fn load_config_layers_global_project_env_flag() {
 }
 
 #[test]
+fn project_local_config_cannot_authorize_hook_commands() {
+    let home = temp_dir("hook-trust-home");
+    let cwd = temp_dir("hook-trust-cwd");
+    std::fs::create_dir_all(home_of(&home)).unwrap();
+    std::fs::create_dir_all(cwd.join(".medulla")).unwrap();
+    std::fs::write(
+        home_of(&home).join("config.toml"),
+        "[[hooks]]\nevent = \"SessionStart\"\ntype = \"command\"\ncommand = \"global-hook\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        cwd.join(".medulla").join("config.toml"),
+        "[[hooks]]\nevent = \"SessionStart\"\ntype = \"command\"\ncommand = \"project-hook\"\n",
+    )
+    .unwrap();
+
+    let loaded = load_config(
+        None,
+        &env(&[("MEDULLA_HOME", home.to_str().unwrap())]),
+        &cwd,
+    )
+    .unwrap();
+
+    // Medulla's own reporting hooks are resolved into the same list at load, so
+    // the question is what the *operator's* half contains.
+    let operator = loaded.config.hooks.operator_hooks();
+    assert_eq!(operator.len(), 1);
+    assert_eq!(operator[0].command(), "global-hook");
+}
+
+#[test]
+fn medullas_own_hooks_are_installed_by_default_and_can_be_switched_off() {
+    let home = temp_dir("hook-defaults-home");
+    let cwd = temp_dir("hook-defaults-cwd");
+    std::fs::create_dir_all(home_of(&home)).unwrap();
+    let config = home_of(&home).join("config.toml");
+    let env = env(&[("MEDULLA_HOME", home.to_str().unwrap())]);
+
+    // No config file at all: the defaults still arrive, because an operator who
+    // has configured nothing is exactly who should not have to.
+    let loaded = load_config(None, &env, &cwd).unwrap();
+    let builtin = crate::harness_hooks::builtin::REPORTED_EVENTS.len();
+    assert_eq!(loaded.config.hooks.hooks.len(), builtin);
+    assert!(loaded.config.hooks.hooks.iter().all(|hook| hook.builtin));
+    assert!(loaded.config.hooks.operator_hooks().is_empty());
+
+    std::fs::write(&config, "[hookDefaults]\nenabled = false\n").unwrap();
+    let loaded = load_config(None, &env, &cwd).unwrap();
+    assert!(
+        loaded.config.hooks.is_empty(),
+        "turning the defaults off must leave nothing behind"
+    );
+}
+
+#[test]
 fn load_config_toml_and_json_parity() {
     let home = temp_dir("parity-home");
     let cwd = temp_dir("parity-cwd");
@@ -327,33 +384,30 @@ fn merge_value_is_recursive() {
 }
 
 #[test]
-fn a_synthesized_link_section_honours_the_staging_switch() {
+fn a_synthesized_link_section_follows_the_resolved_backend() {
     // Regression. `medulla daemon --tui` synthesizes this section when the
     // config file has none, and used to do it with `LinkConfig::default()` —
-    // whose `forwarder_url` is the *constant* prod backend, because a serde
-    // default cannot read the environment. Under `MEDULLA_STAGING=1` that put
-    // the worker on prod while the orchestrator's hub (which resolves from env)
-    // sat on staging: both started cleanly and reported healthy, but a datagram
-    // handed to one forwarder never reaches the other, so the two simply never
-    // heard from each other with nothing logged anywhere.
-    let staging = env(&[("MEDULLA_STAGING", "1"), ("MEDULLA_HOME", "/tmp/mh")]);
+    // whose `forwarder_url` is a *constant*, because a serde default can read
+    // neither the environment nor the rest of the document. Pointed at staging
+    // that put the worker on one forwarder while the orchestrator's hub sat on
+    // another: both started cleanly and reported healthy, but a datagram handed
+    // to one forwarder never reaches the other, so the two simply never heard
+    // from each other with nothing logged anywhere.
+    let home = env(&[("MEDULLA_HOME", "/tmp/mh")]);
     assert_eq!(
-        default_link_config(&staging).forwarder_url,
-        "https://staging-api.tiny.place",
-        "the synthesized section must follow MEDULLA_STAGING, not a constant"
+        default_link_config(&home, "https://staging-api.tinyhumans.ai").forwarder_url,
+        "https://staging-api.tinyhumans.ai",
+        "the synthesized section must follow the resolved backend, not a constant"
     );
     assert_ne!(
         LinkConfig::default().forwarder_url,
-        default_link_config(&staging).forwarder_url,
+        default_link_config(&home, "https://staging-api.tinyhumans.ai").forwarder_url,
         "if these ever agree this test has stopped proving anything"
     );
 
-    // Absent the switch it is still prod, and the state dir is home-derived
-    // either way — the same identity `medulla daemon` would have used.
-    let prod = env(&[("MEDULLA_HOME", "/tmp/mh")]);
     assert_eq!(
-        default_link_config(&prod).forwarder_url,
-        "https://api.tiny.place"
+        default_link_config(&home, "https://api.tinyhumans.ai").forwarder_url,
+        "https://api.tinyhumans.ai"
     );
     // Built with `join` rather than written out: the value is a real path, so
     // on Windows it comes back separated with a backslash.
@@ -362,7 +416,10 @@ fn a_synthesized_link_section_honours_the_staging_switch() {
         .join("link")
         .to_string_lossy()
         .into_owned();
-    assert_eq!(default_link_config(&prod).state_dir, expected);
+    assert_eq!(
+        default_link_config(&home, "https://api.tinyhumans.ai").state_dir,
+        expected
+    );
 }
 
 #[test]

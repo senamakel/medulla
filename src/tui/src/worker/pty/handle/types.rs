@@ -6,6 +6,7 @@ use medulla::protocol::HarnessProvider;
 use portable_pty::{Child, MasterPty};
 
 use super::super::attention::HarnessAttention;
+use super::super::types::SessionOrigin;
 
 /// [`SessionHandle::state`] discriminants. Kept as a `u8` so the whole liveness
 /// question is one relaxed atomic load rather than a lock.
@@ -102,6 +103,12 @@ pub(crate) struct ColdFields {
     pub(super) label: String,
     /// The harness session id — minted for claude, read back for codex.
     pub(super) session_id: Option<String>,
+    /// The display name a person gave this session.
+    ///
+    /// Mutable, unlike [`SessionMeta::origin`] beside it: a name is a label the
+    /// operator owns and may change, where provenance is a fact about how the
+    /// session came to exist. `None` until somebody names it.
+    pub(super) name: Option<String>,
     /// The non-empty terminal title last advertised by the harness.
     pub(super) thread_name: Option<String>,
     /// Why the session failed, when it did.
@@ -133,6 +140,13 @@ pub(crate) struct SessionMeta {
     pub(crate) id: String,
     /// Which harness is running.
     pub(crate) provider: HarnessProvider,
+    /// The custom preset it was launched from, when it was one — see
+    /// [`LaunchSpec::preset`](super::super::types::LaunchSpec::preset).
+    ///
+    /// Immutable like the rest of the meta: which preset ran is a fact about
+    /// this session's birth, and it is half of the harness id the rail matches
+    /// a session to its agent by.
+    pub(crate) preset: Option<String>,
     /// The working directory the child runs in.
     pub(crate) cwd: String,
     /// Git branch resolved from the working directory when the session opened.
@@ -150,12 +164,22 @@ pub(crate) struct SessionMeta {
     pub(crate) launch_checkout_identity: Option<String>,
     /// Epoch ms when the session started.
     pub(crate) started_at: i64,
-    /// Whether an operator asked for this session rather than a task frame.
+    /// Who started this session — see
+    /// [`SessionOrigin`](super::super::types::SessionOrigin).
     ///
-    /// Display only — never gate behaviour on it. Control is the gate; this is
-    /// what lets the rail say "unmanaged", and what marks a session whose
+    /// It lives in the immutable half of the handle *because* it is immutable:
+    /// control is an atomic bit that takeover flips, and origin is a fact about
+    /// this session's birth that nothing may rewrite. Display and labelling
+    /// only — never gate behaviour on it — but it is what marks a session whose
     /// synthetic `you:` label is still up for adoption.
-    pub(crate) user_spawned: bool,
+    pub(crate) origin: SessionOrigin,
+    /// The key this session's MCP fleet grant was minted under, when one was.
+    ///
+    /// Read twice over a session's life, at the two ends of the capability: on
+    /// reap, to give it back — or narrow it to reporting, if the session left a
+    /// workflow run executing — and again when the operator forgets the row, to
+    /// drop the runs that were drawn beneath it.
+    pub(crate) mcp_grant_session: Option<String>,
 }
 
 /// One live PTY-backed harness session, and everything the manager knows about
@@ -202,11 +226,31 @@ pub struct SessionHandle {
     pub(super) busy: AtomicBool,
     /// Whether the operator, rather than the orchestrator, holds this session.
     ///
-    /// [`HarnessControl`](super::super::types::HarnessControl) as one bit, for
+    /// [`SessionControl`](super::super::types::SessionControl) as one bit, for
     /// the same reason `busy` is: `claim_idle` tests it for every session on
     /// every dispatch, and it is the gate that stops a task prompt landing in a
     /// composer a person is typing in.
     pub(super) operator_held: AtomicBool,
+    /// Whether this session has finished the task it was opened for and is being
+    /// kept for the operator to read.
+    ///
+    /// A lifecycle fact, deliberately *not* a
+    /// [`SessionControl`](super::super::types::SessionControl) variant. Control
+    /// answers "who may type here", and a retained session has no one typing in
+    /// it yet — it is the last screen of finished work, left standing because
+    /// closing it is what made a completed task look like it had vanished.
+    ///
+    /// The distinction is load-bearing rather than cosmetic. Marking these
+    /// sessions `User` instead would have been the smaller change and would have
+    /// deadlocked dispatch: `checkout_writer` reads any user-held session in a
+    /// directory as the writer holding that checkout, so the first task to
+    /// finish in a workspace would have queued every task after it until their
+    /// budgets expired.
+    ///
+    /// An atomic beside `busy` and `operator_held` for the same reason those
+    /// are: [`try_claim`](super::SessionHandle::try_claim) tests it per session
+    /// on every dispatch.
+    pub(super) retained: AtomicBool,
     /// How many bytes sit in [`SessionIo::writes`] still unwritten.
     ///
     /// The budget a caller is admitted against, so a child that never drains its
@@ -223,8 +267,76 @@ pub struct SessionHandle {
     pub(crate) attention: Mutex<AttentionState>,
     /// The terminal emulator holding this session's screen + scrollback.
     pub(super) screen: Mutex<vt100::Parser>,
+    /// Parser for terminal modes the screen emulator does not expose publicly.
+    pub(super) modes: Mutex<TerminalModes>,
     /// The pty ends, until the session is reaped.
     pub(super) io: Mutex<Option<SessionIo>>,
     /// The child handle, for signalling and reaping. `None` once reaped.
     pub(super) child: Mutex<Option<Box<dyn Child + Send + Sync>>>,
+}
+
+/// Terminal modes needed by the host but not exposed by [`vt100::Screen`].
+pub(super) struct TerminalModes {
+    /// Stateful parser, retained so escape sequences split across PTY reads work.
+    pub(super) parser: vte::Parser,
+    /// Independent OSC 52 capture, retained across reads for the same reason.
+    ///
+    /// See [`super::osc52`] for why `vte`'s own OSC dispatch is not enough on
+    /// its own: its OSC buffer is a fixed 1024 bytes, so a copy larger than
+    /// that arrives truncated through [`vte::Perform::osc_dispatch`] alone.
+    pub(super) osc52: super::osc52::Osc52Scanner,
+    /// Whether xterm alternate-scroll mode (DECSET 1007) is enabled.
+    pub(super) alternate_scroll: bool,
+    /// The clipboard write the child last asked for (OSC 52), until it is taken.
+    ///
+    /// A harness copying something — a `y` in its own copy mode, a `tmux
+    /// load-buffer -w` run inside the pane, a script echoing the escape — is
+    /// asking *its* terminal for the clipboard, and its terminal is us. Nobody
+    /// downstream would ever see it otherwise: `vt100` drops OSC 52, and the
+    /// child's bytes are parsed into a screen grid rather than replayed to our
+    /// own stdout, so the copy would die in this process. Captured here and
+    /// [taken](super::SessionHandle::take_clipboard) by the reader thread, which
+    /// forwards it on to the operator's terminal.
+    ///
+    /// Last write wins, which is what a clipboard is: a copy nobody has
+    /// collected yet is superseded by the next one, exactly as in a real
+    /// terminal.
+    pub(super) clipboard: Option<String>,
+}
+
+impl Default for TerminalModes {
+    fn default() -> Self {
+        Self {
+            parser: vte::Parser::new(),
+            osc52: super::osc52::Osc52Scanner::default(),
+            alternate_scroll: false,
+            clipboard: None,
+        }
+    }
+}
+
+impl vte::Perform for TerminalModes {
+    /// Capture the child's clipboard writes; every other OSC is the screen
+    /// emulator's business.
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+        if let Some(text) = medulla::clipboard::tmux::osc52_from_params(params) {
+            self.clipboard = Some(text);
+        }
+    }
+
+    fn csi_dispatch(
+        &mut self,
+        params: &vte::Params,
+        intermediates: &[u8],
+        ignore: bool,
+        action: char,
+    ) {
+        if !ignore
+            && intermediates == [b'?']
+            && matches!(action, 'h' | 'l')
+            && params.iter().any(|param| param == [1007])
+        {
+            self.alternate_scroll = action == 'h';
+        }
+    }
 }

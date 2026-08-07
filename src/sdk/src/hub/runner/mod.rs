@@ -11,7 +11,7 @@
 //! bounds, and orchestrator-driven abort.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -29,11 +29,6 @@ use super::types::{RunError, TaskOutcome, TaskRequest};
 mod capabilities;
 mod pump;
 mod system_info;
-
-/// How long to wait for a peer to accept our contact request before sending.
-const CONTACT_WAIT: Duration = Duration::from_secs(20);
-/// How often to re-check contact status while waiting.
-const CONTACT_POLL: Duration = Duration::from_millis(500);
 
 /// How long to wait for the FIRST sign of life (any inbound frame — `ack`,
 /// `status`, `reply`, `error`) before treating the peer as unreachable and
@@ -98,10 +93,18 @@ const LIVENESS_TICK: Duration = Duration::from_millis(100);
 ///
 /// A bridge with no notion of reachability (the in-memory bus, every test fake)
 /// answers `Live` by default, so this behaves exactly like `sleep` for them.
-async fn live_sleep(relay: &dyn Relay, peer: &str, window: Duration) {
+///
+/// `held` is the second gate, and it is the same idea one layer up: the worker
+/// reports (`crate::daemon::SESSION_HELD_STATUS_PREFIX`) that an operator has
+/// taken the session serving this dispatch, and a person reading their own
+/// session is no more "a crashed worker" than an unreachable one is. Held time
+/// therefore does not accrue either, and the window **resumes rather than
+/// resets** when the session is handed back — a worker that dies mid-hold is
+/// still given up on, it just is not given up on *while* a human has it.
+async fn live_sleep(relay: &dyn Relay, peer: &str, window: Duration, held: &AtomicBool) {
     let mut remaining = window;
     while !remaining.is_zero() {
-        if relay.liveness(peer).await == BridgeLiveness::Live {
+        if relay.liveness(peer).await == BridgeLiveness::Live && !held.load(Ordering::Acquire) {
             let step = LIVENESS_TICK.min(remaining);
             tokio::time::sleep(step).await;
             remaining -= step;
@@ -361,13 +364,13 @@ impl TaskRunner {
         prepared_abort: Option<Arc<Notify>>,
         visible_task_id: Option<String>,
     ) -> Result<TaskOutcome, RunError> {
-        // Register this dispatch's abort signal FIRST — before the contact wait —
-        // so a `task_abort` that arrives during contact negotiation (up to
-        // `CONTACT_WAIT` for a first-time worker) is honored, not silently dropped
-        // by finding nothing in the registry. Keyed by the orchestrator-facing id
-        // the backend aborts by, and held for the whole call (spanning any
-        // reset+resend retries). The guard removes it on every return path, so a
-        // settled dispatch leaves nothing for a later `task_abort` to match.
+        // Register this dispatch's abort signal FIRST, so a `task_abort` that
+        // arrives before the first frame goes out is honored rather than silently
+        // dropped by finding nothing in the registry. Keyed by the
+        // orchestrator-facing id the backend aborts by, and held for the whole
+        // call (spanning any reset+resend retries). The guard removes it on every
+        // return path, so a settled dispatch leaves nothing for a later
+        // `task_abort` to match.
         let abort = prepared_abort.unwrap_or_else(|| Arc::new(Notify::new()));
         self.aborts
             .lock()
@@ -379,26 +382,6 @@ impl TaskRunner {
             signal: abort.clone(),
         };
 
-        // Establish the contact and WAIT for acceptance. A request only creates a
-        // `pending` edge, and the relay refuses a DM to a non-contact
-        // (`403 not_a_contact`) — sending immediately races the peer's
-        // auto-accepter. Bounded, so a peer that never accepts surfaces as a
-        // normal task error instead of hanging. An abort here bails immediately:
-        // nothing has been dispatched yet, so there is no worker to stop.
-        if !self.relay.contact_accepted(&req.worker_address).await {
-            let _ = self.relay.request_contact(&req.worker_address).await;
-            let deadline = std::time::Instant::now() + CONTACT_WAIT;
-            while std::time::Instant::now() < deadline
-                && !self.relay.contact_accepted(&req.worker_address).await
-            {
-                tokio::select! {
-                    biased;
-                    _ = abort.notified() => return Err(RunError::Aborted),
-                    _ = tokio::time::sleep(CONTACT_POLL) => {}
-                }
-            }
-        }
-
         let mut attempt = 0u32;
         loop {
             let cid = format!(
@@ -409,6 +392,9 @@ impl TaskRunner {
             );
             let (tx, mut rx) = oneshot::channel();
             let activity = Arc::new(Notify::new());
+            // Held for the whole attempt, not only for as long as the waiter is
+            // registered: the windows below read it, and the pump writes it.
+            let held = Arc::new(AtomicBool::new(false));
             self.waiters.lock().await.insert(
                 cid.clone(),
                 Waiter {
@@ -421,6 +407,7 @@ impl TaskRunner {
                     reply: tx,
                     status: status.clone(),
                     activity: activity.clone(),
+                    held: held.clone(),
                 },
             );
 
@@ -432,6 +419,7 @@ impl TaskRunner {
                 correlation_id: Some(cid.clone()),
                 harness: None,
                 provider: req.provider,
+                transport: req.transport,
                 custom_harness: req.custom_harness.clone(),
                 model: req.model.clone(),
                 tool_mode: req.tool_mode.clone(),
@@ -502,7 +490,7 @@ impl TaskRunner {
                             // A frame: the peer is working. Reset the idle clock.
                             _ = activity.notified() => continue,
                             _ = live_sleep(
-                                self.relay.as_ref(), &req.worker_address, self.idle_window,
+                                self.relay.as_ref(), &req.worker_address, self.idle_window, &held,
                             ) => {
                                 self.waiters.lock().await.remove(&cid);
                                 send_abort(
@@ -514,7 +502,7 @@ impl TaskRunner {
                     }
                 }
                 _ = live_sleep(
-                    self.relay.as_ref(), &req.worker_address, self.ack_window,
+                    self.relay.as_ref(), &req.worker_address, self.ack_window, &held,
                 ) => {
                     // Silence while the link was live — so the peer itself is not
                     // answering, not the network. Reset and resend, or give up.
@@ -549,6 +537,7 @@ async fn send_abort(relay: &dyn Relay, address: &str, task_id: &str, cid: &str) 
         correlation_id: Some(cid.to_string()),
         harness: None,
         provider: None,
+        transport: None,
         custom_harness: None,
         model: None,
         tool_mode: None,

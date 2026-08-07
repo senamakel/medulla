@@ -19,6 +19,18 @@ pub(super) struct Waiter {
     /// Notified on ANY inbound frame for this dispatch — the "peer is alive"
     /// signal the runner's ack window waits on.
     pub(super) activity: Arc<Notify>,
+    /// Whether an operator currently holds the session serving this dispatch.
+    ///
+    /// Set and cleared by the pump from the worker's control markers
+    /// ([`crate::daemon::SESSION_HELD_STATUS_PREFIX`]), read by the runner's
+    /// windows: held time does not accrue against the no-progress watchdog, the
+    /// same way time on a dead link does not. A person reading their session is
+    /// not a crashed worker, and a hold outlasts every window this runner has.
+    ///
+    /// Shared with the [`super::TaskRunner::run`] call rather than only living
+    /// in the map, so the window keeps reading it after a terminal frame has
+    /// removed the waiter.
+    pub(super) held: Arc<AtomicBool>,
 }
 /// Shared registry of in-flight dispatches, keyed by `correlationId`.
 pub(super) type Waiters = Arc<Mutex<HashMap<String, Waiter>>>;
@@ -26,7 +38,7 @@ pub(super) type Waiters = Arc<Mutex<HashMap<String, Waiter>>>;
 ///
 /// The address is carried, not just the channel, because a correlation id is not
 /// a secret: probe ids are predictable counters, and the inbox is shared by every
-/// peer this identity has a contact edge with. Binding the waiter to the address
+/// peer enrolled against this identity. Binding the waiter to the address
 /// the probe was sent to is what stops a peer that guesses an id from answering
 /// on another worker's behalf.
 pub(super) struct Probe<T> {

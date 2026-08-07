@@ -2,6 +2,7 @@
 //! operator watches about it, and the handle the UI holds.
 
 use medulla::protocol::HarnessProvider;
+pub use medulla::sessions::SessionOrigin;
 
 use super::attention::HarnessAttention;
 
@@ -55,21 +56,32 @@ impl PtyState {
     }
 }
 
-/// Who is allowed to drive a harness session right now.
+/// Who is allowed to drive an agent session right now.
 ///
 /// Keyboard focus ([`HarnessFocus`](crate::ui::harness_pane::HarnessFocus)) says
 /// where *keystrokes* go; this says who holds *authority*. They are not the same
 /// thing, and conflating them is what let the orchestrator paste a task prompt
-/// into a composer the operator was already typing in — a harness serves one turn
+/// into a composer the operator was already typing in — a session serves one turn
 /// at a time, so two writers produce one confidently wrong answer rather than an
 /// error.
 ///
+/// Nor is it [`SessionOrigin`], which is who *started* the session. Control
+/// moves — `ctrl-g` takes a session and handing it back returns it — and origin
+/// never does. A task-spawned session an operator is holding is
+/// `origin: orchestrator, control: user`; both halves are true at once, and only
+/// this one gates dispatch.
+///
 /// This is the single gate on dispatch: [`claim_idle`](super::PtyManager::claim_idle)
-/// only ever returns an orchestrator-held session. An "unmanaged" harness is not a
-/// separate kind of thing — it is one that was born [`User`](Self::User)-held and
-/// has not been handed over.
+/// only ever returns an orchestrator-held session. So "unmanaged" names a
+/// *current* state rather than a kind of session — one held by
+/// [`User`](Self::User) right now, whoever started it and however it got there.
+/// A session the operator opened is unmanaged because it was born that way; a
+/// dispatched one they took is unmanaged for exactly as long as they keep it,
+/// and dispatchable again the moment they hand it back. Which of the two it is
+/// cannot be read off this value, and does not need to be — that is what
+/// [`SessionOrigin`] is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum HarnessControl {
+pub enum SessionControl {
     /// The orchestrator may dispatch task frames into this session.
     #[default]
     Orchestrator,
@@ -77,28 +89,28 @@ pub enum HarnessControl {
     User,
 }
 
-impl HarnessControl {
+impl SessionControl {
     /// The display string, from the operator's point of view.
     ///
-    /// "you" rather than "user" because it is rendered next to a harness the
+    /// "you" rather than "user" because it is rendered next to a session the
     /// person reading it is looking at.
     pub fn as_str(self) -> &'static str {
         match self {
-            HarnessControl::Orchestrator => "orchestrator",
-            HarnessControl::User => "you",
+            SessionControl::Orchestrator => "orchestrator",
+            SessionControl::User => "you",
         }
     }
 
     /// Whether the orchestrator may dispatch into a session in this state.
     pub fn is_orchestrator(self) -> bool {
-        matches!(self, HarnessControl::Orchestrator)
+        matches!(self, SessionControl::Orchestrator)
     }
 
     /// The other side of the handover, for a toggle.
     pub fn toggled(self) -> Self {
         match self {
-            HarnessControl::Orchestrator => HarnessControl::User,
-            HarnessControl::User => HarnessControl::Orchestrator,
+            SessionControl::Orchestrator => SessionControl::User,
+            SessionControl::User => SessionControl::Orchestrator,
         }
     }
 }
@@ -108,6 +120,17 @@ impl HarnessControl {
 pub struct LaunchSpec {
     /// Which coding-agent CLI to run.
     pub provider: HarnessProvider,
+    /// The custom preset this session was launched from, when it was one.
+    ///
+    /// A preset is a *different agent* running the same CLI — its own model,
+    /// endpoint and environment — so its id, not the base CLI's wire name, is
+    /// what a declaration records for it. Carrying it here is what lets the rail
+    /// file the session under the agent that declared it; without it a
+    /// preset-backed session was compared as `claude` against a declaration
+    /// saying `deepseek` and listed as belonging to no agent at all.
+    ///
+    /// `None` for a native CLI entry, whose id *is* the provider's wire name.
+    pub preset: Option<String>,
     /// The resolved binary name or path.
     pub bin: String,
     /// Working directory for the child.
@@ -139,16 +162,30 @@ pub struct LaunchSpec {
     pub session_id: Option<String>,
     /// Who holds the session the moment it opens.
     ///
-    /// A task frame opens an [`Orchestrator`](HarnessControl::Orchestrator)
+    /// A task frame opens an [`Orchestrator`](SessionControl::Orchestrator)
     /// session; an operator spawning one from the TUI opens a
-    /// [`User`](HarnessControl::User) one, which is what makes it unmanaged.
-    pub control: HarnessControl,
-    /// Whether an operator asked for this session rather than a task frame.
+    /// [`User`](SessionControl::User) one, which is what makes it unmanaged.
+    pub control: SessionControl,
+    /// Who is starting this session — see [`SessionOrigin`].
     ///
-    /// Display only — never gate behaviour on it. Control is the gate; this
-    /// exists so the rail can say "unmanaged" instead of the less useful
-    /// "orchestrator-spawned, currently yours".
-    pub user_spawned: bool,
+    /// Display and labelling only — never gate behaviour on it. Control is the
+    /// gate; this is what lets a session be shown under its agent as "started
+    /// by you" rather than the less useful "orchestrator-spawned, currently
+    /// yours". It is fixed here for the session's whole life.
+    pub origin: SessionOrigin,
+    /// The display name the operator gave this session as they spun it up.
+    ///
+    /// `None` for a dispatched session, which is labelled from its task
+    /// instead, and `None` today for an operator-started one as well — the
+    /// picker has no name prompt yet. The field is the seam that lets one
+    /// appear without touching this layer again.
+    pub name: Option<String>,
+    /// The key this session's MCP fleet grant was minted under, when one was.
+    ///
+    /// Carried so the grant can be handed back when the harness exits: a
+    /// capability that outlives the session it was minted for is a token
+    /// nothing revokes and a leaked subprocess could still redeem.
+    pub mcp_grant_session: Option<String>,
 }
 
 /// The operator-facing projection of one session, for the list pane.
@@ -160,6 +197,11 @@ pub struct SessionRow {
     pub label: String,
     /// Which harness is running.
     pub provider: HarnessProvider,
+    /// The custom preset it was launched from — see [`LaunchSpec::preset`].
+    ///
+    /// Together with `provider` this gives the session's *harness id*, which is
+    /// the vocabulary a declaration is written in: [`harness_id`](Self::harness_id).
+    pub preset: Option<String>,
     /// Where the child is in its life.
     pub state: PtyState,
     /// The working directory the child runs in.
@@ -198,10 +240,24 @@ pub struct SessionRow {
     /// completion. So a busy session is not reusable, however idle its pty
     /// looks.
     pub busy: bool,
-    /// Who holds this session right now — see [`HarnessControl`].
-    pub control: HarnessControl,
-    /// Whether an operator spawned it rather than a task frame. Display only.
-    pub user_spawned: bool,
+    /// Who holds this session right now — see [`SessionControl`].
+    pub control: SessionControl,
+    /// Who started it — see [`SessionOrigin`]. Immutable, and independent of
+    /// [`SessionRow::control`]: taking a dispatched session does not make it
+    /// yours to have started.
+    pub origin: SessionOrigin,
+    /// Whether the task this session served has finished and the session is
+    /// being kept standing for the operator to read.
+    ///
+    /// Orthogonal to [`control`](SessionRow::control), which still says
+    /// `Orchestrator`: nobody has taken it, and reading it as taken would make
+    /// it hold the checkout against every task queued behind it. Cleared the
+    /// moment the operator does take it.
+    pub retained: bool,
+    /// The name the operator gave it when they started it, if they gave one.
+    ///
+    /// `None` for a dispatched session; the UI labels those from their task.
+    pub name: Option<String>,
     /// What this harness is waiting on the operator for, if anything.
     ///
     /// The one piece of session state nothing else on this row can express. A
@@ -214,11 +270,39 @@ pub struct SessionRow {
     ///
     /// `None` is the ordinary state: working, idle at a composer, or exited.
     pub attention: Option<HarnessAttention>,
+    /// The key this session's fleet grant was minted under, when it was given
+    /// one — see [`LaunchSpec::mcp_grant_session`].
+    ///
+    /// Carried onto the row because it is what a workflow run this session
+    /// started over MCP is reported under
+    /// ([`medulla::control_socket::runs`]), and the rail has only the row to
+    /// match those against.
+    pub mcp_grant_session: Option<String>,
 }
 
 impl SessionRow {
     /// Milliseconds since the harness last wrote anything.
     pub fn idle_ms(&self, now: i64) -> i64 {
         now.saturating_sub(self.last_output_at).max(0)
+    }
+
+    /// The stable harness id this session runs as — a preset's own id, else the
+    /// provider's wire name.
+    ///
+    /// The same id a picker choice reports and a declaration records, which is
+    /// what makes matching a session to its agent a comparison of like with
+    /// like rather than of a preset against the CLI underneath it.
+    ///
+    /// Trimmed here rather than by each caller: this is a *join key* — it is
+    /// compared against a declaration's `harness`, which is trimmed on its own
+    /// side — so a preset id typed with a stray space has to stop being one at
+    /// the source, or every comparison has to remember to trim and one of them
+    /// eventually will not.
+    pub fn harness_id(&self) -> &str {
+        self.preset
+            .as_deref()
+            .map(str::trim)
+            .filter(|preset| !preset.is_empty())
+            .unwrap_or_else(|| self.provider.as_str())
     }
 }

@@ -6,19 +6,26 @@
 //! runtime. Each runner parses its own args, loads config, performs its work,
 //! and returns an `anyhow::Result`.
 //!
-//! [`workspace`] and [`workflow`] own the registry and workflow verbs, which are
-//! large enough to warrant their own files; everything else lives here.
+//! [`workspace`], [`workflow`], and [`skills`] own the registry, workflow, and
+//! harness-skill verbs, which are large enough to warrant their own files;
+//! everything else lives here.
 
+pub(crate) mod hook;
 pub(crate) mod login_screen;
 #[cfg(feature = "workflows")]
 pub(crate) mod mcp;
 #[cfg(feature = "workflows")]
+pub(crate) mod skills;
+#[cfg(feature = "workflows")]
 pub(crate) mod workflow;
 pub(crate) mod workspace;
 
+pub(crate) use hook::run_hook_cmd;
 pub(crate) use login_screen::run_login_screen;
 #[cfg(feature = "workflows")]
 pub(crate) use mcp::run_mcp_cmd;
+#[cfg(feature = "workflows")]
+pub(crate) use skills::run_skills_cmd;
 #[cfg(feature = "workflows")]
 pub(crate) use workflow::run_workflow_cmd;
 pub(crate) use workspace::run_workspace;
@@ -57,6 +64,7 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
                 .await
                 .map_err(|e| anyhow::anyhow!("failed to redeem login token: {e}"))?
         }
+        None if parsed.code => run_code_login(&base_url, parsed.provider).await?,
         None => {
             let cfg = LoopbackConfig {
                 no_browser: parsed.no_browser,
@@ -97,6 +105,52 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     sweep_retired_credentials(&env);
     println!("Signed in to {base_url}.");
     Ok(())
+}
+
+/// `medulla login --code`: the terminal sign-in, for a shell with no usable
+/// browser of its own.
+///
+/// Prints a verification URL, waits for the operator to open it wherever they
+/// can and paste back the one-time code that page shows, and exchanges that code
+/// for a JWT. Nothing is bound locally — which is the point. Over SSH the
+/// loopback flow does not merely inconvenience the operator, it cannot work:
+/// the backend's redirect to `127.0.0.1` reaches the machine running the
+/// browser, never the one running this command.
+///
+/// # Errors
+///
+/// Fails when stdin is closed or empty (nothing was pasted), or when the backend
+/// refuses the code — expired, already used, or simply mistyped.
+async fn run_code_login(
+    base_url: &str,
+    provider: medulla::auth::Provider,
+) -> anyhow::Result<String> {
+    use std::io::Write;
+
+    let url = medulla::auth::code_login_url(base_url, provider);
+    println!("Open this URL on any device and sign in:\n\n  {url}\n");
+    print!("Then paste the code it shows here: ");
+    std::io::stdout().flush().ok();
+
+    // `read_line` blocks, and this runs on the same runtime that will serve the
+    // redemption request, so it goes to a blocking thread rather than parking a
+    // worker for however long the operator takes to switch devices.
+    let code = tokio::task::spawn_blocking(|| {
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).map(|_| line)
+    })
+    .await??;
+
+    let code = code.trim().to_string();
+    if code.is_empty() {
+        return Err(anyhow::anyhow!("no code was pasted"));
+    }
+
+    let client = MedullaClient::new(base_url.to_string(), String::new());
+    client
+        .consume_login_token(code)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to redeem the login code: {e}"))
 }
 
 /// Scope this install to the account named by an `/auth/me` response, and prove
@@ -305,7 +359,7 @@ fn sweep_retired_credentials(env: &std::collections::HashMap<String, String>) {
 }
 
 /// `medulla hub`: run the orchestrator hub — bridge the hosted backend brain to
-/// tiny.place worker daemons. Takes the backend JWT from the core's app session
+/// host-link worker daemons. Takes the backend JWT from the core's app session
 /// and the worker roster from `MEDULLA_LINK_PEER` / `MEDULLA_HUB_WORKERS`.
 pub(crate) async fn run_hub(_args: &[String]) -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();

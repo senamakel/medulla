@@ -33,6 +33,7 @@ async fn direct_runs_report_the_session_before_workspace_context() {
     std::fs::set_permissions(&harness, std::fs::Permissions::from_mode(0o755)).unwrap();
     let order = Arc::new(Mutex::new(Vec::new()));
     let options = RunTaskOptions {
+        transport: Default::default(),
         conversation: "peer".into(),
         session_class: crate::sessions::SessionClass::Unbound,
         resume_session_id: None,
@@ -41,7 +42,7 @@ async fn direct_runs_report_the_session_before_workspace_context() {
         prompt: "go".into(),
         cwd: dir.path().to_string_lossy().into_owned(),
         env: HashMap::from([(
-            "TINYPLACE_CLAUDE_BIN".into(),
+            "MEDULLA_CLAUDE_BIN".into(),
             harness.to_string_lossy().into_owned(),
         )]),
         timeout_ms: 1_000,
@@ -52,6 +53,7 @@ async fn direct_runs_report_the_session_before_workspace_context() {
         abort: Abort::new(),
         router: None,
         attribution: false,
+        hooks: crate::harness_hooks::HooksConfig::default(),
         on_event: None,
         on_stdin: None,
         on_session: Some({
@@ -77,7 +79,14 @@ async fn direct_runs_report_the_session_before_workspace_context() {
 fn build_run_args_per_provider() {
     assert_eq!(
         build_run_args(HarnessProvider::Claude, "hello", None, None, &[], false),
-        vec!["-p", "--output-format", "stream-json", "--verbose", "hello"]
+        vec![
+            "-p",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--",
+            "hello"
+        ]
     );
     assert_eq!(
         build_run_args(HarnessProvider::Claude, "hi", None, None, &[], true),
@@ -87,6 +96,7 @@ fn build_run_args_per_provider() {
             "stream-json",
             "--verbose",
             "--dangerously-skip-permissions",
+            "--",
             "hi"
         ]
     );
@@ -100,6 +110,18 @@ fn build_run_args_per_provider() {
             false
         ),
         vec!["exec", "--json", "-m", "gpt-5", "do"]
+    );
+    // Skip-permissions reaches codex as a sandbox bypass: its default
+    // `workspace-write` policy has no network and only the cwd writable, which
+    // a worktree task cannot commit or push from.
+    assert_eq!(
+        build_run_args(HarnessProvider::Codex, "do", None, None, &[], true),
+        vec![
+            "exec",
+            "--json",
+            "--dangerously-bypass-approvals-and-sandbox",
+            "do"
+        ]
     );
     assert_eq!(
         build_run_args(
@@ -123,7 +145,7 @@ fn build_run_args_neutralizes_dash_prompt() {
 #[test]
 fn provider_bin_env_override_wins() {
     let mut env = HashMap::new();
-    env.insert("TINYPLACE_CODEX_BIN".to_string(), "/opt/codex".to_string());
+    env.insert("MEDULLA_CODEX_BIN".to_string(), "/opt/codex".to_string());
     assert_eq!(provider_bin(HarnessProvider::Codex, &env), "/opt/codex");
     assert_eq!(provider_bin(HarnessProvider::Claude, &env), "claude");
 }
@@ -197,9 +219,34 @@ fn build_run_args_claude_with_model() {
             "--model",
             "anthropic/claude-opus-4.8",
             "--mcp",
+            "--",
             "task",
         ]
     );
+}
+
+/// The prompt must survive a *variadic* option sitting last in `extra_args`.
+///
+/// `--add-dir <directories...>` is the real one: it is how a session is pointed
+/// at its managed skills, and without a terminator it reads the prompt as one
+/// more directory, leaving claude with no prompt at all.
+#[test]
+fn build_run_args_claude_terminates_options_before_the_prompt() {
+    let args = build_run_args(
+        HarnessProvider::Claude,
+        "do the thing",
+        None,
+        None,
+        &["--add-dir".to_string(), "/skills".to_string()],
+        false,
+    );
+    let terminator = args
+        .iter()
+        .position(|arg| arg == "--")
+        .expect("the prompt must be separated from option parsing");
+    assert_eq!(args.last().unwrap(), "do the thing");
+    assert_eq!(terminator, args.len() - 2, "{args:?}");
+    assert!(args[..terminator].contains(&"/skills".to_string()));
 }
 
 #[test]
@@ -212,29 +259,37 @@ fn build_run_args_claude_extra_and_dash_prompt() {
         &["--mcp".to_string()],
         true,
     );
-    // extra args precede the (space-neutralized) prompt.
-    assert_eq!(args[args.len() - 2], "--mcp");
+    // extra args precede the terminator and the (space-neutralized) prompt.
+    assert_eq!(args[args.len() - 3], "--mcp");
+    assert_eq!(args[args.len() - 2], "--");
     assert_eq!(args.last().unwrap(), " -hi");
     assert!(args.contains(&"--dangerously-skip-permissions".to_string()));
 }
 
 #[test]
 fn provider_bin_prefers_first_env_key_and_trims() {
+    // Ordering for claude is MEDULLA_ > the legacy TINYVERSE_ > the deprecated
+    // TINYPLACE_.
     let mut env = HashMap::new();
-    // Claude honors TINYVERSE_* before TINYPLACE_*.
     env.insert(
         "TINYVERSE_CLAUDE_BIN".to_string(),
         "  /opt/claude  ".to_string(),
     );
     env.insert(
         "TINYPLACE_CLAUDE_BIN".to_string(),
-        "/other/claude".to_string(),
+        "/oldest/claude".to_string(),
     );
     assert_eq!(provider_bin(HarnessProvider::Claude, &env), "/opt/claude");
 
+    env.insert(
+        "MEDULLA_CLAUDE_BIN".to_string(),
+        "  /new/claude  ".to_string(),
+    );
+    assert_eq!(provider_bin(HarnessProvider::Claude, &env), "/new/claude");
+
     // A whitespace-only override is ignored (falls back to the default).
     let mut blank = HashMap::new();
-    blank.insert("TINYPLACE_CODEX_BIN".to_string(), "   ".to_string());
+    blank.insert("MEDULLA_CODEX_BIN".to_string(), "   ".to_string());
     assert_eq!(provider_bin(HarnessProvider::Codex, &blank), "codex");
 }
 

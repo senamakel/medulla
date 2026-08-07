@@ -222,3 +222,118 @@ fn a_dimmed_cell_renders_dim() {
 
     assert!(lines[0].spans[0].style.add_modifier.contains(Modifier::DIM));
 }
+
+/// The colours of one row, one entry per cell.
+fn colors(canvas: Canvas, row: usize) -> Vec<Option<Color>> {
+    canvas
+        .into_lines()
+        .into_iter()
+        .nth(row)
+        .expect("row is on the canvas")
+        .spans
+        .iter()
+        .flat_map(|span| span.content.chars().map(|_| span.style.fg))
+        .collect()
+}
+
+#[test]
+fn a_pulse_recolours_a_wire_without_changing_it() {
+    let mut canvas = Canvas::new(5, 1);
+    canvas.horizontal(0, 4, 0, CellStyle::colored(Color::Blue).dimmed());
+
+    canvas.pulse(2, 0, Color::White);
+
+    let mut lines = canvas.into_lines();
+    let line = lines.remove(0);
+    let drawn: String = line
+        .spans
+        .iter()
+        .map(|span| span.content.to_string())
+        .collect();
+    assert_eq!(drawn, "─────", "the wire is unbroken");
+    let lit: Vec<Option<Color>> = line
+        .spans
+        .iter()
+        .flat_map(|span| span.content.chars().map(|_| span.style.fg))
+        .collect();
+    assert_eq!(lit[2], Some(Color::White), "the pulsed cell is lit");
+    assert_eq!(lit[1], Some(Color::Blue), "its neighbours are not");
+}
+
+#[test]
+fn a_pulse_never_lands_on_a_node_or_on_blank_canvas() {
+    let mut canvas = Canvas::new(6, 1);
+    canvas.text(0, 0, "box", CellStyle::colored(Color::Green));
+
+    // Over a node: the label must survive, since a highlight there would be
+    // claiming a wire runs through a box it only passes behind.
+    canvas.pulse(1, 0, Color::White);
+    // Over nothing: a highlight off its wire would be a dot in empty space.
+    canvas.pulse(5, 0, Color::White);
+
+    let lit = colors(canvas, 0);
+    assert_eq!(lit[1], Some(Color::Green), "the node keeps its colour");
+    assert_eq!(lit[5], None, "blank canvas stays blank");
+}
+
+#[test]
+fn bold_and_dim_survive_serialisation() {
+    let mut canvas = Canvas::new(6, 1);
+    canvas.text(0, 0, "ab", CellStyle::colored(Color::Green).bold());
+    canvas.text(2, 0, "cd", CellStyle::colored(Color::Green).dimmed());
+
+    let mut lines = canvas.into_lines();
+    let line = lines.remove(0);
+    let styles: Vec<Style> = line
+        .spans
+        .iter()
+        .flat_map(|span| span.content.chars().map(|_| span.style))
+        .collect();
+    assert!(styles[0].add_modifier.contains(Modifier::BOLD));
+    assert!(!styles[0].add_modifier.contains(Modifier::DIM));
+    assert!(styles[2].add_modifier.contains(Modifier::DIM));
+    assert!(!styles[2].add_modifier.contains(Modifier::BOLD));
+}
+
+#[test]
+fn a_labels_own_spaces_are_not_resolved_as_wire() {
+    let mut canvas = Canvas::new(14, 1);
+    // The wire is laid first and the name written over it, which is the order
+    // an edge routed behind a box arrives in.
+    canvas.horizontal(0, 13, 0, CellStyle::default());
+    canvas.text(2, 0, "a b c", CellStyle::default());
+
+    assert_eq!(rows(canvas), vec!["──a b c───────"]);
+}
+
+#[test]
+fn a_run_of_one_cell_records_no_direction() {
+    let mut canvas = Canvas::new(3, 3);
+    // A route whose horizontal leg is degenerate: two vertical runs meeting at
+    // a corner that goes nowhere sideways.
+    canvas.horizontal(1, 1, 1, CellStyle::default());
+    canvas.vertical(1, 1, 2, CellStyle::default());
+
+    // `╭` — a stub pointing at empty canvas — is what a spurious RIGHT drew.
+    assert_eq!(rows(canvas), vec!["   ", " │ ", " │ "]);
+}
+
+#[test]
+fn a_port_name_gives_way_to_a_node_rather_than_overwriting_it() {
+    let mut canvas = Canvas::new(10, 1);
+    canvas.text(4, 0, "node", CellStyle::default());
+
+    canvas.label(2, 0, "true", CellStyle::default());
+
+    assert_eq!(rows(canvas), vec!["  trnode  "]);
+}
+
+#[test]
+fn a_port_name_that_would_run_off_the_canvas_is_dropped_whole() {
+    let mut canvas = Canvas::new(8, 1);
+
+    canvas.label(6, 0, "false", CellStyle::default());
+
+    // Better nothing than `fa`, which reads as a different case.
+    assert_eq!(rows(canvas), vec!["        "]);
+}

@@ -5,7 +5,7 @@
 //! [`Bridge`](crate::bridge::Bridge) and routes the worker's reply back. A
 //! [`LocalBridge`](crate::bridge::LocalBridge) keeps traffic in-process, while a
 //! [`TinyplaceBridge`](crate::bridge::TinyplaceBridge) reaches remote workers
-//! over encrypted tiny.place DMs. The runner correlates concurrent dispatches by
+//! over encrypted host-link datagrams. The runner correlates concurrent dispatches by
 //! `correlationId` over the one shared, destructively-drained inbox.
 
 mod activity;
@@ -35,7 +35,7 @@ pub use boot::{
 pub use handle::HubHandle;
 pub use handoff::{HandoffControl, HarnessHandoff};
 pub use relay::Relay;
-pub use roster::HubWorker;
+pub use roster::{HubWorker, SharedLocalHosts};
 pub use runner::TaskRunner;
 pub use screens::{ScreenStore, WatchedScreen};
 pub use types::{stderr_log, HubLog, RosterSink, RunError, TaskOutcome, TaskRequest};

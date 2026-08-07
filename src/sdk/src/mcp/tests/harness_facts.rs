@@ -143,9 +143,11 @@ async fn the_host_tool_lists_the_harnesses_a_node_may_choose_between() {
 
     let (facts, _) = call(&store, "workflow_host", json!({})).await;
 
+    // Flavors, not merely providers: `codex-server` is a name a node may write,
+    // so an author reading this list has to be told about it.
     assert_eq!(
         facts["builtinHarnesses"],
-        json!(["claude", "codex", "opencode"])
+        json!(["claude", "codex", "codex-server", "opencode"])
     );
     // Default config pins neither, so a node inherits whatever the worker runs.
     assert_eq!(facts["defaultHarness"], json!(null));
@@ -162,6 +164,22 @@ async fn the_host_tool_lists_the_harnesses_a_node_may_choose_between() {
     assert!(
         notes.iter().any(|note| note.contains("config.harness")),
         "{notes:?}"
+    );
+}
+
+#[tokio::test]
+async fn the_host_tool_reports_the_loop_iteration_ceiling() {
+    // The `loop` contract tells an author to check `workflow_host` for the
+    // current value (see `node_contracts::apply_host_overlay`) — the facts
+    // this call returns have to actually carry it, or that instruction sends
+    // the author nowhere.
+    let (_root, store) = store();
+
+    let (facts, _) = call(&store, "workflow_host", json!({})).await;
+
+    assert_eq!(
+        facts["maxLoopIterations"],
+        json!(crate::config::WorkflowsConfig::default().max_loop_iterations)
     );
 }
 

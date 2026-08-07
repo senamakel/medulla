@@ -28,7 +28,7 @@
 //!
 //! **`Bounded`/`Unbound` here are the inverse of the JavaScript prior art's
 //! vocabulary.** The former `core-js` orchestrator (since removed from this
-//! repo) and tiny.place daemon call the long-lived session
+//! repo) and host-link daemon call the long-lived session
 //! "bound" (bound to a thread) and the throwaway one "pool"/"unbound". Here the
 //! adjective describes the *lifetime*. When reading that prior art, translate:
 //! their `bound` is our [`SessionClass::Unbound`].
@@ -68,13 +68,15 @@ pub use input::{fold, fold_envelope, Folded, Observation, SessionInput};
 pub use interactive::{InteractiveSession, InteractiveSpec, StreamEvent};
 pub use manager::{OpenSession, SessionConfig, SessionManager, TranscriptLine, TranscriptRole};
 pub use ops::SessionOp;
-pub use registry::{SessionRegistry, TurnPlan, WorkspaceContext, DEFAULT_MAX_BINDINGS};
+pub use registry::{
+    SessionIdentity, SessionRegistry, TurnPlan, WorkspaceContext, DEFAULT_MAX_BINDINGS,
+};
 pub use routing::{
     can_resume, can_run_interactive, has_continuity, route_session_class, route_transport,
     Stimulus, Transport,
 };
 pub use turn_stream::{LineFold, TurnStream};
 pub use types::{
-    SessionClass, SessionDriver, SessionKey, SessionPhase, SessionPolicy, SessionRecord,
-    TurnOrigin, TurnOutcome, TurnRequest,
+    SessionClass, SessionDriver, SessionKey, SessionOrigin, SessionPhase, SessionPolicy,
+    SessionRecord, TurnOrigin, TurnOutcome, TurnRequest,
 };

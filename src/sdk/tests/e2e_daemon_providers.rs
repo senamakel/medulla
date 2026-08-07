@@ -4,7 +4,7 @@
 //! End-to-end coverage for the daemon's provider spawn path
 //! ([`medulla::daemon::providers::run_provider_task`]) driven by the mock
 //! coding-agent CLIs in [`mock_harness`]. Each test installs a scripted mock as
-//! the provider binary (via `TINYPLACE_*_BIN`) and asserts the derived semantic
+//! the provider binary (via `MEDULLA_*_BIN`) and asserts the derived semantic
 //! events, reply extraction, and error branches — with no real CLI and no
 //! network.
 
@@ -48,6 +48,8 @@ async fn run(
     let kinds = Arc::new(Mutex::new(Vec::<String>::new()));
     let sink = kinds.clone();
     let options = RunTaskOptions {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        transport: Default::default(),
         conversation: String::new(),
         session_class: medulla::sessions::SessionClass::Bounded,
         resume_session_id: None,
@@ -162,7 +164,7 @@ async fn spawn_failure_for_missing_binary() {
         env.insert("PATH".to_string(), path);
     }
     env.insert(
-        "TINYPLACE_CLAUDE_BIN".to_string(),
+        "MEDULLA_CLAUDE_BIN".to_string(),
         "/nonexistent/definitely-not-here".to_string(),
     );
     assert_eq!(
@@ -170,6 +172,8 @@ async fn spawn_failure_for_missing_binary() {
         "/nonexistent/definitely-not-here"
     );
     let options = RunTaskOptions {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        transport: Default::default(),
         conversation: String::new(),
         session_class: medulla::sessions::SessionClass::Bounded,
         resume_session_id: None,
@@ -205,6 +209,8 @@ async fn abort_before_start_returns_immediately() {
     let abort = Abort::new();
     abort.abort();
     let options = RunTaskOptions {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        transport: Default::default(),
         conversation: String::new(),
         session_class: medulla::sessions::SessionClass::Bounded,
         resume_session_id: None,
@@ -244,6 +250,8 @@ async fn abort_mid_run_kills_child() {
         abort_bg.abort();
     });
     let options = RunTaskOptions {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        transport: Default::default(),
         conversation: String::new(),
         session_class: medulla::sessions::SessionClass::Bounded,
         resume_session_id: None,
@@ -283,6 +291,8 @@ async fn stdin_input_reaches_child_and_echoes_in_reply() {
             Arc::new(Mutex::new(None));
         let register = stdin_tx.clone();
         let options = RunTaskOptions {
+            hooks: medulla::harness_hooks::HooksConfig::default(),
+            transport: Default::default(),
             conversation: String::new(),
             session_class: medulla::sessions::SessionClass::Bounded,
             resume_session_id: None,
@@ -338,6 +348,8 @@ async fn stdin_is_immediate_eof_for_batch_cli() {
         let registered = Arc::new(Mutex::new(false));
         let register = registered.clone();
         let options = RunTaskOptions {
+            hooks: medulla::harness_hooks::HooksConfig::default(),
+            transport: Default::default(),
             conversation: String::new(),
             session_class: medulla::sessions::SessionClass::Bounded,
             resume_session_id: None,

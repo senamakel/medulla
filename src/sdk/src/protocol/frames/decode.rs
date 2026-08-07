@@ -3,7 +3,8 @@
 //! tolerant of foreign or malformed input and never panic.
 
 use super::types::{
-    AgentCapabilities, HarnessProvider, TaskFrame, TaskFrameKind, TokenUsage, MEDULLA_TASK_PROTO,
+    AgentCapabilities, HarnessProvider, HarnessTransport, TaskFrame, TaskFrameKind, TokenUsage,
+    MEDULLA_TASK_PROTO,
 };
 
 /// Parse a decrypted body into a [`TaskFrame`], or `None` when it is not one of
@@ -69,6 +70,15 @@ pub fn decode_task_frame(body: &str) -> Option<TaskFrame> {
         .map(str::trim)
         .filter(|fingerprint| !fingerprint.is_empty())
         .map(str::to_string);
+    // An unrecognized transport fails closed. A worker that ran the CLI because
+    // it did not understand the flavor would be a silent downgrade — the
+    // operator asked for a shared process and would get a fork per task with no
+    // way to tell. Absent, however, is simply the provider default.
+    let transport = match obj.get("transport") {
+        None | Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(value)) => Some(HarnessTransport::from_wire(value.trim())?),
+        Some(_) => return None,
+    };
     let custom_harness = obj
         .get("customHarness")
         .and_then(|value| value.as_str())
@@ -117,6 +127,18 @@ pub fn decode_task_frame(body: &str) -> Option<TaskFrame> {
         Some(serde_json::Value::Object(inputs)) => inputs.clone(),
         Some(_) => return None,
     };
+    // Decoded so a *response* can report which session served the task. Nothing
+    // on the receiving side of a `task` frame reads it: honouring an inbound
+    // session id is session targeting, which is deliberately not implemented —
+    // one caller must not be able to run inside a session opened for another.
+    // Blank is treated as absent, so a sender that always writes the key does
+    // not report a session nothing can resume.
+    let session_id = obj
+        .get("sessionId")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string);
 
     Some(TaskFrame {
         proto: MEDULLA_TASK_PROTO.to_string(),
@@ -127,6 +149,7 @@ pub fn decode_task_frame(body: &str) -> Option<TaskFrame> {
         correlation_id,
         harness,
         provider,
+        transport,
         custom_harness,
         model,
         tool_mode,
@@ -137,6 +160,7 @@ pub fn decode_task_frame(body: &str) -> Option<TaskFrame> {
         fleet_depth,
         usage,
         work,
+        session_id,
     })
 }
 

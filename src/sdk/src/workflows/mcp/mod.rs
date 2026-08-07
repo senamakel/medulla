@@ -7,6 +7,8 @@
 mod definitions;
 mod dispatch;
 mod evolve;
+mod run_detail;
+mod run_progress;
 
 pub(crate) use definitions::definitions;
 pub(crate) use dispatch::call;

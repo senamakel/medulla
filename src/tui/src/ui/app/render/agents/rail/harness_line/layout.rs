@@ -26,7 +26,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line as TLine, Span};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::worker::pty::{HarnessControl, PtyState, SessionRow};
+use crate::ui::util::slug;
+use crate::worker::pty::{PtyState, SessionControl, SessionRow};
 
 use super::super::wrap::{short_home, wrap_path};
 
@@ -205,7 +206,14 @@ fn layout_line(
             Field::State => fit(&state_glyph.to_string(), room),
             Field::Harness => fit(&harness_text(row, cfg.harness_style), room),
             Field::Control => fit(&control_text(row.control, cfg.control_style), room),
-            Field::Thread => row.thread_name.as_deref().and_then(|name| fit(name, room)),
+            // The harness advertises a sentence; the status line, like the
+            // lane rows, shows its slug so one row cannot eat the rail.
+            Field::Thread => row
+                .thread_name
+                .as_deref()
+                .map(slug)
+                .filter(|name| !name.is_empty())
+                .and_then(|name| fit(&name, room)),
             Field::Branch => branch_text(row, room, path_shares_line),
             Field::Path => path_text(row, home, cfg.path_style, room),
         };
@@ -240,17 +248,17 @@ fn harness_text(row: &SessionRow, style: HarnessNameStyle) -> String {
 
 /// Who holds the session, in the operator's chosen spelling.
 ///
-/// "unmanaged" rather than [`HarnessControl::as_str`]'s "you": this is the whole
+/// "unmanaged" rather than [`SessionControl::as_str`]'s "you": this is the whole
 /// reason an operator-started row exists, and someone who hands one to the
 /// orchestrator needs to see that it took effect.
-fn control_text(control: HarnessControl, style: ControlStyle) -> String {
+fn control_text(control: SessionControl, style: ControlStyle) -> String {
     match (style, control) {
-        (ControlStyle::Text, HarnessControl::User) => "unmanaged",
-        (ControlStyle::Text, HarnessControl::Orchestrator) => "orchestrator",
+        (ControlStyle::Text, SessionControl::User) => "unmanaged",
+        (ControlStyle::Text, SessionControl::Orchestrator) => "orchestrator",
         // `⊘` reads as "dispatch does not enter here", which is exactly what an
         // operator-held session means; `⊙` is the orchestrator holding it.
-        (ControlStyle::Icon, HarnessControl::User) => "⊘",
-        (ControlStyle::Icon, HarnessControl::Orchestrator) => "⊙",
+        (ControlStyle::Icon, SessionControl::User) => "⊘",
+        (ControlStyle::Icon, SessionControl::Orchestrator) => "⊙",
     }
     .to_string()
 }

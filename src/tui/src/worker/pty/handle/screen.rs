@@ -58,8 +58,37 @@ impl SessionHandle {
         )
     }
 
+    /// Whether the child enabled xterm alternate-scroll mode (DECSET 1007).
+    pub(in super::super) fn alternate_scroll(&self) -> bool {
+        lock(&self.modes).alternate_scroll
+    }
+
+    /// Take the clipboard write the child asked for, if it has asked since the
+    /// last call.
+    ///
+    /// Taking rather than reading, so one copy is forwarded once however often
+    /// this is polled — the reader thread calls it after every drain.
+    pub(in super::super) fn take_clipboard(&self) -> Option<String> {
+        lock(&self.modes).clipboard.take()
+    }
+
     /// Feed bytes from the pty into the emulator.
     pub(in super::super) fn process(&self, bytes: &[u8]) {
+        {
+            let mut modes = lock(&self.modes);
+            let mut parser = std::mem::take(&mut modes.parser);
+            for &byte in bytes {
+                parser.advance(&mut *modes, byte);
+                // Run in parallel with `vte`'s own OSC dispatch above, which
+                // truncates a payload past 1024 bytes; a complete capture
+                // here supersedes whatever that produced for the same write.
+                // See `super::osc52` for why both exist.
+                if let Some(text) = modes.osc52.advance(byte) {
+                    modes.clipboard = Some(text);
+                }
+            }
+            modes.parser = parser;
+        }
         let thread_name = {
             let mut parser = lock(&self.screen);
             parser.process(bytes);

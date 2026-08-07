@@ -128,8 +128,22 @@ impl GraphLayout {
             .filter(|edge| known.contains(edge.to_node.as_str()))
             .collect();
 
-        let layer = layer_nodes(&ids, &edges);
-        let lane = lane_nodes(&ids, &edges, &layer);
+        // A loop's closing edge is not a statement about depth, so it is taken
+        // out before anything is ranked. Left in, the relaxation below chases it
+        // around the cycle once per pass and the graph comes out as many layers
+        // deep as it has nodes — a ten-step workflow with one loop laid out
+        // sixty-three columns wide, folded into twenty-one bands of mostly
+        // empty canvas.
+        let back = back_edges(&ids, &edges);
+        let forward: Vec<&tinyflows::model::Edge> = edges
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| !back.contains(index))
+            .map(|(_, edge)| *edge)
+            .collect();
+
+        let layer = layer_nodes(&ids, &forward);
+        let lane = lane_nodes(&ids, &forward, &layer);
 
         let mut nodes: Vec<PlacedNode> = graph
             .nodes
@@ -219,15 +233,23 @@ impl GraphLayout {
                     .min_by_key(|(_, node)| node.lane.abs_diff(current.lane))
                     .map(|(index, _)| index)
             }
+            // A loop's closing edge is a successor that sits *behind* its
+            // source, so following edge order blindly would send `Forward` back
+            // up the graph and `Back` down it — the cursor appearing to move
+            // the wrong way. Prefer an edge that actually travels the requested
+            // direction, and fall back to the layer scan otherwise; the loop is
+            // still reachable, by pressing the direction it genuinely lies in.
             Move::Forward => self
                 .successors(&current.id)
-                .first()
-                .and_then(|id| self.index_of(id))
+                .into_iter()
+                .filter_map(|id| self.index_of(id))
+                .find(|index| self.nodes[*index].layer > current.layer)
                 .or_else(|| self.nearest_in_layer(current, current.layer + 1)),
             Move::Back => self
                 .predecessors(&current.id)
-                .first()
-                .and_then(|id| self.index_of(id))
+                .into_iter()
+                .filter_map(|id| self.index_of(id))
+                .find(|index| self.nodes[*index].layer < current.layer)
                 .or_else(|| {
                     current
                         .layer
@@ -266,13 +288,70 @@ impl GraphLayout {
     }
 }
 
+/// The edges that close a cycle, by index into `edges`.
+///
+/// A depth-first walk marks an edge as a back edge when its target is already on
+/// the walk's own stack — the standard definition, and the one that agrees with
+/// how a reader sees a loop: the arm that returns to a step already taken.
+///
+/// Roots are walked first so the walk follows the plan's own direction and the
+/// arm it calls "back" is the arm an author would. A component that is all cycle
+/// has no root, so every node is tried afterwards as well; there the choice of
+/// which edge closes the loop is arbitrary, but exactly one is removed either
+/// way and the rest of the component still ranks.
+fn back_edges(ids: &[String], edges: &[&tinyflows::model::Edge]) -> HashSet<usize> {
+    let mut out: HashMap<&str, Vec<(usize, &str)>> = HashMap::new();
+    for (index, edge) in edges.iter().enumerate() {
+        out.entry(edge.from_node.as_str())
+            .or_default()
+            .push((index, edge.to_node.as_str()));
+    }
+    let targets: HashSet<&str> = edges.iter().map(|edge| edge.to_node.as_str()).collect();
+    let roots = ids.iter().filter(|id| !targets.contains(id.as_str()));
+
+    let mut back: HashSet<usize> = HashSet::new();
+    let mut visited: HashSet<&str> = HashSet::new();
+    // The nodes on the current path, which is what distinguishes a back edge
+    // from an edge that merely rejoins a branch explored earlier.
+    let mut on_path: HashSet<&str> = HashSet::new();
+    // Iterative rather than recursive: the cursor is how far through a node's
+    // outgoing edges the walk has got.
+    let mut stack: Vec<(&str, usize)> = Vec::new();
+
+    for start in roots.chain(ids.iter()) {
+        let start = start.as_str();
+        if !visited.insert(start) {
+            continue;
+        }
+        on_path.insert(start);
+        stack.push((start, 0));
+        while let Some(&(node, cursor)) = stack.last() {
+            let children = out.get(node).map(Vec::as_slice).unwrap_or(&[]);
+            let Some(&(index, child)) = children.get(cursor) else {
+                on_path.remove(node);
+                stack.pop();
+                continue;
+            };
+            if let Some(top) = stack.last_mut() {
+                top.1 += 1;
+            }
+            if on_path.contains(child) {
+                back.insert(index);
+            } else if visited.insert(child) {
+                on_path.insert(child);
+                stack.push((child, 0));
+            }
+        }
+    }
+    back
+}
+
 /// Assign each node a layer: one past the furthest node that feeds it.
 ///
-/// Relaxed rather than sorted topologically, because the input may contain a
-/// cycle and a topological sort has no answer for one. Each pass pushes a node
-/// right of its parents; `ids.len()` passes settle any acyclic graph, and a
-/// cyclic one stops there with the loop's members bunched at the end — which
-/// draws, and is legible enough to debug.
+/// Relaxed rather than sorted topologically, because it is cheap and because the
+/// caller has already taken the cycles out — see [`back_edges`]. `ids.len()`
+/// passes settle any acyclic graph; the bound stays as a backstop in case an
+/// edge that should have been removed was not.
 fn layer_nodes(ids: &[String], edges: &[&tinyflows::model::Edge]) -> HashMap<String, usize> {
     let mut layer: HashMap<String, usize> = ids.iter().map(|id| (id.clone(), 0)).collect();
     for _ in 0..ids.len() {
@@ -372,6 +451,7 @@ pub fn kind_wire(kind: &NodeKind) -> &'static str {
         NodeKind::SubWorkflow => "sub_workflow",
         NodeKind::Memory => "memory",
         NodeKind::Dedup => "dedup",
+        NodeKind::Loop => "loop",
     }
 }
 
@@ -400,6 +480,9 @@ pub fn kind_glyph(kind: &NodeKind) -> &'static str {
         // A filter that lets each key past once: what it drops is a repeat, so
         // the shape says "not equal to what already went through".
         NodeKind::Dedup => "≠",
+        // The one kind whose edges run backwards: the shape is the cycle it
+        // draws on the canvas.
+        NodeKind::Loop => "↺",
     }
 }
 
@@ -423,7 +506,8 @@ pub fn kind_color(kind: &NodeKind) -> &'static str {
         | NodeKind::Switch
         | NodeKind::Merge
         | NodeKind::SplitOut
-        | NodeKind::Dedup => "yellow",
+        | NodeKind::Dedup
+        | NodeKind::Loop => "yellow",
         NodeKind::Transform | NodeKind::OutputParser => "blue",
     }
 }
@@ -487,6 +571,19 @@ pub fn node_summary(node: &Node) -> String {
         },
         // The key expression is the whole of what a dedup node decides by.
         NodeKind::Dedup => text("key").unwrap_or_default(),
+        // The cap is the number an operator scans for; the condition, when
+        // there is one, is why the loop might stop before reaching it.
+        NodeKind::Loop => {
+            let max = node
+                .config
+                .get("max_iterations")
+                .and_then(|value| value.as_u64())
+                .map_or_else(|| "default".to_string(), |n| n.to_string());
+            match text("condition") {
+                Some(condition) => format!("max {max} · while {condition}"),
+                None => format!("max {max}"),
+            }
+        }
         NodeKind::Merge => node
             .config
             .get("inputs")

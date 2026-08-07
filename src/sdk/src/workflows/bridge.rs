@@ -21,7 +21,7 @@
 //! saved graph instead of handing its text to a harness, with the *task id as
 //! the run id* — which is what makes the orchestrator's ordinary abort cancel
 //! the run, since every node the run dispatches carries that id as its
-//! `abort_id`. That contract is `docs/workflows.md`'s, written for tiny.place
+//! `abort_id`. That contract is `docs/workflows.md`'s, written for the host link
 //! peers; [`run_task_workflow`] reuses it verbatim for the cloud plane rather
 //! than inventing a second one.
 
@@ -184,7 +184,10 @@ impl WorkflowBridge for StoreWorkflowBridge {
     }
 
     fn runs(&self, id: &str) -> Result<Value, String> {
-        ops::list_runs(&self.store, id).map_err(readable)
+        // Full detail: this bridge answers an orchestrator frame, not a
+        // model's tool call, and the caller on the other end may be rendering
+        // the steps.
+        ops::list_runs(&self.store, id, ops::StepDetail::Full).map_err(readable)
     }
 
     /// One authoring turn on this host's own copilot.
@@ -223,6 +226,11 @@ impl WorkflowBridge for StoreWorkflowBridge {
                 Some(id) => format!("cloud-copilot:{id}"),
                 None => "cloud-copilot:new".to_string(),
             },
+            // The saved transcripts belong to the operator's own panes. A
+            // request arriving over the socket is a different conversation
+            // with a different party, and replaying one into the other would
+            // hand the orchestrator a context nobody on this end offered it.
+            recap: None,
         };
         let outcome = match workflow_id {
             Some(id) => session.turn(id, instruction, None).await,

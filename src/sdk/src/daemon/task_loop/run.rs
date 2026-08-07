@@ -12,10 +12,18 @@ use super::super::providers::{Abort, RunTaskOptions};
 use super::super::status::{status_detail, work_detail};
 use super::super::types::{
     DaemonRuntime, FrameAttachments, RunningTask, CAPACITY_REJECTION_PREFIX,
+    SESSION_HELD_STATUS_PREFIX, SESSION_RESUMED_STATUS_PREFIX,
 };
 
 /// What a task waiting for a harness slot reports while it waits.
 const QUEUED_STATUS: &str = "queued for a harness slot";
+
+/// Whether a status detail is one of the two control markers the requester's
+/// watchdog reads (see [`SESSION_HELD_STATUS_PREFIX`]).
+fn is_control_marker(detail: &str) -> bool {
+    detail.starts_with(SESSION_HELD_STATUS_PREFIX)
+        || detail.starts_with(SESSION_RESUMED_STATUS_PREFIX)
+}
 
 /// What a running task reports through a stretch with no harness events —
 /// a single long tool call, typically.
@@ -92,16 +100,41 @@ impl DaemonRuntime {
             }
         };
 
+        // The flavor the sender asked for, checked against the provider that was
+        // actually selected. A frame that named `codex-server` but landed on a
+        // host offering only `claude` is refused rather than run on the CLI: the
+        // sender chose a flavor, and a silent substitution is the one outcome
+        // that cannot be noticed from the other end.
+        let transport = frame.transport.unwrap_or_default();
+        if !transport.supported_by(provider) {
+            self.reply(
+                &from,
+                TaskFrameKind::Error,
+                &frame.task_id,
+                &format!(
+                    "requested harness flavor \"{}\" cannot run on \"{}\"",
+                    transport.as_str(),
+                    provider.as_str()
+                ),
+                correlation.as_deref(),
+                None,
+            )
+            .await;
+            return;
+        }
+
         let mut run_env = self.inner.config.env.clone();
         if let Some(harness) = &custom_harness {
             run_env.extend(harness.harness_env());
         }
         let run_env =
             super::with_tool_mode_at_depth(run_env, frame.tool_mode.as_deref(), frame.fleet_depth);
-        // ACP currently has no follow-up-input operation. Record the effective
-        // transport before acknowledging the task so an input frame racing the
-        // harness startup is rejected instead of buffered forever.
+        // Neither ACP nor the app-server has a follow-up-input operation today.
+        // Record the effective transport before acknowledging the task so an
+        // input frame racing the harness startup is rejected instead of buffered
+        // forever.
         let accepts_stdin = super::super::providers::supports_stdin(provider)
+            && transport == crate::protocol::HarnessTransport::Cli
             && !run_env
                 .get(super::super::providers::HARNESS_PROTOCOL_ENV)
                 .is_some_and(|value| value.eq_ignore_ascii_case("acp"));
@@ -279,7 +312,17 @@ impl DaemonRuntime {
                     semantic.event.decoded(),
                     HarnessEventKind::ToolCall(_) | HarnessEventKind::ToolResult(_)
                 );
-                if !changes_tool && current.saturating_sub(last_status_at) < throttle {
+                // Control changes are state transitions too, and the only ones
+                // the *requester* acts on: the hold marker is what pauses its
+                // no-progress watchdog, and the hand-back marker is what
+                // resumes it. Throttled away, a hold that began a second after
+                // the last tool call would never be announced, and the hub
+                // would reap a task a person is sitting in.
+                let changes_control = is_control_marker(&detail);
+                if !changes_tool
+                    && !changes_control
+                    && current.saturating_sub(last_status_at) < throttle
+                {
                     if is_thinking {
                         *pending_thinking.lock().unwrap() = Some((detail, Some(snapshot)));
                     }
@@ -407,6 +450,7 @@ impl DaemonRuntime {
             resume_session_id,
             workspace_context,
             provider,
+            transport,
             prompt: frame.text.clone(),
             cwd: self.inner.config.workspace.clone(),
             // Per-task, like the model and provider hints below. A review turn
@@ -443,6 +487,7 @@ impl DaemonRuntime {
             skip_permissions: self.inner.config.skip_permissions,
             abort: abort.clone(),
             attribution: self.inner.config.attribution,
+            hooks: self.inner.config.hooks.clone(),
             router: custom_harness
                 .as_ref()
                 .map(crate::config::CustomHarnessConfig::router)
@@ -506,6 +551,7 @@ impl DaemonRuntime {
                         FrameAttachments {
                             usage: None,
                             work: snapshot,
+                            ..Default::default()
                         },
                     )
                     .await;
@@ -566,6 +612,11 @@ impl DaemonRuntime {
                     FrameAttachments {
                         usage: run.usage,
                         work: Some(final_work),
+                        // Which session did the work. Only this process knows —
+                        // it opened (or resumed) it — and the caller has no way
+                        // to derive it, so a task whose session goes unreported
+                        // is one nobody upstream can point at afterwards.
+                        session_id: run.session_id.clone(),
                     },
                 )
                 .await;
@@ -644,6 +695,8 @@ impl DaemonRuntime {
             resume_session_id: None,
             workspace_context: Default::default(),
             provider,
+            // A plain DM states no flavor; it runs the host's default transport.
+            transport: crate::protocol::HarnessTransport::Cli,
             prompt: text,
             cwd: self.inner.config.workspace.clone(),
             env: self.inner.config.env.clone(),
@@ -655,6 +708,7 @@ impl DaemonRuntime {
             abort,
             router: self.inner.config.router.clone(),
             attribution: self.inner.config.attribution,
+            hooks: self.inner.config.hooks.clone(),
             on_event: None,
             on_stdin: None,
             on_session: None,

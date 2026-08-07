@@ -65,6 +65,7 @@ pub fn config(
     env: HashMap<String, String>,
 ) -> DaemonConfig {
     DaemonConfig {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
         providers: vec![provider],
         default_provider: provider,
         accessible_dirs: vec![workspace.clone()],
@@ -100,6 +101,7 @@ pub fn frame(
     correlation: Option<&str>,
 ) -> TaskFrame {
     TaskFrame {
+        transport: None,
         usage: None,
         work: None,
         proto: MEDULLA_TASK_PROTO.to_string(),
@@ -118,6 +120,7 @@ pub fn frame(
         workflow_inputs: Default::default(),
         conversation: None,
         fleet_depth: 0,
+        session_id: None,
     }
 }
 

@@ -19,7 +19,7 @@ use crate::protocol::HarnessProvider;
 /// **This is the inverse of the JavaScript prior art's vocabulary, and the
 /// inversion is deliberate.** The implementations this was ported from — the
 /// former `core-js` orchestrator (since removed from this repo) and the
-/// tiny.place daemon — call the *long-lived* session "bound" (it
+/// host-link daemon — call the *long-lived* session "bound" (it
 /// is bound to a thread) and the throwaway one "unbound"/"pool". Here the
 /// adjective describes the session's **lifetime**, not its attachment: a
 /// [`SessionClass::Bounded`] session has a bounded life (one turn), a
@@ -65,6 +65,68 @@ impl SessionClass {
 }
 
 impl fmt::Display for SessionClass {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Who *started* a session — its provenance, fixed for the session's whole life.
+///
+/// # Origin is not ownership
+///
+/// This is deliberately **not** "who may drive it now". That is *control*
+/// (`SessionControl` in the app crate, `owner` in the spec), it moves at runtime,
+/// and the two answer different questions:
+///
+/// | | Origin | Control / owner |
+/// |---|---|---|
+/// | Question | who started this session | who may start a turn in it *now* |
+/// | Lifetime | immutable | moves on every take / hand-back |
+/// | Set by | the creation path | takeover, hand-back, spawn-time choice |
+///
+/// So an [`Orchestrator`](Self::Orchestrator)-originated session an operator
+/// takes over is still `origin: orchestrator` while they hold it, and still is
+/// after they hand it back. Nothing may write this field after creation — the
+/// structures that carry it put it in their immutable half for that reason.
+///
+/// Origin is what the two rail groups ("agent task sublanes" and "your
+/// harnesses") collapse into: both are sessions of an agent, and this is the
+/// only thing that differs between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionOrigin {
+    /// Auto-created to serve a dispatched task. Unnamed: the UI labels it from
+    /// the task it was created for.
+    Orchestrator,
+    /// Spun up by a person from the UI. Carries the name they gave it.
+    User,
+}
+
+impl SessionOrigin {
+    /// The wire/display string.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SessionOrigin::Orchestrator => "orchestrator",
+            SessionOrigin::User => "user",
+        }
+    }
+
+    /// Whether a person, rather than a dispatch, started this session.
+    ///
+    /// Display and labelling only — never a gate on dispatch. Control is the
+    /// gate: a user-originated session that was handed to the orchestrator is
+    /// dispatchable, and an orchestrator-originated one a person holds is not.
+    pub fn is_user(self) -> bool {
+        matches!(self, SessionOrigin::User)
+    }
+
+    /// Whether a dispatch, rather than a person, started this session.
+    pub fn is_orchestrator(self) -> bool {
+        matches!(self, SessionOrigin::Orchestrator)
+    }
+}
+
+impl fmt::Display for SessionOrigin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
@@ -150,7 +212,7 @@ impl fmt::Display for SessionDriver {
 /// the other.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SessionKey {
-    /// The conversation anchor — a peer's tiny.place cryptoId, or a local label
+    /// The conversation anchor — a peer's link node name, or a local label
     /// for an operator-opened session.
     pub conversation: String,
     /// Which coding-agent CLI serves this conversation.
@@ -260,6 +322,14 @@ pub struct SessionRecord {
     pub id: String,
     /// Whose conversation this is, and on which provider.
     pub key: SessionKey,
+    /// Who started this session. Immutable — see [`SessionOrigin`]; it is *not*
+    /// who holds the session now.
+    pub origin: SessionOrigin,
+    /// The display name a person gave this session when they spun it up.
+    ///
+    /// `None` for an [`SessionOrigin::Orchestrator`]-originated session, which
+    /// the UI labels from the task it was created for instead.
+    pub name: Option<String>,
     /// Lifetime class.
     pub class: SessionClass,
     /// Where this session's turns come from.
@@ -330,6 +400,20 @@ impl TurnOrigin {
             TurnOrigin::Frame { .. } => "frame",
             TurnOrigin::Envelope { .. } => "envelope",
             TurnOrigin::Operator => "operator",
+        }
+    }
+
+    /// The provenance a session auto-created for this turn is born with.
+    ///
+    /// A task frame is a dispatch, so the session it creates is the
+    /// orchestrator's (§4.1: a task without a session id creates one). Anything
+    /// a person or a wrapper they are sitting in front of drives is theirs — an
+    /// envelope stream reports a session started outside this daemon's dispatch
+    /// path, so it is never counted as orchestrator-originated.
+    pub fn session_origin(&self) -> SessionOrigin {
+        match self {
+            TurnOrigin::Frame { .. } => SessionOrigin::Orchestrator,
+            TurnOrigin::Envelope { .. } | TurnOrigin::Operator => SessionOrigin::User,
         }
     }
 

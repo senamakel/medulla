@@ -3,14 +3,14 @@
 //! A plain `medulla` is both halves of the system: the orchestrator that decides
 //! what work to hand out, and a host that runs it. Before this, only the first
 //! half was in the process — the second needed a separate `medulla daemon`, a
-//! tiny.place identity for each side, and a contact edge between two programs on
+//! host-link identity for each side, and a contact edge between two programs on
 //! the same laptop, all so a task could travel through a relay to arrive back
 //! where it started.
 //!
 //! Here the host binds an address on an in-memory bus that the hub also
 //! dispatches over ([`RoutingBridge`](medulla::bridge::RoutingBridge)), so work
 //! for this device is delivered in-process and everything else still goes to
-//! remote workers over tiny.place. Configuration is the `[host]` section, with
+//! remote workers over the host link. Configuration is the `[host]` section, with
 //! `MEDULLA_HOST=0` as the single-run kill switch.
 //!
 //! Tasks run in **watchable** harness sessions
@@ -26,6 +26,7 @@ use medulla::daemon::embedded::{resolve_workspace, EmbeddedDaemon, EmbeddedDaemo
 use medulla::daemon::providers::{run_provider_task, RunTaskFn, RunTaskOptions};
 use medulla::hub::WorkerSpec;
 use medulla::protocol::HarnessProvider;
+use medulla::runtime::{seed_declarations, AgentDeclaration};
 use medulla_tui::worker::executor::{agent_kind, PtySessionExecutor};
 use medulla_tui::worker::pty::PtyManager;
 use std::collections::HashMap;
@@ -35,7 +36,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use types::LocalHost;
+pub(crate) use types::{LaunchPolicy, LocalHost};
 
 /// Whether this device should host tasks.
 ///
@@ -62,84 +63,36 @@ pub(crate) fn host_address(config: &HostSection) -> String {
     config.effective_address()
 }
 
-/// Every device-local address a host could bind, running or not.
+/// Every host this device declares, running or not — its bus address and its
+/// name.
 ///
 /// Known without starting anything, because it comes from the config rather
 /// than from a started host — and it is needed in exactly the case where none
 /// started, to recognise remembered local roster entries and drop them.
-pub(crate) fn all_host_addresses(primary: &HostSection, extras: &[HostSection]) -> Vec<String> {
-    std::iter::once(host_address(primary))
-        .chain(
-            extras
-                .iter()
-                .enumerate()
-                .map(|(index, extra)| extra_host_address(extra, index)),
-        )
-        .collect()
+///
+/// The name rides along because the hub advertises this same list as the
+/// `hosts[]` block, where a host with an id and nothing to call it reads as a
+/// machine nobody named.
+pub(crate) fn all_local_hosts(
+    primary: &HostSection,
+    extras: &[HostSection],
+) -> Vec<medulla::config::LocalHostRef> {
+    medulla::config::local_hosts(primary, extras)
 }
 
-/// The bus address for an extra host, derived from its name when it declared
-/// none of its own.
-///
-/// Two hosts cannot share an address — the second `bind` fails — so an operator
-/// who adds `[[hosts]]` without thinking about addressing would otherwise get
-/// one working host and one startup error. Deriving from the name means the
-/// field is optional in the common case and explicit when it matters.
+/// The bus address for an extra host — see
+/// [`local_host_address`](medulla::config::local_host_address), which the Hosts
+/// tab reads too so the list and the binder cannot disagree about which address
+/// a section will bind.
 fn extra_host_address(config: &HostSection, fallback_index: usize) -> String {
-    // The section default counts as unchosen, not as a choice. `[[hosts]]`
-    // shares `HostSection`, so an entry that names no address inherits the
-    // primary's — and two hosts on one address means the second never binds.
-    // An operator who *typed* the primary's address has made the same mistake,
-    // so both are treated the same way.
-    let chosen = config.address.trim();
-    let chosen = if chosen == HostSection::default().address {
-        ""
-    } else {
-        chosen
-    };
-    match chosen {
-        "" => {
-            let slug = slug_of(&config.name);
-            if slug.is_empty() {
-                format!("local-host-{}", fallback_index + 1)
-            } else {
-                format!("local-{slug}")
-            }
-        }
-        value => value.to_string(),
-    }
+    medulla::config::local_host_address(config, fallback_index)
 }
 
-/// A lowercase, hyphenated form of `name`, safe to use as a bus address.
-fn slug_of(name: &str) -> String {
-    let mut out = String::new();
-    let mut hyphen = false;
-    for ch in name.trim().chars() {
-        if ch.is_ascii_alphanumeric() {
-            out.push(ch.to_ascii_lowercase());
-            hyphen = false;
-        } else if !out.is_empty() && !hyphen {
-            out.push('-');
-            hyphen = true;
-        }
-    }
-    out.trim_end_matches('-').to_string()
-}
-
-/// What to call a host that named itself nothing.
-///
-/// The primary is "this device" — it is the machine the operator is looking at.
-/// An extra is named for the directory it works in, because that is the only
-/// thing distinguishing it from the primary.
+/// What to call a host that named itself nothing — see
+/// [`local_host_name`](medulla::config::local_host_name). Shared with the Hosts
+/// tab, which names the same hosts before any of them has started.
 pub(crate) fn display_name(config: &HostSection, workspace: &str, primary: bool) -> String {
-    match config.name.trim() {
-        "" if primary => "this device".to_string(),
-        "" => std::path::Path::new(workspace)
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| workspace.to_string()),
-        value => value.to_string(),
-    }
+    medulla::config::local_host_name(config, workspace, primary)
 }
 
 /// Translate the `[host]` section into the SDK's start-up options.
@@ -160,9 +113,9 @@ pub(crate) fn options_from_config(
     router: Option<medulla::config::RouterConfig>,
     budget: Option<medulla::config::BudgetConfig>,
     log: Option<medulla::hub::HubLog>,
-    attribution: bool,
+    launch: &LaunchPolicy,
 ) -> Result<EmbeddedDaemonOptions, String> {
-    options_from_config_with_custom(config, env, router, budget, log, &[], attribution)
+    options_from_config_with_custom(config, env, router, budget, log, &[], launch)
 }
 
 /// Translate host config and named custom-harness presets into start-up options.
@@ -171,6 +124,7 @@ pub(crate) fn options_from_config(
 /// advertised or executable on this device. Its base CLI is added to an
 /// explicit provider allowlist because declaring a custom harness is itself an
 /// explicit request to run that CLI.
+#[cfg(test)]
 pub(crate) fn options_from_config_with_custom(
     config: &HostSection,
     env: &HashMap<String, String>,
@@ -178,7 +132,28 @@ pub(crate) fn options_from_config_with_custom(
     budget: Option<medulla::config::BudgetConfig>,
     log: Option<medulla::hub::HubLog>,
     custom_harnesses: &[medulla::config::CustomHarnessConfig],
-    attribution: bool,
+    launch: &LaunchPolicy,
+) -> Result<EmbeddedDaemonOptions, String> {
+    options_from_config_with_custom_and_hooks(
+        config,
+        env,
+        router,
+        budget,
+        log,
+        custom_harnesses,
+        launch,
+    )
+}
+
+/// Translate host configuration while retaining the loaded lifecycle hooks.
+pub(crate) fn options_from_config_with_custom_and_hooks(
+    config: &HostSection,
+    env: &HashMap<String, String>,
+    router: Option<medulla::config::RouterConfig>,
+    budget: Option<medulla::config::BudgetConfig>,
+    log: Option<medulla::hub::HubLog>,
+    custom_harnesses: &[medulla::config::CustomHarnessConfig],
+    launch: &LaunchPolicy,
 ) -> Result<EmbeddedDaemonOptions, String> {
     let address = host_address(config);
     let mut providers = config
@@ -218,7 +193,8 @@ pub(crate) fn options_from_config_with_custom(
         custom_harnesses,
         budget,
         log,
-        attribution,
+        attribution: launch.attribution,
+        hooks: launch.hooks.clone(),
         ..Default::default()
     })
 }
@@ -279,43 +255,179 @@ fn parse_provider(name: &str) -> Result<HarnessProvider, String> {
         })
 }
 
-/// The roster entry describing a host running on this machine.
+/// The roster entries describing the agents declared on a host running here.
+///
+/// **One entry per declared agent, not one per machine.** A host is a machine
+/// with a bus address; an agent is `harness × workspace` on it. Collapsing the
+/// two is what made a laptop with claude *and* codex advertise a single worker
+/// whose second CLI survived only as prose in its description — unroutable,
+/// because a dispatch targets an `agentId`.
+///
+/// `declared` is the operator's whole declaration list; the entries for *this*
+/// host are the ones naming its address. With none — every install that predates
+/// declarations — the daemon's own detection seeds them
+/// ([`seed_declarations`](medulla::runtime::seed_declarations)) so the roster is
+/// never empty and the pre-existing entry keeps its exact id.
 ///
 /// Labelled rather than left to the default name so the fleet view can say "this
 /// device" instead of showing a bare address the operator never chose. Extra
 /// hosts get their own name: several hosts on one machine differ only by where
-/// they work, so "this device" three times would describe none of them.
-fn spec_for(daemon: &EmbeddedDaemon, name: &str) -> WorkerSpec {
-    let harness = daemon.default_provider().as_str().to_string();
-    WorkerSpec {
-        id: daemon.address().to_string(),
-        address: daemon.address().to_string(),
-        name: name.to_string(),
-        description: format!(
-            "{} on this machine · {}",
-            daemon
-                .providers()
-                .iter()
-                .map(|provider| provider.as_str())
-                .collect::<Vec<_>>()
-                .join(", "),
-            daemon.workspace()
-        ),
-        harness,
-        // The one roster entry whose workspace this process actually knows: the
-        // host runs in this directory. Declaring it is what gives the
-        // orchestrator a placed agent rather than a bare one it treats as
-        // having nowhere to work.
-        workspace: Some(daemon.workspace().to_string()),
+/// they work, so "this device" three times would describe none of them. A single
+/// agent takes the host's name unchanged — the common laptop reads exactly as it
+/// did — siblings are suffixed with their harness, and siblings that *share* a
+/// harness are suffixed with their agent id instead, because "this device ·
+/// claude" twice names neither and the id is what a dispatch targets anyway.
+///
+/// # Errors
+///
+/// Rejects a declaration whose workspace is not the one its host runs in. See
+/// [`check_placement`] — an advert that names a directory the task will not run
+/// in is worse than a host that refuses to start and says why.
+fn specs_for(
+    daemon: &EmbeddedDaemon,
+    name: &str,
+    declared: &[AgentDeclaration],
+) -> Result<Vec<WorkerSpec>, String> {
+    let host_id = daemon.address();
+    let mine: Vec<AgentDeclaration> = declared
+        .iter()
+        .filter(|declaration| declaration.on_host(host_id))
+        .cloned()
+        .collect();
+    let mine = if mine.is_empty() {
+        seed_for(daemon)
+    } else {
+        mine
+    };
+    for declaration in &mine {
+        check_placement(declaration, host_id, daemon.workspace())?;
     }
+    let single = mine.len() == 1;
+    // The workspace every one of them runs in, now that a declaration naming
+    // another has been refused. Taken from the daemon rather than copied off
+    // the declaration so the advertised spelling is the resolved one the
+    // executor actually launches in, not whatever shorthand was typed.
+    let workspace_path = daemon.workspace().to_string();
+    Ok(mine
+        .iter()
+        .map(|declaration| {
+            let label = declaration.name.clone().unwrap_or_else(|| {
+                if single {
+                    name.to_string()
+                } else if shares_harness(&mine, declaration) {
+                    format!("{name} · {}", declaration.agent_id)
+                } else {
+                    format!("{name} · {}", declaration.harness)
+                }
+            });
+            let mut workspace = declaration.workspace.clone();
+            workspace.path = workspace_path.clone();
+            WorkerSpec {
+                id: declaration.agent_id.clone(),
+                host_id: host_id.to_string(),
+                address: host_id.to_string(),
+                name: label,
+                description: format!(
+                    "{} on this machine · {}",
+                    declaration.harness, workspace.path
+                ),
+                harness: declaration.harness.clone(),
+                // The one placement this process actually knows: the agent works
+                // in this directory. Declaring it is what gives the orchestrator
+                // a placed agent rather than a bare one it treats as having
+                // nowhere to work.
+                workspace: Some(workspace),
+                roles: declaration.roles.clone(),
+                max_sessions: declaration.max_sessions(),
+            }
+        })
+        .collect())
+}
+
+/// Whether another agent on this host runs the same harness.
+///
+/// What decides between the two sibling labels: the harness distinguishes
+/// nothing once two agents share it.
+fn shares_harness(mine: &[AgentDeclaration], declaration: &AgentDeclaration) -> bool {
+    mine.iter()
+        .filter(|sibling| sibling.harness == declaration.harness)
+        .count()
+        > 1
+}
+
+/// Refuse a declaration that says it works somewhere its host does not.
+///
+/// **An agent runs where its host runs.** A task is addressed to a *host* — the
+/// frame carries a task id, a prompt and a harness hint, and nothing that names
+/// which agent on that host was picked — so the host serves every one of them
+/// from the single executor it started in its own workspace. A declaration
+/// naming another directory therefore advertises a placement that the very next
+/// dispatch contradicts: the orchestrator routes work for `/srv/web` to an agent
+/// that runs it in `/srv/api`, and the only evidence is the wrong repository
+/// being edited.
+///
+/// Refused rather than quietly re-pointed at the host's directory, for the same
+/// reason [`parse_provider`] refuses an unknown harness: a declaration is the
+/// operator saying where work happens, and silently doing it somewhere else is
+/// the failure this check exists to prevent. The remedy is the mechanism that
+/// already works — a `[[hosts]]` entry for that directory, which binds its own
+/// address and gets its own executor — and the error says so.
+///
+/// A blank workspace declares no placement at all and is accepted: the agent
+/// takes its host's directory, which is what it would have done anyway.
+///
+/// Per-agent workspaces on one host need the selected agent's id to reach the
+/// worker, which is a protocol change (`TaskFrame` carries no `agentId`) and the
+/// wire branch's job, not this one's.
+fn check_placement(
+    declaration: &AgentDeclaration,
+    host_id: &str,
+    host_workspace: &str,
+) -> Result<(), String> {
+    let Some(declared) = declaration.workspace.path() else {
+        return Ok(());
+    };
+    if resolve_workspace(declared) == host_workspace {
+        return Ok(());
+    }
+    Err(format!(
+        "agent \"{}\" is declared in {declared}, but host \"{host_id}\" runs tasks in \
+         {host_workspace} — every agent on a host works in the host's directory, so declare a \
+         [[hosts]] entry for {declared} and put this agent on it",
+        declaration.agent_id,
+    ))
+}
+
+/// The migration seed for a host that has declared nothing: one agent per
+/// detected provider, at the directory the host runs in.
+///
+/// Not persisted here. Writing config as a side effect of *starting* would put a
+/// file write on the launch path and make a read-only run (a probe, a test, a
+/// machine whose config lives somewhere unwritable) fail or lie. The seeds are
+/// equal to declarations in every other respect, so an operator who never opens
+/// the create-agent flow keeps exactly the roster they had.
+fn seed_for(daemon: &EmbeddedDaemon) -> Vec<AgentDeclaration> {
+    let harnesses: Vec<&str> = daemon
+        .providers()
+        .iter()
+        .map(|provider| provider.as_str())
+        .collect();
+    seed_declarations(
+        daemon.address(),
+        daemon.workspace(),
+        &harnesses,
+        daemon.default_provider().as_str(),
+    )
 }
 
 /// Start hosting on this device, or explain why not.
 ///
 /// Returns `Ok(None)` when hosting is switched off, which is a choice rather
 /// than a failure. An `Err` means hosting was wanted and could not happen — no
-/// agent CLI installed, or the address already bound — and the caller surfaces
-/// it, because an orchestrator with no host silently does nothing at all.
+/// agent CLI installed, the address already bound, or an agent declared in a
+/// directory this host does not work in ([`check_placement`]) — and the caller
+/// surfaces it, because an orchestrator with no host silently does nothing at
+/// all.
 ///
 /// Tasks run in **live harness sessions** on `sessions`, not in headless
 /// one-shots — for the providers that write a transcript this can tail.
@@ -332,12 +444,16 @@ fn spec_for(daemon: &EmbeddedDaemon, name: &str) -> WorkerSpec {
 /// advertises whatever is installed regardless of which executor serves it —
 /// an OpenCode-only machine must still start and actually complete tasks, not
 /// merely start and then fail every one against `PtySessionExecutor`'s refusal.
+///
+/// `declared` is the operator's agent declarations — the source of this host's
+/// roster entries. See [`specs_for`] for what an empty list means.
 pub(crate) fn start(
     config: &HostSection,
     env: &HashMap<String, String>,
     network: &LocalBridgeNetwork,
     options: EmbeddedDaemonOptions,
     sessions: PtyManager,
+    declared: &[AgentDeclaration],
 ) -> Result<Option<LocalHost>, String> {
     if !host_enabled(config, env) {
         return Ok(None);
@@ -350,96 +466,30 @@ pub(crate) fn start(
         sessions,
         host_address(config),
         true,
+        declared,
     )
     .map(Some)
 }
 
-/// Starts a host on this device after the app is already running.
+/// The custom harnesses this device's hosting configuration declares.
 ///
-/// Everything a host needs to exist — the in-process bus, the session manager,
-/// the daemon options — is built once at launch and owned by the app loop. A
-/// host declared later has no way to reach any of it, which is why adding one
-/// used to mean restarting. This carries exactly those pieces to wherever the
-/// command is handled.
+/// What is left of a larger type. It used to start a host on this device after
+/// launch, for the Add Host wizard's "local" kind — a harness plus a directory,
+/// which is what an *agent* is now, declared from the host tree instead. Only
+/// one reader outlived that: a workflow's `agent` step may name a custom
+/// harness, and it resolves the name against this list.
 ///
-/// Cheap to clone: every field is already shared.
+/// Cheap to clone: the options behind it are already shared.
 #[derive(Clone)]
-pub(crate) struct LocalHostSpawner {
-    /// The bus the hub dispatches over.
-    network: LocalBridgeNetwork,
-    /// The session manager the UI reads screens from and types into. Shared, so
-    /// a host started now is as watchable as one started at launch.
-    sessions: PtyManager,
-    /// The primary's options, used as the template every extra inherits.
+pub(crate) struct LocalHostHarnesses {
+    /// The primary host's options, which carry the declared custom harnesses.
     options: EmbeddedDaemonOptions,
-    /// The process environment, for provider detection and the host switch.
-    env: HashMap<String, String>,
-    /// The runtimes the harness pane resolves tasks against. A new host's
-    /// runtime is pushed here or its screen would never be found.
-    runtimes: std::sync::Arc<std::sync::Mutex<Vec<medulla::daemon::DaemonRuntime>>>,
-    /// The started hosts, kept alive for the session. Dropping a `LocalHost`
-    /// stops it, so a spawner that did not hold them would start a host and
-    /// immediately kill it.
-    started: std::sync::Arc<std::sync::Mutex<Vec<LocalHost>>>,
-    /// Every device-local address, shared with the hub's roster filter. A host
-    /// bound here must be appended or the roster sink will persist it as a
-    /// remote entry.
-    addresses: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
 }
 
-impl LocalHostSpawner {
-    /// Build a spawner over the pieces the app loop owns.
-    pub(crate) fn new(
-        network: LocalBridgeNetwork,
-        sessions: PtyManager,
-        options: EmbeddedDaemonOptions,
-        env: HashMap<String, String>,
-        runtimes: std::sync::Arc<std::sync::Mutex<Vec<medulla::daemon::DaemonRuntime>>>,
-        started: std::sync::Arc<std::sync::Mutex<Vec<LocalHost>>>,
-        addresses: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
-    ) -> Self {
-        Self {
-            network,
-            sessions,
-            options,
-            env,
-            runtimes,
-            started,
-            addresses,
-        }
-    }
-
-    /// Start `config` now and return the roster entry describing it.
-    ///
-    /// `index` is the entry's position within `[[hosts]]`, which is the basis
-    /// [`all_host_addresses`] and [`start_all`] derive an unnamed host's address
-    /// from. It is passed in rather than counted here for exactly that reason:
-    /// counting *started* hosts includes the primary, so a first unnamed extra
-    /// bound `local-host-2` this run and `local-host-1` on the next launch —
-    /// an address the roster remembered that nothing would ever bind again.
-    pub(crate) fn spawn(&self, config: &HostSection, index: usize) -> Result<WorkerSpec, String> {
-        let host = start_at(
-            config,
-            &self.env,
-            &self.network,
-            extra_options(&self.options, config)?,
-            self.sessions.clone(),
-            extra_host_address(config, index),
-            false,
-        )?;
-        let spec = host.spec().clone();
-        // Before the roster entry exists, so the hub's save filter already knows
-        // this address is device-local by the time registration triggers one.
-        self.addresses
-            .lock()
-            .expect("host addresses")
-            .push(spec.address.clone());
-        self.runtimes
-            .lock()
-            .expect("local harness runtimes")
-            .push(host.runtime());
-        self.started.lock().expect("started hosts").push(host);
-        Ok(spec)
+impl LocalHostHarnesses {
+    /// Hold a host's options for the sake of the harnesses they declare.
+    pub(crate) fn new(options: EmbeddedDaemonOptions) -> Self {
+        Self { options }
     }
 
     /// The custom-harness presets this device's primary host was started with.
@@ -450,6 +500,15 @@ impl LocalHostSpawner {
     /// rejecting a step that names one.
     pub(crate) fn custom_harnesses(&self) -> &[medulla::config::CustomHarnessConfig] {
         &self.options.custom_harnesses
+    }
+
+    /// The resolved `[[hooks]]` this device's primary host was started with.
+    ///
+    /// Exposed for the same reason as [`Self::custom_harnesses`]: a one-shot
+    /// embedded daemon started elsewhere for the same session should install
+    /// the same built-in and operator hooks rather than starting with none.
+    pub(crate) fn hooks(&self) -> &medulla::harness_hooks::HooksConfig {
+        &self.options.hooks
     }
 }
 
@@ -472,11 +531,19 @@ pub(crate) fn start_all(
     network: &LocalBridgeNetwork,
     options: EmbeddedDaemonOptions,
     sessions: PtyManager,
+    declared: &[AgentDeclaration],
 ) -> (Vec<LocalHost>, Vec<String>) {
     let mut hosts = Vec::new();
     let mut problems = Vec::new();
 
-    match start(primary, env, network, options.clone(), sessions.clone()) {
+    match start(
+        primary,
+        env,
+        network,
+        options.clone(),
+        sessions.clone(),
+        declared,
+    ) {
         Ok(Some(host)) => hosts.push(host),
         Ok(None) => {}
         Err(error) => problems.push(error),
@@ -502,6 +569,7 @@ pub(crate) fn start_all(
             sessions.clone(),
             address,
             false,
+            declared,
         ) {
             Ok(host) => hosts.push(host),
             Err(error) => problems.push(error),
@@ -510,7 +578,15 @@ pub(crate) fn start_all(
     (hosts, problems)
 }
 
-/// Bind one host at `address` and wrap it in its roster entry.
+/// Bind one host at `address` and wrap it in the roster entries for the agents
+/// declared on it.
+///
+/// # Errors
+///
+/// The address is already bound, no requested agent CLI is installed, or a
+/// declaration on this host names a workspace the host does not run in
+/// ([`check_placement`]).
+#[allow(clippy::too_many_arguments)]
 fn start_at(
     config: &HostSection,
     env: &HashMap<String, String>,
@@ -519,6 +595,7 @@ fn start_at(
     sessions: PtyManager,
     address: String,
     primary: bool,
+    declared: &[AgentDeclaration],
 ) -> Result<LocalHost, String> {
     let bridge = network
         .bind(&address)
@@ -527,8 +604,11 @@ fn start_at(
     // tasks will run; it resolves the same configured workspace the host is
     // about to resolve. The two must agree — this is the directory the session
     // tailer searches for the harness's transcript.
-    let executor =
+    let mut executor =
         PtySessionExecutor::new(sessions, env.clone(), resolve_workspace(&options.workspace));
+    if let Some(log) = options.log.clone() {
+        executor = executor.with_log(log);
+    }
     let daemon = EmbeddedDaemon::start_with_executor(
         std::sync::Arc::new(bridge) as std::sync::Arc<dyn Bridge>,
         &address,
@@ -536,8 +616,8 @@ fn start_at(
         run_task(executor),
     )?;
     let name = display_name(config, daemon.workspace(), primary);
-    let spec = spec_for(&daemon, &name);
-    Ok(LocalHost { daemon, spec })
+    let specs = specs_for(&daemon, &name, declared)?;
+    Ok(LocalHost { daemon, specs })
 }
 
 /// Route each task by what it can actually run: [`PtySessionExecutor`] for a

@@ -11,14 +11,19 @@
 //! selection changes, when `r` is pressed, and after anything that could have
 //! written to the store (a run, a copilot turn).
 //!
+//! - [`live`] — what a run in flight is doing, per node, while it runs.
 //! - [`rail`] — the catalogue cursor, and the runs nested under it.
 //! - [`canvas`] — the graph cache and the node cursor over it.
 //! - [`copilot`] — the per-workflow conversation and its turns.
 
 mod canvas;
+pub(super) use canvas::node_label;
 mod copilot;
+mod live;
+pub use copilot::thread_of as copilot_thread_of;
 mod rail;
 
+pub(in crate::ui::app) use live::LiveRun;
 pub(in crate::ui::app) use rail::{WorkflowRailRow, NEW_LABEL};
 
 #[cfg(test)]
@@ -168,6 +173,16 @@ impl App {
                 let count = workflows.len();
                 self.workflows = workflows;
                 self.workflow_index = self.workflow_index.min(count.saturating_sub(1));
+                // With nothing installed, the New row is not *a* row — it is
+                // the only one, and the rail draws it as though the cursor were
+                // on it. Leaving `creating` false made that a lie the copilot
+                // then acted on: pressing `c` on the one visible row answered
+                // "select a workflow first", which on an empty host is advice
+                // that cannot be followed and reads as the copilot refusing to
+                // work at all.
+                if count == 0 {
+                    self.wf.creating = true;
+                }
                 self.reload_workflow_runs();
                 self.reload_workflow_graph();
                 self.set_status(format!(

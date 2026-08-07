@@ -132,7 +132,7 @@ async fn a_disabled_sub_workflow_is_refused_during_resolution() {
     child.enabled = false;
     harness.store.save(&child).unwrap();
 
-    let resolver = StoreWorkflowResolver::new(harness.store.clone());
+    let resolver = StoreWorkflowResolver::new(harness.store.clone(), u64::MAX);
     let err = resolver
         .resolve("child")
         .await
@@ -181,6 +181,7 @@ impl HarnessDispatch for ConcurrencyProbe {
                 output_tokens: 0,
             },
             harness: None,
+            session_id: None,
         })
     }
 }
@@ -434,7 +435,7 @@ async fn a_dry_run_resolves_declared_inputs_too() {
 
     let result = dry_run(
         harness.store.clone(),
-        Arc::new(StoreWorkflowResolver::new(harness.store.clone())),
+        Arc::new(StoreWorkflowResolver::new(harness.store.clone(), u64::MAX)),
         "parameterized",
         json!({}),
         values(&[("repo", json!("acme/api"))]),

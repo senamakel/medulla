@@ -65,6 +65,13 @@ fn registry() -> &'static Registry {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// A run's registration: the guard that holds it, and the signal to await.
+///
+/// The two travel together because holding one without the other is always a
+/// bug — a guard whose signal nobody watches registers a run that cannot
+/// actually be stopped.
+pub type RunClaim = (RunGuard, Arc<CancelSignal>);
+
 /// A registered run, deregistered when dropped.
 ///
 /// Held for the whole run, including every path that unwinds out of it, so a
@@ -76,6 +83,15 @@ pub struct RunGuard {
 }
 
 impl RunGuard {
+    /// The run id this guard holds.
+    ///
+    /// A claim can be taken out by one caller and adopted by another (see
+    /// [`crate::workflows::RunContext::claim`]), and the adopter has to be able
+    /// to check it is being handed the claim for the run it is about to start.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
     /// Register `id` and return its guard plus the signal to await.
     ///
     /// Call this *before* the run starts, not inside it: a cancel that arrives

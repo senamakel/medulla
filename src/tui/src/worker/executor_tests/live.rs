@@ -51,7 +51,7 @@ use medulla::daemon::providers::{Abort, RunTaskOptions};
 use medulla::protocol::HarnessProvider;
 
 use super::super::executor::PtySessionExecutor;
-use super::super::pty::{HarnessControl, LaunchSpec, PtyManager};
+use super::super::pty::{LaunchSpec, PtyManager, SessionControl};
 
 /// Render a session's medulla-parsed screen as plain text (mirrors the private
 /// `pty::inject::screen_text`), for the paste-gap diagnostic below.
@@ -92,6 +92,8 @@ fn live_options(
     cwd: &str,
 ) -> RunTaskOptions {
     RunTaskOptions {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        transport: Default::default(),
         conversation: peer.to_string(),
         session_class: medulla::sessions::SessionClass::Bounded,
         resume_session_id: None,
@@ -132,11 +134,11 @@ async fn interactive_codex_session_accepts_a_second_turn() {
     let cwd = workspace.path().to_string_lossy().into_owned();
 
     let mut env: HashMap<String, String> = std::env::vars().collect();
-    env.insert("TINYPLACE_CODEX_BIN".to_string(), bin);
+    env.insert("MEDULLA_CODEX_BIN".to_string(), bin);
     // Real codex writes rollouts under $CODEX_HOME/sessions (default ~/.codex);
     // point the transcript tailer at that tree (it recurses the date subdirs).
     env.insert(
-        "TINYPLACE_CODEX_SESSIONS_DIR".to_string(),
+        "MEDULLA_CODEX_SESSIONS_DIR".to_string(),
         format!("{home}/.codex/sessions"),
     );
     env.insert("TERM".to_string(), "xterm-256color".to_string());
@@ -206,12 +208,13 @@ async fn experiment_codex_dialog_dismissal() {
     let workspace = tempfile::tempdir().unwrap();
     let cwd = workspace.path().to_string_lossy().into_owned();
     let mut env: HashMap<String, String> = std::env::vars().collect();
-    env.insert("TINYPLACE_CODEX_BIN".to_string(), bin.clone());
+    env.insert("MEDULLA_CODEX_BIN".to_string(), bin.clone());
     env.insert("TERM".to_string(), "xterm-256color".to_string());
     let sessions = PtyManager::new();
     let id = sessions
         .open(LaunchSpec {
             provider: HarnessProvider::Codex,
+            preset: None,
             bin,
             cwd,
             env,
@@ -220,8 +223,10 @@ async fn experiment_codex_dialog_dismissal() {
             label: "exp".to_string(),
             session_id: None,
             model: None,
-            control: HarnessControl::Orchestrator,
-            user_spawned: false,
+            control: SessionControl::Orchestrator,
+            origin: crate::worker::pty::SessionOrigin::Orchestrator,
+            name: None,
+            mcp_grant_session: None,
         })
         .expect("open");
 
@@ -288,12 +293,13 @@ async fn experiment_codex_startup_dialog_dismissal() {
     let workspace = tempfile::tempdir().unwrap();
     let cwd = workspace.path().to_string_lossy().into_owned();
     let mut env: HashMap<String, String> = std::env::vars().collect();
-    env.insert("TINYPLACE_CODEX_BIN".to_string(), bin.clone());
+    env.insert("MEDULLA_CODEX_BIN".to_string(), bin.clone());
     env.insert("TERM".to_string(), "xterm-256color".to_string());
     let sessions = PtyManager::new();
     let id = sessions
         .open(LaunchSpec {
             provider: HarnessProvider::Codex,
+            preset: None,
             bin,
             cwd,
             env,
@@ -302,8 +308,10 @@ async fn experiment_codex_startup_dialog_dismissal() {
             label: "trust".to_string(),
             session_id: None,
             model: None,
-            control: HarnessControl::Orchestrator,
-            user_spawned: false,
+            control: SessionControl::Orchestrator,
+            origin: crate::worker::pty::SessionOrigin::Orchestrator,
+            name: None,
+            mcp_grant_session: None,
         })
         .expect("open");
 
@@ -360,13 +368,14 @@ async fn diagnose_codex_paste_rendering() {
     let workspace = tempfile::tempdir().unwrap();
     let cwd = workspace.path().to_string_lossy().into_owned();
     let mut env: HashMap<String, String> = std::env::vars().collect();
-    env.insert("TINYPLACE_CODEX_BIN".to_string(), bin.clone());
+    env.insert("MEDULLA_CODEX_BIN".to_string(), bin.clone());
     env.insert("TERM".to_string(), "xterm-256color".to_string());
 
     let sessions = PtyManager::new();
     let id = sessions
         .open(LaunchSpec {
             provider: HarnessProvider::Codex,
+            preset: None,
             bin,
             cwd,
             env,
@@ -375,8 +384,10 @@ async fn diagnose_codex_paste_rendering() {
             label: "diag".to_string(),
             session_id: None,
             model: None,
-            control: HarnessControl::Orchestrator,
-            user_spawned: false,
+            control: SessionControl::Orchestrator,
+            origin: crate::worker::pty::SessionOrigin::Orchestrator,
+            name: None,
+            mcp_grant_session: None,
         })
         .expect("open codex session");
 

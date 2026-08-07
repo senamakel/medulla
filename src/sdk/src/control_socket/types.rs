@@ -176,6 +176,18 @@ impl ToolFamilies {
         }
     }
 
+    /// Neither family — what a grant narrowed past every tool surface carries.
+    ///
+    /// Note that [`Default`] is the *opposite* of this: an ordinary grant
+    /// carries both families, so a narrowing case has to say so explicitly and
+    /// cannot get here by forgetting to set the field.
+    pub fn none() -> Self {
+        ToolFamilies {
+            workflows: false,
+            fleet: false,
+        }
+    }
+
     /// Only the fleet tools — what a fleet host serves when workflows are off.
     pub fn fleet_only() -> Self {
         ToolFamilies {
@@ -206,6 +218,12 @@ impl ToolFamilies {
 /// A projection of [`crate::hub::HubWorker`] rather than the type itself: the
 /// roster entry carries transport details (public keys, handoff briefs) that a
 /// model has no use for and should not have to reason about.
+///
+/// Every optional field is `default` as well as `skip_serializing_if`, so this
+/// round-trips its own output. Without that a worker with no roles serializes to
+/// a document this same type refuses to read, which is invisible until something
+/// deserializes a roster back — as [`crate::workflows::mcp`]'s run inspection
+/// does — and then fails on the ordinary case rather than an exotic one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FleetWorker {
@@ -216,13 +234,13 @@ pub struct FleetWorker {
     /// The coding harness it runs.
     pub harness: String,
     /// A human label, when the operator set one.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     /// Agent-template ids this worker is offered for. Empty means unspecified.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub roles: Vec<String>,
     /// The directory it runs tasks in, when known.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
     /// Whether this is the fleet's currently-selected default worker.
     pub selected: bool,
@@ -232,10 +250,10 @@ pub struct FleetWorker {
     /// routing work somewhere it will run and somewhere it will bounce.
     pub held: bool,
     /// Why they hold it, when they said.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub held_reason: Option<String>,
     /// Ids of the tasks it is running right now.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub running: Vec<String>,
     /// Workflows this worker advertised, including the definition fingerprint
     /// a safe workflow dispatch must echo.
@@ -286,6 +304,15 @@ pub trait FleetOps: Send + Sync + 'static {
     /// already settled returns false so callers never claim cancellation
     /// succeeded after the result became final.
     fn abort(&self, abort_id: &str) -> bool;
+
+    /// Record one lifecycle report from a harness this Medulla launched.
+    ///
+    /// Defaulted to a no-op because it is the one operation that is *not* about
+    /// the fleet: an implementation with nowhere to put the report — a test
+    /// fake, a build with no screen to show it on — should not have to say so.
+    /// Synchronous by design; the caller is holding a hook that a live session
+    /// is blocked on, so this must never await anything.
+    fn record_hook_event(&self, _report: crate::harness_hooks::HookReport) {}
 }
 
 /// What a successful `hello` tells the shim about the fleet it just reached.
@@ -332,6 +359,25 @@ pub const MCP_SOCKET_ENV: &str = "MEDULLA_MCP_SOCKET";
 /// permissions, only present one that means nothing.
 pub const MCP_GRANT_ENV: &str = "MEDULLA_MCP_GRANT";
 
+/// Environment variable naming the control socket a launched harness's
+/// built-in hook commands may reach.
+///
+/// Unlike [`MCP_SOCKET_ENV`], this is written straight into the harness's own
+/// environment — see `medulla::mcp::attach::attach_mcp` in the `medulla-tui`
+/// crate — because there is no per-hook `env` block in either harness's hook
+/// configuration to keep it off the environment every other child of the
+/// harness inherits, the way the MCP registration's `secret_env` does. Safe
+/// only because the token it names is minted with
+/// [`super::grants::Grant::hook_only`], which carries no authority beyond
+/// attributing a report to its own session.
+pub const HOOK_SOCKET_ENV: &str = "MEDULLA_HOOK_SOCKET";
+
+/// Environment variable carrying the hook-only grant token for that socket.
+///
+/// See [`HOOK_SOCKET_ENV`] for why this is a plain environment variable rather
+/// than following the fleet grant's file-based handoff.
+pub const HOOK_GRANT_ENV: &str = "MEDULLA_HOOK_GRANT";
+
 /// Internal handoff naming the parent control socket for a nested ACP session.
 ///
 /// Unlike [`MCP_SOCKET_ENV`], this is never attached to the MCP subprocess. It
@@ -366,12 +412,34 @@ pub fn depth_from_env(env: &HashMap<String, String>) -> u8 {
 /// `None` whenever either is missing, which is the ordinary state for a harness
 /// running on a remote worker or on a host with fleet tools turned off.
 pub fn grant_from_env(env: &HashMap<String, String>) -> Option<(std::path::PathBuf, String)> {
+    socket_and_token(env, MCP_SOCKET_ENV, MCP_GRANT_ENV)
+}
+
+/// Read the hook-only socket and grant a spawn's *hook commands* were handed,
+/// if they were handed any.
+///
+/// `None` for the same reasons [`grant_from_env`] is: no control plane bound
+/// on this host, or a harness running somewhere this env was never set. Kept
+/// distinct from [`grant_from_env`] because the two name different
+/// credentials over different environment variables — see [`HOOK_SOCKET_ENV`]
+/// for why the hook grant reaches the harness this way at all.
+pub fn hook_grant_from_env(env: &HashMap<String, String>) -> Option<(std::path::PathBuf, String)> {
+    socket_and_token(env, HOOK_SOCKET_ENV, HOOK_GRANT_ENV)
+}
+
+/// Read a socket path and token from `env` under `socket_key`/`token_key`,
+/// `None` when either is missing or blank.
+fn socket_and_token(
+    env: &HashMap<String, String>,
+    socket_key: &str,
+    token_key: &str,
+) -> Option<(std::path::PathBuf, String)> {
     let socket = env
-        .get(MCP_SOCKET_ENV)
+        .get(socket_key)
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())?;
     let token = env
-        .get(MCP_GRANT_ENV)
+        .get(token_key)
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())?;
     Some((std::path::PathBuf::from(socket), token.to_string()))

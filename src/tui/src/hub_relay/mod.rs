@@ -50,6 +50,9 @@ fn workers_from_config(home: &Path) -> Vec<WorkerSpec> {
         .into_iter()
         .map(|w| WorkerSpec {
             id: w.id,
+            // A remembered row names a remote peer; which machine it is on is
+            // the peer's own business, and this hub has never claimed to know.
+            host_id: String::new(),
             address: w.address,
             name: w.label.unwrap_or_else(|| "medulla-worker".to_string()),
             description: format!("{} daemon", w.harness),
@@ -58,6 +61,11 @@ fn workers_from_config(home: &Path) -> Vec<WorkerSpec> {
             // injected fresh each launch (see `build_hub_config_with_host`),
             // and a remote peer's is unknown here.
             workspace: None,
+            roles: w.roles,
+            // Unstated for a remote peer: its concurrency is whatever it
+            // declares on its own machine. Normalised where the roster entry is
+            // built.
+            max_sessions: 0,
         })
         .collect()
 }
@@ -73,9 +81,10 @@ fn link_from_config(env: &HashMap<String, String>, home: &Path) -> Option<HubLin
     let config = medulla::config::load_config(path.to_str(), env, &cwd)
         .ok()?
         .config;
+    let backend_url = config.backend.base_url.clone();
     let link = config
         .link
-        .unwrap_or_else(|| medulla::config::default_link_config(env));
+        .unwrap_or_else(|| medulla::config::default_link_config(env, &backend_url));
     link_from_resolved_config(&link, None)
 }
 
@@ -151,15 +160,20 @@ fn subscription_strategy_from_config(home: &Path) -> medulla::runtime::Subscript
 /// outlive the setting that produced it. A roster that kept it would, on the
 /// next run with hosting off, advertise a worker whose address nothing binds —
 /// and the router, finding no local endpoint, would send its tasks over
-/// tiny.place to a name no relay can resolve.
+/// the host link to a name no forwarder can resolve.
 fn roster_sink(
     home: &Path,
     log: medulla::hub::HubLog,
-    local_addresses: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    local_hosts: medulla::hub::SharedLocalHosts,
 ) -> medulla::hub::RosterSink {
     let path = roster_path(home);
     Arc::new(move |workers: &[medulla::hub::HubWorker]| {
-        let local_addresses = local_addresses.lock().expect("host addresses").clone();
+        let local_addresses: Vec<String> = local_hosts
+            .lock()
+            .expect("local hosts")
+            .iter()
+            .map(|host| host.id.clone())
+            .collect();
         let rows: Vec<medulla::config::HubWorkerConfig> = workers
             .iter()
             .filter(|w| !local_addresses.contains(&w.address))
@@ -194,7 +208,7 @@ fn workers_from_env(env: &HashMap<String, String>) -> Vec<WorkerSpec> {
         name: "medulla-worker".to_string(),
         description: format!("{provider} daemon"),
         harness: provider.clone(),
-        workspace: None,
+        ..Default::default()
     };
     if let Some(list) = env
         .get("MEDULLA_HUB_WORKERS")
@@ -382,13 +396,21 @@ fn build_hub_config_with_host_and_link(
     let (local_network, local_address) = match &local {
         Some(dispatch) => {
             {
-                let local_addresses = dispatch.host_addresses.lock().expect("host addresses");
-                workers.retain(|worker| !local_addresses.contains(&worker.address));
+                let local_hosts = dispatch.local_hosts.lock().expect("local hosts");
+                workers.retain(|worker| !local_hosts.iter().any(|host| host.id == worker.address));
             }
             // Inserted in declaration order, so the primary leads and the
             // extras follow it the way they read in the config.
+            //
+            // De-duplicated by **id**, not by address: several declared agents
+            // share one host's address, and dropping every worker at that
+            // address would leave only the last one inserted — a machine would
+            // advertise one of its agents and silently lose the rest. Remembered
+            // entries at a device-local address are already gone (above), so
+            // this only guards against an env-seeded id colliding with a
+            // declared one.
             for host in dispatch.hosts.iter().rev() {
-                workers.retain(|worker| worker.address != host.address);
+                workers.retain(|worker| worker.id != host.id);
                 workers.insert(0, host.clone());
             }
             (Some(dispatch.network.clone()), dispatch.hub_address.clone())
@@ -404,14 +426,16 @@ fn build_hub_config_with_host_and_link(
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_POLL_MS);
     // The handle, not a copy of its contents: the sink reads it at save time,
-    // which is the only moment that knows which hosts this device is binding.
-    let persisted_local = local
+    // and the hub reads it at registration time, which are the only moments
+    // that know which hosts this device is binding.
+    let local_hosts = local
         .as_ref()
-        .map(|dispatch| dispatch.host_addresses.clone())
+        .map(|dispatch| dispatch.local_hosts.clone())
         .unwrap_or_default();
     Some(HubConfig {
         agent_templates,
-        persist: Some(roster_sink(home, log.clone(), persisted_local)),
+        local_hosts: local_hosts.clone(),
+        persist: Some(roster_sink(home, log.clone(), local_hosts)),
         log,
         backend_url: creds.base_url,
         jwt: creds.jwt,

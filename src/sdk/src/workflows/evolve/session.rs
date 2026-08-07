@@ -122,6 +122,11 @@ impl EvolveSession {
             run: self.failed_run(workflow_id, &trigger)?,
             notes: &briefed_notes,
             runs: &runs,
+            // A review is grounded in the journal and the run history, which
+            // are durable and already in the brief. Whatever an operator and
+            // the copilot said to each other in a pane is neither, and is not
+            // evidence a review should reason from.
+            recap: None,
         }
         .render();
 
@@ -133,6 +138,7 @@ impl EvolveSession {
             instruction: prompt,
             worker_address: self.worker_address.clone(),
             provider: self.provider,
+            transport: None,
             custom_harness: None,
             model: self.model.clone(),
             // The autonomy boundary, carried to the harness rather than

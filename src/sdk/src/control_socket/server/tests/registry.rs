@@ -64,6 +64,7 @@ impl FleetOps for PanicsBeforeStart {
 /// A unique request for one registry slot.
 fn request(index: usize) -> TaskRequest {
     TaskRequest {
+        transport: None,
         task_id: format!("wire-{index}"),
         abort_id: format!("abort-{index}"),
         cycle_id: None,
@@ -138,6 +139,7 @@ async fn admitting_a_replacement_preserves_a_settled_result_with_a_waiter() {
                 output_tokens: 0,
             },
             harness: None,
+            session_id: None,
         }));
         tracked.entry.finished_at = Some(crate::clock::now_millis());
         tracked.settled.subscribe()

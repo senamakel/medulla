@@ -62,7 +62,30 @@ pub async fn run_provider_task(mut options: RunTaskOptions) -> Result<RunTaskRes
     // and for the child to never hold the real key. A no-op for every endpoint
     // that is not OpenRouter.
     crate::inference_proxy::route_spawn(options.provider, &mut options.router, &mut options.env)?;
+    // Ahead of ACP because the two are chosen by different questions and a task
+    // may answer both: ACP is a *protocol* switch on the environment, while the
+    // app-server is the flavor the operator named. Naming `codex-server` is the
+    // more specific statement, so it wins.
+    if super::codex_server::uses_app_server(&options) {
+        return super::codex_server::run_codex_server_task(options).await;
+    }
     if super::acp::uses_acp(&options) {
+        // ACP dispatch cannot carry Medulla hooks. Every other path injects them
+        // onto the harness CLI's own argv, but here Medulla spawns an ACP *server*
+        // (`@agentclientprotocol/claude-agent-acp`, `codex-acp`, `opencode acp`)
+        // which spawns the harness itself, so there is no argv to add to. Claude
+        // Code's env-based settings paths were checked as an alternative and do
+        // not deliver hooks either. Say so rather than let the operator believe a
+        // configured hook is running.
+        let configured = options.hooks.for_provider(options.provider).len();
+        if configured > 0 {
+            tracing::warn!(
+                provider = options.provider.as_str(),
+                hooks = configured,
+                "medulla hooks are not installed for ACP dispatch: the harness CLI is \
+                 launched by the ACP server, not by Medulla",
+            );
+        }
         return super::acp::run_acp_task(options).await;
     }
     let mut on_event = options.on_event;
@@ -85,6 +108,7 @@ pub async fn run_provider_task(mut options: RunTaskOptions) -> Result<RunTaskRes
         abort: options.abort,
         router,
         attribution: options.attribution,
+        hooks: options.hooks,
         on_workspace_context: options.on_workspace_context,
     };
     let mut attempt: u32 = 1;
@@ -143,22 +167,37 @@ async fn run_provider_attempt(
         ));
     }
 
-    // `TINYPLACE_<P>_ARGS` (whitespace-split) is prepended to any configured
+    // `MEDULLA_<P>_ARGS` (whitespace-split) is prepended to any configured
     // extra args, so a per-provider env override applies to headless daemon runs
     // too — matching the wrapper's child-argv prefix.
     let mut extra_args = crate::protocol::env::provider_args(spec.provider, &spec.env);
     // Medulla-launched harnesses attribute their commits to Medulla via a
     // `Co-authored-by` trailer. Nothing is persisted — the flags live only on
     // this child's argv. Empty for providers with no such knob.
-    extra_args.extend(crate::attribution::attribution_args(
-        spec.provider,
-        spec.attribution,
-    ));
+    // Attribution and the operator's Medulla hooks share Claude Code's single
+    // `--settings` flag, so they are built together — see
+    // `harness_hooks::launch_args`.
+    let (launch_args, hook_notes) =
+        crate::harness_hooks::launch_args(spec.provider, spec.attribution, &spec.hooks);
+    extra_args.extend(launch_args);
+    for note in &hook_notes {
+        tracing::warn!(provider = spec.provider.as_str(), "{note}");
+    }
     // For providers that use the git-hook path (Codex, Opencode), merge the
     // prepare-commit-msg hook env vars into the child's environment.
     let mut merged_env = spec.env.clone();
     let attribution_env = crate::attribution::attribution_env(spec.attribution, &merged_env);
     merged_env.extend(attribution_env);
+    // The built-in reporting hooks just installed onto `extra_args` need this
+    // to find anything to report to — without it they spawn, find no grant,
+    // and exit, on every one of `PostToolUse`'s per-tool-call firings for the
+    // life of this run. Kept alive for the rest of this function (dropped at
+    // the end of its scope, after the child has fully exited), so the grant
+    // is revoked the moment this headless run is done rather than left live
+    // for the rest of the process. Unique per run: two runs sharing a session
+    // key would share a grant.
+    let hook_grant_session = format!("headless-{}", uuid::Uuid::new_v4());
+    let _hook_grant = crate::harness_hooks::seed_hook_grant(hook_grant_session, &mut merged_env);
     // Custom OpenAI-compatible router: layer the provider's endpoint env (and,
     // when configured, its API key) into the child at the spawn seam, so headless
     // daemon, operator-TUI daemon, and interactive wrappers all route identically.
@@ -187,6 +226,27 @@ async fn run_provider_attempt(
         }
         extra_args.extend(injection.args);
     }
+    // Codex needs more than an endpoint before a routed model will answer: a
+    // provider block, an API-key auth preference, and a catalog entry it is
+    // willing to describe. Read from `merged_env`, where both inputs now live —
+    // the preset's opt-in knobs and the endpoint the routing above just wrote.
+    extra_args.extend(
+        crate::codex_overrides::launch_args(spec.provider, spec.model.as_deref(), &merged_env)
+            .map_err(|error| error.to_string())?,
+    );
+    // Re-render Medulla's own skills root from the workflow store and point the
+    // harness at it. This is what makes a workflow a harness *can* trigger
+    // visible to it: the MCP tools arrive automatically, but nothing tells a
+    // session that `babysit` exists or what it takes. Rendered per spawn rather
+    // than only by `medulla skills install`, so a workflow authored, disabled,
+    // or deleted since the last install is described correctly here. Empty for
+    // a provider with no directory flag, so those argvs are unchanged.
+    #[cfg(feature = "workflows")]
+    extra_args.extend(crate::workflows::skills::refresh_managed(
+        spec.provider,
+        &spec.env,
+        std::path::Path::new(&spec.cwd),
+    ));
     extra_args.extend(spec.extra_args.iter().cloned());
     let args = build_resumed_run_args(
         spec.provider,

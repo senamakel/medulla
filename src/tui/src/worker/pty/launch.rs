@@ -10,7 +10,142 @@
 //! A tty is not optional: Codex refuses to start with `stdin is not a terminal`,
 //! and both harnesses fall back to dumb line mode without one.
 
+use std::collections::HashMap;
+
 use medulla::protocol::HarnessProvider;
+
+/// Hand a harness about to be launched here Medulla's own tools.
+///
+/// The PTY door has no `session/new` to carry an offer in, so the registration
+/// goes on the child's argv and the grant into a file only its owner can read
+/// (see [`medulla::mcp::attach`] — both of which this appends to the spawn the
+/// caller is assembling. Returns the key the session's fleet grant was minted
+/// under, for [`LaunchSpec::mcp_grant_session`] to carry to the reap that
+/// gives it back.
+///
+/// Called at both doors — the executor's dispatched session and the operator's
+/// hand-opened one — because a harness Medulla started is a harness Medulla
+/// serves, whichever door it came through. Without it an operator sitting in a
+/// Medulla-spawned Claude Code had skills telling the model to call
+/// `workflow_run` and no such tool in the session.
+///
+/// `bin` is the executable the caller has already resolved and is about to
+/// launch — passed rather than re-derived, because that is the one the trust
+/// decision has to be about; see [`medulla::protocol::env::bin_is_overridden`].
+///
+/// `log`, when given, is where an operator learns *why* `fleet_*` did not
+/// attach to a provider binary they overrode — see `attach_cli`'s own docs on
+/// when that note actually fires. Routed to the log, never to the terminal:
+/// this crate owns the alternate screen, and a stray line on stdout/stderr
+/// corrupts whatever pane is drawn there.
+///
+/// Also mints the credential this session's built-in lifecycle hooks report
+/// with (see [`medulla::mcp::local_hook_grant`]) and writes it
+/// straight into `env`, since — unlike the fleet grant — it is safe for every
+/// subprocess the harness starts to inherit: a hook-only grant can do nothing
+/// but attribute a report to the session it already is. That is also why it
+/// is minted regardless of provider, override, or whether `attach_cli` above
+/// granted fleet access at all: every provider's hooks are wired to call back
+/// into this same command, so withholding this credential the way the fleet
+/// grant is withheld would leave those hooks unable to report even where
+/// nothing about the launch is untrusted.
+///
+/// [`LaunchSpec::mcp_grant_session`]: super::types::LaunchSpec::mcp_grant_session
+#[cfg(feature = "workflows")]
+pub fn attach_mcp(
+    provider: HarnessProvider,
+    bin: &str,
+    env: &mut HashMap<String, String>,
+    extra_args: &mut Vec<String>,
+    log: Option<&medulla::daemon::LogFn>,
+) -> Option<String> {
+    // Unique per launch: the key *is* the grant's identity, so two sessions
+    // sharing one would share a capability and revoking either would revoke
+    // both.
+    let session = format!("pty-{}", uuid::Uuid::new_v4());
+    let fleet_granted = medulla::mcp::attach_cli(provider, bin, &session, env, extra_args, log);
+    let hook_granted = if let Some((socket, token)) = medulla::mcp::local_hook_grant(&session) {
+        env.insert(
+            medulla::control_socket::HOOK_SOCKET_ENV.to_string(),
+            socket.to_string_lossy().into_owned(),
+        );
+        env.insert(medulla::control_socket::HOOK_GRANT_ENV.to_string(), token);
+        true
+    } else {
+        false
+    };
+    // Either grant minted under `session` is enough reason for the caller to
+    // revoke it when this launch ends: `revoke_session` drops every grant
+    // recorded under the key, fleet and hook alike, in one call. Returning
+    // `None` only when nothing at all was minted keeps a hook-only launch —
+    // Codex, or an overridden Claude binary, where `attach_cli` grants no
+    // fleet access — from leaking its hook grant past this session's own
+    // reap.
+    fleet_granted.or_else(|| hook_granted.then_some(session))
+}
+
+/// Without the engine compiled in there is no tool server to attach.
+#[cfg(not(feature = "workflows"))]
+pub fn attach_mcp(
+    provider: HarnessProvider,
+    bin: &str,
+    env: &mut HashMap<String, String>,
+    extra_args: &mut Vec<String>,
+    log: Option<&medulla::daemon::LogFn>,
+) -> Option<String> {
+    let _ = (provider, bin, env, extra_args, log);
+    None
+}
+
+/// Refresh Medulla's managed skills and point a harness about to be launched
+/// here at them.
+///
+/// The tools arrive on their own (see [`attach_mcp`]), but nothing in a fresh
+/// session knows *which* workflows exist or that `workflow_run` is how to start
+/// one. That knowledge is a skill file under `<medulla home>/<harness>-skills/`
+/// — a root Medulla owns, so the operator's own `~/.claude` is left alone — and
+/// all that remains is telling the child to read it, which for Claude Code is
+/// `--add-dir`.
+///
+/// The files are re-rendered from the workflow store here rather than only by
+/// `medulla skills install`, because the store moves and the skills did not:
+/// a workflow authored in the TUI, evolved over MCP, disabled, or deleted left
+/// the managed directory describing a catalog that no longer existed, and the
+/// only cure was remembering to re-run a command. Now the session sees the
+/// store as it is at the moment it starts.
+///
+/// Called at both pty doors for the same reason [`attach_mcp`] is: the headless
+/// executor already does this in `medulla::daemon::providers`, and a harness
+/// started on a pty is no less Medulla-spawned than one started headless.
+///
+/// `env` is the child's environment, not the parent's: it is what resolves
+/// `MEDULLA_HOME`/`HOME`, so a scratch-home session refreshes and reads that
+/// home's skills. `cwd` is the session's working directory, which is what makes
+/// a project-local workflow visible to a session opened inside that project.
+/// Appends nothing for a provider with no such flag (everything but Claude
+/// Code), so those argvs are unchanged.
+#[cfg(feature = "workflows")]
+pub fn attach_skills(
+    provider: HarnessProvider,
+    env: &HashMap<String, String>,
+    cwd: &std::path::Path,
+    extra_args: &mut Vec<String>,
+) {
+    extra_args.extend(medulla::workflows::skills::refresh_managed(
+        provider, env, cwd,
+    ));
+}
+
+/// Without the engine compiled in there are no workflows to have skills for.
+#[cfg(not(feature = "workflows"))]
+pub fn attach_skills(
+    provider: HarnessProvider,
+    env: &HashMap<String, String>,
+    cwd: &std::path::Path,
+    extra_args: &mut Vec<String>,
+) {
+    let _ = (provider, env, cwd, extra_args);
+}
 
 /// The argv for an interactive (screen-painting) run of `provider`.
 ///

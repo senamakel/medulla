@@ -44,6 +44,32 @@ pub struct Grant {
     /// wire value so a reviewer cannot escape its read-only boundary by asking
     /// another fleet worker to continue the review.
     pub tool_mode: Option<String>,
+    /// Whether this grant is restricted to the one op that carries no
+    /// authority at all: `hook.report`.
+    ///
+    /// Set for the credential handed to a launched harness's *native* hook
+    /// commands (see `medulla::mcp::attach` and the `medulla hook` shim in the
+    /// `medulla-tui` crate), which — unlike the fleet grant the MCP subprocess
+    /// gets — is written straight into the harness's own environment and so is
+    /// inherited by every subprocess the harness starts, including a shell
+    /// command the model runs. That is exactly the leak the fleet grant's
+    /// module docs describe and refuse; it is safe only because a grant with
+    /// this flag set can attribute a fabricated lifecycle line to its own
+    /// session and nothing more — see the control socket's request dispatch,
+    /// which refuses every other op for it.
+    pub hook_only: bool,
+    /// Whether this grant has been narrowed to `run.report` alone because the
+    /// harness it was minted for has exited.
+    ///
+    /// A default `workflow_run` is asynchronous, and the MCP subprocess that
+    /// executes it deliberately outlives its parent harness. Revoking the
+    /// grant outright when the harness exits would silence the run's own
+    /// progress reports for the rest of its life, so
+    /// [`GrantRegistry::restrict_to_reporting`] sets this instead: the holder
+    /// keeps saying how the run it already started is going and loses
+    /// everything else, including dispatch. Cleared only by giving the grant
+    /// back, which happens when the last run settles.
+    pub report_only: bool,
 }
 
 impl Grant {
@@ -56,6 +82,22 @@ impl Grant {
             families: ToolFamilies::default(),
             max_in_flight: 4,
             tool_mode: None,
+            hook_only: false,
+            report_only: false,
+        }
+    }
+
+    /// A grant good for nothing but filing hook reports under `session`.
+    ///
+    /// Depth, family, and in-flight limits are meaningless for it — dispatch
+    /// and every other op are refused by [`Self::hook_only`] before any of
+    /// those fields are consulted — so they are left at harmless defaults
+    /// rather than given values that imply a capability this grant does not
+    /// carry.
+    pub fn hook_only(session: impl Into<String>) -> Self {
+        Grant {
+            hook_only: true,
+            ..Grant::new(session, 0, 0)
         }
     }
 
@@ -138,6 +180,41 @@ impl GrantRegistry {
     pub fn revoke(&self, session: &str) {
         if let Ok(mut grants) = self.inner.lock() {
             grants.retain(|_, grant| grant.session != session);
+        }
+    }
+
+    /// Narrow every grant minted for `session` to `run.report` alone.
+    ///
+    /// The half-measure between keeping a session's capability and revoking it,
+    /// for the one case that needs one: the harness has exited, but the MCP
+    /// subprocess it spawned is still executing a detached workflow run and is
+    /// the only thing that can say how that run ends. A full
+    /// [`revoke`](Self::revoke) here would leave the run executing with its
+    /// rail row frozen on whatever it last managed to report.
+    ///
+    /// What survives is deliberately the least it can be. Dispatch, task
+    /// lifecycle, worker discovery, and child grants are all refused for a
+    /// [`report_only`](Grant::report_only) grant by the control socket's
+    /// request dispatch, the same way they are for a
+    /// [`hook_only`](Grant::hook_only) one — so an MCP subprocess that outlives
+    /// its parent cannot start anything new, only finish narrating what it
+    /// already had. The grant itself goes when the run settles; see
+    /// [`HarnessRunRegistry::retire`](super::runs::HarnessRunRegistry::retire).
+    /// A session's *hook-only* grant is dropped outright rather than narrowed.
+    /// It belongs to the harness's own lifecycle hooks, which died with the
+    /// harness — the run is reported by the MCP subprocess, which holds the
+    /// fleet grant — and narrowing it would leave a token refused by both
+    /// checks and redeemable for nothing.
+    pub fn restrict_to_reporting(&self, session: &str) {
+        if let Ok(mut grants) = self.inner.lock() {
+            grants.retain(|_, grant| grant.session != session || !grant.hook_only);
+            for grant in grants.values_mut() {
+                if grant.session == session {
+                    grant.report_only = true;
+                    grant.families = ToolFamilies::none();
+                    grant.max_in_flight = 1;
+                }
+            }
         }
     }
 

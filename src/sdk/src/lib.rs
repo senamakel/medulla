@@ -10,14 +10,16 @@ pub mod bridge;
 pub mod client;
 pub mod clipboard;
 pub mod clock;
+pub mod codex_app_server;
+pub mod codex_overrides;
 pub mod config;
-pub mod contacts;
 pub mod control_socket;
 pub mod core_host;
 pub mod daemon;
 #[cfg(feature = "workflows")]
 pub mod flow_engine;
 pub mod harness_contract;
+pub mod harness_hooks;
 pub mod harness_work;
 pub mod history_upload;
 pub mod home;

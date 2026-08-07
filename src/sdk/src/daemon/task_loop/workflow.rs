@@ -21,7 +21,7 @@ use crate::hub::{RunError, TaskOutcome, TaskRequest};
 use crate::protocol::{TaskFrame, TaskFrameKind, TokenUsage, WorkflowAdvert, WorkflowInputAdvert};
 // `trigger_input` is shared with the cloud plane's adapter
 // ([`crate::workflows::bridge`]) rather than defined twice: a frame's text must
-// become the same trigger payload whether it arrived over tiny.place or over the
+// become the same trigger payload whether it arrived over the host link or over the
 // backend socket, and two copies of that rule would eventually disagree.
 use crate::workflows::bridge::trigger_input;
 use crate::workflows::evolve::{EvolveConfig, EvolveSession, EvolveTrigger};
@@ -54,19 +54,43 @@ impl RuntimeDispatch {
             conversation,
         }
     }
+
+    /// The provider and transport `request` will actually run on.
+    ///
+    /// Both fall back, for the same portability reason: a graph authored
+    /// against a harness this worker does not offer should still run here. That
+    /// makes the resolved pair a different thing from what the node asked for,
+    /// and the two callers that need it — the dispatch itself and the run
+    /// inspector's harness label — have to agree, so it is resolved once.
+    fn resolve(
+        &self,
+        request: &TaskRequest,
+    ) -> (
+        crate::protocol::HarnessProvider,
+        crate::protocol::HarnessTransport,
+    ) {
+        let inner = &self.runtime.inner;
+        // A node may name a provider through its `agent_ref`; anything this
+        // worker does not offer falls back to the default rather than failing.
+        let provider = crate::protocol::HarnessProvider::from_wire(&request.worker_address)
+            .filter(|p| inner.config.providers.contains(p))
+            .or_else(|| self.runtime.select_provider(request.provider))
+            .unwrap_or(inner.config.default_provider);
+        // Dropped when the provider fell back, because a transport the chosen
+        // provider cannot speak is not a transport at all.
+        let transport = request
+            .transport
+            .filter(|transport| transport.supported_by(provider))
+            .unwrap_or_default();
+        (provider, transport)
+    }
 }
 
 #[async_trait]
 impl HarnessDispatch for RuntimeDispatch {
     async fn dispatch(&self, request: TaskRequest) -> Result<TaskOutcome, RunError> {
         let inner = &self.runtime.inner;
-        // A node may name a provider through its `agent_ref`; anything this
-        // worker does not offer falls back to the default rather than failing,
-        // because a graph should be portable across workers.
-        let provider = crate::protocol::HarnessProvider::from_wire(&request.worker_address)
-            .filter(|p| inner.config.providers.contains(p))
-            .or_else(|| self.runtime.select_provider(request.provider))
-            .unwrap_or(inner.config.default_provider);
+        let (provider, transport) = self.resolve(&request);
 
         let options = RunTaskOptions {
             conversation: self.conversation.clone(),
@@ -78,6 +102,7 @@ impl HarnessDispatch for RuntimeDispatch {
             resume_session_id: None,
             workspace_context: Default::default(),
             provider,
+            transport,
             prompt: request.instruction,
             cwd: inner.config.workspace.clone(),
             env: super::with_tool_mode_at_depth(
@@ -92,6 +117,7 @@ impl HarnessDispatch for RuntimeDispatch {
             skip_permissions: inner.config.skip_permissions,
             router: inner.config.router.clone(),
             attribution: inner.config.attribution,
+            hooks: inner.config.hooks.clone(),
             abort: Abort::new(),
             // The run observer already reports progress per node; forwarding a
             // harness's token-level chatter as well would double-report it.
@@ -118,7 +144,21 @@ impl HarnessDispatch for RuntimeDispatch {
                 output_tokens: 0,
             }),
             harness: Some(provider),
+            session_id: None,
         })
+    }
+
+    /// The flavor this worker will really run the node on.
+    ///
+    /// `None` for a request naming a custom harness: this dispatch resolves
+    /// providers, not custom harnesses, so the requested name remains the
+    /// closest thing to the truth and overriding it would lose information.
+    fn effective_harness(&self, request: &TaskRequest) -> Option<String> {
+        if request.custom_harness.is_some() {
+            return None;
+        }
+        let (provider, transport) = self.resolve(request);
+        Some(provider.flavor_name(transport).to_string())
     }
 }
 
@@ -269,15 +309,27 @@ impl DaemonRuntime {
         // Kept past the move into the resolver: a failed run gets a review, and
         // the review reads the same store the run wrote to.
         let evolve_store = store.clone();
+        let max_loop_iterations = settings.max_loop_iterations;
         let context = RunContext {
+            // Runs inline, so claiming at the top of the run is early enough.
+            claim: None,
             store: store.clone(),
             settings,
             services: HostServices {
                 dispatch: Arc::new(RuntimeDispatch::new(self.clone(), from.clone())),
-                resolver: Arc::new(StoreWorkflowResolver::new(store)),
+                node_progress: None,
+                resolver: Arc::new(StoreWorkflowResolver::new(store, max_loop_iterations)),
                 http_credentials: Default::default(),
             },
             sink,
+            step_snapshot: None,
+            // A fleet dispatch: this run exists because a peer sent a task
+            // frame, and the address it came from is the only thing that can
+            // say which one.
+            origin: Some(
+                crate::workflows::RunOrigin::of_kind("dispatch")
+                    .labelled(format!("task {} from {from}", frame.task_id)),
+            ),
         };
 
         // The frame's task id becomes the run id, so the orchestrator's existing
@@ -305,7 +357,14 @@ impl DaemonRuntime {
         .await;
 
         let work = fold.lock().ok().map(|fold| fold.snapshot().clone());
-        let attachments = FrameAttachments { usage: None, work };
+        // No session id: a workflow run is a graph, not one harness session —
+        // each `agent` node opens its own. There is no single session that
+        // served this task, so none is claimed.
+        let attachments = FrameAttachments {
+            usage: None,
+            work,
+            ..Default::default()
+        };
 
         match outcome {
             Ok(record) => {

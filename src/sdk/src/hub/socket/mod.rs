@@ -2,7 +2,7 @@
 //!
 //! Connects to the backend's harness plane, advertises the shared worker roster
 //! (`medulla:register_agents`), and for every `medulla:task_run` the brain emits
-//! it dispatches through the [`TaskRunner`] over tiny.place and streams the
+//! it dispatches through the [`TaskRunner`] over the host link and streams the
 //! result back (`medulla:task_result`, with `medulla:task_envelope` progress).
 //! The roster is shared with the [`HubHandle`](super::HubHandle), so a worker
 //! added at runtime is targetable and re-advertised immediately.
@@ -102,6 +102,7 @@ pub(super) async fn connect_harness(
     let HarnessWiring {
         roster,
         catalog,
+        local_hosts,
         runner,
         subscription_strategy,
         log,
@@ -110,6 +111,7 @@ pub(super) async fn connect_harness(
     } = wiring;
     let connect_roster = roster.clone();
     let connect_catalog = catalog.clone();
+    let connect_local_hosts = local_hosts.clone();
     let cap_catalog = catalog.clone();
     let connect_relay = runner.relay();
     let connect_log = log.clone();
@@ -149,6 +151,7 @@ pub(super) async fn connect_harness(
         .on(Event::Connect, move |_payload, socket| {
             let roster = connect_roster.clone();
             let catalog = connect_catalog.clone();
+            let local_hosts = connect_local_hosts.clone();
             let relay = connect_relay.clone();
             let connect_log = connect_log.clone();
             let workflows = connect_workflows.clone();
@@ -190,8 +193,15 @@ pub(super) async fn connect_harness(
                         format!(" — withholding {} from agent_list", withheld.len())
                     }
                 ));
-                let payload =
-                    { register_payload(&roster.lock().expect("roster lock"), &online, &catalog) };
+                // Both locks are taken and released inside this block, before
+                // the emit await: the hosts block and the agent list must
+                // describe one instant, and neither std guard may be held
+                // across a suspension point.
+                let payload = {
+                    let workers = roster.lock().expect("roster lock");
+                    let local_hosts = local_hosts.lock().expect("local hosts lock");
+                    register_payload(&workers, &online, &catalog, &local_hosts)
+                };
                 let _ = socket.emit("medulla:register_agents", payload).await;
                 // Beside the roster, not instead of it: the backend keys a
                 // workflow advert to the socket that sent it and drops the whole
@@ -221,7 +231,7 @@ pub(super) async fn connect_harness(
             }
             .boxed()
         })
-        // A delegated task: relay it to the worker over tiny.place, reply up.
+        // A delegated task: relay it to the worker over the host link, reply up.
         //
         // CRITICAL: spawn rather than await here. A task can run for minutes, and
         // awaiting it inside the callback starves engine.io's ping/pong — the
@@ -280,10 +290,10 @@ pub(super) async fn connect_harness(
             .boxed()
         })
         // Capability probe: answer from the roster facts, decorated with the
-        // worker's live budgets/readiness probed over tiny.place.
+        // worker's live budgets/readiness probed over the host link.
         //
         // CRITICAL: spawn rather than await, for the same reason as `task_run`.
-        // The live probe hops to the worker over tiny.place and can take tens of
+        // The live probe hops to the worker over the host link and can take tens of
         // seconds (its harness readiness probe); awaiting it inside the callback
         // starves engine.io's ping/pong and the server drops the hub, failing
         // every later delegation while this process still looks alive.

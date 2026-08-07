@@ -13,12 +13,13 @@
 
 use std::sync::Arc;
 
+use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 
 use super::types::{
-    tab_pos, App, HandbackPrompt, HarnessPicker, HarnessPickerStep, Overlay, PromptKind,
-    ResumePicker, RP_TEMPLATES,
+    tab_pos, AgentPicker, AgentPickerStep, App, HandbackPrompt, Overlay, PromptKind, ResumePicker,
+    RP_TEMPLATES,
 };
 use crate::ui::composer::{Draft, TextPrompt};
 
@@ -38,17 +39,17 @@ fn raise(app: &mut App, overlay: Overlay) {
             app.tab_index = tab_pos("Hosts");
             app.routing_index = RP_TEMPLATES;
         }
-        Overlay::HarnessPicker => {
-            app.harness_picker = Some(HarnessPicker {
+        Overlay::AgentPicker => {
+            app.agent_picker = Some(AgentPicker {
+                purpose: super::types::PickerPurpose::Spawn,
                 choices: Vec::new(),
                 index: 0,
-                step: HarnessPickerStep::Harness,
+                step: AgentPickerStep::Harness,
                 cwd: "/".into(),
                 workspace_query: String::new(),
                 workspace_choices: Vec::new(),
                 workspace_index: 0,
                 workspace_picked: false,
-                managed: true,
             })
         }
         Overlay::HandbackPrompt => {
@@ -76,7 +77,7 @@ fn raise(app: &mut App, overlay: Overlay) {
 const EVERY_OVERLAY: [Overlay; 6] = [
     Overlay::Decisions,
     Overlay::TemplatePopup,
-    Overlay::HarnessPicker,
+    Overlay::AgentPicker,
     Overlay::HandbackPrompt,
     Overlay::InlinePrompt,
     Overlay::ResumePicker,
@@ -110,6 +111,31 @@ fn every_overlay_is_reachable_and_owns_input_on_its_own() {
             "{overlay:?} is drawn over the content, so it owns input"
         );
     }
+}
+
+#[test]
+fn handback_prompt_swallows_clicks_behind_it() {
+    let mut app = app();
+    raise(&mut app, Overlay::HandbackPrompt);
+    app.hit_tabs_row = 1;
+    app.hit_tabs = vec![(0, 4), (5, 10)];
+    let original_tab = app.tab_index;
+
+    let _ = app.on_mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 1,
+        modifiers: KeyModifiers::NONE,
+    });
+
+    assert_eq!(
+        app.tab_index, original_tab,
+        "a handback prompt must not let a click navigate the UI behind it"
+    );
+    assert!(
+        app.handback_prompt.is_some(),
+        "the click must leave the pending harness decision intact"
+    );
 }
 
 #[test]
@@ -172,7 +198,7 @@ fn overlays_are_listed_back_to_front_in_the_order_the_render_paints_them() {
     // The list is iterated to paint, so its order is the stacking order: the
     // hand-back question is asked over the picker that may have opened it.
     let mut app = app();
-    raise(&mut app, Overlay::HarnessPicker);
+    raise(&mut app, Overlay::AgentPicker);
     raise(&mut app, Overlay::HandbackPrompt);
     raise(&mut app, Overlay::Decisions);
 
@@ -180,7 +206,7 @@ fn overlays_are_listed_back_to_front_in_the_order_the_render_paints_them() {
         app.visible_overlays(),
         vec![
             Overlay::Decisions,
-            Overlay::HarnessPicker,
+            Overlay::AgentPicker,
             Overlay::HandbackPrompt
         ]
     );
