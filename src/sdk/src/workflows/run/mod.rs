@@ -201,9 +201,9 @@ async fn run_workflow_inner(
             "workflow '{workflow_id}' is disabled"
         )));
     }
-    refuse_unresolved_harness(&workflow)?;
+    preflight::refuse_unresolved_harness(&workflow)?;
 
-    let settings = settings_for(&context.settings, &workflow)?;
+    let settings = preflight::settings_for(&context.settings, &workflow)?;
 
     // Resolved here, before the run is claimed or a record written, so a bad
     // call leaves no trace in the operator's run history. The engine re-checks
@@ -211,7 +211,7 @@ async fn run_workflow_inner(
     let resolved_inputs = tinyflows::model::resolve_inputs(&workflow.graph.inputs, &inputs)
         .map_err(|err| WorkflowError::Engine(err.to_string()))?;
 
-    let execution_graph = clamp_loop_iterations(
+    let execution_graph = preflight::clamp_loop_iterations(
         agent_evidence::instrumented(&workflow.graph),
         settings.max_loop_iterations,
     );
@@ -389,9 +389,9 @@ pub async fn resume_workflow(
     }
 
     let workflow = require(context.store.as_ref(), &record.workflow_id)?;
-    refuse_unresolved_harness(&workflow)?;
-    let settings = settings_for(&context.settings, &workflow)?;
-    let execution_graph = clamp_loop_iterations(
+    preflight::refuse_unresolved_harness(&workflow)?;
+    let settings = preflight::settings_for(&context.settings, &workflow)?;
+    let execution_graph = preflight::clamp_loop_iterations(
         agent_evidence::instrumented(&workflow.graph),
         settings.max_loop_iterations,
     );
