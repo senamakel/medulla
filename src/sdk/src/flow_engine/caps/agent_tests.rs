@@ -188,3 +188,39 @@ fn a_custom_preset_names_itself_and_an_unresolved_choice_names_nothing() {
     );
     assert_eq!(dispatch_harness(&unresolved), "");
 }
+
+/// The registry names the harness that is *executing*, not the one the node
+/// asked for. A worker without the named provider substitutes its own, and a run
+/// inspector reporting the request would name a harness nobody is running.
+#[tokio::test]
+async fn the_registry_records_the_harness_the_dispatch_substituted() {
+    let dispatch = Arc::new(SubstitutingDispatch {
+        run_id: "run-substituted".to_string(),
+        substitute: "claude".to_string(),
+        recorded: std::sync::Mutex::new(None),
+    });
+    let root = std::env::temp_dir().join("medulla-agent-tests");
+    let mut settings = CapabilitySettings::rooted_at(&root);
+    settings.default_worker_address = "worker".to_string();
+    let runner =
+        HarnessAgentRunner::new(dispatch.clone(), Arc::new(settings), "run-substituted");
+
+    runner
+        .run_agent(
+            "codex-server",
+            serde_json::json!({ "prompt": "do the thing" }),
+            None,
+        )
+        .await
+        .expect("the dispatch replies");
+
+    assert_eq!(
+        dispatch.recorded.lock().expect("recorded lock").as_deref(),
+        Some("claude"),
+        "the substituted harness is what an inspector sees"
+    );
+    assert!(
+        crate::workflows::run::dispatches::in_flight("run-substituted").is_empty(),
+        "the entry is withdrawn when the dispatch returns"
+    );
+}
