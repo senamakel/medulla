@@ -35,6 +35,20 @@ pub struct HostRailRow {
     pub local: bool,
 }
 
+/// One grouping header, when the sidebar is sectioned by something other than
+/// its hosts.
+///
+/// The rail's default sectioning is the tree's own — `Host → Agent → Session` —
+/// and [`HostRailRow`] heads it. An operator who groups by path or by harness
+/// asked for a different top level, so the header is a different row rather than
+/// a host row carrying a directory in its label: nothing downstream should have
+/// to guess whether `▸ ~/work/medulla` names a machine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupRailRow {
+    /// What the section is: a workspace directory, or a harness name.
+    pub label: String,
+}
+
 /// One agent in the tree — `harness × workspace` on a host.
 ///
 /// Sourced from the shared `Host → Agent` projection
@@ -153,6 +167,8 @@ pub struct WorkflowRunRailRow {
 pub enum RailRow {
     /// A host header, emitted only once a remote host exists.
     Host(HostRailRow),
+    /// A grouping header, when the sidebar is sectioned by path or by harness.
+    Group(GroupRailRow),
     /// A declared (or folded) agent.
     Agent(AgentRailRow),
     /// One session of the agent above it.
@@ -212,6 +228,8 @@ impl RailRow {
     pub fn selectable(&self) -> bool {
         match self {
             RailRow::Host(_) => false,
+            // A section label, like the host header it stands in for.
+            RailRow::Group(_) => false,
             RailRow::Agent(_) => true,
             RailRow::Session(_) => true,
             RailRow::NewAgent => true,
@@ -260,6 +278,7 @@ impl RailRow {
             RailRow::Session(row) => row.lane_index,
             RailRow::Lane(row) => row.lane_index(),
             RailRow::Host(_)
+            | RailRow::Group(_)
             | RailRow::NewAgent
             | RailRow::AgentsHeader
             | RailRow::NewSession { .. }

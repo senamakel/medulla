@@ -42,6 +42,9 @@ use crate::worker::pty::SessionRow;
 mod cleanup;
 #[cfg(test)]
 mod cleanup_tests;
+mod organize;
+#[cfg(test)]
+mod organize_tests;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
@@ -52,7 +55,9 @@ mod merge_tests;
 pub(in crate::ui::app) mod tests;
 mod types;
 
-pub use types::{AgentRailRow, HostRailRow, RailRow, SessionRailRow, WorkflowRunRailRow};
+pub use types::{
+    AgentRailRow, GroupRailRow, HostRailRow, RailRow, SessionRailRow, WorkflowRunRailRow,
+};
 
 /// The label on the rail's "declare an agent" row.
 ///
@@ -139,8 +144,12 @@ impl App {
         let lanes = self.lanes();
         let (lane_rows, folded) = self.split_fold(&lanes);
         let mut hosts = place_agents(&self.host_tree(), folded);
-        let orphans = self.attach_sessions(&mut hosts);
-        self.flatten(lane_rows, hosts, orphans)
+        let mut orphans = self.attach_sessions(&mut hosts);
+        let appearance = &self.loaded.config.appearance;
+        let sections =
+            organize::organize(hosts, appearance.sidebar_grouping, appearance.sidebar_sort);
+        organize::sort_sessions(&mut orphans, appearance.sidebar_sort);
+        self.flatten(lane_rows, sections, orphans)
     }
 
     /// Split the folded rows into the non-agent ones and the per-agent groups.
@@ -288,7 +297,7 @@ impl App {
     fn flatten(
         &self,
         lane_rows: Vec<AgentRow>,
-        hosts: Vec<HostGroup>,
+        sections: Vec<organize::Section>,
         orphans: Vec<SessionRailRow>,
     ) -> Vec<RailRow> {
         let mut rows: Vec<RailRow> = lane_rows.into_iter().map(RailRow::Lane).collect();
@@ -301,7 +310,7 @@ impl App {
         // Only over a tree that exists — see [`RailRow::AgentsHeader`]. Counted
         // from the groups rather than from `rows`, because the host rows that
         // wrap them have not been pushed yet.
-        if hosts.iter().any(|host| !host.agents.is_empty()) {
+        if sections.iter().any(|section| !section.agents.is_empty()) {
             rows.push(RailRow::AgentsHeader);
         }
         // Which agents this machine may open a session under: a session is
@@ -315,15 +324,16 @@ impl App {
         } else {
             Vec::new()
         };
-        // Progressive disclosure: one host is the common case, and a permanent
-        // `mac-studio ▸` wrapper would add a level of nesting to the surface an
-        // operator uses most.
-        let show_hosts = hosts.len() > 1;
-        for mut host in hosts {
-            if show_hosts {
-                rows.push(RailRow::Host(host.row));
+        // Which sections exist, in which order, and whether they are headed at
+        // all is [`organize`]'s answer, not this one's: it is the operator's
+        // Appearance setting, and the assembly here is about what exists.
+        for mut section in sections {
+            match section.header {
+                organize::SectionHeader::Host(host) => rows.push(RailRow::Host(host)),
+                organize::SectionHeader::Group(group) => rows.push(RailRow::Group(group)),
+                organize::SectionHeader::None => {}
             }
-            for group in &mut host.agents {
+            for group in &mut section.agents {
                 let offers_session = declared
                     .iter()
                     .any(|agent_id| agent_id.trim() == group.row.agent_id.trim());

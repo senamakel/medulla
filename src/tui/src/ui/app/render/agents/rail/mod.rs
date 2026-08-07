@@ -339,6 +339,18 @@ impl App {
                     .fg(color("blue"))
                     .add_modifier(Modifier::BOLD),
             )),
+            // Shaped like the host header it stands in for, so a rail grouped by
+            // path or harness reads the same way as one grouped by host — the
+            // heading is the same kind of thing, only the question differs. The
+            // label is shortened from the left because a workspace's identity is
+            // its tail: two checkouts of one repository differ in the last
+            // segment and agree on the first forty characters.
+            RailRow::Group(group) => TLine::from(Span::styled(
+                format!("▸ {}", crate::ui::util::clip_left(&group.label, 30)),
+                Style::default()
+                    .fg(color("blue"))
+                    .add_modifier(Modifier::BOLD),
+            )),
             RailRow::Agent(agent) => {
                 self.declared_agent_line(agent, lanes, active, waiting_sessions)
             }

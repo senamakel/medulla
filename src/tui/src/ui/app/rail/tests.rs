@@ -446,7 +446,7 @@ fn a_row_answers_for_the_agent_and_the_lane_behind_it() {
             }
             // Hosts, the heading and the create action are about no agent and
             // no lane.
-            RailRow::Host(_) | RailRow::NewAgent | RailRow::AgentsHeader => {
+            RailRow::Host(_) | RailRow::Group(_) | RailRow::NewAgent | RailRow::AgentsHeader => {
                 assert_eq!(row.agent_id(), None);
                 assert_eq!(row.lane_index(), None);
                 assert_eq!(row.session_id(), None);
@@ -483,7 +483,9 @@ fn only_the_rows_that_name_something_take_the_cursor() {
     )];
     for row in app.rail_rows() {
         match row {
-            RailRow::Host(_) => assert!(!row.selectable(), "a host header is a label"),
+            RailRow::Host(_) | RailRow::Group(_) => {
+                assert!(!row.selectable(), "a section header is a label")
+            }
             RailRow::AgentsHeader => {
                 assert!(!row.selectable(), "the agents heading is a label")
             }

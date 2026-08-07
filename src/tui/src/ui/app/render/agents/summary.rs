@@ -205,7 +205,7 @@ fn sessions_under(selection: &Selection) -> usize {
         .take_while(|row| {
             !matches!(
                 row,
-                RailRow::Agent(_) | RailRow::Host(_) | RailRow::NewAgent
+                RailRow::Agent(_) | RailRow::Host(_) | RailRow::Group(_) | RailRow::NewAgent
             )
         })
         .filter(|row| matches!(row, RailRow::Session(_)))
@@ -218,7 +218,7 @@ fn agents_under(selection: &Selection) -> usize {
         .rows
         .iter()
         .skip(selection.active + 1)
-        .take_while(|row| !matches!(row, RailRow::Host(_)))
+        .take_while(|row| !matches!(row, RailRow::Host(_) | RailRow::Group(_)))
         .filter(|row| matches!(row, RailRow::Agent(_)))
         .count()
 }
