@@ -325,7 +325,10 @@ impl RailRow {
         match self {
             RailRow::Session(row) => row.lane_index,
             RailRow::Overflow { lane_index, .. } => Some(*lane_index),
-            RailRow::Host(_) | RailRow::Group(_) | RailRow::NewSession | RailRow::WorkflowRun(_) => None,
+            RailRow::Host(_)
+            | RailRow::Group(_)
+            | RailRow::NewSession
+            | RailRow::WorkflowRun(_) => None,
         }
     }
 

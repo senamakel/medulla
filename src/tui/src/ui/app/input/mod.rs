@@ -17,8 +17,6 @@ mod paste;
 #[cfg(test)]
 mod tests;
 
-pub(in crate::ui::app) use nav::SUBTASK_PAGE;
-
 impl App {
     /// Route a terminal event to the key, mouse, or paste handler, producing any
     /// command the event loop must run.

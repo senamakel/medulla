@@ -267,6 +267,12 @@ impl App {
                     .fg(color("blue"))
                     .add_modifier(Modifier::BOLD),
             )),
+            RailRow::Group(group) => TLine::from(Span::styled(
+                format!("▸ {}", group.label),
+                Style::default()
+                    .fg(color("blue"))
+                    .add_modifier(Modifier::BOLD),
+            )),
             RailRow::NewSession => self.new_session_line(active),
             RailRow::Overflow { hidden, .. } => self.overflow_line(*hidden, active),
             RailRow::WorkflowRun(run) => self.workflow_run_line(run, active, now),

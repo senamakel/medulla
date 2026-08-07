@@ -8,7 +8,7 @@ use medulla::runtime::AgentDeclaration;
 
 use super::super::tests::{app, stub_session};
 use super::super::{
-    AgentGroup, AgentRailRow, GroupRailRow, HostGroup, HostRailRow, RailRow, SessionRailRow,
+    AgentGroup, AgentRailRow, GroupRailRow, HostGroup, HostRailRow, SessionRailRow,
 };
 use super::{flatten_agents, order_sections, sort_agents, sort_sessions, Section, SectionHeader};
 use crate::ui::app::App;
@@ -24,38 +24,57 @@ fn app_with_agents() -> App {
     app
 }
 
-/// The rail's sections: each header label (`None` for the unheaded top level)
-/// with the agents listed under it, restricted to the declared agents so the
-/// mock runtime's own folded lanes cannot make an assertion flaky.
+/// The configured sections for the declared agents, without unrelated mock lanes.
 fn sections(app: &App) -> Vec<(Option<String>, Vec<String>)> {
-    let declared: Vec<String> = app
+    let agents = app
         .loaded
         .config
         .fleet
         .agent_declarations
         .iter()
-        .map(|declaration| declaration.agent_id.clone())
+        .map(|declaration| AgentGroup {
+            row: AgentRailRow {
+                agent_id: declaration.agent_id.clone(),
+                host_id: String::new(),
+                agent: None,
+                lane_index: None,
+            },
+            sessions: Vec::new(),
+            last_at: 0,
+            lane_label: None,
+            harness_label: None,
+            hidden: 0,
+            overflow: false,
+        })
         .collect();
-    let mut sections: Vec<(Option<String>, Vec<String>)> = vec![(None, Vec::new())];
-    for row in app.rail_rows() {
-        match row {
-            RailRow::Host(host) => sections.push((Some(host.label), Vec::new())),
-            RailRow::Group(group) => sections.push((Some(group.label), Vec::new())),
-            RailRow::Agent(agent) if declared.contains(&agent.agent_id) => {
-                sections
-                    .last_mut()
-                    .expect("a section is always open")
-                    .1
-                    .push(agent.agent_id);
-            }
-            _ => {}
-        }
-    }
-    // The mock runtime folds lanes of its own, which section themselves under
-    // "no path"/"no harness"; those sections hold no declared agent and are
-    // dropped so an assertion is about what the test declared.
-    sections.retain(|(_, agents)| !agents.is_empty());
-    sections
+    super::organize(
+        vec![HostGroup {
+            row: HostRailRow {
+                host_id: String::new(),
+                label: "local".into(),
+                local: true,
+            },
+            agents,
+        }],
+        &app.loaded.config.fleet.agent_declarations,
+        app.loaded.config.appearance.sidebar_grouping,
+        app.loaded.config.appearance.sidebar_sort,
+    )
+    .into_iter()
+    .map(|section| {
+        let header = match section.header {
+            SectionHeader::Host(host) => Some(host.label),
+            SectionHeader::Group(group) => Some(group.label),
+            SectionHeader::None => None,
+        };
+        let agents = section
+            .agents
+            .into_iter()
+            .map(|agent| agent.row.agent_id)
+            .collect();
+        (header, agents)
+    })
+    .collect()
 }
 
 #[test]
@@ -325,7 +344,6 @@ fn active_agent(label: &str, last_at: i64) -> AgentGroup {
         last_at,
         lane_label: None,
         harness_label: None,
-        visible_tasks: 1,
         hidden: 0,
         overflow: false,
     }
@@ -344,7 +362,6 @@ fn peer_agent(label: &str, last_at: i64) -> AgentGroup {
         last_at,
         lane_label: Some(label.into()),
         harness_label: None,
-        visible_tasks: 0,
         hidden: 0,
         overflow: false,
     }

@@ -310,7 +310,7 @@ fn a_row_answers_for_the_lane_behind_it() {
             }
             // The host header and the action row are about no lane and no
             // session.
-            RailRow::Host(_) | RailRow::NewSession => {
+            RailRow::Host(_) | RailRow::Group(_) | RailRow::NewSession => {
                 assert_eq!(row.lane_index(), None);
                 assert_eq!(row.session_id(), None);
                 assert!(row.task().is_none());
@@ -341,7 +341,9 @@ fn only_the_rows_that_name_something_take_the_cursor() {
     )];
     for row in app.rail_rows() {
         match row {
-            RailRow::Host(_) => assert!(!row.selectable(), "a host header is a label"),
+            RailRow::Host(_) | RailRow::Group(_) => {
+                assert!(!row.selectable(), "a section header is a label")
+            }
             RailRow::Session(_)
             | RailRow::NewSession
             | RailRow::WorkflowRun(_)

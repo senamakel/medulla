@@ -44,6 +44,7 @@ mod cleanup_tests;
 mod cursor;
 #[cfg(test)]
 mod cursor_tests;
+mod organize;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
@@ -57,8 +58,10 @@ mod types;
 pub(in crate::ui::app) use cursor::rail_anchor;
 #[cfg(test)]
 pub(in crate::ui::app) use cursor::resolve_rail_cursor;
+use types::{AgentGroup, HostGroup};
 pub use types::{
-    AgentRailRow, HostRailRow, RailAnchor, RailRow, SessionRailRow, WorkflowRunRailRow,
+    AgentRailRow, GroupRailRow, HostRailRow, RailAnchor, RailRow, SessionRailRow,
+    WorkflowRunRailRow,
 };
 
 /// The label on the rail's "open a session" row.
@@ -66,33 +69,6 @@ pub use types::{
 /// The only action on the rail, so it sits at the top level and is capitalised
 /// as one: it acts on the machine, not on a row beneath it.
 pub(in crate::ui::app) const NEW_SESSION_LABEL: &str = "+ New session";
-
-/// One agent and the sessions hanging off it, before the tree is flattened.
-struct AgentGroup {
-    /// The agent row itself.
-    row: AgentRailRow,
-    /// Its sessions, dispatched and operator-started alike.
-    sessions: Vec<SessionRailRow>,
-    /// Sessions the fold's own page already hid, carried so the counts add up.
-    hidden: usize,
-    /// Whether the fold drew an overflow row under this agent's lane.
-    ///
-    /// The rail does **not** re-cap what the fold already paged (#171): the fold
-    /// reveals `SUBTASK_PAGE` sessions per page and decides when the `+N more`
-    /// row exists, including the fully-revealed case where it is instead the
-    /// `show less` control and `hidden` is zero. A second cap here would clip
-    /// below the page the operator just asked for, so this only records that the
-    /// row is owed.
-    overflow: bool,
-}
-
-/// One host and the agents placed on it, before the tree is flattened.
-struct HostGroup {
-    /// The host row, drawn only once there is more than one of them.
-    row: HostRailRow,
-    /// Its agents, in the order the shared projection lists them.
-    agents: Vec<AgentGroup>,
-}
 
 impl App {
     /// The agent declarations this machine's config records.
@@ -149,8 +125,16 @@ impl App {
     pub(super) fn rail_rows_in(&self, lanes: &[AgentLane]) -> Vec<RailRow> {
         let folded = self.split_fold(lanes);
         let mut hosts = place_agents(&self.host_tree(), folded);
-        let orphans = self.attach_sessions(&mut hosts);
-        self.flatten(hosts, orphans)
+        let mut orphans = self.attach_sessions(&mut hosts);
+        let appearance = &self.loaded.config.appearance;
+        let sections = organize::organize(
+            hosts,
+            self.agent_declarations(),
+            appearance.sidebar_grouping,
+            appearance.sidebar_sort,
+        );
+        organize::sort_sessions(&mut orphans, appearance.sidebar_sort);
+        self.flatten(sections, orphans)
     }
 
     /// Fold the lane rows into per-agent groups.
@@ -223,6 +207,9 @@ impl App {
                 lane_index: Some(lane_index),
             },
             sessions: Vec::new(),
+            last_at: lane.last_at,
+            lane_label: Some(lane.label.clone()),
+            harness_label: lane.harness_label.clone(),
             hidden: 0,
             overflow: false,
         }
@@ -302,7 +289,11 @@ impl App {
     /// The agent groups survive the flattening without being rendered: they are
     /// what decides a session's order and its lane, and the sessions of one
     /// agent still come out contiguous. What they no longer get is a row.
-    fn flatten(&self, hosts: Vec<HostGroup>, orphans: Vec<SessionRailRow>) -> Vec<RailRow> {
+    fn flatten(
+        &self,
+        sections: Vec<organize::Section>,
+        orphans: Vec<SessionRailRow>,
+    ) -> Vec<RailRow> {
         let mut rows: Vec<RailRow> = Vec::new();
         // A device that hosts nothing has nowhere to start a session, so the
         // action is absent there rather than present and refusing.
@@ -312,12 +303,13 @@ impl App {
         // Progressive disclosure: one host is the common case, and a permanent
         // `mac-studio ▸` wrapper would add a level of nesting to the surface an
         // operator uses most.
-        let show_hosts = hosts.len() > 1;
-        for mut host in hosts {
-            if show_hosts {
-                rows.push(RailRow::Host(host.row));
+        for mut section in sections {
+            match section.header {
+                organize::SectionHeader::Host(host) => rows.push(RailRow::Host(host)),
+                organize::SectionHeader::Group(group) => rows.push(RailRow::Group(group)),
+                organize::SectionHeader::None => {}
             }
-            for group in &mut host.agents {
+            for group in &mut section.agents {
                 push_sessions(&mut rows, group, &self.harness_runs);
             }
         }
@@ -492,6 +484,9 @@ fn placed_agent(
             lane_index: None,
         },
         sessions: Vec::new(),
+        last_at: 0,
+        lane_label: None,
+        harness_label: None,
         hidden: 0,
         overflow: false,
     });
