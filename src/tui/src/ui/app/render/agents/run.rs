@@ -110,7 +110,6 @@ impl App {
                 ),
                 dim,
             )),
-            TLine::from(""),
         ];
 
         // The same frame vocabulary the step preview uses, so a run read here and
