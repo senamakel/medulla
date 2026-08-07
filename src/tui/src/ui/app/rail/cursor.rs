@@ -46,7 +46,7 @@ pub(in crate::ui::app) fn rail_anchor(row: &RailRow, lanes: &[AgentLane]) -> Opt
         RailRow::Lane(AgentRow::More { lane_index, .. }) => lanes
             .get(*lane_index)
             .map(|lane| RailAnchor::Overflow(lane.key.clone())),
-        RailRow::Host(_) | RailRow::AgentsHeader | RailRow::Lane(_) => None,
+        RailRow::Host(_) | RailRow::Group(_) | RailRow::AgentsHeader | RailRow::Lane(_) => None,
     }
 }
 
