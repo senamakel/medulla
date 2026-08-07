@@ -287,7 +287,7 @@ tokenEnv = "MEDULLA_TOKEN"
 #     Ship the status line
 # ---------------------------------------------------------------------------
 # [statusLine]
-# state = "line1"                # State glyph: the ●/✓/✕ dot, running or failed
+# state = "line1"                # State glyph: the ●/✓/✕ symbol, running, finished, or failed
 # stateWhen = "always"
 # harness = "line1"              # Harness name: which CLI is driving the session
 # harnessWhen = "always"
