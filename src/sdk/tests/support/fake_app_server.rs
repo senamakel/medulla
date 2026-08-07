@@ -142,13 +142,13 @@ impl TurnScript {
 "#
             .to_string(),
             TurnScript::AskApproval => r#"
-        ask(9001, "item/commandExecution/requestApproval", {"threadId": thread_id, "turnId": "turn-1", "itemId": "item-1", "startedAtMs": 0, "command": "rm -rf /"})
+        ask("item/commandExecution/requestApproval", {"threadId": thread_id, "turnId": "turn-1", "itemId": "item-1", "startedAtMs": 0, "command": "rm -rf /"})
         notify("turn/completed", {"threadId": thread_id, "turn": {"id": "turn-1", "status": "completed", "items": []}})
         respond(message["id"], {"turn": {"id": "turn-1", "status": "completed", "items": []}})
 "#
             .to_string(),
             TurnScript::Elicit => r#"
-        ask(9002, "item/tool/requestUserInput", {"threadId": thread_id, "turnId": "turn-1"})
+        ask("item/tool/requestUserInput", {"threadId": thread_id, "turnId": "turn-1"})
         notify("turn/completed", {"threadId": thread_id, "turn": {"id": "turn-1", "status": "completed", "items": []}})
         respond(message["id"], {"turn": {"id": "turn-1", "status": "completed", "items": []}})
 "#
@@ -172,10 +172,11 @@ pub fn fake_app_server(dir: &TempDir, script: TurnScript) -> FakeAppServer {
         .into_owned();
     let body = format!(
         r#"#!/usr/bin/env python3
-import json, os, sys, threading, uuid
+import itertools, json, os, sys, threading, uuid
 
 SPAWN_LOG = {spawn_log:?}
 REQUEST_LOG = {request_log:?}
+ASK_LOG = {ask_log:?}
 
 # `codex app-server` is a subcommand of the same binary; anything else is a
 # different invocation and must not count as a server start.
@@ -293,6 +294,7 @@ while True:
 "#,
         spawn_log = spawn_log,
         request_log = request_log,
+        ask_log = ask_log,
         turn = script.python(),
     );
     let bin = dir.write_script("codex-app-server-fake", &body);
