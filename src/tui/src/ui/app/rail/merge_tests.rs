@@ -7,9 +7,9 @@
 //! is folded into, without standing up a hub to answer the task-to-session
 //! lookup for real.
 
-use super::tests::stub_session;
+use super::tests::{app, stub_session};
 use super::{task_row_serving, AgentGroup, AgentRailRow, SessionRailRow};
-use medulla::ui::agents::{TaskState, TaskStatus};
+use medulla::ui::agents::{AgentLane, AgentRole, TaskState, TaskStatus};
 
 fn task_row(task_id: &str) -> SessionRailRow {
     SessionRailRow {
@@ -88,4 +88,58 @@ fn a_settled_task_keeps_its_retained_session_on_a_row_of_its_own() {
     let mut groups = vec![&mut owner];
 
     assert!(task_row_serving(&mut groups, "w_1", |_| None).is_none());
+}
+
+#[test]
+fn paging_starts_with_the_fold_running_first_task_order() {
+    let lane = AgentLane {
+        key: "agent:shell".into(),
+        label: "shell".into(),
+        role: AgentRole::Agent,
+        turns: Vec::new(),
+        last_at: 0,
+        tasks: vec![
+            TaskState {
+                task_id: "completed-recently".into(),
+                status: TaskStatus::Done,
+                turns: 0,
+                last_at: 900,
+                turn_blocks: Vec::new(),
+                attention: None,
+                question_id: None,
+                work: None,
+            },
+            TaskState {
+                task_id: "running-older".into(),
+                status: TaskStatus::Running,
+                turns: 0,
+                last_at: 100,
+                turn_blocks: Vec::new(),
+                attention: None,
+                question_id: None,
+                work: None,
+            },
+        ],
+        context_tokens: None,
+        usage: Default::default(),
+        harness_label: None,
+        agent_id: Some("shell".into()),
+        session_id: None,
+        parent_agent_id: None,
+        descriptor: None,
+        active_tasks: 1,
+        work: None,
+    };
+
+    let group = app().group_for_lane(&lane, 0);
+
+    assert_eq!(
+        group
+            .sessions
+            .iter()
+            .filter_map(|session| session.task.as_ref().map(|task| task.task_id.as_str()))
+            .collect::<Vec<_>>(),
+        vec!["running-older", "completed-recently"],
+        "the first task page must match the fold's running-first order"
+    );
 }

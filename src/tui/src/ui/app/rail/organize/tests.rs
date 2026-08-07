@@ -7,8 +7,10 @@ use medulla::config::{SidebarGrouping, SidebarSort};
 use medulla::runtime::AgentDeclaration;
 
 use super::super::tests::{app, stub_session};
-use super::super::{AgentGroup, AgentRailRow, GroupRailRow, RailRow, SessionRailRow};
-use super::{order_sections, sort_agents, sort_sessions, Section, SectionHeader};
+use super::super::{
+    AgentGroup, AgentRailRow, GroupRailRow, HostGroup, HostRailRow, RailRow, SessionRailRow,
+};
+use super::{flatten_agents, order_sections, sort_agents, sort_sessions, Section, SectionHeader};
 use crate::ui::app::App;
 
 /// Three agents across two checkouts and two harnesses, in declaration order.
@@ -285,4 +287,42 @@ fn recent_sorts_path_sections_by_their_most_recent_agent() {
         &sections[0].header,
         SectionHeader::Group(group) if group.label == "/work/newer"
     ));
+}
+
+#[test]
+fn created_keeps_declaration_order_after_flattening_hosts() {
+    let declarations = vec![
+        AgentDeclaration::new("first", "host-one", "codex", "/one"),
+        AgentDeclaration::new("second", "host-two", "codex", "/two"),
+        AgentDeclaration::new("third", "host-one", "codex", "/one"),
+    ];
+    let hosts = vec![
+        HostGroup {
+            row: HostRailRow {
+                host_id: "host-one".into(),
+                label: "one".into(),
+                local: true,
+            },
+            agents: vec![active_agent("first", 0), active_agent("third", 0)],
+        },
+        HostGroup {
+            row: HostRailRow {
+                host_id: "host-two".into(),
+                label: "two".into(),
+                local: false,
+            },
+            agents: vec![active_agent("second", 0)],
+        },
+    ];
+
+    let agents = flatten_agents(hosts, &declarations, SidebarSort::Created);
+
+    assert_eq!(
+        agents
+            .iter()
+            .map(|agent| agent.row.agent_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["first", "second", "third"],
+        "grouping must not turn A(host one), B(host two), C(host one) into A, C, B"
+    );
 }

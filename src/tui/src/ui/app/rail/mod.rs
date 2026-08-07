@@ -36,7 +36,7 @@ use medulla::runtime::AgentDeclaration;
 use medulla::ui::hosts::{HostAgentRow, HostKind, HostRow};
 
 use super::types::App;
-use crate::ui::agents::{AgentLane, AgentRole, AgentRow};
+use crate::ui::agents::{ordered_tasks, AgentLane, AgentRole, AgentRow};
 use crate::worker::pty::SessionRow;
 
 mod cleanup;
@@ -166,8 +166,12 @@ impl App {
         let mut hosts = place_agents(&self.host_tree(), folded);
         let mut orphans = self.attach_sessions(&mut hosts);
         let appearance = &self.loaded.config.appearance;
-        let sections =
-            organize::organize(hosts, appearance.sidebar_grouping, appearance.sidebar_sort);
+        let sections = organize::organize(
+            hosts,
+            &self.loaded.config.fleet.agent_declarations,
+            appearance.sidebar_grouping,
+            appearance.sidebar_sort,
+        );
         organize::sort_sessions(&mut orphans, appearance.sidebar_sort);
         self.flatten(lane_rows, sections, orphans)
     }
@@ -230,8 +234,7 @@ impl App {
                 agent: None,
                 lane_index: Some(lane_index),
             },
-            sessions: lane
-                .tasks
+            sessions: ordered_tasks(&lane.tasks)
                 .iter()
                 .cloned()
                 .map(|task| SessionRailRow {

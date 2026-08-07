@@ -18,29 +18,15 @@
 //! repository's size ceiling.
 
 use medulla::config::{SidebarGrouping, SidebarSort};
+use medulla::runtime::AgentDeclaration;
 
-use super::{AgentGroup, GroupRailRow, HostGroup, HostRailRow, SessionRailRow};
+use super::{AgentGroup, GroupRailRow, HostGroup, SessionRailRow};
 
 #[cfg(test)]
 mod tests;
+mod types;
 
-/// What heads one section of the rail.
-pub(super) enum SectionHeader {
-    /// A host row — emitted only when a second host exists to tell it from.
-    Host(HostRailRow),
-    /// A grouping header: a workspace directory, or a harness name.
-    Group(GroupRailRow),
-    /// No header at all: the agents sit at the top level.
-    None,
-}
-
-/// One section of the rail: a header and the agents under it.
-pub(super) struct Section {
-    /// What heads it, if anything.
-    pub header: SectionHeader,
-    /// The agents in it, already ordered.
-    pub agents: Vec<AgentGroup>,
-}
+pub(super) use types::{Section, SectionHeader};
 
 /// Section and order the placed tree according to the operator's preferences.
 ///
@@ -50,16 +36,19 @@ pub(super) struct Section {
 /// reading the same checkout twice under two hosts.
 pub(super) fn organize(
     hosts: Vec<HostGroup>,
+    declarations: &[AgentDeclaration],
     grouping: SidebarGrouping,
     sort: SidebarSort,
 ) -> Vec<Section> {
     let mut sections = match grouping {
         SidebarGrouping::Host => by_host(hosts),
-        SidebarGrouping::Path => by_key(hosts, agent_path),
-        SidebarGrouping::Harness => by_key(hosts, agent_harness),
+        SidebarGrouping::Path => by_key(flatten_agents(hosts, declarations, sort), agent_path),
+        SidebarGrouping::Harness => {
+            by_key(flatten_agents(hosts, declarations, sort), agent_harness)
+        }
         SidebarGrouping::None => vec![Section {
             header: SectionHeader::None,
-            agents: hosts.into_iter().flat_map(|host| host.agents).collect(),
+            agents: flatten_agents(hosts, declarations, sort),
         }],
     };
     for section in &mut sections {
@@ -93,9 +82,9 @@ fn by_host(hosts: Vec<HostGroup>) -> Vec<Section> {
 }
 
 /// Section every agent by one derived key, preserving first-seen order.
-fn by_key(hosts: Vec<HostGroup>, key: fn(&AgentGroup) -> String) -> Vec<Section> {
+fn by_key(agents: Vec<AgentGroup>, key: fn(&AgentGroup) -> String) -> Vec<Section> {
     let mut sections: Vec<Section> = Vec::new();
-    for agent in hosts.into_iter().flat_map(|host| host.agents) {
+    for agent in agents {
         let label = key(&agent);
         match sections.iter_mut().find(|section| match &section.header {
             SectionHeader::Group(group) => group.label == label,
@@ -111,6 +100,25 @@ fn by_key(hosts: Vec<HostGroup>, key: fn(&AgentGroup) -> String) -> Vec<Section>
         }
     }
     sections
+}
+
+/// Flatten host sections, restoring declaration order before any non-host
+/// grouping can interleave agents from separate hosts.
+fn flatten_agents(
+    hosts: Vec<HostGroup>,
+    declarations: &[AgentDeclaration],
+    sort: SidebarSort,
+) -> Vec<AgentGroup> {
+    let mut agents: Vec<_> = hosts.into_iter().flat_map(|host| host.agents).collect();
+    if sort == SidebarSort::Created {
+        agents.sort_by_key(|agent| {
+            declarations
+                .iter()
+                .position(|declaration| declaration.agent_id.trim() == agent.row.agent_id.trim())
+                .unwrap_or(usize::MAX)
+        });
+    }
+    agents
 }
 
 /// The directory an agent works in, as its section label.
