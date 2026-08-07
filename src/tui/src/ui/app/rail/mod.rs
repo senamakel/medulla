@@ -652,6 +652,7 @@ fn push_group(
     rows.push(RailRow::Agent(group.row.clone()));
     let task_limit = group.visible_tasks;
     let mut visible_tasks = 0;
+    let mut hidden_tasks = 0;
     let pinned_task = group
         .row
         .lane_index
@@ -671,29 +672,37 @@ fn push_group(
                 return true;
             }
             visible_tasks += 1;
-            visible_tasks <= task_limit
+            let shown = visible_tasks <= task_limit
                 || session
                     .task
                     .as_ref()
                     .is_some_and(|task| Some(task.task_id.as_str()) == pinned_task)
-                || !run_rows_under(session, runs).is_empty()
+                || !run_rows_under(session, runs).is_empty();
+            if !shown {
+                hidden_tasks += 1;
+            }
+            shown
         })
         .collect();
+    // A pinned task or one with an active workflow run may extend the fold's
+    // nominal page. Recount what was actually omitted so the overflow action
+    // neither overstates the remainder nor survives after showing every task.
+    let show_overflow = group.overflow && (group.hidden == 0 || hidden_tasks > 0);
     let shown = shown_sessions.len();
     for (index, session) in shown_sessions.iter_mut().enumerate() {
         // The action row below closes the group when it is offered, so the last
         // session is only the tree's last leaf when neither it nor the overflow
         // row follows.
-        session.last = !offers_session && !group.overflow && index + 1 == shown;
+        session.last = !offers_session && !show_overflow && index + 1 == shown;
         let session = Box::new(session.clone());
         let run_rows = run_rows_under(&session, runs);
         rows.push(RailRow::Session(session));
         rows.extend(run_rows);
     }
-    if group.overflow {
+    if show_overflow {
         rows.push(RailRow::Lane(AgentRow::More {
             lane_index: group.row.lane_index.unwrap_or(0),
-            hidden: group.hidden,
+            hidden: hidden_tasks,
         }));
     }
     // Last, under the sessions it adds to: the group reads as a list of what

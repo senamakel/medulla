@@ -192,6 +192,33 @@ fn created_sorts_sessions_oldest_first() {
 }
 
 #[test]
+fn created_keeps_task_rows_in_fold_order_after_pty_enrichment() {
+    let mut served = active_agent("served", 0)
+        .sessions
+        .pop()
+        .expect("one task session");
+    let mut local = stub_session("pty");
+    local.started_at = 100;
+    served.local = Some(local);
+    let task_only = active_agent("task-only", 0)
+        .sessions
+        .pop()
+        .expect("one task session");
+
+    let mut sessions = vec![served, task_only];
+    sort_sessions(&mut sessions, SidebarSort::Created);
+
+    assert_eq!(
+        sessions
+            .iter()
+            .filter_map(|session| session.task.as_ref().map(|task| task.task_id.as_str()))
+            .collect::<Vec<_>>(),
+        vec!["task-served", "task-task-only"],
+        "a live PTY must not move a task-backed row out of the fold's order"
+    );
+}
+
+#[test]
 fn recent_sorts_by_the_last_thing_a_session_did() {
     let rows = vec![
         session("quiet", 300, 100),

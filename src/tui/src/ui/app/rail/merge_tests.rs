@@ -12,7 +12,7 @@ use super::{
     push_group, task_row_serving, AgentGroup, AgentRailRow, RailAnchor, RailRow, SessionRailRow,
 };
 use medulla::control_socket::{HarnessRunStatus, RunReport};
-use medulla::ui::agents::{AgentLane, AgentRole, TaskState, TaskStatus};
+use medulla::ui::agents::{AgentLane, AgentRole, AgentRow, TaskState, TaskStatus};
 
 fn task_row(task_id: &str) -> SessionRailRow {
     SessionRailRow {
@@ -239,4 +239,49 @@ fn paging_keeps_a_task_backed_session_with_an_active_workflow_run() {
         row,
         RailRow::WorkflowRun(run) if run.run.run_id == "run-1"
     )));
+}
+
+#[test]
+fn paging_hides_the_overflow_action_when_retention_shows_every_task() {
+    let lanes = vec![AgentLane {
+        key: "agent:shell".into(),
+        label: "shell".into(),
+        role: AgentRole::Agent,
+        turns: Vec::new(),
+        last_at: 0,
+        tasks: Vec::new(),
+        context_tokens: None,
+        usage: Default::default(),
+        harness_label: None,
+        agent_id: Some("shell".into()),
+        session_id: None,
+        parent_agent_id: None,
+        descriptor: None,
+        active_tasks: 0,
+        work: None,
+    }];
+    let mut owner = group(vec![task_row("first"), task_row("pinned")]);
+    owner.visible_tasks = 1;
+    owner.hidden = 1;
+    owner.overflow = true;
+    let mut rows = Vec::new();
+
+    push_group(
+        &mut rows,
+        &mut owner,
+        false,
+        &medulla::control_socket::HarnessRunRegistry::new(),
+        &lanes,
+        Some(&RailAnchor::Task {
+            lane: "agent:shell".into(),
+            task_id: "pinned".into(),
+        }),
+    );
+
+    assert!(
+        !rows
+            .iter()
+            .any(|row| matches!(row, RailRow::Lane(AgentRow::More { .. }))),
+        "the overflow action is absent when retaining a task reveals every task"
+    );
 }

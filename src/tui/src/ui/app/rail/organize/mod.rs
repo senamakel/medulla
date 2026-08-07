@@ -209,12 +209,21 @@ pub(super) fn sort_sessions(sessions: &mut [SessionRailRow], sort: SidebarSort) 
     }
 }
 
-/// When a session started, or [`i64::MIN`] when only a dispatch describes it.
+/// When a local-only session started, or [`i64::MIN`] for dispatches.
+///
+/// A task may be enriched with a local PTY after `ordered_tasks` established
+/// its running-first fold order. Treating that row as locally started would
+/// reorder it behind task-only rows, so task-backed rows deliberately retain
+/// their stable fold position.
 fn session_started(session: &SessionRailRow) -> i64 {
-    session
-        .local
-        .as_ref()
-        .map_or(i64::MIN, |local| local.started_at)
+    if session.task.is_some() {
+        i64::MIN
+    } else {
+        session
+            .local
+            .as_ref()
+            .map_or(i64::MIN, |local| local.started_at)
+    }
 }
 
 /// The most recent thing known about a session: its last output byte, or the
