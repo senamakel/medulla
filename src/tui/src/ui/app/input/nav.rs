@@ -106,8 +106,11 @@ impl App {
                 rows.iter()
                     .position(|row| matches!(row, RailRow::Agent(agent) if agent.lane_index == Some(lane_index)))
             });
-        self.agent_index =
-            found.unwrap_or_else(|| self.agent_index.min(rows.len().saturating_sub(1)));
+        self.set_rail_cursor_in(
+            &rows,
+            &self.lanes(),
+            found.unwrap_or_else(|| self.agent_index.min(rows.len().saturating_sub(1))),
+        );
     }
 
     /// The number of body rows a list pane can show for the current terminal
@@ -134,11 +137,12 @@ impl App {
         while next >= 0 && (next as usize) < rows.len() && !rows[next as usize].selectable() {
             next += step;
         }
-        self.agent_index = if next < 0 || next as usize >= rows.len() {
+        let next = if next < 0 || next as usize >= rows.len() {
             clamped
         } else {
             next as usize
         };
+        self.set_rail_cursor_in(&rows, &self.lanes(), next);
     }
 
     /// Open a new thread and focus the conversation.
@@ -152,7 +156,7 @@ impl App {
         self.draft = crate::ui::composer::Draft::new();
         self.chat_scroll = 0;
         self.agent_scroll = 0;
-        self.agent_index = 0;
+        self.reset_rail_cursor();
         self.tab_index = super::super::types::tab_pos("Agents");
         self.refresh_snapshot();
         let name = self

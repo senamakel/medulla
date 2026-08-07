@@ -106,7 +106,7 @@ impl App {
         // Safe by construction: the index came from the list this call just
         // built, so nothing can have moved between resolving it and using it.
         self.tab_index = super::types::tab_pos("Agents");
-        self.agent_index = session.row_index;
+        self.set_rail_cursor(session.row_index);
         self.agent_scroll = 0;
         self.chat_scroll = 0;
         // The rail owns the keyboard on a session row: there is no composer under
@@ -131,7 +131,7 @@ impl App {
             return;
         };
         self.tab_index = super::types::tab_pos("Agents");
-        self.agent_index = index;
+        self.set_rail_cursor(index);
         self.agent_scroll = 0;
         self.chat_scroll = 0;
         self.focus_agents_composer();

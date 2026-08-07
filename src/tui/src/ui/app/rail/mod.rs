@@ -44,6 +44,8 @@ pub(in crate::ui::app) mod resolve;
 // the served-dispatch merge are separate responsibilities, and one file for
 // both had already grown past this repository's line ceiling.
 #[cfg(test)]
+mod cursor_tests;
+#[cfg(test)]
 mod merge_tests;
 #[cfg(test)]
 pub(in crate::ui::app) mod tests;

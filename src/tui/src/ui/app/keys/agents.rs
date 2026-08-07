@@ -171,7 +171,7 @@ impl App {
                         self.set_status("No conversation to type into yet");
                         return AgentsKey::Handled(None);
                     };
-                    self.agent_index = index;
+                    self.set_rail_cursor(index);
                     self.agent_scroll = 0;
                     self.chat_scroll = 0;
                     // Leaving a task row drops its screen stream, exactly as
