@@ -46,6 +46,7 @@ mod cursor;
 #[cfg(test)]
 mod cursor_tests;
 mod organize;
+mod paging;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
@@ -629,18 +630,7 @@ fn run_rows_under(
         .collect()
 }
 
-/// Push one agent row and the sessions under it, tree-marked.
-///
-/// `offers_session` closes the group with the `+ New session` action. It is off
-/// for an agent this machine does not declare — a remote host's agent, or a lane
-/// the fold produced for an agent declared somewhere else — because the flow it
-/// opens reads the declaration for the harness and the directory to start in.
-///
-/// The fold determines the page size and overflow state (#171), while this
-/// function selects that many task rows only after [`organize`] has applied the
-/// configured order. The overflow row is re-emitted under the group and stays
-/// selectable, which is what makes `Enter` on it page the lane open — and, once
-/// the lane is fully revealed, fold it back.
+/// Delegate paged agent-group rendering to its focused implementation module.
 fn push_group(
     rows: &mut Vec<RailRow>,
     group: &mut AgentGroup,
@@ -649,68 +639,5 @@ fn push_group(
     lanes: &[AgentLane],
     anchor: Option<&RailAnchor>,
 ) {
-    rows.push(RailRow::Agent(group.row.clone()));
-    let task_limit = group.visible_tasks;
-    let mut visible_tasks = 0;
-    let mut hidden_tasks = 0;
-    let pinned_task = group
-        .row
-        .lane_index
-        .and_then(|index| lanes.get(index))
-        .and_then(|lane| match anchor {
-            Some(RailAnchor::Task {
-                lane: anchored_lane,
-                task_id,
-            }) if anchored_lane == &lane.key => Some(task_id.as_str()),
-            _ => None,
-        });
-    let mut shown_sessions: Vec<_> = group
-        .sessions
-        .iter_mut()
-        .filter(|session| {
-            if session.task.is_none() {
-                return true;
-            }
-            visible_tasks += 1;
-            let shown = visible_tasks <= task_limit
-                || session
-                    .task
-                    .as_ref()
-                    .is_some_and(|task| Some(task.task_id.as_str()) == pinned_task)
-                || !run_rows_under(session, runs).is_empty();
-            if !shown {
-                hidden_tasks += 1;
-            }
-            shown
-        })
-        .collect();
-    // A pinned task or one with an active workflow run may extend the fold's
-    // nominal page. Recount what was actually omitted so the overflow action
-    // neither overstates the remainder nor survives after showing every task.
-    let show_overflow = group.overflow && (group.hidden == 0 || hidden_tasks > 0);
-    let shown = shown_sessions.len();
-    for (index, session) in shown_sessions.iter_mut().enumerate() {
-        // The action row below closes the group when it is offered, so the last
-        // session is only the tree's last leaf when neither it nor the overflow
-        // row follows.
-        session.last = !offers_session && !show_overflow && index + 1 == shown;
-        let session = Box::new(session.clone());
-        let run_rows = run_rows_under(&session, runs);
-        rows.push(RailRow::Session(session));
-        rows.extend(run_rows);
-    }
-    if show_overflow {
-        rows.push(RailRow::Lane(AgentRow::More {
-            lane_index: group.row.lane_index.unwrap_or(0),
-            hidden: hidden_tasks,
-        }));
-    }
-    // Last, under the sessions it adds to: the group reads as a list of what
-    // this agent is running, and the action that starts one more belongs at the
-    // end of that list rather than above it.
-    if offers_session {
-        rows.push(RailRow::NewSession {
-            agent_id: group.row.agent_id.clone(),
-        });
-    }
+    paging::push_group(rows, group, offers_session, runs, lanes, anchor);
 }

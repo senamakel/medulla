@@ -7,10 +7,12 @@
 //! is folded into, without standing up a hub to answer the task-to-session
 //! lookup for real.
 
+use super::organize::sort_sessions;
 use super::tests::{app, stub_session};
 use super::{
     push_group, task_row_serving, AgentGroup, AgentRailRow, RailAnchor, RailRow, SessionRailRow,
 };
+use medulla::config::SidebarSort;
 use medulla::control_socket::{HarnessRunStatus, RunReport};
 use medulla::ui::agents::{AgentLane, AgentRole, AgentRow, TaskState, TaskStatus};
 
@@ -171,6 +173,10 @@ fn paging_keeps_the_anchored_task_after_recent_sorting() {
         task_row("middle"),
         task_row("selected"),
     ]);
+    owner.sessions[0].task.as_mut().expect("task row").last_at = 900;
+    owner.sessions[1].task.as_mut().expect("task row").last_at = 500;
+    owner.sessions[2].task.as_mut().expect("task row").last_at = 100;
+    sort_sessions(&mut owner.sessions, SidebarSort::Recent);
     owner.visible_tasks = 1;
     owner.overflow = true;
     let mut rows = Vec::new();
