@@ -54,19 +54,43 @@ impl RuntimeDispatch {
             conversation,
         }
     }
+
+    /// The provider and transport `request` will actually run on.
+    ///
+    /// Both fall back, for the same portability reason: a graph authored
+    /// against a harness this worker does not offer should still run here. That
+    /// makes the resolved pair a different thing from what the node asked for,
+    /// and the two callers that need it — the dispatch itself and the run
+    /// inspector's harness label — have to agree, so it is resolved once.
+    fn resolve(
+        &self,
+        request: &TaskRequest,
+    ) -> (
+        crate::protocol::HarnessProvider,
+        crate::protocol::HarnessTransport,
+    ) {
+        let inner = &self.runtime.inner;
+        // A node may name a provider through its `agent_ref`; anything this
+        // worker does not offer falls back to the default rather than failing.
+        let provider = crate::protocol::HarnessProvider::from_wire(&request.worker_address)
+            .filter(|p| inner.config.providers.contains(p))
+            .or_else(|| self.runtime.select_provider(request.provider))
+            .unwrap_or(inner.config.default_provider);
+        // Dropped when the provider fell back, because a transport the chosen
+        // provider cannot speak is not a transport at all.
+        let transport = request
+            .transport
+            .filter(|transport| transport.supported_by(provider))
+            .unwrap_or_default();
+        (provider, transport)
+    }
 }
 
 #[async_trait]
 impl HarnessDispatch for RuntimeDispatch {
     async fn dispatch(&self, request: TaskRequest) -> Result<TaskOutcome, RunError> {
         let inner = &self.runtime.inner;
-        // A node may name a provider through its `agent_ref`; anything this
-        // worker does not offer falls back to the default rather than failing,
-        // because a graph should be portable across workers.
-        let provider = crate::protocol::HarnessProvider::from_wire(&request.worker_address)
-            .filter(|p| inner.config.providers.contains(p))
-            .or_else(|| self.runtime.select_provider(request.provider))
-            .unwrap_or(inner.config.default_provider);
+        let (provider, transport) = self.resolve(&request);
 
         let options = RunTaskOptions {
             conversation: self.conversation.clone(),
@@ -78,14 +102,7 @@ impl HarnessDispatch for RuntimeDispatch {
             resume_session_id: None,
             workspace_context: Default::default(),
             provider,
-            // Dropped when the provider fell back, for the same portability
-            // reason the provider itself falls back: a graph authored against
-            // `codex-server` should still run on a worker that only has
-            // `claude`, rather than failing the node.
-            transport: request
-                .transport
-                .filter(|transport| transport.supported_by(provider))
-                .unwrap_or_default(),
+            transport,
             prompt: request.instruction,
             cwd: inner.config.workspace.clone(),
             env: super::with_tool_mode_at_depth(
@@ -129,6 +146,19 @@ impl HarnessDispatch for RuntimeDispatch {
             harness: Some(provider),
             session_id: None,
         })
+    }
+
+    /// The flavor this worker will really run the node on.
+    ///
+    /// `None` for a request naming a custom harness: this dispatch resolves
+    /// providers, not custom harnesses, so the requested name remains the
+    /// closest thing to the truth and overriding it would lose information.
+    fn effective_harness(&self, request: &TaskRequest) -> Option<String> {
+        if request.custom_harness.is_some() {
+            return None;
+        }
+        let (provider, transport) = self.resolve(request);
+        Some(provider.flavor_name(transport).to_string())
     }
 }
 

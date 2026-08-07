@@ -9,6 +9,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use tinyflows::caps::AgentRunner;
 
 use super::{dispatch_harness, AgentRoute, HarnessAgentRunner};
 use crate::flow_engine::caps::dispatch::HarnessDispatch;
@@ -24,6 +25,45 @@ struct UnusedDispatch;
 impl HarnessDispatch for UnusedDispatch {
     async fn dispatch(&self, _request: TaskRequest) -> Result<TaskOutcome, RunError> {
         unreachable!("these tests build requests rather than dispatching them")
+    }
+}
+
+/// A dispatch that substitutes the harness the node asked for, the way a worker
+/// without the named provider does.
+///
+/// It reads the dispatch registry from *inside* the dispatch, because that is
+/// the only moment the entry exists: the recording guard is dropped as the
+/// await returns.
+struct SubstitutingDispatch {
+    /// The run whose registry entry is read.
+    run_id: String,
+    /// The harness this dispatch really runs on, whatever was requested.
+    substitute: String,
+    /// What the registry named while the dispatch was in flight.
+    recorded: std::sync::Mutex<Option<String>>,
+}
+
+#[async_trait]
+impl HarnessDispatch for SubstitutingDispatch {
+    async fn dispatch(&self, _request: TaskRequest) -> Result<TaskOutcome, RunError> {
+        *self.recorded.lock().expect("recorded lock") =
+            crate::workflows::run::dispatches::in_flight(&self.run_id)
+                .into_iter()
+                .next()
+                .map(|dispatch| dispatch.harness);
+        Ok(TaskOutcome {
+            reply: "done".to_string(),
+            usage: crate::protocol::TokenUsage {
+                input_tokens: 0,
+                output_tokens: 0,
+            },
+            harness: None,
+            session_id: None,
+        })
+    }
+
+    fn effective_harness(&self, _request: &TaskRequest) -> Option<String> {
+        Some(self.substitute.clone())
     }
 }
 
@@ -148,4 +188,39 @@ fn a_custom_preset_names_itself_and_an_unresolved_choice_names_nothing() {
         HarnessChoice::default(),
     );
     assert_eq!(dispatch_harness(&unresolved), "");
+}
+
+/// The registry names the harness that is *executing*, not the one the node
+/// asked for. A worker without the named provider substitutes its own, and a run
+/// inspector reporting the request would name a harness nobody is running.
+#[tokio::test]
+async fn the_registry_records_the_harness_the_dispatch_substituted() {
+    let dispatch = Arc::new(SubstitutingDispatch {
+        run_id: "run-substituted".to_string(),
+        substitute: "claude".to_string(),
+        recorded: std::sync::Mutex::new(None),
+    });
+    let root = std::env::temp_dir().join("medulla-agent-tests");
+    let mut settings = CapabilitySettings::rooted_at(&root);
+    settings.default_worker_address = "worker".to_string();
+    let runner = HarnessAgentRunner::new(dispatch.clone(), Arc::new(settings), "run-substituted");
+
+    runner
+        .run_agent(
+            "codex-server",
+            serde_json::json!({ "prompt": "do the thing" }),
+            None,
+        )
+        .await
+        .expect("the dispatch replies");
+
+    assert_eq!(
+        dispatch.recorded.lock().expect("recorded lock").as_deref(),
+        Some("claude"),
+        "the substituted harness is what an inspector sees"
+    );
+    assert!(
+        crate::workflows::run::dispatches::in_flight("run-substituted").is_empty(),
+        "the entry is withdrawn when the dispatch returns"
+    );
 }
