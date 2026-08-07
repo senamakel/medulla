@@ -10,7 +10,11 @@ use medulla::protocol::HarnessProvider;
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::{AgentDeclaration, Runtime};
 
-use super::{RailRow, NEW_AGENT_LABEL};
+use super::{
+    rail_anchor, resolve_rail_cursor, AgentRailRow, RailAnchor, RailRow, SessionRailRow,
+    NEW_AGENT_LABEL,
+};
+use crate::ui::agents::AgentRow;
 use crate::ui::app::App;
 use crate::worker::pty::PtyManager;
 

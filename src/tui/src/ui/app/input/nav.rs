@@ -50,17 +50,17 @@ impl App {
     /// slides down as sublanes appear above it, and the viewport follows the
     /// cursor, so the rows just revealed are the ones on screen.
     pub(in crate::ui::app) fn page_subtasks(&mut self) -> bool {
-        let rows = self.rail_rows();
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
         // The overflow row is a fold row, not an agent row: under the
         // `Host → Agent → Session` taxonomy an agent's own row is the declared
         // identity, and everything the fold still owns — the orchestrator lane,
         // the `── functions ──` divider, this counter — arrives as `Lane`.
-        let cursor = self.rail_cursor_in(&rows, &self.lanes());
+        let cursor = self.rail_cursor_in(&rows, &lanes);
         let Some(RailRow::Lane(AgentRow::More { lane_index, hidden })) = rows.get(cursor) else {
             return false;
         };
         let (lane_index, hidden) = (*lane_index, *hidden);
-        let lanes = self.lanes();
         let Some(lane) = lanes.get(lane_index) else {
             return false;
         };
@@ -106,7 +106,8 @@ impl App {
     /// no longer has an overflow row cannot strand the cursor past the end of
     /// the rail.
     fn follow_overflow_row(&mut self, lane_index: usize) {
-        let rows = self.rail_rows();
+        let lanes = self.lanes();
+        let rows = self.rail_rows_in(&lanes);
         let found = rows
             .iter()
             .position(|row| {
@@ -118,7 +119,7 @@ impl App {
             });
         self.set_rail_cursor_in(
             &rows,
-            &self.lanes(),
+            &lanes,
             found.unwrap_or_else(|| self.agent_index.min(rows.len().saturating_sub(1))),
         );
     }

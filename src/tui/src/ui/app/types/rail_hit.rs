@@ -42,7 +42,7 @@ pub(in crate::ui::app) struct RailHit {
     pub(in crate::ui::app) target: RailHitTarget,
     /// Test-only copy of the row so focused interaction tests can name it.
     #[cfg(test)]
-    pub(super) row: super::super::rail::RailRow,
+    pub(in crate::ui::app) row: super::super::rail::RailRow,
     /// The durable cursor identity resolved while the row was rendered.
     pub(in crate::ui::app) anchor: Option<super::super::rail::RailAnchor>,
     /// The row's rendered offset, retained only as a fallback if it has no anchor.
