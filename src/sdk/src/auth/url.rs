@@ -48,14 +48,14 @@ pub fn code_login_url(base_url: &str, provider: Provider) -> String {
     format!("{base}/auth/{}/login?redirect=cli", provider.as_str())
 }
 
-/// A cryptographically random 32-hex-char (128-bit) nonce.
+/// A cryptographically random 32-hex-char nonce (~124 bits of entropy).
 ///
-/// Built from two v4 UUIDs — `uuid`'s v4 generator draws from the OS CSPRNG via
-/// `getrandom` — taking eight unpredictable bytes from each. The version and
-/// variant nibbles a UUID fixes sit in the halves that are not used.
+/// Drawn from two v4 UUIDs: `uuid`'s v4 generator reads the operating system's
+/// CSPRNG through `getrandom`. Each contributes its trailing eight bytes, of
+/// which only the two variant bits in the first are fixed.
 ///
-/// This must be a CSPRNG, not merely "varies per call": the value is both the
-/// OAuth `state` that the loopback callback is validated against and, in
+/// This has to be a CSPRNG and not merely "varies per call": the value is both
+/// the OAuth `state` the loopback callback is validated against and, in
 /// [`crate::inference_proxy`], the `mdl-<nonce>` bearer token that authorizes
 /// redeeming the operator's upstream API key through the loopback proxy. A
 /// nonce an attacker can predict is a nonce they can present.
@@ -63,10 +63,7 @@ pub fn random_state_nonce() -> String {
     let mut bytes = [0u8; 16];
     for chunk in bytes.chunks_mut(8) {
         let uuid = uuid::Uuid::new_v4();
-        // Bytes 8..16 hold the variant bits in byte 8's top nibble; bytes 0..8
-        // hold the version nibble in byte 6. Take the low half of each UUID's
-        // random tail, which carries no fixed bits.
-        chunk.copy_from_slice(&uuid.as_bytes()[9..16][..chunk.len().min(7)]);
+        chunk.copy_from_slice(&uuid.as_bytes()[8..16]);
     }
     hex_encode(&bytes)
 }
