@@ -94,6 +94,10 @@ pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
                 if let Some(tail) = retain_tail {
                     buf.extend_from_slice(&chunk[..take]);
                     trim_tail(buf, tail);
+                    // Release the pre-overflow capacity: only the tail is
+                    // wanted from here, and the next chunk's extend re-grows it
+                    // to at most ~2× the tail rather than back to `cap`.
+                    buf.shrink_to_fit();
                 } else {
                     buf.clear();
                     buf.shrink_to_fit();
