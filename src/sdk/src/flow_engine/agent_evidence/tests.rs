@@ -40,6 +40,7 @@ fn every_prompt_from_a_per_item_agent_is_kept() {
         input: None,
         output: None,
         diagnostics: Vec::new(),
+        transcript: Vec::new(),
     }];
 
     evidence.attach(&mut steps);
@@ -63,6 +64,7 @@ fn prompt_queue_is_bounded_before_the_run_finishes() {
         input: None,
         output: None,
         diagnostics: Vec::new(),
+        transcript: Vec::new(),
     }];
 
     evidence.attach(&mut steps);

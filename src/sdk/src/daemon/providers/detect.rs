@@ -82,6 +82,18 @@ fn is_executable(path: &std::path::Path) -> bool {
 }
 
 /// Which of the (optionally restricted) providers have a binary on PATH.
+///
+/// OpenHuman is deliberately not among them, and not because it cannot run —
+/// it can, in this very process. It is absent because this list answers a
+/// narrower question than "what could serve a task": it answers *does this
+/// machine have a coding agent installed*, and that is what decides whether a
+/// host starts at all and which provider an unrouted task falls back to. A
+/// machine with no CLI must still refuse to host rather than accept every
+/// delegated coding task and answer it with an OpenHuman chat turn.
+///
+/// So OpenHuman is reachable by being *named* — see
+/// [`HarnessProvider::needs_binary`] and the dispatch in
+/// [`crate::daemon::task_loop`] — never by being fallen back to.
 pub fn detect_providers(
     env: &HashMap<String, String>,
     only: Option<&[HarnessProvider]>,

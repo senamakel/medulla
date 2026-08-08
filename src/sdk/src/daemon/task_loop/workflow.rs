@@ -70,6 +70,22 @@ impl RuntimeDispatch {
         crate::protocol::HarnessTransport,
     ) {
         let inner = &self.runtime.inner;
+        // A node that named the embedded core gets it, whether or not this
+        // worker "offers" it. `config.providers` is the list of coding CLIs
+        // found on PATH (see
+        // [`crate::daemon::providers::detect_providers`]), and OpenHuman is
+        // never on it — it has no binary to find. Falling back here would send
+        // a node that explicitly asked for the operator's own core to a coding
+        // CLI instead, which is the one substitution that changes what the node
+        // is for.
+        if request.provider == Some(crate::protocol::HarnessProvider::Openhuman)
+            || request.worker_address == crate::protocol::HarnessProvider::Openhuman.as_str()
+        {
+            return (
+                crate::protocol::HarnessProvider::Openhuman,
+                crate::protocol::HarnessTransport::Cli,
+            );
+        }
         // A node may name a provider through its `agent_ref`; anything this
         // worker does not offer falls back to the default rather than failing.
         let provider = crate::protocol::HarnessProvider::from_wire(&request.worker_address)
@@ -92,6 +108,14 @@ impl HarnessDispatch for RuntimeDispatch {
         let inner = &self.runtime.inner;
         let (provider, transport) = self.resolve(&request);
 
+        // Shared with the `on_event` callback below, which the executor owns
+        // for the life of the run and drops before returning. A mutex rather
+        // than a channel because the collector *is* the bound: a channel would
+        // buffer everything a chatty node emits before anything applied a cap.
+        let transcript = Arc::new(std::sync::Mutex::new(
+            crate::harness_transcript::TranscriptCollector::new(),
+        ));
+
         let options = RunTaskOptions {
             conversation: self.conversation.clone(),
             // A workflow node is discrete work, like the task frame that
@@ -105,11 +129,28 @@ impl HarnessDispatch for RuntimeDispatch {
             transport,
             prompt: request.instruction,
             cwd: inner.config.workspace.clone(),
-            env: super::with_tool_mode_at_depth(
-                inner.config.env.clone(),
-                request.tool_mode.as_deref(),
-                request.fleet_depth,
-            ),
+            // Withheld, not merely unset: a node's harness is a *step* of a
+            // graph that is already running. `workflow_run` would let it start
+            // another one outside the loop bound, the approval gates, and the
+            // concurrency budget the engine applies to its own nodes, and the
+            // `fleet_*` verbs would let it dispatch into the very worker pool
+            // this run is competing for. See [`crate::harness_tools`].
+            //
+            // Note what this replaces: the ordinary task path calls
+            // `with_tool_mode_at_depth`, which forces ACP whenever tools are
+            // wanted — and an ACP-launched harness gets no Medulla hooks (it is
+            // spawned by the ACP server, not by us) and no managed skills.
+            // Wanting no tools is therefore also what puts a node on the plain
+            // CLI spawn, which is the seam that does install both.
+            env: {
+                let mut env = inner.config.env.clone();
+                crate::harness_tools::withhold(&mut env);
+                env.insert(
+                    crate::control_socket::FLEET_DEPTH_ENV.to_string(),
+                    request.fleet_depth.to_string(),
+                );
+                env
+            },
             timeout_ms: inner.config.task_timeout_ms,
             model: request.model.or_else(|| inner.config.model.clone()),
             agent: inner.config.agent.clone(),
@@ -119,9 +160,24 @@ impl HarnessDispatch for RuntimeDispatch {
             attribution: inner.config.attribution,
             hooks: inner.config.hooks.clone(),
             abort: Abort::new(),
-            // The run observer already reports progress per node; forwarding a
-            // harness's token-level chatter as well would double-report it.
-            on_event: None,
+            // Collected, not forwarded. The run observer still reports progress
+            // per node — nothing here emits a second status stream, which is
+            // what the previous `None` was protecting against — but the events
+            // are folded into a transcript that settles onto the run record.
+            //
+            // A node runs headless with nobody watching, so the reply used to
+            // be all that survived it: the run view could say a step succeeded
+            // and took four minutes without saying what happened in them. The
+            // collector is bounded on the way in, so a chatty node costs a
+            // fixed amount of memory rather than however much it emits.
+            on_event: {
+                let transcript = transcript.clone();
+                Some(Box::new(move |event| {
+                    if let Ok(mut collector) = transcript.lock() {
+                        collector.observe(event);
+                    }
+                }))
+            },
             on_stdin: None,
             on_session: None,
             on_workspace_context: None,
@@ -137,6 +193,15 @@ impl HarnessDispatch for RuntimeDispatch {
             .await
             .expect("semaphore is never closed");
         let result = (inner.run_task)(options).await.map_err(RunError::Worker)?;
+        // The executor has returned, so it has dropped its `on_event` callback
+        // and this is the only remaining handle — but a poisoned lock is still
+        // possible (a panic inside the callback), and losing the transcript is
+        // not a reason to fail a node that otherwise succeeded.
+        let transcript = Arc::try_unwrap(transcript)
+            .ok()
+            .and_then(|lock| lock.into_inner().ok())
+            .map(crate::harness_transcript::TranscriptCollector::finish)
+            .unwrap_or_default();
         Ok(TaskOutcome {
             reply: result.reply,
             usage: result.usage.unwrap_or(TokenUsage {
@@ -145,6 +210,7 @@ impl HarnessDispatch for RuntimeDispatch {
             }),
             harness: Some(provider),
             session_id: None,
+            transcript,
         })
     }
 

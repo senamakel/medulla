@@ -134,6 +134,17 @@ pub struct TaskOutcome {
     /// session, and claiming one of its nodes' sessions would name the wrong
     /// place.
     pub session_id: Option<String>,
+    /// What the harness said while it served the task, in order.
+    ///
+    /// Empty unless the dispatch asked for it. Only the workflow dispatch does:
+    /// a node runs headless with nobody watching, so without this the run view
+    /// could say a step took four minutes without being able to say what
+    /// happened in them. An ordinary task frame has a live status stream and a
+    /// requester reading it, and does not pay for a second copy.
+    ///
+    /// Bounded by the collector that produced it — see
+    /// [`crate::harness_transcript`].
+    pub transcript: Vec<crate::harness_transcript::TranscriptEntry>,
 }
 
 /// Why a dispatch failed.

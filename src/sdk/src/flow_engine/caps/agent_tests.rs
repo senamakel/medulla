@@ -59,6 +59,7 @@ impl HarnessDispatch for SubstitutingDispatch {
             },
             harness: None,
             session_id: None,
+            transcript: Vec::new(),
         })
     }
 

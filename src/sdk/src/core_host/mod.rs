@@ -39,6 +39,7 @@ use openhuman_core::embed::{Core, CoreError};
 use openhuman_core::{CoreBuilder, DomainSet, HostKind, ServiceSet, TokenSource};
 
 pub mod auth;
+pub mod shared;
 
 #[cfg(test)]
 mod auth_tests;
