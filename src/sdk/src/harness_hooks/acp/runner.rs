@@ -148,7 +148,7 @@ fn kill_hook(child: &mut tokio::process::Child) {
 /// while ACP reports the semantic `ToolKind` (`execute`, `edit`, …). Matching is
 /// therefore tried against the kind *and* its native aliases, so both
 /// vocabularies work.
-fn matches_tool(matcher: &str, tool: &str) -> bool {
+pub(super) fn matches_tool(matcher: &str, tool: &str) -> bool {
     matcher.is_empty()
         || matcher == "*"
         || tool_matcher_candidates(tool)
