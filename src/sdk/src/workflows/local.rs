@@ -135,9 +135,11 @@ impl LocalWorkflowHost {
     ///
     /// # Errors
     ///
-    /// Fails when no coding-agent CLI is installed, or when either bridge
-    /// address cannot be bound — both are situations an operator has to see,
-    /// rather than a host that starts and then rejects every task.
+    /// Fails when no coding-agent CLI is installed — unless the host's default
+    /// is `openhuman`, which the embedded core serves in-process without a
+    /// binary to detect — or when either bridge address cannot be bound. Both
+    /// are situations an operator has to see, rather than a host that starts
+    /// and then rejects every task.
     pub fn start(options: EmbeddedDaemonOptions) -> Result<Self, String> {
         let network = LocalBridgeNetwork::new();
         let worker = network.bind(LOCAL_WORKER_ADDRESS)?;
