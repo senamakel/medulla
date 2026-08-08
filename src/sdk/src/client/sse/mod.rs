@@ -110,6 +110,17 @@ impl SseParser {
                 }
                 break;
             };
+            // A newline-terminated line can be over the cap in a single chunk —
+            // the no-newline branch above never sees it. Cloning the prefix into
+            // `line` would allocate the whole thing, and comment or unknown-field
+            // lines are never length-checked downstream, so enforce the cap here
+            // before the copy.
+            if nl > MAX_FRAME_BYTES {
+                self.line_buf.drain(..=nl);
+                self.discard_frame();
+                overflowed = true;
+                continue;
+            }
             let mut line = self.line_buf[..nl].to_string();
             // Drain the line plus the newline from the buffer.
             self.line_buf.drain(..=nl);
