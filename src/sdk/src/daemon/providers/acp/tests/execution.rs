@@ -264,9 +264,10 @@ fn agent_command_removes_the_embedded_core_workspace() {
 #[test]
 fn agent_command_terminates_env_options_before_the_binary() {
     let mut options = attribution_options(false);
+    options.provider = HarnessProvider::Opencode;
     options
         .env
-        .insert("MEDULLA_CLAUDE_BIN".to_string(), "-x".to_string());
+        .insert("MEDULLA_OPENCODE_BIN".to_string(), "-x".to_string());
 
     let agent = super::super::execution::agent_for(&options).unwrap();
     let config = agent.config();
