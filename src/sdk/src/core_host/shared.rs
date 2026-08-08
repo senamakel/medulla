@@ -70,6 +70,19 @@ pub fn install(core: Arc<EmbeddedCore>) -> bool {
 pub async fn shared() -> Result<Arc<EmbeddedCore>, String> {
     SHARED
         .get_or_init(|| async {
+            // A host that never bound the core — a workflow run, an MCP
+            // subprocess, a headless daemon — still gets workspace isolation:
+            // the core reads its state directory during construction, so it
+            // must be pointed at this process's Medulla home before the lazy
+            // boot, not after. Without this floor a lazily booted core would
+            // fall back to the developer's real `~/.openhuman` and read its
+            // memory, flows, and credentials. A caller with the full config
+            // binds the rest (action dir, backend URLs) through
+            // [`super::bind_from_config`]; this binding is non-overriding, so
+            // the earlier, more specific one still wins.
+            let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+            let home = crate::home::medulla_home(&env);
+            super::bind_workspace(&env, &home);
             super::boot()
                 .await
                 .map(Arc::new)
