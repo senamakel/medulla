@@ -44,7 +44,7 @@ pub(super) enum LineRead {
     Eof,
 }
 
-/// Read one newline-terminated record into `buf`, never buffering more than
+/// Read one newline-terminated record into `buf`, never retaining more than
 /// `cap` bytes of any single record.
 ///
 /// [`AsyncBufReadExt::read_until`] would buffer the whole line first and only
