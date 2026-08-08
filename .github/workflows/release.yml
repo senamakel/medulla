@@ -34,7 +34,7 @@ permissions:
   contents: write
 
 jobs:
-  # The docker/tmux/opencode end-to-end suite. It used to run on every push
+  # The docker/tmux end-to-end suite, once per coding CLI. It used to run on every push
   # and pull request, where it was by far the slowest check — it builds a
   # harness image and drives three container scenarios, so it dominated the
   # wait on changes that could not affect it. It gates releases instead:
@@ -42,9 +42,19 @@ jobs:
   # runs before `tag` so a failure costs nothing — no version bump is
   # committed and no tag is pushed.
   e2e-docker:
-    name: E2E (docker + tmux + opencode)
+    name: E2E (docker + tmux + ${{ matrix.harness }})
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    strategy:
+      # One leg per coding CLI. The image is the same for all three — only
+      # `E2E_HARNESS` differs — so a claude or codex regression cannot hide
+      # behind a green opencode run. `fail-fast: false` so a release blocked by
+      # one harness still reports whether the others are healthy.
+      fail-fast: false
+      matrix:
+        harness: [opencode, claude, codex]
+    env:
+      E2E_HARNESS: ${{ matrix.harness }}
     steps:
       # `ref: main` for the same reason the `tag` job pins it: this workflow
       # always releases from main whatever ref it was dispatched from, so
@@ -80,10 +90,14 @@ jobs:
         run: SKIP_BUILD=1 bash e2e/coordination/run-docker.sh
 
       - name: Functional scenarios (tests.sh, --network none)
-        run: docker run --rm --network none medulla-e2e:latest bash /app/e2e/coordination/tests.sh
+        run: |
+          docker run --rm --network none -e "E2E_HARNESS=$E2E_HARNESS" \
+            medulla-e2e:latest bash /app/e2e/coordination/tests.sh
 
       - name: Multi-agent scenarios (tests_multi.sh, --network none)
-        run: docker run --rm --network none medulla-e2e:latest bash /app/e2e/coordination/tests_multi.sh
+        run: |
+          docker run --rm --network none -e "E2E_HARNESS=$E2E_HARNESS" \
+            medulla-e2e:latest bash /app/e2e/coordination/tests_multi.sh
 
   tag:
     needs: e2e-docker

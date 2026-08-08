@@ -56,18 +56,46 @@ Run all of them before handing work off. See
 ## The coordination end-to-end harness
 
 A separate harness under `e2e/coordination/` drives real processes: the `medulla`
-daemon binary, the real `opencode` CLI, and an interactive TUI, over the
+daemon binary, a real coding CLI, and an interactive TUI, over the
 [host link](host-link-protocol.md), with no real keys and no network egress.
 
 ```
 owner driver (src/sdk/examples/coordination_owner; a real medulla-link endpoint)
   → mock link forwarder (src/sdk/examples/mock_link_forwarder.rs; blind UDP)
-    → medulla daemon (real binary, --providers opencode, the host end)
-      → real opencode CLI (spawned by the daemon as its provider)
-        → mock OpenAI-compatible LLM (e2e/coordination/mock_llm.py)
+    → medulla daemon (real binary, --providers <harness>, the host end)
+      → the real coding CLI (spawned by the daemon as its provider)
+        → mock LLM (e2e/coordination/mock_llm.py)
           → deterministic reply "COORDINATION_OK <echo of task>"
   ← Reply frame back over the link, asserted on content, usage, and delivery
 ```
+
+### Choosing the coding CLI
+
+`E2E_HARNESS` picks which CLI the daemon spawns — `opencode` (the default),
+`claude` or `codex` — and every suite runs unchanged against all three. The
+per-harness knowledge lives in one file, `e2e/coordination/harness.sh`.
+
+The three differ in how they are pointed at the mock, and the difference is the
+point:
+
+| Harness | How Medulla routes it | Wire dialect |
+| --- | --- | --- |
+| `opencode` | its own provider block (`opencode.json`) | OpenAI chat completions |
+| `claude` | a **custom harness preset** → `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` at the spawn seam | Anthropic Messages |
+| `codex` | the same preset plus `codexOverrides` — the `-c` provider block and a derived model catalog, because a bare `OPENAI_BASE_URL` is ignored by Codex | OpenAI Responses |
+
+So the claude and codex legs exercise Medulla's real preset-routing path
+(`src/sdk/src/config/custom_harnesses.rs`, `src/sdk/src/codex_overrides/`); the
+only fake in the chain is the model behind the endpoint. Each leg also asserts
+that the task arrived on the dialect that harness is *supposed* to speak, so a
+run that quietly fell back to another wire fails rather than passes.
+
+Two fixtures exist because the stack has no network. `codex_models_cache.json`
+stands in for the catalog Codex normally fetches on first run and a
+`codexOverrides` preset derives its model entry from. Claude Code's interactive
+first run is a wizard (theme, security notice, folder trust), so `harness.sh`
+seeds the answers into a scratch `~/.claude.json` — headless runs never see it,
+the TUI smoke leg would otherwise stall on it.
 
 Only the transport's middle is mocked, and it is mocked as a blind box: the
 forwarder authenticates the cleartext header with each node's forwarder key and
@@ -77,14 +105,19 @@ every retransmission is production code.
 
 | File | Role |
 | --- | --- |
-| `e2e/coordination/lib.sh` | Shared boot, teardown, and assert helpers. |
+| `e2e/coordination/lib.sh` | Shared boot, teardown, and assert helpers; harness-agnostic. |
+| `e2e/coordination/harness.sh` | Everything specific to one coding CLI: binary, config, spawn env, TUI shape. |
 | `e2e/coordination/run.sh` | Happy-path round trip plus a TUI smoke leg. |
 | `e2e/coordination/tests.sh` | Five functional scenarios on top of `lib.sh`. |
 | `e2e/coordination/tests_multi.sh` | Five multi-agent scenarios: two daemons, two workspaces. |
-| `e2e/coordination/run-live.sh` | The same fleet against real staging and OpenRouter. |
-| `e2e/coordination/mock_llm.py` | Stdlib-only OpenAI-compatible mock (SSE and unary). |
+| `e2e/coordination/run-live.sh` | The same fleet against real staging and OpenRouter (opencode only). |
+| `e2e/coordination/mock_llm.py` | Entrypoint for the mock LLM. |
+| `e2e/coordination/mockllm/` | The mock itself, one module per wire dialect (chat, messages, responses). |
 | `e2e/coordination/opencode.json` | opencode config template pointed at the mock LLM, `autoupdate: false`. |
-| `e2e/coordination/Dockerfile` | Multi-stage image: Rust build stage, then a slim runtime. |
+| `e2e/coordination/medulla.claude.json`, `medulla.codex.json` | Daemon configs carrying the custom harness preset for each CLI. |
+| `e2e/coordination/codex_models_cache.json` | Fixture stand-in for Codex's normally-fetched model catalog. |
+| `e2e/coordination/Dockerfile` | Multi-stage image: Rust build stage, then a slim runtime with all three CLIs. |
+| `e2e/coordination/build-image.sh` | Build (and optionally push) that image. |
 | `e2e/coordination/run-docker.sh` | Build and run the whole harness in a container. |
 
 ```sh
@@ -94,6 +127,10 @@ bash e2e/coordination/tests_multi.sh  # 5 multi-agent scenarios
 bash e2e/coordination/run-docker.sh   # the same, inside docker
 make e2e-image                        # build the container image
 make e2e-docker                       # build the image, then run all three offline suites
+make e2e-docker E2E_HARNESS=claude    # the same suites, driving Claude Code
+make e2e-docker-all                   # every suite against every coding CLI
+
+E2E_HARNESS=codex bash e2e/coordination/run.sh   # a single leg on the host
 ```
 
 Optional knobs:
@@ -102,7 +139,9 @@ Optional knobs:
 | --- | --- |
 | `E2E_KEEP=1` | Keep the run directory, tmux session, and container for debugging. |
 | `E2E_SMOKE=0` | Skip the interactive TUI leg. |
-| `MEDULLA_BIN`, `FORWARDER_BIN`, `OWNER_BIN`, `OPENCODE_BIN` | Prebuilt binary overrides; unset means `cargo build --release`. The docker image bakes all four. |
+| `E2E_HARNESS` | Which coding CLI to drive: `opencode` (default), `claude`, `codex`. |
+| `MEDULLA_BIN`, `FORWARDER_BIN`, `OWNER_BIN` | Prebuilt binary overrides; unset means `cargo build --release`. The docker image bakes all three. |
+| `OPENCODE_BIN`, `CLAUDE_BIN`, `CODEX_BIN` | Coding-CLI overrides; unset means `$PATH`. The docker image bakes all three. |
 | `IMAGE=`, `NO_CACHE=1`, `NET=host` | Docker knobs; the default runtime is `--network none`. |
 | `MOCK_LLM_MARKER`, `MOCK_LLM_MODEL`, `MOCK_LLM_PORT`, `MOCK_LLM_LOG` | Mock LLM knobs. |
 
@@ -137,8 +176,8 @@ volumes.
 
 1. Output leg: the terminal frame is `kind == "Reply"` and contains the marker.
    For `tests.sh`, `usage.inputTokens` and `outputTokens` must also be present.
-2. Input leg: the mock LLM journal contains at least one chat request embedding
-   the task text.
+2. Input leg: the mock LLM journal contains at least one completion request embedding
+   the task text, on the wire dialect the selected harness speaks.
 3. Transport leg: the forwarder log shows at least one state-carrying datagram in
    each direction between that pair's two node ids.
 

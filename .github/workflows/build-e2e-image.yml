@@ -1,0 +1,60 @@
+---
+# Build and publish the coordination e2e harness image to GHCR.
+#
+# The image bakes the release `medulla` binary, the two link examples, and all
+# three coding CLIs (opencode, claude, codex) — everything the harness needs to
+# run fully offline. The release gate builds its own copy with a layer cache, so
+# this workflow is for the times a published image is what you want: pulling the
+# harness into another checkout, or pinning a known-good CLI set.
+#
+# Manual only. The CLI versions are pinned as Dockerfile build args, so a rebuild
+# is a deliberate act (a version bump, a base image refresh) rather than
+# something that should follow every push.
+name: Build E2E Image
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Extra tag to publish alongside `latest`
+        required: false
+        default: ''
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build-image:
+    name: Build and push harness image
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: false
+
+      # The vendored OpenHuman core is a path dependency of the workspace, so
+      # the Rust stage cannot compile without it.
+      - name: Initialize submodules
+        run: bash scripts/init-submodules.sh
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: e2e/coordination/Dockerfile
+          push: true
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,ignore-error=true
+          tags: |-
+            ghcr.io/tinyhumansai/medulla_e2e:latest
+            ${{ inputs.tag && format('ghcr.io/tinyhumansai/medulla_e2e:{0}', inputs.tag) || '' }}
