@@ -390,7 +390,7 @@ fn write_managed(
 /// which is the right way round.
 fn write_atomically(path: &Path, body: &str) -> io::Result<()> {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
-    let temp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
+    let temp = path.with_file_name(format!(".{name}.{}.tmp", uuid::Uuid::new_v4().simple()));
     fs::write(&temp, body)?;
     match fs::rename(&temp, path) {
         Ok(()) => Ok(()),
