@@ -41,6 +41,7 @@ use openhuman_core::{CoreBuilder, DomainSet, HostKind, ServiceSet, TokenSource};
 pub mod auth;
 mod hooks;
 pub mod shared;
+pub mod turn_cwd;
 
 #[cfg(test)]
 mod auth_tests;
@@ -48,6 +49,8 @@ mod auth_tests;
 mod hooks_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod turn_cwd_tests;
 
 /// The embed facade, re-exported so a host can name what [`boot`] returns
 /// without depending on the `openhuman` crate directly.
