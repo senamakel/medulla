@@ -109,24 +109,20 @@ fn claude_settings_carry_every_applicable_hook() {
     assert_eq!(commands, ["first", "second"]);
 }
 
-/// `codex app-server` runs no hooks whichever way they are delivered, so this
-/// transport installs none for Codex and says so, naming the switch that gets
-/// them back. A quiet no-op here is exactly the failure the hook module exists
-/// to prevent.
+/// Codex app-server does not execute lifecycle hooks, but ACP reports each
+/// completed tool call to Medulla.  The transport therefore keeps the
+/// observation-only PostToolUse hook for Medulla to execute locally.
 #[test]
-fn codex_installs_nothing_and_names_the_switch() {
+fn codex_runs_post_tool_use_locally() {
     let delivered = delivery(HarnessProvider::Codex, &one_hook("auto-commit --hook"));
 
-    assert!(delivered.is_empty());
-    let note = delivered
-        .notes
-        .first()
-        .expect("an uninstalled hook must be reported");
-    assert!(
-        note.contains(crate::daemon::providers::HARNESS_PROTOCOL_ENV),
-        "the note must name the switch: {note}"
+    assert!(delivered.session_meta.is_none());
+    assert_eq!(delivered.local_post_tool_use.len(), 1);
+    assert_eq!(
+        delivered.local_post_tool_use[0].command(),
+        "auto-commit --hook"
     );
-    assert!(note.contains("app-server"), "the note must say why: {note}");
+    assert!(delivered.notes.is_empty(), "{:#?}", delivered.notes);
 }
 
 /// No declared hook means no delivery and nothing to explain — an ACP spawn

@@ -133,6 +133,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
         tracing::warn!(provider = options.provider.as_str(), "{note}");
     }
     let session_meta = delivery.session_meta;
+    let local_post_tool_use = delivery.local_post_tool_use;
     // Read before `options` is picked apart below, and cloned because the
     // session setup runs inside an async move closure.
     #[cfg(feature = "workflows")]
@@ -166,6 +167,8 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
         options.on_workspace_context,
     )));
     let notification_state = state.clone();
+    let hook_cwd = PathBuf::from(&options.cwd);
+    let hook_session = session_key.clone();
     let approve = options.skip_permissions;
     let cwd = PathBuf::from(&options.cwd);
     let resume = options.resume_session_id.clone();
@@ -179,7 +182,17 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
         .builder()
         .on_receive_notification(
             async move |notification: SessionNotification, _cx| {
-                notification_state.lock().unwrap().fold(notification.update);
+                let completed = notification_state.lock().unwrap().fold(notification.update);
+                if let Some(completed) = completed {
+                    crate::harness_hooks::acp::run_post_tool_use(
+                        &local_post_tool_use,
+                        &hook_cwd,
+                        &hook_session,
+                        &completed.tool_name,
+                        &completed.input,
+                    )
+                    .await;
+                }
                 Ok(())
             },
             agent_client_protocol::on_receive_notification!(),

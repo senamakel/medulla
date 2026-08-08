@@ -32,6 +32,7 @@ harness's lifecycle back to it. Without them a harness on a pty is opaque:
   accept, plus the inline-TOML encoder Codex's `-c` override needs.
 - [`claude.rs`](./claude.rs) — Claude Code delivery via `--settings`.
 - [`codex.rs`](./codex.rs) — Codex delivery via `-c hooks=…` and the trust bypass.
+- [`acp/runner.rs`](./acp/runner.rs) — Medulla-side PostToolUse fallback for Codex ACP sessions, whose app-server does not execute lifecycle hooks itself.
 - [`tests.rs`](./tests.rs) — Vocabulary, document folding, and the exact flags and
   JSON/TOML spelling each harness was verified against.
 

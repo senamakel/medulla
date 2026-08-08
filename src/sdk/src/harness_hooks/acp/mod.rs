@@ -19,8 +19,10 @@ use crate::protocol::HarnessProvider;
 
 use super::types::HooksConfig;
 
+mod runner;
 mod types;
 
+pub use runner::run_post_tool_use;
 pub use types::AcpDelivery;
 
 /// Build the ACP-transport delivery installing `hooks` into `provider`.
@@ -47,13 +49,19 @@ pub fn delivery(provider: HarnessProvider, hooks: &HooksConfig) -> AcpDelivery {
             delivery.session_meta = Some(claude_session_meta(&document));
         }
         HarnessProvider::Codex => {
-            delivery.notes.push(format!(
-                "{} hook(s) are not installed for this Codex session: it is dispatched over ACP, \\
-                 and `codex app-server` runs no hooks however they are delivered. Launch this \\
-                 harness without {}=acp for them to fire.",
-                applicable.len(),
-                crate::daemon::providers::HARNESS_PROTOCOL_ENV,
-            ));
+            delivery.local_post_tool_use = applicable
+                .into_iter()
+                .filter(|hook| hook.event == super::types::HookEvent::PostToolUse)
+                .collect();
+            let unsupported =
+                hooks.for_provider(provider).len() - delivery.local_post_tool_use.len();
+            if unsupported > 0 {
+                delivery.notes.push(format!(
+                    "{unsupported} hook(s) are not installed for this Codex ACP session: \\
+                     `codex app-server` does not run lifecycle hooks other than Medulla's \\
+                     PostToolUse fallback."
+                ));
+            }
         }
         // Unreachable in practice: `HooksConfig::for_provider` filters on
         // `HookEvent::supported_by`, which is false for every event on both, so
