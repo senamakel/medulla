@@ -41,6 +41,49 @@ async fn no_provider_for_requested_errors_without_harness() {
 }
 
 #[tokio::test]
+async fn a_requested_openhuman_task_runs_on_the_embedded_core() {
+    // Only claude is offered, yet a task that *names* openhuman must run on
+    // it: OpenHuman has no binary to detect, so it is reachable only by being
+    // named — the same contract the workflow dispatch's `resolve` upholds for
+    // graph nodes (see `a_node_naming_the_embedded_core_is_not_fallen_back_to_a_cli`).
+    // Refusing it would reject a task the control socket already admitted as
+    // dispatchable.
+    let (send, recorded) = recording_send();
+    let run_task: RunTaskFn = Arc::new(|opts: RunTaskOptions| {
+        Box::pin(async move {
+            Ok(RunTaskResult {
+                session_id: None,
+                usage: None,
+                provider: opts.provider,
+                reply: "done".to_string(),
+                events: 0,
+            })
+        })
+    });
+    let runtime = DaemonRuntime::new(base_config(), run_task, send);
+
+    let mut frame = task_frame("t-openhuman", "work", None);
+    frame.provider = Some(HarnessProvider::Openhuman);
+    runtime.handle_message("peer".into(), String::new(), Some(frame));
+    runtime.idle().await;
+
+    let frames = decoded_frames(&recorded);
+    assert!(
+        frames.iter().all(|f| f.kind != TaskFrameKind::Error),
+        "naming openhuman must not error when only a coding CLI is offered"
+    );
+    let reply = frames
+        .iter()
+        .find(|f| f.kind == TaskFrameKind::Reply)
+        .expect("the task runs and replies");
+    assert_eq!(
+        reply.provider,
+        Some(HarnessProvider::Openhuman),
+        "the task ran on the embedded core it named"
+    );
+}
+
+#[tokio::test]
 async fn plaintext_dm_runs_default_provider() {
     let run_task: RunTaskFn = Arc::new(|opts: RunTaskOptions| {
         Box::pin(async move {
