@@ -121,7 +121,14 @@ fn codex_omits_notification_and_session_end() {
             "{event:?}",
         );
         assert!(!event.supported_by(HarnessProvider::Opencode), "{event:?}");
-        assert!(!event.supported_by(HarnessProvider::Openhuman), "{event:?}");
+        assert_eq!(
+            event.supported_by(HarnessProvider::Openhuman),
+            matches!(
+                event,
+                HookEvent::PreToolUse | HookEvent::PostToolUse | HookEvent::Stop
+            ),
+            "{event:?}",
+        );
     }
 }
 
