@@ -166,6 +166,28 @@ pub enum RunError {
     Aborted,
     /// The worker returned an `error` frame (carrying its message).
     Worker(String),
+    /// A workflow node's harness failed after saying something worth keeping.
+    ///
+    /// The workflow dispatch folds its node's transcript *while* the harness
+    /// runs, so on failure the account exists and this variant carries it
+    /// alongside the message — the ordinary [`Worker`](Self::Worker) has no
+    /// place for it, and a failed step is exactly the one whose diagnostic
+    /// trail the run view wants (the prompt says what was asked, the error says
+    /// what went wrong, and neither shows the tool that kept failing in
+    /// between). Only the workflow dispatch constructs it; a worker that fails
+    /// over the wire sends a plain [`Worker`](Self::Worker) frame, which
+    /// carries no transcript.
+    ///
+    /// Downstream consumers that only care about *why* the task failed treat
+    /// this as a [`Worker`](Self::Worker) with the same message — the transcript
+    /// is the step's own account, not part of the wire error.
+    WorkerWithTranscript {
+        /// The failure message, as [`Worker`](Self::Worker) would carry it.
+        message: String,
+        /// What the harness said before it failed, in order. Bounded by the
+        /// collector that produced it — see [`crate::harness_transcript`].
+        transcript: Vec<crate::harness_transcript::TranscriptEntry>,
+    },
     /// The worker shed load rather than failing: it was already holding its
     /// maximum admitted-but-unfinished tasks and refused this one
     /// (`daemon at capacity …; retry later`).
