@@ -99,9 +99,18 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json({"error": f"not found: {path}"}, status=404)
 
     def _complete(self, dialect, body):
-        """Answer one completion request in `dialect`, logging it first."""
+        """Answer one completion request in `dialect`, logging it first.
+
+        The client's `User-Agent` is logged alongside the payload because it is
+        what tells the two transports apart: a CLI run reaches here from the
+        harness itself, an ACP run from the ACP server's own SDK. Without it a
+        transport that silently fell back to the other one would still pass
+        every assertion about the reply.
+        """
         reply = reply_text(dialect.extract_prompt(body))
-        log_request(dialect.LOG_KIND, dialect.log_payload(self.path, body, reply))
+        payload = dialect.log_payload(self.path, body, reply)
+        payload["user_agent"] = self.headers.get("User-Agent", "")
+        log_request(dialect.LOG_KIND, payload)
         if body.get("stream"):
             self._send_stream(dialect.stream(reply))
         else:

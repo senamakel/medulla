@@ -110,6 +110,8 @@ every retransmission is production code.
 | `e2e/coordination/run.sh` | Happy-path round trip plus a TUI smoke leg. |
 | `e2e/coordination/tests.sh` | Five functional scenarios on top of `lib.sh`. |
 | `e2e/coordination/tests_multi.sh` | Five multi-agent scenarios: two daemons, two workspaces. |
+| `e2e/coordination/tests_acp.sh` | Four ACP-transport scenarios: the daemon spawns an ACP server instead of the CLI. |
+| `e2e/coordination/tests_tui.sh` | Three terminal scenarios: the `medulla <harness>` wrapper and the operator screen. |
 | `e2e/coordination/run-live.sh` | The same fleet against real staging and OpenRouter (opencode only). |
 | `e2e/coordination/mock_llm.py` | Entrypoint for the mock LLM. |
 | `e2e/coordination/mockllm/` | The mock itself, one module per wire dialect (chat, messages, responses). |
@@ -124,6 +126,8 @@ every retransmission is production code.
 bash e2e/coordination/run.sh          # happy path + TUI smoke leg
 bash e2e/coordination/tests.sh        # 5 functional scenarios
 bash e2e/coordination/tests_multi.sh  # 5 multi-agent scenarios
+bash e2e/coordination/tests_acp.sh    # 4 ACP-transport scenarios
+bash e2e/coordination/tests_tui.sh    # 3 terminal scenarios (wrapper + operator screen)
 bash e2e/coordination/run-docker.sh   # the same, inside docker
 make e2e-image                        # build the container image
 make e2e-docker                       # build the image, then run all three offline suites
@@ -140,10 +144,70 @@ Optional knobs:
 | `E2E_KEEP=1` | Keep the run directory, tmux session, and container for debugging. |
 | `E2E_SMOKE=0` | Skip the interactive TUI leg. |
 | `E2E_HARNESS` | Which coding CLI to drive: `opencode` (default), `claude`, `codex`. |
+| `E2E_TRANSPORT` | How the daemon reaches it: `cli` (default) or `acp`. `tests_acp.sh` sets it per daemon. |
 | `MEDULLA_BIN`, `FORWARDER_BIN`, `OWNER_BIN` | Prebuilt binary overrides; unset means `cargo build --release`. The docker image bakes all three. |
 | `OPENCODE_BIN`, `CLAUDE_BIN`, `CODEX_BIN` | Coding-CLI overrides; unset means `$PATH`. The docker image bakes all three. |
 | `IMAGE=`, `NO_CACHE=1`, `NET=host` | Docker knobs; the default runtime is `--network none`. |
 | `MOCK_LLM_MARKER`, `MOCK_LLM_MODEL`, `MOCK_LLM_PORT`, `MOCK_LLM_LOG` | Mock LLM knobs. |
+
+### The ACP transport suite
+
+`MEDULLA_HARNESS_PROTOCOL=acp` switches the daemon from spawning the harness's
+own headless mode to spawning an **Agent Client Protocol server**, which then
+spawns the harness. For claude and codex that is a different program entirely —
+`npx @agentclientprotocol/…-acp`, not the CLI binary — so everything the CLI
+seam does at spawn time (select the preset's model, point the run at the routed
+endpoint, carry the operator's hooks) has to be done again by other means.
+
+`tests_acp.sh` boots two daemons against one mock LLM, one per transport, and
+compares them:
+
+| Scenario | Asserts |
+| --- | --- |
+| round trip | A task dispatched over ACP comes back with the marker. |
+| client identity | The ACP leg's request reached the mock from a *different client* than the CLI leg's — proof the switch took effect. Skipped for opencode, whose ACP server is its own binary. |
+| routed model | The ACP leg's request names the preset's model, not the harness's default. |
+| transport parity | Both legs answer the same task the same way. |
+
+Client identity is the load-bearing one. A reply frame is identical whichever
+transport produced it, so a suite that asserted only on the reply would pass
+through an ACP switch that was silently ignored — which is exactly what happened
+twice: Codex's routed provider block was passed on the argv, and `codex-acp`
+parses argv only for its `login` and `cli` subcommands. In server mode it reads
+`CODEX_CONFIG` and `MODEL_PROVIDER` from the environment and ignores the rest, so
+the session opened on the operator's own account and default model while the
+preset's endpoint sat unused beside it.
+
+Note that ACP runs report no token usage. ACP's `usage_update` carries the
+context window (`used` of `size`), not an input/output split, so there is
+nothing to fill `usage` with that would not be invented — an orchestrator that
+bills or throttles on reported tokens gets nothing from an ACP run.
+
+### The terminal suite
+
+`tests_tui.sh` covers the two surfaces an operator actually looks at, both
+full-screen TUIs on a real pseudo-terminal, driven under tmux:
+
+| Scenario | Asserts |
+| --- | --- |
+| wrapper transparency | `medulla <harness> --no-bridge` paints the real CLI's own TUI and answers a prompt typed into it. |
+| wrapper bridging | An enrolled wrapper answers Medulla's worker-setup wizard, then forwards its session to the orchestrator — state datagrams leave the wrapper's own node. Claude and Codex only; the wrapper does not tail opencode transcripts. |
+| operator screen | `medulla daemon --tui` answers its setup menus, paints its worker screen, and still serves a dispatched task. For claude the task is also asserted to appear in the live embedded session pane. |
+
+These break in ways headless tests cannot see: a harness TUI refuses to start
+with a pipe on stdin (Codex says "stdin is not a terminal"), so the wrapper
+allocates a PTY, and whether it did is only observable in what the terminal
+painted.
+
+Two limitations are worth knowing, because both are real rather than artefacts
+of the harness. Codex's screen leg runs **headless**: Medulla injects lifecycle
+hooks into every session, Codex refuses to run hooks it has not been told to
+trust, and the trust is keyed by a per-hook content hash — so a fresh Codex home
+opens the first interactive session on a "hooks need review" prompt that the
+worker's typing attempt cannot get past. On a real host the operator answers
+once; in CI every run is a fresh home. And the wrapper's opencode leg skips the
+bridging scenario, because opencode's session log is not the flat JSONL the
+wrapper tails.
 
 ### The multi-agent suite
 

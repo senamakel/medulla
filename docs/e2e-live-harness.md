@@ -44,6 +44,8 @@ routed at the mock and which wire dialect it lands on.
 | `e2e/coordination/run.sh` | happy-path round trip + TUI smoke leg; exit 0 on PASS |
 | `e2e/coordination/tests.sh` | 5 functional scenarios on top of `lib.sh` |
 | `e2e/coordination/tests_multi.sh` | 5 multi-agent scenarios: two daemons, two workspaces |
+| `e2e/coordination/tests_acp.sh` | 4 ACP-transport scenarios: an ACP server spawns the harness, not the CLI |
+| `e2e/coordination/tests_tui.sh` | 3 terminal scenarios: the `medulla <harness>` wrapper and the operator screen |
 | `e2e/coordination/run-live.sh` | the same fleet against real staging + OpenRouter (opencode only) |
 | `e2e/coordination/mock_llm.py` | entrypoint for the mock LLM |
 | `e2e/coordination/mockllm/` | the mock itself: one module per wire dialect (chat, messages, responses) |
@@ -63,6 +65,8 @@ routed at the mock and which wire dialect it lands on.
 bash e2e/coordination/run.sh          # happy path + TUI smoke leg (~1-2 min)
 bash e2e/coordination/tests.sh        # 5 functional scenarios (~40s + boots)
 bash e2e/coordination/tests_multi.sh  # 5 multi-agent scenarios (~30s + boots)
+bash e2e/coordination/tests_acp.sh    # 4 ACP-transport scenarios
+bash e2e/coordination/tests_tui.sh    # 3 terminal scenarios (wrapper + operator screen)
 bash e2e/coordination/run-docker.sh   # the same, inside Linux/arm64 docker
 make e2e-docker                       # build the image, then run all three offline suites
 make e2e-docker-all                   # every suite against every coding CLI
@@ -74,6 +78,9 @@ make e2e-docker E2E_HARNESS=codex                    # a single leg in docker
 Knobs (all optional):
 
 - `E2E_HARNESS`: which coding CLI to drive — `opencode` (default), `claude`, `codex`.
+- `E2E_TRANSPORT`: how the daemon reaches it — `cli` (default) or `acp`.
+- `ACP_NPM_CACHE`: npm cache holding the ACP servers, so they resolve with no
+  network. The docker image primes it; unset on a developer's box.
 - `E2E_KEEP=1`: keep the run dir + tmux session (and container) for debugging.
 - `E2E_SMOKE=0`: skip the interactive TUI leg.
 - `MEDULLA_BIN` / `FORWARDER_BIN` / `OWNER_BIN`: prebuilt binary overrides; unset

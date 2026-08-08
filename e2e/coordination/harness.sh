@@ -32,6 +32,20 @@
 # The CLI under test. Every scenario honours it, so one suite covers all three.
 HARNESS="${E2E_HARNESS:-opencode}"
 
+# How the daemon talks to that CLI.
+#
+#   cli  spawn the harness's own headless mode and read its JSONL (the default).
+#   acp  spawn an Agent Client Protocol server, which spawns the harness. A
+#        different transport, a different event stream, and — for claude and
+#        codex — a different *process*: `npx @agentclientprotocol/…-acp`, not the
+#        CLI binary. `tests_acp.sh` is the suite that exercises it.
+TRANSPORT="${E2E_TRANSPORT:-cli}"
+
+# Where the ACP servers' npm packages are cached. The Docker image primes this
+# at build time and then runs offline out of it; on a developer's box it is
+# unset and npx resolves normally.
+ACP_NPM_CACHE="${ACP_NPM_CACHE:-}"
+
 # The preset id and the daemon env var holding its (fake) key. The daemon only
 # selects a default preset whose key is present, so the variable has to be
 # exported into the daemon's environment as well as named in the config.
@@ -45,6 +59,11 @@ HARNESS_KEY_VALUE="mock-key"
 case "$HARNESS" in
   opencode | claude | codex) ;;
   *) printf '[e2e] FAIL: unknown E2E_HARNESS=%s (want opencode|claude|codex)\n' "$HARNESS" >&2; exit 1 ;;
+esac
+
+case "$TRANSPORT" in
+  cli | acp) ;;
+  *) printf '[e2e] FAIL: unknown E2E_TRANSPORT=%s (want cli|acp)\n' "$TRANSPORT" >&2; exit 1 ;;
 esac
 
 # The env var naming a prebuilt binary for the selected harness.
@@ -122,6 +141,15 @@ harness_seed_home() {
         printf '[projects."%s"]\ntrust_level = "trusted"\n' "$workspace" \
           > "$home/.codex/config.toml"
       fi
+      # What `codex login --api-key` writes. The ACP server refuses to start a
+      # session without it ("Authentication required") even when the routed key
+      # is in the environment and the provider block names it — its startup auth
+      # check is separate from the provider's credential. A real host that ran
+      # `codex login` has this file, so seeding it is the host state, not a
+      # workaround for the mock.
+      printf '{"auth_mode":"apikey","OPENAI_API_KEY":"%s","tokens":null,"last_refresh":null}\n' \
+        "$HARNESS_KEY_VALUE" > "$home/.codex/auth.json"
+      chmod 600 "$home/.codex/auth.json"
       ;;
     claude)
       "$PYTHON_BIN" - "$home/.claude.json" "$workspace" \
@@ -153,6 +181,7 @@ harness_env() {
   local home="$1"
   printf 'export HOME=%q\n' "$home"
   printf 'export PATH=%q:$PATH\n' "$HARNESS_DIR"
+  harness_transport_env
   case "$HARNESS" in
     opencode)
       printf 'export OPENCODE_CONFIG=%q\n' "$OC_CONFIG"
@@ -178,6 +207,30 @@ harness_env() {
       printf 'unset OPENAI_API_KEY OPENAI_BASE_URL\n'
       ;;
   esac
+}
+
+# The `export` lines that select the transport, if it is not the default.
+#
+# ACP is chosen by an environment switch (`MEDULLA_HARNESS_PROTOCOL=acp`), which
+# is the product's own mechanism rather than a test hook — so a leg that sets it
+# runs the same dispatch a fleet host does.
+#
+# Claude and Codex reach ACP through `npx …-acp@latest`, so a container with no
+# network needs npm pointed at a primed cache and told not to look past it.
+# npm's cache holds the packument as well as the tarball, so even the `@latest`
+# tag resolves out of it. Unset on a developer's box: there, npx resolves the way
+# it always does.
+harness_transport_env() {
+  # `DAEMON_TRANSPORT` lets one scenario boot daemons on both transports against
+  # the same mock LLM, which is how `tests_acp.sh` compares them without
+  # hardcoding what either client calls itself.
+  [ "${DAEMON_TRANSPORT:-$TRANSPORT}" = "acp" ] || return 0
+  printf 'export MEDULLA_HARNESS_PROTOCOL=acp\n'
+  if [ -n "$ACP_NPM_CACHE" ]; then
+    printf 'export NPM_CONFIG_CACHE=%q\n' "$ACP_NPM_CACHE"
+    printf 'export NPM_CONFIG_OFFLINE=true\n'
+    printf 'export NPM_CONFIG_UPDATE_NOTIFIER=false\n'
+  fi
 }
 
 # The extra `medulla daemon` flags this harness needs.
@@ -218,6 +271,41 @@ harness_tui_launch() {
   esac
 }
 
+# The launcher body for `medulla <harness>` — the operator-facing wrapper, which
+# runs the real CLI on a pseudo-terminal and bridges its session to the host
+# link. Extra arguments are appended verbatim (`--no-bridge`, typically).
+#
+# The endpoint env is set here for the same reason `harness_tui_launch` sets it:
+# a wrapper session is launched by the operator, not dispatched by a daemon, so
+# there is no preset and no spawn seam to route it. What is under test is the
+# wrapper's own PTY and bridge, not Medulla's routing.
+harness_wrapper_launch() {
+  local extra="${1:-}"
+  case "$HARNESS" in
+    opencode)
+      printf 'exec %q opencode %s\n' "$MEDULLA_BIN" "$extra"
+      ;;
+    claude)
+      printf 'export ANTHROPIC_BASE_URL=%q\nexport ANTHROPIC_AUTH_TOKEN=%q\nexec %q claude %s --model mock-model\n' \
+        "http://127.0.0.1:$LLM_PORT" "$HARNESS_KEY_VALUE" "$MEDULLA_BIN" "$extra"
+      ;;
+    codex)
+      printf 'export OPENAI_API_KEY=%q\nexec %q codex %s -- %s -m mock-model\n' \
+        "$HARNESS_KEY_VALUE" "$MEDULLA_BIN" "$extra" "$(codex_override_args)"
+      ;;
+  esac
+}
+
+# Whether the wrapper bridges this harness's session to the host link.
+#
+# Claude and Codex write a flat JSONL transcript that the wrapper tails and
+# normalizes into typed session events. OpenCode does not — its session log is
+# not in that shape — so the wrapper runs it as a passthrough with input
+# injection and no transcript bridging. See `src/sdk/src/wrapper/mod.rs`.
+harness_wrapper_bridges() {
+  [ "$HARNESS" != "opencode" ]
+}
+
 # The `-c` overrides a directly-launched Codex needs to reach the mock LLM.
 #
 # A hand-rolled copy of what `crate::codex_overrides` injects for a preset,
@@ -249,6 +337,59 @@ PY
   printf -- ' -c model_providers.medulla.env_key="OPENAI_API_KEY"'
   printf -- ' -c model_providers.medulla.wire_api="responses"'
   printf -- ' -c preferred_auth_method="apikey" -c model_catalog_json=%q' "$catalog"
+}
+
+# The label this harness is listed under in Medulla's own menus.
+#
+# The operator screen's first-run setup asks which coding agent should power the
+# worker, and the options are labelled for a human rather than by wire name.
+harness_screen_label() {
+  case "$HARNESS" in
+    opencode) printf 'OpenCode' ;;
+    claude) printf 'Claude Code' ;;
+    codex) printf 'Codex' ;;
+  esac
+}
+
+# Whether this leg drives the operator screen in interactive mode — where a peer
+# task becomes a live harness session in a pane — rather than headless.
+#
+# Claude only, and the reason is a real operational trap rather than a gap in
+# this harness. Medulla injects its lifecycle hooks into every session it opens,
+# and Codex refuses to run hooks it has not been told to trust: the first
+# interactive session on a fresh Codex home therefore opens on a "hooks need
+# review" prompt, and the worker's attempt to type the peer's task into it fails
+# ("the harness never took the prompt") before an operator could answer. The
+# trust is keyed by a per-hook content hash — the hooks carry per-run paths and
+# session ids — so it cannot be pre-seeded into the fixture the way the model
+# catalog and Claude's onboarding answers are.
+#
+# On a real host the operator answers once and Codex remembers. In CI every run
+# is a fresh home, so the codex leg drives the screen headless instead: the
+# screen and its dispatch are still covered, only the embedded-pane assertion is
+# not.
+harness_screen_interactive() {
+  [ "$HARNESS" = "claude" ]
+}
+
+# Whether this harness's ACP server is a different program from its CLI.
+#
+# Claude and Codex are reached over ACP through `npx @agentclientprotocol/…-acp`
+# — a separate implementation with its own HTTP client, so a request that
+# travelled the ACP transport is distinguishable from one that did not. OpenCode
+# serves ACP from its own binary (`opencode acp`), so both transports reach the
+# model as literally the same client and no such comparison is possible.
+harness_acp_is_separate_program() {
+  [ "$HARNESS" != "opencode" ]
+}
+
+# The model every leg is configured to run.
+#
+# One name for all three harnesses: the opencode provider block, both Medulla
+# presets, and the mock LLM's own catalog all use it, so a scenario asserting
+# "the run used the configured model" has one thing to compare against.
+harness_model() {
+  printf 'mock-model'
 }
 
 # The `kind` the mock LLM logs this harness's completion requests under.

@@ -78,20 +78,31 @@ FROM debian:bookworm-slim
 ARG OPENCODE_VERSION=1.17.18
 ARG CLAUDE_VERSION=2.1.226
 ARG CODEX_VERSION=0.147.0
+# Node is here for one reason: the ACP transport reaches Claude and Codex through
+# `npx @agentclientprotocol/…-acp`, so `tests_acp.sh` cannot run without it.
+# 22 is the floor claude-agent-acp declares.
+ARG NODE_VERSION=22.22.0
 ARG TARGETARCH
 
 RUN set -eux; \
     apt-get update; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        tmux python3 curl bash ca-certificates git; \
+        tmux python3 curl bash ca-certificates git xz-utils; \
     rm -rf /var/lib/apt/lists/*; \
     ARCH="${TARGETARCH:-$(dpkg --print-architecture)}"; \
     case "$ARCH" in \
-        arm64) OC_ARCH=arm64; CLAUDE_PLATFORM=linux-arm64; CODEX_TRIPLE=aarch64-unknown-linux-musl ;; \
-        amd64) OC_ARCH=x64;   CLAUDE_PLATFORM=linux-x64;   CODEX_TRIPLE=x86_64-unknown-linux-musl ;; \
+        arm64) OC_ARCH=arm64; CLAUDE_PLATFORM=linux-arm64; CODEX_TRIPLE=aarch64-unknown-linux-musl; NODE_ARCH=arm64 ;; \
+        amd64) OC_ARCH=x64;   CLAUDE_PLATFORM=linux-x64;   CODEX_TRIPLE=x86_64-unknown-linux-musl;  NODE_ARCH=x64 ;; \
         *) echo "unsupported arch=$ARCH" >&2; exit 1 ;; \
     esac; \
     DL="curl -fsSL --http1.1 --retry 5 --retry-delay 3 --retry-all-errors"; \
+    \
+    $DL -o /tmp/node.tar.xz \
+        "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz"; \
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+        --exclude CHANGELOG.md --exclude LICENSE --exclude README.md; \
+    rm /tmp/node.tar.xz; \
+    node --version; npm --version; \
     \
     $DL -o /tmp/opencode.tar.gz \
         "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${OC_ARCH}.tar.gz"; \
@@ -139,6 +150,29 @@ ENV MEDULLA_BIN=/usr/local/bin/medulla \
     DISABLE_AUTOUPDATER=1 \
     E2E_HARNESS=opencode \
     TERM=xterm-256color
+
+# Prime the npm cache with the two ACP servers.
+#
+# The ACP transport spawns them as `npx -y <pkg>@latest`, which normally means a
+# registry round trip — and the harness runs with `--network none`. npm's cache
+# holds the packument as well as the tarball, so with `NPM_CONFIG_OFFLINE=true`
+# even the `@latest` tag resolves out of it. The versions baked here are whatever
+# was current at build time, which is the same freshness contract the production
+# spawn has; rebuild the image to move them.
+#
+# `harness.sh` points a run at this directory (`ACP_NPM_CACHE`) and turns
+# offline mode on; without it npx behaves normally, which is what a developer's
+# box wants.
+ENV ACP_NPM_CACHE=/opt/npm-cache
+RUN set -eux; \
+    NPM_CONFIG_CACHE=/opt/npm-cache NPM_CONFIG_UPDATE_NOTIFIER=false \
+        npx -y @agentclientprotocol/claude-agent-acp@latest --version; \
+    NPM_CONFIG_CACHE=/opt/npm-cache NPM_CONFIG_UPDATE_NOTIFIER=false \
+        npx -y @agentclientprotocol/codex-acp@latest --version; \
+    # Readable by the unprivileged user the container runs as, and writable
+    # because npx still opens the cache for write even when it reads everything
+    # it needs out of it.
+    chmod -R a+rwX /opt/npm-cache
 
 # Not root. Claude Code refuses `--dangerously-skip-permissions` under root or
 # sudo, which is exactly the flag a fleet host runs its harness with — so a root

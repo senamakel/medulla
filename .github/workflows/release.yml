@@ -99,6 +99,21 @@ jobs:
           docker run --rm --network none -e "E2E_HARNESS=$E2E_HARNESS" \
             medulla-e2e:latest bash /app/e2e/coordination/tests_multi.sh
 
+      # The other transport: the daemon spawns an ACP server, which spawns the
+      # harness. Everything the CLI seam does at spawn time has to be redone by
+      # other means there, and twice it silently was not.
+      - name: ACP transport scenarios (tests_acp.sh, --network none)
+        run: |
+          docker run --rm --network none -e "E2E_HARNESS=$E2E_HARNESS" \
+            medulla-e2e:latest bash /app/e2e/coordination/tests_acp.sh
+
+      # The surfaces an operator looks at: the `medulla <harness>` wrapper and
+      # the `medulla daemon --tui` screen, both full-screen TUIs on a real pty.
+      - name: Terminal scenarios (tests_tui.sh, --network none)
+        run: |
+          docker run --rm --network none -e "E2E_HARNESS=$E2E_HARNESS" \
+            medulla-e2e:latest bash /app/e2e/coordination/tests_tui.sh
+
   tag:
     needs: e2e-docker
     runs-on: ubuntu-latest
