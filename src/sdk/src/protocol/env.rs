@@ -28,13 +28,16 @@ pub const DEFAULT_STATUS_HEARTBEAT_MS: u64 = 15_000;
 /// Default silence-before-idle interval (ms).
 pub const DEFAULT_STATUS_IDLE_MS: u64 = 30_000;
 
-/// The first non-empty value among `keys`, in order.
+/// The first non-blank value among `keys`, in order.
+///
+/// Trimming for the emptiness check means an accidentally exported whitespace
+/// value does not mask a lower-precedence, usable setting.
 fn first_env<'a>(env: &'a HashMap<String, String>, keys: &[&str]) -> Option<&'a str> {
     keys.iter()
         .filter(|key| !key.is_empty())
         .filter_map(|key| env.get(*key))
         .map(String::as_str)
-        .find(|value| !value.is_empty())
+        .find(|value| !value.trim().is_empty())
 }
 
 /// The per-provider keys for `suffix`, highest precedence first:

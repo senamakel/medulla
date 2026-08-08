@@ -198,6 +198,16 @@ fn model_override_prefers_the_provider_key_then_the_generic_one() {
     // Exported but blank is a shell accident, not a request for "".
     let e = env(&[("MEDULLA_OPENHUMAN_MODEL", "   ")]);
     assert!(model_override(HarnessProvider::Openhuman, &e).is_none());
+    // A blank higher-precedence value must not mask a usable fallback.
+    let e = env(&[
+        ("MEDULLA_OPENHUMAN_MODEL", "   "),
+        ("TINYPLACE_OPENHUMAN_MODEL", "legacy/model"),
+        ("MEDULLA_HARNESS_MODEL", "generic/model"),
+    ]);
+    assert_eq!(
+        model_override(HarnessProvider::Openhuman, &e).as_deref(),
+        Some("legacy/model")
+    );
 }
 
 #[test]

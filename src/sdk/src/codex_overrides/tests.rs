@@ -64,6 +64,10 @@ fn write_codex_cache(dir: &std::path::Path) {
 }
 
 /// The `-c` pairs as a map, so assertions name a key rather than an index.
+///
+/// Values are TOML basic strings, not merely quote-wrapped text: parsing them
+/// keeps a Windows path's escaped backslashes equivalent to the value Codex
+/// receives.
 fn overrides(args: &[String]) -> HashMap<String, String> {
     let mut pairs = HashMap::new();
     let mut rest = args.iter();
@@ -71,7 +75,12 @@ fn overrides(args: &[String]) -> HashMap<String, String> {
         assert_eq!(flag, "-c", "every override is introduced by -c");
         let assignment = rest.next().expect("-c is followed by an assignment");
         let (key, value) = assignment.split_once('=').expect("assignment has a value");
-        pairs.insert(key.to_string(), value.trim_matches('"').to_string());
+        let document: toml::Value = toml::from_str(&format!("value = {value}"))
+            .expect("launch argument contains a valid TOML basic string");
+        let value = document["value"]
+            .as_str()
+            .expect("launch argument value remains a string");
+        pairs.insert(key.to_string(), value.to_string());
     }
     pairs
 }
