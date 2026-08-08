@@ -126,7 +126,18 @@ pub(crate) async fn run(
                 }
             }
             recv = sub.recv() => {
-                if recv.is_ok() {
+                // `Lagged` is the case with the *most* to redraw, not the least:
+                // the runtime published faster than this loop consumed, so the
+                // subscription dropped notifications and the snapshot on screen
+                // is further behind than a plain `Ok` would leave it. Treating it
+                // as nothing-to-do left the UI stale until the next unrelated
+                // event happened to wake it. Only `Closed` skips the refresh —
+                // there is no runtime left to read from.
+                let refresh = matches!(
+                    recv,
+                    Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_))
+                );
+                if refresh {
                     app.refresh_snapshot();
                     if should_refresh_context(&mut app) {
                         run_cmd(
