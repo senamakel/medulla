@@ -313,6 +313,24 @@ pub(crate) async fn run(
     })
 }
 
+/// Whether a runtime broadcast wakeup means the snapshot on screen is stale.
+///
+/// `Lagged` is the case with the *most* to redraw, not the least: the runtime
+/// published faster than this loop consumed, so the subscription dropped
+/// notifications and what is drawn is further behind than a plain `Ok` would
+/// leave it. Treating it as nothing-to-do — which an `is_ok()` test does — left
+/// the UI stale until some unrelated event happened to wake it, exactly when
+/// the most had changed.
+///
+/// `Closed` is the one wakeup that refreshes nothing: the runtime is gone, so
+/// there is no newer snapshot to read.
+fn runtime_ping_needs_refresh(recv: &Result<(), tokio::sync::broadcast::error::RecvError>) -> bool {
+    matches!(
+        recv,
+        Ok(()) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_))
+    )
+}
+
 /// Detect a changed event stream while the nested Context surface is visible.
 fn should_refresh_context(app: &mut App) -> bool {
     app.tab() == "Settings" && app.settings_subpage() == "Context" && app.events_changed()
