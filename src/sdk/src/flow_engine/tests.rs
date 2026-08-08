@@ -333,7 +333,11 @@ async fn concurrent_writers_of_one_key_never_leave_a_torn_document() {
         write.await.unwrap().expect("stores");
     }
 
-    let loaded = store.load("cursor").await.expect("parses").expect("present");
+    let loaded = store
+        .load("cursor")
+        .await
+        .expect("parses")
+        .expect("present");
     assert_eq!(loaded["pad"].as_str().map(str::len), Some(64 * 1024));
 
     // And no scratch file is left behind: the namespace holds the one document.
