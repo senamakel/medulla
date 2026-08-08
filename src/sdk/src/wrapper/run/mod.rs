@@ -206,7 +206,7 @@ pub async fn run_wrapper_with(mut config: WrapperConfig) -> anyhow::Result<i32> 
                     bridge.tick_status().await;
                 }
             }
-            _ = &mut signal_fut => {
+            _ = signals.recv() => {
                 if let Some(kill_tx) = kill.take() {
                     let _ = kill_tx.send(());
                 }

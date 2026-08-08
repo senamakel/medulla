@@ -156,8 +156,32 @@ impl AllowlistHttpClient {
         let port = url
             .port_or_known_default()
             .unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
-        refuse_private_resolution(host, port)?;
-        Ok(url)
+        let vetted = vet_resolution(host, port)?;
+        Ok((url, vetted))
+    }
+
+    /// A client that can only connect to `addrs` when it resolves `host`.
+    ///
+    /// Built per request rather than shared, because the override is a builder
+    /// option and the host is not known until one arrives. That costs a client
+    /// construction per call and gives up connection pooling; the alternative
+    /// is letting the transport perform its own lookup, which is precisely the
+    /// second resolution this exists to remove.
+    ///
+    /// An IP-literal host needs no override — there is no name to resolve, and
+    /// the literal has already been judged by `is_private_host`.
+    fn pinned(&self, host: &str, addrs: &[std::net::SocketAddr]) -> Result<reqwest::Client> {
+        let bare = host.trim_matches(['[', ']']);
+        if addrs.is_empty() || bare.parse::<std::net::IpAddr>().is_ok() {
+            return Ok(self.client.clone());
+        }
+        reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .resolve_to_addrs(bare, addrs)
+            .build()
+            .map_err(|err| {
+                EngineError::Capability(format!("http_request: cannot build client: {err}"))
+            })
     }
 }
 
