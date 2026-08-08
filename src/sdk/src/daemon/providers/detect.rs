@@ -93,7 +93,10 @@ fn is_executable(path: &std::path::Path) -> bool {
 ///
 /// So OpenHuman is reachable by being *named* — see
 /// [`HarnessProvider::needs_binary`] and the dispatch in
-/// [`crate::daemon::task_loop`] — never by being fallen back to.
+/// [`crate::daemon::task_loop`] — never by implicit fallback. An operator who
+/// *explicitly* configures `openhuman` as the host's default has named it, so
+/// the embedded host accepts and honours that default; see
+/// [`crate::daemon::embedded::EmbeddedDaemon::start`].
 pub fn detect_providers(
     env: &HashMap<String, String>,
     only: Option<&[HarnessProvider]>,
