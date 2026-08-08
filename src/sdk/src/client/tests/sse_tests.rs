@@ -14,7 +14,7 @@ use futures::StreamExt;
 fn parse_all(input: &str) -> Vec<SseFrame> {
     let mut parser = SseParser::new();
     let mut out = Vec::new();
-    parser.feed(input, &mut out);
+    parser.feed(input, &mut out).expect("no overflow");
     out
 }
 
