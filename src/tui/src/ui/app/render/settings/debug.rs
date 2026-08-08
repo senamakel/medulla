@@ -72,6 +72,7 @@ impl App {
         // page outside the viewport: no row highlighted, and the chunks below the
         // fold unreachable on a short terminal.
         let start = crate::ui::selection::viewport_start(idx, self.contexts.len(), vis);
+        let mut lines: Vec<TLine> = Vec::new();
         for (i, item) in self.contexts.iter().enumerate().skip(start).take(vis) {
             let mut style = Style::default();
             if i == idx {
