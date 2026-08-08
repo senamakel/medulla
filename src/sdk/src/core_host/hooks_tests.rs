@@ -6,6 +6,7 @@
 use openhuman_core::openhuman::agent::hooks::{ToolHook, ToolHookContext, ToolHookEvent};
 
 use super::hooks::*;
+use super::turn_cwd::with_turn_cwd;
 use crate::harness_hooks::{HookEvent, HookHandler, HookSpec};
 use crate::protocol::HarnessProvider;
 
@@ -79,6 +80,66 @@ fn tool_payload_uses_the_native_hook_input_envelope() {
     assert_eq!(payload["tool_name"], "Write");
     assert_eq!(payload["tool_input"], serde_json::json!({}));
     assert!(payload["cwd"].is_string());
+}
+
+#[tokio::test]
+async fn the_payload_names_the_directory_the_turn_is_working_in() {
+    // The bug this guards: a turn working in a feature worktree used to be
+    // reported with the Medulla process's startup directory, so a PostToolUse
+    // auto-commit hook checkpointed the wrong repository.
+    let turn_dir = std::path::Path::new("/repo/worktrees/feature");
+    let payload = with_turn_cwd(Some(turn_dir), async {
+        tool_hook_payload(&tool_context("Write"))
+    })
+    .await;
+    assert_eq!(payload["cwd"], "/repo/worktrees/feature");
+}
+
+#[tokio::test]
+async fn two_turns_in_two_directories_each_get_their_own() {
+    let first = with_turn_cwd(Some(std::path::Path::new("/repo/one")), async {
+        tool_hook_payload(&tool_context("Write"))
+    })
+    .await;
+    let second = with_turn_cwd(Some(std::path::Path::new("/repo/two")), async {
+        tool_hook_payload(&tool_context("Write"))
+    })
+    .await;
+    assert_eq!(first["cwd"], "/repo/one");
+    assert_eq!(second["cwd"], "/repo/two");
+}
+
+#[tokio::test]
+async fn a_turn_that_declares_no_directory_still_reports_the_process_one() {
+    // The TUI's own chat and MCP calls open no scope; the process directory is
+    // the honest answer for them, so the fallback must survive.
+    let expected = std::env::current_dir().expect("a test process has a working directory");
+    let payload = with_turn_cwd(None, async { tool_hook_payload(&tool_context("Write")) }).await;
+    assert_eq!(payload["cwd"], expected.to_str().expect("utf-8 path"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_post_tool_command_is_handed_the_turns_directory_on_stdin() {
+    // End to end through the command boundary: what the operator's hook script
+    // actually reads out of `.cwd` is the run's directory.
+    let hook = MedullaToolHook::new(
+        Vec::new(),
+        vec![spec_with(
+            "payload=$(cat); case \"$payload\" in *'\"cwd\":\"/repo/worktrees/feature\"'*) exit 0 ;; *) exit 1 ;; esac",
+            "*",
+            Some(5),
+        )],
+    );
+    with_turn_cwd(
+        Some(std::path::Path::new("/repo/worktrees/feature")),
+        async {
+            hook.after_tool(&tool_context("Write"))
+                .await
+                .expect("the post-tool command is told the turn's directory")
+        },
+    )
+    .await;
 }
 
 #[cfg(unix)]
