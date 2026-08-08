@@ -17,6 +17,7 @@ fn guard() -> std::sync::MutexGuard<'static, ()> {
 fn clear() {
     std::env::remove_var(OPENHUMAN_WORKSPACE_ENV);
     std::env::remove_var(OPENHUMAN_ACTION_DIR_ENV);
+    std::env::remove_var(OPENHUMAN_MEDULLA_BASE_URL_ENV);
     std::env::remove_var(OPENHUMAN_BACKEND_URL_ENV);
 }
 
