@@ -432,10 +432,16 @@ async fn run_provider_attempt(
                 // Bounded for the same reason as stdout: only the last
                 // `TAIL_CAP` bytes are ever kept, so a child writing one endless
                 // stderr line must not be buffered whole to produce them.
-                match read_line_bounded(&mut reader, &mut buf, MAX_RECORD_BYTES).await {
+                // An oversized record keeps its trailing `TAIL_CAP` bytes in
+                // `buf`, so the tail still carries whatever diagnostic the child
+                // wrote — including the opencode `database is locked` marker the
+                // retry loop keys on — even when a single record blew past the
+                // ceiling.
+                match read_line_bounded(&mut reader, &mut buf, MAX_RECORD_BYTES, Some(TAIL_CAP))
+                    .await
+                {
                     Ok(LineRead::Eof) => break,
-                    Ok(LineRead::Oversized) => continue,
-                    Ok(LineRead::Line) => {
+                    Ok(LineRead::Oversized) | Ok(LineRead::Line) => {
                         let chunk = String::from_utf8_lossy(&buf);
                         let mut tail = stderr_tail.lock().unwrap();
                         tail.push_str(&chunk);
