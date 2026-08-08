@@ -39,6 +39,7 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
         prompt,
         cwd,
         model,
+        env,
         timeout_ms,
         abort,
         resume_session_id,
@@ -47,6 +48,10 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
         on_session,
         ..
     } = options;
+
+    // The operator's environment override outranks whatever the dispatch
+    // resolved; see [`super::model`] for the whole precedence order.
+    let model = super::effective_model(model, &env);
 
     // Said once, at the top, rather than left for an operator to infer from an
     // empty hook log. There is no child process here, so there is no argv for
