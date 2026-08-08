@@ -85,7 +85,13 @@ impl EmbeddedDaemon {
         };
 
         let providers = detect_providers(&env, options.providers.as_deref(), None);
-        if providers.is_empty() {
+        // An `openhuman` default is valid even when `detect_providers` found
+        // nothing — that detector lists coding CLIs by probing for a binary,
+        // and OpenHuman has none to find. The embedded core is always available
+        // in this process, so a machine whose only harness is that core is still
+        // a host for `openhuman` tasks.
+        let openhuman_default = options.default_provider == Some(HarnessProvider::Openhuman);
+        if providers.is_empty() && !openhuman_default {
             return Err(match &options.providers {
                 Some(requested) => format!(
                     "none of the requested coding-agent CLIs are installed: {}",
@@ -100,6 +106,11 @@ impl EmbeddedDaemon {
             });
         }
         let default_provider = match options.default_provider {
+            // The embedded core is always reachable in-process, so a host may
+            // default to it whether or not a coding CLI was detected — the
+            // detector deliberately never finds OpenHuman (see
+            // `crate::daemon::providers::detect_providers`).
+            Some(provider) if provider == HarnessProvider::Openhuman => provider,
             Some(provider) if !providers.contains(&provider) => {
                 return Err(format!(
                     "default provider \"{}\" is not installed; found: {}",
