@@ -425,7 +425,7 @@ async fn an_oversized_record_is_discarded_without_being_buffered() {
 
     let mut buf = Vec::new();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, None).await.unwrap(),
         LineRead::Oversized
     );
     assert!(
@@ -437,16 +437,55 @@ async fn an_oversized_record_is_discarded_without_being_buffered() {
     // Reading resumes on the record *after* the oversized one.
     buf.clear();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, None).await.unwrap(),
         LineRead::Line
     );
     assert_eq!(buf, b"{\"ok\":true}\n");
 
     buf.clear();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, None).await.unwrap(),
         LineRead::Eof
     );
+}
+
+/// With a retained tail, an oversized record still leaves its *last* bytes in
+/// the buffer: a stderr tail keeps whatever the child wrote last — including
+/// the `database is locked` transient marker — without buffering the whole
+/// record.
+#[tokio::test]
+async fn an_oversized_record_with_a_retained_tail_keeps_its_trailing_bytes() {
+    use super::execute::{read_line_bounded, LineRead};
+
+    // One 4 KiB record with no newline, then a normal one.
+    let mut stream = tokio::io::BufReader::new(std::io::Cursor::new({
+        let mut bytes = vec![b'x'; 4096];
+        bytes.extend_from_slice(b"\nsqlite: database is locked\n");
+        bytes
+    }));
+
+    let mut buf = Vec::new();
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 64, Some(16)).await.unwrap(),
+        LineRead::Oversized
+    );
+    assert!(
+        buf.capacity() <= 32,
+        "only the tail may be held: {} bytes of capacity",
+        buf.capacity()
+    );
+    // The retained tail is the *last* bytes of the endless record, so the
+    // transient-lock marker written after the overflow survives.
+    let tail = String::from_utf8_lossy(&buf);
+    assert!(tail.contains("database is locked"), "got {tail:?}");
+
+    // Reading still resumes on the record after the oversized one.
+    buf.clear();
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 64, Some(16)).await.unwrap(),
+        LineRead::Line
+    );
+    assert_eq!(buf, b"sqlite: database is locked\n");
 }
 
 /// A record ending at EOF without a newline is still a record, and a record
