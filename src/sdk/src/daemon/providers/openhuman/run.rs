@@ -82,22 +82,14 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
     // resolved; see [`super::model`] for the whole precedence order.
     let model = super::effective_model(model, &env);
 
-    // Said once, at the top, rather than left for an operator to infer from an
-    // empty hook log. There is no child process here, so there is no argv for
-    // `harness_hooks` to install onto and nothing for a hook to observe.
-    let configured = hooks.for_provider(HarnessProvider::Openhuman).len();
-    if configured > 0 {
-        tracing::warn!(
-            hooks = configured,
-            "medulla hooks are not installed for OpenHuman: the turn runs in this process, \
-             so there is no child harness for a lifecycle hook to wrap",
-        );
-    }
     if abort.is_aborted() {
         return Err("openhuman task aborted before start".to_string());
     }
 
-    let core = crate::core_host::shared::shared().await?;
+    // A headless workflow may be the first OpenHuman caller in this process.
+    // Its hooks must reach that lazy boot; an already installed TUI core is
+    // retained by `shared_with_hooks` and already owns its hook registration.
+    let core = crate::core_host::shared::shared_with_hooks(&hooks).await?;
 
     // The core's own continuity key. A bounded workflow node arrives with no
     // resume id and gets a fresh thread — which is the isolation a node needs,
