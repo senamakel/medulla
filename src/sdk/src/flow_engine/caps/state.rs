@@ -5,6 +5,9 @@
 //! their filename rather than used verbatim: a key is author-supplied and may
 //! contain path separators, and a `StateStore` must never be a way to write
 //! outside its own directory.
+//!
+//! Writes are staged and renamed, never made in place, so a key can never be
+//! left holding a half-written document that no later read can recover from.
 
 use std::path::{Path, PathBuf};
 
