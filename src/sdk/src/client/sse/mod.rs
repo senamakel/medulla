@@ -253,7 +253,17 @@ impl StreamState {
         // nameable without depending on `bytes` directly.
         let body = resp.bytes_stream().map(|r| r.map(|b| b.to_vec()));
         self.body = Some(body.boxed());
+        self.reconnect_delay_ms = RECONNECT_DELAY_MIN_MS;
         Ok(())
+    }
+
+    /// Tear the body down so the next poll reconnects, discarding the truncated
+    /// frame's parser state along with it.
+    fn drop_body(&mut self) {
+        self.body = None;
+        // The bytes after the reconnect belong to a fresh frame stream; keeping
+        // the half-read line would splice them onto it.
+        self.parser.reset();
     }
 
     /// Convert a completed frame into a deduped, decoded envelope (if any).
