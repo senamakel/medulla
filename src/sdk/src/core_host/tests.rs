@@ -170,7 +170,10 @@ fn bind_from_config_sets_everything_a_lazy_boot_needs() {
         std::env::var(OPENHUMAN_WORKSPACE_ENV).unwrap(),
         workspace_dir(Path::new("/tmp/scratch-home")).to_string_lossy()
     );
-    assert_eq!(std::env::var(OPENHUMAN_ACTION_DIR_ENV).unwrap(), "/repos/work");
+    assert_eq!(
+        std::env::var(OPENHUMAN_ACTION_DIR_ENV).unwrap(),
+        "/repos/work"
+    );
     assert_eq!(
         std::env::var(OPENHUMAN_MEDULLA_BASE_URL_ENV).unwrap(),
         "https://staging-api.tinyhumans.ai"
@@ -195,15 +198,24 @@ fn bind_from_config_leaves_the_operator_s_own_bindings_alone() {
     config.backend.base_url = "https://api.tinyhumans.ai".to_string();
     config.workflow.workspaces = vec!["/repos/work".to_string()];
     let env = HashMap::from([
-        (OPENHUMAN_WORKSPACE_ENV.to_string(), "/opt/openhuman/ws".to_string()),
-        (OPENHUMAN_BACKEND_URL_ENV.to_string(), "https://self.hosted".to_string()),
+        (
+            OPENHUMAN_WORKSPACE_ENV.to_string(),
+            "/opt/openhuman/ws".to_string(),
+        ),
+        (
+            OPENHUMAN_BACKEND_URL_ENV.to_string(),
+            "https://self.hosted".to_string(),
+        ),
     ]);
     bind_from_config(&env, &config, Path::new("/tmp/scratch-home"));
     assert!(
         std::env::var(OPENHUMAN_WORKSPACE_ENV).is_err(),
         "the operator's workspace override must not be re-derived"
     );
-    assert_eq!(std::env::var(OPENHUMAN_ACTION_DIR_ENV).unwrap(), "/repos/work");
+    assert_eq!(
+        std::env::var(OPENHUMAN_ACTION_DIR_ENV).unwrap(),
+        "/repos/work"
+    );
     assert!(
         std::env::var(OPENHUMAN_BACKEND_URL_ENV).is_err(),
         "the operator's backend override must not be re-derived"
