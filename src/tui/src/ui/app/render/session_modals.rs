@@ -17,6 +17,9 @@ use super::super::types::{App, SessionPickerStep};
 
 const HARNESS_TRAILER_LINES: usize = 3;
 
+/// Lines drawn below the workspace list: the single "unmanaged · …" footer.
+const WORKSPACE_TRAILER_LINES: usize = 1;
+
 impl App {
     /// Draw the "start a session" picker.
     pub(super) fn draw_harness_picker(&mut self, f: &mut Frame, area: Rect) {
