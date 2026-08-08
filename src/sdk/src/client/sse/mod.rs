@@ -343,6 +343,7 @@ pub fn event_stream(
         pending: VecDeque::new(),
         body: None,
         first_connect: true,
+        reconnect_delay_ms: RECONNECT_DELAY_MIN_MS,
     };
     futures::stream::unfold(state, |mut state| async move {
         state.next().await.map(|item| (item, state))
