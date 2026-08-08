@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use super::probe::IdleClaim;
 use super::super::pty::{LaunchSpec, PtyManager};
 
 /// Checkout and branch last reported by a reusable harness session.
