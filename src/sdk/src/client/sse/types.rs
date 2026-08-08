@@ -73,4 +73,7 @@ pub(super) struct StreamState {
     pub(super) pending: VecDeque<Result<EventEnvelope>>,
     pub(super) body: Option<futures::stream::BoxStream<'static, reqwest::Result<Vec<u8>>>>,
     pub(super) first_connect: bool,
+    /// Delay before the next reconnect attempt, doubled per failure and reset
+    /// once a connection is established.
+    pub(super) reconnect_delay_ms: u64,
 }
