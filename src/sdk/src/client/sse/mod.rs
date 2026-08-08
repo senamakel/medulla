@@ -45,7 +45,7 @@ impl SseParser {
     ///
     /// Returns [`SseOverflow`] when a line or payload exceeded
     /// [`MAX_FRAME_BYTES`] and was discarded.
-    pub fn feed_bytes(&mut self, bytes: &[u8], out: &mut Vec<SseFrame>) -> Result<(), SseOverflow> {
+    pub fn feed_bytes(&mut self, bytes: &[u8], out: &mut Vec<SseFrame>) -> ParseResult {
         let buf = if self.utf8_tail.is_empty() {
             None
         } else {
@@ -96,7 +96,7 @@ impl SseParser {
     /// Returns [`SseOverflow`] when a line or payload exceeded
     /// [`MAX_FRAME_BYTES`]; the offending frame is dropped and parsing resumes
     /// at the next frame boundary.
-    pub fn feed(&mut self, chunk: &str, out: &mut Vec<SseFrame>) -> Result<(), SseOverflow> {
+    pub fn feed(&mut self, chunk: &str, out: &mut Vec<SseFrame>) -> ParseResult {
         self.line_buf.push_str(chunk);
         let mut overflowed = false;
         loop {
@@ -142,7 +142,7 @@ impl SseParser {
         self.discarding = true;
     }
 
-    fn feed_line(&mut self, line: &str, out: &mut Vec<SseFrame>) -> Result<(), SseOverflow> {
+    fn feed_line(&mut self, line: &str, out: &mut Vec<SseFrame>) -> ParseResult {
         if line.is_empty() {
             // Blank line terminates the frame.
             if self.got_data || self.id.is_some() {
@@ -353,6 +353,7 @@ pub fn event_stream(
 mod types;
 pub use types::SeqDedup;
 pub use types::SseFrame;
+pub use types::ParseResult;
 pub use types::SseOverflow;
 pub use types::SseParser;
 pub use types::MAX_FRAME_BYTES;
