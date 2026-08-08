@@ -414,7 +414,7 @@ async fn abort_cancelled_resolves_when_signalled() {
 /// module documents is then no ceiling at all.
 #[tokio::test]
 async fn an_oversized_record_is_discarded_without_being_buffered() {
-    use super::execute::{read_line_bounded, LineRead};
+    use super::{execute::read_line_bounded, types::LineRead};
 
     // One 4 KiB record with no newline in sight, then a normal one.
     let mut stream = tokio::io::BufReader::new(std::io::Cursor::new({
@@ -461,7 +461,7 @@ async fn an_oversized_record_is_discarded_without_being_buffered() {
 /// buffering the whole record.
 #[tokio::test]
 async fn an_oversized_record_with_a_retained_tail_keeps_its_trailing_bytes() {
-    use super::execute::{read_line_bounded, LineRead};
+    use super::{execute::read_line_bounded, types::LineRead};
 
     // One record far past the cap with no newline until the marker, then a
     // normal one. The marker is written *after* the overflow, which is exactly
@@ -505,7 +505,7 @@ async fn an_oversized_record_with_a_retained_tail_keeps_its_trailing_bytes() {
 /// exactly at the cap is still under it.
 #[tokio::test]
 async fn a_bounded_read_keeps_records_at_or_under_the_cap() {
-    use super::execute::{read_line_bounded, LineRead};
+    use super::{execute::read_line_bounded, types::LineRead};
 
     let mut stream = tokio::io::BufReader::new(std::io::Cursor::new(b"abcd\ntrailing".to_vec()));
     let mut buf = Vec::new();
