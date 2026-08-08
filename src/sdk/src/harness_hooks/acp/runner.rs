@@ -185,7 +185,11 @@ pub(super) fn tool_matcher_candidates(kind: &str) -> Vec<String> {
 }
 
 /// Fold an ACP `path`/`filePath` input key into the `file_path` spelling the
-/// shared hook document and Codex's own hooks read.
+/// shared hook document and Codex's own hooks read, so a hook written for a
+/// directly-spawned Codex session sees the same key over ACP.
+///
+/// A present `file_path` is preserved; otherwise the first of `path`/`filePath`
+/// supplies it. Non-object inputs pass through unchanged.
 pub(super) fn normalized_input(input: &Value) -> Value {
     let Value::Object(input) = input else {
         return input.clone();
