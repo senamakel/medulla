@@ -363,3 +363,54 @@ async fn sequential_task_frames_from_one_sender_do_not_share_a_session() {
 // a dispatch candidate, a dispatch with nothing else available queues rather
 // than failing, and a queue that outlives its budget ends in a real error. The
 // two tests that used to live here asserted the refusal those replaced.
+
+#[test]
+fn the_session_probe_runs_off_the_runtime_thread() {
+    // Regression. Deciding which session serves a task blocks twice over:
+    // `claim_idle` sleeps out the previous turn's completion-chime grace (up to
+    // 300ms) on the calling thread, and the checkout check canonicalizes every
+    // live session's path. Called inline from `run`, that parked a tokio worker
+    // per dispatch, and a burst of task frames could park most of the runtime —
+    // taking the inbox drain and every screen sampler with it.
+    //
+    // A single-threaded runtime makes the fix observable: if the probe still ran
+    // inline nothing else could be served before it answered, so a task spawned
+    // beside it would not have run by the time it returns.
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    use crate::worker::executor::SessionProbe;
+
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = dir.path().to_string_lossy().into_owned();
+    let (executor, _env) = harness(dir.path(), &cwd);
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async move {
+        let ran_beside = Arc::new(AtomicBool::new(false));
+        let flag = ran_beside.clone();
+        tokio::spawn(async move { flag.store(true, Ordering::SeqCst) });
+
+        let probe = executor
+            .probe_session(
+                SessionClass::Unbound,
+                "peer-bob".to_string(),
+                HarnessProvider::Codex,
+                &cwd,
+            )
+            .await
+            .expect("the probe completes");
+
+        assert!(
+            matches!(probe, SessionProbe::Fresh),
+            "nothing to reuse and nobody in the checkout"
+        );
+        assert!(
+            ran_beside.load(Ordering::SeqCst),
+            "the runtime kept serving other tasks while the probe was in flight"
+        );
+    });
+}
