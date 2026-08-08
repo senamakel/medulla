@@ -134,7 +134,14 @@ impl SseParser {
             if self.discarding {
                 // A blank line ends the frame being dropped; resume parsing.
                 if line.is_empty() {
-                    self.discarding = false;
+                    if self.in_discarded_line {
+                        // This empty line merely finished the oversized line
+                        // whose tail was cleared; the frame itself is still
+                        // being dropped, so keep discarding for its blank line.
+                        self.in_discarded_line = false;
+                    } else {
+                        self.discarding = false;
+                    }
                 }
                 continue;
             }
