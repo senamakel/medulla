@@ -12,11 +12,14 @@ use async_trait::async_trait;
 use tinyflows::caps::AgentRunner;
 
 use super::{dispatch_harness, AgentRoute, HarnessAgentRunner};
+use crate::flow_engine::agent_evidence::AgentEvidence;
 use crate::flow_engine::caps::dispatch::HarnessDispatch;
 use crate::flow_engine::harness_choice::HarnessChoice;
 use crate::flow_engine::settings::CapabilitySettings;
+use crate::harness_transcript::TranscriptEntry;
 use crate::hub::{RunError, TaskOutcome, TaskRequest};
 use crate::protocol::{HarnessProvider, HarnessTransport};
+use crate::workflows::RunStep;
 
 /// A dispatch that is never actually reached: these tests stop at the request.
 struct UnusedDispatch;
