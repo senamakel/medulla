@@ -18,7 +18,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::bridge::Bridge;
-use crate::protocol::{decode_task_frame, TaskFrameKind};
+use crate::protocol::{decode_task_frame, HarnessProvider, TaskFrameKind};
 
 use super::providers::{detect_providers, run_provider_task, RunTaskFn, RunTaskOptions};
 use super::types::{DaemonConfig, DaemonRuntime, SendFn};
