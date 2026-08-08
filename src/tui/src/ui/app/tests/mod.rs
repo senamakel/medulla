@@ -375,7 +375,10 @@ fn clicking_a_windowed_context_row_selects_the_chunk_that_is_drawn() {
     // An unscrolled list still maps a row straight onto its index.
     a.context_index = 0;
     let _ = a.handle_click(3, 14);
-    assert_eq!(a.context_index, 9, "the tenth drawn row of an unscrolled list");
+    assert_eq!(
+        a.context_index, 9,
+        "the tenth drawn row of an unscrolled list"
+    );
 
     // A click outside the list rect changes nothing.
     let _ = a.handle_click(3, 40);

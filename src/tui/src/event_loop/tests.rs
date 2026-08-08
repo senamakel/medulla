@@ -6,8 +6,8 @@ use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 use medulla_tui::ui::app::App;
 
-use super::{runtime_ping_needs_refresh, should_refresh_context};
 use super::update_checker::spawn_update_checker;
+use super::{runtime_ping_needs_refresh, should_refresh_context};
 
 #[test]
 fn context_refresh_tracks_the_nested_settings_page() {
