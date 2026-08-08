@@ -707,6 +707,10 @@ pub async fn evolve_here(
         "acp".to_string(),
     );
     crate::mcp::preflight(&env, cwd).map_err(crate::workflows::WorkflowError::Engine)?;
+    // A review may dispatch to the embedded core; bind it before the host
+    // starts so a lazy boot reads this account's state, not ambient
+    // `~/.openhuman`.
+    bind_core(&env, &cwd.to_string_lossy());
 
     let host = LocalWorkflowHost::start(
         EmbeddedDaemonOptions {
