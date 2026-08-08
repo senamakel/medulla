@@ -399,9 +399,13 @@ async fn run_provider_attempt(
             let mut buf = Vec::new();
             loop {
                 buf.clear();
-                match reader.read_until(b'\n', &mut buf).await {
-                    Ok(0) => break,
-                    Ok(_) => {
+                // Bounded for the same reason as stdout: only the last
+                // `TAIL_CAP` bytes are ever kept, so a child writing one endless
+                // stderr line must not be buffered whole to produce them.
+                match read_line_bounded(&mut reader, &mut buf, MAX_RECORD_BYTES).await {
+                    Ok(LineRead::Eof) => break,
+                    Ok(LineRead::Oversized) => continue,
+                    Ok(LineRead::Line) => {
                         let chunk = String::from_utf8_lossy(&buf);
                         let mut tail = stderr_tail.lock().unwrap();
                         tail.push_str(&chunk);
