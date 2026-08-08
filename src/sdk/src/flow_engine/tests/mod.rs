@@ -78,6 +78,7 @@ impl HarnessDispatch for RecordingDispatch {
                 },
                 harness: None,
                 session_id: None,
+                transcript: Vec::new(),
             }),
         }
     }
