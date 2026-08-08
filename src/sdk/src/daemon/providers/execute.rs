@@ -18,7 +18,7 @@ use super::super::mappers::HarnessLineMapper;
 use super::detect::{
     build_resumed_run_args, extract_session_id, provider_bin, provider_name, supports_stdin,
 };
-use super::types::{OnEvent, OnStdin, RunSpec, RunTaskOptions, RunTaskResult};
+use super::types::{LineRead, OnEvent, OnStdin, RunSpec, RunTaskOptions, RunTaskResult};
 
 /// A record that never terminates in a newline is dropped past this size.
 const MAX_RECORD_BYTES: usize = 1_048_576;
