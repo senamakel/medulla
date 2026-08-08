@@ -1,4 +1,4 @@
-//! The gate over an `agent` node's choice of harness and model.
+//! The gate over an `agent` node's choice of *harness*.
 //!
 //! Both failures this catches are silent at run time in the worst way. A
 //! misspelled harness would otherwise fail the node minutes into a run, after
