@@ -300,20 +300,25 @@ impl StreamState {
             let body = self.body.as_mut().expect("body set above");
             match body.next().await {
                 Some(Ok(bytes)) => {
-                    let text = String::from_utf8_lossy(&bytes);
                     let mut frames = Vec::new();
-                    self.parser.feed(&text, &mut frames);
+                    let overflow = self.parser.feed_bytes(&bytes, &mut frames);
                     for frame in frames {
                         self.ingest(frame);
                     }
+                    if let Err(e) = overflow {
+                        // The oversized frame is gone; say so rather than
+                        // letting it vanish silently.
+                        self.pending
+                            .push_back(Err(ClientError::Decode(e.to_string())));
+                    }
                 }
                 Some(Err(e)) => {
-                    self.body = None;
+                    self.drop_body();
                     return Some(Err(ClientError::Transport(e)));
                 }
                 None => {
                     // Server closed the connection; reconnect from cursor.
-                    self.body = None;
+                    self.drop_body();
                 }
             }
         }
