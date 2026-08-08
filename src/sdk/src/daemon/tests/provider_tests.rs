@@ -328,3 +328,47 @@ async fn select_provider_falls_back_to_first_when_default_absent() {
         .expect("ack");
     assert_eq!(ack.harness, Some(HarnessProvider::Codex));
 }
+
+#[tokio::test]
+async fn a_default_openhuman_runs_plain_tasks_on_the_embedded_core() {
+    // An operator who configures `openhuman` as the host's default means a task
+    // that names no provider runs on the embedded core — even though
+    // `config.providers` never lists it (OpenHuman has no binary to detect).
+    let seen_provider: Arc<StdMutex<Option<HarnessProvider>>> = Arc::new(StdMutex::new(None));
+    let capture = seen_provider.clone();
+    let run_task: RunTaskFn = Arc::new(move |opts: RunTaskOptions| {
+        *capture.lock().unwrap() = Some(opts.provider);
+        Box::pin(async move {
+            Ok(RunTaskResult {
+                session_id: None,
+                usage: None,
+                provider: opts.provider,
+                reply: "done".to_string(),
+                events: 0,
+            })
+        })
+    });
+    let (send, recorded) = recording_send();
+    let mut config = base_config();
+    config.providers = Vec::new();
+    config.default_provider = HarnessProvider::Openhuman;
+    let runtime = DaemonRuntime::new(config, run_task, send);
+
+    runtime.handle_message(
+        "peer".into(),
+        String::new(),
+        Some(task_frame("t1", "work", None)),
+    );
+    runtime.idle().await;
+
+    assert_eq!(
+        *seen_provider.lock().unwrap(),
+        Some(HarnessProvider::Openhuman),
+        "a plain task must inherit the configured openhuman default"
+    );
+    let frames = decoded_frames(&recorded);
+    assert!(
+        frames.iter().all(|f| f.kind != TaskFrameKind::Error),
+        "the task must not be refused: {frames:?}"
+    );
+}
