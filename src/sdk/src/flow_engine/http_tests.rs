@@ -5,6 +5,7 @@
 //! network-capsule cases pushed the file over the repository's 500-line ceiling.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde_json::json;
 use tinyflows::caps::HttpClient;
