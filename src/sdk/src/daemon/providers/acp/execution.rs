@@ -322,6 +322,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 }
 
 /// Construct the ACP server command for a supported harness.
+#[cfg(test)]
 pub(super) fn agent_for(options: &RunTaskOptions) -> Result<AcpAgent, String> {
     // Built once and shared: the model flags below are derived from the same
     // map the child receives, and `router_env` writing `OPENAI_BASE_URL` into it
