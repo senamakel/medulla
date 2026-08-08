@@ -337,7 +337,13 @@ async fn concurrent_writers_of_one_key_never_leave_a_torn_document() {
     assert_eq!(loaded["pad"].as_str().map(str::len), Some(64 * 1024));
 
     // And no scratch file is left behind: the namespace holds the one document.
-    let leftovers: Vec<_> = std::fs::read_dir(root.path().join(digest("workflow:alpha")))
+    let namespace = std::fs::read_dir(root.path())
+        .unwrap()
+        .next()
+        .expect("the namespace directory")
+        .unwrap()
+        .path();
+    let leftovers: Vec<_> = std::fs::read_dir(namespace)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
         .collect();
