@@ -1,8 +1,8 @@
 //! Data model for headless provider runs: the callback aliases, the cooperative
 //! [`Abort`] handle, and the input/output records ([`RunTaskOptions`],
-//! [`RunTaskResult`]) plus the injectable executor alias [`RunTaskFn`]. The
-//! detection and execution logic lives in the sibling `detect`/`execute`
-//! modules.
+//! [`RunTaskResult`]) plus the injectable executor alias [`RunTaskFn`] and the
+//! bounded-reader outcome enum [`LineRead`]. The detection and execution logic
+//! lives in the sibling `detect`/`execute` modules.
 
 use std::future::Future;
 use std::pin::Pin;
