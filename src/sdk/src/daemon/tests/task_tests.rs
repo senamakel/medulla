@@ -422,12 +422,14 @@ async fn a_screen_message_is_never_typed_into_a_harness() {
 async fn concurrent_claims_on_one_task_key_admit_exactly_one() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    let run_task: RunTaskFn = Arc::new(|_: RunTaskOptions| {
-        Box::pin(async {
+    let run_task: RunTaskFn = Arc::new(|opts: RunTaskOptions| {
+        Box::pin(async move {
             Ok(RunTaskResult {
-                reply: String::new(),
                 session_id: None,
                 usage: None,
+                provider: opts.provider,
+                reply: "done".to_string(),
+                events: 0,
             })
         })
     });

@@ -39,7 +39,7 @@ impl DaemonRuntime {
     /// first's [`RunningTask`], and the first admission guard's drop would then
     /// remove the shared key — leaving a harness running that no abort, input,
     /// or screen frame can reach.
-    pub(super) fn register_running(&self, key: &str, task: RunningTask) -> bool {
+    pub(in crate::daemon) fn register_running(&self, key: &str, task: RunningTask) -> bool {
         use std::collections::hash_map::Entry;
         match self.inner.running.lock().unwrap().entry(key.to_string()) {
             Entry::Occupied(_) => false,
