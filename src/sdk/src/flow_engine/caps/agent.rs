@@ -428,11 +428,7 @@ impl HarnessAgentRunner {
             },
         );
         let status = self.stream_for(node_id.clone());
-        let outcome = match self
-            .dispatch
-            .dispatch_with_status(request, status)
-            .await
-        {
+        let outcome = match self.dispatch.dispatch_with_status(request, status).await {
             Ok(outcome) => outcome,
             Err(err) => {
                 // The engine records a failed dispatch as an Error step, so it

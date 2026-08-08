@@ -117,8 +117,14 @@ fn an_empty_transcript_keeps_its_slot_in_the_queue() {
         steps[0].transcript.is_empty(),
         "an empty activation must not claim a later transcript"
     );
-    assert_eq!(steps[1].transcript, vec![entry("agent_message", "first pass")]);
-    assert_eq!(steps[2].transcript, vec![entry("tool_call", "Bash(npm test)")]);
+    assert_eq!(
+        steps[1].transcript,
+        vec![entry("agent_message", "first pass")]
+    );
+    assert_eq!(
+        steps[2].transcript,
+        vec![entry("tool_call", "Bash(npm test)")]
+    );
 }
 
 #[test]
