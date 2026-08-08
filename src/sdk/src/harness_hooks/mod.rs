@@ -206,7 +206,7 @@ fn unsupported_reason(provider: HarnessProvider, event: HookEvent) -> String {
                 .to_string()
         }
         HarnessProvider::Openhuman => {
-            "OpenHuman runs in-process and has no external harness config to install hooks into"
+            "OpenHuman's embedded runner currently raises PreToolUse, PostToolUse, and Stop"
                 .to_string()
         }
         HarnessProvider::Claude | HarnessProvider::Codex => {

@@ -132,7 +132,11 @@ impl HookEvent {
         match provider {
             HarnessProvider::Claude => true,
             HarnessProvider::Codex => self != HookEvent::Notification,
-            HarnessProvider::Opencode | HarnessProvider::Openhuman => false,
+            HarnessProvider::Opencode => false,
+            HarnessProvider::Openhuman => matches!(
+                self,
+                HookEvent::PreToolUse | HookEvent::PostToolUse | HookEvent::Stop
+            ),
         }
     }
 }

@@ -220,6 +220,34 @@ pub fn bind_backend_api_url(env: &HashMap<String, String>, base_url: &str) -> St
 /// Propagates any failure from [`CoreBuilder::build`] — a workspace that cannot
 /// be created, or a token source that cannot be resolved.
 pub async fn boot() -> anyhow::Result<Core> {
+    boot_with_hooks(&crate::harness_hooks::HooksConfig::default()).await
+}
+
+/// Boot the embedded core with Medulla's supported in-process lifecycle hooks.
+pub async fn boot_with_hooks(hooks: &crate::harness_hooks::HooksConfig) -> anyhow::Result<Core> {
+    let stop_commands: Vec<String> = hooks
+        .for_provider(crate::protocol::HarnessProvider::Openhuman)
+        .into_iter()
+        .filter(|hook| hook.event == crate::harness_hooks::HookEvent::Stop)
+        .map(|hook| hook.command().to_owned())
+        .collect();
+    if !stop_commands.is_empty() {
+        openhuman_core::openhuman::agent::hooks::register_embedder_post_turn_hook(Arc::new(
+            MedullaStopHook {
+                commands: stop_commands,
+            },
+        ));
+    }
+    let pre_commands = hook_commands(hooks, crate::harness_hooks::HookEvent::PreToolUse);
+    let post_commands = hook_commands(hooks, crate::harness_hooks::HookEvent::PostToolUse);
+    if !pre_commands.is_empty() || !post_commands.is_empty() {
+        openhuman_core::openhuman::agent::hooks::register_embedder_tool_hook(Arc::new(
+            MedullaToolHook {
+                pre_commands,
+                post_commands,
+            },
+        ));
+    }
     tracing::debug!("[core_host] boot start host_kind=detect_standalone");
     let runtime = CoreBuilder::new(HostKind::detect_standalone())
         .domains(DomainSet::embedded())
@@ -229,6 +257,121 @@ pub async fn boot() -> anyhow::Result<Core> {
         .await?;
     tracing::debug!("[core_host] boot ok services={:?}", runtime.services());
     Ok(Core::from_runtime(Arc::new(runtime)))
+}
+
+/// Extract command hooks for one OpenHuman-supported lifecycle event.
+fn hook_commands(
+    hooks: &crate::harness_hooks::HooksConfig,
+    event: crate::harness_hooks::HookEvent,
+) -> Vec<String> {
+    hooks
+        .for_provider(crate::protocol::HarnessProvider::Openhuman)
+        .into_iter()
+        .filter(|hook| hook.event == event)
+        .map(|hook| hook.command().to_owned())
+        .collect()
+}
+
+/// Runs Medulla's command hooks when an in-process OpenHuman turn completes.
+struct MedullaStopHook {
+    commands: Vec<String>,
+}
+
+#[async_trait::async_trait]
+impl openhuman_core::openhuman::agent::hooks::PostTurnHook for MedullaStopHook {
+    fn name(&self) -> &str {
+        "medulla-stop-hook"
+    }
+
+    async fn on_turn_complete(
+        &self,
+        turn: &openhuman_core::openhuman::agent::hooks::TurnContext,
+    ) -> anyhow::Result<()> {
+        let payload = serde_json::json!({
+            "hook_event_name": "Stop", "session_id": turn.session_id,
+            "agent_id": turn.agent_id, "prompt": turn.user_message,
+            "response": turn.assistant_response,
+        })
+        .to_string();
+        for command in &self.commands {
+            let mut process =
+                tokio::process::Command::new(if cfg!(windows) { "cmd" } else { "sh" });
+            if cfg!(windows) {
+                process.args(["/C", command]);
+            } else {
+                process.args(["-c", command]);
+            }
+            process
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+            let mut child = process.spawn()?;
+            if let Some(mut stdin) = child.stdin.take() {
+                use tokio::io::AsyncWriteExt;
+                stdin.write_all(payload.as_bytes()).await?;
+            }
+            let _ = child.wait().await;
+        }
+        Ok(())
+    }
+}
+
+/// Medulla's synchronous/pre and observational/post tool hook adapter.
+struct MedullaToolHook {
+    pre_commands: Vec<String>,
+    post_commands: Vec<String>,
+}
+
+#[async_trait::async_trait]
+impl openhuman_core::openhuman::agent::hooks::ToolHook for MedullaToolHook {
+    fn name(&self) -> &str {
+        "medulla-tool-hook"
+    }
+
+    async fn before_tool(
+        &self,
+        context: &openhuman_core::openhuman::agent::hooks::ToolHookContext,
+    ) -> anyhow::Result<()> {
+        run_hook_commands(&self.pre_commands, context).await
+    }
+
+    async fn after_tool(
+        &self,
+        context: &openhuman_core::openhuman::agent::hooks::ToolHookContext,
+    ) -> anyhow::Result<()> {
+        // Post hooks are observational. A bad command is logged by OpenHuman's
+        // dispatcher and must not retroactively turn a successful tool into a failure.
+        run_hook_commands(&self.post_commands, context).await
+    }
+}
+
+/// Run command hooks with structured JSON on stdin. A pre-hook's non-zero exit
+/// is deliberately returned to the caller, where it vetoes the tool invocation.
+async fn run_hook_commands<T: serde::Serialize>(
+    commands: &[String],
+    payload: &T,
+) -> anyhow::Result<()> {
+    let payload = serde_json::to_vec(payload)?;
+    for command in commands {
+        let mut process = tokio::process::Command::new(if cfg!(windows) { "cmd" } else { "sh" });
+        if cfg!(windows) {
+            process.args(["/C", command]);
+        } else {
+            process.args(["-c", command]);
+        }
+        process
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let mut child = process.spawn()?;
+        if let Some(mut stdin) = child.stdin.take() {
+            use tokio::io::AsyncWriteExt;
+            stdin.write_all(&payload).await?;
+        }
+        let status = child.wait().await?;
+        anyhow::ensure!(status.success(), "hook command exited with {status}");
+    }
+    Ok(())
 }
 
 /// Boot a core with nothing running but the surface auth needs.
