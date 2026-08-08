@@ -199,7 +199,7 @@ fn shell_command(command: &str) -> tokio::process::Command {
 /// the match-all default. Each alternation is anchored and `*` matches any run
 /// of characters — the selective matchers operators write and the wildcard
 /// default, not shell super-wildcards.
-fn matcher_selects(matcher: &str, tool_name: &str) -> bool {
+pub(super) fn matcher_selects(matcher: &str, tool_name: &str) -> bool {
     matcher
         .split('|')
         .filter(|pattern| !pattern.is_empty())
