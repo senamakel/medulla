@@ -11,6 +11,10 @@
 //! which scopes a tool hook to the tools it names instead of firing on every
 //! one, and the **timeout**, which bounds a slow command so a stuck hook cannot
 //! stall the tool call or the turn.
+//!
+//! Registration being process-global while the working directory is per-run is
+//! the reason [`super::turn_cwd`] exists: the tool payload's `cwd` is read from
+//! that task-local so a hook is told the directory the *turn* is working in.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -174,17 +178,27 @@ pub(super) async fn run_hook_commands(
 /// Convert OpenHuman's typed callback into the command-hook envelope used by
 /// Medulla's native harnesses.
 ///
-/// In particular, `tool_input` and `cwd` let a `PostToolUse` auto-commit hook
-/// locate the repository the tool actually changed instead of committing from
-/// the embedded core's long-lived startup directory.
+/// `cwd` names the directory **this turn** is working in, taken from
+/// [`super::turn_cwd`], because a `PostToolUse` auto-commit hook resolves its
+/// target repository from it — OpenHuman's tool arguments carry neither a
+/// `file_path` nor a `cd`, so `cwd` is the only signal it has. Reporting the
+/// process's own directory here, as this adapter first did, made such a hook
+/// commit whatever repository Medulla was launched in rather than the run's
+/// workspace.
+///
+/// Falls back to the process directory only when no run declared one — a TUI
+/// chat turn or an MCP call, where the process directory *is* the answer.
 pub(super) fn tool_hook_payload(context: &ToolHookContext) -> serde_json::Value {
+    let cwd = super::turn_cwd::current_turn_cwd()
+        .or_else(|| std::env::current_dir().ok())
+        .and_then(|path| path.to_str().map(str::to_owned));
     serde_json::json!({
         "hook_event_name": match context.event {
             openhuman_core::openhuman::agent::hooks::ToolHookEvent::PreToolUse => "PreToolUse",
             openhuman_core::openhuman::agent::hooks::ToolHookEvent::PostToolUse => "PostToolUse",
         },
         "session_id": context.call_id,
-        "cwd": std::env::current_dir().ok().and_then(|path| path.to_str().map(str::to_owned)),
+        "cwd": cwd,
         "tool_name": context.tool_name,
         "tool_input": context.arguments,
         "success": context.success,
