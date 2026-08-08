@@ -48,24 +48,25 @@ pub fn code_login_url(base_url: &str, provider: Provider) -> String {
     format!("{base}/auth/{}/login?redirect=cli", provider.as_str())
 }
 
-/// A random 32-hex-char (128-bit) state nonce derived from OS-seeded std
-/// entropy — no `rand` dependency. `RandomState::new()` reseeds its SipHash keys
-/// from the OS on every call, so the finished hashes vary across calls; we mix in
-/// the process id, a monotonically-changing timestamp, and a stack address for
-/// good measure.
+/// A cryptographically random 32-hex-char (128-bit) nonce.
+///
+/// Built from two v4 UUIDs — `uuid`'s v4 generator draws from the OS CSPRNG via
+/// `getrandom` — taking eight unpredictable bytes from each. The version and
+/// variant nibbles a UUID fixes sit in the halves that are not used.
+///
+/// This must be a CSPRNG, not merely "varies per call": the value is both the
+/// OAuth `state` that the loopback callback is validated against and, in
+/// [`crate::inference_proxy`], the `mdl-<nonce>` bearer token that authorizes
+/// redeeming the operator's upstream API key through the loopback proxy. A
+/// nonce an attacker can predict is a nonce they can present.
 pub fn random_state_nonce() -> String {
-    use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hasher};
-
     let mut bytes = [0u8; 16];
     for chunk in bytes.chunks_mut(8) {
-        let mut h = RandomState::new().build_hasher();
-        h.write_u64(std::process::id() as u64);
-        h.write_u128(crate::clock::now_nanos());
-        let stack_probe = 0u8;
-        h.write_usize(&stack_probe as *const u8 as usize);
-        let v = h.finish().to_le_bytes();
-        chunk.copy_from_slice(&v[..chunk.len()]);
+        let uuid = uuid::Uuid::new_v4();
+        // Bytes 8..16 hold the variant bits in byte 8's top nibble; bytes 0..8
+        // hold the version nibble in byte 6. Take the low half of each UUID's
+        // random tail, which carries no fixed bits.
+        chunk.copy_from_slice(&uuid.as_bytes()[9..16][..chunk.len().min(7)]);
     }
     hex_encode(&bytes)
 }
