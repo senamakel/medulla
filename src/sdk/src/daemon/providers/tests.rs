@@ -466,11 +466,14 @@ async fn an_oversized_record_stops_buffering_once_the_ceiling_is_passed() {
     // 200 x's with no newline until after; a 32-byte reader buffer splits the
     // record across several fills, so the cap is crossed mid-record rather than
     // on the reader's first (8 KiB) chunk.
-    let mut stream = tokio::io::BufReader::with_capacity(32, std::io::Cursor::new({
-        let mut bytes = vec![b'x'; 200];
-        bytes.extend_from_slice(b"\nclean line\n");
-        bytes
-    }));
+    let mut stream = tokio::io::BufReader::with_capacity(
+        32,
+        std::io::Cursor::new({
+            let mut bytes = vec![b'x'; 200];
+            bytes.extend_from_slice(b"\nclean line\n");
+            bytes
+        }),
+    );
 
     let mut buf = Vec::new();
     assert_eq!(
