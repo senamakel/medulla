@@ -22,6 +22,21 @@ const RUN_TOOL: &str = "mcp__medulla__workflow_run";
 /// how it went.
 const GET_TOOL: &str = "mcp__medulla__workflow_run_get";
 
+/// How a session says which checkout the run should work in.
+///
+/// Written into every generated skill because the alternative is worse than not
+/// knowing: a session that cannot say where a run works either starts it against
+/// whatever directory the server happens to be in, or invents a declared input
+/// for the path — which the script policy then refuses for leaving the
+/// workspace.
+const WORKSPACE_SECTION: &str = "## Where it runs\n\n\
+     By default the run works in the directory Medulla's MCP server was started \
+     in. To run it against another checkout, add `\"workspace\": \"<path>\"` to the \
+     call — absolute, or relative to that directory. That is the *only* way to \
+     move a run: a path passed as an ordinary input cannot take a step outside \
+     the workspace. A workspace that is not a directory on the host is refused \
+     and nothing runs.\n";
+
 /// The longest slug either verified harness accepts as a skill name.
 ///
 /// Codex rejects a name over 64 characters outright (`InvalidField`), and the
@@ -129,6 +144,8 @@ pub fn render_command(skill: &super::RenderedSkill, summary: &WorkflowSummary) -
          nothing runs.\n\n",
     );
     out.push_str(&inputs_section(&summary.inputs));
+    out.push('\n');
+    out.push_str(WORKSPACE_SECTION);
     out.push('\n');
     out.push_str(&format!(
         "The call comes back at once with a `runId`; the run keeps going without it, \
@@ -371,6 +388,8 @@ fn skill_content(summary: &WorkflowSummary, slug: &str, description: &str) -> St
     ));
 
     out.push_str(&inputs_section(&summary.inputs));
+    out.push('\n');
+    out.push_str(WORKSPACE_SECTION);
     out.push('\n');
 
     out.push_str(&format!(
