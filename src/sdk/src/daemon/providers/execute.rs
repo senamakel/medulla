@@ -23,6 +23,13 @@ use super::types::{OnEvent, OnStdin, RunSpec, RunTaskOptions, RunTaskResult};
 /// A record that never terminates in a newline is dropped past this size.
 const MAX_RECORD_BYTES: usize = 1_048_576;
 
+/// Cap on the retained stdout/stderr tail (bytes).
+pub(super) const TAIL_CAP: usize = 8192;
+/// Maximum transient-lock retry attempts.
+const LOCK_RETRY_ATTEMPTS: u32 = 5;
+/// Base backoff (ms) for the transient-lock retry.
+const LOCK_RETRY_BASE_MS: u64 = 250;
+
 /// What one bounded line read produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum LineRead {
@@ -91,12 +98,6 @@ pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
         }
     }
 }
-/// Cap on the retained stdout/stderr tail (bytes).
-pub(super) const TAIL_CAP: usize = 8192;
-/// Maximum transient-lock retry attempts.
-const LOCK_RETRY_ATTEMPTS: u32 = 5;
-/// Base backoff (ms) for the transient-lock retry.
-const LOCK_RETRY_BASE_MS: u64 = 250;
 
 /// opencode's SQLite session store throws this when runs start too close
 /// together; transient, clears on a short retry.
