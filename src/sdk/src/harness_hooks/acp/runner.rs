@@ -20,6 +20,13 @@ use crate::harness_hooks::HookSpec;
 
 /// Run matching `PostToolUse` hooks without allowing a hook failure to fail a turn.
 ///
+/// For every hook whose matcher selects `tool`, this starts the hook's command
+/// through the platform shell with `cwd` as its working directory, writes the
+/// JSON payload to the command's stdin, and waits for it to exit. A hook that
+/// fails to start, exits non-zero, times out, or cannot be waited on is logged
+/// and skipped — never returned — so a broken hook cannot fail the ACP turn it
+/// observes.
+///
 /// `env` is the per-session environment already seeded with the hook grant (see
 /// [`crate::harness_hooks::seed_hook_grant`]), so a hook that reports back to a
 /// control plane finds the socket and credential every direct spawn door seeds.
