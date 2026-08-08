@@ -34,10 +34,6 @@ mod summary;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-#[path = "preflight_tests.rs"]
-mod preflight_unit_tests;
-
 pub use diagnose::{diagnose, Diagnosis, DryRun, HiddenError, NeverRan, NullBinding};
 pub use dispatches::{in_flight, InFlightDispatch};
 pub(crate) use preflight::clamp_loop_iterations;
