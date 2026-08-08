@@ -106,6 +106,10 @@ impl SseParser {
                 if self.line_buf.len() > MAX_FRAME_BYTES {
                     self.line_buf.clear();
                     self.discard_frame();
+                    // The oversized line was cut before its terminating newline
+                    // arrived. We are still inside its tail, so the next empty
+                    // line must not be mistaken for the frame boundary.
+                    self.in_discarded_line = true;
                     overflowed = true;
                 }
                 break;
