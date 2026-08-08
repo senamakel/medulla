@@ -77,7 +77,7 @@ async fn a_requested_openhuman_task_runs_on_the_embedded_core() {
         .find(|f| f.kind == TaskFrameKind::Reply)
         .expect("the task runs and replies");
     assert_eq!(
-        reply.provider,
+        reply.harness,
         Some(HarnessProvider::Openhuman),
         "the task ran on the embedded core it named"
     );
