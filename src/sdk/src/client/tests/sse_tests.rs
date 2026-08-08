@@ -3,7 +3,7 @@
 //! driven through the shared TCP stub.
 
 use super::{http_json, spawn_stub};
-use crate::client::sse::{SeqDedup, SseFrame, SseParser};
+use crate::client::sse::{SeqDedup, SseFrame, SseParser, MAX_FRAME_BYTES};
 use crate::client::*;
 use futures::StreamExt;
 
