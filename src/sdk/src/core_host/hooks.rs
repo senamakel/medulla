@@ -143,7 +143,11 @@ pub(super) async fn run_hook_commands(
 /// that exceeds it is killed so a stuck hook cannot stall the tool call or the
 /// turn. When `enforce_status` is set, a timeout also vetoes, matching a
 /// pre-hook's blocking semantics.
-async fn run_command(spec: &HookSpec, payload: &[u8], enforce_status: bool) -> anyhow::Result<()> {
+pub(super) async fn run_command(
+    spec: &HookSpec,
+    payload: &[u8],
+    enforce_status: bool,
+) -> anyhow::Result<()> {
     let mut process = shell_command(spec.command());
     let mut child = process.spawn()?;
     if let Some(mut stdin) = child.stdin.take() {
