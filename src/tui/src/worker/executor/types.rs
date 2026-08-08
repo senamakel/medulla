@@ -51,6 +51,25 @@ pub(super) enum SessionPlan {
     Queue(String),
 }
 
+/// What the blocking half of the session decision found.
+///
+/// Split out of [`SessionPlan`] because the two halves must run on different
+/// threads. Deciding whether an idle session can be reused waits out the
+/// previous turn's completion-chime grace with a *thread* sleep, and deciding
+/// whether a person holds the checkout canonicalizes paths — both block, so
+/// both belong on the blocking pool. What is left (building the launch spec
+/// from `RunTaskOptions`) touches nothing but memory and stays on the runtime,
+/// which it has to: `RunTaskOptions` is `Send` but not `Sync`, so a borrow of
+/// it cannot cross an await.
+pub(super) enum SessionProbe {
+    /// An idle session for this conversation, already claimed.
+    Reuse(super::super::pty::SessionRow),
+    /// Nothing reusable, and a person is writing in this checkout.
+    Queue,
+    /// Nothing reusable and nobody in the way: launch a harness.
+    Fresh,
+}
+
 /// Everything one turn needs to know about itself, past the session it runs in.
 ///
 /// A record rather than five parameters, and it earned that when the hand-back
