@@ -153,11 +153,11 @@ impl SseParser {
             }
             self.got_data = false;
             self.id = None;
-            return;
+            return Ok(());
         }
         // Comment line (`: ...`, e.g. `: ping`) — ignore.
         if line.starts_with(':') {
-            return;
+            return Ok(());
         }
         let (field, value) = match line.find(':') {
             Some(i) => {
