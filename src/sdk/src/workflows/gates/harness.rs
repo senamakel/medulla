@@ -10,6 +10,16 @@
 //! dispatch path: by the time a node dispatches, the engine has already resolved
 //! its config, so an expression is indistinguishable from a name typed by hand.
 //! Authoring time is the only place the difference is still visible.
+//!
+//! `model` is deliberately *not* checked, though it sits beside `harness` in
+//! the same config. The two are not the same kind of decision: `harness` names
+//! a binary and the credentials it runs with, while `model` is a string handed
+//! to a harness already chosen, so an expression there cannot redirect a step
+//! to a different program or a different account. Model names are also not
+//! harness names, so the value checks below — which end in
+//! [`HarnessSelector::parse`] — would reject every legitimate one. A workflow
+//! picking its model from upstream output is ordinary authoring, and
+//! `a_legitimate_harness_choice_passes` in the sibling tests pins that.
 
 use tinyflows::model::{NodeKind, WorkflowGraph};
 
