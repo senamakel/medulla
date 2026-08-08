@@ -35,7 +35,9 @@ use medulla::sessions::{SessionClass, TurnStream};
 use medulla::wrapper::tail::SessionTailer;
 
 use super::super::pty::{LaunchSpec, PtyManager, SessionControl, SessionOrigin};
-use super::types::{OpenedSession, PtySessionExecutor, SessionPlan, TurnSpec, WorkspaceContext};
+use super::types::{
+    OpenedSession, PtySessionExecutor, SessionPlan, SessionProbe, TurnSpec, WorkspaceContext,
+};
 
 /// How often the transcript is polled while a turn runs.
 ///
