@@ -30,7 +30,10 @@ use crate::flow_engine::HarnessSelector;
 /// the one way past this gate.
 const HARNESS_KEYS: [&str; 2] = ["harness", "provider"];
 
-/// Every failure in `graph`'s harness and model selection.
+/// Every failure in `graph`'s harness selection.
+///
+/// Covers the `harness` and `provider` keys on every `agent` node. `model` is
+/// out of scope by design — see the module doc.
 pub fn failures(graph: &WorkflowGraph) -> Vec<String> {
     let mut failures = Vec::new();
     for node in &graph.nodes {
