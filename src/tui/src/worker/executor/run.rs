@@ -423,7 +423,7 @@ impl PtySessionExecutor {
     /// executor's environment is a hard error, matching the headless path: a
     /// silently-empty key would spawn the harness unauthenticated against the
     /// routed endpoint.
-    fn spawn_env(
+    pub(super) fn spawn_env(
         &self,
         options: &RunTaskOptions,
     ) -> Result<(HashMap<String, String>, Vec<String>), String> {
