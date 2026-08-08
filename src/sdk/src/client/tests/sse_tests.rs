@@ -139,6 +139,32 @@ fn a_line_without_a_newline_is_capped() {
 }
 
 #[test]
+fn an_unterminated_oversized_line_discards_to_its_blank_line() {
+    let mut parser = SseParser::new();
+    let mut out = Vec::new();
+    // The oversized line is cut mid-flight, before its terminating newline, so
+    // the parser is still inside the discarded line when the cap fires.
+    let flood = "data: ".to_string() + &"x".repeat(MAX_FRAME_BYTES + 1);
+    assert!(parser.feed(&flood, &mut out).is_err());
+    assert!(out.is_empty());
+    // The next chunk begins with that line's own newline, then carries a data
+    // line that still belongs to the discarded oversized frame (no blank line
+    // in between). It must not be emitted as a valid event — only the frame's
+    // terminating blank line may end the discard.
+    parser.feed("\ndata: sneaky\n\n", &mut out).unwrap();
+    assert!(out.is_empty());
+    // A genuinely new frame after the discarded one still parses.
+    parser.feed("data: ok\n\n", &mut out).unwrap();
+    assert_eq!(
+        out,
+        vec![SseFrame {
+            id: None,
+            data: "ok".to_string(),
+        }]
+    );
+}
+
+#[test]
 fn an_oversized_newline_terminated_line_is_capped_too() {
     let mut parser = SseParser::new();
     let mut out = Vec::new();
