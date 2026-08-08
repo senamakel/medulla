@@ -433,10 +433,16 @@ impl HarnessAgentRunner {
             Err(err) => {
                 // The engine records a failed dispatch as an Error step, so it
                 // occupies a transcript-queue slot like any other activation.
-                // Record an empty placeholder so a later success's transcript
-                // is not popped onto the failed step; the step's own error is
-                // its account, and a placeholder keeps the Nth slot aligned.
-                self.record_transcript(node_id.as_deref(), Vec::new());
+                // The workflow dispatch folds its collector's account into the
+                // failure (`RunError::WorkerWithTranscript`), and a failed step
+                // is exactly the one whose tool calls and error line the run
+                // view wants; every other dispatch has no transcript to offer,
+                // so an empty placeholder keeps the Nth slot aligned either way.
+                let transcript = match &err {
+                    RunError::WorkerWithTranscript { transcript, .. } => transcript.clone(),
+                    _ => Vec::new(),
+                };
+                self.record_transcript(node_id.as_deref(), transcript);
                 return Err(dispatch_error("agent node", err));
             }
         };
