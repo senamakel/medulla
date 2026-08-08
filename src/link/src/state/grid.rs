@@ -23,6 +23,15 @@
 
 use super::types::{SspState, StateError};
 
+/// Largest row count a decoded diff may declare.
+///
+/// The row count is a peer-supplied `u32` that [`RowGrid::apply_diff`] resizes
+/// by, and the diff carrying it is only `MAX_DIFF_LEN` bytes — so an eight-byte
+/// frame declaring `0xFFFF_FFFF` rows would otherwise ask for a ~100 GB
+/// allocation and abort the process. No terminal is this tall; a diff above the
+/// cap is refused as malformed, failing the frame instead of the process.
+pub const MAX_GRID_ROWS: usize = u16::MAX as usize;
+
 /// A grid of opaque rows, synchronised by sending only the rows that changed.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RowGrid {
