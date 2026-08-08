@@ -1,18 +1,18 @@
 //! Tool and code capability behaviour: the refused code runner, the allowlist
 //! gate, and the preflight invoker that catches broken argument bindings.
 //!
-//! Split out of [`super::tests`] (see that module's doc comment) when the
-//! capability cases pushed the file over the repository's 500-line ceiling.
+//! Split out of [`super`] (see that module's doc comment) when the capability
+//! cases pushed the file over the repository's 500-line ceiling.
 
 use std::sync::Arc;
 
 use serde_json::{json, Value};
 use tinyflows::caps::{CodeLanguage, CodeRunner, ToolInvoker};
 
-use super::caps::code::DeniedCodeRunner;
-use super::caps::tools::{MedullaToolInvoker, PreflightToolInvoker};
-use super::settings::CapabilitySettings;
-use super::tests::settings;
+use super::super::caps::code::DeniedCodeRunner;
+use super::super::caps::tools::{MedullaToolInvoker, PreflightToolInvoker};
+use super::super::settings::CapabilitySettings;
+use super::settings;
 
 #[tokio::test]
 async fn code_nodes_are_refused_by_default_with_a_reason() {

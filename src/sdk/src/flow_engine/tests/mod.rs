@@ -5,13 +5,19 @@
 //! on the task frame that came out the other side — that is the claim "a
 //! workflow step is a harness session" reduced to something checkable.
 //!
-//! The `medulla:shell` tool's own cases live in the sibling `shell_tests`
-//! module, and harness/model selection in `harness_selection_tests`, both split
-//! out once they pushed this file over the 500-line ceiling. State-store,
+//! The `medulla:shell` tool's own cases live in the `shell_tests` submodule,
+//! and harness/model selection in `harness_selection_tests`, both split out
+//! once they pushed this file over the 500-line ceiling. State-store,
 //! tool-invoker, and HTTP-capsule cases live in `state_tests`, `tools_tests`,
 //! and `http_tests` for the same reason. The fixtures these modules share —
 //! `settings`, `RecordingDispatch`, `empty_resolver`, `agent_graph` — are
 //! `pub(super)` for that reason.
+
+mod harness_selection_tests;
+mod http_tests;
+mod shell_tests;
+mod state_tests;
+mod tools_tests;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

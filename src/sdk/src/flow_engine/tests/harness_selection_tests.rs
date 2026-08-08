@@ -5,17 +5,18 @@
 //! what a worker actually acts on — a unit test of the resolver alone would pass
 //! even if the adapter forgot to put the answer on the wire.
 //!
-//! Split out of `tests` rather than added to it: that file was already at the
-//! repository's 500-line ceiling.
+//! Split out of the `tests` module (which owns the shared fixtures) rather
+//! than added to it: that file was already at the repository's 500-line
+//! ceiling.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde_json::json;
 
-use super::caps::{build_capabilities, HostServices};
-use super::settings::CapabilitySettings;
-use super::tests::{agent_graph, empty_resolver, settings, RecordingDispatch};
+use super::super::caps::{build_capabilities, HostServices};
+use super::super::settings::CapabilitySettings;
+use super::{agent_graph, empty_resolver, settings, RecordingDispatch};
 use crate::hub::TaskRequest;
 use crate::protocol::HarnessProvider;
 
@@ -182,7 +183,7 @@ async fn an_unusable_harness_fails_the_node_rather_than_running_elsewhere() {
 
 #[test]
 fn openhuman_is_not_a_dispatchable_builtin_harness() {
-    let error = super::harness_choice::HarnessSelector::parse("openhuman").unwrap_err();
+    let error = super::super::harness_choice::HarnessSelector::parse("openhuman").unwrap_err();
 
     assert!(error.contains("operator-facing TUI"));
 }

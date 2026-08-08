@@ -1,15 +1,15 @@
 //! State-store behaviour: per-namespace scoping, path containment, and the
 //! atomic-write guarantee.
 //!
-//! Split out of [`super::tests`] (see that module's doc comment) when the store
-//! cases pushed the file over the repository's 500-line ceiling.
+//! Split out of [`super`] (see that module's doc comment) when the store cases
+//! pushed the file over the repository's 500-line ceiling.
 
 use std::sync::Arc;
 
 use serde_json::json;
 use tinyflows::caps::StateStore;
 
-use super::caps::state::FileStateStore;
+use super::super::caps::state::FileStateStore;
 
 #[tokio::test]
 async fn state_is_scoped_per_namespace_so_two_workflows_cannot_collide() {

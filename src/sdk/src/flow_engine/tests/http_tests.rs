@@ -1,7 +1,7 @@
 //! HTTP capability behaviour: allowlist and SSRF guards, credential handling,
 //! schema sampling, and dry-run simulation.
 //!
-//! Split out of [`super::tests`] (see that module's doc comment) when the
+//! Split out of [`super`] (see that module's doc comment) when the
 //! network-capsule cases pushed the file over the repository's 500-line ceiling.
 
 use std::collections::HashMap;
@@ -10,13 +10,13 @@ use std::sync::Arc;
 use serde_json::json;
 use tinyflows::caps::HttpClient;
 
-use super::caps::http::{
+use super::super::caps::http::{
     http_cred_name, inject_credential, is_private_addr, is_private_host, redacted_summary,
     vet_resolution, AllowlistHttpClient, HttpCredential,
 };
-use super::caps::mocks::sample_for_schema;
-use super::settings::CapabilitySettings;
-use super::tests::{agent_graph, empty_resolver};
+use super::super::caps::mocks::sample_for_schema;
+use super::super::settings::CapabilitySettings;
+use super::{agent_graph, empty_resolver};
 
 #[tokio::test]
 async fn http_refuses_loopback_and_anything_off_the_allowlist() {
@@ -112,7 +112,7 @@ fn a_dry_run_sample_satisfies_the_shape_a_node_declared() {
 #[tokio::test]
 async fn a_dry_run_starts_no_harness_session_but_still_satisfies_declared_schemas() {
     let root = tempfile::tempdir().unwrap();
-    let caps = super::build_dry_run_capabilities(empty_resolver(root.path()));
+    let caps = super::super::build_dry_run_capabilities(empty_resolver(root.path()));
 
     let compiled = tinyflows::compiler::compile(&agent_graph(json!({
         "prompt": "summarise",
