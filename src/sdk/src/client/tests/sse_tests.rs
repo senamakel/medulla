@@ -59,14 +59,99 @@ fn handles_chunked_and_crlf_boundaries() {
     let mut parser = SseParser::new();
     let mut out = Vec::new();
     // Split a single frame across several feeds, with CRLF line endings.
-    parser.feed("id: 7\r\nda", &mut out);
-    parser.feed("ta: {\"x\":", &mut out);
-    parser.feed("2}\r\n\r\n", &mut out);
+    parser.feed("id: 7\r\nda", &mut out).unwrap();
+    parser.feed("ta: {\"x\":", &mut out).unwrap();
+    parser.feed("2}\r\n\r\n", &mut out).unwrap();
     assert_eq!(
         out,
         vec![SseFrame {
             id: Some(7),
             data: "{\"x\":2}".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn reset_drops_a_truncated_frames_state() {
+    let mut parser = SseParser::new();
+    let mut out = Vec::new();
+    // Connection dies mid-frame.
+    parser.feed("id: 3\ndata: {\"par", &mut out).unwrap();
+    assert!(out.is_empty());
+    parser.reset();
+    // The reconnect replays the event in full; nothing may be spliced on.
+    parser.feed("id: 3\ndata: whole\n\n", &mut out).unwrap();
+    assert_eq!(
+        out,
+        vec![SseFrame {
+            id: Some(3),
+            data: "whole".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn multi_byte_characters_survive_a_chunk_boundary() {
+    let mut parser = SseParser::new();
+    let mut out = Vec::new();
+    let payload = "data: héllo→\n\n".as_bytes();
+    // Feed one byte at a time — the worst case a transport can produce.
+    for byte in payload {
+        parser.feed_bytes(&[*byte], &mut out).unwrap();
+    }
+    assert_eq!(
+        out,
+        vec![SseFrame {
+            id: None,
+            data: "héllo→".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn invalid_utf8_becomes_one_replacement_char() {
+    let mut parser = SseParser::new();
+    let mut out = Vec::new();
+    let mut bytes = b"data: a".to_vec();
+    bytes.push(0xff);
+    bytes.extend_from_slice(b"b\n\n");
+    parser.feed_bytes(&bytes, &mut out).unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].data, "a\u{fffd}b");
+}
+
+#[test]
+fn a_line_without_a_newline_is_capped() {
+    let mut parser = SseParser::new();
+    let mut out = Vec::new();
+    let flood = "x".repeat(MAX_FRAME_BYTES + 1);
+    assert!(parser.feed(&flood, &mut out).is_err());
+    assert!(out.is_empty());
+    // Recovery resumes at the next frame boundary, discarding the flood's tail.
+    parser.feed("more junk\n\ndata: ok\n\n", &mut out).unwrap();
+    assert_eq!(
+        out,
+        vec![SseFrame {
+            id: None,
+            data: "ok".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn an_oversized_payload_is_dropped_not_accumulated() {
+    let mut parser = SseParser::new();
+    let mut out = Vec::new();
+    let line = format!("data: {}\n", "y".repeat(MAX_FRAME_BYTES / 2));
+    // The first line fits; the second pushes the payload past the cap.
+    parser.feed(&line, &mut out).unwrap();
+    assert!(parser.feed(&line, &mut out).is_err());
+    parser.feed("\ndata: ok\n\n", &mut out).unwrap();
+    assert_eq!(
+        out,
+        vec![SseFrame {
+            id: None,
+            data: "ok".to_string(),
         }]
     );
 }
