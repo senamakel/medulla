@@ -502,14 +502,14 @@ async fn a_bounded_read_keeps_records_at_or_under_the_cap() {
 
     // "abcd\n" is five bytes: at the cap, so accepted.
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 5).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 5, None).await.unwrap(),
         LineRead::Line
     );
     assert_eq!(buf, b"abcd\n");
 
     buf.clear();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, None).await.unwrap(),
         LineRead::Line
     );
     assert_eq!(buf, b"trailing");
