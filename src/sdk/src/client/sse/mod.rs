@@ -67,8 +67,8 @@ impl SseParser {
                 }
                 Err(e) => {
                     let (valid, tail) = rest.split_at(e.valid_up_to());
-                    // SAFETY-free: `valid_up_to` bounds a known-good prefix.
-                    let text = std::str::from_utf8(valid).unwrap_or_default();
+                    // `valid_up_to` bounds a prefix that is known-good UTF-8.
+                    let text = std::str::from_utf8(valid).unwrap_or("");
                     if self.feed(text, out).is_err() {
                         result = Err(SseOverflow);
                     }
