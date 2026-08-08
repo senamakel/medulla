@@ -797,7 +797,7 @@ pub(super) fn available_primary_presets(
 ) -> Vec<medulla::config::CustomHarnessConfig> {
     presets
         .iter()
-        .filter(|preset| preset.host_id == host_id && providers.contains(&preset.base_harness))
+        .filter(|preset| preset.host_id == host_id && preset.runnable_on(providers))
         .cloned()
         .collect()
 }

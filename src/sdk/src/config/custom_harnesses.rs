@@ -254,6 +254,19 @@ impl CustomHarnessConfig {
             .is_some_and(|value| !value.trim().is_empty())
     }
 
+    /// Whether a host offering `providers` can actually run this preset.
+    ///
+    /// `providers` is the list of coding CLIs found on `PATH`, and the embedded
+    /// core is never on it — it has no binary to detect. So an OpenHuman preset
+    /// is runnable wherever Medulla itself is running, matching the rule
+    /// `select_provider` already applies to a bare `openhuman` request. Without
+    /// this a configured OpenHuman preset would be filtered out of the fleet
+    /// advert and the TUI's harness list, and read as broken rather than as
+    /// unadvertised.
+    pub fn runnable_on(&self, providers: &[HarnessProvider]) -> bool {
+        self.base_harness == HarnessProvider::Openhuman || providers.contains(&self.base_harness)
+    }
+
     /// Compact single-line editor representation used by the TUI.
     pub fn editor_line(&self) -> String {
         format!(

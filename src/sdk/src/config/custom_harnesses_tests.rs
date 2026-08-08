@@ -240,3 +240,21 @@ hostId = "this-device"
     assert_eq!(presets.len(), 1);
     assert_eq!(presets[0].id, "deepseek");
 }
+
+#[test]
+fn runnability_follows_the_detected_clis_except_for_the_embedded_core() {
+    let claude = CustomHarnessConfig::from_editor_line(
+        "ds | DeepSeek | claude | deepseek/model | | this-device",
+    )
+    .unwrap();
+    assert!(claude.runnable_on(&[HarnessProvider::Claude]));
+    assert!(!claude.runnable_on(&[HarnessProvider::Codex]));
+
+    // The embedded core has no binary to detect, so a host that found no
+    // coding CLI at all still runs it — the same rule `select_provider`
+    // applies to a bare `openhuman` request.
+    let openhuman =
+        CustomHarnessConfig::from_editor_line("oh | OpenHuman | openhuman | some/model | | host")
+            .unwrap();
+    assert!(openhuman.runnable_on(&[]));
+}
