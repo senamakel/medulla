@@ -27,21 +27,122 @@ impl SseParser {
         Self::default()
     }
 
+    /// Drop every scrap of in-progress state.
+    ///
+    /// Called whenever the connection is torn down: the truncated frame's
+    /// partial line, payload and `id` mean nothing to the next connection, and
+    /// leaving them would splice the reconnect's first bytes onto a dangling
+    /// line — corrupting or losing the replayed event.
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Feed a chunk of raw body bytes, appending any completed frames to `out`.
+    ///
+    /// Decodes incrementally: a trailing incomplete UTF-8 sequence is carried
+    /// over to the next chunk rather than being lossily replaced, because the
+    /// transport splits the body at arbitrary byte offsets.
+    ///
+    /// Returns [`SseOverflow`] when a line or payload exceeded
+    /// [`MAX_FRAME_BYTES`] and was discarded.
+    pub fn feed_bytes(&mut self, bytes: &[u8], out: &mut Vec<SseFrame>) -> Result<(), SseOverflow> {
+        let buf = if self.utf8_tail.is_empty() {
+            None
+        } else {
+            let mut joined = std::mem::take(&mut self.utf8_tail);
+            joined.extend_from_slice(bytes);
+            Some(joined)
+        };
+        let bytes = buf.as_deref().unwrap_or(bytes);
+
+        let mut result = Ok(());
+        let mut rest = bytes;
+        loop {
+            match std::str::from_utf8(rest) {
+                Ok(text) => {
+                    if self.feed(text, out).is_err() {
+                        result = Err(SseOverflow);
+                    }
+                    return result;
+                }
+                Err(e) => {
+                    let (valid, tail) = rest.split_at(e.valid_up_to());
+                    // SAFETY-free: `valid_up_to` bounds a known-good prefix.
+                    let text = std::str::from_utf8(valid).unwrap_or_default();
+                    if self.feed(text, out).is_err() {
+                        result = Err(SseOverflow);
+                    }
+                    match e.error_len() {
+                        // Truncated at the chunk boundary — keep it for next time.
+                        None => {
+                            self.utf8_tail.extend_from_slice(tail);
+                            return result;
+                        }
+                        // Genuinely invalid: emit one replacement char and skip it.
+                        Some(bad) => {
+                            if self.feed("\u{fffd}", out).is_err() {
+                                result = Err(SseOverflow);
+                            }
+                            rest = &tail[bad..];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Feed a chunk of decoded text, appending any completed frames to `out`.
-    pub fn feed(&mut self, chunk: &str, out: &mut Vec<SseFrame>) {
+    ///
+    /// Returns [`SseOverflow`] when a line or payload exceeded
+    /// [`MAX_FRAME_BYTES`]; the offending frame is dropped and parsing resumes
+    /// at the next frame boundary.
+    pub fn feed(&mut self, chunk: &str, out: &mut Vec<SseFrame>) -> Result<(), SseOverflow> {
         self.line_buf.push_str(chunk);
-        while let Some(nl) = self.line_buf.find('\n') {
+        let mut overflowed = false;
+        loop {
+            let Some(nl) = self.line_buf.find('\n') else {
+                // No newline in sight: a peer that never sends one must not be
+                // able to grow this buffer without limit.
+                if self.line_buf.len() > MAX_FRAME_BYTES {
+                    self.line_buf.clear();
+                    self.discard_frame();
+                    overflowed = true;
+                }
+                break;
+            };
             let mut line = self.line_buf[..nl].to_string();
             // Drain the line plus the newline from the buffer.
             self.line_buf.drain(..=nl);
             if line.ends_with('\r') {
                 line.pop();
             }
-            self.feed_line(&line, out);
+            if self.discarding {
+                // A blank line ends the frame being dropped; resume parsing.
+                if line.is_empty() {
+                    self.discarding = false;
+                }
+                continue;
+            }
+            if self.feed_line(&line, out).is_err() {
+                overflowed = true;
+            }
+        }
+        if overflowed {
+            Err(SseOverflow)
+        } else {
+            Ok(())
         }
     }
 
-    fn feed_line(&mut self, line: &str, out: &mut Vec<SseFrame>) {
+    /// Abandon the in-progress frame and skip input until the next blank line.
+    fn discard_frame(&mut self) {
+        self.data.clear();
+        self.got_data = false;
+        self.id = None;
+        self.discarding = true;
+    }
+
+    fn feed_line(&mut self, line: &str, out: &mut Vec<SseFrame>) -> Result<(), SseOverflow> {
         if line.is_empty() {
             // Blank line terminates the frame.
             if self.got_data || self.id.is_some() {
