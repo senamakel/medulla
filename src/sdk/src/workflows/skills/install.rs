@@ -379,12 +379,12 @@ fn write_managed(
 /// prefix of either. The temp file is a sibling so the rename stays within one
 /// filesystem, where it is atomic.
 ///
-/// The name carries the process id so two Medulla processes writing the same
-/// skill cannot clobber each other's half-written temp file. They cannot
-/// normally race at all — [`RefreshLock`](super::refresh::RefreshLock)
-/// serializes the managed root — but `install` on the user scope takes no lock,
-/// and a leftover temp file from a killed process must not be adopted as the
-/// next writer's buffer.
+/// The name carries a unique token so two writers of the same skill cannot
+/// clobber each other's half-written temp file. A process id alone would not
+/// do it: two threads of one process share it. They cannot normally race at
+/// all — [`RefreshLock`](super::refresh::RefreshLock) serializes the managed
+/// root — but `install` on the user scope takes no lock, and a leftover temp
+/// file from a killed process must not be adopted as the next writer's buffer.
 ///
 /// A failed rename leaves the temp file behind rather than the target damaged,
 /// which is the right way round.
