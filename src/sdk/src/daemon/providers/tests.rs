@@ -455,6 +455,52 @@ async fn an_oversized_record_is_discarded_without_being_buffered() {
     );
 }
 
+/// The ceiling has to hold across reader-buffer fills, not only on the chunk
+/// that first crosses it: a record that passes `cap` mid-way and keeps coming
+/// must not resume buffering on the later chunks. A harness emitting one
+/// unterminated JSONL record would otherwise still grow `buf` without bound.
+#[tokio::test]
+async fn an_oversized_record_stops_buffering_once_the_ceiling_is_passed() {
+    use super::{execute::read_line_bounded, types::LineRead};
+
+    // 200 x's with no newline until after; a 32-byte reader buffer splits the
+    // record across several fills, so the cap is crossed mid-record rather than
+    // on the reader's first (8 KiB) chunk.
+    let mut stream = tokio::io::BufReader::with_capacity(32, std::io::Cursor::new({
+        let mut bytes = vec![b'x'; 200];
+        bytes.extend_from_slice(b"\nclean line\n");
+        bytes
+    }));
+
+    let mut buf = Vec::new();
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 64, None)
+            .await
+            .unwrap(),
+        LineRead::Oversized
+    );
+    assert!(
+        buf.is_empty(),
+        "the oversized record's tail must be discarded too: {} bytes held",
+        buf.len()
+    );
+    assert!(
+        buf.capacity() <= 128,
+        "the oversized record must not be retained: {} bytes held",
+        buf.capacity()
+    );
+
+    // Reading resumes on the record *after* the oversized one.
+    buf.clear();
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 64, None)
+            .await
+            .unwrap(),
+        LineRead::Line
+    );
+    assert_eq!(buf, b"clean line\n");
+}
+
 /// With a retained tail, an oversized record still leaves its *last* bytes in
 /// the buffer: a stderr tail keeps whatever the child wrote last — including a
 /// transient-lock marker at the end of an otherwise endless line — without
