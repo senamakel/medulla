@@ -160,7 +160,31 @@ impl DaemonRuntime {
 
         let key = Self::task_key(&from, &frame.task_id);
         // An active duplicate (same sender + taskId) must not clobber the record.
-        if self.inner.running.lock().unwrap().contains_key(&key) {
+        //
+        // Checked and registered under one lock: every frame runs as its own
+        // spawned task, so two frames sharing a key could both pass a separate
+        // `contains_key` check, the second overwrite the first's `RunningTask`,
+        // and the first guard's drop then remove the shared key — orphaning a
+        // still-running harness with no abort, input, or screen routing.
+        //
+        // Registered BEFORE acking so a racing `input` frame finds the record.
+        let abort = Abort::new();
+        let duplicate = match self.inner.running.lock().unwrap().entry(key.clone()) {
+            std::collections::hash_map::Entry::Occupied(_) => true,
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(RunningTask {
+                    provider,
+                    accepts_stdin,
+                    abort: abort.clone(),
+                    correlation_id: correlation.clone(),
+                    stdin: None,
+                    pending_input: Vec::new(),
+                    session_id: None,
+                });
+                false
+            }
+        };
+        if duplicate {
             self.reply(
                 &from,
                 TaskFrameKind::Error,
