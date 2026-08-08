@@ -133,6 +133,13 @@ fn decode_rows(diff: &[u8]) -> Result<DecodedRows, StateError> {
     };
 
     let rows = read_u32(0)?;
+    // Bounded before the count reaches `resize`: the sender is untrusted and the
+    // count is a bare u32 that costs 24 bytes of allocation per row.
+    if rows > MAX_GRID_ROWS {
+        return Err(StateError::Malformed(format!(
+            "grid diff declares {rows} rows, above the {MAX_GRID_ROWS}-row maximum"
+        )));
+    }
     let changed = read_u32(4)?;
     let mut offset = 8;
     let mut updates = Vec::with_capacity(changed.min(1024));
