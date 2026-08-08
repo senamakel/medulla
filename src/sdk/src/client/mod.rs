@@ -106,7 +106,7 @@ impl MedullaClientBuilder {
             .trim_end_matches('/')
             .to_string();
         let jwt = self.jwt.unwrap_or_default();
-        let http = self.http.unwrap_or_default();
+        let http = self.http.unwrap_or_else(default_http_client);
         MedullaClient {
             sdk: build_sdk(&base_url, &jwt, http.clone()),
             base_url,
