@@ -6,7 +6,8 @@
 use openhuman_core::openhuman::agent::hooks::{ToolHookContext, ToolHookEvent};
 
 use super::hooks::*;
-use crate::harness_hooks::HookHandler;
+use crate::harness_hooks::{HookEvent, HookHandler, HookSpec};
+use crate::protocol::HarnessProvider;
 
 fn spec(command: &str) -> HookSpec {
     HookSpec {
