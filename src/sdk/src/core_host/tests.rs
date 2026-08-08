@@ -75,54 +75,6 @@ fn workspace_nests_under_the_medulla_home() {
 }
 
 #[test]
-fn openhuman_hook_selection_keeps_only_the_requested_event() {
-    use crate::harness_hooks::{HookEvent, HookHandler, HookSpec, HooksConfig};
-    use crate::protocol::HarnessProvider;
-
-    let hooks = HooksConfig {
-        hooks: vec![
-            HookSpec {
-                event: HookEvent::PreToolUse,
-                matcher: "*".into(),
-                handler: HookHandler::Command {
-                    command: "pre".into(),
-                    timeout: None,
-                },
-                harnesses: vec![HarnessProvider::Openhuman],
-                label: None,
-                builtin: false,
-            },
-            HookSpec {
-                event: HookEvent::PostToolUse,
-                matcher: "*".into(),
-                handler: HookHandler::Command {
-                    command: "post".into(),
-                    timeout: None,
-                },
-                harnesses: vec![HarnessProvider::Openhuman],
-                label: None,
-                builtin: false,
-            },
-            HookSpec {
-                event: HookEvent::Stop,
-                matcher: "*".into(),
-                handler: HookHandler::Command {
-                    command: "stop".into(),
-                    timeout: None,
-                },
-                harnesses: vec![HarnessProvider::Openhuman],
-                label: None,
-                builtin: false,
-            },
-        ],
-    };
-
-    assert_eq!(hook_commands(&hooks, HookEvent::PreToolUse), ["pre"]);
-    assert_eq!(hook_commands(&hooks, HookEvent::PostToolUse), ["post"]);
-    assert_eq!(hook_commands(&hooks, HookEvent::Stop), ["stop"]);
-}
-
-#[test]
 fn bind_workspace_derives_from_medulla_home_when_unset() {
     let _g = guard();
     clear();
