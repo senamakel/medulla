@@ -179,6 +179,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     // the synthetic grant key minted before the request; the shared cell is
     // filled in as soon as the id is learned.
     let hook_session = Arc::new(Mutex::new(session_key.clone()));
+    let connection_hook_session = hook_session.clone();
     let approve = options.skip_permissions;
     let cwd = PathBuf::from(&options.cwd);
     let resume = options.resume_session_id.clone();
