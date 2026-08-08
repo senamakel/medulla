@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use tokio::sync::broadcast;
 
+use crate::runtime::event_log::{trim_to_cap, CHAT_CAP, EVENT_CAP};
 use crate::runtime::types::{AgentDescriptor, RuntimeSnapshot, ThreadSummary};
 use crate::ui::events::{EventEnvelope, TuiEvent};
 
