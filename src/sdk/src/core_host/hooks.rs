@@ -120,7 +120,10 @@ impl ToolHook for MedullaToolHook {
 /// Only hooks whose matcher selects `context.tool_name` run. A non-zero exit or
 /// timeout is returned to the caller — for a pre-hook that vetoes the tool call,
 /// for a post-hook OpenHuman logs it without changing the result.
-async fn run_hook_commands(specs: &[HookSpec], context: &ToolHookContext) -> anyhow::Result<()> {
+pub(super) async fn run_hook_commands(
+    specs: &[HookSpec],
+    context: &ToolHookContext,
+) -> anyhow::Result<()> {
     let payload = serde_json::to_vec(context)?;
     for spec in specs {
         if !matcher_selects(&spec.matcher, &context.tool_name) {
