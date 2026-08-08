@@ -8,7 +8,7 @@ use std::sync::Arc;
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
 use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::{AgentDeclaration, Runtime};
+use medulla::runtime::{AgentDeclaration, Runtime, WorkerInfo};
 
 use super::{AgentGroup, AgentRailRow, GroupRailRow, RailRow, NEW_SESSION_LABEL};
 use crate::ui::app::App;
@@ -266,8 +266,28 @@ fn a_session_in_an_undeclared_directory_is_still_listed() {
 }
 
 #[test]
-fn host_rows_appear_only_once_a_second_host_exists() {
-    let mut app = app();
+fn the_host_tree_keeps_a_second_declared_host() {
+    let runtime = MockRuntime::empty();
+    runtime.set_workers(vec![WorkerInfo {
+        id: "studio-claude".into(),
+        address: "studio".into(),
+        handle: None,
+        label: None,
+        harness: Some("claude".into()),
+        workspace: Some("/work".into()),
+        peer_id: None,
+        cpu_cores: None,
+        memory_total_bytes: None,
+        memory_available_bytes: None,
+        ip_address: None,
+        selected: false,
+        roles: Vec::new(),
+        budgets: Vec::new(),
+        readiness: Vec::new(),
+    }]);
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.link = Some(medulla::config::LinkConfig::default());
+    let mut app = App::new(Arc::new(runtime), loaded);
     app.loaded.config.fleet.agent_declarations =
         vec![AgentDeclaration::new("local-claude", "", "claude", "/work")];
     assert!(
@@ -288,20 +308,17 @@ fn host_rows_appear_only_once_a_second_host_exists() {
             "/work",
         ));
     let hosts: Vec<(String, bool)> = app
-        .rail_rows()
+        .host_tree()
         .into_iter()
-        .filter_map(|row| match row {
-            RailRow::Host(host) => Some((host.host_id, host.local)),
-            _ => None,
-        })
+        .map(|host| (host.id, host.kind == medulla::ui::hosts::HostKind::Local))
         .collect();
     assert!(
         hosts.iter().any(|(host_id, _)| host_id == "studio"),
-        "the second machine gets a header: {hosts:?}"
+        "the second declared machine stays in the shared tree: {hosts:?}"
     );
     assert!(
         hosts.len() >= 2,
-        "so does this one, once there is a second: {hosts:?}"
+        "the local and second declared machines both remain: {hosts:?}"
     );
     let local = app.local_host_refs();
     assert_eq!(

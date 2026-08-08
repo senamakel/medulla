@@ -1,13 +1,19 @@
-//! The Sessions rail: one cursor over the `Host → Session` tree.
+//! The Sessions rail: one cursor over configured `Host → Group → Session`
+//! sections.
 //!
 //! ```text
 //! + New session             ← the one action, when this device hosts
 //! ▸ this device             ← host row, only when a remote host exists
-//!   ├ t_41 · running        ← a session the orchestrator dispatched
-//!   ├ debug login           ← a session the operator started
+//!   ├ /workspace            ← optional path or harness group heading
+//!   │ ├ t_41 · running      ← a session the orchestrator dispatched
+//!   │ └ debug login         ← a session the operator started
 //!   │   └ wf run · deploy   ← a workflow run that session started
 //!   └ +3 more               ← the fold's paging control
 //! ```
+//!
+//! Appearance preferences organize the sections by host, path, harness, or no
+//! heading, and order their agents and sessions by creation time, recent
+//! activity, or name.
 //!
 //! The rail lists **what is running**. It used to render the whole
 //! `Host → Agent → Session` tree, with a row per declared agent, because

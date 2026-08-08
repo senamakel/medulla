@@ -1,7 +1,8 @@
-//! Appearance-setting mutations and persistence.
+//! Appearance-setting mutations and persistence, including the Agents-sidebar
+//! grouping and ordering controls.
 //!
-//! Colour roles, local-process indicators, and whole-device indicators live
-//! here. The two
+//! Colour roles, local-process indicators, whole-device indicators, and the
+//! sidebar's grouping and sort preferences live here. The two
 //! harness-row toggles this page used to carry — branch and shortened path —
 //! became placements on the Status line page, which is where the rest of the row
 //! is configured and the only place the effect can be previewed. Leaving them
