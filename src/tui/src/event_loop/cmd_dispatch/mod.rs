@@ -17,6 +17,8 @@ mod copilot_hosts;
 mod feedback;
 mod handoff;
 #[cfg(feature = "workflows")]
+mod workflow_evolution;
+#[cfg(feature = "workflows")]
 mod workflows;
 
 /// Move a copilot conversation onto the id of the workflow it just created.
@@ -57,16 +59,19 @@ mod tests;
 /// is reported back over the [`AppMsg`] channel. Memory queries touch SQLite so
 /// they run on `spawn_blocking` off the UI thread.
 ///
-/// `workflows_config` is the app's already-loaded `[workflows]` section,
-/// threaded in for the two commands that dispatch a harness off-thread
-/// ([`Cmd::RunWorkflow`] and [`Cmd::CopilotTurn`]) so they use the config the
-/// TUI actually started with — including an explicit `--config` — rather than
-/// rediscovering defaults from a fresh load. Named with a leading underscore
-/// because a build without the `workflows` feature has no arm that reads it.
+/// `config` is the app's already-loaded configuration, threaded in for the
+/// commands that dispatch a harness off-thread ([`Cmd::RunWorkflow`],
+/// [`Cmd::CopilotTurn`] and the rest) so they use the config the TUI actually
+/// started with — including an explicit `--config` — rather than rediscovering
+/// defaults from a fresh load. The whole document rather than its `[workflows]`
+/// section alone, because those commands each start an embedded host and need
+/// the launch policy — attribution and `[[hooks]]` — that lives outside it.
+/// Named with a leading underscore because a build without the `workflows`
+/// feature has no arm that reads it.
 pub(super) fn run_cmd(
     cmd: Cmd,
     runtime: &Arc<dyn Runtime>,
-    _workflows_config: &medulla::config::WorkflowsConfig,
+    _config: &medulla::config::TuiConfig,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
     local_hosts: Option<&crate::local_host::LocalHostHarnesses>,
 ) {
@@ -238,15 +243,12 @@ pub(super) fn run_cmd(
             let custom_harnesses = local_hosts
                 .map(|spawner| spawner.custom_harnesses().to_vec())
                 .unwrap_or_default();
-            let hooks = local_hosts
-                .map(|spawner| spawner.hooks().clone())
-                .unwrap_or_default();
             workflows::spawn_run(
                 id,
                 inputs,
-                _workflows_config.clone(),
+                _config.workflows.clone(),
                 custom_harnesses,
-                hooks,
+                medulla::harness_hooks::LaunchPolicy::from_config(_config),
                 msg_tx,
             )
         }
@@ -275,13 +277,18 @@ pub(super) fn run_cmd(
             workflow,
             instruction,
             run_id,
-            _workflows_config.clone(),
+            _config.workflows.clone(),
+            medulla::harness_hooks::LaunchPolicy::from_config(_config),
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
-        Cmd::EvolveWorkflow { workflow, run_id } => {
-            workflows::spawn_evolve(workflow, run_id, _workflows_config.clone(), msg_tx)
-        }
+        Cmd::EvolveWorkflow { workflow, run_id } => workflow_evolution::spawn_evolve(
+            workflow,
+            run_id,
+            _config.workflows.clone(),
+            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            msg_tx,
+        ),
         #[cfg(feature = "workflows")]
         Cmd::AcceptProposal {
             workflow,
@@ -297,14 +304,24 @@ pub(super) fn run_cmd(
         Cmd::CopilotTurn {
             workflow,
             instruction,
-        } => workflows::spawn_copilot(workflow, instruction, _workflows_config.clone(), msg_tx),
+        } => workflows::spawn_copilot(
+            workflow,
+            instruction,
+            _config.workflows.clone(),
+            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            msg_tx,
+        ),
         #[cfg(feature = "workflows")]
         Cmd::CreateWorkflow {
             thread,
             instruction,
-        } => {
-            workflows::spawn_copilot_create(thread, instruction, _workflows_config.clone(), msg_tx)
-        }
+        } => workflows::spawn_copilot_create(
+            thread,
+            instruction,
+            _config.workflows.clone(),
+            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            msg_tx,
+        ),
         Cmd::RefreshFleet => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();

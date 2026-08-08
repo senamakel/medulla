@@ -20,12 +20,15 @@ use medulla::ui::workflows::{classify_progress, Progress};
 /// current one is not what a "what is happening now" box is for.
 const VISIBLE_FRAMES: usize = 40;
 
-/// Draw the tail of one node's live harness output.
+/// Format the tail of one node's live harness output.
 ///
-/// `running` distinguishes a step still working from one whose frames are the
-/// last thing it said before the run ended — the same lines mean different
-/// things, and a spinner over a finished run is a lie.
-pub(super) fn live_lines(frames: &[String], running: bool) -> Vec<Line<'static>> {
+/// `frames` are the harness messages for the selected node; `running`
+/// distinguishes an active step from its terminal output. Returns styled lines
+/// with a live/last header and the most recent safe-to-render frames.
+pub(in crate::ui::app::render) fn live_lines(
+    frames: &[String],
+    running: bool,
+) -> Vec<Line<'static>> {
     if frames.is_empty() {
         return Vec::new();
     }

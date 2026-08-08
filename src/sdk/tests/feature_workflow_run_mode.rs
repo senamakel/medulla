@@ -104,10 +104,36 @@ static SERIAL: Mutex<()> = Mutex::const_new(());
 /// and a `TINYPLACE_*_BIN` override so provider detection succeeds without a
 /// coding-agent CLI installed. The override points at this test binary, which is
 /// never executed — the workflow has no `agent` node to dispatch.
+///
+/// It also *removes* the control-plane grant, which is the other half of reading
+/// the real process environment. A test binary is routinely launched inside a
+/// harness session Medulla itself started — `cargo test` run by a coding agent
+/// under the Sessions tab — and inherits that session's socket and token.
+/// [`medulla::workflows::RunReporter`] reports to whatever grant the run's
+/// environment names, so without this the fixture below files five runs of a
+/// workflow called `double` into the *operator's* live rail, where they sit
+/// wedged at `running` forever because this process exits without ever sending a
+/// terminal report. With no socket and no token `grant_from_env` returns `None`,
+/// no reporter is started, and the run behaves exactly as it does under
+/// `medulla workflow run` in an ordinary shell.
+///
+/// The parent-handoff pair goes too: those are what a *nested* session exchanges
+/// for a child capability, so leaving them would reopen the same door one level
+/// down.
 fn pin_process_env(home: &Path) {
     let bin = std::env::current_exe().expect("the test binary has a path");
     std::env::set_var("TINYPLACE_CLAUDE_BIN", bin);
     std::env::set_var("MEDULLA_HOME", home);
+    for key in [
+        medulla::control_socket::MCP_SOCKET_ENV,
+        medulla::control_socket::MCP_GRANT_ENV,
+        medulla::control_socket::HOOK_SOCKET_ENV,
+        medulla::control_socket::HOOK_GRANT_ENV,
+        "MEDULLA_MCP_PARENT_SOCKET",
+        "MEDULLA_MCP_PARENT_GRANT",
+    ] {
+        std::env::remove_var(key);
+    }
 }
 
 /// Call one tool and return `(payload, isError)`.
@@ -290,4 +316,36 @@ async fn a_trigger_only_session_inspects_its_run_and_cancels_it_after_it_settled
     assert!(!is_error, "{cancelled}");
     assert_eq!(cancelled["cancelled"], json!(false), "{cancelled}");
     assert_eq!(cancelled["runId"], json!(run_id), "{cancelled}");
+}
+
+/// A fixture run must never reach the operator's own control plane.
+///
+/// `workflow_run` reads its environment off the process, and this binary is
+/// routinely launched from a harness session Medulla started — so it inherits a
+/// live socket and token unless something takes them away. When it did, these
+/// tests filed runs of a workflow named `double` into the operator's Agents
+/// rail, wedged at `running` because the process exits without a terminal
+/// report. Asserting on `grant_from_env` rather than on the reporter is
+/// deliberate: that call is the single gate the reporter is built behind, so a
+/// `None` here is the guarantee that no report can be sent at all.
+#[tokio::test]
+async fn a_run_started_in_this_binary_reports_to_no_control_plane() {
+    let _serial = SERIAL.lock().await;
+    let home = tempfile::tempdir().expect("a scratch home");
+
+    // Exactly what a harness session hands its children.
+    std::env::set_var(
+        medulla::control_socket::MCP_SOCKET_ENV,
+        home.path().join("control.sock"),
+    );
+    std::env::set_var(medulla::control_socket::MCP_GRANT_ENV, "a-live-token");
+
+    pin_process_env(home.path());
+
+    let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+    assert!(
+        medulla::control_socket::grant_from_env(&env).is_none(),
+        "an inherited grant survived pin_process_env: these tests would report \
+         their runs into the operator's live rail"
+    );
 }

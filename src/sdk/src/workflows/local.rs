@@ -30,6 +30,11 @@ async fn nested_harness_env(
     let mut nested = env.clone();
     nested.remove(crate::control_socket::MCP_PARENT_SOCKET_ENV);
     nested.remove(crate::control_socket::MCP_PARENT_GRANT_ENV);
+    // A reporting grant is scoped to the harness whose environment carried it.
+    // This embedded host launches its own children, so keeping the inherited
+    // token would attribute their lifecycle reports to the MCP parent.
+    nested.remove(crate::control_socket::HOOK_SOCKET_ENV);
+    nested.remove(crate::control_socket::HOOK_GRANT_ENV);
     let Some((socket, token)) = crate::control_socket::grant_from_env(env) else {
         return Ok((nested, 0));
     };
@@ -179,10 +184,30 @@ pub struct LocalRun<'a> {
     pub config: &'a crate::config::WorkflowsConfig,
     /// The custom harness presets this machine has configured.
     pub custom_harnesses: &'a [crate::config::CustomHarnessConfig],
+    /// Commit attribution and the lifecycle hooks every `agent` node's harness
+    /// is launched with.
+    ///
+    /// Carried rather than defaulted: the embedded daemon a run starts is a
+    /// spawn door like any other, and a run whose harnesses started with an
+    /// empty [`LaunchPolicy`](crate::harness_hooks::LaunchPolicy) ran with none
+    /// of the operator's hooks and none of Medulla's own reporting ones, so a
+    /// workflow was the one place a configured hook silently did nothing.
+    pub launch: &'a crate::harness_hooks::LaunchPolicy,
     /// The environment the embedded daemon and its harnesses inherit.
     pub env: &'a std::collections::HashMap<String, String>,
-    /// The workspace the run executes in.
+    /// The directory the caller is sitting in, and the workspace this run uses
+    /// when it names no other.
     pub cwd: &'a std::path::Path,
+    /// The workspace this run executes in, when the caller named one.
+    ///
+    /// A first-class run parameter rather than a declared input, because it is
+    /// what `medulla:shell` steps run in, what their `args.cwd` resolves
+    /// against, and what every `agent` node's harness opens — so a workflow that
+    /// took it as an input could only ever describe the checkout, never move to
+    /// it. Absolute, or relative to [`cwd`](Self::cwd); resolved by
+    /// [`crate::workflows::workspace::resolve`], which refuses a path that is
+    /// not a directory on this host. `None` runs in `cwd`.
+    pub workspace: Option<String>,
     /// The workflow to run.
     pub workflow_id: &'a str,
     /// The trigger payload and declared-input values.
@@ -306,11 +331,13 @@ impl LocalRun<'_> {
             custom_harnesses,
             env,
             cwd,
+            workspace,
             workflow_id,
             input,
             sink,
             liveness,
             origin,
+            launch,
         } = self;
 
         // Checked before the host, not after: starting a host requires a
@@ -337,27 +364,41 @@ impl LocalRun<'_> {
             tinyflows::model::resolve_inputs(&workflow.graph.inputs, &input.inputs)
                 .map_err(|err| crate::workflows::WorkflowError::Engine(err.to_string()))?;
 
+        // Resolved before anything is spawned, so a caller who named a checkout
+        // that is not there learns it from the call rather than from a run that
+        // quietly went to work on the wrong one.
+        let workspace = crate::workflows::workspace::resolve(workspace.as_deref(), cwd, env)?;
+        let workspace = workspace.to_string_lossy().to_string();
+        // Overwritten rather than merged: the caller's own guess at where the
+        // run would go is worth less than where it actually went, and "which
+        // checkout did this touch" is the question a run record exists to
+        // answer once a run can be pointed at another repository.
+        let origin = origin.map(|origin| origin.in_workspace(workspace.clone()));
+
         let home = crate::home::medulla_home(env);
         let mut settings = CapabilitySettings::from_config(config, &home);
-        settings.workspace = cwd.to_string_lossy().to_string();
+        settings.workspace = workspace.clone();
         if settings.default_worker_address.trim().is_empty() {
             settings.default_worker_address = LOCAL_WORKER_ADDRESS.to_string();
         }
         let (host_env, fleet_depth) = nested_harness_env(env).await?;
         settings.fleet_depth = fleet_depth;
 
-        let host = LocalWorkflowHost::start(EmbeddedDaemonOptions {
-            workspace: cwd.to_string_lossy().to_string(),
-            default_provider: config.default_provider,
-            model: (!config.default_model.is_empty()).then(|| config.default_model.clone()),
-            // Without these, a workflow whose `agent` node selects a custom
-            // harness preset would run onto an embedded daemon with an empty
-            // preset list and be refused as "not configured on this host" even
-            // though the operator has it configured right here.
-            custom_harnesses: custom_harnesses.to_vec(),
-            env: host_env,
-            ..Default::default()
-        })
+        let host = LocalWorkflowHost::start(
+            EmbeddedDaemonOptions {
+                workspace: workspace.clone(),
+                default_provider: config.default_provider,
+                model: (!config.default_model.is_empty()).then(|| config.default_model.clone()),
+                // Without these, a workflow whose `agent` node selects a custom
+                // harness preset would run onto an embedded daemon with an empty
+                // preset list and be refused as "not configured on this host" even
+                // though the operator has it configured right here.
+                custom_harnesses: custom_harnesses.to_vec(),
+                env: host_env,
+                ..Default::default()
+            }
+            .with_launch_policy(launch),
+        )
         .map_err(crate::workflows::WorkflowError::Engine)?;
 
         let sink = sink.unwrap_or_else(|| folding_sink().0);
@@ -526,6 +567,7 @@ impl LocalRun<'_> {
 pub async fn author_here(
     store: Arc<dyn crate::workflows::WorkflowStore>,
     config: &crate::config::WorkflowsConfig,
+    launch: &crate::harness_hooks::LaunchPolicy,
     cwd: &std::path::Path,
     target: Option<&str>,
     instruction: &str,
@@ -552,13 +594,16 @@ pub async fn author_here(
     );
     crate::mcp::preflight(&env, cwd).map_err(crate::workflows::WorkflowError::Engine)?;
 
-    let host = LocalWorkflowHost::start(EmbeddedDaemonOptions {
-        workspace: cwd.to_string_lossy().to_string(),
-        default_provider: config.default_provider,
-        model: (!config.default_model.is_empty()).then(|| config.default_model.clone()),
-        env,
-        ..Default::default()
-    })
+    let host = LocalWorkflowHost::start(
+        EmbeddedDaemonOptions {
+            workspace: cwd.to_string_lossy().to_string(),
+            default_provider: config.default_provider,
+            model: (!config.default_model.is_empty()).then(|| config.default_model.clone()),
+            env,
+            ..Default::default()
+        }
+        .with_launch_policy(launch),
+    )
     .map_err(crate::workflows::WorkflowError::Engine)?;
 
     let session = CopilotSession {
@@ -603,6 +648,7 @@ pub async fn author_here(
 pub async fn evolve_here(
     store: Arc<dyn crate::workflows::WorkflowStore>,
     config: &crate::config::WorkflowsConfig,
+    launch: &crate::harness_hooks::LaunchPolicy,
     cwd: &std::path::Path,
     id: &str,
     trigger: crate::workflows::evolve::EvolveTrigger,
@@ -635,13 +681,16 @@ pub async fn evolve_here(
     );
     crate::mcp::preflight(&env, cwd).map_err(crate::workflows::WorkflowError::Engine)?;
 
-    let host = LocalWorkflowHost::start(EmbeddedDaemonOptions {
-        workspace: cwd.to_string_lossy().to_string(),
-        default_provider: config.default_provider,
-        model: (!config.default_model.is_empty()).then(|| config.default_model.clone()),
-        env,
-        ..Default::default()
-    })
+    let host = LocalWorkflowHost::start(
+        EmbeddedDaemonOptions {
+            workspace: cwd.to_string_lossy().to_string(),
+            default_provider: config.default_provider,
+            model: (!config.default_model.is_empty()).then(|| config.default_model.clone()),
+            env,
+            ..Default::default()
+        }
+        .with_launch_policy(launch),
+    )
     .map_err(crate::workflows::WorkflowError::Engine)?;
 
     let session = EvolveSession {

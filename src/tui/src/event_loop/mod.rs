@@ -105,7 +105,7 @@ pub(crate) async fn run(
                         run_cmd(
                             cmd,
                             &runtime,
-                            &app.loaded.config.workflows,
+                            &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
                         );
@@ -118,7 +118,7 @@ pub(crate) async fn run(
                         run_cmd(
                             cmd,
                             &runtime,
-                            &app.loaded.config.workflows,
+                            &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
                         );
@@ -132,7 +132,7 @@ pub(crate) async fn run(
                         run_cmd(
                             Cmd::InspectContext,
                             &runtime,
-                            &app.loaded.config.workflows,
+                            &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
                         );
@@ -214,7 +214,7 @@ pub(crate) async fn run(
                             run_cmd(
                                 cmd,
                                 &runtime,
-                                &app.loaded.config.workflows,
+                                &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
                             );
@@ -239,7 +239,7 @@ pub(crate) async fn run(
                             run_cmd(
                                 cmd,
                                 &runtime,
-                                &app.loaded.config.workflows,
+                                &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
                             );
@@ -263,7 +263,7 @@ pub(crate) async fn run(
                         run_cmd(
                             Cmd::LoadFeedback(app.feedback_query()),
                             &runtime,
-                            &app.loaded.config.workflows,
+                            &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
                         );

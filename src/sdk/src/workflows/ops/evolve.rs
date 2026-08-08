@@ -296,6 +296,7 @@ fn parse_kind(kind: &str) -> Result<NoteKind, WorkflowError> {
 pub async fn evolve(
     store: &Arc<dyn WorkflowStore>,
     config: &crate::config::WorkflowsConfig,
+    launch: &crate::harness_hooks::LaunchPolicy,
     cwd: &std::path::Path,
     id: &str,
     run_id: Option<&str>,
@@ -307,7 +308,8 @@ pub async fn evolve(
         None => EvolveTrigger::Manual,
     };
     let outcome =
-        crate::workflows::local::evolve_here(store.clone(), config, cwd, id, trigger).await?;
+        crate::workflows::local::evolve_here(store.clone(), config, launch, cwd, id, trigger)
+            .await?;
     Ok(json!({
         "skipped": outcome.skipped,
         "reply": outcome.reply,
@@ -333,6 +335,7 @@ pub async fn evolve(
 pub async fn author(
     store: &Arc<dyn WorkflowStore>,
     config: &crate::config::WorkflowsConfig,
+    launch: &crate::harness_hooks::LaunchPolicy,
     cwd: &std::path::Path,
     target: Option<&str>,
     instruction: &str,
@@ -341,6 +344,7 @@ pub async fn author(
     let outcome = crate::workflows::local::author_here(
         store.clone(),
         config,
+        launch,
         cwd,
         target,
         instruction,

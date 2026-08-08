@@ -240,12 +240,18 @@ fn workers_from_env(env: &HashMap<String, String>) -> Vec<WorkerSpec> {
 /// Read straight from the file for the same reason the roster is: this module
 /// runs before (and independently of) the TUI's own config load.
 #[cfg(feature = "workflows")]
-fn workflows_config(home: &Path) -> medulla::config::WorkflowsConfig {
-    std::fs::read_to_string(roster_path(home))
+fn workflows_config(
+    home: &Path,
+) -> (
+    medulla::config::WorkflowsConfig,
+    medulla::harness_hooks::LaunchPolicy,
+) {
+    let config = std::fs::read_to_string(roster_path(home))
         .ok()
         .and_then(|text| toml::from_str::<medulla::config::TuiConfig>(&text).ok())
-        .map(|config| config.workflows)
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let launch = medulla::harness_hooks::LaunchPolicy::from_config(&config);
+    (config.workflows, launch)
 }
 
 /// The workflow store this hub advertises to the hosted orchestrator, or `None`
@@ -265,7 +271,7 @@ fn workflow_bridge(
     env: &HashMap<String, String>,
     home: &Path,
 ) -> Option<medulla::hub::WorkflowPlane> {
-    let config = workflows_config(home);
+    let (config, launch) = workflows_config(home);
     if !config.enabled {
         return None;
     }
@@ -290,7 +296,12 @@ fn workflow_bridge(
             model: model.clone(),
             env: harness_env,
             ..Default::default()
-        },
+        }
+        // The per-turn host this dispatch starts is a spawn door like any
+        // other: without the policy its harnesses carry none of the operator's
+        // lifecycle hooks and attribute their commits to whatever the default
+        // happens to be, rather than to what this machine's config says.
+        .with_launch_policy(&launch),
     ));
 
     Some(std::sync::Arc::new(

@@ -14,8 +14,9 @@ harness's lifecycle back to it. Without them a harness on a pty is opaque:
   point, and [`launch_args`], which merges hooks with commit attribution because
   Claude Code carries both through one `--settings` flag.
 - [`types.rs`](./types.rs) — The canonical event vocabulary, one declared hook,
-  the one-line editor form the Hooks page reads and writes, and the injection a
-  translator produces. Events deserialize from both their canonical `PascalCase`
+  the one-line editor form the Hooks page reads and writes, the injection a
+  translator produces, and [`LaunchPolicy`] — attribution and hooks as the one
+  value every spawn door carries, so a door cannot take a default for half of it. Events deserialize from both their canonical `PascalCase`
   name and its `camelCase` spelling, since the latter is what every other config
   key teaches; see [`HookEvent`]'s own docs.
 - [`builtin.rs`](./builtin.rs) — Medulla's own reporting hooks: which events they
@@ -52,6 +53,30 @@ that one spawn (see [`Grant::hook_only`](../control_socket/grants.rs)). Before
 that, only the pty pane's grant was seeded, so a hook installed everywhere else
 spawned, found nothing to report to, and exited — pure overhead, and a
 meaningfully wasteful one on `PostToolUse`, which fires once per tool call.
+### Doors that start a host rather than a harness
+
+A workflow run, the authoring copilot, and an evolution review do not spawn a
+harness themselves — each starts a short-lived **embedded daemon** that does it
+for them. That daemon installs whatever
+[`EmbeddedDaemonOptions`](../daemon/embedded/types.rs) was told to, and its
+`Default` carries no hooks, so a door that filled the field in with
+`..Default::default()` launched every harness under it with none. That was the
+state until this was fixed: a hook declared once in `config.toml` fired under
+`medulla claude` and under the TUI's own pane, and silently did nothing for the
+same repository's workflow runs — the least-supervised harnesses Medulla starts,
+which is exactly where a checkpoint hook earns its keep. The `[attribution]
+commit` opt-out was lost the same way, in the other direction: the default is
+*on*, so an operator who turned it off still got the trailer.
+
+Every such door now names its policy with
+`EmbeddedDaemonOptions::with_launch_policy`, and
+`harness_hooks::tests::every_embedded_host_door_applies_a_launch_policy` fails if
+a new one forgets. The doors are `workflows::local` (run, author, evolve), the
+`medulla workflow` subcommand, the TUI's workflow/copilot/evolve commands, the
+hub relay's copilot bridge, and the TUI's own hosts.
+`src/sdk/tests/feature_workflow_launch_policy.rs` drives the first of those
+end-to-end and reads the argv the spawned process actually received.
+
 **ACP dispatch remains the one door that cannot carry hooks at all**: Medulla
 spawns an ACP *server*, which spawns the harness itself, so there is no argv
 to install the command onto in the first place (see

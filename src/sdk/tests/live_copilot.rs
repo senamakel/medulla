@@ -125,6 +125,7 @@ async fn author(
     let outcome = medulla::workflows::local::author_here(
         store.clone(),
         &config(),
+        &medulla::harness_hooks::LaunchPolicy::default(),
         cwd,
         target,
         instruction,
