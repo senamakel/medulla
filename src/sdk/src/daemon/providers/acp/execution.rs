@@ -124,6 +124,15 @@ pub(in crate::daemon::providers) fn uses_acp(options: &RunTaskOptions) -> bool {
 
 /// Execute one task through the standard Agent Client Protocol.
 pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, String> {
+    // The operator's hooks, in the form this transport can carry them: for
+    // Claude Code an `_meta` passenger on the session request, and for the rest
+    // a note saying they are not running here. Built before anything is spawned
+    // so the note reaches the log even if the session never opens.
+    let delivery = crate::harness_hooks::acp_delivery(options.provider, &options.hooks);
+    for note in &delivery.notes {
+        tracing::warn!(provider = options.provider.as_str(), "{note}");
+    }
+    let session_meta = delivery.session_meta;
     let agent = agent_for(&options);
     // Read before `options` is picked apart below, and cloned because the
     // session setup runs inside an async move closure.
@@ -206,6 +215,12 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                     // what it would have done.
                     request.mcp_servers =
                         medulla_mcp_servers(tool_mode.as_deref(), &session_key, &task_env).await;
+                    // A loaded session gets the hooks a new one gets. The ACP
+                    // server rebuilds the underlying harness query from these
+                    // params, so omitting them here would mean a resumed run —
+                    // every retry, every continued workflow step — silently
+                    // stopped checkpointing where the first turn did not.
+                    request.meta = session_meta;
                     connection.send_request(request).block_task().await?;
                     id.into()
                 }
@@ -217,6 +232,11 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                     // agent author a workflow rather than only run one.
                     request.mcp_servers =
                         medulla_mcp_servers(tool_mode.as_deref(), &session_key, &task_env).await;
+                    // Medulla's hooks, for the harnesses whose ACP server takes
+                    // its configuration this way (see
+                    // [`crate::harness_hooks::acp`]). `None` for the rest, which
+                    // leaves the request exactly as it was.
+                    request.meta = session_meta;
                     connection
                         .send_request(request)
                         .block_task()
