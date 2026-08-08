@@ -49,7 +49,9 @@ impl EmbeddedDaemon {
     /// # Errors
     ///
     /// Fails when no coding-agent CLI is installed (or none of the requested
-    /// ones), or when the requested default provider is not among them. Both are
+    /// ones), or when the requested default provider is not among them — except
+    /// that `openhuman` is always a valid default, since the embedded core is
+    /// available in this process whether or not a CLI was detected. Both are
     /// configuration mistakes an operator has to see rather than a host that
     /// starts and then rejects every task.
     pub fn start(
