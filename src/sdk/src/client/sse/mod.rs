@@ -132,16 +132,17 @@ impl SseParser {
                 line.pop();
             }
             if self.discarding {
+                // The just-drained line ended the oversized line whose tail was
+                // discarded: its terminating newline can arrive alone as an
+                // empty line or attached to late tail content, so end it
+                // regardless of the line's content. This newline finishes the
+                // line, not the whole frame — discarding continues to the
+                // frame's own blank line.
+                let ended_oversized_line = self.in_discarded_line;
+                self.in_discarded_line = false;
                 // A blank line ends the frame being dropped; resume parsing.
-                if line.is_empty() {
-                    if self.in_discarded_line {
-                        // This empty line merely finished the oversized line
-                        // whose tail was cleared; the frame itself is still
-                        // being dropped, so keep discarding for its blank line.
-                        self.in_discarded_line = false;
-                    } else {
-                        self.discarding = false;
-                    }
+                if line.is_empty() && !ended_oversized_line {
+                    self.discarding = false;
                 }
                 continue;
             }
