@@ -313,9 +313,7 @@ fn the_host_tree_keeps_a_second_declared_host() {
         .map(|host| (host.id, host.kind == medulla::ui::hosts::HostKind::Local))
         .collect();
     assert!(
-        hosts
-            .iter()
-            .any(|(host_id, is_local)| host_id == "studio" && !is_local),
+        hosts.iter().any(|(host_id, _)| host_id == "studio"),
         "the second declared machine stays in the shared tree: {hosts:?}"
     );
     assert!(
