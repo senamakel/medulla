@@ -139,6 +139,28 @@ fn a_line_without_a_newline_is_capped() {
 }
 
 #[test]
+fn an_oversized_newline_terminated_line_is_capped_too() {
+    let mut parser = SseParser::new();
+    let mut out = Vec::new();
+    // A single chunk can carry a newline-terminated line longer than the cap,
+    // which the no-newline branch cannot see. A comment line is never
+    // length-checked downstream, so without an explicit cap it would be cloned
+    // into `line` in full and accepted — an allocation spike from one chunk.
+    let flood = format!(": {}\n", "x".repeat(MAX_FRAME_BYTES + 1));
+    assert!(parser.feed(&flood, &mut out).is_err());
+    assert!(out.is_empty());
+    // Recovery resumes at the next frame boundary.
+    parser.feed("\ndata: ok\n\n", &mut out).unwrap();
+    assert_eq!(
+        out,
+        vec![SseFrame {
+            id: None,
+            data: "ok".to_string(),
+        }]
+    );
+}
+
+#[test]
 fn an_oversized_payload_is_dropped_not_accumulated() {
     let mut parser = SseParser::new();
     let mut out = Vec::new();
