@@ -30,20 +30,6 @@ const LOCK_RETRY_ATTEMPTS: u32 = 5;
 /// Base backoff (ms) for the transient-lock retry.
 const LOCK_RETRY_BASE_MS: u64 = 250;
 
-/// What one bounded line read produced.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum LineRead {
-    /// A complete line at or under the cap, appended to the caller's buffer.
-    Line,
-    /// The line exceeded the cap. With a retained tail the trailing bytes of the
-    /// record are in the caller's buffer; otherwise nothing was buffered and the
-    /// rest of the line was discarded, so the next read starts on the following
-    /// record.
-    Oversized,
-    /// The stream ended with nothing buffered.
-    Eof,
-}
-
 /// Read one newline-terminated record into `buf`, never retaining more than
 /// `cap` bytes of any single record.
 ///
