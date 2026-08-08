@@ -35,6 +35,12 @@ impl std::fmt::Display for SseOverflow {
 
 impl std::error::Error for SseOverflow {}
 
+/// Outcome of feeding the parser: `Err` means input was discarded.
+///
+/// Spelled out rather than using this module's [`Result`](crate::client::Result)
+/// alias, which carries [`ClientError`](crate::client::ClientError).
+pub type ParseResult = std::result::Result<(), SseOverflow>;
+
 /// Incremental SSE line parser. Feed byte chunks; collect completed frames.
 #[derive(Debug, Default)]
 pub struct SseParser {
