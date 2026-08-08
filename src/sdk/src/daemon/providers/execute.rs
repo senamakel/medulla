@@ -85,30 +85,20 @@ pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
             Some(at) => (at + 1, true),
             None => (chunk.len(), false),
         };
-        if !oversized {
-            if buf.len() + take > cap {
-                // Past the ceiling: keep only the trailing `retain_tail` bytes
-                // as a rolling tail rather than carrying a record nothing
-                // downstream will accept whole.
-                oversized = true;
-                if let Some(tail) = retain_tail {
-                    buf.extend_from_slice(&chunk[..take]);
-                    trim_tail(buf, tail);
-                    // Release the pre-overflow capacity: only the tail is
-                    // wanted from here, and the next chunk's extend re-grows it
-                    // to at most ~2× the tail rather than back to `cap`.
-                    buf.shrink_to_fit();
-                } else {
-                    buf.clear();
-                    buf.shrink_to_fit();
-                }
-            } else {
-                buf.extend_from_slice(&chunk[..take]);
-            }
-        } else if let Some(tail) = retain_tail {
-            // Already oversized: keep the rolling window across later chunks so
-            // the tail is the *last* `tail` bytes of the record, not the first.
+        // Past the ceiling: without a retained tail the record is dropped and
+        // the next read starts on the following one; with one, only the last
+        // `tail` bytes are kept as a rolling window so an endless stderr line
+        // still yields its trailing diagnostic.
+        let over = !oversized && buf.len() + take > cap;
+        oversized |= over;
+        if over && retain_tail.is_none() {
+            buf.clear();
+            buf.shrink_to_fit();
+        }
+        if retain_tail.is_some() || !over {
             buf.extend_from_slice(&chunk[..take]);
+        }
+        if let Some(tail) = retain_tail {
             trim_tail(buf, tail);
         }
         reader.consume(take);
@@ -127,8 +117,7 @@ pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
 /// blew past a much larger cap.
 fn trim_tail(buf: &mut Vec<u8>, tail: usize) {
     if buf.len() > tail {
-        let drop = buf.len() - tail;
-        buf.drain(..drop);
+        buf.drain(..buf.len() - tail);
     }
 }
 
