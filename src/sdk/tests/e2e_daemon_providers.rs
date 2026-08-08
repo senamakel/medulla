@@ -48,6 +48,7 @@ async fn run(
     let kinds = Arc::new(Mutex::new(Vec::<String>::new()));
     let sink = kinds.clone();
     let options = RunTaskOptions {
+        origin: medulla::daemon::providers::RunTaskOrigin::DelegatedTask,
         hooks: medulla::harness_hooks::HooksConfig::default(),
         transport: Default::default(),
         conversation: String::new(),
@@ -172,6 +173,7 @@ async fn spawn_failure_for_missing_binary() {
         "/nonexistent/definitely-not-here"
     );
     let options = RunTaskOptions {
+        origin: medulla::daemon::providers::RunTaskOrigin::DelegatedTask,
         hooks: medulla::harness_hooks::HooksConfig::default(),
         transport: Default::default(),
         conversation: String::new(),
@@ -209,6 +211,7 @@ async fn abort_before_start_returns_immediately() {
     let abort = Abort::new();
     abort.abort();
     let options = RunTaskOptions {
+        origin: medulla::daemon::providers::RunTaskOrigin::DelegatedTask,
         hooks: medulla::harness_hooks::HooksConfig::default(),
         transport: Default::default(),
         conversation: String::new(),

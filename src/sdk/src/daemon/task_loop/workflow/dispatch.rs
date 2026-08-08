@@ -194,6 +194,7 @@ impl HarnessDispatch for RuntimeDispatch {
         ));
 
         let options = RunTaskOptions {
+            origin: crate::daemon::providers::RunTaskOrigin::Workflow,
             conversation: self.conversation.clone(),
             // A workflow node is discrete work, like the task frame that
             // started the graph — nodes share a conversation for attribution,

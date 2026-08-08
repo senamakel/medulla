@@ -18,6 +18,7 @@ use super::run::{reply_text, turn_workspace_root, uses_embedded_core};
 /// Options naming `provider`, with everything else at its least interesting.
 fn options(provider: HarnessProvider) -> RunTaskOptions {
     RunTaskOptions {
+        origin: super::super::types::RunTaskOrigin::DelegatedTask,
         provider,
         transport: HarnessTransport::Cli,
         prompt: "do the thing".to_string(),
@@ -142,4 +143,19 @@ fn the_runs_checkout_resolves_to_a_canonical_root() {
     let resolved = turn_workspace_root(indirect.to_str().unwrap()).expect("an existing directory");
     assert!(resolved.is_absolute());
     assert_eq!(resolved, nested.canonicalize().expect("canonical"));
+}
+
+/// Spaces are valid path characters, including at either end of a checkout's
+/// name; the workspace grant must preserve them rather than treating `cwd` as
+/// user-facing prose.
+#[test]
+fn a_working_directory_with_edge_whitespace_is_preserved() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let checkout = dir.path().join(" checkout ");
+    std::fs::create_dir(&checkout).expect("mkdir");
+
+    assert_eq!(
+        turn_workspace_root(checkout.to_str().expect("utf-8 path")),
+        Some(checkout.canonicalize().expect("canonical")),
+    );
 }

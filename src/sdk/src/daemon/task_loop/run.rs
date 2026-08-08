@@ -433,6 +433,7 @@ impl DaemonRuntime {
         };
 
         let options = RunTaskOptions {
+            origin: crate::daemon::providers::RunTaskOrigin::DelegatedTask,
             // The *authenticated* sender, never anything from the frame body: a
             // frame cannot be trusted to name its own author. This says *whose*
             // the run is; `session_class` separately says whether it may share
@@ -687,6 +688,7 @@ impl DaemonRuntime {
             .expect("semaphore is never closed");
         self.log(&format!("plaintext DM → {}", provider.as_str()));
         let options = RunTaskOptions {
+            origin: crate::daemon::providers::RunTaskOrigin::Conversation,
             conversation: from.clone(),
             // A conversational message continues the sender's session — that is
             // what makes a DM a conversation rather than a series of unrelated

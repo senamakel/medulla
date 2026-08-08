@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 
 use crate::protocol::{HarnessEvent, HarnessProvider};
 
-use super::super::types::{RunTaskOptions, RunTaskResult};
+use super::super::types::{RunTaskOptions, RunTaskOrigin, RunTaskResult};
 
 /// The core method that runs a full agent turn.
 ///
@@ -65,6 +65,7 @@ pub fn uses_embedded_core(options: &RunTaskOptions) -> bool {
 pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult, String> {
     let RunTaskOptions {
         prompt,
+        origin,
         cwd,
         model,
         timeout_ms,
@@ -108,22 +109,12 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
     // decisions instead ride task-locals through the full core dispatch. The
     // Medulla-owned cwd scope reaches the process-global lifecycle hooks too,
     // so a `PostToolUse` auto-commit targets this run's checkout.
-    let cwd = PathBuf::from(&cwd);
+    let cwd_path = PathBuf::from(&cwd);
     let call = crate::core_host::turn_cwd::with_turn_cwd(
-        Some(cwd.as_path()),
-        with_origin(
-            AgentTurnOrigin::TrustedAutomation {
-                // The turn's own id, so an audit row or a parked approval names
-                // the dispatch it came from rather than a constant.
-                job_id: thread_id.clone(),
-                source: TrustedAutomationSource::Workflow {
-                    // The node already ran because the operator's graph said it
-                    // should; parking each tool call for a second decision would
-                    // strand an unattended run on a prompt nobody is watching.
-                    require_approval: false,
-                },
-            },
-            scoped_workspace(&cwd, core.raw().invoke(AGENT_CHAT, params)),
+        Some(cwd_path.as_path()),
+        scoped_workspace(
+            &cwd,
+            scoped_origin(origin, &thread_id, core.raw().invoke(AGENT_CHAT, params)),
         ),
     );
 
@@ -178,6 +169,36 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
     })
 }
 
+/// Run `future` with unattended workflow authority only for workflow nodes.
+///
+/// Delegated tasks, conversational turns, local sessions, and capability
+/// probes intentionally remain unlabelled: OpenHuman then applies its
+/// fail-closed approval policy to their external-effect tools.
+async fn scoped_origin<F>(origin: RunTaskOrigin, thread_id: &str, future: F) -> F::Output
+where
+    F: std::future::Future,
+{
+    if origin == RunTaskOrigin::Workflow {
+        with_origin(
+            AgentTurnOrigin::TrustedAutomation {
+                // The turn's own id, so an audit row or a parked approval names
+                // the dispatch it came from rather than a constant.
+                job_id: thread_id.to_string(),
+                source: TrustedAutomationSource::Workflow {
+                    // The node already ran because the operator's graph said it
+                    // should; parking each tool call for a second decision would
+                    // strand an unattended run on a prompt nobody is watching.
+                    require_approval: false,
+                },
+            },
+            future,
+        )
+        .await
+    } else {
+        future.await
+    }
+}
+
 /// Run `fut` with the run's checkout scoped as the turn's workspace.
 ///
 /// A no-op when `cwd` does not resolve to a directory — see
@@ -203,11 +224,10 @@ async fn scoped_workspace<F: std::future::Future>(cwd: &str, fut: F) -> F::Outpu
 /// paths the tools resolve: a symlinked or `..`-laden root would fail to
 /// contain its own contents and quietly refuse every write into it.
 pub(super) fn turn_workspace_root(cwd: &str) -> Option<PathBuf> {
-    let trimmed = cwd.trim();
-    if trimmed.is_empty() {
+    if cwd.is_empty() {
         return None;
     }
-    let resolved = std::fs::canonicalize(trimmed).ok()?;
+    let resolved = std::fs::canonicalize(cwd).ok()?;
     if !resolved.is_dir() {
         tracing::warn!(
             cwd = %resolved.display(),
