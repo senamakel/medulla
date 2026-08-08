@@ -75,9 +75,7 @@ impl FoldState {
                 ) =>
             {
                 let payload = self.tool_call_payload(&value);
-                if value.get("rawInput").is_none() {
-                    return None;
-                }
+                value.get("rawInput")?;
                 ("tool_call", "agent", payload)
             }
             "tool_call_update" => {

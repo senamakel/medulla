@@ -52,6 +52,7 @@ pub fn delivery(provider: HarnessProvider, hooks: &HooksConfig) -> AcpDelivery {
             delivery.local_post_tool_use = applicable
                 .into_iter()
                 .filter(|hook| hook.event == super::types::HookEvent::PostToolUse)
+                .cloned()
                 .collect();
             let unsupported =
                 hooks.for_provider(provider).len() - delivery.local_post_tool_use.len();
