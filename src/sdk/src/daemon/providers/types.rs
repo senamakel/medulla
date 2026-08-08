@@ -234,3 +234,20 @@ pub(super) struct RunSpec {
     pub(super) hooks: crate::harness_hooks::HooksConfig,
     pub(super) on_workspace_context: Option<OnWorkspaceContext>,
 }
+
+/// What one bounded line read produced.
+///
+/// The `execute` module's bounded reader returns this to say whether a record
+/// was kept whole, dropped as oversized, or the stream ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LineRead {
+    /// A complete line at or under the cap, appended to the caller's buffer.
+    Line,
+    /// The line exceeded the cap. With a retained tail the trailing bytes of the
+    /// record are in the caller's buffer; otherwise nothing was buffered and the
+    /// rest of the line was discarded, so the next read starts on the following
+    /// record.
+    Oversized,
+    /// The stream ended with nothing buffered.
+    Eof,
+}
