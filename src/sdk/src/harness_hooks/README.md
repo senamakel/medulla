@@ -78,11 +78,16 @@ hub relay's copilot bridge, and the TUI's own hosts.
 `src/sdk/tests/feature_workflow_launch_policy.rs` drives the first of those
 end-to-end and reads the argv the spawned process actually received.
 
-**ACP dispatch remains the one door that cannot carry hooks at all**: Medulla
-spawns an ACP *server*, which spawns the harness itself, so there is no argv
-to install the command onto in the first place (see
-`daemon::providers::execute::run_provider_task`'s own comment). A configured
-hook there is reported once, as a warning, rather than silently doing nothing.
+**ACP dispatch cannot inject hooks into the harness**: Medulla spawns an ACP
+*server*, which spawns the harness itself, so there is no argv to install the
+command onto in the first place (see
+`daemon::providers::execute::run_provider_task`'s own comment). Codex ACP
+sessions still run the operator's `PostToolUse` hooks *locally*, in Medulla's
+own process, after each completed tool call (see
+[`acp/runner.rs`](./acp/runner.rs)). That fallback is observation-only: ACP
+gives the client no way to amend a tool call it did not execute, so a hook's
+stdout decision is not forwarded. Hooks for other events on this transport are
+reported once, as a warning, rather than silently doing nothing.
 
 Two properties are load-bearing:
 
