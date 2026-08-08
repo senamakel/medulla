@@ -407,3 +407,68 @@ async fn abort_cancelled_resolves_when_signalled() {
     // Already-aborted: cancelled returns immediately.
     abort.cancelled().await;
 }
+
+/// The stdout reader's record ceiling has to hold while the line is being read,
+/// not after it: `read_until` buffers the whole line first, so a harness that
+/// never emits a newline grows the buffer without limit — the ceiling the
+/// module documents is then no ceiling at all.
+#[tokio::test]
+async fn an_oversized_record_is_discarded_without_being_buffered() {
+    use super::execute::{read_line_bounded, LineRead};
+
+    // One 4 KiB record with no newline in sight, then a normal one.
+    let mut stream = tokio::io::BufReader::new(std::io::Cursor::new({
+        let mut bytes = vec![b'x'; 4096];
+        bytes.extend_from_slice(b"\n{\"ok\":true}\n");
+        bytes
+    }));
+
+    let mut buf = Vec::new();
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 64).await.unwrap(),
+        LineRead::Oversized
+    );
+    assert!(
+        buf.capacity() <= 128,
+        "the oversized record must not be retained: {} bytes held",
+        buf.capacity()
+    );
+
+    // Reading resumes on the record *after* the oversized one.
+    buf.clear();
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 64).await.unwrap(),
+        LineRead::Line
+    );
+    assert_eq!(buf, b"{\"ok\":true}\n");
+
+    buf.clear();
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 64).await.unwrap(),
+        LineRead::Eof
+    );
+}
+
+/// A record ending at EOF without a newline is still a record, and a record
+/// exactly at the cap is still under it.
+#[tokio::test]
+async fn a_bounded_read_keeps_records_at_or_under_the_cap() {
+    use super::execute::{read_line_bounded, LineRead};
+
+    let mut stream = tokio::io::BufReader::new(std::io::Cursor::new(b"abcd\ntrailing".to_vec()));
+    let mut buf = Vec::new();
+
+    // "abcd\n" is five bytes: at the cap, so accepted.
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 5).await.unwrap(),
+        LineRead::Line
+    );
+    assert_eq!(buf, b"abcd\n");
+
+    buf.clear();
+    assert_eq!(
+        read_line_bounded(&mut stream, &mut buf, 64).await.unwrap(),
+        LineRead::Line
+    );
+    assert_eq!(buf, b"trailing");
+}
