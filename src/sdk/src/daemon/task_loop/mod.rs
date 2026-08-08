@@ -83,6 +83,14 @@ impl DaemonRuntime {
                 providers.contains(&requested).then_some(requested)
             }
             None => {
+                // An OpenHuman default is honoured the same way an explicit
+                // request for it is: the embedded core needs no binary to
+                // detect, so an operator who configured `openhuman` as the
+                // default means exactly that, even on a machine where no coding
+                // CLI was found.
+                if self.inner.config.default_provider == HarnessProvider::Openhuman {
+                    return Some(self.inner.config.default_provider);
+                }
                 if providers.contains(&self.inner.config.default_provider) {
                     Some(self.inner.config.default_provider)
                 } else {
