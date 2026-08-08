@@ -261,7 +261,7 @@ pub(crate) fn vet_resolution(host: &str, port: u16) -> Result<Vec<std::net::Sock
 /// Whether a host *names* loopback, a link-local address, or an RFC 1918 range.
 ///
 /// The cheap textual guard, applied before any lookup. The authoritative check
-/// is `refuse_private_resolution`, which catches the names this cannot.
+/// is `vet_resolution`, which catches the names this cannot.
 pub fn is_private_host(host: &str) -> bool {
     let host = host.trim_matches(['[', ']']).to_ascii_lowercase();
     if host == "localhost" || host.ends_with(".localhost") || host.ends_with(".internal") {
