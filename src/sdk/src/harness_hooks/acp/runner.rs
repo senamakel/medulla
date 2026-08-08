@@ -130,8 +130,13 @@ fn shell_args(command: &str) -> [&str; 4] {
 /// `cmd.exe` offers without a Job Object.
 fn kill_hook(child: &mut tokio::process::Child) {
     #[cfg(unix)]
-    unsafe {
-        libc::kill(-(child.id() as i32), libc::SIGKILL);
+    if let Some(pid) = child.id() {
+        // The child leads its own process group (`process_group(0)` above), so
+        // the negative pid is that group. Guard on a real pid: `kill(-0, …)`
+        // would signal this process's own group.
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
     }
     let _ = child.start_kill();
 }
