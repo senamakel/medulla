@@ -53,8 +53,9 @@ routed at the mock and which wire dialect it lands on.
 | `e2e/coordination/opencode.live.json` | opencode config template → OpenRouter (live suite) |
 | `e2e/coordination/medulla.claude.json`, `medulla.codex.json` | daemon configs carrying the custom harness preset for each CLI |
 | `e2e/coordination/codex_models_cache.json` | fixture stand-in for Codex's normally-fetched model catalog |
-| `e2e/coordination/Dockerfile` | multi-stage image: rust build stage → slim runtime with all three CLIs |
-| `e2e/coordination/build-image.sh` | build (and optionally push) that image |
+| `e2e/coordination/Dockerfile.base` | the tools image: tmux, python3, node, all three coding CLIs — published to GHCR |
+| `e2e/coordination/Dockerfile` | the harness image: a rust build stage layered onto that base |
+| `e2e/coordination/build-image.sh` | build (and optionally push) either image |
 | `e2e/coordination/run-docker.sh` | build + run the whole harness in a container |
 | `examples/mock_link_forwarder.rs` | blind UDP forwarder implementing protocol §5 rules 1-8 |
 | `examples/coordination_owner.rs` | owner-side driver: enrolls pairs, serves legs, prints terminal frame JSON |

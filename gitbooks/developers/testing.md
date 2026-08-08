@@ -69,6 +69,35 @@ owner driver (src/sdk/examples/coordination_owner; a real medulla-link endpoint)
   ← Reply frame back over the link, asserted on content, usage, and delivery
 ```
 
+### The two images
+
+The harness image is built from two pieces, and the split is what keeps CI fast:
+
+| Image | Holds | Rebuilt when |
+| --- | --- | --- |
+| `ghcr.io/tinyhumansai/medulla_e2e_base` | tmux, python3, node, opencode + claude + codex, the primed ACP npm cache, the unprivileged `e2e` user | a CLI version is bumped |
+| `medulla-e2e` (local) | this checkout's `medulla` binary, the two link examples, the harness scripts | the source changes |
+
+The CLIs are roughly 600 MB of downloads that have nothing to do with the source,
+so a run whose layer cache had been evicted used to re-fetch all of them before
+it could compile a line of Rust. They now live in a pinned image that CI pulls.
+
+The base is tagged by the versions it contains
+(`oc1.17.18-cc2.1.226-cx0.147.0-node22`), and `Dockerfile` pins that tag rather
+than `latest` — a base moving under a green branch would leave the harness
+testing something other than what it last reported. Bumping a CLI is therefore
+three steps: change the `ARG` in `Dockerfile.base`, publish (the **Build E2E
+Image** workflow, or `make e2e-image-base` with `PUSH=1`), and point
+`Dockerfile`'s `BASE_IMAGE` default at the new tag.
+
+Without GHCR access, build the base locally and pass it in:
+
+```sh
+make e2e-image-base
+BASE_IMAGE=ghcr.io/tinyhumansai/medulla_e2e_base:latest \
+  bash e2e/coordination/build-image.sh
+```
+
 ### Choosing the coding CLI
 
 `E2E_HARNESS` picks which CLI the daemon spawns — `opencode` (the default),
@@ -118,8 +147,9 @@ every retransmission is production code.
 | `e2e/coordination/opencode.json` | opencode config template pointed at the mock LLM, `autoupdate: false`. |
 | `e2e/coordination/medulla.claude.json`, `medulla.codex.json` | Daemon configs carrying the custom harness preset for each CLI. |
 | `e2e/coordination/codex_models_cache.json` | Fixture stand-in for Codex's normally-fetched model catalog. |
-| `e2e/coordination/Dockerfile` | Multi-stage image: Rust build stage, then a slim runtime with all three CLIs. |
-| `e2e/coordination/build-image.sh` | Build (and optionally push) that image. |
+| `e2e/coordination/Dockerfile.base` | The tools image: tmux, python3, node and all three coding CLIs, pinned. Published to GHCR. |
+| `e2e/coordination/Dockerfile` | The harness image: a Rust build stage layered onto that base. |
+| `e2e/coordination/build-image.sh` | Build (and optionally push) either image. |
 | `e2e/coordination/run-docker.sh` | Build and run the whole harness in a container. |
 
 ```sh
@@ -133,6 +163,7 @@ make e2e-image                        # build the container image
 make e2e-docker                       # build the image, then run all three offline suites
 make e2e-docker E2E_HARNESS=claude    # the same suites, driving Claude Code
 make e2e-docker-all                   # every suite against every coding CLI
+make e2e-image-base                   # rebuild the tools base (only for a CLI bump)
 
 E2E_HARNESS=codex bash e2e/coordination/run.sh   # a single leg on the host
 ```

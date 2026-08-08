@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help init public-boundary fmt clippy test build check ci e2e-image e2e-docker \
-        e2e-docker-all e2e-live
+.PHONY: help init public-boundary fmt clippy test build check ci e2e-image e2e-image-base \
+        e2e-docker e2e-docker-all e2e-live
 
 # Tag for the containerized e2e harness image (see e2e/coordination/Dockerfile).
 E2E_IMAGE ?= medulla-e2e:latest
@@ -40,9 +40,15 @@ check: public-boundary fmt clippy ## Run the pre-push checks
 
 ci: public-boundary fmt clippy test build ## Run the complete CI gate locally
 
-e2e-image: ## Build the containerized e2e harness image (slow cold; needs submodules)
+e2e-image: ## Build the containerized e2e harness image (needs submodules; pulls the tools base)
 	IMAGE=$(firstword $(subst :, ,$(E2E_IMAGE))) TAGS=$(word 2,$(subst :, ,$(E2E_IMAGE))) \
 	  bash e2e/coordination/build-image.sh
+
+# The ~600 MB of coding CLIs the harness image layers onto. Published to GHCR and
+# pulled by default, so this is only needed when bumping a CLI version or when
+# GHCR is unreachable — then point Dockerfile's BASE_IMAGE at what it builds.
+e2e-image-base: ## Build the e2e tools base image (tmux, node, opencode/claude/codex)
+	bash e2e/coordination/build-image.sh --base
 
 e2e-docker: e2e-image ## Run every offline e2e suite in containers for E2E_HARNESS (default: opencode)
 	$(E2E_RUN) /app/e2e/coordination/run.sh
