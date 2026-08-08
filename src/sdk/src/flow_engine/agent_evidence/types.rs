@@ -63,22 +63,21 @@ impl AgentEvidence {
         queue.push_back(TRUNCATED.to_string());
     }
 
-    /// Record the transcript one dispatch of `node_id` produced, when the
-    /// harness said anything at all.
+    /// Record the transcript one dispatch of `node_id` produced.
     ///
-    /// An empty transcript is dropped rather than queued: queuing it would
-    /// consume the slot belonging to the *next* activation of a fanned-out
-    /// node, so one dispatch that produced nothing would shift every later
-    /// transcript onto the wrong step.
+    /// An empty transcript is still queued — as a placeholder rather than a
+    /// dropped position. The queue is the Nth activation's slot:
+    /// [`attach_transcripts`](Self::attach_transcripts) pops one entry onto the
+    /// Nth step of the same node, so a dispatch that folded to nothing (only
+    /// status events, say) must keep its slot or every later transcript would
+    /// shift one step early and be misattributed to the wrong activation.
     pub(crate) fn record_transcript(&self, node_id: &str, transcript: Vec<TranscriptEntry>) {
-        if transcript.is_empty() {
-            return;
-        }
         let mut transcripts = self.transcripts.lock().expect("agent evidence lock");
         let queue = transcripts.entry(node_id.to_string()).or_default();
         // The same ceiling the prompt queue uses, for the same reason: a node
         // in a loop can activate without bound, and this is held in memory for
-        // the whole run.
+        // the whole run. A placeholder counts like a real transcript — both are
+        // one activation's slot.
         if queue.len() < MAX_PROMPTS_PER_NODE {
             queue.push_back(transcript);
         }
