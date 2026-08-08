@@ -37,6 +37,25 @@ pub fn uses_embedded_core(options: &RunTaskOptions) -> bool {
 
 /// Run one task as an OpenHuman agent turn in this process.
 ///
+/// # What the turn is allowed to do
+///
+/// Two `openhuman` task-locals are scoped around the dispatch, and without
+/// either one the turn cannot do the work a node asks of it:
+///
+/// * **Origin.** OpenHuman's approval gate refuses every external-effect tool
+///   (`shell`, `edit`, `apply_patch`, the `*_exec` family) from a call site
+///   that carries no [`AgentTurnOrigin`] — the fail-closed default for an
+///   unlabelled caller. A workflow node is not unlabelled: the graph that runs
+///   it was authored and saved by the operator, so its actions carry the same
+///   trust root a user-authored cron job's do. That is exactly
+///   [`TrustedAutomationSource::Workflow`], which is what this scopes.
+/// * **Workspace.** The run names a checkout ([`RunTaskOptions::cwd`]). Scoping
+///   it makes it both the turn's working directory and a read/write root for
+///   the path policy, so a write into that tree is not refused as an escape
+///   from the core's own `workspace_dir`. See
+///   [`openhuman_core::openhuman::agent::turn_workspace`] on why the grant is
+///   no stronger than a configured trusted root.
+///
 /// # Errors
 ///
 /// Returns a sentence when the core cannot be started, when the turn is
@@ -47,26 +66,14 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
     let RunTaskOptions {
         prompt,
         model,
+        cwd,
         timeout_ms,
         abort,
         resume_session_id,
-        hooks,
         mut on_event,
         on_session,
         ..
     } = options;
-
-    // Said once, at the top, rather than left for an operator to infer from an
-    // empty hook log. There is no child process here, so there is no argv for
-    // `harness_hooks` to install onto and nothing for a hook to observe.
-    let configured = hooks.for_provider(HarnessProvider::Openhuman).len();
-    if configured > 0 {
-        tracing::warn!(
-            hooks = configured,
-            "medulla hooks are not installed for OpenHuman: the turn runs in this process, \
-             so there is no child harness for a lifecycle hook to wrap",
-        );
-    }
 
     if abort.is_aborted() {
         return Err("openhuman task aborted before start".to_string());
