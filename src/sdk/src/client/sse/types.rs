@@ -61,6 +61,14 @@ pub struct SseParser {
     /// Whether input is being dropped until the next frame boundary, after an
     /// oversized line or payload.
     pub(super) discarding: bool,
+    /// Whether the parser is still inside the tail of a discarded oversized
+    /// line whose terminating newline has not arrived yet.
+    ///
+    /// Set when an unterminated line is truncated mid-flight: its content was
+    /// cleared, so the first empty line the parser sees only finishes that
+    /// line, not the frame. Discarding continues until the frame's own blank
+    /// line.
+    pub(super) in_discarded_line: bool,
 }
 /// Seq-based de-duplication for reconnect replay.
 ///
