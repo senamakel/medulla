@@ -2,7 +2,7 @@
 //!
 //! Two things beyond the prompt make that turn able to do real work, and both
 //! are scoped around the dispatch rather than passed as parameters — see
-//! [`run_openhuman_task`] and the two `openhuman` task-locals it enters.
+//! [`run_openhuman_task`] and the task-locals it enters.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -39,8 +39,8 @@ pub fn uses_embedded_core(options: &RunTaskOptions) -> bool {
 ///
 /// # What the turn is allowed to do
 ///
-/// Two `openhuman` task-locals are scoped around the dispatch, and without
-/// either one the turn cannot do the work a node asks of it:
+/// Per-turn state is scoped around the dispatch, and without the OpenHuman
+/// task-locals the turn cannot do the work a node asks of it:
 ///
 /// * **Origin.** OpenHuman's approval gate refuses every external-effect tool
 ///   (`shell`, `edit`, `apply_patch`, the `*_exec` family) from a call site
@@ -65,8 +65,8 @@ pub fn uses_embedded_core(options: &RunTaskOptions) -> bool {
 pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult, String> {
     let RunTaskOptions {
         prompt,
-        model,
         cwd,
+        model,
         timeout_ms,
         abort,
         resume_session_id,
@@ -104,25 +104,27 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
         "model_override": model,
         "thread_id": thread_id,
     });
-    // `AgentChatParams` carries no origin and no workspace field, and adding
-    // them would put trust decisions on the wire where a future caller could
-    // spell them. Both ride the core's own task-locals instead, entered around
-    // the dispatch: `CoreRuntime::invoke` polls the handler on *this* task, so
-    // the whole turn — the session build, the tool loop, the approval gate —
-    // runs inside these scopes.
-    let call = with_origin(
-        AgentTurnOrigin::TrustedAutomation {
-            // The turn's own id, so an audit row or a parked approval names the
-            // dispatch it came from rather than a constant.
-            job_id: thread_id.clone(),
-            source: TrustedAutomationSource::Workflow {
-                // The node already ran because the operator's graph said it
-                // should; parking each tool call for a second decision would
-                // strand an unattended run on a prompt nobody is watching.
-                require_approval: false,
+    // `AgentChatParams` carries no origin or workspace field; those trust
+    // decisions instead ride task-locals through the full core dispatch. The
+    // Medulla-owned cwd scope reaches the process-global lifecycle hooks too,
+    // so a `PostToolUse` auto-commit targets this run's checkout.
+    let cwd = PathBuf::from(&cwd);
+    let call = crate::core_host::turn_cwd::with_turn_cwd(
+        Some(cwd.as_path()),
+        with_origin(
+            AgentTurnOrigin::TrustedAutomation {
+                // The turn's own id, so an audit row or a parked approval names
+                // the dispatch it came from rather than a constant.
+                job_id: thread_id.clone(),
+                source: TrustedAutomationSource::Workflow {
+                    // The node already ran because the operator's graph said it
+                    // should; parking each tool call for a second decision would
+                    // strand an unattended run on a prompt nobody is watching.
+                    require_approval: false,
+                },
             },
-        },
-        scoped_workspace(&cwd, core.raw().invoke(AGENT_CHAT, params)),
+            scoped_workspace(&cwd, core.raw().invoke(AGENT_CHAT, params)),
+        ),
     );
 
     // The same idle ceiling a spawned provider gets, applied to the whole turn
