@@ -338,8 +338,10 @@ impl LocalRun<'_> {
     ///
     /// # Errors
     ///
-    /// Fails when no coding-agent CLI is installed, when the workflow or the
-    /// host is disabled, or when the run record cannot be written.
+    /// Fails when no coding-agent CLI is installed (unless the host's default is
+    /// `openhuman`, served by the embedded core without a binary to detect),
+    /// when the workflow or the host is disabled, or when the run record cannot
+    /// be written.
     pub async fn start(self) -> Result<StartedRun, crate::workflows::WorkflowError> {
         use crate::flow_engine::{folding_sink, CapabilitySettings, HostServices};
         use crate::workflows::{RunContext, StoreWorkflowResolver};
