@@ -414,3 +414,76 @@ fn the_session_probe_runs_off_the_runtime_thread() {
         );
     });
 }
+
+#[tokio::test]
+async fn a_probe_abandoned_after_claiming_releases_the_session() {
+    // Regression. `probe_session` claims an idle session on the blocking pool
+    // and hands the claim back to the caller. If the run future is then dropped
+    // — an embedder timeout, a cancelled dispatch — the blocking closure still
+    // runs to completion, so the claim used to land and be orphaned: the busy
+    // flag stayed set forever and the session was never reusable again. The
+    // claim now rides in an `IdleClaim` guard that releases it on drop, and
+    // this pins that the abandoned path really does free the session.
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = dir.path().to_string_lossy().into_owned();
+    let rollout = dir.path().join("rollout-reclaim.jsonl");
+    let script = fake_harness_script(&rollout.to_string_lossy(), &cwd, "first");
+
+    let (executor, env) = harness(dir.path(), &cwd);
+    let sessions = executor.sessions_for_test();
+
+    tokio::time::timeout(
+        Duration::from_secs(30),
+        executor
+            .clone()
+            .run_for_test(options(&env, "peer-gina", &script, &cwd)),
+    )
+    .await
+    .expect("the first turn must settle")
+    .expect("the first turn must succeed");
+    let rows = sessions.rows();
+    assert_eq!(rows.len(), 1, "one session for the conversation");
+    assert!(!rows[0].busy, "a settled turn leaves its session idle");
+
+    // A probe for the same peer claims that idle session.
+    let probe = tokio::spawn({
+        let executor = executor.clone();
+        let cwd = cwd.clone();
+        async move {
+            executor
+                .probe_session(
+                    SessionClass::Unbound,
+                    "peer-gina".to_string(),
+                    HarnessProvider::Codex,
+                    &cwd,
+                )
+                .await
+        }
+    });
+
+    // Wait for the claim to land. The busy flag flips and stays set until the
+    // probe's result is consumed or discarded, so this cannot miss it.
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !sessions.rows().iter().any(|row| row.busy) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the probe must claim the idle session");
+
+    // Abandon the probe exactly as a cancelled run would: the blocking closure
+    // has already claimed, but nothing will ever call `session_for` to take it.
+    probe.abort();
+    drop(probe);
+
+    // The dropped guard must release the claim, so the session is reusable.
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while sessions.rows().iter().any(|row| row.busy) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("an abandoned probe must release its claim so the session can be reused");
+
+    sessions.shutdown();
+}
