@@ -461,13 +461,13 @@ async fn run_provider_attempt(
                 report_workspace_context(&mapper, spec);
                 return Err(idle_error);
             }
-            read = reader.read_until(b'\n', &mut buf) => {
+            read = read_line_bounded(&mut reader, &mut buf, MAX_RECORD_BYTES) => {
                 match read {
-                    Ok(0) => break, // EOF
-                    Ok(_) => {
-                        if buf.len() > MAX_RECORD_BYTES {
-                            continue; // unparseable oversized record — drop it.
-                        }
+                    Ok(LineRead::Eof) => break,
+                    // Unparseable oversized record — already discarded, and the
+                    // reader is positioned on the next one.
+                    Ok(LineRead::Oversized) => continue,
+                    Ok(LineRead::Line) => {
                         let raw = String::from_utf8_lossy(&buf);
                         let raw = raw.trim_end_matches(['\n', '\r']);
                         stdout_tail.push_str(raw);
