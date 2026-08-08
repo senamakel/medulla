@@ -25,7 +25,7 @@ const MAX_RECORD_BYTES: usize = 1_048_576;
 
 /// What one bounded line read produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LineRead {
+pub(super) enum LineRead {
     /// A complete line at or under the cap, appended to the caller's buffer.
     Line,
     /// The line exceeded the cap. Nothing was buffered and the rest of the line
@@ -48,7 +48,7 @@ enum LineRead {
 /// Like `read_until`, this is *not* cancellation safe: dropping it mid-line can
 /// lose the bytes already consumed. The run loop only cancels it on abort or
 /// idle timeout, both of which stop reading for good.
-async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
+pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
     reader: &mut R,
     buf: &mut Vec<u8>,
     cap: usize,
