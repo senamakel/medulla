@@ -68,14 +68,31 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
         origin,
         cwd,
         model,
+        env,
         timeout_ms,
         abort,
         resume_session_id,
+        hooks,
         mut on_event,
         on_session,
         ..
     } = options;
 
+    // The operator's environment override outranks whatever the dispatch
+    // resolved; see [`super::model`] for the whole precedence order.
+    let model = super::effective_model(model, &env);
+
+    // Said once, at the top, rather than left for an operator to infer from an
+    // empty hook log. There is no child process here, so there is no argv for
+    // `harness_hooks` to install onto and nothing for a hook to observe.
+    let configured = hooks.for_provider(HarnessProvider::Openhuman).len();
+    if configured > 0 {
+        tracing::warn!(
+            hooks = configured,
+            "medulla hooks are not installed for OpenHuman: the turn runs in this process, \
+             so there is no child harness for a lifecycle hook to wrap",
+        );
+    }
     if abort.is_aborted() {
         return Err("openhuman task aborted before start".to_string());
     }
