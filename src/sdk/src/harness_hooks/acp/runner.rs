@@ -150,7 +150,9 @@ fn kill_hook(child: &mut tokio::process::Child) {
 
 /// Whether `matcher` selects a tool whose ACP `kind` is `tool`.
 ///
-/// The matcher is written in the native Codex hook vocabulary (`Bash`,
+/// An empty matcher and `*` both match every tool, matching the harnesses'
+/// own `*` default. Any other matcher is a regex applied to the tool. The
+/// matcher is written in the native Codex hook vocabulary (`Bash`,
 /// `Edit|Write`, …), because the same declaration feeds the direct spawn door,
 /// while ACP reports the semantic `ToolKind` (`execute`, `edit`, …). Matching is
 /// therefore tried against the kind *and* its native aliases, so both
