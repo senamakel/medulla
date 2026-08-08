@@ -158,6 +158,12 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     // authority while the harness is still running.
     let mut agent_env = acp_env(&options)?;
     let _hook_grant = crate::harness_hooks::seed_hook_grant(&session_key, &mut agent_env);
+    // The ACP server process receives `agent_env`; the local PostToolUse
+    // fallback spawns hooks from this same process, so it gets the same
+    // per-session environment — the hook grant and task-specific router /
+    // attribution variables among it — or a hook that reports back finds
+    // nothing to report to.
+    let hook_env = agent_env.clone();
     let agent = agent_for_with_env(&options, agent_env)?;
     let task_env = options.env.clone();
     let state = Arc::new(Mutex::new(FoldState::with_workspace(
@@ -168,7 +174,11 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     )));
     let notification_state = state.clone();
     let hook_cwd = PathBuf::from(&options.cwd);
-    let hook_session = session_key.clone();
+    // The ACP session id is not known until `session/new` (or `session/load`)
+    // answers. Hooks that correlate by session id should see the real id, not
+    // the synthetic grant key minted before the request; the shared cell is
+    // filled in as soon as the id is learned.
+    let hook_session = Arc::new(Mutex::new(session_key.clone()));
     let approve = options.skip_permissions;
     let cwd = PathBuf::from(&options.cwd);
     let resume = options.resume_session_id.clone();
