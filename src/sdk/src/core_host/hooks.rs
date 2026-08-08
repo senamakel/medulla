@@ -169,7 +169,10 @@ pub(super) async fn run_command(
         Err(_elapsed) => {
             let _ = child.kill().await;
             let _ = child.wait().await;
-            tracing::warn!("[core_host] hook timed out and was killed: {}", spec.command());
+            tracing::warn!(
+                "[core_host] hook timed out and was killed: {}",
+                spec.command()
+            );
             if enforce_status {
                 anyhow::bail!("hook command timed out: {}", spec.command());
             }
