@@ -196,20 +196,6 @@ impl DaemonRuntime {
             .await;
             return;
         }
-        // Register BEFORE acking so a racing `input` frame finds the record.
-        let abort = Abort::new();
-        self.inner.running.lock().unwrap().insert(
-            key.clone(),
-            RunningTask {
-                provider,
-                accepts_stdin,
-                abort: abort.clone(),
-                correlation_id: correlation.clone(),
-                stdin: None,
-                pending_input: Vec::new(),
-                session_id: None,
-            },
-        );
         admission.attach_task(key.clone());
         admission.attach_controller(self.register_controller(abort.clone()));
 
