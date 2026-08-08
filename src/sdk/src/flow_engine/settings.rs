@@ -253,7 +253,14 @@ impl CapabilitySettings {
             Interpreter::default_shell()
         });
         settings.tool_allowlist = config.tool_allowlist.clone();
-        settings.http_allowlist = config.http_allowlist.clone();
+        // Blank entries are dropped on the way in as well as ignored on the way
+        // out, so an allowlist an operator reads back says what it enforces.
+        settings.http_allowlist = config
+            .http_allowlist
+            .iter()
+            .map(|host| host.trim().to_string())
+            .filter(|host| !host.is_empty())
+            .collect();
         // A zero timeout would abandon every run instantly, which reads as the
         // feature being broken rather than as a configuration mistake.
         settings.run_timeout_secs = if config.run_timeout_secs == 0 {
