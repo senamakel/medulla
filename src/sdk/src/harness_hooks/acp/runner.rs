@@ -60,10 +60,18 @@ pub async fn run_post_tool_use(
                 continue;
             }
         };
-        if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(payload.to_string().as_bytes()).await;
-        }
-        match tokio::time::timeout(timeout, child.wait()).await {
+        // The payload write and the wait share one timeout. A hook that stays
+        // alive without draining its stdin would otherwise let `write_all`
+        // block forever on a payload larger than the OS pipe buffer, before
+        // the wait timeout had even begun.
+        let outcome = tokio::time::timeout(timeout, async {
+            if let Some(mut stdin) = child.stdin.take() {
+                let _ = stdin.write_all(payload.to_string().as_bytes()).await;
+            }
+            child.wait().await
+        })
+        .await;
+        match outcome {
             Ok(Ok(status)) if status.success() => {}
             Ok(Ok(status)) => tracing::warn!(
                 command = hook.command(),
@@ -75,9 +83,10 @@ pub async fn run_post_tool_use(
                 "could not wait for ACP PostToolUse hook: {error}"
             ),
             Err(_) => {
-                // `timeout` cancelled `wait`, which does not terminate the
-                // child. Kill it (with its whole process group, since it runs
-                // under a shell that may have started descendants) and reap.
+                // The timeout expired mid-write or mid-wait, which does not
+                // terminate the child. Kill it (with its whole process group,
+                // since it runs under a shell that may have started
+                // descendants) and reap.
                 kill_hook(&mut child);
                 let _ = child.wait().await;
                 tracing::warn!(command = hook.command(), "ACP PostToolUse hook timed out");
