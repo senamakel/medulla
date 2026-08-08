@@ -200,7 +200,7 @@ async fn scoped_workspace<F: std::future::Future>(cwd: &str, fut: F) -> F::Outpu
 /// Canonicalized because the grant is a `starts_with` containment check on the
 /// paths the tools resolve: a symlinked or `..`-laden root would fail to
 /// contain its own contents and quietly refuse every write into it.
-fn turn_workspace_root(cwd: &str) -> Option<PathBuf> {
+pub(super) fn turn_workspace_root(cwd: &str) -> Option<PathBuf> {
     let trimmed = cwd.trim();
     if trimmed.is_empty() {
         return None;
