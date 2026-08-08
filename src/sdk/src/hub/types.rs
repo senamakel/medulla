@@ -218,6 +218,9 @@ impl std::fmt::Display for RunError {
             RunError::Timeout => write!(f, "bridge task timed out"),
             RunError::Aborted => write!(f, "task aborted by orchestrator"),
             RunError::Worker(m) => write!(f, "worker error: {m}"),
+            // Same message as `Worker`: the transcript is the step's own
+            // account, delivered out-of-band, not part of the rendered error.
+            RunError::WorkerWithTranscript { message, .. } => write!(f, "worker error: {message}"),
             RunError::Busy(m) => write!(f, "worker busy: {m}"),
             RunError::Held(m) => write!(f, "harness held by operator: {m}"),
             RunError::Transport(m) => write!(f, "transport error: {m}"),
