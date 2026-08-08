@@ -104,7 +104,26 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
         "model_override": model,
         "thread_id": thread_id,
     });
-    let call = core.raw().invoke(AGENT_CHAT, params);
+    // `AgentChatParams` carries no origin and no workspace field, and adding
+    // them would put trust decisions on the wire where a future caller could
+    // spell them. Both ride the core's own task-locals instead, entered around
+    // the dispatch: `CoreRuntime::invoke` polls the handler on *this* task, so
+    // the whole turn — the session build, the tool loop, the approval gate —
+    // runs inside these scopes.
+    let call = with_origin(
+        AgentTurnOrigin::TrustedAutomation {
+            // The turn's own id, so an audit row or a parked approval names the
+            // dispatch it came from rather than a constant.
+            job_id: thread_id.clone(),
+            source: TrustedAutomationSource::Workflow {
+                // The node already ran because the operator's graph said it
+                // should; parking each tool call for a second decision would
+                // strand an unattended run on a prompt nobody is watching.
+                require_approval: false,
+            },
+        },
+        scoped_workspace(&cwd, core.raw().invoke(AGENT_CHAT, params)),
+    );
 
     // The same idle ceiling a spawned provider gets, applied to the whole turn
     // rather than to the gap between events: an in-process call produces no
