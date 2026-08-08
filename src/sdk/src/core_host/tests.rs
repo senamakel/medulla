@@ -153,6 +153,62 @@ fn action_dir_keeps_an_explicit_override() {
     clear();
 }
 
+#[test]
+fn bind_from_config_sets_everything_a_lazy_boot_needs() {
+    // The lazy boot path (`shared`) has no caller of its own to bind for it, so
+    // a host that loaded its layered config calls this instead. It must
+    // reproduce the TUI's startup bindings: workspace from MEDULLA_HOME, action
+    // dir from the first configured workspace root, and both backend URLs from
+    // `backend.baseUrl`.
+    let _g = guard();
+    clear();
+    let mut config = crate::config::TuiConfig::default();
+    config.backend.base_url = "https://staging-api.tinyhumans.ai/".to_string();
+    config.workflow.workspaces = vec!["/repos/work".to_string()];
+    bind_from_config(&HashMap::new(), &config, Path::new("/tmp/scratch-home"));
+    assert_eq!(
+        std::env::var(OPENHUMAN_WORKSPACE_ENV).unwrap(),
+        workspace_dir(Path::new("/tmp/scratch-home")).to_string_lossy()
+    );
+    assert_eq!(std::env::var(OPENHUMAN_ACTION_DIR_ENV).unwrap(), "/repos/work");
+    assert_eq!(
+        std::env::var(OPENHUMAN_MEDULLA_BASE_URL_ENV).unwrap(),
+        "https://staging-api.tinyhumans.ai"
+    );
+    assert_eq!(
+        std::env::var(OPENHUMAN_BACKEND_URL_ENV).unwrap(),
+        "https://staging-api.tinyhumans.ai"
+    );
+    clear();
+}
+
+#[test]
+fn bind_from_config_leaves_the_operator_s_own_bindings_alone() {
+    // Non-overriding like the individual bindings: someone who already aimed
+    // the core at an existing OpenHuman install or a self-hosted backend keeps
+    // those, whatever the config says.
+    let _g = guard();
+    clear();
+    let mut config = crate::config::TuiConfig::default();
+    config.backend.base_url = "https://api.tinyhumans.ai".to_string();
+    config.workflow.workspaces = vec!["/repos/work".to_string()];
+    let env = HashMap::from([
+        (OPENHUMAN_WORKSPACE_ENV.to_string(), "/opt/openhuman/ws".to_string()),
+        (OPENHUMAN_BACKEND_URL_ENV.to_string(), "https://self.hosted".to_string()),
+    ]);
+    bind_from_config(&env, &config, Path::new("/tmp/scratch-home"));
+    assert_eq!(
+        std::env::var(OPENHUMAN_WORKSPACE_ENV).unwrap(),
+        "/opt/openhuman/ws"
+    );
+    assert_eq!(std::env::var(OPENHUMAN_ACTION_DIR_ENV).unwrap(), "/repos/work");
+    assert_eq!(
+        std::env::var(OPENHUMAN_BACKEND_URL_ENV).unwrap(),
+        "https://self.hosted"
+    );
+    clear();
+}
+
 // ── Medulla readiness classification ─────────────────────────────────────────
 
 #[test]
