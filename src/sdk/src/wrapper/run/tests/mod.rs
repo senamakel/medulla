@@ -6,6 +6,7 @@
 //! (`medulla-tui`'s `feature_harness_pty`) covers it against a live `/bin/sh`.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
 
