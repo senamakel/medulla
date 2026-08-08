@@ -176,6 +176,47 @@ pub async fn run_openhuman_task(options: RunTaskOptions) -> Result<RunTaskResult
     })
 }
 
+/// Run `fut` with the run's checkout scoped as the turn's workspace.
+///
+/// A no-op when `cwd` does not resolve to a directory — see
+/// [`turn_workspace_root`]. Written as a wrapper rather than an `if` at the
+/// call site because the two arms have different types: entering a task-local
+/// scope changes the future, and only a function can hide that.
+async fn scoped_workspace<F: std::future::Future>(cwd: &str, fut: F) -> F::Output {
+    match turn_workspace_root(cwd) {
+        Some(root) => with_workspace(root, fut).await,
+        None => fut.await,
+    }
+}
+
+/// The absolute directory `cwd` names, when it names one.
+///
+/// Returns `None` for the empty string and for anything that is not a
+/// directory on this machine. Both are ordinary rather than exceptional: a
+/// dispatch that never set a working directory arrives with `"."` or `""`, and
+/// a stale path is a host's mistake that should leave the turn on the core's
+/// own workspace rather than granting a root that does not exist.
+///
+/// Canonicalized because the grant is a `starts_with` containment check on the
+/// paths the tools resolve: a symlinked or `..`-laden root would fail to
+/// contain its own contents and quietly refuse every write into it.
+fn turn_workspace_root(cwd: &str) -> Option<PathBuf> {
+    let trimmed = cwd.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let resolved = std::fs::canonicalize(trimmed).ok()?;
+    if !resolved.is_dir() {
+        tracing::warn!(
+            cwd = %resolved.display(),
+            "openhuman turn: the run's working directory is not a directory — \
+             the turn stays on the core's own workspace",
+        );
+        return None;
+    }
+    Some(resolved)
+}
+
 /// Hand one synthesized event to the caller's callback, when there is one.
 fn emit(on_event: &mut Option<super::super::types::OnEvent>, kind: &str, payload: Value) {
     let Some(callback) = on_event.as_mut() else {
