@@ -415,7 +415,7 @@ impl PtySessionExecutor {
     ///
     /// The blocking task panicked or was cancelled; the dispatch has claimed
     /// nothing and started nothing.
-    pub(super) async fn probe_session(
+    pub(in crate::worker) async fn probe_session(
         &self,
         class: SessionClass,
         conversation: String,

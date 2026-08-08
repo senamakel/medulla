@@ -61,7 +61,7 @@ pub(super) enum SessionPlan {
 /// from `RunTaskOptions`) touches nothing but memory and stays on the runtime,
 /// which it has to: `RunTaskOptions` is `Send` but not `Sync`, so a borrow of
 /// it cannot cross an await.
-pub(super) enum SessionProbe {
+pub(in crate::worker) enum SessionProbe {
     /// An idle session for this conversation, already claimed.
     Reuse(super::super::pty::SessionRow),
     /// Nothing reusable, and a person is writing in this checkout.

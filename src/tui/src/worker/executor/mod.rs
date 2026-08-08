@@ -13,3 +13,7 @@ mod types;
 
 pub use run::agent_kind;
 pub use types::PtySessionExecutor;
+/// Visible to the crate's own executor tests, which assert that the blocking
+/// half of the session decision really does leave the runtime.
+#[cfg(all(test, unix))]
+pub(in crate::worker) use types::SessionProbe;
