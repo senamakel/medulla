@@ -68,6 +68,25 @@ pub fn delivery(provider: HarnessProvider, hooks: &HooksConfig) -> AcpDelivery {
                      PostToolUse fallback."
                 ));
             }
+            // An operator hook delivered through the fallback behaves
+            // differently from a directly-spawned Codex hook: ACP gives the
+            // client no way to amend a tool call it did not execute, so stdout
+            // feedback is discarded. State that instead of letting the hook
+            // look identical to the direct path. Medulla's own built-ins are
+            // observation-only by design and need no note.
+            if delivery
+                .local_post_tool_use
+                .iter()
+                .any(|hook| !hook.builtin)
+            {
+                delivery.notes.push(
+                    "a non-Medulla PostToolUse hook is run locally for this Codex ACP \
+                     session, observation-only: the fallback cannot forward the hook's \
+                     stdout decision into the session, because ACP gives the client no \
+                     way to amend a tool call it did not execute."
+                        .to_string(),
+                );
+            }
         }
         // Unreachable in practice: `HooksConfig::for_provider` filters on
         // `HookEvent::supported_by`, which is false for every event on both, so
