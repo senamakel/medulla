@@ -115,8 +115,14 @@ impl AllowlistHttpClient {
         }
     }
 
-    /// Check the URL against both guards, returning the parsed URL.
-    fn permit(&self, request: &Value) -> Result<reqwest::Url> {
+    /// Check the URL against both guards, returning the parsed URL and the
+    /// vetted addresses the request may connect to.
+    ///
+    /// The address list is returned rather than discarded because vetting a
+    /// name and then letting the transport resolve it a second time is a
+    /// rebinding window: a short-TTL answer can be private by the time the
+    /// connection is made. The caller pins the transport to exactly these.
+    fn permit(&self, request: &Value) -> Result<(reqwest::Url, Vec<std::net::SocketAddr>)> {
         let raw = request
             .get("url")
             .and_then(Value::as_str)
