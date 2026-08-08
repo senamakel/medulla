@@ -194,10 +194,12 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
             async move |notification: SessionNotification, _cx| {
                 let completed = notification_state.lock().unwrap().fold(notification.update);
                 if let Some(completed) = completed {
+                    let session_id = hook_session.lock().unwrap().clone();
                     crate::harness_hooks::acp::run_post_tool_use(
                         &local_post_tool_use,
                         &hook_cwd,
-                        &hook_session,
+                        &hook_env,
+                        &session_id,
                         &completed.tool_name,
                         &completed.input,
                     )
