@@ -425,7 +425,9 @@ async fn an_oversized_record_is_discarded_without_being_buffered() {
 
     let mut buf = Vec::new();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64, None).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, None)
+            .await
+            .unwrap(),
         LineRead::Oversized
     );
     assert!(
@@ -437,14 +439,18 @@ async fn an_oversized_record_is_discarded_without_being_buffered() {
     // Reading resumes on the record *after* the oversized one.
     buf.clear();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64, None).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, None)
+            .await
+            .unwrap(),
         LineRead::Line
     );
     assert_eq!(buf, b"{\"ok\":true}\n");
 
     buf.clear();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64, None).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, None)
+            .await
+            .unwrap(),
         LineRead::Eof
     );
 }
@@ -469,7 +475,9 @@ async fn an_oversized_record_with_a_retained_tail_keeps_its_trailing_bytes() {
 
     let mut buf = Vec::new();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64, Some(64)).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, Some(64))
+            .await
+            .unwrap(),
         LineRead::Oversized
     );
     assert!(
@@ -485,7 +493,9 @@ async fn an_oversized_record_with_a_retained_tail_keeps_its_trailing_bytes() {
     // Reading still resumes on the record after the oversized one.
     buf.clear();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64, Some(64)).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, Some(64))
+            .await
+            .unwrap(),
         LineRead::Line
     );
     assert_eq!(buf, b"clean line\n");
@@ -502,14 +512,18 @@ async fn a_bounded_read_keeps_records_at_or_under_the_cap() {
 
     // "abcd\n" is five bytes: at the cap, so accepted.
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 5, None).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 5, None)
+            .await
+            .unwrap(),
         LineRead::Line
     );
     assert_eq!(buf, b"abcd\n");
 
     buf.clear();
     assert_eq!(
-        read_line_bounded(&mut stream, &mut buf, 64, None).await.unwrap(),
+        read_line_bounded(&mut stream, &mut buf, 64, None)
+            .await
+            .unwrap(),
         LineRead::Line
     );
     assert_eq!(buf, b"trailing");
