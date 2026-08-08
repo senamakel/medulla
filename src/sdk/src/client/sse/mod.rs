@@ -174,6 +174,13 @@ impl SseParser {
                 }
             }
             "data" => {
+                // Refuse to accumulate an unbounded payload: a peer that keeps
+                // sending `data:` lines without ever terminating the frame
+                // would otherwise exhaust memory.
+                if self.data.len() + value.len() + 1 > MAX_FRAME_BYTES {
+                    self.discard_frame();
+                    return Err(SseOverflow);
+                }
                 if self.got_data {
                     self.data.push('\n');
                 }
@@ -183,6 +190,7 @@ impl SseParser {
             // `event:`, `retry:` and unknown fields are not used here.
             _ => {}
         }
+        Ok(())
     }
 }
 
