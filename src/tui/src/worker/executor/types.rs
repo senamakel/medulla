@@ -65,9 +65,12 @@ pub(super) enum SessionPlan {
 pub(in crate::worker) enum SessionProbe {
     /// An idle session for this conversation, already claimed.
     ///
-    /// Boxed because a row is by far the largest of the three answers, and the
-    /// other two would otherwise pay for a session they do not carry.
-    Reuse(Box<super::super::pty::SessionRow>),
+    /// Boxed because a claim is by far the largest of the three answers, and the
+    /// other two would otherwise pay for a session they do not carry. The
+    /// [`IdleClaim`] releases the claim on drop unless it is taken, so a probe
+    /// cancelled while its blocking call is in flight cannot strand a busy
+    /// session.
+    Reuse(Box<IdleClaim>),
     /// Nothing reusable, and a person is writing in this checkout.
     Queue,
     /// Nothing reusable and nobody in the way: launch a harness.
