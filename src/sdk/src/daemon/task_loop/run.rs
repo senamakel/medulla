@@ -169,22 +169,19 @@ impl DaemonRuntime {
         //
         // Registered BEFORE acking so a racing `input` frame finds the record.
         let abort = Abort::new();
-        let duplicate = match self.inner.running.lock().unwrap().entry(key.clone()) {
-            std::collections::hash_map::Entry::Occupied(_) => true,
-            std::collections::hash_map::Entry::Vacant(slot) => {
-                slot.insert(RunningTask {
-                    provider,
-                    accepts_stdin,
-                    abort: abort.clone(),
-                    correlation_id: correlation.clone(),
-                    stdin: None,
-                    pending_input: Vec::new(),
-                    session_id: None,
-                });
-                false
-            }
-        };
-        if duplicate {
+        let registered = self.register_running(
+            &key,
+            RunningTask {
+                provider,
+                accepts_stdin,
+                abort: abort.clone(),
+                correlation_id: correlation.clone(),
+                stdin: None,
+                pending_input: Vec::new(),
+                session_id: None,
+            },
+        );
+        if !registered {
             self.reply(
                 &from,
                 TaskFrameKind::Error,
