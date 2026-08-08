@@ -302,7 +302,25 @@ impl HarnessDispatch for RuntimeDispatch {
             .acquire()
             .await
             .expect("semaphore is never closed");
-        let result = (inner.run_task)(options).await.map_err(RunError::Worker)?;
+        let result = match (inner.run_task)(options).await {
+            Ok(result) => result,
+            Err(message) => {
+                // The harness failed after saying something: fold the
+                // collector's account into the failure so a failed step keeps
+                // the diagnostic trail its run view renders — the tool calls
+                // and the error line that made the step fail. The executor has
+                // returned, so it has dropped its `on_event` callback and this
+                // is the only remaining handle; a poisoned lock (a panic inside
+                // the callback) still loses the transcript, and that is not a
+                // reason to report a less precise failure.
+                let transcript = Arc::try_unwrap(transcript)
+                    .ok()
+                    .and_then(|lock| lock.into_inner().ok())
+                    .map(crate::harness_transcript::TranscriptCollector::finish)
+                    .unwrap_or_default();
+                return Err(RunError::WorkerWithTranscript { message, transcript });
+            }
+        };
         // The executor has returned, so it has dropped its `on_event` callback
         // and this is the only remaining handle — but a poisoned lock is still
         // possible (a panic inside the callback), and losing the transcript is
