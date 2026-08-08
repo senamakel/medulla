@@ -167,6 +167,23 @@ impl LocalWorkflowHost {
     }
 }
 
+/// Point the embedded core at this host before it can boot lazily.
+///
+/// Every path in this module starts an embedded daemon that may dispatch an
+/// `agent` node to the embedded core, which boots on first use
+/// ([`crate::core_host::shared`]) and reads its environment during
+/// construction. The TUI and `medulla run` bind the core at startup; none of
+/// these do, so each binds what it knows before starting the host: the core's
+/// state directory derived from `MEDULLA_HOME`, and the agent's action
+/// directory from the workspace the run resolved to. A caller with the full
+/// layered config binds the backend URLs too — see
+/// [`crate::core_host::bind_from_config`].
+fn bind_core(env: &std::collections::HashMap<String, String>, workspace: &str) {
+    let home = crate::home::medulla_home(env);
+    crate::core_host::bind_workspace(env, &home);
+    crate::core_host::bind_action_dir(env, Some(std::path::Path::new(workspace)));
+}
+
 /// One local run, described before it starts.
 ///
 /// A struct rather than a parameter list because starting a run needs seven
