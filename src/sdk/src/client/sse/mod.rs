@@ -222,12 +222,23 @@ impl SeqDedup {
     }
 }
 
+/// First reconnect delay, doubled on each further attempt.
+const RECONNECT_DELAY_MIN_MS: u64 = 500;
+/// Ceiling on the reconnect delay, so a backend that stays down is retried at a
+/// steady low rate rather than ever more slowly.
+const RECONNECT_DELAY_MAX_MS: u64 = 10_000;
+
 impl StreamState {
     /// Open (or reopen) the SSE connection using the current cursor.
+    ///
+    /// Reconnects back off exponentially from [`RECONNECT_DELAY_MIN_MS`] to
+    /// [`RECONNECT_DELAY_MAX_MS`]; the delay resets once a connection is
+    /// established, so an ordinary end-of-body reconnect is still prompt.
     async fn connect(&mut self) -> Result<()> {
         if !self.first_connect {
-            // Small backoff between reconnect attempts.
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(self.reconnect_delay_ms)).await;
+            self.reconnect_delay_ms =
+                (self.reconnect_delay_ms.saturating_mul(2)).min(RECONNECT_DELAY_MAX_MS);
         }
         self.first_connect = false;
         let mut req = self
