@@ -434,7 +434,7 @@ impl PtySessionExecutor {
                 // busy session therefore does not qualify, and the task gets a
                 // fresh one.
                 if let Some(row) = this.sessions.claim_idle(&conversation, provider) {
-                    return SessionProbe::Reuse(row);
+                    return SessionProbe::Reuse(Box::new(row));
                 }
             }
             // Nothing to reuse, so this dispatch needs a session of its own —

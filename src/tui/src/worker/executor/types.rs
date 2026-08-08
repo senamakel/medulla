@@ -63,7 +63,10 @@ pub(super) enum SessionPlan {
 /// it cannot cross an await.
 pub(in crate::worker) enum SessionProbe {
     /// An idle session for this conversation, already claimed.
-    Reuse(super::super::pty::SessionRow),
+    ///
+    /// Boxed because a row is by far the largest of the three answers, and the
+    /// other two would otherwise pay for a session they do not carry.
+    Reuse(Box<super::super::pty::SessionRow>),
     /// Nothing reusable, and a person is writing in this checkout.
     Queue,
     /// Nothing reusable and nobody in the way: launch a harness.
