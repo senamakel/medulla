@@ -581,6 +581,27 @@ async fn an_allowlisted_name_that_resolves_to_loopback_is_still_refused() {
 }
 
 #[test]
+fn vetting_returns_the_very_addresses_the_request_will_be_pinned_to() {
+    // The vetted list is the point: it is handed to the transport as a DNS
+    // override, so the answer checked here is the answer connected to and a
+    // second lookup cannot rebind the name to something private in between.
+    let refused = super::caps::http::vet_resolution("localhost", 80)
+        .expect_err("loopback must not be vetted");
+    assert!(
+        refused.to_string().contains("loopback or private"),
+        "{refused}"
+    );
+
+    // An IP literal resolves to itself, so a public one vets to exactly one
+    // address and pins the transport to it.
+    let vetted = super::caps::http::vet_resolution("93.184.216.34", 443).expect("a public literal");
+    assert_eq!(
+        vetted,
+        vec!["93.184.216.34:443".parse::<std::net::SocketAddr>().unwrap()]
+    );
+}
+
+#[test]
 fn an_ipv4_mapped_ipv6_loopback_is_recognised_as_private() {
     // `::ffff:127.0.0.1` reaches loopback exactly as `127.0.0.1` does, so
     // judging it by the v6 rules alone would let it through.

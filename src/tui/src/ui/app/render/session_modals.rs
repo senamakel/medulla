@@ -129,9 +129,23 @@ impl App {
                     // than written as a constant that the next edit here would
                     // silently make wrong.
                     let first = lines.len();
-                    lines.extend(picker.workspace_choices.iter().enumerate().map(
-                        |(index, choice)| {
-                            row_hit(index, first + index, &mut hits);
+                    // Windowed on the selection, exactly as the harness step is.
+                    // Unwindowed, a workspace list longer than the popup drew its
+                    // first page and nothing else: the selection could move onto
+                    // a row that was never painted and never got a hit box, so
+                    // Enter started a session in a directory the operator could
+                    // neither see nor click.
+                    let capacity = (inner.height as usize)
+                        .saturating_sub(first + WORKSPACE_TRAILER_LINES);
+                    let range = harness_choice_window(
+                        picker.workspace_choices.len(),
+                        picker.workspace_index,
+                        capacity,
+                    );
+                    lines.extend(picker.workspace_choices[range.clone()].iter().enumerate().map(
+                        |(offset, choice)| {
+                            let index = range.start + offset;
+                            row_hit(index, first + offset, &mut hits);
                             let marker = if index == picker.workspace_index {
                                 "❯ "
                             } else {
