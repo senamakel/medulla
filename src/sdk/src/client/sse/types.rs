@@ -9,9 +9,41 @@ pub struct SseFrame {
     /// Concatenated `data:` payload (lines joined with `\n`).
     pub data: String,
 }
+/// Upper bound on a single SSE line and on one frame's accumulated `data:`
+/// payload.
+///
+/// A peer that never sends a newline (or never terminates a frame) would
+/// otherwise grow the parser's buffers without limit. Matches the control
+/// socket's own frame ceiling, `control_socket::server::MAX_FRAME_BYTES`.
+pub const MAX_FRAME_BYTES: usize = 1024 * 1024;
+
+/// Signals that input exceeded [`MAX_FRAME_BYTES`] and was discarded.
+///
+/// The parser recovers by dropping everything up to the next frame boundary
+/// (blank line); frames completed before the overflow are still returned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SseOverflow;
+
+impl std::fmt::Display for SseOverflow {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SSE frame exceeded {MAX_FRAME_BYTES} bytes; frame discarded"
+        )
+    }
+}
+
+impl std::error::Error for SseOverflow {}
+
 /// Incremental SSE line parser. Feed byte chunks; collect completed frames.
 #[derive(Debug, Default)]
 pub struct SseParser {
+    /// Bytes of a trailing incomplete UTF-8 sequence, carried to the next chunk.
+    ///
+    /// The transport splits the body at arbitrary byte offsets, so a multi-byte
+    /// character can straddle two chunks; decoding each chunk on its own would
+    /// turn it into replacement characters.
+    pub(super) utf8_tail: Vec<u8>,
     /// Bytes of an incomplete trailing line.
     pub(super) line_buf: String,
     /// Accumulated `data:` payload for the in-progress frame.
@@ -20,6 +52,9 @@ pub struct SseParser {
     pub(super) got_data: bool,
     /// `id:` value seen for the in-progress frame.
     pub(super) id: Option<u64>,
+    /// Whether input is being dropped until the next frame boundary, after an
+    /// oversized line or payload.
+    pub(super) discarding: bool,
 }
 /// Seq-based de-duplication for reconnect replay.
 ///
