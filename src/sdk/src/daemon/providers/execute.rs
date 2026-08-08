@@ -22,6 +22,75 @@ use super::types::{OnEvent, OnStdin, RunSpec, RunTaskOptions, RunTaskResult};
 
 /// A record that never terminates in a newline is dropped past this size.
 const MAX_RECORD_BYTES: usize = 1_048_576;
+
+/// What one bounded line read produced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LineRead {
+    /// A complete line at or under the cap, appended to the caller's buffer.
+    Line,
+    /// The line exceeded the cap. Nothing was buffered and the rest of the line
+    /// was discarded, so the next read starts on the following record.
+    Oversized,
+    /// The stream ended with nothing buffered.
+    Eof,
+}
+
+/// Read one newline-terminated record into `buf`, never buffering more than
+/// `cap` bytes.
+///
+/// [`AsyncBufReadExt::read_until`] would buffer the whole line first and only
+/// then let the caller notice it was too big — so a child emitting one endless
+/// line grows the buffer without limit and the stated ceiling is not a ceiling
+/// at all. This consumes the stream in whatever chunks the reader already holds
+/// and, once the cap is passed, drops what it has and keeps discarding to the
+/// next newline instead of retaining it.
+///
+/// Like `read_until`, this is *not* cancellation safe: dropping it mid-line can
+/// lose the bytes already consumed. The run loop only cancels it on abort or
+/// idle timeout, both of which stop reading for good.
+async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+    cap: usize,
+) -> std::io::Result<LineRead> {
+    let mut oversized = false;
+    loop {
+        let chunk = reader.fill_buf().await?;
+        if chunk.is_empty() {
+            // EOF. A trailing record with no newline still counts as a line.
+            return Ok(if oversized {
+                LineRead::Oversized
+            } else if buf.is_empty() {
+                LineRead::Eof
+            } else {
+                LineRead::Line
+            });
+        }
+        let (take, complete) = match chunk.iter().position(|byte| *byte == b'\n') {
+            Some(at) => (at + 1, true),
+            None => (chunk.len(), false),
+        };
+        if !oversized {
+            if buf.len() + take > cap {
+                // Past the ceiling: release what was buffered rather than
+                // carrying a record nothing downstream will accept.
+                oversized = true;
+                buf.clear();
+                buf.shrink_to_fit();
+            } else {
+                buf.extend_from_slice(&chunk[..take]);
+            }
+        }
+        reader.consume(take);
+        if complete {
+            return Ok(if oversized {
+                LineRead::Oversized
+            } else {
+                LineRead::Line
+            });
+        }
+    }
+}
 /// Cap on the retained stdout/stderr tail (bytes).
 pub(super) const TAIL_CAP: usize = 8192;
 /// Maximum transient-lock retry attempts.
