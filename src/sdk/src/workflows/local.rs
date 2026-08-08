@@ -401,6 +401,12 @@ impl LocalRun<'_> {
         let (host_env, fleet_depth) = nested_harness_env(env).await?;
         settings.fleet_depth = fleet_depth;
 
+        // The embedded daemon below may dispatch a node to the embedded core,
+        // which boots lazily and reads its environment during construction.
+        // This path only holds the `workflows` section, not the full config, so
+        // it binds what it does know before the host starts.
+        bind_core(env, &workspace);
+
         let host = LocalWorkflowHost::start(
             EmbeddedDaemonOptions {
                 workspace: workspace.clone(),
