@@ -106,7 +106,7 @@ impl PtySessionExecutor {
     /// [`probe_session`](Self::probe_session) — and it returns a plan rather
     /// than a session because neither the launch nor the wait may happen here;
     /// see [`PtySessionExecutor::launch`].
-    fn session_for(
+    pub(super) fn session_for(
         &self,
         options: &RunTaskOptions,
         probe: SessionProbe,
