@@ -266,9 +266,8 @@ pub async fn boot() -> anyhow::Result<Core> {
 ///
 /// Registers Medulla's configured `Stop`, `PreToolUse`, and `PostToolUse` hooks
 /// as OpenHuman embedder lifecycle hooks **before** constructing the core — see
-/// [`hooks`]. Registration is process-global and append-only, so a process that
-/// boots more than one core would install the hooks for each; callers boot the
-/// one core a process owns.
+/// [`hooks`]. Registration is process-global, but each boot replaces Medulla's
+/// previous hook registrations, including removing a kind no longer configured.
 ///
 /// # Errors
 ///
