@@ -428,15 +428,26 @@ impl HarnessAgentRunner {
             },
         );
         let status = self.stream_for(node_id.clone());
-        let outcome = self
+        let outcome = match self
             .dispatch
             .dispatch_with_status(request, status)
             .await
-            .map_err(|err| dispatch_error("agent node", err))?;
+        {
+            Ok(outcome) => outcome,
+            Err(err) => {
+                // The engine records a failed dispatch as an Error step, so it
+                // occupies a transcript-queue slot like any other activation.
+                // Record an empty placeholder so a later success's transcript
+                // is not popped onto the failed step; the step's own error is
+                // its account, and a placeholder keeps the Nth slot aligned.
+                self.record_transcript(node_id.as_deref(), Vec::new());
+                return Err(dispatch_error("agent node", err));
+            }
+        };
         // After the dispatch, never before: the transcript is what the harness
         // said, and it does not exist until the harness has stopped saying it.
-        // A failed dispatch records nothing — the `?` above has already left —
-        // which is correct: the error is the account of that step.
+        // An empty transcript still queues a placeholder so the Nth activation
+        // keeps its slot — see [`record_transcript`](Self::record_transcript).
         self.record_transcript(node_id.as_deref(), outcome.transcript);
         Ok(reply_to_value(&outcome.reply, &worker))
     }
