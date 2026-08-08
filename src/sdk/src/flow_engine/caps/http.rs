@@ -276,8 +276,12 @@ pub fn is_private_host(host: &str) -> bool {
 #[async_trait]
 impl HttpClient for AllowlistHttpClient {
     async fn request(&self, request: Value, conn: Option<&str>) -> Result<Value> {
-        let url = self.permit(&request)?;
+        let (url, vetted) = self.permit(&request)?;
         let summary = redacted_summary(&request);
+        // Pinned to the addresses just vetted, so the connection cannot go
+        // anywhere a second DNS answer might point.
+        let host = url.host_str().unwrap_or_default().to_string();
+        let client = self.pinned(&host, &vetted)?;
 
         // Resolve the credential before building the request, so an unknown name
         // fails before anything leaves the process.
@@ -300,7 +304,7 @@ impl HttpClient for AllowlistHttpClient {
         let method = reqwest::Method::from_bytes(method.as_bytes())
             .map_err(|err| EngineError::Capability(format!("http_request: {err}")))?;
 
-        let mut builder = self.client.request(method, url);
+        let mut builder = client.request(method, url);
         if let Some(headers) = request.get("headers").and_then(Value::as_object) {
             for (name, value) in headers {
                 if let Some(value) = value.as_str() {
