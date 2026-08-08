@@ -197,10 +197,21 @@ impl CapabilitySettings {
     ///
     /// Matches on exact host or a dot-suffix, so `example.com` permits
     /// `api.example.com` but not `notexample.com`.
+    ///
+    /// A blank entry matches nothing. Without that skip the dot-suffix test
+    /// degenerates to `host.ends_with(".")` — one stray empty string in the
+    /// list would quietly turn a deny-by-default allowlist into one that
+    /// permits any host spelled with a trailing dot.
     pub fn http_host_allowed(&self, host: &str) -> bool {
         let host = host.trim().to_ascii_lowercase();
+        if host.is_empty() {
+            return false;
+        }
         self.http_allowlist.iter().any(|allowed| {
             let allowed = allowed.trim().to_ascii_lowercase();
+            if allowed.is_empty() {
+                return false;
+            }
             host == allowed || host.ends_with(&format!(".{allowed}"))
         })
     }
