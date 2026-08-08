@@ -35,22 +35,29 @@ const LOCK_RETRY_BASE_MS: u64 = 250;
 pub(super) enum LineRead {
     /// A complete line at or under the cap, appended to the caller's buffer.
     Line,
-    /// The line exceeded the cap. Nothing was buffered and the rest of the line
-    /// was discarded, so the next read starts on the following record.
+    /// The line exceeded the cap. With a retained tail the trailing bytes of the
+    /// record are in the caller's buffer; otherwise nothing was buffered and the
+    /// rest of the line was discarded, so the next read starts on the following
+    /// record.
     Oversized,
     /// The stream ended with nothing buffered.
     Eof,
 }
 
 /// Read one newline-terminated record into `buf`, never buffering more than
-/// `cap` bytes.
+/// `cap` bytes of any single record.
 ///
 /// [`AsyncBufReadExt::read_until`] would buffer the whole line first and only
 /// then let the caller notice it was too big — so a child emitting one endless
 /// line grows the buffer without limit and the stated ceiling is not a ceiling
 /// at all. This consumes the stream in whatever chunks the reader already holds
-/// and, once the cap is passed, drops what it has and keeps discarding to the
-/// next newline instead of retaining it.
+/// and, once the cap is passed, keeps only the trailing `retain_tail` bytes
+/// instead of the whole record.
+///
+/// With `retain_tail = Some(n)` an oversized record leaves the trailing `n`
+/// bytes of the record in `buf`, so a caller that only wants a diagnostic tail
+/// (stderr) still sees the end of an endless line. With `None` the oversized
+/// record is dropped entirely and the next read starts on the following record.
 ///
 /// Like `read_until`, this is *not* cancellation safe: dropping it mid-line can
 /// lose the bytes already consumed. The run loop only cancels it on abort or
@@ -59,6 +66,7 @@ pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
     reader: &mut R,
     buf: &mut Vec<u8>,
     cap: usize,
+    retain_tail: Option<usize>,
 ) -> std::io::Result<LineRead> {
     let mut oversized = false;
     loop {
@@ -79,14 +87,25 @@ pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
         };
         if !oversized {
             if buf.len() + take > cap {
-                // Past the ceiling: release what was buffered rather than
-                // carrying a record nothing downstream will accept.
+                // Past the ceiling: keep only the trailing `retain_tail` bytes
+                // as a rolling tail rather than carrying a record nothing
+                // downstream will accept whole.
                 oversized = true;
-                buf.clear();
-                buf.shrink_to_fit();
+                if let Some(tail) = retain_tail {
+                    buf.extend_from_slice(&chunk[..take]);
+                    trim_tail(buf, tail);
+                } else {
+                    buf.clear();
+                    buf.shrink_to_fit();
+                }
             } else {
                 buf.extend_from_slice(&chunk[..take]);
             }
+        } else if let Some(tail) = retain_tail {
+            // Already oversized: keep the rolling window across later chunks so
+            // the tail is the *last* `tail` bytes of the record, not the first.
+            buf.extend_from_slice(&chunk[..take]);
+            trim_tail(buf, tail);
         }
         reader.consume(take);
         if complete {
@@ -96,6 +115,16 @@ pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
                 LineRead::Line
             });
         }
+    }
+}
+
+/// Drop all but the trailing `tail` bytes of `buf`, in place. The kept slice is
+/// at most `tail` bytes, so the drain's memmove stays small even when a record
+/// blew past a much larger cap.
+fn trim_tail(buf: &mut Vec<u8>, tail: usize) {
+    if buf.len() > tail {
+        let drop = buf.len() - tail;
+        buf.drain(..drop);
     }
 }
 
