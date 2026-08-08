@@ -501,7 +501,7 @@ async fn run_provider_attempt(
                 report_workspace_context(&mapper, spec);
                 return Err(idle_error);
             }
-            read = read_line_bounded(&mut reader, &mut buf, MAX_RECORD_BYTES) => {
+            read = read_line_bounded(&mut reader, &mut buf, MAX_RECORD_BYTES, None) => {
                 match read {
                     Ok(LineRead::Eof) => break,
                     // Unparseable oversized record — already discarded, and the
