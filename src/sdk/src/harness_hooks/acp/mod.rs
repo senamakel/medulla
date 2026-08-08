@@ -10,8 +10,10 @@
 //! workflow would see.
 //!
 //! Claude carries hooks through its session metadata. Codex's ACP app-server
-//! currently runs no hooks, so it reports that limitation instead. Attribution
-//! is already applied through the inherited `prepare-commit-msg` environment.
+//! executes no lifecycle hooks itself, so its `PostToolUse` hooks run *locally*
+//! in Medulla's own process after each completed tool call (see [`runner`]),
+//! observation-only. Attribution is already applied through the inherited
+//! `prepare-commit-msg` environment.
 
 use serde_json::{json, Map, Value};
 
@@ -21,6 +23,9 @@ use super::types::HooksConfig;
 
 mod runner;
 mod types;
+
+#[cfg(test)]
+mod tests;
 
 pub use runner::run_post_tool_use;
 pub use types::AcpDelivery;
