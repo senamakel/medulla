@@ -290,28 +290,3 @@ fn attribution_env_not_merged_when_config_disables_it() {
         assert_eq!(config.env, env_before, "{provider:?} env must be unchanged");
     }
 }
-
-#[cfg(unix)]
-#[tokio::test]
-async fn temp_old_pattern_panics() {
-    use tokio::signal::unix::{signal, SignalKind};
-    let (mut sigint, mut sigterm) = (
-        signal(SignalKind::interrupt()).unwrap(),
-        signal(SignalKind::terminate()).unwrap(),
-    );
-    let mut fut: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> =
-        Box::pin(async move {
-            tokio::select! { _ = sigint.recv() => {} _ = sigterm.recv() => {} }
-        });
-    let mut ticks = tokio::time::interval(Duration::from_millis(5));
-    let mut fired = 0;
-    raise(libc::SIGINT);
-    let _ = tokio::time::timeout(Duration::from_secs(3), async {
-        loop {
-            tokio::select! {
-                _ = &mut fut => { fired += 1; if fired == 2 { break; } raise(libc::SIGTERM); }
-                _ = ticks.tick() => {}
-            }
-        }
-    }).await;
-}
