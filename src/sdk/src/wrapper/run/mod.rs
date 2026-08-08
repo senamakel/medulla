@@ -183,7 +183,7 @@ pub async fn run_wrapper_with(mut config: WrapperConfig) -> anyhow::Result<i32> 
     let mut recv_tick = tokio::time::interval(Duration::from_millis(timings.receive_poll_ms));
     let mut status_tick =
         tokio::time::interval(Duration::from_millis(timings.status_throttle_ms as u64));
-    let mut signal_fut = signal_future();
+    let mut signals = Signals::install();
 
     let code = loop {
         tokio::select! {
