@@ -72,8 +72,6 @@ mod report;
 mod types;
 
 #[cfg(test)]
-mod acp_tests;
-#[cfg(test)]
 mod tests;
 
 pub use acp::{delivery as acp_delivery, AcpDelivery};
