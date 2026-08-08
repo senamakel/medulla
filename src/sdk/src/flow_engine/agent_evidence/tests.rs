@@ -2,9 +2,33 @@
 
 use serde_json::json;
 
+use crate::harness_transcript::TranscriptEntry;
 use crate::workflows::RunStep;
 
 use super::{instrumented, AgentEvidence, NODE_ID_FIELD};
+
+/// A step of `node_id` with no evidence yet, as the engine's observer creates
+/// them before [`AgentEvidence::attach`] fills the evidence in.
+fn step(node_id: &str) -> RunStep {
+    RunStep {
+        node_id: node_id.into(),
+        status: "success".into(),
+        duration_ms: 4,
+        input: None,
+        output: None,
+        diagnostics: Vec::new(),
+        transcript: Vec::new(),
+    }
+}
+
+/// One transcript entry of `kind` saying `text`.
+fn entry(kind: &str, text: &str) -> TranscriptEntry {
+    TranscriptEntry {
+        at_ms: 1_700_000_000_000,
+        kind: kind.into(),
+        text: text.into(),
+    }
+}
 
 #[test]
 fn only_agent_nodes_receive_private_evidence_tags() {
