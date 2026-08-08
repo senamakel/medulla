@@ -224,9 +224,17 @@ fn is_private_v4(addr: &std::net::Ipv4Addr) -> bool {
 /// mode of not resolving is an authored workflow reaching internal services,
 /// and that is worse than a lookup.
 ///
+/// The vetted addresses are *returned*, not just judged: the caller pins the
+/// transport to them, so the answer checked here is the answer connected to. A
+/// second, independent lookup by the transport would reopen the rebinding gap
+/// this closes — a name whose record flips to `169.254.169.254` between the two
+/// resolutions passes the guard and reaches metadata anyway.
+///
 /// A name that cannot be resolved at all is refused rather than allowed: the
-/// request would fail anyway, and failing here says why.
-fn refuse_private_resolution(host: &str, port: u16) -> Result<()> {
+/// request would fail anyway, and failing here says why. So is one that
+/// resolves to nothing, which would otherwise pin the transport to an empty
+/// set and let it fall back to its own lookup.
+pub(crate) fn vet_resolution(host: &str, port: u16) -> Result<Vec<std::net::SocketAddr>> {
     use std::net::ToSocketAddrs;
 
     let resolved: Vec<std::net::SocketAddr> = (host, port)
@@ -242,7 +250,12 @@ fn refuse_private_resolution(host: &str, port: u16) -> Result<()> {
             private.ip()
         )));
     }
-    Ok(())
+    if resolved.is_empty() {
+        return Err(EngineError::Capability(format!(
+            "http_request: cannot resolve '{host}': it has no addresses"
+        )));
+    }
+    Ok(resolved)
 }
 
 /// Whether a host *names* loopback, a link-local address, or an RFC 1918 range.
