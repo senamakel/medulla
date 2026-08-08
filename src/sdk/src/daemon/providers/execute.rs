@@ -81,7 +81,7 @@ pub(super) async fn read_line_bounded<R: tokio::io::AsyncBufRead + Unpin>(
             buf.clear();
             buf.shrink_to_fit();
         }
-        if retain_tail.is_some() || !over {
+        if retain_tail.is_some() || !oversized {
             buf.extend_from_slice(&chunk[..take]);
         }
         if let Some(tail) = retain_tail {
