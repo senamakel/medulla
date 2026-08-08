@@ -49,6 +49,12 @@ pub(super) async fn medulla_mcp_servers(
         use crate::mcp::attach;
         use agent_client_protocol::schema::v1::{EnvVariable, McpServer, McpServerStdio};
 
+        // A launch serving a workflow `agent` node gets no Medulla tools on
+        // either transport — see [`crate::harness_tools`]. Ahead of the grant
+        // below so nothing is minted for a session that will not carry it.
+        if crate::harness_tools::withheld(task_env) {
+            return Vec::new();
+        }
         // An operator who turned workflows off should not have harnesses handed
         // tools that would be refused. Resolved through the shared policy so
         // this transport and the CLI one cannot come to disagree about which
