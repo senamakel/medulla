@@ -278,10 +278,12 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                 }
             };
 
-            // Publish a newly learned ACP id before prompting. Notifications
-            // produced by the prompt may immediately report workspace state;
-            // the daemon must already have a binding for that callback to
-            // update rather than dropping the first turn's context.
+            // Publish the real ACP id to hooks before prompting, then announce
+            // it to the daemon. Notifications produced by the prompt may
+            // immediately report workspace state; the daemon must already have
+            // a binding for that callback to update rather than dropping the
+            // first turn's context.
+            *connection_hook_session.lock().unwrap() = session_id.to_string();
             if let Some(callback) = on_session {
                 callback(session_id.to_string());
             }
