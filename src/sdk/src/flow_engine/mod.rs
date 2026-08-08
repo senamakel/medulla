@@ -37,6 +37,17 @@ mod shell_tests;
 #[cfg(test)]
 mod harness_selection_tests;
 
+// The remaining `tests` cases grouped by responsibility once the file crossed
+// the ceiling again: state store, tools/code, and the HTTP capsule.
+#[cfg(test)]
+mod state_tests;
+
+#[cfg(test)]
+mod tools_tests;
+
+#[cfg(test)]
+mod http_tests;
+
 pub(crate) use caps::build_capabilities_with_agent_evidence;
 pub use caps::{build_capabilities, build_dry_run_capabilities, open_checkpointer, HostServices};
 pub use execute::{Compiled, Outcome};
