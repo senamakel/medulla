@@ -111,7 +111,8 @@ fn claude_settings_carry_every_applicable_hook() {
 
 /// Codex app-server does not execute lifecycle hooks, but ACP reports each
 /// completed tool call to Medulla.  The transport therefore keeps the
-/// observation-only PostToolUse hook for Medulla to execute locally.
+/// observation-only PostToolUse hook for Medulla to execute locally, and says
+/// that the local fallback is observation-only for a non-Medulla hook.
 #[test]
 fn codex_runs_post_tool_use_locally() {
     let delivered = delivery(HarnessProvider::Codex, &one_hook("auto-commit --hook"));
@@ -122,7 +123,14 @@ fn codex_runs_post_tool_use_locally() {
         delivered.local_post_tool_use[0].command(),
         "auto-commit --hook"
     );
-    assert!(delivered.notes.is_empty(), "{:#?}", delivered.notes);
+    assert!(
+        delivered
+            .notes
+            .iter()
+            .any(|note| note.contains("observation-only")),
+        "an operator hook run through the fallback must say it is observation-only: {:#?}",
+        delivered.notes
+    );
 }
 
 /// No declared hook means no delivery and nothing to explain — an ACP spawn
