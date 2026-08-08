@@ -385,12 +385,21 @@ impl PtySessionExecutor {
         );
     }
 
-    /// Decide which session serves this task: reuse an idle one, launch, or
-    /// queue behind the person in the checkout.
+    /// Ask, off the runtime, whether a session already exists for this task.
     ///
-    /// Synchronous, and returns a plan rather than a session, because neither
-    /// the launch nor the wait may happen here — see
-    /// [`PtySessionExecutor::launch`].
+    /// Both questions block, which is the whole reason this is a separate step
+    /// on the blocking pool rather than the head of
+    /// [`session_for`](Self::session_for):
+    ///
+    /// - [`claim_idle`](crate::worker::pty::PtyManager::claim_idle) waits out the
+    ///   previous turn's completion-chime grace with a `std::thread::sleep`, up
+    ///   to 300ms per claim.
+    /// - [`checkout_writer`](Self::checkout_writer) canonicalizes both sides of
+    ///   every live session's `cwd`, which is a filesystem call apiece.
+    ///
+    /// Owned arguments rather than `&RunTaskOptions`, because that type is
+    /// `Send` but not `Sync`: a borrow of it held across this await would make
+    /// the whole run future un-spawnable.
     ///
     /// **Candidacy (spec §4.1).** Only *orchestrator-owned* sessions are ever
     /// candidates. A user-owned session — born that way as an unmanaged spawn,
@@ -398,25 +407,72 @@ impl PtySessionExecutor {
     /// makes a dispatch fail: it is simply not among the things the dispatch can
     /// pick up. That rule lives in
     /// [`try_claim`](crate::worker::pty::PtyManager::claim_idle), which is why
-    /// reuse is consulted *first* here now. It used to come second, behind a
+    /// reuse is consulted *first* here. It used to come second, behind a
     /// workspace-wide refusal that turned a person at a keyboard into a task
     /// error — even when the agent had another session sitting idle beside them.
+    ///
+    /// # Errors
+    ///
+    /// The blocking task panicked or was cancelled; the dispatch has claimed
+    /// nothing and started nothing.
+    pub(super) async fn probe_session(
+        &self,
+        class: SessionClass,
+        conversation: String,
+        provider: HarnessProvider,
+        cwd: &str,
+    ) -> Result<SessionProbe, String> {
+        let this = self.clone();
+        let cwd = cwd.to_string();
+        tokio::task::spawn_blocking(move || {
+            if class == SessionClass::Unbound {
+                // Reuse this peer's session only when it is *idle*. A harness
+                // serves one turn at a time: a fan-out that pastes three prompts
+                // into one composer gets them answered as a single conversation,
+                // and all three tails settle on the same completion — three
+                // different instructions, one answer, delivered three times. A
+                // busy session therefore does not qualify, and the task gets a
+                // fresh one.
+                if let Some(row) = this.sessions.claim_idle(&conversation, provider) {
+                    return SessionProbe::Reuse(row);
+                }
+            }
+            // Nothing to reuse, so this dispatch needs a session of its own —
+            // and that is where the *second*, independent rule applies: under
+            // `strategy: checkout` the working tree takes one writer at a time
+            // (see [`checkout_writer`](PtySessionExecutor::checkout_writer)), so
+            // a fresh harness cannot simply start beside the one that is there.
+            // The work queues instead — the same exclusivity the blanket refusal
+            // used to buy, without ending the dispatch to get it.
+            //
+            // Note what this is *not*: it is not "the workspace is held". Holds
+            // are on sessions, and rule 1 above has already dealt with those.
+            // This is the strategy's serialization, and under `worktree` it will
+            // not apply at all.
+            if this.checkout_writer(&cwd).is_some() {
+                return SessionProbe::Queue;
+            }
+            SessionProbe::Fresh
+        })
+        .await
+        .map_err(|err| format!("session lookup did not complete: {err}"))
+    }
+
+    /// Turn a [`SessionProbe`] into the plan that serves this task: reuse the
+    /// session it claimed, launch, or queue behind the person in the checkout.
+    ///
+    /// Synchronous and non-blocking — every question that touches a pty or the
+    /// filesystem was already answered by
+    /// [`probe_session`](Self::probe_session) — and it returns a plan rather
+    /// than a session because neither the launch nor the wait may happen here;
+    /// see [`PtySessionExecutor::launch`].
     fn session_for(
         &self,
         options: &RunTaskOptions,
-        class: SessionClass,
+        probe: SessionProbe,
     ) -> Result<SessionPlan, String> {
-        if class == SessionClass::Unbound {
-            // Reuse this peer's session only when it is *idle*. A harness serves
-            // one turn at a time: a fan-out that pastes three prompts into one
-            // composer gets them answered as a single conversation, and all
-            // three tails settle on the same completion — three different
-            // instructions, one answer, delivered three times. A busy session
-            // therefore does not qualify, and the task gets a fresh one.
-            if let Some(row) = self
-                .sessions
-                .claim_idle(&options.conversation, options.provider)
-            {
+        match probe {
+            SessionProbe::Reuse(row) => {
                 return Ok(SessionPlan::Reuse(OpenedSession {
                     id: row.id.clone(),
                     harness_session_id: row.session_id.clone(),
@@ -424,21 +480,8 @@ impl PtySessionExecutor {
                     gh_repo_is_set: self.sessions.gh_repo_is_set(&row.id).unwrap_or(false),
                 }));
             }
-        }
-        // Nothing to reuse, so this dispatch needs a session of its own — and
-        // that is where the *second*, independent rule applies: under
-        // `strategy: checkout` the working tree takes one writer at a time
-        // (see [`checkout_writer`](Self::checkout_writer)), so a fresh harness
-        // cannot simply start beside the one that is there. The work queues
-        // instead — the same exclusivity the blanket refusal used to buy,
-        // without ending the dispatch to get it.
-        //
-        // Note what this is *not*: it is not "the workspace is held". Holds are
-        // on sessions, and rule 1 above has already dealt with those. This is
-        // the strategy's serialization, and under `worktree` it will not apply
-        // at all.
-        if self.checkout_writer(&options.cwd).is_some() {
-            return Ok(SessionPlan::Queue(options.cwd.clone()));
+            SessionProbe::Queue => return Ok(SessionPlan::Queue(options.cwd.clone())),
+            SessionProbe::Fresh => {}
         }
         let label = if options.conversation.is_empty() {
             format!("task:{}", options.provider.as_str())
