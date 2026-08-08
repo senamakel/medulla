@@ -38,11 +38,14 @@ use std::sync::Arc;
 use openhuman_core::embed::{Core, CoreError};
 use openhuman_core::{CoreBuilder, DomainSet, HostKind, ServiceSet, TokenSource};
 
+mod hooks;
 pub mod auth;
 pub mod shared;
 
 #[cfg(test)]
 mod auth_tests;
+#[cfg(test)]
+mod hooks_tests;
 #[cfg(test)]
 mod tests;
 
