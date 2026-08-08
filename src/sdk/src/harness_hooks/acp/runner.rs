@@ -1,5 +1,13 @@
 //! Local execution of observation-only hooks for ACP Codex sessions.
+//!
+//! `codex app-server` executes no lifecycle hooks of its own, so this module is
+//! the seam that runs an operator's `PostToolUse` hooks after each completed
+//! ACP tool call. It is **observation-only**: ACP gives the client no way to
+//! amend a tool call it did not execute, so a hook's stdout decision is never
+//! forwarded into the session. That restriction is reported to the operator at
+//! delivery time (see [`super::delivery`]).
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
@@ -11,9 +19,14 @@ use tokio::io::AsyncWriteExt;
 use crate::harness_hooks::HookSpec;
 
 /// Run matching `PostToolUse` hooks without allowing a hook failure to fail a turn.
+///
+/// `env` is the per-session environment already seeded with the hook grant (see
+/// [`crate::harness_hooks::seed_hook_grant`]), so a hook that reports back to a
+/// control plane finds the socket and credential every direct spawn door seeds.
 pub async fn run_post_tool_use(
     hooks: &[HookSpec],
     cwd: &Path,
+    env: &HashMap<String, String>,
     session_id: &str,
     tool: &str,
     input: &Value,
@@ -29,15 +42,8 @@ pub async fn run_post_tool_use(
             "tool_name": tool,
             "tool_input": normalized_input(input),
         });
-        let mut child = match tokio::process::Command::new("sh")
-            .arg("-c")
-            .arg(hook.command())
-            .current_dir(cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-        {
+        let timeout = Duration::from_secs(hook.timeout().unwrap_or(600));
+        let mut child = match spawn_hook(hook.command(), cwd, env) {
             Ok(child) => child,
             Err(error) => {
                 tracing::warn!(
@@ -50,7 +56,6 @@ pub async fn run_post_tool_use(
         if let Some(mut stdin) = child.stdin.take() {
             let _ = stdin.write_all(payload.to_string().as_bytes()).await;
         }
-        let timeout = Duration::from_secs(hook.timeout().unwrap_or(600));
         match tokio::time::timeout(timeout, child.wait()).await {
             Ok(Ok(status)) if status.success() => {}
             Ok(Ok(status)) => tracing::warn!(
@@ -62,18 +67,112 @@ pub async fn run_post_tool_use(
                 command = hook.command(),
                 "could not wait for ACP PostToolUse hook: {error}"
             ),
-            Err(_) => tracing::warn!(command = hook.command(), "ACP PostToolUse hook timed out"),
+            Err(_) => {
+                // `timeout` cancelled `wait`, which does not terminate the
+                // child. Kill it (with its whole process group, since it runs
+                // under a shell that may have started descendants) and reap.
+                kill_hook(&mut child);
+                let _ = child.wait().await;
+                tracing::warn!(command = hook.command(), "ACP PostToolUse hook timed out");
+            }
         }
     }
 }
 
+/// Spawn one hook through the platform shell, as its own process-group leader
+/// on Unix so a timed-out hook can be terminated together with any descendants
+/// it started.
+fn spawn_hook(
+    command: &str,
+    cwd: &Path,
+    env: &HashMap<String, String>,
+) -> std::io::Result<tokio::process::Child> {
+    let mut builder = tokio::process::Command::new(shell());
+    builder
+        .args(shell_args(command))
+        .current_dir(cwd)
+        .envs(env)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    builder.process_group(0);
+    builder.spawn()
+}
+
+#[cfg(unix)]
+fn shell() -> &'static str {
+    "sh"
+}
+
+#[cfg(unix)]
+fn shell_args(command: &str) -> [&str; 2] {
+    ["-c", command]
+}
+
+#[cfg(windows)]
+fn shell() -> &'static str {
+    "cmd.exe"
+}
+
+#[cfg(windows)]
+fn shell_args(command: &str) -> [&str; 4] {
+    ["/D", "/S", "/C", command]
+}
+
+/// Terminate a timed-out hook and, on Unix, everything in its process group.
+///
+/// The hook was spawned through a shell that may have started descendants of
+/// its own; killing only the shell would strand them. With `process_group(0)`
+/// the shell leads its own group, so killing the negative pid reaches the whole
+/// tree. On Windows the shell process itself is terminated, which is the best
+/// `cmd.exe` offers without a Job Object.
+fn kill_hook(child: &mut tokio::process::Child) {
+    #[cfg(unix)]
+    unsafe {
+        libc::kill(-(child.id() as i32), libc::SIGKILL);
+    }
+    let _ = child.start_kill();
+}
+
+/// Whether `matcher` selects a tool whose ACP `kind` is `tool`.
+///
+/// The matcher is written in the native Codex hook vocabulary (`Bash`,
+/// `Edit|Write`, …), because the same declaration feeds the direct spawn door,
+/// while ACP reports the semantic `ToolKind` (`execute`, `edit`, …). Matching is
+/// therefore tried against the kind *and* its native aliases, so both
+/// vocabularies work.
 fn matches_tool(matcher: &str, tool: &str) -> bool {
     matcher.is_empty()
         || matcher == "*"
-        || Regex::new(matcher).is_ok_and(|regex| regex.is_match(tool))
+        || tool_matcher_candidates(tool)
+            .iter()
+            .any(|candidate| Regex::new(matcher).is_ok_and(|regex| regex.is_match(candidate)))
 }
 
-fn normalized_input(input: &Value) -> Value {
+/// The ACP `ToolKind` and the native Codex tool names it corresponds to.
+///
+/// ACP reports one category per call (`execute`, `edit`, …); Codex's own hooks
+/// match on the concrete tool (`Bash`, `Edit|Write`, …). Keeping the raw kind
+/// as a candidate lets an ACP-aware matcher target it directly. Kinds with no
+/// native equivalent match only their own name.
+pub(super) fn tool_matcher_candidates(kind: &str) -> Vec<String> {
+    let mut candidates = vec![kind.to_string()];
+    match kind {
+        "execute" => candidates.extend(["Bash", "Shell"].map(str::to_string)),
+        "edit" => candidates.extend(["Edit", "Write"].map(str::to_string)),
+        "read" => candidates.extend(["Read", "View"].map(str::to_string)),
+        "search" => candidates.extend(["Grep", "Glob"].map(str::to_string)),
+        "fetch" => candidates.extend(["WebFetch"].map(str::to_string)),
+        _ => {}
+    }
+    candidates
+}
+
+/// Fold an ACP `path`/`filePath` input key into the `file_path` spelling the
+/// shared hook document and Codex's own hooks read.
+pub(super) fn normalized_input(input: &Value) -> Value {
     let Value::Object(input) = input else {
         return input.clone();
     };
@@ -88,24 +187,4 @@ fn normalized_input(input: &Value) -> Value {
         }
     }
     Value::Object(normalized)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn matcher_preserves_codex_match_all_semantics() {
-        assert!(matches_tool("*", "apply_patch"));
-        assert!(matches_tool("^Bash$", "Bash"));
-        assert!(!matches_tool("^Bash$", "apply_patch"));
-    }
-
-    #[test]
-    fn normalizes_acp_path_for_codex_hook_consumers() {
-        assert_eq!(
-            normalized_input(&json!({"path":"a.rs"}))["file_path"],
-            "a.rs"
-        );
-    }
 }
