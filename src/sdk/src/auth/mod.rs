@@ -50,6 +50,10 @@ pub use migrate::{adopt_legacy_credentials, discard_legacy_credential, LegacyCre
 pub use session::{
     adopt_legacy, clear, read, state, store, token as session_token, AuthState, StoredSession,
 };
+// Re-exported under a name that says what it is from outside this module: the
+// owner-only atomic write the session store uses, reused by any surface
+// persisting something that should not be world-readable.
+pub use session::write_private as write_private_file;
 pub use token::{is_one_time_login_token, resolve_backend_token};
 pub use types::{Credentials, LoginError, LoopbackConfig, Provider, DEFAULT_LOGIN_TIMEOUT};
 pub use url::{

@@ -53,7 +53,7 @@ async fn cloud_runtime(
     // different route family from the orchestration API and mints its own
     // short-lived client per call.
     let rt = medulla::runtime::cloud::CloudRuntime::with_hub(client, hub)
-        .with_backend_base_url(&backend.base_url)
+        .with_backend(backend.clone())
         .with_workspaces(workspaces);
     // First fetch before the UI paints, so the initial frame shows real state
     // rather than an empty one that fills in a beat later.
@@ -142,9 +142,19 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // Skipped on `--mock`, which never touches a backend, and skipped once an
     // account is recorded: from then on the ordinary boot below finds the
     // session where that account's home keeps it.
-    let mut pending_jwt = None;
+    // The token from a first sign-in, carried with the URL that issued it.
+    //
+    // Both halves are needed. `sign_in_first_account` verifies against the
+    // pre-login backend, and the account's own `config.toml` — loaded
+    // immediately after, and deliberately preserved by that flow — may name a
+    // different deployment. Storing against the *reloaded* URL then re-validates
+    // a staging token at production and fails startup with a token error,
+    // instead of storing it against its issuer and letting the
+    // deployment-mismatch notice do its job.
+    let mut pending_jwt: Option<(String, String)> = None;
     if !args.mock && !account_is_active(&env) {
-        match sign_in_first_account(&env, &loaded.config.backend.base_url, args.alt_screen).await? {
+        let issuer = loaded.config.backend.base_url.clone();
+        match sign_in_first_account(&env, &issuer, args.alt_screen).await? {
             // Quit from the login screen before any account exists: there is no
             // home to open and nothing to show, so this is a clean exit.
             None => return Ok(()),
@@ -152,7 +162,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 // The account's own config file is a different file from the one
                 // loaded a moment ago, and it is the one that wins from here on.
                 loaded = load_config(args.config.as_deref(), &env, &cwd)?;
-                pending_jwt = Some(jwt);
+                pending_jwt = Some((issuer, jwt));
             }
         }
     }
@@ -239,9 +249,9 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         // A token from the sign-in gate above. The gate has already chosen the
         // home, so this is the first moment the session can be stored where it
         // belongs.
-        if let Some(jwt) = pending_jwt.take() {
-            if let Err(e) = medulla::auth::store(&env, &loaded.config.backend.base_url, &jwt).await
-            {
+        if let Some((issuer, jwt)) = pending_jwt.take() {
+            // Against the issuer, not the reloaded config — see the binding above.
+            if let Err(e) = medulla::auth::store(&env, &issuer, &jwt).await {
                 anyhow::bail!("signed in, but the session could not be stored: {e}");
             }
         }
@@ -276,6 +286,23 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 );
                 match medulla::runtime::cloud::connect::probe(&client).await {
                     medulla::runtime::cloud::connect::Readiness::SignedOut => {
+                        // A rejected credential that came from the config or the
+                        // environment cannot be fixed by signing in: the fresh
+                        // JWT lands in the store, which that source outranks, so
+                        // the next client would present the same rejected token.
+                        // Say where it came from instead of opening a login
+                        // screen that resolves to the same failure.
+                        if let Some(source) =
+                            medulla::runtime::cloud::connect::external_credential_source(
+                                &env,
+                                &loaded.config.backend,
+                            )
+                        {
+                            anyhow::bail!(
+                                "the backend rejected the credential from {source} — replace \
+                                 or remove it; signing in again cannot override it"
+                            );
+                        }
                         need_login = Some(loaded.config.backend.base_url.clone());
                     }
                     // Ready, or a transient failure that must not evict the

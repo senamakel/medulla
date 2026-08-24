@@ -210,32 +210,70 @@ pub fn clear(env: &HashMap<String, String>) -> std::io::Result<Option<PathBuf>> 
 /// and a later chmod is exactly long enough for another process on the machine
 /// to read the token out.
 ///
-/// `OpenOptionsExt::mode` applies to a *newly created* file only, so a
-/// re-store over a path that already exists inherits whatever mode it had —
-/// including one an earlier build, a restored backup, or a stray `chmod` left
-/// world-readable. The existing file is therefore removed first rather than
-/// truncated, so every write is a create and the mode always applies.
-pub(super) fn write_private(path: &Path, body: &[u8]) -> std::io::Result<()> {
+/// `OpenOptionsExt::mode` applies to a *newly created* file only, so a re-store
+/// over a path that already exists inherits whatever mode it had — including one
+/// an earlier build, a restored backup, or a stray `chmod` left world-readable.
+/// Every write must therefore be a create.
+///
+/// # Why a temporary file rather than removing the destination
+///
+/// Removing first also satisfied the mode requirement, and cost the previous
+/// session to do it: a create or write that failed afterwards — a full disk, an
+/// I/O error, the process dying between the two — left the operator with no
+/// session at all, or a half-written one. A failed re-store would have signed
+/// them out.
+///
+/// The record is written to a sibling temporary, synced, and only then renamed
+/// over the destination. `rename(2)` is atomic within a directory, so a reader
+/// sees either the old file or the complete new one, and a failure anywhere
+/// before the rename leaves the old session untouched.
+pub fn write_private(path: &Path, body: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
 
-    // Ignoring the result: a missing file is the ordinary case, and a removal
-    // that genuinely fails surfaces on the open below with a better message
-    // than anything this could produce.
-    let _ = std::fs::remove_file(path);
+    let parent = path
+        .parent()
+        .ok_or_else(|| std::io::Error::other("the session path has no parent directory"))?;
+    // Named for the destination and the process, so two concurrent writers do
+    // not collide on one temporary and a leftover is traceable to what made it.
+    let temp = parent.join(format!(
+        ".{}.{}.tmp",
+        path.file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "session".to_string()),
+        std::process::id()
+    ));
+
+    // A leftover from a crashed earlier write would make `create_new` fail, and
+    // it is ours by name — nothing else writes this path.
+    let _ = std::fs::remove_file(&temp);
 
     let mut opts = std::fs::OpenOptions::new();
-    // `create_new`, not `create`: after the removal above, anything at this path
-    // was put there between the two calls, and writing a bearer token into a
-    // file another process just created is precisely what the mode is for.
+    // `create_new`, not `create`: anything already at this path was put there by
+    // something else, and writing a bearer token into a file another process
+    // created is precisely what the mode exists to prevent.
     opts.write(true).create_new(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
         opts.mode(0o600);
     }
-    let mut file = opts.open(path)?;
-    file.write_all(body)?;
-    file.sync_all()
+
+    let write = (|| -> std::io::Result<()> {
+        let mut file = opts.open(&temp)?;
+        file.write_all(body)?;
+        // Before the rename, not after: a rename that lands ahead of the data
+        // can leave an empty file where a session used to be.
+        file.sync_all()?;
+        std::fs::rename(&temp, path)
+    })();
+
+    if write.is_err() {
+        // The destination still holds the previous session, which is the whole
+        // point of writing beside it. Clean up so the next attempt is not
+        // tripped by our own leftover.
+        let _ = std::fs::remove_file(&temp);
+    }
+    write
 }
 
 /// Adopt a credential left by a pre-cutover install, when this host is signed

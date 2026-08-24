@@ -129,12 +129,20 @@ pub struct CloudRuntime {
     workspaces: Vec<std::path::PathBuf>,
     /// The backend deployment this host is configured for, when one is known.
     ///
-    /// Only the feedback board needs it: it sits on a different route family
-    /// from the orchestration API, so those calls mint a short-lived
-    /// [`MedullaClient`] against this URL with the stored session. `None` — an
-    /// unconfigured host — leaves the board reporting itself unavailable rather
-    /// than dialling a default deployment the operator never signed in to.
-    backend_base_url: Option<String>,
+    /// The backend configuration this host was built from.
+    ///
+    /// The whole config, not just its URL. Two surfaces need the credential
+    /// half: the feedback board resolves a bearer through the same precedence
+    /// chain the runtime's own client used, and `logout` has to know whether an
+    /// inline `backend.token` or a non-default `backend.tokenEnv` will keep this
+    /// process authenticated after the store is cleared. Reconstructing a
+    /// default `BackendConfig` from the URL discarded exactly those two fields,
+    /// which made both checks unable to fire.
+    ///
+    /// `None` — an unconfigured host — leaves the board reporting itself
+    /// unavailable rather than dialling a default deployment the operator never
+    /// signed in to.
+    backend: Option<crate::config::BackendConfig>,
 }
 
 /// Shared slot the hub fills with its handle once connected.
@@ -173,7 +181,7 @@ impl CloudRuntime {
             poll_failures: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             hub,
             workspaces: Vec::new(),
-            backend_base_url: None,
+            backend: None,
         }
     }
 
@@ -184,15 +192,14 @@ impl CloudRuntime {
         self
     }
 
-    /// Point the backend-facing surfaces (today: the feedback board) at the
-    /// deployment this host is configured for.
+    /// Record the backend configuration this host was built from.
     ///
-    /// The URL comes from the caller's loaded config, which is also what the
-    /// client above was built from — recorded separately because the board is
-    /// reached with its own short-lived client instance.
+    /// The same config the runtime's client came from — kept so the surfaces
+    /// that mint their own client resolve a bearer identically, and so `logout`
+    /// can see the credential sources that outrank the store.
     #[must_use]
-    pub fn with_backend_base_url(mut self, base_url: impl Into<String>) -> Self {
-        self.backend_base_url = Some(base_url.into());
+    pub fn with_backend(mut self, backend: crate::config::BackendConfig) -> Self {
+        self.backend = Some(backend);
         self
     }
 
@@ -602,41 +609,38 @@ impl Runtime for CloudRuntime {
     }
 
     fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
-        let backend = self.backend_base_url.clone();
+        let backend = self.backend.clone();
         // Removing the store's file is the whole logout as far as *this* host's
         // own credential goes — there is no keychain entry or profile beside it
         // that a next start could read back.
         //
         // It is not the whole story for the process, though: `backend.token` and
         // `backend.tokenEnv` outrank the store in
-        // [`crate::auth::resolve_backend_token`], so an operator running on
-        // `MEDULLA_TOKEN` stays authenticated after a "successful" logout. That
-        // is worth an error rather than a silent half-measure — telling someone
-        // they signed out while they are still signed in is the failure mode
-        // logging out exists to prevent.
+        // [`crate::auth::resolve_backend_token`], so an operator running on an
+        // inline token or a custom variable stays authenticated after a
+        // "successful" logout. That is worth an error rather than a silent
+        // half-measure — telling someone they signed out while they are still
+        // signed in is the failure mode logging out exists to prevent.
         Box::pin(async move {
             let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-            let removed = crate::auth::clear(&env)
+            crate::auth::clear(&env)
                 .map_err(|e| anyhow::anyhow!("the stored session could not be removed: {e}"))?;
-            if let Some(config) = backend.as_deref() {
-                let still_authenticated = crate::auth::resolve_backend_token(
-                    &env,
-                    &crate::config::BackendConfig {
-                        base_url: config.to_string(),
-                        ..Default::default()
-                    },
-                    None,
-                )
-                .is_some();
-                if still_authenticated {
+            // Resolved against the *real* config, with `session` deliberately
+            // `None`: the store has just been cleared, so anything that still
+            // resolves is by definition a source that outranks it.
+            if let Some(backend) = backend.as_ref() {
+                if crate::auth::resolve_backend_token(&env, backend, None).is_some() {
+                    let source = if backend.token.is_some() {
+                        "`backend.token` in the config".to_string()
+                    } else {
+                        format!("the `{}` environment variable", backend.token_env)
+                    };
                     anyhow::bail!(
                         "the stored session was cleared, but this process is still \
-                         authenticated from the environment — unset the token variable \
-                         (or remove `backend.token` from the config) to finish signing out"
+                         authenticated from {source} — remove it to finish signing out"
                     );
                 }
             }
-            let _ = removed;
             Ok(())
         })
     }

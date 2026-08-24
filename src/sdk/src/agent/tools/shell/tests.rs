@@ -116,8 +116,12 @@ async fn a_silent_command_says_so_rather_than_returning_nothing() {
     assert!(out.content.contains("(no output)"), "{}", out.content);
 }
 
-/// The command runs under the supplied environment and nothing else. Inheriting
-/// would hand the model `MEDULLA_TOKEN` and every router key, one `env` away.
+/// The command runs under the supplied environment and nothing else.
+///
+/// This is the `env_clear` half of the boundary. The other half — that the
+/// supplied map has had its credentials removed — is [`super::super::env`]'s,
+/// because a daemon hands down `std::env::vars()` and installing that verbatim
+/// would undo the clearing entirely.
 #[cfg(unix)]
 #[tokio::test]
 async fn the_command_environment_is_the_supplied_one_not_this_process() {

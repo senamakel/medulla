@@ -92,6 +92,29 @@ pub async fn probe(client: &MedullaClient) -> Readiness {
     }
 }
 
+/// Which higher-precedence source supplies a credential, if any.
+///
+/// "Higher precedence" means it outranks the stored session in
+/// [`crate::auth::resolve_backend_token`], so signing in again cannot displace
+/// it: the fresh JWT lands in the store and the resolver keeps preferring this.
+/// Returns an operator-facing description of where to go and change it.
+///
+/// A host whose credential comes from here and is *rejected* therefore cannot be
+/// fixed by a login screen, and telling it to try one is a loop.
+pub fn external_credential_source(
+    env: &HashMap<String, String>,
+    backend: &BackendConfig,
+) -> Option<String> {
+    if backend.token.is_some() {
+        return Some("`backend.token` in the config".to_string());
+    }
+    let named = env
+        .get(&backend.token_env)
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
+    named.then(|| format!("the `{}` environment variable", backend.token_env))
+}
+
 /// Whether a client error means the credential was rejected.
 ///
 /// Matched on the status *and* the backend's `errorCode`, because the two carry

@@ -16,6 +16,7 @@
 //! from process state, so two turns in one process cannot decide each other's
 //! working directory.
 
+pub mod env;
 pub mod fs;
 pub mod guard;
 pub mod shell;
@@ -40,6 +41,6 @@ pub fn all(
     env: std::collections::HashMap<String, String>,
 ) -> Vec<Arc<dyn Tool<()>>> {
     let mut tools = fs::all(workspace.clone());
-    tools.extend(shell::all(workspace, shell_timeout, env));
+    tools.extend(shell::all(workspace, shell_timeout, env::scrubbed(&env)));
     tools
 }

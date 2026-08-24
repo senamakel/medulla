@@ -62,7 +62,7 @@ pub(crate) async fn run_core(args: &[String]) -> anyhow::Result<()> {
         .collect();
     let runtime = Arc::new(
         CloudRuntime::new(Arc::new(client))
-            .with_backend_base_url(&loaded.config.backend.base_url)
+            .with_backend(loaded.config.backend.clone())
             .with_workspaces(workspaces),
     );
     // Replies arrive by polled replay, so the driver would see nothing at all
