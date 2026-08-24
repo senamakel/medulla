@@ -1,9 +1,9 @@
 [submodule "vendor/tinyflows"]
 	path = vendor/tinyflows
-	url = git@github.com:tinyhumansai/tinyflows.git
+	url = https://github.com/tinyhumansai/tinyflows.git
 [submodule "vendor/tinyagents"]
 	path = vendor/tinyagents
-	url = git@github.com:tinyhumansai/tinyagents.git
+	url = https://github.com/tinyhumansai/tinyagents.git
 [submodule "vendor/tinyhumans-sdk"]
 	path = vendor/tinyhumans-sdk
-	url = git@github.com:tinyhumansai/sdk.git
+	url = https://github.com/tinyhumansai/sdk.git
