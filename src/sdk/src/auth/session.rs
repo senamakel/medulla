@@ -108,7 +108,18 @@ pub async fn store(
     // Publish the account *before* resolving its home: `medulla_home` reads the
     // marker this writes, so the order is what puts the file under the account
     // the token actually belongs to instead of the previously active one.
-    if let Some(id) = user_id.as_deref() {
+    //
+    // Skipped entirely when `MEDULLA_USER` is set. That variable is an explicit
+    // operator override of which account this process runs as, and
+    // `active_user_id` already gives it precedence over the marker — so writing
+    // the marker here would not change where *this* process writes, but it would
+    // silently re-home every later launch that does not export the variable.
+    // An override is a statement about one process, not a change of default.
+    let overridden = env
+        .get("MEDULLA_USER")
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
+    if let Some(id) = user_id.as_deref().filter(|_| !overridden) {
         crate::home::user::write_active_user_id(&root, id).map_err(LoginError::Io)?;
     }
     let home = crate::home::medulla_home(env);
@@ -169,15 +180,27 @@ pub fn state(env: &HashMap<String, String>) -> AuthState {
 
 /// Forget the stored session.
 ///
-/// Idempotent: clearing when already signed out succeeds. Returns the path when
-/// a file was actually removed, so `logout` can say what it did.
-pub fn clear(env: &HashMap<String, String>) -> Option<PathBuf> {
+/// Idempotent: clearing when already signed out succeeds, reporting `Ok(None)`.
+/// `Ok(Some(path))` is a file actually removed, so `logout` can say what it did.
+///
+/// # Errors
+///
+/// The removal's own error when a session exists and cannot be deleted — a
+/// read-only mount, a permissions change, a Windows handle still open. This is
+/// the case that must not be folded into "nothing to clear": logging out is a
+/// security action, and reporting success while the bearer is still on disk
+/// tells an operator they have revoked access they still hold.
+pub fn clear(env: &HashMap<String, String>) -> std::io::Result<Option<PathBuf>> {
     let path = location(&crate::home::medulla_home(env));
-    if path.exists() && std::fs::remove_file(&path).is_ok() {
-        tracing::debug!("[auth] app session cleared");
-        return Some(path);
+    match std::fs::remove_file(&path) {
+        Ok(()) => {
+            tracing::debug!("[auth] app session cleared");
+            Ok(Some(path))
+        }
+        // Already gone is the idempotent case, not a failure.
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
     }
-    None
 }
 
 /// Write `body` to `path` with owner-only permissions.
@@ -186,11 +209,25 @@ pub fn clear(env: &HashMap<String, String>) -> Option<PathBuf> {
 /// `set_permissions` call afterwards: the gap between a world-readable create
 /// and a later chmod is exactly long enough for another process on the machine
 /// to read the token out.
+///
+/// `OpenOptionsExt::mode` applies to a *newly created* file only, so a
+/// re-store over a path that already exists inherits whatever mode it had —
+/// including one an earlier build, a restored backup, or a stray `chmod` left
+/// world-readable. The existing file is therefore removed first rather than
+/// truncated, so every write is a create and the mode always applies.
 pub(super) fn write_private(path: &Path, body: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
 
+    // Ignoring the result: a missing file is the ordinary case, and a removal
+    // that genuinely fails surfaces on the open below with a better message
+    // than anything this could produce.
+    let _ = std::fs::remove_file(path);
+
     let mut opts = std::fs::OpenOptions::new();
-    opts.write(true).create(true).truncate(true);
+    // `create_new`, not `create`: after the removal above, anything at this path
+    // was put there between the two calls, and writing a bearer token into a
+    // file another process just created is precisely what the mode is for.
+    opts.write(true).create_new(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -219,8 +256,13 @@ pub async fn adopt_legacy(env: &HashMap<String, String>, base_url: &str) -> Vec<
     let home = crate::home::medulla_home(env);
     let mut removed = Vec::new();
 
+    let mut adopted = already_signed_in;
     for legacy in crate::auth::adopt_legacy_credentials(&home) {
-        if !already_signed_in {
+        // Only the first credential that verifies is adopted. Both historical
+        // locations can hold a valid token, and continuing would store the
+        // second over the first — silently preferring the OS config directory's
+        // older copy to the account home's newer one.
+        if !adopted {
             // The recorded origin, not the caller's: a credential written for a
             // different deployment must be verified against the one that issued
             // it, or a staging token is offered to production and rejected for
@@ -231,7 +273,10 @@ pub async fn adopt_legacy(env: &HashMap<String, String>, base_url: &str) -> Vec<
                 legacy.base_url.as_str()
             };
             match store(env, against, &legacy.jwt).await {
-                Ok(_) => tracing::debug!("[auth] adopted a pre-cutover credential"),
+                Ok(_) => {
+                    tracing::debug!("[auth] adopted a pre-cutover credential");
+                    adopted = true;
+                }
                 Err(err) => {
                     // Left on disk deliberately. Removing a token this host
                     // could not verify would destroy the operator's only copy

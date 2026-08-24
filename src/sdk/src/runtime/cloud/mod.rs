@@ -602,12 +602,41 @@ impl Runtime for CloudRuntime {
     }
 
     fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
-        // The session store is the only place a credential lives, so removing
-        // its file is the complete logout — there is no keychain entry or
-        // profile beside it that a next start could read back.
+        let backend = self.backend_base_url.clone();
+        // Removing the store's file is the whole logout as far as *this* host's
+        // own credential goes — there is no keychain entry or profile beside it
+        // that a next start could read back.
+        //
+        // It is not the whole story for the process, though: `backend.token` and
+        // `backend.tokenEnv` outrank the store in
+        // [`crate::auth::resolve_backend_token`], so an operator running on
+        // `MEDULLA_TOKEN` stays authenticated after a "successful" logout. That
+        // is worth an error rather than a silent half-measure — telling someone
+        // they signed out while they are still signed in is the failure mode
+        // logging out exists to prevent.
         Box::pin(async move {
             let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-            crate::auth::clear(&env);
+            let removed = crate::auth::clear(&env)
+                .map_err(|e| anyhow::anyhow!("the stored session could not be removed: {e}"))?;
+            if let Some(config) = backend.as_deref() {
+                let still_authenticated = crate::auth::resolve_backend_token(
+                    &env,
+                    &crate::config::BackendConfig {
+                        base_url: config.to_string(),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .is_some();
+                if still_authenticated {
+                    anyhow::bail!(
+                        "the stored session was cleared, but this process is still \
+                         authenticated from the environment — unset the token variable \
+                         (or remove `backend.token` from the config) to finish signing out"
+                    );
+                }
+            }
+            let _ = removed;
             Ok(())
         })
     }

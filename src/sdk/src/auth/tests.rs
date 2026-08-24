@@ -481,14 +481,74 @@ mod session {
         assert!(!crate::auth::state(&env).is_authenticated);
     }
 
+    /// Clearing twice succeeds, and the second call reports that there was
+    /// nothing to remove rather than failing.
     #[test]
     fn clearing_is_idempotent() {
         let dir = tempfile::tempdir().unwrap();
         let env = env_at(dir.path());
         write_session(&env, r#"{"token":"jwt-1","userId":"acct-1","baseUrl":""}"#);
-        assert!(crate::auth::clear(&env).is_some());
-        assert!(crate::auth::clear(&env).is_none());
+        assert!(crate::auth::clear(&env)
+            .expect("removal succeeds")
+            .is_some());
+        assert!(crate::auth::clear(&env)
+            .expect("already gone is Ok")
+            .is_none());
         assert_eq!(crate::auth::session_token(&env), None);
+    }
+
+    /// A session that exists and cannot be removed must be an error, not a
+    /// silent `None`. Logging out is a security action: reporting success while
+    /// the bearer is still on disk tells an operator they revoked access they
+    /// still hold.
+    #[cfg(unix)]
+    #[test]
+    fn a_session_that_cannot_be_removed_is_an_error() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(&env, r#"{"token":"jwt-1","userId":"acct-1","baseUrl":""}"#);
+        let home = crate::home::medulla_home(&env);
+
+        // Removal is governed by the *directory's* write bit, not the file's.
+        let mut perms = std::fs::metadata(&home).unwrap().permissions();
+        perms.set_mode(0o500);
+        std::fs::set_permissions(&home, perms).unwrap();
+
+        let outcome = crate::auth::clear(&env);
+
+        // Restore before asserting, or a failure leaves an undeletable tempdir.
+        let mut perms = std::fs::metadata(&home).unwrap().permissions();
+        perms.set_mode(0o700);
+        std::fs::set_permissions(&home, perms).unwrap();
+
+        assert!(outcome.is_err(), "an undeletable session must report it");
+    }
+
+    /// `OpenOptionsExt::mode` applies only to a newly created file, so a
+    /// re-store over a world-readable path would inherit its mode and leave the
+    /// token exposed.
+    #[cfg(unix)]
+    #[test]
+    fn replacing_a_loose_session_file_restores_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        let home = crate::home::medulla_home(&env);
+        std::fs::create_dir_all(&home).unwrap();
+        let path = home.join("session.json");
+
+        std::fs::write(&path, b"{}").unwrap();
+        let mut perms = std::fs::metadata(&path).unwrap().permissions();
+        perms.set_mode(0o644);
+        std::fs::set_permissions(&path, perms).unwrap();
+
+        super::super::session::write_private(&path, b"{}").unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "session file is {mode:o}");
     }
 
     /// The token is a bearer credential, so the file it lands in must not be

@@ -289,7 +289,8 @@ fn session_credentials(
 /// unsure of their state can always run it.
 pub(crate) async fn run_logout() -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-    medulla::auth::clear(&env);
+    medulla::auth::clear(&env)
+        .map_err(|e| anyhow::anyhow!("the stored session could not be removed: {e}"))?;
     // The session is cleared; the account selection is deliberately not.
     //
     // "Signed out" means "no session", not "no account". The account's directory

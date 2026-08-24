@@ -11,6 +11,11 @@
 //! and the cap is reported in the returned text rather than silently applied,
 //! because a model that cannot tell it received a prefix will reason about the
 //! file as though it saw all of it.
+//!
+//! The cap bounds what is *read*, not just what is returned. Reading the whole
+//! file and slicing afterwards would make a model's `read_file` on a multi-
+//! gigabyte log an out-of-memory abort of the host process, which is a worse
+//! outcome than any answer the tool could have given.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -18,6 +23,7 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 use tinyagents::error::{Result as TaResult, TinyAgentsError};
 use tinyagents::harness::tool::{Tool, ToolCall, ToolResult, ToolSchema};
+use tokio::io::AsyncReadExt;
 
 use super::guard;
 
@@ -95,24 +101,33 @@ impl Tool<()> for ReadFileTool {
         let path = arg_str(&call, "path")?;
         let resolved = guard::contained(&self.workspace.root, &path)
             .map_err(|e| TinyAgentsError::Tool(e.to_string()))?;
-        let bytes = tokio::fs::read(&resolved)
+        let mut file = tokio::fs::File::open(&resolved)
+            .await
+            .map_err(|e| TinyAgentsError::Tool(format!("could not read {path}: {e}")))?;
+        // The total is taken from metadata rather than by reading to the end,
+        // so the truncation notice can name the real size without the read
+        // costing it.
+        let total = file.metadata().await.map(|m| m.len()).unwrap_or_default();
+
+        // One byte past the cap, so a file sitting exactly on it is not reported
+        // as truncated.
+        let mut bytes = Vec::new();
+        tokio::io::AsyncReadExt::take(&mut file, MAX_READ_BYTES as u64 + 1)
+            .read_to_end(&mut bytes)
             .await
             .map_err(|e| TinyAgentsError::Tool(format!("could not read {path}: {e}")))?;
 
+        let truncated = bytes.len() > MAX_READ_BYTES;
+        bytes.truncate(MAX_READ_BYTES);
         // Lossy rather than a hard error: a file with one stray byte is still
         // worth showing, and refusing it sends the model looking for a problem
-        // that is not the one it is solving.
-        let truncated = bytes.len() > MAX_READ_BYTES;
-        let slice = if truncated {
-            &bytes[..MAX_READ_BYTES]
-        } else {
-            &bytes[..]
-        };
-        let mut text = String::from_utf8_lossy(slice).into_owned();
+        // that is not the one it is solving. Truncating at a byte offset can
+        // also split a multi-byte character, which is exactly what lossy
+        // decoding is for.
+        let mut text = String::from_utf8_lossy(&bytes).into_owned();
         if truncated {
             text.push_str(&format!(
-                "\n\n[truncated: showing the first {MAX_READ_BYTES} of {} bytes]",
-                bytes.len()
+                "\n\n[truncated: showing the first {MAX_READ_BYTES} of {total} bytes]"
             ));
         }
         Ok(ToolResult {

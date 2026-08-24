@@ -19,6 +19,9 @@
 use std::process::Stdio;
 use std::sync::Arc;
 
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
+
 use tokio::io::AsyncReadExt;
 
 use serde_json::{json, Value};
@@ -55,6 +58,32 @@ impl ShellTool {
 /// tail is kept rather than the head because the useful part of a failed command
 /// is almost always at the end.
 const MAX_OUTPUT_BYTES: usize = 16 * 1024;
+
+/// Kill a timed-out command and everything it started.
+///
+/// On unix the child leads its own process group (see the spawn above), so
+/// signalling the negated pid reaches every descendant. Failures are ignored:
+/// the group is already gone if the child exited between the timeout firing and
+/// this call, which is the common race and not worth reporting.
+///
+/// On Windows there is no equivalent one-liner — killing a job object would mean
+/// creating one at spawn — so this falls back to `start_kill`, which reaps the
+/// interpreter and leaves its descendants. Naming the gap rather than implying
+/// the platforms behave alike.
+fn terminate_group(child: &mut tokio::process::Child) {
+    #[cfg(unix)]
+    {
+        if let Some(pid) = child.id() {
+            // SAFETY: `kill(2)` with a negative pid signals a process group. The
+            // pid comes from a child this call owns and has not yet reaped, so
+            // it cannot have been recycled onto an unrelated process.
+            unsafe {
+                libc::kill(-(pid as i32), libc::SIGKILL);
+            }
+        }
+    }
+    let _ = child.start_kill();
+}
 
 /// A bounded tail of one output stream, read as the process produces it.
 ///
@@ -165,14 +194,23 @@ impl Tool<()> for ShellTool {
 
         let (shell, flag) = Self::interpreter();
         let started = std::time::Instant::now();
-        let mut child = tokio::process::Command::new(shell)
+        let mut spawner = tokio::process::Command::new(shell);
+        spawner
             .arg(flag)
             .arg(&command)
             .current_dir(&self.workspace.root)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
+            .kill_on_drop(true);
+        // Put the child in its own process group so the timeout can signal the
+        // whole tree. `kill_on_drop` reaps the direct child only — the `sh` — and
+        // a model that ran `cargo build` or `npm test` leaves the real worker
+        // orphaned, still holding the checkout and still burning the machine
+        // long after the tool reported a timeout.
+        #[cfg(unix)]
+        spawner.process_group(0);
+        let mut child = spawner
             .spawn()
             .map_err(|e| TinyAgentsError::Tool(format!("could not start `{shell}`: {e}")))?;
 
@@ -206,6 +244,7 @@ impl Tool<()> for ShellTool {
             Ok(Ok(triple)) => triple,
             Ok(Err(e)) => return Err(TinyAgentsError::Tool(format!("`{command}` failed: {e}"))),
             Err(_) => {
+                terminate_group(&mut child);
                 return Ok(ToolResult {
                     call_id: call.id,
                     name: self.name().to_string(),

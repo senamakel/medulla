@@ -48,8 +48,22 @@ pub(crate) async fn run_core(args: &[String]) -> anyhow::Result<()> {
                 _ => anyhow::anyhow!("not signed in — run `medulla login`, or set MEDULLA_TOKEN"),
             }
         })?;
+    // The configured workspace roots ride the session mint here for the same
+    // reason they do in the TUI: a scripted run against a repository the backend
+    // has never seen is exactly the case `MEDULLA.md` profiles exist for, and
+    // wiring one path and not the other would make `medulla run` and the app
+    // brief a delegated turn differently.
+    let workspaces: Vec<std::path::PathBuf> = loaded
+        .config
+        .workflow
+        .workspaces
+        .iter()
+        .map(std::path::PathBuf::from)
+        .collect();
     let runtime = Arc::new(
-        CloudRuntime::new(Arc::new(client)).with_backend_base_url(&loaded.config.backend.base_url),
+        CloudRuntime::new(Arc::new(client))
+            .with_backend_base_url(&loaded.config.backend.base_url)
+            .with_workspaces(workspaces),
     );
     // Replies arrive by polled replay, so the driver would see nothing at all
     // unless the loop runs — the same wiring the TUI does at boot.
