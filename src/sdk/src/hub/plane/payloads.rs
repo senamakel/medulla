@@ -21,13 +21,12 @@ use serde::{Deserialize, Serialize};
 /// One saved workflow graph as advertised to the backend — enough to choose it
 /// and explain the choice, never the graph itself.
 ///
-/// Field-compatible with the tiny.place `WorkflowAdvert`
-/// (`medulla-public/src/sdk/src/tinyplace/frames/types.rs`) and with the
-/// `WorkflowDescriptor` port in medulla-v1, so an advert crossing this boundary
-/// needs no translation layer on either side. `name`/`description` skip
-/// serialization when empty for exactly that reason: the Rust advert already
-/// omits its empty strings, the port therefore declares them optional, and the
-/// backend passes an absent key through as absent rather than fabricating `""`.
+/// Field-compatible with the agent-network workflow advert and with the
+/// backend's own descriptor, so one crossing this boundary needs no translation
+/// layer on either side. `name`/`description` skip serialization when empty for
+/// exactly that reason: this side already omits its empty strings, the far side
+/// therefore declares them optional, and an absent key passes through as absent
+/// rather than being fabricated as `""`.
 ///
 /// Not `Eq`: a declared input's `default` is free-form JSON, which has no total
 /// equality (floats, and `NaN` among them). `PartialEq` is what comparisons here

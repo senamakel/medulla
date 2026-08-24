@@ -18,6 +18,21 @@ fn call(command: &str) -> ToolCall {
     }
 }
 
+/// A command line that fails with status 3 after writing to stderr.
+///
+/// Spelled per platform because the interpreter differs: `cmd /C` takes `&` as
+/// its separator and rejects `;`, which POSIX shells use. Every other command in
+/// this file happens to be portable — the Windows runners carry Git for Windows,
+/// so `ls`, `true`, `sleep` and `yes` all resolve — but this one is shell
+/// grammar, not a program, so there is nothing on PATH to save it.
+fn failing_command() -> &'static str {
+    if cfg!(windows) {
+        "echo boom 1>&2 & exit 3"
+    } else {
+        "echo boom >&2; exit 3"
+    }
+}
+
 fn tool(dir: &tempfile::TempDir, secs: u64) -> ShellTool {
     ShellTool::new(
         Workspace {
@@ -44,7 +59,7 @@ async fn a_command_runs_with_the_workspace_as_its_directory() {
 async fn a_non_zero_exit_is_reported_without_failing_the_tool() {
     let dir = tempfile::tempdir().unwrap();
     let out = tool(&dir, 10)
-        .call(&(), call("echo boom >&2; exit 3"))
+        .call(&(), call(failing_command()))
         .await
         .unwrap();
     assert!(out.error.is_none(), "a non-zero exit is not a tool error");
