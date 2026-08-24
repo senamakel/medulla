@@ -141,6 +141,21 @@ jobs:
       # every test in it is `#[ignore]` because it needs a real authed `codex`
       # binary plus network, so it never runs in CI and its lines can only be
       # exercised by the live run — the same reason the drivers above are excluded.
+      # rust-cache here runs with cache-on-failure, so a red run saves its
+      # target/llvm-cov-target as-is — including any half-written .profraw the
+      # failure left behind. Restoring one of those poisons the next run at the
+      # very end, after the whole workspace has been built and every test has
+      # passed:
+      #
+      #   warning: ...profraw: invalid instrumentation profile data
+      #            (file header is corrupt)
+      #   error: no profile can be merged
+      #
+      # `clean` drops the profile data and leaves the compiled artifacts alone,
+      # so the cache still does its job.
+      - name: Drop stale profile data
+        run: cargo llvm-cov clean --workspace
+
       - name: Coverage gate
         timeout-minutes: 100
         env:
