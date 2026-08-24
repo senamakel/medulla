@@ -33,6 +33,17 @@ fn failing_command() -> &'static str {
     }
 }
 
+/// A command that writes forever without saturating a core.
+fn steady_producer() -> &'static str {
+    if cfg!(windows) {
+        // `timeout` is the cmd builtin sleep; `/nobreak` stops it consuming
+        // keystrokes, and stdin is null here anyway.
+        "for /l %i in () do @(echo x & timeout /t 1 /nobreak >nul)"
+    } else {
+        "while :; do echo x; sleep 0.05; done"
+    }
+}
+
 fn tool(dir: &tempfile::TempDir, secs: u64) -> ShellTool {
     ShellTool::new(
         Workspace {
@@ -130,11 +141,20 @@ fn a_flood_costs_only_the_cap() {
     assert_eq!(tail.dropped, MAX_OUTPUT_BYTES * 199);
 }
 
-/// A genuinely unbounded command is bounded by the deadline, and the bytes it
-/// produced in the meantime do not accumulate.
+/// A command that keeps producing is still bounded by the deadline — the drain
+/// loop must not keep it alive past it.
+///
+/// Deliberately a *paced* producer rather than `yes`. The unbounded case is
+/// covered by `a_flood_costs_only_the_cap` above, which proves the ring holds
+/// memory flat without spawning anything; pegging a core here would buy the same
+/// assurance while perturbing every timing-sensitive test cargo happens to run
+/// on a neighbouring thread.
 #[tokio::test]
-async fn an_unbounded_command_is_killed_without_buffering_it_all() {
+async fn a_command_that_keeps_producing_is_still_killed_at_the_deadline() {
     let dir = tempfile::tempdir().unwrap();
-    let out = tool(&dir, 1).call(&(), call("yes")).await.unwrap();
+    let out = tool(&dir, 1)
+        .call(&(), call(steady_producer()))
+        .await
+        .unwrap();
     assert_eq!(out.error.as_deref(), Some("timeout"));
 }
