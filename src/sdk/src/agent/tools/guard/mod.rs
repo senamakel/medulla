@@ -12,12 +12,17 @@
 //!
 //! # A path that does not exist yet still has to be checked
 //!
-//! `write_file` creates files, so canonicalizing the target itself would fail on
-//! exactly the call that matters most. The parent directory is canonicalized
-//! instead and the final component appended, which is the deepest form that can
-//! be resolved without the file being there.
+//! `write_file` creates files *and their parent directories*, so canonicalizing
+//! the target — or even its immediate parent — would fail on exactly the calls
+//! that matter most. Resolution walks up to the deepest ancestor that does
+//! exist, canonicalizes that, and re-attaches the components below it. A write
+//! to `a/b/c.txt` in an empty checkout therefore resolves against the checkout
+//! root, which is the only ancestor there is.
+//!
+//! The re-attached components are checked for `..` separately, because they were
+//! never canonicalized and so could still climb out of the ancestor that was.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 /// Why a path was refused.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -54,37 +59,44 @@ pub fn contained(root: &Path, candidate: &str) -> Result<PathBuf, PathError> {
         }
     };
 
-    let resolved = match joined.canonicalize() {
-        Ok(path) => path,
-        // The target does not exist yet — a create. Resolve the deepest thing
-        // that does (the parent) and re-attach the final component.
-        Err(_) => {
-            let parent = joined
-                .parent()
-                .ok_or_else(|| PathError::Unresolvable(candidate.to_string()))?;
-            let name = joined
-                .file_name()
-                .ok_or_else(|| PathError::Unresolvable(candidate.to_string()))?;
-            let parent = parent
-                .canonicalize()
-                .map_err(|e| PathError::Unresolvable(format!("{candidate}: {e}")))?;
-            parent.join(name)
-        }
-    };
+    let resolved =
+        resolve_deepest(&joined).ok_or_else(|| PathError::Unresolvable(candidate.to_string()))?;
 
     if !resolved.starts_with(&root) {
         return Err(PathError::Escapes(candidate.to_string()));
     }
-    // A resolved path cannot still contain `..` unless canonicalization was
-    // skipped for the final component above, which is the create case — an
-    // explicit re-check rather than an assumption.
-    if resolved
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-    {
-        return Err(PathError::Escapes(candidate.to_string()));
-    }
     Ok(resolved)
+}
+
+/// Canonicalize the deepest existing ancestor of `path` and re-attach the rest.
+///
+/// `None` when no ancestor resolves at all, which on a rooted path means the
+/// filesystem is gone from under us.
+///
+/// A `..` among the re-attached components is refused by returning the climb
+/// unresolved rather than by normalising it: those components were never
+/// canonicalized, so treating `existing/../../etc` as valid would let a write
+/// leave the ancestor whose containment was actually verified.
+fn resolve_deepest(path: &Path) -> Option<PathBuf> {
+    let mut trailing: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut cursor = path;
+    loop {
+        if let Ok(base) = cursor.canonicalize() {
+            // Every component below the resolved ancestor is unverified. A
+            // `..` here would climb back out of it.
+            if trailing.iter().any(|c| *c == std::ffi::OsStr::new("..")) {
+                return None;
+            }
+            let mut out = base;
+            for component in trailing.into_iter().rev() {
+                out.push(component);
+            }
+            return Some(out);
+        }
+        let name = cursor.file_name()?;
+        trailing.push(name);
+        cursor = cursor.parent()?;
+    }
 }
 
 #[cfg(test)]

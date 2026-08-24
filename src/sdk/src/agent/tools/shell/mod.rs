@@ -19,18 +19,13 @@
 use std::process::Stdio;
 use std::sync::Arc;
 
+use tokio::io::AsyncReadExt;
+
 use serde_json::{json, Value};
 use tinyagents::error::{Result as TaResult, TinyAgentsError};
 use tinyagents::harness::tool::{Tool, ToolCall, ToolResult, ToolSchema};
 
 use super::fs::Workspace;
-
-/// Most output bytes returned to the model, per stream.
-///
-/// A build log is easily megabytes and every byte of it is model context; the
-/// tail is kept rather than the head because the useful part of a failed
-/// command is almost always at the end.
-const MAX_OUTPUT_BYTES: usize = 16 * 1024;
 
 /// Run a command in the checkout.
 pub struct ShellTool {
@@ -54,18 +49,79 @@ impl ShellTool {
     }
 }
 
-/// Keep the tail of `bytes`, noting the drop when there was one.
+/// Most output bytes kept per stream.
 ///
-/// The tail, not the head: a command that failed says why on its last lines.
-fn tail(bytes: &[u8]) -> String {
-    if bytes.len() <= MAX_OUTPUT_BYTES {
-        return String::from_utf8_lossy(bytes).into_owned();
+/// A build log is easily megabytes and every byte of it is model context; the
+/// tail is kept rather than the head because the useful part of a failed command
+/// is almost always at the end.
+const MAX_OUTPUT_BYTES: usize = 16 * 1024;
+
+/// A bounded tail of one output stream, read as the process produces it.
+///
+/// # Why this is not `wait_with_output`
+///
+/// That call buffers the whole stream in memory and hands it back at exit, so
+/// the cap could only ever be applied *after* the fact — and a command like
+/// `yes` produces output faster than any deadline expires. The process would
+/// take the host down long before the truncation it was supposedly subject to
+/// ran. Reading into a ring here means an unbounded command costs a fixed
+/// [`MAX_OUTPUT_BYTES`] regardless of how much it writes.
+///
+/// Draining rather than stopping at the cap is deliberate: closing the pipe
+/// would hand the child a `SIGPIPE`/`EPIPE` on its next write, killing a command
+/// for being chatty rather than for failing. It keeps writing into a buffer that
+/// discards the oldest bytes.
+struct BoundedTail {
+    /// The most recent bytes, oldest dropped first.
+    buf: std::collections::VecDeque<u8>,
+    /// Bytes discarded to stay under the cap, reported to the model.
+    dropped: usize,
+}
+
+impl BoundedTail {
+    fn new() -> Self {
+        Self {
+            buf: std::collections::VecDeque::with_capacity(MAX_OUTPUT_BYTES),
+            dropped: 0,
+        }
     }
-    let cut = bytes.len() - MAX_OUTPUT_BYTES;
-    format!(
-        "[truncated: {cut} earlier bytes omitted]\n{}",
-        String::from_utf8_lossy(&bytes[cut..])
-    )
+
+    fn extend(&mut self, chunk: &[u8]) {
+        for &byte in chunk {
+            if self.buf.len() == MAX_OUTPUT_BYTES {
+                self.buf.pop_front();
+                self.dropped += 1;
+            }
+            self.buf.push_back(byte);
+        }
+    }
+
+    /// The kept bytes as text, prefixed with what was dropped.
+    fn finish(self) -> String {
+        let dropped = self.dropped;
+        let bytes: Vec<u8> = self.buf.into();
+        let text = String::from_utf8_lossy(&bytes).into_owned();
+        if dropped == 0 {
+            return text;
+        }
+        format!("[truncated: {dropped} earlier bytes omitted]\n{text}")
+    }
+}
+
+/// Drain `reader` to end-of-stream, keeping only a bounded tail.
+async fn drain<R>(mut reader: R) -> std::io::Result<String>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let mut tail = BoundedTail::new();
+    let mut chunk = [0u8; 8192];
+    loop {
+        let read = reader.read(&mut chunk).await?;
+        if read == 0 {
+            return Ok(tail.finish());
+        }
+        tail.extend(&chunk[..read]);
+    }
 }
 
 #[async_trait::async_trait]
@@ -109,7 +165,7 @@ impl Tool<()> for ShellTool {
 
         let (shell, flag) = Self::interpreter();
         let started = std::time::Instant::now();
-        let child = tokio::process::Command::new(shell)
+        let mut child = tokio::process::Command::new(shell)
             .arg(flag)
             .arg(&command)
             .current_dir(&self.workspace.root)
@@ -120,11 +176,34 @@ impl Tool<()> for ShellTool {
             .spawn()
             .map_err(|e| TinyAgentsError::Tool(format!("could not start `{shell}`: {e}")))?;
 
+        // Taken before the wait so both pipes can be drained concurrently with
+        // it. Draining is not optional: a child that fills its stdout pipe
+        // blocks forever on the write, so a wait that is not reading is a
+        // deadlock for any command that outproduces the pipe buffer.
+        let stdout_pipe = child.stdout.take();
+        let stderr_pipe = child.stderr.take();
+        let pump = async {
+            let out = async {
+                match stdout_pipe {
+                    Some(pipe) => drain(pipe).await,
+                    None => Ok(String::new()),
+                }
+            };
+            let err = async {
+                match stderr_pipe {
+                    Some(pipe) => drain(pipe).await,
+                    None => Ok(String::new()),
+                }
+            };
+            let (out, err, status) = tokio::join!(out, err, child.wait());
+            Ok::<_, std::io::Error>((out?, err?, status?))
+        };
+
         // `kill_on_drop` above is what makes the timeout real: without it the
         // future is dropped on elapse and the process keeps running, holding
         // the checkout and its pipes open with nothing left to read them.
-        let output = match tokio::time::timeout(self.timeout, child.wait_with_output()).await {
-            Ok(Ok(output)) => output,
+        let (stdout, stderr, status) = match tokio::time::timeout(self.timeout, pump).await {
+            Ok(Ok(triple)) => triple,
             Ok(Err(e)) => return Err(TinyAgentsError::Tool(format!("`{command}` failed: {e}"))),
             Err(_) => {
                 return Ok(ToolResult {
@@ -144,9 +223,7 @@ impl Tool<()> for ShellTool {
             }
         };
 
-        let code = output.status.code();
-        let stdout = tail(&output.stdout);
-        let stderr = tail(&output.stderr);
+        let code = status.code();
         let mut content = format!(
             "exit: {}\n",
             code.map(|c| c.to_string())

@@ -200,3 +200,50 @@ pub(super) fn write_private(path: &Path, body: &[u8]) -> std::io::Result<()> {
     file.write_all(body)?;
     file.sync_all()
 }
+
+/// Adopt a credential left by a pre-cutover install, when this host is signed
+/// out.
+///
+/// An install that predates the store holds a real bearer for the deployment
+/// this store now serves, so it *is* signed in and should stay signed in. Each
+/// candidate is verified through [`store`] like any other token; one the backend
+/// rejects is left alone, and its file is removed only once the new store holds
+/// a working session.
+///
+/// A no-op when a session is already stored — the fresh one wins, and the stale
+/// file is swept rather than re-verified.
+///
+/// Returns the paths actually removed, so a caller can say what it did.
+pub async fn adopt_legacy(env: &HashMap<String, String>, base_url: &str) -> Vec<PathBuf> {
+    let already_signed_in = token(env).is_some();
+    let home = crate::home::medulla_home(env);
+    let mut removed = Vec::new();
+
+    for legacy in crate::auth::adopt_legacy_credentials(&home) {
+        if !already_signed_in {
+            // The recorded origin, not the caller's: a credential written for a
+            // different deployment must be verified against the one that issued
+            // it, or a staging token is offered to production and rejected for
+            // reasons that have nothing to do with whether it is still valid.
+            let against = if legacy.base_url.trim().is_empty() {
+                base_url
+            } else {
+                legacy.base_url.as_str()
+            };
+            match store(env, against, &legacy.jwt).await {
+                Ok(_) => tracing::debug!("[auth] adopted a pre-cutover credential"),
+                Err(err) => {
+                    // Left on disk deliberately. Removing a token this host
+                    // could not verify would destroy the operator's only copy
+                    // over what may be a transient backend failure.
+                    tracing::debug!("[auth] a pre-cutover credential was not adopted: {err}");
+                    continue;
+                }
+            }
+        }
+        if crate::auth::discard_legacy_credential(&legacy.path) {
+            removed.push(legacy.path);
+        }
+    }
+    removed
+}

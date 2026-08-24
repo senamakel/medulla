@@ -6,7 +6,7 @@ use std::time::Duration;
 use serde_json::json;
 use tinyagents::harness::tool::{Tool, ToolCall};
 
-use super::{tail, ShellTool, MAX_OUTPUT_BYTES};
+use super::{BoundedTail, ShellTool, MAX_OUTPUT_BYTES};
 use crate::agent::tools::fs::Workspace;
 
 fn call(command: &str) -> ToolCall {
@@ -85,14 +85,41 @@ async fn a_missing_command_argument_is_refused() {
 /// so keeping the front of a long log throws away the useful part.
 #[test]
 fn oversized_output_keeps_the_tail_and_names_the_drop() {
-    let mut bytes = vec![b'a'; MAX_OUTPUT_BYTES + 100];
-    bytes.extend_from_slice(b"THE-END");
-    let kept = tail(&bytes);
+    let mut tail = BoundedTail::new();
+    tail.extend(&vec![b'a'; MAX_OUTPUT_BYTES + 100]);
+    tail.extend(b"THE-END");
+    let kept = tail.finish();
     assert!(kept.contains("THE-END"), "the tail must survive");
     assert!(kept.contains("truncated"), "the drop must be named");
 }
 
 #[test]
 fn output_within_the_cap_is_returned_verbatim() {
-    assert_eq!(tail(b"short"), "short");
+    let mut tail = BoundedTail::new();
+    tail.extend(b"short");
+    assert_eq!(tail.finish(), "short");
+}
+
+/// The cap is on memory held, not on bytes truncated after the fact: a command
+/// that outproduces the cap by orders of magnitude must still cost only the
+/// cap. This is what `wait_with_output` could not give — it buffered the whole
+/// stream and let the truncation run afterwards, if the host survived to reach
+/// it.
+#[test]
+fn a_flood_costs_only_the_cap() {
+    let mut tail = BoundedTail::new();
+    for _ in 0..200 {
+        tail.extend(&vec![b'x'; MAX_OUTPUT_BYTES]);
+    }
+    assert_eq!(tail.buf.len(), MAX_OUTPUT_BYTES, "memory held is bounded");
+    assert_eq!(tail.dropped, MAX_OUTPUT_BYTES * 199);
+}
+
+/// A genuinely unbounded command is bounded by the deadline, and the bytes it
+/// produced in the meantime do not accumulate.
+#[tokio::test]
+async fn an_unbounded_command_is_killed_without_buffering_it_all() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = tool(&dir, 1).call(&(), call("yes")).await.unwrap();
+    assert_eq!(out.error.as_deref(), Some("timeout"));
 }

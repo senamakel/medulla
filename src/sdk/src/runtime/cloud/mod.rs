@@ -122,6 +122,11 @@ pub struct CloudRuntime {
     /// the Workers tab reads empty and, worse, its mutations inherit the trait's
     /// no-op success.
     hub: HubSlot,
+    /// Workspace roots whose `MEDULLA.md` profiles ride every session mint.
+    ///
+    /// Empty by default: a host that names no workspaces mints plain sessions,
+    /// which is what every caller got before this was wired.
+    workspaces: Vec<std::path::PathBuf>,
     /// The backend deployment this host is configured for, when one is known.
     ///
     /// Only the feedback board needs it: it sits on a different route family
@@ -167,8 +172,16 @@ impl CloudRuntime {
             cursor: Arc::new(tokio::sync::Mutex::new(None)),
             poll_failures: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             hub,
+            workspaces: Vec::new(),
             backend_base_url: None,
         }
+    }
+
+    /// Attach the workspace roots whose profiles ride each session mint.
+    #[must_use]
+    pub fn with_workspaces(mut self, workspaces: Vec<std::path::PathBuf>) -> Self {
+        self.workspaces = workspaces;
+        self
     }
 
     /// Point the backend-facing surfaces (today: the feedback board) at the
@@ -205,12 +218,19 @@ impl CloudRuntime {
     async fn session_for(
         client: &MedullaClient,
         slot: &SessionSlot,
+        workspaces: &[std::path::PathBuf],
     ) -> Result<String, ClientError> {
         let mut guard = slot.lock().await;
         if let Some(id) = guard.as_ref() {
             return Ok(id.clone());
         }
-        let created = client.create_session(None).await?;
+        // The `MEDULLA.md` profiles of the configured workspace roots ride the
+        // mint (`workspaceProfiles`), which is what lets the backend brief a
+        // delegated turn on repositories it has never seen. Roots without a
+        // profile are dropped by the collector, so passing every configured one
+        // is safe and an empty slice mints a plain session.
+        let profiles = crate::init::collect_profile_inputs(workspaces);
+        let created = client.create_session_with(None, &profiles).await?;
         tracing::debug!("[cloud_runtime] minted session {}", created.session_id);
         *guard = Some(created.session_id.clone());
         Ok(created.session_id)
@@ -383,6 +403,7 @@ impl Runtime for CloudRuntime {
     fn submit(&self, input: String) -> BoxFuture<'static, anyhow::Result<()>> {
         let client = Arc::clone(&self.client);
         let session = self.session_handle();
+        let workspaces = self.workspaces.clone();
         let cell = Arc::clone(&self.cell);
         // Draw the turn before anything is dialled. Everything below this line
         // is at least one round trip away — on the first turn of a session, two
@@ -393,7 +414,7 @@ impl Runtime for CloudRuntime {
             // Non-blocking: the reply arrives over the event stream, so the UI
             // can render progress instead of freezing until the turn finishes.
             let sent: anyhow::Result<()> = async {
-                let id = Self::session_for(&client, &session).await?;
+                let id = Self::session_for(&client, &session, &workspaces).await?;
                 client.send_message(&id, &input, false).await?;
                 Ok(())
             }

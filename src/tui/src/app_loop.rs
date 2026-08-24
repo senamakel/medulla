@@ -27,19 +27,34 @@ use crate::terminal::{restore, TermGuard};
 
 /// Wrap a signed-in core in its [`Runtime`] and start it producing.
 ///
+/// The configured workspace roots, as paths.
+///
+/// Their `MEDULLA.md` profiles ride every session mint, so the backend can brief
+/// a delegated turn on a repository it has never seen.
+fn workspace_roots(config: &medulla::config::TuiConfig) -> Vec<std::path::PathBuf> {
+    config
+        .workflow
+        .workspaces
+        .iter()
+        .map(std::path::PathBuf::from)
+        .collect()
+}
+
 /// Both the already-signed-in path and the just-logged-in path need the same
 /// two priming steps, and getting either wrong is invisible until the UI sits
 /// empty or inert.
 async fn cloud_runtime(
     client: Arc<medulla::client::MedullaClient>,
     hub: crate::hub_relay::HubSlot,
-    backend_base_url: &str,
+    backend: &medulla::config::BackendConfig,
+    workspaces: Vec<std::path::PathBuf>,
 ) -> Arc<dyn Runtime> {
     // The backend URL rides along for the feedback board, which sits on a
     // different route family from the orchestration API and mints its own
     // short-lived client per call.
     let rt = medulla::runtime::cloud::CloudRuntime::with_hub(client, hub)
-        .with_backend_base_url(backend_base_url);
+        .with_backend_base_url(&backend.base_url)
+        .with_workspaces(workspaces);
     // First fetch before the UI paints, so the initial frame shows real state
     // rather than an empty one that fills in a beat later.
     rt.refresh().await;
@@ -61,18 +76,32 @@ async fn cloud_runtime(
 /// signed-out host.
 fn session_of(
     env: &std::collections::HashMap<String, String>,
-    base_url: &str,
+    backend: &medulla::config::BackendConfig,
 ) -> (
     Option<medulla::auth::Credentials>,
     Option<medulla::auth::AuthState>,
 ) {
-    // An absent or unreadable store is indistinguishable from signed out for
-    // every consumer, and this runs before the terminal guard is up — reporting
-    // here would land on the screen the login flow is about to take over.
-    let jwt = medulla::auth::session_token(env);
+    // Resolved through the same chain the runtime's own client uses — an inline
+    // `backend.token`, then `backend.tokenEnv`, then the stored session — not
+    // read from the store directly. Reading the store would leave every
+    // `MEDULLA_TOKEN` operator with a working runtime and a `None` here, so the
+    // hub uplink would go out unauthenticated while the UI showed a live host.
+    //
+    // An absent token is indistinguishable from signed out for every consumer,
+    // and this runs before the terminal guard is up — reporting here would land
+    // on the screen the login flow is about to take over.
+    let jwt = medulla::auth::resolve_backend_token(
+        env,
+        backend,
+        medulla::auth::session_token(env).as_deref(),
+    );
+    // The account, by contrast, genuinely comes from the store: a bearer from
+    // the environment carries no identity, so an operator running on
+    // `MEDULLA_TOKEN` has a session and no account to name — which is what the
+    // Account subpage should show.
     let account = Some(medulla::auth::state(env));
     let session = jwt.map(|jwt| medulla::auth::Credentials {
-        base_url: base_url.to_string(),
+        base_url: backend.base_url.clone(),
         jwt,
     });
     (session, account)
@@ -216,6 +245,22 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 anyhow::bail!("signed in, but the session could not be stored: {e}");
             }
         }
+        // Two checks, not one. `readiness` is offline and answers "is this host
+        // configured and does it hold a credential"; `probe` spends one round
+        // trip to ask whether the backend still accepts it. Only the second
+        // catches an expired or revoked token, and without it the TUI opens on a
+        // runtime whose every call 401s — which reads as a broken app rather
+        // than as "sign in again". The embedded core's `probe_medulla` was a
+        // live call for exactly this reason.
+        // Before the readiness check, because it can change the answer: an
+        // install that predates the store holds its bearer in a
+        // `credentials.json` nothing reads any more, and would otherwise be sent
+        // to a login screen while already holding a valid session.
+        // The return value is the files swept; nothing here reports them,
+        // because this runs before the terminal guard and a line printed now
+        // lands on the screen the UI is about to take over. `medulla login`
+        // says so on its own path, where there is a terminal to say it to.
+        let _ = medulla::auth::adopt_legacy(&env, &loaded.config.backend.base_url).await;
         match medulla::runtime::cloud::connect::readiness(&env, &loaded.config.backend) {
             medulla::runtime::cloud::connect::Readiness::Ready => {
                 let client = Arc::new(
@@ -229,11 +274,27 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                     // the two reports itself instead of aborting the process.
                     .ok_or_else(|| anyhow::anyhow!("the backend client could not be built"))?,
                 );
-                (session, account) = session_of(&env, &loaded.config.backend.base_url);
-                client_arc = Some(Arc::clone(&client));
-                runtime = Some(
-                    cloud_runtime(client, hub_slot.clone(), &loaded.config.backend.base_url).await,
-                );
+                match medulla::runtime::cloud::connect::probe(&client).await {
+                    medulla::runtime::cloud::connect::Readiness::SignedOut => {
+                        need_login = Some(loaded.config.backend.base_url.clone());
+                    }
+                    // Ready, or a transient failure that must not evict the
+                    // operator — `probe` only reports `SignedOut` when the
+                    // backend actually rejected the credential.
+                    _ => {
+                        (session, account) = session_of(&env, &loaded.config.backend);
+                        client_arc = Some(Arc::clone(&client));
+                        runtime = Some(
+                            cloud_runtime(
+                                client,
+                                hub_slot.clone(),
+                                &loaded.config.backend,
+                                workspace_roots(&loaded.config),
+                            )
+                            .await,
+                        );
+                    }
+                }
             }
             // Signed out is an expected state with an obvious remedy, so it is
             // the one thing that does not end here: the login screen runs once
@@ -298,13 +359,14 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 ) {
                     Some(client) => {
                         let client = Arc::new(client);
-                        (session, account) = session_of(&env, &loaded.config.backend.base_url);
+                        (session, account) = session_of(&env, &loaded.config.backend);
                         client_arc = Some(Arc::clone(&client));
                         runtime = Some(
                             cloud_runtime(
                                 client,
                                 hub_slot.clone(),
-                                &loaded.config.backend.base_url,
+                                &loaded.config.backend,
+                                workspace_roots(&loaded.config),
                             )
                             .await,
                         );
@@ -672,7 +734,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                             break Ok(());
                         }
                         Ok(SignIn::SameAccount) => {
-                            (_, account) = session_of(&env, &loaded.config.backend.base_url);
+                            (_, account) = session_of(&env, &loaded.config.backend);
                             // Rebuilt rather than reused: the relogin replaced
                             // the stored token, and the client captured its
                             // bearer at construction — carrying the old one
@@ -691,7 +753,8 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                             runtime = cloud_runtime(
                                 client,
                                 hub_slot.clone(),
-                                &loaded.config.backend.base_url,
+                                &loaded.config.backend,
+                                workspace_roots(&loaded.config),
                             )
                             .await;
                             continue;

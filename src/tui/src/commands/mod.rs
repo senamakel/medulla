@@ -103,7 +103,7 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     medulla::auth::store(&env, &base_url, &jwt)
         .await
         .map_err(|e| anyhow::anyhow!("could not store the session: {e}"))?;
-    adopt_legacy_credentials(&env);
+    adopt_legacy_credentials(&env, &base_url).await;
     println!("Signed in to {base_url}.");
     Ok(())
 }
@@ -309,23 +309,10 @@ pub(crate) async fn run_logout() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Re-store any credential a pre-cutover install left behind, and say so.
-///
-/// Those files hold a real bearer token for the same deployment this store
-/// serves, so an install that predates the move is signed in and should stay
-/// signed in. Each candidate is re-verified through
-/// [`medulla::auth::store`] like any other token; one the backend now rejects is
-/// left alone rather than adopted, and its file is removed only once the new
-/// store holds a working session.
-fn adopt_legacy_credentials(env: &std::collections::HashMap<String, String>) {
-    let home = medulla::home::medulla_home(env);
-    for legacy in medulla::auth::adopt_legacy_credentials(&home) {
-        if medulla::auth::discard_legacy_credential(&legacy.path) {
-            println!(
-                "Removed a retired credential file at {}.",
-                legacy.path.display()
-            );
-        }
+/// Adopt any credential a pre-cutover install left behind, and say so.
+async fn adopt_legacy_credentials(env: &std::collections::HashMap<String, String>, base_url: &str) {
+    for path in medulla::auth::adopt_legacy(env, base_url).await {
+        println!("Removed a retired credential file at {}.", path.display());
     }
 }
 

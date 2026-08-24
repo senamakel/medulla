@@ -70,13 +70,36 @@ fn a_symlink_staying_inside_the_workspace_resolves() {
     assert!(contained(dir.path(), "alias").is_ok());
 }
 
+/// `write_file` creates parent directories, so a path whose ancestors do not
+/// exist yet is the ordinary create case, not an error. Resolution walks up to
+/// the deepest existing ancestor — here the checkout root itself.
 #[test]
-fn an_unresolvable_parent_is_reported_as_such_not_as_an_escape() {
-    // "the directory is missing" and "you tried to leave" are different
-    // operator problems and must not collapse into one message.
+fn a_path_whose_ancestors_are_missing_resolves_against_the_deepest_that_exists() {
+    let dir = workspace();
+    let got = contained(dir.path(), "no/such/dir/file.txt").expect("a nested create resolves");
+    assert!(got.ends_with("no/such/dir/file.txt"), "{got:?}");
+    assert!(got.starts_with(dir.path().canonicalize().unwrap()));
+}
+
+/// The components below the resolved ancestor were never canonicalized, so a
+/// `..` among them could still climb out of the directory whose containment was
+/// actually verified. Refused rather than normalised.
+#[test]
+fn a_dotdot_below_a_missing_ancestor_is_refused() {
+    let dir = workspace();
+    assert!(
+        contained(dir.path(), "missing/../../escape.txt").is_err(),
+        "a climb through an unresolved segment must not be accepted"
+    );
+}
+
+/// The escape check still applies to the resolved ancestor: a nested create
+/// under an absolute path outside the checkout is refused, not created.
+#[test]
+fn a_nested_create_outside_the_workspace_is_still_refused() {
     let dir = workspace();
     assert!(matches!(
-        contained(dir.path(), "no/such/dir/file.txt"),
-        Err(PathError::Unresolvable(_))
+        contained(dir.path(), "/tmp/definitely/not/here.txt"),
+        Err(PathError::Escapes(_))
     ));
 }

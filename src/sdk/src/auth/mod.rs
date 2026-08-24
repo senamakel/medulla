@@ -47,7 +47,9 @@ mod tests;
 
 pub use loopback::{open_browser, run_login_flow, start_loopback, LoopbackListener};
 pub use migrate::{adopt_legacy_credentials, discard_legacy_credential, LegacyCredential};
-pub use session::{clear, read, state, store, token as session_token, AuthState, StoredSession};
+pub use session::{
+    adopt_legacy, clear, read, state, store, token as session_token, AuthState, StoredSession,
+};
 pub use token::{is_one_time_login_token, resolve_backend_token};
 pub use types::{Credentials, LoginError, LoopbackConfig, Provider, DEFAULT_LOGIN_TIMEOUT};
 pub use url::{
