@@ -47,7 +47,30 @@ impl EventListener for Forwarder {
     }
 }
 
-/// Run one turn against `route` inside `workspace`.
+/// Everything one turn needs.
+///
+/// A struct rather than a parameter list because a turn takes eight distinct
+/// things and three of them are string-ish: assembled by name, a caller cannot
+/// silently transpose the prompt and the thread id.
+pub struct TurnRequest<'a> {
+    /// The instruction to run.
+    pub prompt: &'a str,
+    /// Where the model calls go.
+    pub route: &'a Route,
+    /// The checkout the tools are rooted at.
+    pub workspace: Workspace,
+    /// How much the turn may do before it is cut off.
+    pub limits: &'a Limits,
+    /// Continuity key. A thread seen before replays what was said.
+    pub thread_id: &'a str,
+    /// The account home the thread's transcript lives under.
+    pub home: &'a std::path::Path,
+    /// The shell tool's entire environment — the caller's curated map, not this
+    /// process's. See [`super::tools::shell`].
+    pub env: std::collections::HashMap<String, String>,
+}
+
+/// Run one turn.
 ///
 /// `on_event` receives every [`AgentEvent`] the harness emits, as it is emitted.
 ///
@@ -57,14 +80,19 @@ impl EventListener for Forwarder {
 /// rejected credential, a limit tripped before any answer. A failing *tool* is
 /// not one of these: it is reported as an event and the model gets to react.
 pub async fn run(
-    prompt: &str,
-    route: &Route,
-    workspace: Workspace,
-    limits: &Limits,
-    thread_id: &str,
+    request: TurnRequest<'_>,
     on_event: Arc<dyn Fn(AgentEvent) + Send + Sync>,
 ) -> Result<TurnOutcome, String> {
-    let agent = harness::build(route, workspace.clone(), limits);
+    let TurnRequest {
+        prompt,
+        route,
+        workspace,
+        limits,
+        thread_id,
+        home,
+        env,
+    } = request;
+    let agent = harness::build(route, workspace.clone(), limits, env);
 
     let sink = EventSink::with_stream_id(thread_id);
     sink.subscribe(Arc::new(Forwarder { sink: on_event }));
@@ -75,10 +103,18 @@ pub async fn run(
         .with_max_tool_calls(limits.max_tool_calls);
     let ctx = tinyagents::harness::context::RunContext::new(config, ()).with_events(sink);
 
-    let input = vec![
-        Message::system(harness::system_prompt(&workspace)),
-        Message::user(prompt),
-    ];
+    // Prior turns first, so a resumed conversation can refer to what was said.
+    // The system prompt leads regardless — it describes the checkout this turn
+    // runs in, which a replayed transcript from an earlier turn may not match.
+    let prior = super::history::load(home, thread_id);
+    let resumed = !prior.is_empty();
+    let mut input = Vec::with_capacity(prior.len() + 2);
+    input.push(Message::system(harness::system_prompt(&workspace)));
+    input.extend(prior);
+    input.push(Message::user(prompt));
+    if resumed {
+        tracing::debug!("[agent] resumed thread {thread_id} with prior messages");
+    }
 
     // Streaming rather than unary: the deltas are what let a consumer show a
     // turn working, and what let its watchdog tell working from idle.
@@ -86,6 +122,18 @@ pub async fn run(
         .invoke_streaming_in_context(&(), ctx, input)
         .await
         .map_err(|e| format!("the agent turn failed: {e}"))?;
+
+    // Persisted before the reply is returned, so the next turn naming this
+    // thread sees it. The system message is dropped on the way in: it is rebuilt
+    // per turn from the *current* checkout, and storing it would replay a stale
+    // one on top of the fresh one above.
+    let transcript: Vec<Message> = run
+        .messages
+        .iter()
+        .filter(|m| !matches!(m, Message::System(_)))
+        .cloned()
+        .collect();
+    super::history::save(home, thread_id, &transcript);
 
     let reply = run
         .final_response

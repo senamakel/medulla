@@ -67,7 +67,12 @@ impl Default for Limits {
 ///
 /// The returned harness owns its tools, so it is scoped to that checkout and
 /// must not be reused for a turn against a different one.
-pub fn build(route: &Route, workspace: Workspace, limits: &Limits) -> AgentHarness<(), ()> {
+pub fn build(
+    route: &Route,
+    workspace: Workspace,
+    limits: &Limits,
+    env: std::collections::HashMap<String, String>,
+) -> AgentHarness<(), ()> {
     let model = OpenAiModel::new(route.token.clone())
         .with_base_url(route.base_url.trim_end_matches('/').to_string())
         .with_model(route.model.clone());
@@ -92,7 +97,7 @@ pub fn build(route: &Route, workspace: Workspace, limits: &Limits) -> AgentHarne
         },
         ..RunPolicy::default()
     });
-    for tool in tools::all(workspace, limits.shell_timeout) {
+    for tool in tools::all(workspace, limits.shell_timeout, env) {
         harness.register_tool(tool);
     }
     harness

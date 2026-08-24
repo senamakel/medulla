@@ -130,7 +130,28 @@ pub async fn run_local_task(options: RunTaskOptions) -> Result<RunTaskResult, St
     });
 
     let limits = Limits::default();
-    let call = crate::agent::turn::run(&prompt, &route, workspace, &limits, &thread_id, forward);
+    // The task's curated environment, the same map a spawned CLI harness gets —
+    // never this process's own. The early return in `execute::run_provider_task`
+    // skips the child-env preparation the spawn seam does, so handing the tools
+    // an inherited environment would put `MEDULLA_TOKEN` and every router key
+    // one `env` command away from the model.
+    // The account home this process resolves, which is where the thread's
+    // transcript lives. Read from the task's own environment rather than the
+    // process's, so a run pointed at a scratch `MEDULLA_HOME` keeps its threads
+    // there too.
+    let home = crate::home::medulla_home(&env);
+    let call = crate::agent::turn::run(
+        crate::agent::turn::TurnRequest {
+            prompt: &prompt,
+            route: &route,
+            workspace,
+            limits: &limits,
+            thread_id: &thread_id,
+            home: &home,
+            env,
+        },
+        forward,
+    );
 
     let outcome = watchdog::drive(call, &mut progress_rx, &abort, timeout_ms, &mut sink).await?;
 

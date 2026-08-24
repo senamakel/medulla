@@ -45,11 +45,28 @@ fn steady_producer() -> &'static str {
 }
 
 fn tool(dir: &tempfile::TempDir, secs: u64) -> ShellTool {
+    tool_with_env(dir, secs, test_env())
+}
+
+/// A minimal environment. `PATH` is carried through because `env_clear` drops it
+/// and the interpreter would then find none of the programs these tests run.
+fn test_env() -> std::collections::HashMap<String, String> {
+    std::env::vars()
+        .filter(|(k, _)| k == "PATH" || k == "SYSTEMROOT" || k == "COMSPEC")
+        .collect()
+}
+
+fn tool_with_env(
+    dir: &tempfile::TempDir,
+    secs: u64,
+    env: std::collections::HashMap<String, String>,
+) -> ShellTool {
     ShellTool::new(
         Workspace {
             root: dir.path().to_path_buf(),
         },
         Duration::from_secs(secs),
+        env,
     )
 }
 
@@ -93,6 +110,37 @@ async fn a_silent_command_says_so_rather_than_returning_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let out = tool(&dir, 10).call(&(), call("true")).await.unwrap();
     assert!(out.content.contains("(no output)"), "{}", out.content);
+}
+
+/// The command runs under the supplied environment and nothing else. Inheriting
+/// would hand the model `MEDULLA_TOKEN` and every router key, one `env` away.
+#[cfg(unix)]
+#[tokio::test]
+async fn the_command_environment_is_the_supplied_one_not_this_process() {
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("MEDULLA_TEST_SECRET", "leaked-bearer");
+
+    let mut env = test_env();
+    env.insert("MEDULLA_TEST_VISIBLE".to_string(), "ok".to_string());
+    let out = tool_with_env(&dir, 10, env)
+        .call(
+            &(),
+            call("echo \"$MEDULLA_TEST_VISIBLE/$MEDULLA_TEST_SECRET\""),
+        )
+        .await
+        .unwrap();
+
+    std::env::remove_var("MEDULLA_TEST_SECRET");
+    assert!(
+        out.content.contains("ok/"),
+        "the supplied value must be visible: {}",
+        out.content
+    );
+    assert!(
+        !out.content.contains("leaked-bearer"),
+        "this process's environment must not reach the child: {}",
+        out.content
+    );
 }
 
 #[tokio::test]

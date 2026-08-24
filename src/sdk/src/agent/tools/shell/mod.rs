@@ -1,11 +1,20 @@
 //! The shell tool: run a command inside the turn's checkout.
 //!
+//! # The environment is explicit, never inherited
+//!
+//! The command runs under `env_clear()` plus a caller-supplied map — the same
+//! discipline [`crate::daemon::providers::execute`] applies to every spawned CLI
+//! harness. Inheriting instead would hand the model the Medulla process's own
+//! environment, which holds `MEDULLA_TOKEN`, router API keys and whatever else
+//! the operator exported; `env` is a one-word command, so that is a direct
+//! read of the host's credentials by anything the model decides to run.
+//!
 //! # What this does and does not claim
 //!
-//! This runs a command with the checkout as its working directory and a
-//! deadline. It is **not** a sandbox: a command can reach anything the Medulla
-//! process can, and `cwd` bounds where relative paths resolve, not what the
-//! process may touch. The filesystem tools beside it enforce containment
+//! This runs a command with the checkout as its working directory, a curated
+//! environment, and a deadline. It is **not** a sandbox: a command can still
+//! reach anything on the filesystem the Medulla process can, and `cwd` bounds
+//! where relative paths resolve, not what the process may touch. The filesystem tools beside it enforce containment
 //! because they own the path; a shell command's reach is the operating system's
 //! to decide, and pretending otherwise in a doc comment is how an operator ends
 //! up trusting a boundary that was never there.
@@ -31,12 +40,24 @@ use super::fs::Workspace;
 pub struct ShellTool {
     workspace: Workspace,
     timeout: std::time::Duration,
+    /// The complete environment the command runs under. Not merged with this
+    /// process's own — it replaces it.
+    env: std::collections::HashMap<String, String>,
 }
 
 impl ShellTool {
-    /// Root a shell at `workspace`, with `timeout` as the per-command deadline.
-    pub fn new(workspace: Workspace, timeout: std::time::Duration) -> Self {
-        Self { workspace, timeout }
+    /// Root a shell at `workspace`, with `timeout` as the per-command deadline
+    /// and `env` as the command's entire environment.
+    pub fn new(
+        workspace: Workspace,
+        timeout: std::time::Duration,
+        env: std::collections::HashMap<String, String>,
+    ) -> Self {
+        Self {
+            workspace,
+            timeout,
+            env,
+        }
     }
 
     /// The interpreter this platform runs a command line through.
@@ -56,12 +77,29 @@ impl ShellTool {
 /// is almost always at the end.
 const MAX_OUTPUT_BYTES: usize = 16 * 1024;
 
-/// Kill a timed-out command and everything it started.
+/// Owns a spawned child and kills its whole process group when dropped.
+///
+/// `kill_on_drop` alone is not enough once the child leads a process group: it
+/// reaps the direct child — the interpreter — and leaves the group behind. The
+/// timeout path can call [`terminate_group`] explicitly, but an *outer*
+/// cancellation cannot: aborting a turn drops this future wherever it happens to
+/// be suspended, and there is no branch to run. A `Drop` impl is the only hook
+/// that covers both, so the timeout path and an operator's abort clean up
+/// identically.
+struct GroupGuard(tokio::process::Child);
+
+impl Drop for GroupGuard {
+    fn drop(&mut self) {
+        terminate_group(&mut self.0);
+    }
+}
+
+/// Kill a command and everything it started.
 ///
 /// On unix the child leads its own process group (see the spawn above), so
 /// signalling the negated pid reaches every descendant. Failures are ignored:
-/// the group is already gone if the child exited between the timeout firing and
-/// this call, which is the common race and not worth reporting.
+/// the group is already gone if the child exited before this ran, which is the
+/// common case on a command that simply finished.
 ///
 /// On Windows there is no equivalent one-liner — killing a job object would mean
 /// creating one at spawn — so this falls back to `start_kill`, which reaps the
@@ -196,6 +234,8 @@ impl Tool<()> for ShellTool {
             .arg(flag)
             .arg(&command)
             .current_dir(&self.workspace.root)
+            .env_clear()
+            .envs(&self.env)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -207,9 +247,12 @@ impl Tool<()> for ShellTool {
         // long after the tool reported a timeout.
         #[cfg(unix)]
         spawner.process_group(0);
-        let mut child = spawner
-            .spawn()
-            .map_err(|e| TinyAgentsError::Tool(format!("could not start `{shell}`: {e}")))?;
+        let mut guard = GroupGuard(
+            spawner
+                .spawn()
+                .map_err(|e| TinyAgentsError::Tool(format!("could not start `{shell}`: {e}")))?,
+        );
+        let child = &mut guard.0;
 
         // Taken before the wait so both pipes can be drained concurrently with
         // it. Draining is not optional: a child that fills its stdout pipe
@@ -241,7 +284,6 @@ impl Tool<()> for ShellTool {
             Ok(Ok(triple)) => triple,
             Ok(Err(e)) => return Err(TinyAgentsError::Tool(format!("`{command}` failed: {e}"))),
             Err(_) => {
-                terminate_group(&mut child);
                 return Ok(ToolResult {
                     call_id: call.id,
                     name: self.name().to_string(),
@@ -291,8 +333,12 @@ impl Tool<()> for ShellTool {
 }
 
 /// The shell tool, rooted at one checkout.
-pub fn all(workspace: Workspace, timeout: std::time::Duration) -> Vec<Arc<dyn Tool<()>>> {
-    vec![Arc::new(ShellTool::new(workspace, timeout))]
+pub fn all(
+    workspace: Workspace,
+    timeout: std::time::Duration,
+    env: std::collections::HashMap<String, String>,
+) -> Vec<Arc<dyn Tool<()>>> {
+    vec![Arc::new(ShellTool::new(workspace, timeout, env))]
 }
 
 #[cfg(test)]

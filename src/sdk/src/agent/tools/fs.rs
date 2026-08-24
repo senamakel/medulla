@@ -265,24 +265,40 @@ impl Tool<()> for ListDirTool {
             .await
             .map_err(|e| TinyAgentsError::Tool(format!("could not list {path}: {e}")))?;
 
-        let mut names = Vec::new();
+        // A bounded set rather than a Vec that is sorted and truncated after the
+        // fact. The cap has to bound the *work*, not just the answer: a cache or
+        // build directory with millions of entries would otherwise hold millions
+        // of Strings in the daemon before discarding all but 500 of them.
+        //
+        // `BTreeSet` keeps the retained names ordered as they arrive, so the
+        // largest can be dropped once the set is full — leaving exactly the
+        // lexicographically first `MAX_ENTRIES`, which is the same answer the
+        // sort-then-truncate produced.
+        let mut names: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        let mut total = 0usize;
         while let Some(entry) = entries
             .next_entry()
             .await
             .map_err(|e| TinyAgentsError::Tool(format!("could not list {path}: {e}")))?
         {
+            total += 1;
             let name = entry.file_name().to_string_lossy().into_owned();
             let suffix = match entry.file_type().await {
                 Ok(t) if t.is_dir() => "/",
                 _ => "",
             };
-            names.push(format!("{name}{suffix}"));
+            names.insert(format!("{name}{suffix}"));
+            if names.len() > MAX_ENTRIES {
+                // Safe: the set is non-empty, having just been inserted into.
+                let last = names
+                    .iter()
+                    .next_back()
+                    .expect("the set has at least one entry")
+                    .clone();
+                names.remove(&last);
+            }
         }
-        // Sorted so two runs over the same tree produce the same transcript;
-        // `read_dir` order is filesystem-dependent and not stable.
-        names.sort();
-        let total = names.len();
-        names.truncate(MAX_ENTRIES);
+        let names: Vec<String> = names.into_iter().collect();
         let mut content = names.join("\n");
         if total > MAX_ENTRIES {
             content.push_str(&format!(

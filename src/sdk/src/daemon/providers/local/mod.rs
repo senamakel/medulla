@@ -37,6 +37,11 @@
 //! gets a fresh thread and a resumed conversation keeps its own — exactly as the
 //! CLI providers' session ids behave.
 //!
+//! That continuity is [`crate::agent::history`]: the transcript a turn produced
+//! is stored under its thread id and replayed into the next turn naming it. The
+//! embedded core supplied this from its own session store; the id would
+//! otherwise name a conversation that existed nowhere.
+//!
 //! # What is deliberately absent
 //!
 //! *Hooks, managed skills and MCP tools.* [`crate::harness_hooks`] installs all

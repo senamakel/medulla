@@ -12,12 +12,14 @@
 //!
 //! # Layout
 //!
-//! [`tools`] is the tool surface, [`harness`] builds a configured
+//! [`history`] is the per-thread transcript that makes `resume_session_id`
+//! mean something, [`tools`] is the tool surface, [`harness`] builds a configured
 //! [`tinyagents::harness::runtime::AgentHarness`] from a route and a checkout,
 //! and [`turn`] drives exactly one turn, forwarding the harness event stream to
 //! its caller rather than folding it — see that module for why the fold belongs
 //! with the consumer.
 
 pub mod harness;
+pub mod history;
 pub mod tools;
 pub mod turn;

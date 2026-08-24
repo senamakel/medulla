@@ -31,8 +31,15 @@ pub use fs::Workspace;
 /// `shell_timeout` is the per-command deadline; it is a parameter rather than a
 /// constant because a workflow node's budget and an interactive turn's patience
 /// are not the same number.
-pub fn all(workspace: Workspace, shell_timeout: std::time::Duration) -> Vec<Arc<dyn Tool<()>>> {
+///
+/// `env` becomes the shell's entire environment — see [`shell`] on why it is
+/// passed rather than inherited.
+pub fn all(
+    workspace: Workspace,
+    shell_timeout: std::time::Duration,
+    env: std::collections::HashMap<String, String>,
+) -> Vec<Arc<dyn Tool<()>>> {
     let mut tools = fs::all(workspace.clone());
-    tools.extend(shell::all(workspace, shell_timeout));
+    tools.extend(shell::all(workspace, shell_timeout, env));
     tools
 }
