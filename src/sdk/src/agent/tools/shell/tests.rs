@@ -44,16 +44,20 @@ fn steady_producer() -> &'static str {
     }
 }
 
+/// A tool whose commands can actually find programs.
+///
+/// These tests are about the shell's behaviour — working directory, exit codes,
+/// deadlines, output bounds — not about environment isolation, so they get this
+/// process's environment and do not have to model what a given platform needs to
+/// resolve `ls` or `cmd`. Isolation has one dedicated test below, which supplies
+/// a narrow map on purpose.
+///
+/// Guessing that set was a mistake worth recording: an allowlist of `PATH` /
+/// `SYSTEMROOT` / `COMSPEC` matched nothing on Windows, which spells them
+/// `Path`, `SystemRoot` and `ComSpec`, and three tests failed there while
+/// passing everywhere else.
 fn tool(dir: &tempfile::TempDir, secs: u64) -> ShellTool {
-    tool_with_env(dir, secs, test_env())
-}
-
-/// A minimal environment. `PATH` is carried through because `env_clear` drops it
-/// and the interpreter would then find none of the programs these tests run.
-fn test_env() -> std::collections::HashMap<String, String> {
-    std::env::vars()
-        .filter(|(k, _)| k == "PATH" || k == "SYSTEMROOT" || k == "COMSPEC")
-        .collect()
+    tool_with_env(dir, secs, std::env::vars().collect())
 }
 
 fn tool_with_env(
@@ -120,7 +124,18 @@ async fn the_command_environment_is_the_supplied_one_not_this_process() {
     let dir = tempfile::tempdir().unwrap();
     std::env::set_var("MEDULLA_TEST_SECRET", "leaked-bearer");
 
-    let mut env = test_env();
+    // Everything the interpreter needs to run, plus one value of our own, and
+    // deliberately not the secret exported above.
+    //
+    // A wide map still detects the bug this guards. Without `env_clear` the
+    // child inherits this process's environment — which now *does* hold the
+    // secret — and `.envs()` merely layers the map on top, so the secret reaches
+    // the child and the second assertion fires. What is being proved is that the
+    // supplied map REPLACES the environment rather than extending it, and that
+    // holds however wide the map is.
+    let mut env: std::collections::HashMap<String, String> = std::env::vars()
+        .filter(|(k, _)| k != "MEDULLA_TEST_SECRET")
+        .collect();
     env.insert("MEDULLA_TEST_VISIBLE".to_string(), "ok".to_string());
     let out = tool_with_env(&dir, 10, env)
         .call(
