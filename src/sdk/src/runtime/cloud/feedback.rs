@@ -1,36 +1,30 @@
-//! The feedback board half of [`OpenHumanRuntime`].
+//! The feedback board half of [`CloudRuntime`].
 //!
-//! The board is the one surface this runtime cannot serve from the core: it
-//! lives on the cloud backend, behind the same session the core stores. So each
-//! call mints a short-lived [`MedullaClient`] against the configured deployment
-//! with the core's current token, rather than holding one built at construction
-//! — the token can be replaced by a re-login while the app is running, and a
-//! captured client would keep presenting the retired one.
+//! The board sits on a different route family from the orchestration API the
+//! runtime's own client is built for, so each call mints a short-lived
+//! [`MedullaClient`] against the configured deployment with the *current* stored
+//! token, rather than reusing the one built at construction — a re-login can
+//! replace the token while the app is running, and a captured client would keep
+//! presenting the retired one.
 //!
 //! Reads degrade to "no board here" (`Ok(None)`), which the UI renders as a
 //! sign-in hint; mutations fail loudly, because silently succeeding at a vote
 //! that never reached the backend is worse than saying it did not.
 
-use std::sync::Arc;
-
 use futures::future::BoxFuture;
-use openhuman_core::embed::Core;
 
-use super::OpenHumanRuntime;
+use super::CloudRuntime;
 use crate::client::{
     FeedbackComment, FeedbackDetail, FeedbackItem, FeedbackPage, FeedbackQuery, FeedbackSubmission,
     FeedbackType, MedullaClient,
 };
 
-impl OpenHumanRuntime {
+impl CloudRuntime {
     /// Build a backend client from the configured URL and the stored session.
     ///
     /// `Ok(None)` means this host has no board to talk to — unconfigured, or
     /// signed out. Callers decide whether that is an empty surface or an error.
-    async fn feedback_client(
-        _core: Arc<Core>,
-        base_url: Option<String>,
-    ) -> anyhow::Result<Option<MedullaClient>> {
+    async fn feedback_client(base_url: Option<String>) -> anyhow::Result<Option<MedullaClient>> {
         let Some(base_url) = base_url else {
             return Ok(None);
         };
@@ -40,18 +34,15 @@ impl OpenHumanRuntime {
     }
 
     /// The client a board *mutation* needs, or the error explaining its absence.
-    async fn feedback_client_or_err(
-        core: Arc<Core>,
-        base_url: Option<String>,
-    ) -> anyhow::Result<MedullaClient> {
-        Self::feedback_client(core, base_url).await?.ok_or_else(|| {
+    async fn feedback_client_or_err(base_url: Option<String>) -> anyhow::Result<MedullaClient> {
+        Self::feedback_client(base_url).await?.ok_or_else(|| {
             anyhow::anyhow!("the feedback board requires a signed-in backend connection")
         })
     }
 
-    /// The pieces every board call moves into its `'static` future.
-    fn feedback_context(&self) -> (Arc<Core>, Option<String>) {
-        (Arc::clone(&self.core), self.backend_base_url.clone())
+    /// The one piece every board call moves into its `'static` future.
+    fn feedback_context(&self) -> Option<String> {
+        self.backend_base_url.clone()
     }
 
     /// One page of the board, or `None` when this host has no backend.
@@ -59,9 +50,9 @@ impl OpenHumanRuntime {
         &self,
         query: FeedbackQuery,
     ) -> BoxFuture<'static, anyhow::Result<Option<FeedbackPage>>> {
-        let (core, base_url) = self.feedback_context();
+        let base_url = self.feedback_context();
         Box::pin(async move {
-            let Some(client) = Self::feedback_client(core, base_url).await? else {
+            let Some(client) = Self::feedback_client(base_url).await? else {
                 return Ok(None);
             };
             Ok(Some(client.list_feedback(&query).await?))
@@ -73,9 +64,9 @@ impl OpenHumanRuntime {
         &self,
         id: String,
     ) -> BoxFuture<'static, anyhow::Result<FeedbackDetail>> {
-        let (core, base_url) = self.feedback_context();
+        let base_url = self.feedback_context();
         Box::pin(async move {
-            let client = Self::feedback_client_or_err(core, base_url).await?;
+            let client = Self::feedback_client_or_err(base_url).await?;
             Ok(client.get_feedback(&id).await?)
         })
     }
@@ -86,9 +77,9 @@ impl OpenHumanRuntime {
         id: String,
         value: i8,
     ) -> BoxFuture<'static, anyhow::Result<FeedbackItem>> {
-        let (core, base_url) = self.feedback_context();
+        let base_url = self.feedback_context();
         Box::pin(async move {
-            let client = Self::feedback_client_or_err(core, base_url).await?;
+            let client = Self::feedback_client_or_err(base_url).await?;
             Ok(client.vote_feedback(&id, value).await?)
         })
     }
@@ -99,9 +90,9 @@ impl OpenHumanRuntime {
         id: String,
         body: String,
     ) -> BoxFuture<'static, anyhow::Result<FeedbackComment>> {
-        let (core, base_url) = self.feedback_context();
+        let base_url = self.feedback_context();
         Box::pin(async move {
-            let client = Self::feedback_client_or_err(core, base_url).await?;
+            let client = Self::feedback_client_or_err(base_url).await?;
             Ok(client.comment_feedback(&id, &body).await?)
         })
     }
@@ -113,9 +104,9 @@ impl OpenHumanRuntime {
         title: String,
         body: String,
     ) -> BoxFuture<'static, anyhow::Result<FeedbackSubmission>> {
-        let (core, base_url) = self.feedback_context();
+        let base_url = self.feedback_context();
         Box::pin(async move {
-            let client = Self::feedback_client_or_err(core, base_url).await?;
+            let client = Self::feedback_client_or_err(base_url).await?;
             Ok(client.submit_feedback(kind, &title, &body).await?)
         })
     }

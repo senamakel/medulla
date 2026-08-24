@@ -26,7 +26,7 @@ pub(in super::super) struct EventSink {
 
 /// Per-turn accumulation of the deltas awaiting a phase boundary.
 ///
-/// The core streams `TextDelta` and `ThinkingDelta` roughly once per token.
+/// The harness streams a `ModelDelta` roughly once per token.
 /// Emitting one event per token would exhaust the bounded transcript's entry
 /// cap before the turn ended and hand the status throttler a per-token fragment
 /// instead of the reasoning it treats as a cumulative snapshot, so the fold

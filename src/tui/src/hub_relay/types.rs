@@ -8,7 +8,7 @@ use super::*;
 /// relay have to name the *same* type for the handle to reach the Workers tab,
 /// and two structurally-identical aliases in two crates is exactly how it ended
 /// up unattached.
-pub(crate) use medulla::runtime::openhuman::HubSlot;
+pub(crate) use medulla::runtime::cloud::HubSlot;
 
 /// The device-local half of a hub's dispatch: the in-process bus, the address
 /// the hub binds on it, and the host (if any) already listening there.

@@ -5,8 +5,8 @@
 //! integration test: the core uses process globals (a `OnceLock` context, a
 //! singleton event bus), so it cannot be stood up and torn down per test.
 
+use crate::client::{RosterWorker, SessionSummary};
 use crate::runtime::types::StreamState;
-use openhuman_core::embed::{RosterWorker, SessionSummary};
 
 use super::cell::SnapshotCell;
 use super::fold;
@@ -23,14 +23,30 @@ fn thread(id: &str) -> ThreadSummary {
     }
 }
 
+/// Build a roster row from the wire shape the backend actually sends.
+///
+/// Deserialized rather than struct-literal: the wire types carry `#[serde(default)]`
+/// on most fields, so a literal would compile past a field being renamed on the
+/// wire while this catches it.
 fn worker(id: &str, label: &str) -> RosterWorker {
-    RosterWorker {
-        registry_id: id.to_string(),
-        label: label.to_string(),
-        description: "desc".to_string(),
-        availability: "available".to_string(),
-        ..Default::default()
-    }
+    serde_json::from_value(serde_json::json!({
+        "registryId": id,
+        "label": label,
+        "description": "desc",
+        "availability": "available",
+        "selected": false,
+    }))
+    .expect("the roster fixture matches the wire shape")
+}
+
+/// Build a session-list row from the wire shape, for the same reason.
+fn session(id: &str, title: Option<&str>) -> SessionSummary {
+    serde_json::from_value(serde_json::json!({
+        "sessionId": id,
+        "title": title,
+        "status": "active",
+    }))
+    .expect("the session fixture matches the wire shape")
 }
 
 #[test]
@@ -67,11 +83,7 @@ fn roster_fold_handles_an_empty_roster() {
 fn thread_fold_defaults_a_missing_title_to_empty_not_a_placeholder() {
     // A synthesized name like "(untitled)" would render as if the backend sent
     // it; empty lets the UI apply its own placeholder.
-    let folded = fold::threads(vec![SessionSummary {
-        session_id: "s1".into(),
-        title: None,
-        ..Default::default()
-    }]);
+    let folded = fold::threads(vec![session("s1", None)]);
     assert_eq!(folded.len(), 1);
     assert_eq!(folded[0].id, "s1");
     assert_eq!(folded[0].name, "");
@@ -81,11 +93,7 @@ fn thread_fold_defaults_a_missing_title_to_empty_not_a_placeholder() {
 fn thread_fold_leaves_activity_counters_at_zero() {
     // The session list carries no per-thread activity. Inventing a count would
     // render as real data and quietly mislead.
-    let folded = fold::threads(vec![SessionSummary {
-        session_id: "s1".into(),
-        title: Some("Work".into()),
-        ..Default::default()
-    }]);
+    let folded = fold::threads(vec![session("s1", Some("Work"))]);
     assert_eq!(
         (
             folded[0].turns,
@@ -193,10 +201,10 @@ fn the_cell_reports_whether_a_thread_is_selected() {
 
 // ── event translation ────────────────────────────────────────────────────────
 
-use openhuman_core::embed::EventEnvelope as CoreEnvelope;
+use crate::client::EventEnvelope as WireEnvelope;
 
-fn core_event(seq: Option<u64>, kind: &str, body: &str) -> CoreEnvelope {
-    CoreEnvelope {
+fn wire_event(seq: Option<u64>, kind: &str, body: &str) -> WireEnvelope {
+    WireEnvelope {
         seq,
         at: 1_700_000_000,
         session_id: "s1".into(),
@@ -207,7 +215,7 @@ fn core_event(seq: Option<u64>, kind: &str, body: &str) -> CoreEnvelope {
 
 #[test]
 fn events_decode_and_preserve_seq_and_time() {
-    let folded = fold::events(vec![core_event(Some(7), "assistant", "hi")]);
+    let folded = fold::events(vec![wire_event(Some(7), "assistant", "hi")]);
     assert_eq!(folded.len(), 1);
     assert_eq!(folded[0].seq, 7);
     assert_eq!(folded[0].at, 1_700_000_000);
@@ -218,8 +226,8 @@ fn events_without_a_seq_are_dropped_not_zeroed() {
     // Mapping `None` to 0 would make the event sort to the top of the stream
     // and defeat the replay cursor, so a reconnect would re-show it forever.
     let folded = fold::events(vec![
-        core_event(None, "assistant", "no seq"),
-        core_event(Some(3), "assistant", "has seq"),
+        wire_event(None, "assistant", "no seq"),
+        wire_event(Some(3), "assistant", "has seq"),
     ]);
     assert_eq!(folded.len(), 1, "the seqless envelope must be dropped");
     assert_eq!(folded[0].seq, 3);
@@ -228,7 +236,7 @@ fn events_without_a_seq_are_dropped_not_zeroed() {
 #[test]
 fn an_unrecognized_kind_survives_as_unknown() {
     // A newer backend must not cause an older host to drop rows.
-    let folded = fold::events(vec![core_event(Some(1), "some_future_kind", "x")]);
+    let folded = fold::events(vec![wire_event(Some(1), "some_future_kind", "x")]);
     assert_eq!(folded.len(), 1);
     assert!(matches!(
         folded[0].event,
@@ -246,8 +254,8 @@ fn max_seq_is_none_for_an_empty_batch() {
 fn max_seq_takes_the_highest_not_the_last() {
     // Out-of-order delivery must not rewind the cursor.
     let folded = fold::events(vec![
-        core_event(Some(9), "assistant", "a"),
-        core_event(Some(4), "assistant", "b"),
+        wire_event(Some(9), "assistant", "a"),
+        wire_event(Some(4), "assistant", "b"),
     ]);
     assert_eq!(fold::max_seq(&folded), Some(9));
 }
@@ -255,7 +263,7 @@ fn max_seq_takes_the_highest_not_the_last() {
 // ── snapshot event application ───────────────────────────────────────────────
 
 fn render_event(seq: u64, kind: &str) -> crate::ui::events::EventEnvelope {
-    fold::events(vec![core_event(Some(seq), kind, "x")])
+    fold::events(vec![wire_event(Some(seq), kind, "x")])
         .pop()
         .expect("one envelope")
 }
@@ -335,7 +343,7 @@ fn a_batch_with_no_liveness_answer_leaves_the_flag_alone() {
 
 /// The backend's own copy of a turn, as the replay would deliver it.
 fn confirmed_user(seq: u64, body: &str) -> crate::ui::events::EventEnvelope {
-    fold::events(vec![core_event(Some(seq), "user", body)])
+    fold::events(vec![wire_event(Some(seq), "user", body)])
         .pop()
         .expect("one envelope")
 }
@@ -513,7 +521,7 @@ fn an_unconfirmed_echo_does_not_outlive_its_thread() {
 // ── liveness from cycle boundaries ───────────────────────────────────────────
 
 fn cycle_event(seq: u64, kind: &str) -> crate::ui::events::EventEnvelope {
-    fold::events(vec![CoreEnvelope {
+    fold::events(vec![WireEnvelope {
         seq: Some(seq),
         at: 1_700_000_000,
         session_id: "s1".into(),

@@ -24,11 +24,6 @@ medulla = { path = "src/sdk", default-features = false }
 # The host-link transport (docs/host-link-protocol.md). A plain path dep: it is
 # ours, has no registry coordinate, and is not vendored.
 medulla-link = { path = "src/link" }
-# The embedded OpenHuman core, on its way out. Still the runtime this SDK hosts
-# (`core_host`, `runtime/openhuman`, `daemon/providers/openhuman`); the auth,
-# workflow-engine and agent-harness dependencies below no longer route through
-# it. A path dependency, never patched — it has no registry coordinate.
-openhuman = { path = "vendor/openhuman", default-features = false }
 # The agent harness. A direct submodule at `vendor/tinyagents`, declared as a
 # registry coordinate and redirected by `[patch.crates-io]` below so the crate
 # has exactly ONE declaration style: mixing a path dep with a registry one
@@ -39,14 +34,10 @@ openhuman = { path = "vendor/openhuman", default-features = false }
 # Medulla's session surface; `tools` brings the builtin tool family the agent
 # loop dispatches. Neither is on by default in the crate.
 tinyagents = { version = "2.1", features = ["sqlite", "tools"] }
-# The shared TinyHumans backend client. It has no registry coordinate, so unlike
-# the tiny* crates around it, it is a plain path dep rather than
-# declared-then-patched — and a plain path dep cannot be redirected. So while the
-# embedded core is still in the graph this MUST keep pointing into its vendor
-# tree: two path declarations of one unpublished crate yield two PackageIds and
-# an E0308 where the types look identical. `vendor/tinyhumans-sdk` is checked out
-# at the same commit and takes over the moment the core leaves.
-tinyhumans-sdk = { path = "vendor/openhuman/vendor/tinyhumans-sdk" }
+# The shared TinyHumans backend client. A direct submodule at
+# `vendor/tinyhumans-sdk`; it has no registry coordinate, so unlike the tiny*
+# crates around it, it is a plain path dep rather than declared-then-patched.
+tinyhumans-sdk = { path = "vendor/tinyhumans-sdk" }
 # The workflow engine, a direct submodule at `vendor/tinyflows`. Declared as a
 # registry dependency and redirected by `[patch.crates-io]` below, for the same
 # one-declaration-style reason as `tinyagents`.
@@ -121,7 +112,8 @@ unicode-width = "0.2"
 # was the runtime this table had to reproduce *its* patch table rebased onto
 # `vendor/openhuman/vendor/*` — ten entries, each load-bearing, because dropping
 # one made Cargo silently resolve the published crate instead of the vendored
-# tree. That whole class of failure left with the core.
+# tree, and eight of them pinning a crate nothing in this workspace linked
+# directly. That whole class of failure left with the core.
 #
 # Keep this list in lockstep with scripts/init-submodules.sh.
 #
@@ -130,18 +122,6 @@ unicode-width = "0.2"
 [patch.crates-io]
 tinyagents = { path = "vendor/tinyagents" }
 tinyflows = { path = "vendor/tinyflows" }
-# Still reached through the embedded core's vendor tree, and dropped with it.
-# Each is load-bearing while the core is in the graph: without the redirect Cargo
-# silently resolves the published crate instead of the vendored tree.
-tinychannels = { path = "vendor/openhuman/vendor/tinychannels" }
-tinycortex = { path = "vendor/openhuman/vendor/tinycortex" }
-tinycortex-api = { path = "vendor/openhuman/vendor/tinycortex/api" }
-tinyjuice-bus = { path = "vendor/openhuman/vendor/tinyjuice/crates/tinyjuice-bus" }
-tinyplace = { path = "vendor/openhuman/vendor/tinyplace/sdk/rust" }
-motosan-ai-oauth = { path = "vendor/openhuman/vendor/motosan-ai-oauth" }
-
-[patch."https://github.com/tinyhumansai/tinymemory"]
-tinymemory-api = { path = "vendor/openhuman/vendor/tinymemory/crates/tinymemory-api" }
 
 # Dependency DWARF dominates target/ size and link time, so third-party crates
 # compile without it while this workspace's own crates keep full debuginfo.

@@ -11,8 +11,8 @@ use serde_json::Value;
 use crate::protocol::HarnessEvent;
 
 use super::super::super::types::OnEvent;
-use super::core_contract::AgentProgress;
 use super::types::EventSink;
+use tinyagents::harness::events::AgentEvent;
 
 impl EventSink {
     /// A sink feeding `on_event`, or counting silently when it is `None`.
@@ -37,7 +37,7 @@ impl EventSink {
         callback(&crate::daemon::mappers::HarnessSemanticEvent {
             line,
             timestamp_ms: crate::clock::now_millis(),
-            record_type: format!("openhuman:{kind}"),
+            record_type: format!("local:{kind}"),
             event: HarnessEvent {
                 kind: kind.to_string(),
                 payload,
@@ -46,15 +46,15 @@ impl EventSink {
         });
     }
 
-    /// Fold one core progress event and emit whatever it completes.
+    /// Fold one harness event and emit whatever it completes.
     ///
-    /// Deltas are held by the fold until a phase boundary, so a chatty turn
+    /// Deltas are held by the fold until a structural boundary, so a chatty turn
     /// emits whole messages and reasoning snapshots rather than one event per
     /// token — the bounded transcript keeps the end of the turn (the reply and
     /// the last tool calls) instead of exhausting its cap on a streamed
     /// paragraph. The watchdog still credits every event as liveness, which is
     /// the point of keeping the two decisions apart.
-    pub(super) fn emit_progress(&mut self, progress: &AgentProgress) {
+    pub(super) fn emit_progress(&mut self, progress: &AgentEvent) {
         for (kind, payload) in self.fold.fold(progress) {
             self.emit(&kind, payload);
         }

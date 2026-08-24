@@ -17,7 +17,7 @@ mod acp;
 mod codex_server;
 mod detect;
 mod execute;
-mod openhuman;
+mod local;
 mod types;
 
 #[cfg(test)]
@@ -30,7 +30,7 @@ pub use detect::{
     supports_stdin, DAEMON_PROVIDERS,
 };
 pub use execute::{is_transient_lock, run_provider_task, with_auth_hint};
-pub use openhuman::{run_openhuman_task, uses_embedded_core};
+pub use local::{run_local_task, uses_local_harness};
 pub use types::{
     Abort, ExistsOnPath, OnEvent, OnStdin, OnWorkspaceContext, RunTaskFn, RunTaskOptions,
     RunTaskOrigin, RunTaskResult,

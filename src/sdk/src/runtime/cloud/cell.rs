@@ -1,10 +1,9 @@
 //! The folded snapshot plus its change-notification channel.
 //!
 //! Split out from the runtime so the render contract — snapshot in, ping out —
-//! can be exercised without booting a core. The core uses process globals (a
-//! `OnceLock` context, a singleton event bus) and cannot be stood up per test,
-//! so anything that genuinely needs one belongs in an integration test. Keeping
-//! this piece core-free is what makes the contract unit-testable at all.
+//! can be exercised without a backend. Anything that genuinely needs one
+//! belongs in an integration test; keeping this piece I/O-free is what makes
+//! the contract unit-testable at all.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -325,7 +324,7 @@ impl Default for SnapshotCell {
 /// row echoing exactly what was retired can be the provisional — and removed
 /// by position.
 ///
-/// [`fold::running_after`]: crate::runtime::openhuman::fold::running_after
+/// [`fold::running_after`]: crate::runtime::cloud::fold::running_after
 fn remove_provisional(rows: &mut Vec<EventEnvelope>, retired: &PendingEcho) {
     let provisional = rows.iter().position(|e| {
         e.seq == retired.seq && matches!(&e.event, TuiEvent::User { body } if *body == retired.body)

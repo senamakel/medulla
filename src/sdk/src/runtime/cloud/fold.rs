@@ -1,4 +1,4 @@
-//! Pure translation from core wire types into the render snapshot.
+//! Pure translation from backend wire types into the render snapshot.
 //!
 //! Kept as free functions with no core and no I/O, deliberately. The fold is
 //! where a migration like this actually goes wrong: not with a crash, but with
@@ -6,12 +6,12 @@
 //! be tested exhaustively against hand-written inputs, which is the only way
 //! that class of bug gets caught.
 
-use openhuman_core::embed::{EventEnvelope as CoreEnvelope, RosterWorker, SessionSummary};
+use crate::client::{EventEnvelope as WireEnvelope, RosterWorker, SessionSummary};
 
 use crate::runtime::types::{AgentDescriptor, StreamState, ThreadSummary};
 use crate::ui::events::{EventEnvelope, TuiEvent};
 
-/// Fold the core's worker roster into render descriptors.
+/// Fold the backend's worker roster into render descriptors.
 pub fn roster(workers: Vec<RosterWorker>) -> Vec<AgentDescriptor> {
     workers
         .into_iter()
@@ -22,13 +22,13 @@ pub fn roster(workers: Vec<RosterWorker>) -> Vec<AgentDescriptor> {
             availability: w.availability,
             // The roster carries no placement or provenance, and the render
             // layer reads absent as "not declared". Defaulting the rest keeps
-            // this fold honest about what the core actually told us.
+            // this fold honest about what the backend actually told us.
             ..AgentDescriptor::default()
         })
         .collect()
 }
 
-/// Fold the core's session list into thread summaries.
+/// Fold the backend's session list into thread summaries.
 ///
 /// The counters (`turns`, `running_tasks`, `attention`) stay zero: the session
 /// list carries no per-thread activity, and inventing a value would render as
@@ -47,28 +47,28 @@ pub fn threads(sessions: Vec<SessionSummary>) -> Vec<ThreadSummary> {
         .collect()
 }
 
-/// Translate the core's wire envelopes into render envelopes.
+/// Translate the backend's wire envelopes into render envelopes.
 ///
-/// The two `EventEnvelope` types are genuinely different: the core carries a
-/// raw `serde_json::Value` payload plus session/cycle routing, while the render
-/// layer wants a decoded [`TuiEvent`] and nothing else. `TuiEvent` accepts any
+/// The two `EventEnvelope` types are genuinely different: the wire one carries
+/// a raw `serde_json::Value` payload plus session/cycle routing, while the
+/// render layer wants a decoded [`TuiEvent`] and nothing else. `TuiEvent` accepts any
 /// `{kind, ...}` object and keeps unrecognized kinds as
 /// [`TuiEvent::Unknown`], so a newer backend never drops rows on an older host.
 ///
 /// # Envelopes without a `seq` are dropped, deliberately
 ///
-/// The render layer keys ordering and de-duplication off `seq`. The core's is
+/// The render layer keys ordering and de-duplication off `seq`. The wire's is
 /// `Option<u64>`, and mapping `None` to `0` would make every such event look
 /// like the oldest in the stream — it would sort to the top and defeat the
 /// replay cursor, so a reconnect would re-show it forever. Dropping is the
 /// lesser failure and it is logged; a well-behaved backend always sends one on
 /// a cursor replay.
-pub fn events(envelopes: Vec<CoreEnvelope>) -> Vec<EventEnvelope> {
+pub fn events(envelopes: Vec<WireEnvelope>) -> Vec<EventEnvelope> {
     let mut out = Vec::with_capacity(envelopes.len());
     for env in envelopes {
         let Some(seq) = env.seq else {
             tracing::debug!(
-                "[openhuman_runtime] dropping event with no seq (session={} cycle={:?})",
+                "[cloud_runtime] dropping event with no seq (session={} cycle={:?})",
                 env.session_id,
                 env.cycle_id
             );
@@ -80,7 +80,7 @@ pub fn events(envelopes: Vec<CoreEnvelope>) -> Vec<EventEnvelope> {
         let event: TuiEvent = match serde_json::from_value(env.event) {
             Ok(event) => event,
             Err(err) => {
-                tracing::debug!("[openhuman_runtime] undecodable event at seq {seq}: {err}");
+                tracing::debug!("[cloud_runtime] undecodable event at seq {seq}: {err}");
                 continue;
             }
         };
@@ -125,7 +125,7 @@ pub fn max_seq(events: &[EventEnvelope]) -> Option<u64> {
 
 /// Map consecutive poll failures onto the header's stream indicator.
 ///
-/// Pure and free-standing so the thresholds are testable without a core; the
+/// Pure and free-standing so the thresholds are testable without a client; the
 /// runtime holds only the counter.
 pub fn stream_state(failures: usize, stalled_after: usize) -> StreamState {
     match failures {

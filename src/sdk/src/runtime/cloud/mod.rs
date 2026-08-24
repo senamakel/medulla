@@ -1,9 +1,18 @@
-//! [`Runtime`] backed by the embedded OpenHuman core.
+//! [`Runtime`] backed by the Medulla cloud backend.
 //!
-//! A fourth [`Runtime`] implementation alongside `backend` (HTTP/SSE), `core`
-//! (NDJSON socket) and `mock`. It is the one this migration is heading toward:
-//! rather than speaking to a remote process, it drives an OpenHuman core
-//! running in-process through the typed embed facade.
+//! The [`Runtime`] the product runs on, alongside `mock` (tests and demos). It
+//! drives the orchestration API directly through [`MedullaClient`].
+//!
+//! # Why this stopped going through an embedded core
+//!
+//! It used to hold an OpenHuman core and reach the backend through that core's
+//! `embed::Medulla` facade — which was itself an RPC hop onto the core's own
+//! Medulla client, against the same deployment this SDK already had a typed
+//! client for. Every call therefore paid a JSON round trip, an error-string
+//! decode and a second set of wire types to arrive where
+//! [`MedullaClient`] arrives in one hop. Sessions were never local state: they
+//! live on the backend, so nothing was gained by asking an in-process core to
+//! fetch them.
 //!
 //! # Why a `Runtime` impl rather than replacing the trait
 //!
@@ -18,30 +27,27 @@
 //! # Layout
 //!
 //! [`fold`] is pure translation, [`cell`] is the snapshot plus its notification
-//! channel, and this module is the thin part that needs a core. The split is
-//! what lets the contract be unit-tested: the core uses process globals and
-//! cannot be built per test.
+//! channel, and this module is the thin part that needs a client. The split is
+//! what lets the contract be unit-tested without a backend.
 //!
 //! # Current scope
 //!
-//! Reads fold live roster and session data. Submit, abort and new-session drive
-//! the backend through the facade. What remains unwired is chat-tree resume —
-//! `medulla_chat` lives in the core but has no RPC surface yet — and the event
-//! stream, so a submitted turn is accepted but its reply does not yet flow back
-//! into the snapshot.
+//! Reads fold live roster and session data; submit, abort and new-session drive
+//! the backend; the polled event stream folds a turn's output back into the
+//! snapshot.
 //!
-//! The still-unwired paths return a typed error rather than doing nothing. A
-//! silent no-op reads as a hung backend and sends someone debugging the
-//! network; an explicit error names the layer that is actually missing.
+//! Paths the backend has no route for return a typed error rather than doing
+//! nothing. A silent no-op reads as a hung backend and sends someone debugging
+//! the network; an explicit error names the layer that is actually missing.
 
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use openhuman_core::embed::{Core, CoreError};
 use tokio::sync::broadcast;
 
 use super::types::{ContextItem, RuntimeSnapshot, StreamState};
+use crate::client::{ClientError, MedullaClient};
 
 /// Consecutive poll failures tolerated before the header reports `Stalled`.
 ///
@@ -69,6 +75,7 @@ use super::Runtime;
 use crate::ui::chat_store::MainChatSummary;
 
 pub mod cell;
+pub mod connect;
 mod feedback;
 pub mod fold;
 mod worker_ops;
@@ -78,16 +85,16 @@ mod tests;
 
 pub use cell::SnapshotCell;
 
-/// Message for every drive method not yet migrated.
+/// Message for every drive method the backend has no route for.
 ///
 /// One constant so the wording cannot drift between call sites, and so tests
 /// assert a class of failure rather than prose.
 pub const NOT_YET_WIRED: &str =
-    "this action is not wired to the embedded core yet (read-only while the migration lands)";
+    "this action has no orchestration-backend route yet (read-only until one lands)";
 
-/// A [`Runtime`] driving an in-process OpenHuman core.
-pub struct OpenHumanRuntime {
-    core: Arc<Core>,
+/// A [`Runtime`] driving the Medulla orchestration backend.
+pub struct CloudRuntime {
+    client: Arc<MedullaClient>,
     /// Shared so a submit that failed can settle the turn it drew from inside
     /// the spawned future, which outlives the `&self` that started it.
     cell: Arc<SnapshotCell>,
@@ -110,19 +117,18 @@ pub struct OpenHumanRuntime {
     /// The hub handle, once the hub has connected.
     ///
     /// The worker surface — the roster, its activity, the watched screens and
-    /// every mutation — is the hub's, not the core's: host-link peers are this
-    /// device's business and never reach the orchestration backend. Without it
+    /// every mutation — is the hub's, not the backend's: host-link peers are
+    /// this device's business and never reach the orchestration backend. Without it
     /// the Workers tab reads empty and, worse, its mutations inherit the trait's
     /// no-op success.
     hub: HubSlot,
     /// The backend deployment this host is configured for, when one is known.
     ///
-    /// Only the feedback board needs it: the board lives on the cloud backend
-    /// rather than in the core, so those calls mint a short-lived
-    /// [`MedullaClient`](crate::client::MedullaClient) against this URL with the
-    /// core's stored session. `None` — an unconfigured host — leaves the board
-    /// reporting itself unavailable rather than dialling a default deployment
-    /// the operator never signed in to.
+    /// Only the feedback board needs it: it sits on a different route family
+    /// from the orchestration API, so those calls mint a short-lived
+    /// [`MedullaClient`] against this URL with the stored session. `None` — an
+    /// unconfigured host — leaves the board reporting itself unavailable rather
+    /// than dialling a default deployment the operator never signed in to.
     backend_base_url: Option<String>,
 }
 
@@ -138,24 +144,24 @@ pub type HubSlot = Arc<std::sync::Mutex<Option<crate::hub::HubHandle>>>;
 /// trait's futures outlive the borrow of `&self`.
 type SessionSlot = Arc<tokio::sync::Mutex<Option<String>>>;
 
-impl OpenHumanRuntime {
-    /// Wrap an already-booted core.
+impl CloudRuntime {
+    /// Wrap a configured backend client.
     ///
-    /// Performs no I/O — call [`refresh`](Self::refresh) for that. Boot and
-    /// first fetch are separate so a host can paint its UI before the first
+    /// Performs no I/O — call [`refresh`](Self::refresh) for that. Construction
+    /// and first fetch are separate so a host can paint its UI before the first
     /// round trip lands.
-    pub fn new(core: Arc<Core>) -> Self {
-        Self::with_hub(core, HubSlot::default())
+    pub fn new(client: Arc<MedullaClient>) -> Self {
+        Self::with_hub(client, HubSlot::default())
     }
 
-    /// Wrap a core and share the slot the hub fills once connected.
+    /// Wrap a client and share the slot the hub fills once connected.
     ///
     /// The slot is passed empty at construction and filled later: the hub needs
     /// a signed-in session to connect, which is only established after the
     /// runtime exists.
-    pub fn with_hub(core: Arc<Core>, hub: HubSlot) -> Self {
+    pub fn with_hub(client: Arc<MedullaClient>, hub: HubSlot) -> Self {
         Self {
-            core,
+            client,
             cell: Arc::new(SnapshotCell::new()),
             session: SessionSlot::default(),
             cursor: Arc::new(tokio::sync::Mutex::new(None)),
@@ -168,9 +174,9 @@ impl OpenHumanRuntime {
     /// Point the backend-facing surfaces (today: the feedback board) at the
     /// deployment this host is configured for.
     ///
-    /// The URL comes from the caller's loaded config rather than the core: the
-    /// core resolves the same deployment by construction but exposes no RPC for
-    /// the URL it settled on.
+    /// The URL comes from the caller's loaded config, which is also what the
+    /// client above was built from — recorded separately because the board is
+    /// reached with its own short-lived client instance.
     #[must_use]
     pub fn with_backend_base_url(mut self, base_url: impl Into<String>) -> Self {
         self.backend_base_url = Some(base_url.into());
@@ -196,13 +202,16 @@ impl OpenHumanRuntime {
     /// create a session and leave one orphaned on the backend. Static rather
     /// than a method because the trait's futures are `'static` and cannot
     /// borrow `&self`.
-    async fn session_for(core: &Core, slot: &SessionSlot) -> Result<String, CoreError> {
+    async fn session_for(
+        client: &MedullaClient,
+        slot: &SessionSlot,
+    ) -> Result<String, ClientError> {
         let mut guard = slot.lock().await;
         if let Some(id) = guard.as_ref() {
             return Ok(id.clone());
         }
-        let created = core.medulla().create_session(None).await?;
-        tracing::debug!("[openhuman_runtime] minted session {}", created.session_id);
+        let created = client.create_session(None).await?;
+        tracing::debug!("[cloud_runtime] minted session {}", created.session_id);
         *guard = Some(created.session_id.clone());
         Ok(created.session_id)
     }
@@ -213,25 +222,23 @@ impl OpenHumanRuntime {
     /// state rather than a failure, so a rejected call leaves the previous
     /// snapshot intact instead of blanking the UI.
     pub async fn refresh(&self) {
-        let medulla = self.core.medulla();
-
-        let roster = match medulla.roster().await {
+        let roster = match self.client.roster().await {
             Ok(workers) => fold::roster(workers),
             Err(err) => {
-                tracing::debug!("[openhuman_runtime] roster unavailable: {err}");
+                tracing::debug!("[cloud_runtime] roster unavailable: {err}");
                 Vec::new()
             }
         };
-        let threads = match medulla.list_sessions().await {
+        let threads = match self.client.list_sessions().await {
             Ok(sessions) => fold::threads(sessions),
             Err(err) => {
-                tracing::debug!("[openhuman_runtime] sessions unavailable: {err}");
+                tracing::debug!("[cloud_runtime] sessions unavailable: {err}");
                 Vec::new()
             }
         };
 
         tracing::debug!(
-            "[openhuman_runtime] refresh roster={} threads={}",
+            "[cloud_runtime] refresh roster={} threads={}",
             roster.len(),
             threads.len()
         );
@@ -249,7 +256,7 @@ impl OpenHumanRuntime {
             .flatten();
         self.cell.apply(roster, threads);
         if let Some(id) = adopt {
-            tracing::debug!("[openhuman_runtime] adopting initial session {id}");
+            tracing::debug!("[cloud_runtime] adopting initial session {id}");
             self.cell.set_active_thread(id.clone());
             *self.session.lock().await = Some(id);
         }
@@ -269,14 +276,14 @@ impl OpenHumanRuntime {
         };
         let after = *self.cursor.lock().await;
 
-        let fetched = match self.core.medulla().list_events(&session, after).await {
+        let fetched = match self.client.list_events(&session, after).await {
             Ok(events) => events,
             Err(err) => {
                 // Count it rather than only logging. A backend that is
                 // unreachable otherwise leaves the transcript inert forever
                 // with no signal beyond a debug line nobody is watching.
                 let n = self.poll_failures.fetch_add(1, Ordering::Relaxed) + 1;
-                tracing::debug!("[openhuman_runtime] event poll failed ({n}): {err}");
+                tracing::debug!("[cloud_runtime] event poll failed ({n}): {err}");
                 return 0;
             }
         };
@@ -288,7 +295,7 @@ impl OpenHumanRuntime {
         // outlived its session is dropped; the new session replays from its own
         // cursor on the next tick.
         if self.session.lock().await.as_deref() != Some(session.as_str()) {
-            tracing::debug!("[openhuman_runtime] dropping a batch from a superseded session");
+            tracing::debug!("[cloud_runtime] dropping a batch from a superseded session");
             return 0;
         }
 
@@ -303,7 +310,7 @@ impl OpenHumanRuntime {
             *self.cursor.lock().await = Some(max as i64);
         }
         let count = events.len();
-        tracing::debug!("[openhuman_runtime] folded {count} events after {after:?}");
+        tracing::debug!("[cloud_runtime] folded {count} events after {after:?}");
         // Liveness comes from the batch's cycle boundaries, not from the fact
         // that a batch arrived at all. A batch with no boundary leaves the flag
         // alone, so the spinner neither flickers off between batches nor keeps
@@ -339,7 +346,7 @@ impl OpenHumanRuntime {
                     // once per `POLL_IDLE`, which is finer than the deadline.
                     if rt.cell.expire_stalled_echo(ECHO_STALL_AFTER) {
                         tracing::debug!(
-                            "[openhuman_runtime] no events {}s after a submitted turn; \
+                            "[cloud_runtime] no events {}s after a submitted turn; \
                              settling the running indicator",
                             ECHO_STALL_AFTER.as_secs()
                         );
@@ -353,15 +360,16 @@ impl OpenHumanRuntime {
         })
     }
 
-    /// The facade, for callers needing something the trait does not model.
-    pub fn core(&self) -> &Arc<Core> {
-        &self.core
+    /// The backend client, for callers needing something the trait does not
+    /// model.
+    pub fn client(&self) -> &Arc<MedullaClient> {
+        &self.client
     }
 }
 
-impl Runtime for OpenHumanRuntime {
+impl Runtime for CloudRuntime {
     fn describe(&self) -> String {
-        "openhuman (embedded core)".to_string()
+        "medulla (cloud backend)".to_string()
     }
 
     fn snapshot(&self) -> RuntimeSnapshot {
@@ -373,7 +381,7 @@ impl Runtime for OpenHumanRuntime {
     }
 
     fn submit(&self, input: String) -> BoxFuture<'static, anyhow::Result<()>> {
-        let core = Arc::clone(&self.core);
+        let client = Arc::clone(&self.client);
         let session = self.session_handle();
         let cell = Arc::clone(&self.cell);
         // Draw the turn before anything is dialled. Everything below this line
@@ -385,8 +393,8 @@ impl Runtime for OpenHumanRuntime {
             // Non-blocking: the reply arrives over the event stream, so the UI
             // can render progress instead of freezing until the turn finishes.
             let sent: anyhow::Result<()> = async {
-                let id = Self::session_for(&core, &session).await?;
-                core.medulla().send_message(&id, &input, false).await?;
+                let id = Self::session_for(&client, &session).await?;
+                client.send_message(&id, &input, false).await?;
                 Ok(())
             }
             .await;
@@ -400,7 +408,7 @@ impl Runtime for OpenHumanRuntime {
     }
 
     fn steering_reaches_backend(&self) -> bool {
-        // The core models a session abort but has no RPC for answering a
+        // The backend models a session abort but has no route for answering a
         // question or cancelling one delegated task, so both would be silent
         // no-ops. Saying so lets the UI report the gap instead of announcing an
         // answer that was never delivered.
@@ -428,17 +436,17 @@ impl Runtime for OpenHumanRuntime {
     }
 
     fn abort(&self) {
-        let core = Arc::clone(&self.core);
+        let client = Arc::clone(&self.client);
         let session = self.session_handle();
         // Fire-and-forget: the trait is sync, and an abort that has not landed
         // yet is still better than blocking the UI thread on a round trip.
         tokio::spawn(async move {
             let Some(id) = session.lock().await.clone() else {
-                tracing::debug!("[openhuman_runtime] abort with no active session");
+                tracing::debug!("[cloud_runtime] abort with no active session");
                 return;
             };
-            if let Err(err) = core.medulla().abort(&id).await {
-                tracing::debug!("[openhuman_runtime] abort failed: {err}");
+            if let Err(err) = client.abort(&id).await {
+                tracing::debug!("[cloud_runtime] abort failed: {err}");
             }
         });
     }
@@ -596,7 +604,7 @@ impl Runtime for OpenHumanRuntime {
         tokio::spawn(async move {
             *session.lock().await = None;
             *cursor.lock().await = None;
-            tracing::debug!("[openhuman_runtime] active session cleared");
+            tracing::debug!("[cloud_runtime] active session cleared");
         });
     }
 
@@ -618,15 +626,14 @@ impl Runtime for OpenHumanRuntime {
             // the old cursor would skip the whole transcript the operator
             // switched over to read.
             *cursor.lock().await = None;
-            tracing::debug!("[openhuman_runtime] active session switched to {id}");
+            tracing::debug!("[cloud_runtime] active session switched to {id}");
         });
     }
 
     fn list_main_chats(&self) -> BoxFuture<'static, anyhow::Result<Vec<MainChatSummary>>> {
-        // The chat-tree store lives in the core as `medulla_chat` but has no RPC
-        // surface yet. Empty rather than an error: "no saved chats" is a state
-        // the Chat tab already renders, whereas an error would show a failure
-        // where there is none.
+        // The chat-tree store has no backend route yet. Empty rather than an
+        // error: "no saved chats" is a state the Chat tab already renders,
+        // whereas an error would show a failure where there is none.
         Box::pin(async { Ok(Vec::new()) })
     }
 
@@ -639,16 +646,16 @@ impl Runtime for OpenHumanRuntime {
     }
 
     fn shutdown(&self) -> BoxFuture<'static, anyhow::Result<()>> {
-        // The embedder owns the core's lifecycle; this runtime borrows it.
-        // Tearing it down here would leave the process without a core and no
-        // way to build a second one — the context is a `OnceLock`, so a relogin
-        // could never recover.
+        // Nothing process-scoped to tear down: the client is a pooled HTTP
+        // handle and the poll task ends with the runtime. Kept as an explicit
+        // no-op rather than removed so the trait's shutdown contract stays
+        // visible at this impl.
         Box::pin(async { Ok(()) })
     }
 
     // --- feedback board ---------------------------------------------------
-    // Served by the cloud backend rather than the core; the bodies live in
-    // [`feedback`], which mints a client per call from the core's session.
+    // A different route family from the orchestration API; the bodies live in
+    // [`feedback`], which mints a client per call from the stored session.
 
     fn list_feedback(
         &self,

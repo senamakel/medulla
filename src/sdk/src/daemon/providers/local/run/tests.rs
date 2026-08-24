@@ -1,9 +1,10 @@
 //! Unit tests for the progress fold and the idle watchdog.
 //!
-//! Both are deliberately testable without a core: [`super::types::ProgressFold`]
-//! is a pure fold over an enum the vendored crate already defines, and
-//! [`super::watchdog::drive`] is generic over the future it supervises. Every
-//! timing test runs on a paused clock, so nothing here sleeps in wall time.
+//! Both are deliberately testable without an inference endpoint:
+//! [`super::types::ProgressFold`] is a pure fold over an enum the harness crate
+//! already defines, and [`super::watchdog::drive`] is generic over the future it
+//! supervises. Every timing test runs on a paused clock, so nothing here sleeps
+//! in wall time.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -12,7 +13,10 @@ use serde_json::json;
 use tokio::sync::mpsc;
 
 use super::super::super::types::Abort;
-use super::core_contract::AgentProgress;
+use tinyagents::harness::events::AgentEvent;
+use tinyagents::harness::ids::{CallId, RunId};
+use tinyagents::harness::message::MessageDelta;
+
 use super::types::ProgressFold;
 use super::watchdog::drive;
 use super::EventSink;
@@ -34,19 +38,54 @@ fn recording_sink() -> (EventSink, EventLog) {
 }
 
 /// A tool call event with the least interesting fields, for flush boundaries.
-fn a_tool_call() -> AgentProgress {
-    AgentProgress::ToolCallStarted {
-        call_id: "call-9".to_string(),
-        tool_name: "bash".to_string(),
-        arguments: json!({}),
-        iteration: 1,
-        display_label: None,
-        display_detail: None,
+fn a_tool_call() -> AgentEvent {
+    AgentEvent::ToolStarted {
+        call_id: CallId::from("call-9"),
+        tool_name: "shell".to_string(),
+    }
+}
+
+/// A text delta, the shape the harness streams per token.
+fn text(delta: &str) -> AgentEvent {
+    AgentEvent::ModelDelta {
+        run_id: RunId::from("run-1"),
+        call_id: CallId::from("call-1"),
+        delta: MessageDelta::text(delta),
+    }
+}
+
+/// A reasoning delta, for providers that stream thinking separately.
+fn thinking(delta: &str) -> AgentEvent {
+    AgentEvent::ModelDelta {
+        run_id: RunId::from("run-1"),
+        call_id: CallId::from("call-1"),
+        delta: MessageDelta::reasoning(delta),
+    }
+}
+
+/// A completed tool call carrying captured output.
+fn tool_done(output: &str, error: Option<&str>) -> AgentEvent {
+    AgentEvent::ToolCompleted {
+        call_id: CallId::from("call-1"),
+        tool_name: "shell".to_string(),
+        started_at_ms: None,
+        input: Some(json!({ "command": "cargo test" })),
+        output: Some(json!(output)),
+        duration_ms: Some(90),
+        output_bytes: None,
+        error: error.map(str::to_string),
+    }
+}
+
+/// A run-completion event.
+fn run_done() -> AgentEvent {
+    AgentEvent::RunCompleted {
+        run_id: RunId::from("run-1"),
     }
 }
 
 /// The single event one fresh fold step completes.
-fn only_event(fold: &mut ProgressFold, progress: &AgentProgress) -> (String, serde_json::Value) {
+fn only_event(fold: &mut ProgressFold, progress: &AgentEvent) -> (String, serde_json::Value) {
     let mut mapped = fold.fold(progress);
     assert_eq!(mapped.len(), 1, "expected exactly one event: {mapped:?}");
     mapped.remove(0)
@@ -57,17 +96,11 @@ fn only_event(fold: &mut ProgressFold, progress: &AgentProgress) -> (String, ser
 /// `agent_message`, so flushing here would double the turn's final words.
 /// Thinking is *not* dropped with it — the answer's reasoning is recorded.
 #[test]
-fn turn_completed_clears_text_but_still_flushes_thinking() {
+fn run_completed_clears_text_but_still_flushes_thinking() {
     let mut fold = ProgressFold::default();
-    fold.fold(&AgentProgress::TextDelta {
-        delta: "the final reply".to_string(),
-        iteration: 1,
-    });
-    fold.fold(&AgentProgress::ThinkingDelta {
-        delta: "its reasoning".to_string(),
-        iteration: 1,
-    });
-    let events = fold.fold(&AgentProgress::TurnCompleted { iterations: 7 });
+    fold.fold(&text("the final reply"));
+    fold.fold(&thinking("its reasoning"));
+    let events = fold.fold(&run_done());
     assert_eq!(
         events.len(),
         2,
@@ -80,24 +113,30 @@ fn turn_completed_clears_text_but_still_flushes_thinking() {
 }
 
 #[test]
-fn turn_and_iteration_boundaries_fold_to_status() {
+fn run_and_model_boundaries_fold_to_status() {
     let mut fold = ProgressFold::default();
-    let (kind, payload) = only_event(&mut fold, &AgentProgress::TurnStarted);
+    let (kind, payload) = only_event(
+        &mut fold,
+        &AgentEvent::RunStarted {
+            run_id: RunId::from("run-1"),
+            thread_id: None,
+        },
+    );
     assert_eq!(kind, "status");
     assert_eq!(payload["state"], "running");
     assert_eq!(payload["detail"], "turn started");
 
     let (kind, payload) = only_event(
         &mut fold,
-        &AgentProgress::IterationStarted {
-            iteration: 3,
-            max_iterations: 40,
+        &AgentEvent::ModelStarted {
+            call_id: CallId::from("call-1"),
+            model: "deepseek/v4".to_string(),
         },
     );
     assert_eq!(kind, "status");
-    assert_eq!(payload["detail"], "iteration 3/40");
+    assert_eq!(payload["detail"], "calling deepseek/v4");
 
-    let (kind, payload) = only_event(&mut fold, &AgentProgress::TurnCompleted { iterations: 7 });
+    let (kind, payload) = only_event(&mut fold, &run_done());
     assert_eq!(kind, "status");
     assert_eq!(payload["state"], "idle");
     assert_eq!(payload["detail"], "turn completed");
@@ -108,28 +147,19 @@ fn turn_and_iteration_boundaries_fold_to_status() {
 #[test]
 fn a_lone_text_delta_completes_nothing() {
     let mut fold = ProgressFold::default();
-    let events = fold.fold(&AgentProgress::TextDelta {
-        delta: "hello".to_string(),
-        iteration: 1,
-    });
+    let events = fold.fold(&text("hello"));
     assert!(
         events.is_empty(),
         "a delta is not a message yet: {events:?}"
     );
 }
 
-/// Streamed text becomes one whole message at the next phase boundary.
+/// Streamed text becomes one whole message at the next structural boundary.
 #[test]
 fn text_deltas_coalesce_into_one_message_at_a_boundary() {
     let mut fold = ProgressFold::default();
-    fold.fold(&AgentProgress::TextDelta {
-        delta: "the ".to_string(),
-        iteration: 1,
-    });
-    fold.fold(&AgentProgress::TextDelta {
-        delta: "answer".to_string(),
-        iteration: 1,
-    });
+    fold.fold(&text("the "));
+    fold.fold(&text("answer"));
     let events = fold.fold(&a_tool_call());
     assert_eq!(events.len(), 2, "one coalesced message + the tool call");
     assert_eq!(events[0].0, "agent_message");
@@ -143,27 +173,41 @@ fn text_deltas_coalesce_into_one_message_at_a_boundary() {
 #[test]
 fn thinking_deltas_accumulate_into_one_snapshot_at_a_boundary() {
     let mut fold = ProgressFold::default();
-    fold.fold(&AgentProgress::ThinkingDelta {
-        delta: "hmm, ".to_string(),
-        iteration: 1,
-    });
-    fold.fold(&AgentProgress::ThinkingDelta {
-        delta: "maybe".to_string(),
-        iteration: 1,
-    });
+    fold.fold(&thinking("hmm, "));
+    fold.fold(&thinking("maybe"));
     let events = fold.fold(&a_tool_call());
     assert_eq!(events[0].0, "agent_thinking");
     assert_eq!(events[0].1["text"], "hmm, maybe");
     assert_eq!(events.len(), 2);
 }
 
+/// One delta may carry both fragments, and each must land in its own buffer —
+/// merging them would put the model's scratch work inside its answer.
+#[test]
+fn a_delta_carrying_both_fragments_splits_them() {
+    let mut fold = ProgressFold::default();
+    fold.fold(&AgentEvent::ModelDelta {
+        run_id: RunId::from("run-1"),
+        call_id: CallId::from("call-1"),
+        delta: MessageDelta {
+            text: "visible".to_string(),
+            reasoning: "hidden".to_string(),
+            tool_call: None,
+        },
+    });
+    let events = fold.fold(&a_tool_call());
+    let by_kind: std::collections::HashMap<_, _> = events
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
+    assert_eq!(by_kind["agent_message"]["text"], "visible");
+    assert_eq!(by_kind["agent_thinking"]["text"], "hidden");
+}
+
 #[test]
 fn a_very_long_thinking_block_is_bounded_to_its_tail() {
     let mut fold = ProgressFold::default();
-    fold.fold(&AgentProgress::ThinkingDelta {
-        delta: "reason ".repeat(600),
-        iteration: 1,
-    });
+    fold.fold(&thinking(&"reason ".repeat(600)));
     let events = fold.fold(&a_tool_call());
     let text = events[0].1["text"].as_str().expect("text payload");
     assert!(text.starts_with('…'), "tail elision marker: {text:?}");
@@ -174,91 +218,51 @@ fn a_very_long_thinking_block_is_bounded_to_its_tail() {
     );
 }
 
-/// Telemetry sitting between tokens is not a phase boundary: flushing there
-/// would split a message the model has not finished uttering.
+/// Telemetry sitting between tokens is not a structural boundary: flushing
+/// there would split a message the model has not finished uttering.
 #[test]
-fn cost_rollups_do_not_split_an_utterance() {
+fn unmapped_events_do_not_split_an_utterance() {
     let mut fold = ProgressFold::default();
-    fold.fold(&AgentProgress::TextDelta {
-        delta: "first half".to_string(),
-        iteration: 1,
+    fold.fold(&text("first half"));
+    let telemetry = fold.fold(&AgentEvent::CacheMiss {
+        call_id: CallId::from("call-1"),
+        key: "k".to_string(),
     });
-    let telemetry = fold.fold(&AgentProgress::TurnCostUpdated {
-        model: "chat-v1".to_string(),
-        iteration: 1,
-        input_tokens: 10,
-        output_tokens: 20,
-        cached_input_tokens: 0,
-        total_usd: 0.01,
-    });
-    assert!(telemetry.is_empty(), "cost rollups carry no stream frame");
-    fold.fold(&AgentProgress::TextDelta {
-        delta: ", second half".to_string(),
-        iteration: 1,
-    });
+    assert!(telemetry.is_empty(), "a cache miss carries no stream frame");
+    fold.fold(&text(", second half"));
     let events = fold.fold(&a_tool_call());
     assert_eq!(events[0].1["text"], "first half, second half");
 }
 
+/// The start event names the tool so a long build shows as running rather than
+/// as a gap. The arguments are not on it — the harness carries them on the
+/// completion — and claiming an empty object would read as "called with no
+/// arguments" rather than "not reported yet".
 #[test]
-fn tool_call_started_folds_to_a_tool_call_carrying_its_arguments() {
+fn a_tool_start_folds_to_a_tool_call_naming_the_tool() {
     let mut fold = ProgressFold::default();
     let (kind, payload) = only_event(
         &mut fold,
-        &AgentProgress::ToolCallStarted {
-            call_id: "call-1".to_string(),
-            tool_name: "bash".to_string(),
-            arguments: json!({ "command": "cargo test" }),
-            iteration: 2,
-            display_label: Some("Running tests".to_string()),
-            display_detail: None,
+        &AgentEvent::ToolStarted {
+            call_id: CallId::from("call-1"),
+            tool_name: "shell".to_string(),
         },
     );
     assert_eq!(kind, "tool_call");
     assert_eq!(payload["call_id"], "call-1");
-    assert_eq!(payload["tool_name"], "bash");
+    assert_eq!(payload["tool_name"], "shell");
     assert_eq!(payload["tool_kind"], "other");
-    assert_eq!(payload["display"], "Running tests");
-    assert_eq!(payload["input"]["command"], "cargo test");
-}
-
-#[test]
-fn a_tool_call_without_a_label_displays_its_tool_name() {
-    let mut fold = ProgressFold::default();
-    let (_, payload) = only_event(
-        &mut fold,
-        &AgentProgress::ToolCallStarted {
-            call_id: "call-2".to_string(),
-            tool_name: "read_file".to_string(),
-            arguments: json!({}),
-            iteration: 1,
-            display_label: None,
-            display_detail: None,
-        },
-    );
-    assert_eq!(payload["display"], "read_file");
+    assert_eq!(payload["display"], "shell");
+    assert!(payload["input"].is_null());
 }
 
 #[test]
 fn a_failed_tool_call_folds_to_an_error_flagged_tool_result() {
     let mut fold = ProgressFold::default();
     // Multi-byte output: four characters, six UTF-8 bytes. `output_bytes` is a
-    // byte length, so it must report 6, not the core's character count of 4 —
-    // a status consumer renders the number as bytes.
-    let (kind, payload) = only_event(
-        &mut fold,
-        &AgentProgress::ToolCallCompleted {
-            call_id: "call-1".to_string(),
-            tool_name: "bash".to_string(),
-            success: false,
-            output_chars: 4,
-            output: "bööm".to_string(),
-            arguments: None,
-            elapsed_ms: 90,
-            iteration: 2,
-            failure: None,
-        },
-    );
+    // byte length, so it must report 6 — a status consumer renders the number
+    // as bytes.
+    let (kind, payload) = only_event(&mut fold, &tool_done("bööm", Some("exit 1")));
     assert_eq!(kind, "tool_result");
     assert_eq!(payload["call_id"], "call-1");
     assert_eq!(payload["ok"], false);
@@ -269,18 +273,50 @@ fn a_failed_tool_call_folds_to_an_error_flagged_tool_result() {
     assert!(payload.get("exit_code").is_none());
 }
 
+/// A successful call is not error-flagged, and its captured output reaches the
+/// transcript as the text the tool produced — not as a quoted JSON string,
+/// which is what rendering the captured `Value` through `to_string` would show.
 #[test]
-fn accounting_only_progress_folds_to_nothing() {
+fn a_successful_tool_call_carries_its_output_unquoted() {
     let mut fold = ProgressFold::default();
-    let mapped = fold.fold(&AgentProgress::TurnCostUpdated {
-        model: "chat-v1".to_string(),
-        iteration: 1,
-        input_tokens: 10,
-        output_tokens: 20,
-        cached_input_tokens: 0,
-        total_usd: 0.01,
+    let (_, payload) = only_event(&mut fold, &tool_done("exit: 0", None));
+    assert_eq!(payload["ok"], true);
+    assert_eq!(payload["is_error"], false);
+    assert_eq!(payload["output"], "exit: 0");
+}
+
+/// Distinct from a completion carrying an error, which was fed back to the
+/// model: this means the run is aborting, so it must still produce a terminal
+/// row rather than leaving a started call with no end.
+#[test]
+fn a_tool_failure_folds_to_a_terminal_result() {
+    let mut fold = ProgressFold::default();
+    let (kind, payload) = only_event(
+        &mut fold,
+        &AgentEvent::ToolFailed {
+            call_id: CallId::from("call-1"),
+            tool_name: "shell".to_string(),
+            started_at_ms: None,
+            duration_ms: None,
+            error: "the sky fell".to_string(),
+        },
+    );
+    assert_eq!(kind, "tool_result");
+    assert_eq!(payload["ok"], false);
+    assert!(
+        payload["output"].as_str().unwrap().contains("the sky fell"),
+        "{payload}"
+    );
+}
+
+#[test]
+fn accounting_only_events_fold_to_nothing() {
+    let mut fold = ProgressFold::default();
+    let mapped = fold.fold(&AgentEvent::CacheHit {
+        call_id: CallId::from("call-1"),
+        key: "k".to_string(),
     });
-    assert!(mapped.is_empty(), "cost rollups carry no stream frame");
+    assert!(mapped.is_empty(), "a cache hit carries no stream frame");
 }
 
 #[tokio::test(start_paused = true)]
@@ -291,14 +327,11 @@ async fn a_working_turn_outlives_the_idle_ceiling() {
     // Ten iterations 6s apart: 60s of work under a 10s idle ceiling. The flat
     // wall-clock cap this replaced would have killed it at 10s.
     let call = async move {
-        for iteration in 1..=10u32 {
+        for _ in 1..=10u32 {
             tokio::time::sleep(Duration::from_secs(6)).await;
-            tx.send(AgentProgress::IterationStarted {
-                iteration,
-                max_iterations: 10,
-            })
-            .await
-            .expect("watchdog dropped the receiver");
+            tx.send(a_tool_call())
+                .await
+                .expect("watchdog dropped the receiver");
         }
         "finished"
     };
@@ -312,7 +345,7 @@ async fn a_working_turn_outlives_the_idle_ceiling() {
 
 #[tokio::test(start_paused = true)]
 async fn a_silent_turn_is_timed_out() {
-    let (_tx, mut rx) = mpsc::channel::<AgentProgress>(8);
+    let (_tx, mut rx) = mpsc::channel::<AgentEvent>(8);
     let (mut sink, _log) = recording_sink();
 
     let call = async {
@@ -324,7 +357,7 @@ async fn a_silent_turn_is_timed_out() {
 
     assert_eq!(
         outcome,
-        Err("openhuman task idle for 10000ms (no events)".to_string())
+        Err("local task idle for 10000ms (no events)".to_string())
     );
     assert_eq!(sink.emitted(), 0);
 }
@@ -339,7 +372,7 @@ async fn silence_after_progress_still_times_out() {
     let call = async move {
         for _ in 0..3 {
             tokio::time::sleep(Duration::from_secs(6)).await;
-            tx.send(AgentProgress::TurnStarted)
+            tx.send(a_tool_call())
                 .await
                 .expect("watchdog dropped the receiver");
         }
@@ -351,14 +384,14 @@ async fn silence_after_progress_still_times_out() {
 
     assert_eq!(
         outcome,
-        Err("openhuman task idle for 10000ms (no events)".to_string())
+        Err("local task idle for 10000ms (no events)".to_string())
     );
     assert_eq!(sink.emitted(), 3);
 }
 
 #[tokio::test(start_paused = true)]
 async fn a_zero_timeout_sets_no_ceiling() {
-    let (_tx, mut rx) = mpsc::channel::<AgentProgress>(8);
+    let (_tx, mut rx) = mpsc::channel::<AgentEvent>(8);
     let (mut sink, _log) = recording_sink();
 
     let call = async {
@@ -373,7 +406,7 @@ async fn a_zero_timeout_sets_no_ceiling() {
 
 #[tokio::test(start_paused = true)]
 async fn an_abort_stops_the_turn() {
-    let (_tx, mut rx) = mpsc::channel::<AgentProgress>(8);
+    let (_tx, mut rx) = mpsc::channel::<AgentEvent>(8);
     let (mut sink, _log) = recording_sink();
     let abort = Abort::new();
     abort.abort();
@@ -385,7 +418,7 @@ async fn an_abort_stops_the_turn() {
 
     let outcome = drive(call, &mut rx, &abort, 10_000, &mut sink).await;
 
-    assert_eq!(outcome, Err("openhuman task aborted".to_string()));
+    assert_eq!(outcome, Err("local task aborted".to_string()));
 }
 
 #[tokio::test(start_paused = true)]
@@ -397,24 +430,15 @@ async fn events_queued_when_the_call_resolves_are_drained() {
     // completes with both deltas and their boundary still sitting in the
     // channel.
     let call = async move {
-        tx.send(AgentProgress::TextDelta {
-            delta: "the ".to_string(),
-            iteration: 1,
-        })
-        .await
-        .expect("watchdog dropped the receiver");
-        tx.send(AgentProgress::TextDelta {
-            delta: "answer".to_string(),
-            iteration: 1,
-        })
-        .await
-        .expect("watchdog dropped the receiver");
-        tx.send(AgentProgress::IterationStarted {
-            iteration: 1,
-            max_iterations: 1,
-        })
-        .await
-        .expect("watchdog dropped the receiver");
+        tx.send(text("the "))
+            .await
+            .expect("watchdog dropped the receiver");
+        tx.send(text("answer"))
+            .await
+            .expect("watchdog dropped the receiver");
+        tx.send(a_tool_call())
+            .await
+            .expect("watchdog dropped the receiver");
         "finished"
     };
 
@@ -427,12 +451,12 @@ async fn events_queued_when_the_call_resolves_are_drained() {
     let log = log.lock().expect("event log poisoned");
     assert_eq!(log[0].0, "agent_message");
     assert_eq!(log[0].1["text"], "the answer");
-    assert_eq!(log[1].0, "status");
+    assert_eq!(log[1].0, "tool_call");
 }
 
 #[tokio::test(start_paused = true)]
 async fn a_closed_progress_channel_does_not_spin_the_loop() {
-    let (tx, mut rx) = mpsc::channel::<AgentProgress>(8);
+    let (tx, mut rx) = mpsc::channel::<AgentEvent>(8);
     let (mut sink, _log) = recording_sink();
     drop(tx);
 
@@ -447,6 +471,6 @@ async fn a_closed_progress_channel_does_not_spin_the_loop() {
 
     assert_eq!(
         outcome,
-        Err("openhuman task idle for 10000ms (no events)".to_string())
+        Err("local task idle for 10000ms (no events)".to_string())
     );
 }
