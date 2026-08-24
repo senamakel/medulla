@@ -416,3 +416,95 @@ async fn run_login_flow_opens_the_url_and_returns_the_token() {
     assert_eq!(token, "flow-jwt");
     assert!(opened.load(std::sync::atomic::Ordering::SeqCst));
 }
+
+/// Session-store tests. These exercise the read/state/clear half, which is pure
+/// file I/O over an injected env; [`super::store`] needs a backend and is
+/// covered by the client integration suite.
+mod session {
+    use std::collections::HashMap;
+
+    fn env_at(root: &std::path::Path) -> HashMap<String, String> {
+        let mut env = HashMap::new();
+        env.insert("MEDULLA_HOME".to_string(), root.display().to_string());
+        env.insert("MEDULLA_USER".to_string(), "acct-1".to_string());
+        env
+    }
+
+    fn write_session(env: &HashMap<String, String>, body: &str) {
+        let home = crate::home::medulla_home(env);
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(home.join("session.json"), body).unwrap();
+    }
+
+    #[test]
+    fn an_absent_store_reads_as_signed_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        assert_eq!(crate::auth::session_token(&env), None);
+        assert_eq!(crate::auth::state(&env), crate::auth::AuthState::default());
+    }
+
+    #[test]
+    fn a_stored_session_reports_its_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(
+            &env,
+            r#"{"token":"jwt-1","userId":"acct-1","baseUrl":"https://api.example"}"#,
+        );
+        assert_eq!(crate::auth::session_token(&env).as_deref(), Some("jwt-1"));
+        let state = crate::auth::state(&env);
+        assert!(state.is_authenticated);
+        assert_eq!(state.user_id.as_deref(), Some("acct-1"));
+    }
+
+    /// The only useful recovery from a corrupt store is to sign in again, so a
+    /// malformed file must read as signed out rather than fail the command that
+    /// touched it.
+    #[test]
+    fn a_malformed_store_reads_as_signed_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(&env, "{ not json");
+        assert_eq!(crate::auth::session_token(&env), None);
+        assert!(!crate::auth::state(&env).is_authenticated);
+    }
+
+    /// A record whose token is blank is signed out, not "authenticated with an
+    /// empty bearer" — that would send `Authorization: Bearer ` to the backend.
+    #[test]
+    fn a_blank_token_reads_as_signed_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(&env, r#"{"token":"   ","userId":"acct-1","baseUrl":""}"#);
+        assert_eq!(crate::auth::session_token(&env), None);
+        assert!(!crate::auth::state(&env).is_authenticated);
+    }
+
+    #[test]
+    fn clearing_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(&env, r#"{"token":"jwt-1","userId":"acct-1","baseUrl":""}"#);
+        assert!(crate::auth::clear(&env).is_some());
+        assert!(crate::auth::clear(&env).is_none());
+        assert_eq!(crate::auth::session_token(&env), None);
+    }
+
+    /// The token is a bearer credential, so the file it lands in must not be
+    /// readable by other accounts on the machine.
+    #[cfg(unix)]
+    #[test]
+    fn the_store_is_written_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        let home = crate::home::medulla_home(&env);
+        std::fs::create_dir_all(&home).unwrap();
+        let path = home.join("session.json");
+        super::super::session::write_private(&path, b"{}").unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "session file is {mode:o}");
+    }
+}

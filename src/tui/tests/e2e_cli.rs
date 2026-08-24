@@ -82,11 +82,11 @@ fn version_help_and_sessions_are_available_without_a_tty() {
 }
 
 #[test]
-fn logout_sweeps_a_retired_credential_file() {
-    // The session itself lives in the embedded core, which this offline test
-    // has no way to seed. What it can pin is the migration half: a JWT left by
-    // a pre-cutover install is read by nothing, so logging out is the last
-    // chance anything has to remove it.
+fn logout_clears_the_session_and_leaves_a_legacy_credential_alone() {
+    // Logout no longer sweeps. A pre-cutover `credentials.json` holds a token
+    // for the same deployment the store now serves, so it is something to adopt
+    // at the next `login`, not something to delete — deleting it would sign the
+    // operator out of an install that was signed in before the store moved.
     let dir = TempDir::new().unwrap();
     // Inside the account directory, where a pre-cutover install's file would be
     // read from: `MEDULLA_HOME` names the root that holds accounts.
@@ -98,6 +98,12 @@ fn logout_sweeps_a_retired_credential_file() {
         r#"{"baseUrl":"http://example","jwt":"secret"}"#,
     )
     .unwrap();
+    let session = account_home.join("session.json");
+    std::fs::write(
+        &session,
+        r#"{"token":"jwt-1","userId":"local","baseUrl":"http://example"}"#,
+    )
+    .unwrap();
 
     let output = run(&["logout"], dir.path(), dir.path());
 
@@ -106,10 +112,27 @@ fn logout_sweeps_a_retired_credential_file() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(!credentials.exists(), "the retired file is gone");
+    assert!(!session.exists(), "the session store is cleared");
+    assert!(
+        credentials.exists(),
+        "the legacy credential is left to adopt"
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Logged out"), "{stdout}");
-    assert!(stdout.contains("retired credential file"), "{stdout}");
+}
+
+/// Logging out when already signed out succeeds, so an operator unsure of their
+/// state can always run it.
+#[test]
+fn logout_is_idempotent_when_signed_out() {
+    let dir = TempDir::new().unwrap();
+    let output = run(&["logout"], dir.path(), dir.path());
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Logged out"));
 }
 
 #[test]

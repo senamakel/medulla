@@ -23,20 +23,19 @@ use crate::client::{
 };
 
 impl OpenHumanRuntime {
-    /// Build a backend client from the configured URL and the core's session.
+    /// Build a backend client from the configured URL and the stored session.
     ///
     /// `Ok(None)` means this host has no board to talk to — unconfigured, or
     /// signed out. Callers decide whether that is an empty surface or an error.
     async fn feedback_client(
-        core: Arc<Core>,
+        _core: Arc<Core>,
         base_url: Option<String>,
     ) -> anyhow::Result<Option<MedullaClient>> {
         let Some(base_url) = base_url else {
             return Ok(None);
         };
-        let jwt = crate::core_host::auth::session_token(&core)
-            .await
-            .map_err(|e| anyhow::anyhow!("could not read the stored session: {e}"))?;
+        let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+        let jwt = crate::auth::session_token(&env);
         Ok(jwt.map(|jwt| MedullaClient::new(base_url, jwt)))
     }
 

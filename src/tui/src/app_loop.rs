@@ -58,20 +58,18 @@ async fn core_runtime(
 /// the URL it resolved. A failed read degrades to signed out: the surfaces that
 /// take this simply go without a backend, which is exactly what they do for a
 /// signed-out host.
-async fn session_of(
-    core: &medulla::core_host::EmbeddedCore,
+fn session_of(
+    env: &std::collections::HashMap<String, String>,
     base_url: &str,
 ) -> (
     Option<medulla::auth::Credentials>,
-    Option<medulla::core_host::auth::AuthState>,
+    Option<medulla::auth::AuthState>,
 ) {
-    // A failed read is indistinguishable from signed out for every consumer, and
-    // this runs before the terminal guard is up — printing here would land on
-    // the screen the login flow is about to take over.
-    let jwt = medulla::core_host::auth::session_token(core)
-        .await
-        .unwrap_or_default();
-    let account = medulla::core_host::auth::state(core).await.ok();
+    // An absent or unreadable store is indistinguishable from signed out for
+    // every consumer, and this runs before the terminal guard is up — reporting
+    // here would land on the screen the login flow is about to take over.
+    let jwt = medulla::auth::session_token(env);
+    let account = Some(medulla::auth::state(env));
     let session = jwt.map(|jwt| medulla::auth::Credentials {
         base_url: base_url.to_string(),
         jwt,
@@ -190,7 +188,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // here rather than looking it up again, so
     // no two surfaces can disagree about whether this process is signed in.
     let mut session: Option<medulla::auth::Credentials> = None;
-    let mut account: Option<medulla::core_host::auth::AuthState> = None;
+    let mut account: Option<medulla::auth::AuthState> = None;
 
     // Shared hub roster slot: filled after the hub connects, read by the
     // runtime's worker surface so the Workers tab manages the hub's host-link
@@ -272,18 +270,19 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     if runtime.is_none() {
         match medulla::core_host::boot_with_hooks(&loaded.config.hooks).await {
             Ok(core) => {
-                // A token from the sign-in gate above: the core now exists, and
-                // it was booted against the home the gate chose, so this is the
-                // first moment the session can be stored where it belongs.
+                // A token from the sign-in gate above. The gate has already
+                // chosen the home, so this is the first moment the session can
+                // be stored where it belongs.
                 if let Some(jwt) = pending_jwt.take() {
-                    if let Err(e) = medulla::core_host::auth::store_session(&core, &jwt).await {
-                        anyhow::bail!("signed in, but the core rejected the session: {e}");
+                    if let Err(e) =
+                        medulla::auth::store(&env, &loaded.config.backend.base_url, &jwt).await
+                    {
+                        anyhow::bail!("signed in, but the session could not be stored: {e}");
                     }
                 }
                 match medulla::core_host::probe_medulla(&core).await {
                     medulla::core_host::Readiness::Ready => {
-                        (session, account) =
-                            session_of(&core, &loaded.config.backend.base_url).await;
+                        (session, account) = session_of(&env, &loaded.config.backend.base_url);
                         let core = Arc::new(core);
                         // Donated before anything else can want one. A workflow
                         // `agent` node that names `harness: openhuman` runs
@@ -350,9 +349,10 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         // install with an account whose session went missing is signing in
         // against an already-booted core, which is exactly what that is. Signing
         // in as somebody else stores nothing here — the account check runs
-        // before the write, and the core validates the JWT before persisting it,
-        // so a rejected token fails here rather than after startup.
-        match relogin(&mut terminal, &core, &env, &base_url).await {
+        // before the write, and the store validates the JWT against `/auth/me`
+        // before persisting it, so a rejected token fails here rather than
+        // after startup.
+        match relogin(&mut terminal, &env, &base_url).await {
             Ok(SignIn::Quit) => {
                 drop(guard);
                 return Ok(());
@@ -372,8 +372,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             Ok(SignIn::SameAccount) => {
                 match medulla::core_host::probe_medulla(&core).await {
                     medulla::core_host::Readiness::Ready => {
-                        (session, account) =
-                            session_of(&core, &loaded.config.backend.base_url).await;
+                        (session, account) = session_of(&env, &loaded.config.backend.base_url);
                         let core = Arc::new(core);
                         // Donated before anything else can want one. A workflow
                         // `agent` node that names `harness: openhuman` runs
@@ -739,12 +738,11 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 // live conversation on would silently inherit that daemon's
                 // harness session and context.
                 crate::event_loop::clear_copilot_hosts();
-                // Only the embedded core can be signed back in; every other
-                // runtime reports that it holds no session, so its logout never
-                // succeeds and this arm is unreachable for it.
+                // Only a runtime that actually holds a session reaches here:
+                // every other one reports that it holds none, so its logout
+                // never succeeds and this arm is unreachable for it.
                 if let Some(core) = core_arc.clone() {
-                    match relogin(&mut terminal, &core, &env, &loaded.config.backend.base_url).await
-                    {
+                    match relogin(&mut terminal, &env, &loaded.config.backend.base_url).await {
                         // Signing in as a different account re-homes the
                         // install, and this process cannot follow: its config,
                         // logs, workflow store, and the core's own workspace all
@@ -756,7 +754,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                             break Ok(());
                         }
                         Ok(SignIn::SameAccount) => {
-                            (_, account) = session_of(&core, &loaded.config.backend.base_url).await;
+                            (_, account) = session_of(&env, &loaded.config.backend.base_url);
                             runtime = core_runtime(
                                 core,
                                 hub_slot.clone(),

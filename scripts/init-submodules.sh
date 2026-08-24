@@ -31,7 +31,17 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# The embedded OpenHuman core.
+# The engines this workspace links directly. Both are self-contained: neither
+# declares a path or git dependency, and neither carries code submodules of its
+# own (tinyagents has only a `wiki`, which nothing builds). Keep them in lockstep
+# with the root `[patch.crates-io]` table.
+git submodule update --init --depth 1 \
+  vendor/tinyagents \
+  vendor/tinyflows \
+  vendor/tinyhumans-sdk
+
+# The embedded OpenHuman core, on its way out. Everything below this line goes
+# with it; see docs/vendoring.md.
 git submodule update --init --depth 1 vendor/openhuman
 
 # Its vendored crates and direct path dependencies. The crates patched by the

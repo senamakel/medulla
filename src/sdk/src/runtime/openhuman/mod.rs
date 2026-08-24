@@ -573,12 +573,12 @@ impl Runtime for OpenHumanRuntime {
     }
 
     fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
-        let core = Arc::clone(&self.core);
-        // Through the core, not a file: it owns the keychain entry as well as
-        // the profile on disk, so anything less leaves the real credential in
-        // place and the next start signed in again.
+        // The session store is the only place a credential lives, so removing
+        // its file is the complete logout — there is no keychain entry or
+        // profile beside it that a next start could read back.
         Box::pin(async move {
-            crate::core_host::auth::clear_session(&core).await?;
+            let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+            crate::auth::clear(&env);
             Ok(())
         })
     }

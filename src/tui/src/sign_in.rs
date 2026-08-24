@@ -7,10 +7,10 @@
 //! # The ordering that matters
 //!
 //! Medulla scopes everything to `<root>/<account>` (see [`medulla::home`]), and
-//! the embedded core's credential store lives inside one of those directories.
+//! the session store lives inside one of those directories.
 //! So a token can only be stored once its account is known to match the home the
-//! core was booted against — which means asking the *backend* who it belongs to,
-//! since the core can only answer that after the store being guarded.
+//! home this process resolved — which means asking the *backend* who it belongs
+//! to, since the store itself can only answer that after the write being guarded.
 
 use std::io;
 
@@ -41,44 +41,42 @@ pub(crate) enum SignIn {
     SwitchedAccount(Option<String>),
 }
 
-/// Run the login screen again for an already-booted core, and store the session
+/// Run the login screen again for a running app, and store the session
 /// only if it belongs to the account this process is running as.
 ///
-/// A core that rejects the freshly verified token is an error rather than a
+/// A backend that rejects the freshly verified token is an error rather than a
 /// silent return to the screen: the token passed `/auth/me`, so a refusal here
-/// means the core and the login flow disagree about which deployment they are
+/// means the store and the login flow disagree about which deployment they are
 /// talking to, and looping would just ask for the same token again.
 pub(crate) async fn relogin(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    core: &medulla::core_host::EmbeddedCore,
     env: &std::collections::HashMap<String, String>,
     base_url: &str,
 ) -> anyhow::Result<SignIn> {
     match run_login_screen(terminal, base_url.to_string()).await? {
         LoginOutcome::Quit => Ok(SignIn::Quit),
-        LoginOutcome::Token(jwt) => store_if_same_account(core, env, base_url, &jwt).await,
+        LoginOutcome::Token(jwt) => store_if_same_account(env, base_url, &jwt).await,
     }
 }
 
-/// Hand a freshly verified token to the core — but only when it belongs to the
-/// account whose home this core was booted against.
+/// Persist a freshly verified token — but only when it belongs to the account
+/// whose home this process resolved.
 ///
-/// The identity check has to come *before* the store, not after. This core's
+/// The identity check has to come *before* the store, not after. This
 /// credential store lives inside one account's home, so storing first would
 /// write account B's bearer token into account A's directory: the operator ends
 /// up with a session they cannot reach (B's home has none) and a credential in a
 /// directory that is not theirs. Nothing is stored on a switch — the marker
 /// moves, the app stops, and the next launch signs in against B's own home.
 ///
-/// The id comes from `/auth/me` rather than from the core's auth state because
-/// the core can only answer that question *after* the store this guards.
+/// The id comes from `/auth/me` rather than from the stored state because the
+/// store can only answer that question *after* the write this guards.
 ///
 /// # Errors
 ///
-/// The backend cannot say whose token this is, or the core rejects a session
+/// The backend cannot say whose token this is, or it rejects the session
 /// that does belong to this account.
 async fn store_if_same_account(
-    core: &medulla::core_host::EmbeddedCore,
     env: &std::collections::HashMap<String, String>,
     base_url: &str,
     jwt: &str,
@@ -128,9 +126,9 @@ async fn store_if_same_account(
         Disposition::Store => {}
     }
 
-    medulla::core_host::auth::store_session(core, jwt)
+    medulla::auth::store(env, base_url, jwt)
         .await
-        .map_err(|e| anyhow::anyhow!("signed in, but the core rejected the session: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("signed in, but the session could not be stored: {e}"))?;
     Ok(SignIn::SameAccount)
 }
 
@@ -146,7 +144,7 @@ pub(crate) fn account_is_active(env: &std::collections::HashMap<String, String>)
 /// Run the login screen for an install with no account yet, and record the
 /// account it produces.
 ///
-/// Returns the verified JWT — the caller hands it to the core once that core has
+/// Returns the verified JWT — the caller stores it once the account marker has
 /// been booted against the now-known account's home — or `None` when the
 /// operator quit the screen.
 ///
@@ -174,14 +172,14 @@ pub(crate) async fn sign_in_first_account(
         LoginOutcome::Token(jwt) => jwt,
     };
 
-    // Ask the backend who this is. The core cannot answer it — its auth state
+    // Ask the backend who this is. The store cannot answer it — its state
     // lives inside the directory this id chooses — and the token has to be
     // verified before it is trusted with a directory name either way.
     let me = medulla::client::MedullaClient::new(base_url.to_string(), jwt.clone())
         .me()
         .await
         .map_err(|e| anyhow::anyhow!("signed in, but the account could not be read: {e}"))?;
-    // A refusal stops startup before the core is booted against a home that is
+    // A refusal stops startup before the app is pointed at a home that is
     // not this account's — the caller stores the token into it a moment later.
     crate::commands::adopt_account(env, &me, base_url)
         .map_err(|why| anyhow::anyhow!("signed in, but {why}"))?;
@@ -195,7 +193,7 @@ pub(crate) async fn sign_in_first_account(
 /// home said which one it belongs to: the `backend.baseUrl` that drove the login
 /// came from the *pre-login* home, which the account home does not inherit. A
 /// staging or self-hosted operator would sign in successfully and then have the
-/// core bound to the production default, which rejects the token they just
+/// app bound to the production default, which rejects the token they just
 /// minted.
 ///
 /// Keyed on the setting, not the file: an account whose config holds a theme and
@@ -284,7 +282,7 @@ fn declared_backend_base_url(path: &std::path::Path) -> Option<String> {
 /// Split out as a pure function because these are the rules that decide whether
 /// one account's bearer token can land in another account's credential store,
 /// and every bug in this PR's review has been in them. Deciding without a
-/// network call or a booted core means each rule is covered by a test rather
+/// network call means each rule is covered by a test rather
 /// than by an integration path that is awkward to provoke.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Disposition {

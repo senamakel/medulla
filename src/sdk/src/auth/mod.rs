@@ -19,21 +19,25 @@
 //!
 //! # Where the session is kept
 //!
-//! Nowhere in this module. This produces a verified JWT; the embedded OpenHuman
-//! core stores it (`crate::core_host::auth`) and every reader takes it from
-//! there. There used to be a second, Medulla-owned credential file beside the
-//! core's own store, which meant two answers to "am I signed in?" — `medulla
-//! login` could succeed while the core, whose session actually drives the
-//! runtime, stayed signed out.
+//! In [`session`], under the account-scoped Medulla home. Both flows above end
+//! at a verified JWT; `session::store` checks it against `/auth/me` once more
+//! and writes it, and every reader takes it from there.
 //!
-//! Split by responsibility: `types` holds the plain data model, `migrate`
-//! the sweep of the retired credential files, `url` the
-//! pure URL/query helpers, `token` backend bearer-token resolution, and
-//! `loopback` the socket-bound OAuth flow and browser opener. All public items
-//! are re-exported here so callers use `medulla::auth::*`.
+//! This module used to defer that to the embedded OpenHuman core, because two
+//! stores meant two answers to "am I signed in?" — `medulla login` could succeed
+//! while the core, whose session drove the runtime, stayed signed out. The core
+//! is gone; owning the store satisfies the same invariant directly.
+//!
+//! Split by responsibility: `types` holds the plain data model, `session` the
+//! store and its `AuthState` projection, `migrate` the adoption of credential
+//! files written before the store moved, `url` the pure URL/query helpers,
+//! `token` backend bearer-token resolution, and `loopback` the socket-bound
+//! OAuth flow and browser opener. All public items are re-exported here so
+//! callers use `medulla::auth::*`.
 
 mod loopback;
 mod migrate;
+mod session;
 mod token;
 mod types;
 mod url;
@@ -42,7 +46,8 @@ mod url;
 mod tests;
 
 pub use loopback::{open_browser, run_login_flow, start_loopback, LoopbackListener};
-pub use migrate::remove_retired_credentials;
+pub use migrate::{adopt_legacy_credentials, discard_legacy_credential, LegacyCredential};
+pub use session::{clear, read, state, store, token as session_token, AuthState, StoredSession};
 pub use token::{is_one_time_login_token, resolve_backend_token};
 pub use types::{Credentials, LoginError, LoopbackConfig, Provider, DEFAULT_LOGIN_TIMEOUT};
 pub use url::{
