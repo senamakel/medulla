@@ -19,9 +19,6 @@
 use std::process::Stdio;
 use std::sync::Arc;
 
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
-
 use tokio::io::AsyncReadExt;
 
 use serde_json::{json, Value};
