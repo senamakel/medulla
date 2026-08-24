@@ -264,8 +264,14 @@ jobs:
       - name: Check
         run: cargo check --locked --all-targets
 
+      # 40, not 20: this step compiles as well as runs, and on a cold sccache
+      # (0% hit rate after any Cargo.lock change — a release bump does it) the
+      # Windows compile alone eats most of a 20-minute budget. It has been
+      # killed at 20 with tests still streaming results seconds earlier, which
+      # reads as a hang rather than as a step that needed four more minutes.
+      # The job cap stays 60, so a genuine hang is still bounded.
       - name: Test (lib)
-        timeout-minutes: 20
+        timeout-minutes: 40
         run: cargo test --locked --lib
 
       # Surfaces a regression that is otherwise invisible: if the hit rate goes
