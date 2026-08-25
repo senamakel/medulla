@@ -285,12 +285,25 @@ pub fn write_private(path: &Path, body: &[u8]) -> std::io::Result<()> {
 /// rejects is left alone, and its file is removed only once the new store holds
 /// a working session.
 ///
-/// A no-op when a session is already stored — the fresh one wins, and the stale
-/// file is swept rather than re-verified.
+/// A no-op when this host is already authenticated — the existing credential
+/// wins, and the stale file is swept rather than re-verified.
+///
+/// "Already authenticated" means the whole precedence chain, not just the store.
+/// An inline `backend.token` or a `backend.tokenEnv` variable outranks the
+/// session, so adopting under one would store a credential the runtime is never
+/// going to present — and `store` moves the active-account marker, so a legacy
+/// token belonging to a different account would re-home the install while the
+/// runtime kept authenticating as somebody else. The account shown in the UI and
+/// the identity on the wire would disagree, which is worse than not adopting.
 ///
 /// Returns the paths actually removed, so a caller can say what it did.
-pub async fn adopt_legacy(env: &HashMap<String, String>, base_url: &str) -> Vec<PathBuf> {
-    let already_signed_in = token(env).is_some();
+pub async fn adopt_legacy(
+    env: &HashMap<String, String>,
+    backend: &crate::config::BackendConfig,
+) -> Vec<PathBuf> {
+    let base_url = backend.base_url.as_str();
+    let already_signed_in =
+        crate::auth::resolve_backend_token(env, backend, token(env).as_deref()).is_some();
     let home = crate::home::medulla_home(env);
     let mut removed = Vec::new();
 

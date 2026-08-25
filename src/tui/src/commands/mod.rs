@@ -103,7 +103,7 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     medulla::auth::store(&env, &base_url, &jwt)
         .await
         .map_err(|e| anyhow::anyhow!("could not store the session: {e}"))?;
-    adopt_legacy_credentials(&env, &base_url).await;
+    adopt_legacy_credentials(&env, &loaded.config.backend).await;
     println!("Signed in to {base_url}.");
     Ok(())
 }
@@ -311,8 +311,11 @@ pub(crate) async fn run_logout() -> anyhow::Result<()> {
 }
 
 /// Adopt any credential a pre-cutover install left behind, and say so.
-async fn adopt_legacy_credentials(env: &std::collections::HashMap<String, String>, base_url: &str) {
-    for path in medulla::auth::adopt_legacy(env, base_url).await {
+async fn adopt_legacy_credentials(
+    env: &std::collections::HashMap<String, String>,
+    backend: &medulla::config::BackendConfig,
+) {
+    for path in medulla::auth::adopt_legacy(env, backend).await {
         println!("Removed a retired credential file at {}.", path.display());
     }
 }

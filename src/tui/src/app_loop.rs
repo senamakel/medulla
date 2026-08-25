@@ -270,7 +270,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         // because this runs before the terminal guard and a line printed now
         // lands on the screen the UI is about to take over. `medulla login`
         // says so on its own path, where there is a terminal to say it to.
-        let _ = medulla::auth::adopt_legacy(&env, &loaded.config.backend.base_url).await;
+        let _ = medulla::auth::adopt_legacy(&env, &loaded.config.backend).await;
         match medulla::runtime::cloud::connect::readiness(&env, &loaded.config.backend) {
             medulla::runtime::cloud::connect::Readiness::Ready => {
                 let client = Arc::new(
