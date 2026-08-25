@@ -108,3 +108,100 @@ fn a_transient_failure_is_not_a_credential_problem() {
     assert!(!is_unauthorized(&ClientError::Decode("bad json".into())));
     assert!(!is_unauthorized(&ClientError::Sse("dropped".into())));
 }
+
+/// The stored session is scoped to the deployment that issued it.
+///
+/// `backend.baseUrl` is layered config and the layers include
+/// `<cwd>/.medulla/config.toml`, so without this a hostile checkout could aim
+/// the account's bearer at a host of its choosing simply by being the directory
+/// Medulla was launched in.
+mod session_scope {
+    use std::collections::HashMap;
+
+    use super::super::{same_origin, session_for};
+    use crate::config::BackendConfig;
+
+    fn env_with_session(root: &std::path::Path, issuer: &str) -> HashMap<String, String> {
+        let mut env = HashMap::new();
+        env.insert("MEDULLA_HOME".to_string(), root.display().to_string());
+        env.insert("MEDULLA_USER".to_string(), "acct-1".to_string());
+        let home = crate::home::medulla_home(&env);
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(
+            home.join("session.json"),
+            serde_json::json!({
+                "token": "production-bearer",
+                "userId": "acct-1",
+                "baseUrl": issuer,
+            })
+            .to_string(),
+        )
+        .unwrap();
+        env
+    }
+
+    fn backend(base_url: &str) -> BackendConfig {
+        BackendConfig {
+            base_url: base_url.to_string(),
+            ..BackendConfig::default()
+        }
+    }
+
+    #[test]
+    fn the_session_is_used_for_the_deployment_that_issued_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_with_session(dir.path(), "https://api.tinyhumans.ai");
+        assert_eq!(
+            session_for(&env, &backend("https://api.tinyhumans.ai")).as_deref(),
+            Some("production-bearer")
+        );
+    }
+
+    /// The attack this exists to stop.
+    #[test]
+    fn the_session_is_withheld_from_a_repository_selected_backend() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_with_session(dir.path(), "https://api.tinyhumans.ai");
+        assert_eq!(
+            session_for(&env, &backend("https://attacker.example")),
+            None,
+            "a checkout-supplied backend must not receive the account's bearer"
+        );
+    }
+
+    /// The spelling differences that are not differences — the reason the
+    /// original code recorded the issuer and then refused to compare it.
+    #[test]
+    fn spelling_variations_of_one_origin_still_match() {
+        for (a, b) in [
+            ("https://api.example", "https://api.example/"),
+            ("https://API.Example", "https://api.example"),
+            ("https://api.example:443", "https://api.example"),
+            ("http://api.example:80", "http://api.example"),
+            ("https://api.example/v1", "https://api.example"),
+        ] {
+            assert!(same_origin(a, b), "{a} and {b} are one deployment");
+        }
+    }
+
+    #[test]
+    fn genuinely_different_origins_do_not_match() {
+        for (a, b) in [
+            ("https://api.example", "https://api.evil"),
+            ("https://api.example", "http://api.example"),
+            ("https://api.example", "https://api.example:8443"),
+            ("https://api.example", "https://sub.api.example"),
+        ] {
+            assert!(!same_origin(a, b), "{a} and {b} are different deployments");
+        }
+    }
+
+    /// A record written before the issuer was tracked matches nothing, so it is
+    /// sent nowhere — the safe direction, at the cost of one re-login.
+    #[test]
+    fn a_record_with_no_issuer_is_never_sent() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_with_session(dir.path(), "");
+        assert_eq!(session_for(&env, &backend("https://api.example")), None);
+    }
+}

@@ -50,9 +50,79 @@ pub fn client_from_config(
     if base_url.is_empty() {
         return None;
     }
-    let session = crate::auth::session_token(env);
+    let session = session_for(env, backend);
     let token = crate::auth::resolve_backend_token(env, backend, session.as_deref())?;
     Some(MedullaClient::new(base_url.to_string(), token))
+}
+
+/// The stored session, but only for the deployment that issued it.
+///
+/// # Why the issuer is checked here and nowhere else
+///
+/// `backend.baseUrl` is layered config, and the layers include
+/// `<cwd>/.medulla/config.toml` and `<cwd>/medulla.toml` — files that come from
+/// whatever repository the operator happens to be standing in. Handing the
+/// account's stored bearer to whatever URL those name means launching Medulla
+/// inside a hostile checkout discloses a production JWT to a host of the
+/// attacker's choosing.
+///
+/// An inline `backend.token` or a `backend.tokenEnv` value is *not* filtered:
+/// the operator put it there for this configuration, and it is theirs to aim.
+/// The stored session is different — it was obtained for one deployment, and
+/// nobody asked for it to be sent anywhere else.
+///
+/// [`StoredSession::base_url`](crate::auth::StoredSession) exists precisely for
+/// this and was documented as "recorded for diagnostics, deliberately not
+/// matched" — the reasoning being that an exact comparison rejected good tokens
+/// over a trailing slash. That reasoning was about *spelling*, so the fix is a
+/// normalized comparison rather than no comparison.
+fn session_for(env: &HashMap<String, String>, backend: &BackendConfig) -> Option<String> {
+    let stored = crate::auth::read(env)?;
+    same_origin(&stored.base_url, &backend.base_url).then_some(stored.token)
+}
+
+/// Whether two backend URLs address the same deployment.
+///
+/// Compares scheme, host and port with the spelling differences that are not
+/// differences removed: case in the scheme and host, a trailing slash, and a
+/// port that is the scheme's default. Anything beyond the origin is ignored —
+/// a path or query does not make it a different deployment.
+///
+/// A stored record with no origin at all (written before this field carried
+/// one) does not match anything, so it is not sent anywhere. That is the safe
+/// direction: the operator signs in again and the record gains its issuer.
+fn same_origin(a: &str, b: &str) -> bool {
+    fn parts(url: &str) -> Option<(String, String, Option<u16>)> {
+        let url = url.trim().trim_end_matches('/');
+        let (scheme, rest) = url.split_once("://")?;
+        let scheme = scheme.to_ascii_lowercase();
+        // Authority only: everything from the first `/`, `?` or `#` is path.
+        let authority = rest
+            .split(['/', '?', '#'])
+            .next()
+            .filter(|a| !a.is_empty())?;
+        // Credentials in a URL are not part of its identity as a deployment.
+        let authority = authority.rsplit('@').next()?;
+        let (host, port) = match authority.rsplit_once(':') {
+            // A `:` inside brackets is IPv6, not a port separator.
+            Some((h, p)) if !h.ends_with(']') && p.chars().all(|c| c.is_ascii_digit()) => {
+                (h, p.parse::<u16>().ok())
+            }
+            _ => (authority, None),
+        };
+        let default = match scheme.as_str() {
+            "https" => Some(443),
+            "http" => Some(80),
+            _ => None,
+        };
+        let port = port.filter(|p| Some(*p) != default);
+        Some((scheme, host.to_ascii_lowercase(), port))
+    }
+    match (parts(a), parts(b)) {
+        (Some(a), Some(b)) => a == b,
+        // An unparseable or absent origin matches nothing.
+        _ => false,
+    }
 }
 
 /// Classify what this host can do with the configured backend, without a call.
@@ -108,9 +178,14 @@ pub fn external_credential_source(
     if backend.token.is_some() {
         return Some("`backend.token` in the config".to_string());
     }
+    // The same emptiness rule `resolve_backend_token` applies, which rejects
+    // only `""`. Trimming here instead meant a whitespace-only variable was
+    // *selected* as the bearer and *not* reported as an external source — so a
+    // rejected probe opened the login flow, stored a lower-precedence JWT, and
+    // rebuilt a client that picked the whitespace value again.
     let named = env
         .get(&backend.token_env)
-        .map(|v| !v.trim().is_empty())
+        .map(|v| !v.is_empty())
         .unwrap_or(false);
     named.then(|| format!("the `{}` environment variable", backend.token_env))
 }

@@ -109,6 +109,19 @@ pub struct CloudRuntime {
     /// Shared so the poll loop can advance it from its own task. Starts at
     /// `None`, which the backend reads as "replay from the beginning".
     cursor: Arc<tokio::sync::Mutex<Option<i64>>>,
+    /// Set by `new_session`, cleared by the next mint.
+    ///
+    /// `new_session` cannot clear the session slot synchronously — it is an
+    /// async mutex and the trait method is not async — so it spawned a task to
+    /// do it. A submit that ran before that task was scheduled read the *old*
+    /// id and filed the prompt into the previous backend conversation, under a
+    /// transcript the UI had already cleared.
+    ///
+    /// This flag is set before `new_session` returns, so the intent is
+    /// observable the moment it is expressed; `session_for` acts on it under
+    /// the lock it already takes. An atomic rather than more state in the slot,
+    /// because the point is to be readable without awaiting anything.
+    reset_session: Arc<std::sync::atomic::AtomicBool>,
     /// Consecutive failed polls, for [`stream_state`](Runtime::stream_state).
     ///
     /// An `AtomicUsize` rather than a lock: it is written from the poll task and
@@ -178,6 +191,7 @@ impl CloudRuntime {
             cell: Arc::new(SnapshotCell::new()),
             session: SessionSlot::default(),
             cursor: Arc::new(tokio::sync::Mutex::new(None)),
+            reset_session: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             poll_failures: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             hub,
             workspaces: Vec::new(),
@@ -226,8 +240,15 @@ impl CloudRuntime {
         client: &MedullaClient,
         slot: &SessionSlot,
         workspaces: &[std::path::PathBuf],
+        reset: &std::sync::atomic::AtomicBool,
     ) -> Result<String, ClientError> {
         let mut guard = slot.lock().await;
+        // Honour a `new_session` that has not had its task scheduled yet. Taken
+        // under the same lock the mint uses, so two concurrent submits cannot
+        // both see the reset and both mint.
+        if reset.swap(false, Ordering::AcqRel) {
+            *guard = None;
+        }
         if let Some(id) = guard.as_ref() {
             return Ok(id.clone());
         }
@@ -411,6 +432,7 @@ impl Runtime for CloudRuntime {
         let client = Arc::clone(&self.client);
         let session = self.session_handle();
         let workspaces = self.workspaces.clone();
+        let reset = Arc::clone(&self.reset_session);
         let cell = Arc::clone(&self.cell);
         // Draw the turn before anything is dialled. Everything below this line
         // is at least one round trip away — on the first turn of a session, two
@@ -421,7 +443,7 @@ impl Runtime for CloudRuntime {
             // Non-blocking: the reply arrives over the event stream, so the UI
             // can render progress instead of freezing until the turn finishes.
             let sent: anyhow::Result<()> = async {
-                let id = Self::session_for(&client, &session, &workspaces).await?;
+                let id = Self::session_for(&client, &session, &workspaces, &reset).await?;
                 client.send_message(&id, &input, false).await?;
                 Ok(())
             }
@@ -653,8 +675,14 @@ impl Runtime for CloudRuntime {
         // stale cursor would make the new session's opening events look already
         // seen — the same coupling `set_active_thread` maintains, in reverse.
         self.cell.switch_thread(String::new());
+        // Announced synchronously, before this returns: a submit racing the
+        // spawn below would otherwise read the previous id and file the prompt
+        // into the conversation the operator just left.
+        self.reset_session
+            .store(true, std::sync::atomic::Ordering::Release);
         // Clear rather than mint: the next submit mints one. Minting here would
-        // create a durable session the operator may never use.
+        // create a durable session the operator may never use. The task still
+        // runs, for the cursor and to settle the slot even if no submit follows.
         tokio::spawn(async move {
             *session.lock().await = None;
             *cursor.lock().await = None;
