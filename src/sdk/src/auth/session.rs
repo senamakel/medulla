@@ -120,6 +120,23 @@ pub async fn store(
                 .to_string(),
         )
     })?;
+
+    // Sanitized here, before anything is resolved or written, because the id is
+    // about to become a directory name. An id like `../other` is non-empty, so
+    // it passes the check above and then fails only at the marker write — after
+    // the session has already been written into whichever account was selected,
+    // replacing a valid one. `adopt_legacy` calls `store` directly, so that is
+    // reachable without a login.
+    //
+    // A previous version of this deferred the sanitize and called the fallback
+    // unreachable "because the conflict check already sanitized it". That check
+    // runs only when `MEDULLA_USER` is set, so with no override nothing had.
+    let account = crate::home::user::sanitize_account_id(&user_id).ok_or_else(|| {
+        LoginError::Backend(format!(
+            "the backend named account {user_id:?}, which cannot be used as a directory \
+             name, so there is no home to store the session under"
+        ))
+    })?;
     let root = crate::home::medulla_root(env);
 
     // `MEDULLA_USER` suppresses the account switch entirely. That variable is an explicit
@@ -141,14 +158,12 @@ pub async fn store(
     // would then authenticate as somebody else, with nothing on screen saying
     // so. Refuse instead, naming both sides.
     if let Some(pinned) = pinned {
-        let actual = user_id.as_str();
         let same = crate::home::user::sanitize_account_id(pinned)
-            .zip(crate::home::user::sanitize_account_id(actual))
-            .map(|(a, b)| a == b)
+            .map(|want| want == account)
             .unwrap_or(false);
         if !same {
             return Err(LoginError::Backend(format!(
-                "MEDULLA_USER pins account {pinned}, but this token belongs to {actual} — \
+                "MEDULLA_USER pins account {pinned}, but this token belongs to {user_id} — \
                  storing it would authenticate the pinned account as somebody else; \
                  unset MEDULLA_USER or sign in as {pinned}"
             )));
@@ -164,17 +179,13 @@ pub async fn store(
     //
     // So the session is written into its own account's home first, and the
     // marker is published only once that has succeeded.
-    let home = match Some(user_id.as_str()).filter(|_| pinned.is_none()) {
-        // Unreachable fallback in practice: the conflict check above already
-        // sanitized this id. Falling back to the resolved home rather than
-        // failing keeps a backend that answers with an unusable id from making
-        // the login impossible.
-        Some(id) => crate::home::user::sanitize_account_id(id)
-            .map(|safe| root.join(safe))
-            .unwrap_or_else(|| crate::home::medulla_home(env)),
-        // No id to switch to, or an operator override pinning the account: the
-        // resolved home is already the right one.
-        None => crate::home::medulla_home(env),
+    let home = if pinned.is_none() {
+        // Known safe: sanitized above, and its failure already returned.
+        root.join(&account)
+    } else {
+        // An operator override pins the account, so the resolved home is
+        // already the right one and the marker is not moving.
+        crate::home::medulla_home(env)
     };
     std::fs::create_dir_all(&home).map_err(LoginError::Io)?;
 

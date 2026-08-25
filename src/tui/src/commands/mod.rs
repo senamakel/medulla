@@ -118,6 +118,27 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     medulla::auth::store(&env, &base_url, &jwt)
         .await
         .map_err(|e| anyhow::anyhow!("could not store the session: {e}"))?;
+
+    // After the store, because the store is what publishes the account marker
+    // now. This asks the resolver the same question every later launch will —
+    // if it disagrees, the session is on disk but the next process would look
+    // somewhere else for it, and the operator should hear that from the command
+    // that just claimed success.
+    if let Some(account) = medulla::auth::user_id_from_me(&me) {
+        let expected = medulla::home::medulla_root(&env).join(
+            medulla::home::user::sanitize_account_id(&account).unwrap_or_else(|| account.clone()),
+        );
+        let effective = medulla::home::medulla_home(&env);
+        if effective != expected {
+            anyhow::bail!(
+                "signed in as {account}, but this process resolves its home to {} — unset {} \
+                 to use that account's own directory",
+                effective.display(),
+                medulla::home::user::MEDULLA_USER_ENV,
+            );
+        }
+    }
+
     adopt_legacy_credentials(&env, &loaded.config.backend).await;
     println!("Signed in to {base_url}.");
     Ok(())
@@ -239,6 +260,9 @@ pub(crate) fn adopt_account(
         .is_some_and(|v| !v.is_empty());
 
     let expected = root.join(&user_id);
+    // `root` is otherwise unused now that the marker write has moved to
+    // `auth::store`; `expected` is what the checks below and the seed need.
+    let _ = &root;
 
     // The override is checked before anything is written. A refused login must
     // leave no trace: seeding first would create the authenticated account's
@@ -252,31 +276,19 @@ pub(crate) fn adopt_account(
         ));
     }
 
-    // Describe the account before selecting it. The other order leaves a failed
-    // login with the marker already moved: the command reports failure, stores
-    // no session, and every later launch resolves to the account whose home
-    // could not be written — skipping the first-account flow that would fix it.
+    // Describe the account without selecting it. Seeding is safe to do early —
+    // it writes into the authenticated account's own directory — but the
+    // *marker* is not: publishing it here and storing the session afterwards
+    // means a failed store leaves the previous account's valid session hidden
+    // behind a marker naming an account that has none.
+    //
+    // So the marker write lives in `auth::store`, which publishes it only once
+    // the session it points at is durable. This function's job ends at "this
+    // account is safe to adopt, and its config exists".
     let notice = crate::sign_in::seed_account_backend(&expected, base_url)
         .map_err(|err| format!("this account's config could not be written ({err})"))?;
     if let Some(notice) = notice {
         eprintln!("{notice}");
-    }
-
-    if !overridden {
-        medulla::home::user::write_active_user_id(&root, &user_id)
-            .map_err(|err| format!("this account could not be recorded ({err})"))?;
-    }
-
-    // Final check that the resolver agrees, which is what every later launch
-    // will ask it.
-    let effective = medulla::home::medulla_home(env);
-    if effective != expected {
-        return Err(format!(
-            "signed in as {user_id}, but this process resolves its home to {} — unset \
-             {} to use that account's own directory",
-            effective.display(),
-            medulla::home::user::MEDULLA_USER_ENV,
-        ));
     }
     Ok(())
 }

@@ -64,16 +64,13 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // Skipped on `--mock`, which never touches a backend, and skipped once an
     // account is recorded: from then on the ordinary boot below finds the
     // session where that account's home keeps it.
-    // The token from a first sign-in, carried with the URL that issued it.
-    //
-    // Both halves are needed. `sign_in_first_account` verifies against the
-    // pre-login backend, and the account's own `config.toml` — loaded
-    // immediately after, and deliberately preserved by that flow — may name a
-    // different deployment. Storing against the *reloaded* URL then re-validates
-    // a staging token at production and fails startup with a token error,
-    // instead of storing it against its issuer and letting the
-    // deployment-mismatch notice do its job.
-    let mut pending_jwt: Option<(String, String)> = None;
+    // `sign_in_first_account` verifies against the pre-login backend, and the
+    // account's own `config.toml` — loaded immediately after, and deliberately
+    // preserved by that flow — may name a different deployment. So the token is
+    // stored against the URL that *issued* it rather than against the reloaded
+    // one, which would re-validate a staging token at production and fail
+    // startup with a token error instead of letting the deployment-mismatch
+    // notice do its job.
     // `account_is_active` reads the marker alone, which is not the same question
     // as "is this host authenticated". A clean host running on `MEDULLA_TOKEN`
     // has no marker and needs no login — and running one anyway is not merely
@@ -91,10 +88,21 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             // home to open and nothing to show, so this is a clean exit.
             None => return Ok(()),
             Some(jwt) => {
-                // The account's own config file is a different file from the one
-                // loaded a moment ago, and it is the one that wins from here on.
+                // Stored here, not deferred. `adopt_account` seeds the new
+                // account's config without selecting it — publishing the marker
+                // before a durable session would leave a failed store hiding the
+                // previous account's working one — so `auth::store` is what
+                // moves the marker, and the reload below has to come after it or
+                // it reads the *pre-login* account's config.
+                medulla::auth::store(&env, &issuer, &jwt)
+                    .await
+                    .map_err(|e| {
+                        anyhow::anyhow!("signed in, but the session could not be stored: {e}")
+                    })?;
+                // Now the marker names the authenticated account, so this
+                // resolves that account's own config file — the one that wins
+                // from here on.
                 loaded = load_config(args.config.as_deref(), &env, &cwd)?;
-                pending_jwt = Some((issuer, jwt));
             }
         }
     }
@@ -178,22 +186,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // and every drive method would otherwise return the same error behind a UI
     // that looks live. It takes the offline demo, exactly as `--mock` does.
     if runtime.is_none() {
-        // A token from the sign-in gate above. The gate has already chosen the
-        // home, so this is the first moment the session can be stored where it
-        // belongs.
-        if let Some((issuer, jwt)) = pending_jwt.take() {
-            // Against the issuer, not the reloaded config — see the binding above.
-            if let Err(e) = medulla::auth::store(&env, &issuer, &jwt).await {
-                anyhow::bail!("signed in, but the session could not be stored: {e}");
-            }
-        }
-        // Two checks, not one. `readiness` is offline and answers "is this host
-        // configured and does it hold a credential"; `probe` spends one round
-        // trip to ask whether the backend still accepts it. Only the second
-        // catches an expired or revoked token, and without it the TUI opens on a
-        // runtime whose every call 401s — which reads as a broken app rather
-        // than as "sign in again". The embedded core's `probe_medulla` was a
-        // live call for exactly this reason.
         // Before the readiness check, because it can change the answer: an
         // install that predates the store holds its bearer in a
         // `credentials.json` nothing reads any more, and would otherwise be sent
