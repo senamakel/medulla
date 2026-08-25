@@ -86,11 +86,26 @@ const MAX_OUTPUT_BYTES: usize = 16 * 1024;
 /// be suspended, and there is no branch to run. A `Drop` impl is the only hook
 /// that covers both, so the timeout path and an operator's abort clean up
 /// identically.
-struct GroupGuard(tokio::process::Child);
+struct GroupGuard {
+    child: tokio::process::Child,
+    /// The leader's pid, captured at spawn.
+    ///
+    /// Not read from the child at kill time. `Child::id()` answers `None` once
+    /// the child has been reaped, and the case that matters is exactly that: a
+    /// command like `long-build &` backgrounds a descendant that inherits the
+    /// pipes, the shell leader exits, `wait()` reaps it — and the drain futures
+    /// stay open on the descendant that is still running. Asking the reaped
+    /// child for its pid then yields nothing to signal, so the group survives
+    /// while the tool reports having killed it.
+    ///
+    /// The pid remains valid as a *group* id for as long as any member lives,
+    /// which is precisely the window this needs.
+    leader: Option<u32>,
+}
 
 impl Drop for GroupGuard {
     fn drop(&mut self) {
-        terminate_group(&mut self.0);
+        terminate_group(self.leader, &mut self.child);
     }
 }
 
@@ -105,13 +120,14 @@ impl Drop for GroupGuard {
 /// creating one at spawn — so this falls back to `start_kill`, which reaps the
 /// interpreter and leaves its descendants. Naming the gap rather than implying
 /// the platforms behave alike.
-fn terminate_group(child: &mut tokio::process::Child) {
+fn terminate_group(leader: Option<u32>, child: &mut tokio::process::Child) {
     #[cfg(unix)]
     {
-        if let Some(pid) = child.id() {
-            // SAFETY: `kill(2)` with a negative pid signals a process group. The
-            // pid comes from a child this call owns and has not yet reaped, so
-            // it cannot have been recycled onto an unrelated process.
+        if let Some(pid) = leader {
+            // SAFETY: `kill(2)` with a negative pid signals a process group.
+            // The pid was captured at spawn from a child this call owns; the
+            // group outlives the reaped leader, and the id cannot be recycled
+            // onto an unrelated group while any member of this one is alive.
             unsafe {
                 libc::kill(-(pid as i32), libc::SIGKILL);
             }
@@ -247,12 +263,16 @@ impl Tool<()> for ShellTool {
         // long after the tool reported a timeout.
         #[cfg(unix)]
         spawner.process_group(0);
-        let mut guard = GroupGuard(
-            spawner
-                .spawn()
-                .map_err(|e| TinyAgentsError::Tool(format!("could not start `{shell}`: {e}")))?,
-        );
-        let child = &mut guard.0;
+        let spawned = spawner
+            .spawn()
+            .map_err(|e| TinyAgentsError::Tool(format!("could not start `{shell}`: {e}")))?;
+        // Captured now, while the child is certainly unreaped.
+        let leader = spawned.id();
+        let mut guard = GroupGuard {
+            child: spawned,
+            leader,
+        };
+        let child = &mut guard.child;
 
         // Taken before the wait so both pipes can be drained concurrently with
         // it. Draining is not optional: a child that fills its stdout pipe

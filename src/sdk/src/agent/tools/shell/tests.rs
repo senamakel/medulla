@@ -162,6 +162,53 @@ async fn the_command_environment_is_the_supplied_one_not_this_process() {
     );
 }
 
+/// A backgrounded descendant keeps the drain futures open after the shell
+/// leader exits and is reaped. The timeout must still reach the group — asking
+/// the reaped child for its pid yields nothing, so the id has to come from
+/// spawn.
+///
+/// Asserted through the observable consequence: the tool times out (the pipes
+/// are still held) and the descendant is gone afterwards.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_backgrounded_descendant_is_killed_after_its_leader_is_reaped() {
+    let dir = tempfile::tempdir().unwrap();
+    let marker = dir.path().join("alive.pid");
+
+    // The leader exits immediately; the descendant inherits stdout and outlives
+    // it, recording its own pid so the test can check it afterwards.
+    let out = tool(&dir, 1)
+        .call(&(), call("sh -c 'echo $$ > alive.pid; sleep 30' & exit 0"))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        out.error.as_deref(),
+        Some("timeout"),
+        "the open pipes keep the call alive past the leader: {}",
+        out.content
+    );
+
+    let pid: i32 = std::fs::read_to_string(&marker)
+        .expect("the descendant recorded its pid")
+        .trim()
+        .parse()
+        .expect("a numeric pid");
+    // Polled, not probed once: SIGKILL is asynchronous, and `kill(pid, 0)`
+    // answers 0 for a zombie too — so the process is still "alive" by that test
+    // between the signal landing and whoever reparented it doing the reaping.
+    // A single check races that window and says the kill failed when it did not.
+    let mut alive = true;
+    for _ in 0..40 {
+        if unsafe { libc::kill(pid, 0) } != 0 {
+            alive = false;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    assert!(!alive, "the descendant survived the group kill (pid {pid})");
+}
+
 #[tokio::test]
 async fn a_missing_command_argument_is_refused() {
     let dir = tempfile::tempdir().unwrap();

@@ -105,11 +105,7 @@ pub async fn store(
     let user_id = crate::auth::user_id_from_me(&me);
     let root = crate::home::medulla_root(env);
 
-    // Publish the account *before* resolving its home: `medulla_home` reads the
-    // marker this writes, so the order is what puts the file under the account
-    // the token actually belongs to instead of the previously active one.
-    //
-    // Skipped entirely when `MEDULLA_USER` is set. That variable is an explicit
+    // `MEDULLA_USER` suppresses the account switch entirely. That variable is an explicit
     // operator override of which account this process runs as, and
     // `active_user_id` already gives it precedence over the marker — so writing
     // the marker here would not change where *this* process writes, but it would
@@ -141,10 +137,27 @@ pub async fn store(
         }
     }
 
-    if let Some(id) = user_id.as_deref().filter(|_| pinned.is_none()) {
-        crate::home::user::write_active_user_id(&root, id).map_err(LoginError::Io)?;
-    }
-    let home = crate::home::medulla_home(env);
+    // The account home this session belongs to, derived directly rather than
+    // through `medulla_home` — which reads the marker, and the marker has not
+    // moved yet. That ordering is the point: publishing first and writing after
+    // meant a failed write (a full disk, a read-only mount) left the marker
+    // pointing at a new, sessionless home while the previous account's working
+    // session sat untouched on disk. A *failed* login would hide a good one.
+    //
+    // So the session is written into its own account's home first, and the
+    // marker is published only once that has succeeded.
+    let home = match user_id.as_deref().filter(|_| pinned.is_none()) {
+        // Unreachable fallback in practice: the conflict check above already
+        // sanitized this id. Falling back to the resolved home rather than
+        // failing keeps a backend that answers with an unusable id from making
+        // the login impossible.
+        Some(id) => crate::home::user::sanitize_account_id(id)
+            .map(|safe| root.join(safe))
+            .unwrap_or_else(|| crate::home::medulla_home(env)),
+        // No id to switch to, or an operator override pinning the account: the
+        // resolved home is already the right one.
+        None => crate::home::medulla_home(env),
+    };
     std::fs::create_dir_all(&home).map_err(LoginError::Io)?;
 
     let record = StoredSession {
@@ -155,6 +168,13 @@ pub async fn store(
     let body = serde_json::to_vec_pretty(&record)
         .map_err(|e| LoginError::Backend(format!("could not encode session: {e}")))?;
     write_private(&location(&home), &body).map_err(LoginError::Io)?;
+
+    // Published last, now that the session it points at is durable. A failure
+    // above leaves the previous account selected and its session intact, which
+    // is the state an operator can retry from.
+    if let Some(id) = user_id.as_deref().filter(|_| pinned.is_none()) {
+        crate::home::user::write_active_user_id(&root, id).map_err(LoginError::Io)?;
+    }
 
     tracing::debug!("[auth] app session stored");
     Ok(AuthState {
