@@ -265,44 +265,55 @@ impl Tool<()> for ListDirTool {
             .await
             .map_err(|e| TinyAgentsError::Tool(format!("could not list {path}: {e}")))?;
 
-        // A bounded set rather than a Vec that is sorted and truncated after the
-        // fact. The cap has to bound the *work*, not just the answer: a cache or
-        // build directory with millions of entries would otherwise hold millions
-        // of Strings in the daemon before discarding all but 500 of them.
+        // The scan stops once truncation is established, not at end of directory.
+        // Bounding retained memory was half the fix: a generated or cache
+        // directory with millions of entries still cost millions of
+        // `next_entry()` calls before returning 500 names, so the cap bounded
+        // the answer and not the work.
         //
-        // `BTreeSet` keeps the retained names ordered as they arrive, so the
-        // largest can be dropped once the set is full — leaving exactly the
-        // lexicographically first `MAX_ENTRIES`, which is the same answer the
-        // sort-then-truncate produced.
-        let mut names: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-        let mut total = 0usize;
+        // The cost is the exact total, and with it some determinism. Reading
+        // everything and sorting returned the lexicographically first
+        // `MAX_ENTRIES` — stable across runs regardless of filesystem order.
+        // Stopping early returns the first `MAX_ENTRIES` in *readdir* order,
+        // which is filesystem-dependent, so which names come back from an
+        // oversized directory can differ between runs. Sorting still applies to
+        // what was read, so the listing itself is ordered either way.
+        //
+        // That trade is worth taking because the two cases that matter are not
+        // affected: a directory at or under the cap is read whole and is exactly
+        // as deterministic as before, and one far over it was never going to be
+        // usefully summarised by 500 arbitrary names anyway. What the model
+        // needs there is to know the listing is incomplete, which the notice
+        // says.
+        let mut names: Vec<String> = Vec::new();
+        let mut truncated = false;
         while let Some(entry) = entries
             .next_entry()
             .await
             .map_err(|e| TinyAgentsError::Tool(format!("could not list {path}: {e}")))?
         {
-            total += 1;
+            if names.len() == MAX_ENTRIES {
+                // One entry past the cap is what proves there are more; nothing
+                // beyond it is read.
+                truncated = true;
+                break;
+            }
             let name = entry.file_name().to_string_lossy().into_owned();
             let suffix = match entry.file_type().await {
                 Ok(t) if t.is_dir() => "/",
                 _ => "",
             };
-            names.insert(format!("{name}{suffix}"));
-            if names.len() > MAX_ENTRIES {
-                // Safe: the set is non-empty, having just been inserted into.
-                let last = names
-                    .iter()
-                    .next_back()
-                    .expect("the set has at least one entry")
-                    .clone();
-                names.remove(&last);
-            }
+            names.push(format!("{name}{suffix}"));
         }
-        let names: Vec<String> = names.into_iter().collect();
+        // Sorted so a directory read whole produces the same transcript twice;
+        // `read_dir` order is filesystem-dependent and not stable.
+        names.sort();
         let mut content = names.join("\n");
-        if total > MAX_ENTRIES {
+        if truncated {
+            // No exact total: establishing it is the scan this avoids. The
+            // model needs to know the listing is incomplete, not how incomplete.
             content.push_str(&format!(
-                "\n[truncated: showing {MAX_ENTRIES} of {total} entries]"
+                "\n[truncated: showing {MAX_ENTRIES} entries; more were omitted]"
             ));
         }
         Ok(ToolResult {
@@ -324,3 +335,6 @@ pub fn all(workspace: Workspace) -> Vec<Arc<dyn Tool<()>>> {
         Arc::new(ListDirTool::new(workspace)),
     ]
 }
+
+#[cfg(test)]
+mod tests;
