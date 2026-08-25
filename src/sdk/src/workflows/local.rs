@@ -169,23 +169,6 @@ impl LocalWorkflowHost {
     }
 }
 
-/// Point the embedded core at this host before it can boot lazily.
-///
-/// Every path in this module starts an embedded daemon that may dispatch an
-/// `agent` node to the embedded core, which boots on first use
-/// ([`crate::core_host::shared`]) and reads its environment during
-/// construction. The TUI and `medulla run` bind the core at startup; none of
-/// these do, so each binds what it knows before starting the host: the core's
-/// state directory derived from `MEDULLA_HOME`, and the agent's action
-/// directory from the workspace the run resolved to. A caller with the full
-/// layered config binds the backend URLs too — see
-/// [`crate::core_host::bind_from_config`].
-fn bind_core(env: &std::collections::HashMap<String, String>, workspace: &str) {
-    let home = crate::home::medulla_home(env);
-    crate::core_host::bind_workspace(env, &home);
-    crate::core_host::bind_action_dir(env, Some(std::path::Path::new(workspace)));
-}
-
 /// One local run, described before it starts.
 ///
 /// A struct rather than a parameter list because starting a run needs seven
@@ -404,12 +387,6 @@ impl LocalRun<'_> {
         }
         let (host_env, fleet_depth) = nested_harness_env(env).await?;
         settings.fleet_depth = fleet_depth;
-
-        // The embedded daemon below may dispatch a node to the embedded core,
-        // which boots lazily and reads its environment during construction.
-        // This path only holds the `workflows` section, not the full config, so
-        // it binds what it does know before the host starts.
-        bind_core(env, &workspace);
 
         let host = LocalWorkflowHost::start(
             EmbeddedDaemonOptions {
@@ -631,10 +608,6 @@ pub async fn author_here(
         "acp".to_string(),
     );
     crate::mcp::preflight(&env, cwd).map_err(crate::workflows::WorkflowError::Engine)?;
-    // An authoring turn may dispatch to the embedded core; bind it before the
-    // host starts so a lazy boot reads this account's state, not ambient
-    // `~/.openhuman`.
-    bind_core(&env, &cwd.to_string_lossy());
 
     let host = LocalWorkflowHost::start(
         EmbeddedDaemonOptions {
@@ -722,10 +695,6 @@ pub async fn evolve_here(
         "acp".to_string(),
     );
     crate::mcp::preflight(&env, cwd).map_err(crate::workflows::WorkflowError::Engine)?;
-    // A review may dispatch to the embedded core; bind it before the host
-    // starts so a lazy boot reads this account's state, not ambient
-    // `~/.openhuman`.
-    bind_core(&env, &cwd.to_string_lossy());
 
     let host = LocalWorkflowHost::start(
         EmbeddedDaemonOptions {

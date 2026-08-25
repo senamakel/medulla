@@ -142,15 +142,24 @@ fn openhuman_presets_are_accepted_so_the_embedded_core_can_be_given_a_model() {
 }
 
 #[test]
-fn an_openhuman_preset_needs_no_openrouter_key_to_be_usable() {
-    // The embedded core authenticates its own turns with the operator's
-    // account, so gating the preset on an OpenRouter key would hide a working
-    // preset on every machine that never set one.
+fn a_keyless_local_preset_is_not_advertised_as_usable() {
+    // This asserted the opposite while `openhuman` meant the embedded core,
+    // which authenticated its own turns as the signed-in account and so needed
+    // no key. The local harness is an ordinary chat-completions client: without
+    // an endpoint and a credential it cannot make a call, and advertising it
+    // anyway meant a task was delegated before anything noticed.
     let preset = CustomHarnessConfig::from_editor_line(
-        "oh | OpenHuman | openhuman | some/model | | this-device",
+        "oh | Local | openhuman | some/model | | this-device",
     )
     .unwrap();
-    assert!(preset.key_present(&HashMap::new()));
+    assert!(!preset.key_present(&HashMap::new()));
+
+    let mut env = HashMap::new();
+    env.insert("OPENROUTER_API_KEY".into(), "sk-or-test".into());
+    assert!(
+        preset.key_present(&env),
+        "with a key it is usable like any other preset"
+    );
 }
 
 #[test]

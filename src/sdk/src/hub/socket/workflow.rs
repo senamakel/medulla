@@ -11,9 +11,7 @@ use rust_socketio::asynchronous::Client;
 use rust_socketio::Payload;
 use serde_json::Value;
 
-use openhuman_core::openhuman::platform::socket::medulla::payloads::{
-    EVENT_REGISTER_WORKFLOWS, EVENT_WORKFLOW_RESULT,
-};
+use crate::hub::plane::payloads::{EVENT_REGISTER_WORKFLOWS, EVENT_WORKFLOW_RESULT};
 
 use super::super::types::HubLog;
 use super::super::workflows::{self, WorkflowPlane};

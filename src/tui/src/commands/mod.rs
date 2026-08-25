@@ -94,15 +94,52 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     // A refusal stops the login here, before a core is booted or a token
     // written: the alternative is storing this account's bearer in a directory
     // that belongs to somebody else.
+    // Before `adopt_account`, which moves the active-account marker. An inline
+    // `backend.token` or a `backend.tokenEnv` variable outranks the store, so a
+    // login under one writes a JWT nothing will present — and worse, re-homes
+    // the install to the pasted token's account while every client keeps
+    // authenticating as whoever the external token belongs to. The account on
+    // screen and the identity on the wire would disagree.
+    if let Some(source) =
+        medulla::runtime::cloud::connect::external_credential_source(&env, &loaded.config.backend)
+    {
+        anyhow::bail!(
+            "signed in, but {source} outranks the stored session — this shell would keep \
+             using that credential, so the login was not saved; remove it and sign in again"
+        );
+    }
+
     adopt_account(&env, &me, &base_url).map_err(|why| anyhow::anyhow!("signed in, but {why}"))?;
 
-    // Boot last: the flow above can take minutes of browser round-trip, and a
-    // core sitting open across it buys nothing.
-    let core = auth_core(&env, parsed.config.as_deref()).await?;
-    medulla::core_host::auth::store_session(&core, &jwt)
+    // Store last. `store` re-verifies the token against `/auth/me` before it
+    // writes, which is the same contract the core's `auth_store_session` had —
+    // the difference is that satisfying it no longer costs an OpenHuman core
+    // boot on a flow that has already spent minutes on a browser round-trip.
+    medulla::auth::store(&env, &base_url, &jwt)
         .await
-        .map_err(|e| anyhow::anyhow!("the core rejected the session: {e}"))?;
-    sweep_retired_credentials(&env);
+        .map_err(|e| anyhow::anyhow!("could not store the session: {e}"))?;
+
+    // After the store, because the store is what publishes the account marker
+    // now. This asks the resolver the same question every later launch will —
+    // if it disagrees, the session is on disk but the next process would look
+    // somewhere else for it, and the operator should hear that from the command
+    // that just claimed success.
+    if let Some(account) = medulla::auth::user_id_from_me(&me) {
+        let expected = medulla::home::medulla_root(&env).join(
+            medulla::home::user::sanitize_account_id(&account).unwrap_or_else(|| account.clone()),
+        );
+        let effective = medulla::home::medulla_home(&env);
+        if effective != expected {
+            anyhow::bail!(
+                "signed in as {account}, but this process resolves its home to {} — unset {} \
+                 to use that account's own directory",
+                effective.display(),
+                medulla::home::user::MEDULLA_USER_ENV,
+            );
+        }
+    }
+
+    adopt_legacy_credentials(&env, &loaded.config.backend).await;
     println!("Signed in to {base_url}.");
     Ok(())
 }
@@ -223,6 +260,9 @@ pub(crate) fn adopt_account(
         .is_some_and(|v| !v.is_empty());
 
     let expected = root.join(&user_id);
+    // `root` is otherwise unused now that the marker write has moved to
+    // `auth::store`; `expected` is what the checks below and the seed need.
+    let _ = &root;
 
     // The override is checked before anything is written. A refused login must
     // leave no trace: seeding first would create the authenticated account's
@@ -236,98 +276,93 @@ pub(crate) fn adopt_account(
         ));
     }
 
-    // Describe the account before selecting it. The other order leaves a failed
-    // login with the marker already moved: the command reports failure, stores
-    // no session, and every later launch resolves to the account whose home
-    // could not be written — skipping the first-account flow that would fix it.
+    // Describe the account without selecting it. Seeding is safe to do early —
+    // it writes into the authenticated account's own directory — but the
+    // *marker* is not: publishing it here and storing the session afterwards
+    // means a failed store leaves the previous account's valid session hidden
+    // behind a marker naming an account that has none.
+    //
+    // So the marker write lives in `auth::store`, which publishes it only once
+    // the session it points at is durable. This function's job ends at "this
+    // account is safe to adopt, and its config exists".
     let notice = crate::sign_in::seed_account_backend(&expected, base_url)
         .map_err(|err| format!("this account's config could not be written ({err})"))?;
     if let Some(notice) = notice {
         eprintln!("{notice}");
     }
-
-    if !overridden {
-        medulla::home::user::write_active_user_id(&root, &user_id)
-            .map_err(|err| format!("this account could not be recorded ({err})"))?;
-    }
-
-    // Final check that the resolver agrees, which is what every later launch
-    // will ask it.
-    let effective = medulla::home::medulla_home(env);
-    if effective != expected {
-        return Err(format!(
-            "signed in as {user_id}, but this process resolves its home to {} — unset \
-             {} to use that account's own directory",
-            effective.display(),
-            medulla::home::user::MEDULLA_USER_ENV,
-        ));
-    }
     Ok(())
 }
 
-/// Boot the minimal core the auth verbs need, with its workspace bound.
+/// The stored app session as a `(base_url, jwt)` pair, or `None` when signed out.
 ///
-/// Binding first is not optional: the core resolves its state directory from
-/// `OPENHUMAN_WORKSPACE`, and an unbound run would write the session into the
-/// developer's real `~/.openhuman` instead of the one this process's
-/// `MEDULLA_HOME` implies — so `medulla login` would sign in a workspace the TUI
-/// never reads.
-/// `config` is the operator's explicit `--config`, which stays authoritative
-/// here. Rediscovering config from the account home instead would defeat the
-/// flag exactly where it matters most: `medulla login --config staging.toml`
-/// verifies a token against the file's endpoint, and an account that already
-/// declares a different `backend.baseUrl` would then have the core validate that
-/// token against *its* endpoint and reject the login.
-async fn auth_core(
+/// The URL comes from the loaded config rather than from the stored record: the
+/// record's own `baseUrl` is diagnostic, and the config is what the rest of this
+/// process addresses. Nothing resolvable reads as signed out — every caller
+/// degrades to "no backend" rather than failing outright.
+fn session_credentials(
     env: &std::collections::HashMap<String, String>,
-    config: Option<&str>,
-) -> anyhow::Result<medulla::core_host::EmbeddedCore> {
-    let home = medulla::home::medulla_home(env);
-    medulla::core_host::bind_workspace(env, &home);
-    // The session must be stored against the backend this host is configured
-    // for, or `medulla login` signs into one deployment and the TUI probes
-    // another.
-    let loaded = load_config(config, env, &home)?;
-    medulla::core_host::bind_medulla_base_url(env, &loaded.config.backend.base_url);
-    // And the core's own backend client with it: storing a session validates it
-    // against `/auth/me` there, not on the Medulla base above.
-    medulla::core_host::bind_backend_api_url(env, &loaded.config.backend.base_url);
-    medulla::core_host::boot_for_auth()
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to start the embedded OpenHuman core: {e}"))
-}
-
-/// The core's app session as a `(base_url, jwt)` pair, or `None` when signed out.
-///
-/// `base_url` comes from the loaded Medulla config rather than the core: the two
-/// address the same deployment by construction, and the core exposes no RPC for
-/// the URL it resolved. A failure to reach the core reads as signed out — every
-/// caller degrades to "no backend" rather than failing outright.
-async fn session_credentials(
-    env: &std::collections::HashMap<String, String>,
-    base_url: &str,
+    backend: &medulla::config::BackendConfig,
 ) -> Option<Credentials> {
-    let core = auth_core(env, None).await.ok()?;
-    let jwt = medulla::core_host::auth::session_token(&core)
-        .await
-        .ok()??;
+    // The whole precedence chain, not the store alone. `medulla hub` reads a
+    // bearer the same way every other backend surface does, or an operator
+    // running on `MEDULLA_TOKEN` is told to `medulla login` while that token is
+    // already authenticating the TUI and the runtime beside it.
+    let session = medulla::auth::session_token(env);
+    let jwt = medulla::auth::resolve_backend_token(env, backend, session.as_deref())?;
     Some(Credentials {
-        base_url: base_url.to_string(),
+        base_url: backend.base_url.clone(),
         jwt,
     })
 }
 
-/// `medulla logout`: forget the core's app session.
+/// `medulla logout`: forget the stored app session.
 ///
 /// Idempotent — logging out when already signed out succeeds, so a user who is
 /// unsure of their state can always run it.
 pub(crate) async fn run_logout() -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-    let core = auth_core(&env, None).await?;
-    medulla::core_host::auth::clear_session(&core)
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to clear the session: {e}"))?;
-    sweep_retired_credentials(&env);
+    let home = medulla::home::medulla_home(&env);
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+    medulla::auth::clear(&env)
+        .map_err(|e| anyhow::anyhow!("the stored session could not be removed: {e}"))?;
+
+    // Retired credential files go too. Adoption is a *startup* behaviour — an
+    // install that predates the store is signed in and should stay signed in —
+    // but that is exactly what makes leaving one here wrong: the next launch
+    // would verify the retired bearer and sign the operator straight back in,
+    // having just been told they were logged out. Logging out is the one moment
+    // those files must not survive.
+    for legacy in medulla::auth::adopt_legacy_credentials(&home) {
+        if medulla::auth::discard_legacy_credential(&legacy.path) {
+            println!(
+                "Removed a retired credential file at {}.",
+                legacy.path.display()
+            );
+        }
+    }
+
+    // Same check the runtime's own logout makes, for the same reason: an inline
+    // `backend.token` or a `backend.tokenEnv` variable outranks the store, so
+    // clearing it leaves the next process authenticated. Reported after the
+    // removals, which should happen either way — the session really is gone, and
+    // what remains is a source this command cannot reach.
+    if let Ok(loaded) = load_config(None, &env, &cwd) {
+        if medulla::auth::resolve_backend_token(&env, &loaded.config.backend, None).is_some() {
+            let source = if loaded.config.backend.token.is_some() {
+                "`backend.token` in the config".to_string()
+            } else {
+                format!(
+                    "the `{}` environment variable",
+                    loaded.config.backend.token_env
+                )
+            };
+            anyhow::bail!(
+                "the stored session was cleared, but this shell is still authenticated \
+                 from {source} — remove it to finish signing out"
+            );
+        }
+    }
     // The session is cleared; the account selection is deliberately not.
     //
     // "Signed out" means "no session", not "no account". The account's directory
@@ -347,13 +382,12 @@ pub(crate) async fn run_logout() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Delete any credential file left by a pre-cutover install, and say so.
-///
-/// Those files are no longer read, so nothing else would ever remove them —
-/// and each one holds a real bearer token that no logout could invalidate.
-fn sweep_retired_credentials(env: &std::collections::HashMap<String, String>) {
-    let home = medulla::home::medulla_home(env);
-    for path in medulla::auth::remove_retired_credentials(&home) {
+/// Adopt any credential a pre-cutover install left behind, and say so.
+async fn adopt_legacy_credentials(
+    env: &std::collections::HashMap<String, String>,
+    backend: &medulla::config::BackendConfig,
+) {
+    for path in medulla::auth::adopt_legacy(env, backend).await {
         println!("Removed a retired credential file at {}.", path.display());
     }
 }
@@ -365,7 +399,7 @@ pub(crate) async fn run_hub(_args: &[String]) -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
     let home = medulla::home::medulla_home(&env);
     let loaded = load_config(None, &env, &home)?;
-    let session = session_credentials(&env, &loaded.config.backend.base_url).await;
+    let session = session_credentials(&env, &loaded.config.backend);
     // The standalone `medulla hub` owns its terminal, so stderr is right there.
     match crate::hub_relay::build_hub_config_with_log(
         &env,

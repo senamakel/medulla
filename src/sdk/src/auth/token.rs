@@ -9,20 +9,19 @@ use std::collections::HashMap;
 ///
 /// 1. an inline `backend.token` in the loaded config,
 /// 2. the `backend.tokenEnv` environment variable (an empty value is ignored),
-/// 3. `session` — the app session the embedded core holds, read by the caller
-///    via [`crate::core_host::auth::session_token`].
+/// 3. `session` — the stored app session, read by the caller via
+///    [`crate::auth::session_token`].
 ///
 /// Returns `None` when no source yields a token. Pure over its inputs; the caller
 /// supplies the process environment and the session.
 ///
-/// # Why the session is no longer matched against `backend.base_url`
+/// # Why the session is not matched against `backend.base_url`
 ///
-/// It used to be, because a Medulla-owned credential file could hold a JWT for
-/// one deployment while the config named another. There is now one session, held
-/// by the core, for the deployment the core itself resolves — a URL comparison
-/// against a *different* config value would reject a perfectly good token
-/// whenever the two spellings drifted, which is a worse failure than the one it
-/// guarded against.
+/// It used to be, and a URL comparison rejected perfectly good tokens whenever
+/// the two spellings drifted — a trailing slash was enough, which is a worse
+/// failure than the mismatch it guarded against. The store records the issuing
+/// origin for diagnostics ([`crate::auth::StoredSession::base_url`]) and leaves
+/// the decision to the call that fails with a 401.
 pub fn resolve_backend_token(
     env: &HashMap<String, String>,
     backend: &crate::config::BackendConfig,

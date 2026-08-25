@@ -167,7 +167,7 @@ jobs:
           CARGO_PROFILE_TEST_DEBUG: none
         run: >-
           cargo llvm-cov --locked
-          --ignore-filename-regex '(^|/)vendor/|src/tui/src/(app_loop|commands|main)\.rs|src/tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|src/tui/src/harness_pty/mod\.rs|src/tui/src/ui/onboarding/run(/.*)?\.rs|src/tui/src/worker/executor_tests/live\.rs|src/sdk/src/daemon/(entry\.rs|transport/mod\.rs)|src/sdk/src/wrapper/(run|bridge)/mod\.rs|src/sdk/src/hub/(socket|relay)\.rs|src/sdk/src/hub/(boot|handle)(/.*)?\.rs'
+          --ignore-filename-regex '(^|/)vendor/|src/tui/src/(app_loop|commands|main)(/.*)?\.rs|src/tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|src/tui/src/harness_pty/mod\.rs|src/tui/src/ui/onboarding/run(/.*)?\.rs|src/tui/src/worker/executor_tests/live\.rs|src/sdk/src/daemon/(entry\.rs|transport/mod\.rs)|src/sdk/src/wrapper/(run|bridge)/mod\.rs|src/sdk/src/hub/(socket|relay)\.rs|src/sdk/src/hub/(boot|handle)(/.*)?\.rs'
           --fail-under-lines 80
           --summary-only
 
@@ -177,11 +177,10 @@ jobs:
         if: always()
         run: sccache --show-stats
 
-  embedded-core:
-    name: Vendored core resolution
+  vendored-crates:
+    name: Vendored crate resolution
     runs-on: ubuntu-latest
-    # The vendored core roughly triples compile wall-clock on a cold cache.
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
@@ -196,23 +195,25 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
-          key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}-embedded
+          key: ${{ hashFiles('.gitmodules') }}-${{ hashFiles('rust-toolchain.toml') }}-vendored
           cache-on-failure: true
 
       - uses: ./.github/actions/sccache
 
       - uses: ./.github/actions/native-deps
 
-      # The core is unconditional now, so this check duplicates what every
-      # other lane compiles. It stays because the guards below are what this
-      # lane is really for, and they need a resolved graph to inspect.
-      - name: Check with the embedded core enabled
+      # Duplicates what every other lane compiles. It stays because the guards
+      # below are what this lane is really for, and they need a resolved graph
+      # to inspect.
+      - name: Check the workspace
         run: cargo check --locked
 
       # Guards the failure modes that do not announce themselves: two copies of
-      # a vendored crate (an E0308 where the types look identical), a tinyagents
-      # that silently resolved from the registry instead of the vendored tree,
-      # and duplicate ratatui/crossterm (two raw-mode state machines on one tty).
+      # a vendored crate (an E0308 where the types look identical), a patched
+      # crate that silently resolved from the registry instead of the vendored
+      # tree, and duplicate ratatui/crossterm (two raw-mode state machines on one
+      # tty). Both patched crates are checked, not just one: an entry dropped
+      # from `[patch.crates-io]` fails exactly this way and nothing else notices.
       - name: Guard against duplicate and misresolved vendored crates
         run: |
           set -euo pipefail
@@ -220,12 +221,14 @@ jobs:
           if [ -n "$dupes" ]; then
             echo "Duplicate packages that must be unified:"; echo "$dupes"; exit 1
           fi
-          if ! cargo tree -i tinyagents | head -1 | grep -q 'vendor/openhuman/vendor/tinyagents'; then
-            echo "tinyagents did not resolve to the vendored tree:"
-            cargo tree -i tinyagents | head -1
-            exit 1
-          fi
-          echo "OK: one copy of each vendored crate, resolved from vendor/openhuman."
+          for crate in tinyagents tinyflows; do
+            if ! cargo tree -i "$crate" | head -1 | grep -q "vendor/$crate"; then
+              echo "$crate did not resolve to the vendored tree:"
+              cargo tree -i "$crate" | head -1
+              exit 1
+            fi
+          done
+          echo "OK: one copy of each vendored crate, resolved from vendor/."
 
       # Surfaces a regression that is otherwise invisible: if the hit rate goes
       # to zero the lane still passes, just slowly.

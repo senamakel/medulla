@@ -82,13 +82,8 @@ impl crate::flow_engine::caps::dispatch::HarnessDispatch for StubHarness {
 struct ExplodingBridge;
 
 #[async_trait::async_trait]
-impl openhuman_core::openhuman::platform::socket::medulla::workflows::WorkflowBridge
-    for ExplodingBridge
-{
-    fn list(
-        &self,
-    ) -> Vec<openhuman_core::openhuman::platform::socket::medulla::payloads::WorkflowDescriptor>
-    {
+impl crate::hub::plane::WorkflowBridge for ExplodingBridge {
+    fn list(&self) -> Vec<crate::hub::plane::payloads::WorkflowDescriptor> {
         panic!("store exploded");
     }
 
@@ -108,10 +103,7 @@ impl openhuman_core::openhuman::platform::socket::medulla::workflows::WorkflowBr
         &self,
         _instruction: &str,
         _workflow_id: Option<&str>,
-    ) -> Result<
-        openhuman_core::openhuman::platform::socket::medulla::payloads::CopilotOutcome,
-        String,
-    > {
+    ) -> Result<crate::hub::plane::payloads::CopilotOutcome, String> {
         panic!("copilot exploded");
     }
 }

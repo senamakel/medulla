@@ -13,13 +13,13 @@ description: >-
 # (src/workspace.ts: `(pkg) => !pkg.manifest_path.startsWith(this.root)`).
 # Everything else is deleted on the assumption it is cheap first-party code.
 #
-# That assumption does not hold here. `vendor/openhuman` and the seven `tiny*`
-# crates under `vendor/openhuman/vendor/` are path dependencies living *inside*
-# the workspace root, so rust-cache classifies them as first-party and strips
-# their rlibs and fingerprints out of the cache. The result is that all five
-# Rust lanes recompiled roughly 760k lines of vendored code — the core alone is
-# ~497k compiled lines under medulla's feature set — from scratch on every run,
-# cache hit or not.
+# That assumption does not hold here. The crates under `vendor/` are path
+# dependencies living *inside* the workspace root, so rust-cache classifies them
+# as first-party and strips their rlibs and fingerprints out of the cache — so
+# every Rust lane recompiled them from scratch on each run, cache hit or not.
+# The volume is far smaller since the embedded OpenHuman core left (it alone was
+# ~497k compiled lines under medulla's feature set), but tinyagents and
+# tinyflows are still worth not rebuilding five times per run.
 #
 # sccache is the fix rather than a rust-cache option because rust-cache has no
 # way to exempt a path: its `cache-directories` input is saved *after* the same

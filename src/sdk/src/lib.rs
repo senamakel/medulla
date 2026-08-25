@@ -3,6 +3,7 @@
 //! live in [`runtime`]. The HTTP/SSE client lives in [`client`]. The terminal
 //! app that consumes this crate is the sibling `medulla-tui` crate.
 
+pub mod agent;
 pub mod agents;
 pub mod attribution;
 pub mod auth;
@@ -14,7 +15,6 @@ pub mod codex_app_server;
 pub mod codex_overrides;
 pub mod config;
 pub mod control_socket;
-pub mod core_host;
 pub mod daemon;
 #[cfg(feature = "workflows")]
 pub mod flow_engine;

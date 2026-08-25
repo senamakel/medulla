@@ -12,8 +12,8 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+use medulla::auth::AuthState;
 use medulla::config::LoadedConfig;
-use medulla::core_host::auth::AuthState;
 use medulla::runtime::mock::MockRuntime;
 use medulla_tui::ui::app::{App, Cmd};
 

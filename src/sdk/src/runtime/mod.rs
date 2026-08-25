@@ -1,20 +1,21 @@
 //! The `Runtime` trait the UI drives, plus its snapshot contract. Concrete
-//! implementations live alongside: [`openhuman`] (the embedded core, which the
-//! product runs on) and [`mock`] (tests and demos). The UI depends only on the
-//! trait and its types.
+//! implementations live alongside: [`cloud`] (the orchestration backend, which
+//! the product runs on) and [`mock`] (tests and demos). The UI depends only on
+//! the trait and its types.
 //!
-//! The HTTP/SSE cloud-backend runtime and the unix-socket `medulla-serve`
-//! runtime both lived here until the core was embedded; neither had a caller
-//! afterwards.
+//! [`cloud`] reclaims the name the original HTTP/SSE runtime had before the
+//! OpenHuman core was embedded in front of it. Embedding turned every backend
+//! call into an RPC hop onto the core's own client against the same deployment;
+//! dropping the core removed the hop, not the transport.
 
 pub mod capabilities;
+pub mod cloud;
 mod event_log;
 /// The declared-capacity containment chain and agent-template catalog.
 pub mod fleet;
 /// The non-interactive one-instruction driver for scripting / e2e automation.
 pub mod headless;
 pub mod mock;
-pub mod openhuman;
 
 use std::collections::HashMap;
 

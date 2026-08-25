@@ -29,7 +29,7 @@ impl App {
                 let (cycle, task) = crate::ui::agents::parse_task_key(&t.task_id);
                 match cycle {
                     Some(c) => {
-                        // MCP tasks run on OpenHumanRuntime's local task runner,
+                        // MCP tasks run on CloudRuntime's local task runner,
                         // not its backend steering API. Their cycle prefix is
                         // the capability marker for that separate cancel path.
                         if !c.starts_with("mcp:") && !self.runtime.steering_reaches_backend() {

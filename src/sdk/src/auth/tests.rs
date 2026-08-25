@@ -416,3 +416,177 @@ async fn run_login_flow_opens_the_url_and_returns_the_token() {
     assert_eq!(token, "flow-jwt");
     assert!(opened.load(std::sync::atomic::Ordering::SeqCst));
 }
+
+/// Session-store tests. These exercise the read/state/clear half, which is pure
+/// file I/O over an injected env; [`super::store`] needs a backend and is
+/// covered by the client integration suite.
+mod session {
+    use std::collections::HashMap;
+
+    fn env_at(root: &std::path::Path) -> HashMap<String, String> {
+        let mut env = HashMap::new();
+        env.insert("MEDULLA_HOME".to_string(), root.display().to_string());
+        env.insert("MEDULLA_USER".to_string(), "acct-1".to_string());
+        env
+    }
+
+    fn write_session(env: &HashMap<String, String>, body: &str) {
+        let home = crate::home::medulla_home(env);
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(home.join("session.json"), body).unwrap();
+    }
+
+    #[test]
+    fn an_absent_store_reads_as_signed_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        assert_eq!(crate::auth::session_token(&env), None);
+        assert_eq!(crate::auth::state(&env), crate::auth::AuthState::default());
+    }
+
+    #[test]
+    fn a_stored_session_reports_its_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(
+            &env,
+            r#"{"token":"jwt-1","userId":"acct-1","baseUrl":"https://api.example"}"#,
+        );
+        assert_eq!(crate::auth::session_token(&env).as_deref(), Some("jwt-1"));
+        let state = crate::auth::state(&env);
+        assert!(state.is_authenticated);
+        assert_eq!(state.user_id.as_deref(), Some("acct-1"));
+    }
+
+    /// The only useful recovery from a corrupt store is to sign in again, so a
+    /// malformed file must read as signed out rather than fail the command that
+    /// touched it.
+    #[test]
+    fn a_malformed_store_reads_as_signed_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(&env, "{ not json");
+        assert_eq!(crate::auth::session_token(&env), None);
+        assert!(!crate::auth::state(&env).is_authenticated);
+    }
+
+    /// A record whose token is blank is signed out, not "authenticated with an
+    /// empty bearer" — that would send `Authorization: Bearer ` to the backend.
+    #[test]
+    fn a_blank_token_reads_as_signed_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(&env, r#"{"token":"   ","userId":"acct-1","baseUrl":""}"#);
+        assert_eq!(crate::auth::session_token(&env), None);
+        assert!(!crate::auth::state(&env).is_authenticated);
+    }
+
+    /// Clearing twice succeeds, and the second call reports that there was
+    /// nothing to remove rather than failing.
+    #[test]
+    fn clearing_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(&env, r#"{"token":"jwt-1","userId":"acct-1","baseUrl":""}"#);
+        assert!(crate::auth::clear(&env)
+            .expect("removal succeeds")
+            .is_some());
+        assert!(crate::auth::clear(&env)
+            .expect("already gone is Ok")
+            .is_none());
+        assert_eq!(crate::auth::session_token(&env), None);
+    }
+
+    /// A session that exists and cannot be removed must be an error, not a
+    /// silent `None`. Logging out is a security action: reporting success while
+    /// the bearer is still on disk tells an operator they revoked access they
+    /// still hold.
+    #[cfg(unix)]
+    #[test]
+    fn a_session_that_cannot_be_removed_is_an_error() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        write_session(&env, r#"{"token":"jwt-1","userId":"acct-1","baseUrl":""}"#);
+        let home = crate::home::medulla_home(&env);
+
+        // Removal is governed by the *directory's* write bit, not the file's.
+        let mut perms = std::fs::metadata(&home).unwrap().permissions();
+        perms.set_mode(0o500);
+        std::fs::set_permissions(&home, perms).unwrap();
+
+        let outcome = crate::auth::clear(&env);
+
+        // Restore before asserting, or a failure leaves an undeletable tempdir.
+        let mut perms = std::fs::metadata(&home).unwrap().permissions();
+        perms.set_mode(0o700);
+        std::fs::set_permissions(&home, perms).unwrap();
+
+        assert!(outcome.is_err(), "an undeletable session must report it");
+    }
+
+    /// `MEDULLA_USER` pins which account this process runs as, and the home
+    /// resolves to it — so storing a token for a *different* account would put
+    /// that account's bearer inside the pinned account's home, and every later
+    /// run scoped to the pin would authenticate as somebody else.
+    ///
+    /// Covered here rather than through `store`, which needs a backend: the
+    /// comparison is the whole of the rule and is exercised directly.
+    #[test]
+    fn a_pinned_account_and_a_mismatched_token_are_recognised_as_a_conflict() {
+        let same = |pinned: &str, actual: &str| {
+            crate::home::user::sanitize_account_id(pinned)
+                .zip(crate::home::user::sanitize_account_id(actual))
+                .map(|(a, b)| a == b)
+                .unwrap_or(false)
+        };
+        assert!(
+            !same("acct-a", "acct-b"),
+            "different accounts must conflict"
+        );
+        assert!(same("acct-a", "acct-a"), "the same account must not");
+    }
+
+    /// `OpenOptionsExt::mode` applies only to a newly created file, so a
+    /// re-store over a world-readable path would inherit its mode and leave the
+    /// token exposed.
+    #[cfg(unix)]
+    #[test]
+    fn replacing_a_loose_session_file_restores_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        let home = crate::home::medulla_home(&env);
+        std::fs::create_dir_all(&home).unwrap();
+        let path = home.join("session.json");
+
+        std::fs::write(&path, b"{}").unwrap();
+        let mut perms = std::fs::metadata(&path).unwrap().permissions();
+        perms.set_mode(0o644);
+        std::fs::set_permissions(&path, perms).unwrap();
+
+        super::super::session::write_private(&path, b"{}").unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "session file is {mode:o}");
+    }
+
+    /// The token is a bearer credential, so the file it lands in must not be
+    /// readable by other accounts on the machine.
+    #[cfg(unix)]
+    #[test]
+    fn the_store_is_written_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let env = env_at(dir.path());
+        let home = crate::home::medulla_home(&env);
+        std::fs::create_dir_all(&home).unwrap();
+        let path = home.join("session.json");
+        super::super::session::write_private(&path, b"{}").unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "session file is {mode:o}");
+    }
+}

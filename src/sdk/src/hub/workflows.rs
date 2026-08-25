@@ -4,19 +4,17 @@
 //! The store side is a [`WorkflowBridge`] the embedding host installs
 //! ([`HubConfig::workflows`](crate::hub::HubConfig::workflows)); this module is
 //! only the transport half — it turns one raw `medulla:workflow_request` frame
-//! into exactly one `medulla:workflow_result`.
+//! into exactly one `medulla:workflow_result`. The contract both halves speak
+//! lives in [`super::plane`].
 
 use std::sync::Arc;
 
 use serde_json::Value;
 
-use openhuman_core::openhuman::platform::socket::medulla::payloads::{
-    RegisterWorkflows, WorkflowOp, WorkflowRequest, WorkflowResult,
-};
-// Re-exported rather than redeclared: the trait is the embedded core's, shared
-// with the sibling openhuman host, and a second declaration here would be a
-// second contract free to drift from the one the backend actually talks to.
-pub use openhuman_core::openhuman::platform::socket::medulla::workflows::WorkflowBridge;
+use super::plane::payloads::{RegisterWorkflows, WorkflowOp, WorkflowRequest, WorkflowResult};
+// Re-exported so callers reach the trait through the plane they use it with;
+// its declaration lives in [`super::plane::bridge`].
+pub use super::plane::WorkflowBridge;
 
 /// The installed store side of the workflow plane.
 pub type WorkflowPlane = Arc<dyn WorkflowBridge>;

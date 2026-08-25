@@ -1,34 +1,37 @@
 //! Tokio runtime tuning for any process that may host an agent turn.
 //!
 //! These are process-level knobs, not SDK behaviour, but they live here rather
-//! than in the app crate for one reason: the embedded OpenHuman core is a
-//! dependency of *this* crate, so this is the only place that can source the
-//! values from it. Keeping the seam here is the same rule that puts every other
-//! vendored-crate coupling in the SDK.
+//! than in the app crate because every process that can host a turn needs them
+//! and the SDK is what they all share.
 //!
-//! Both values are re-exported from OpenHuman rather than restated, so the two
-//! hosts cannot drift apart. OpenHuman's own runtime docs direct downstream call
-//! sites to set both on every multi-thread runtime that can host an agent turn.
+//! # These used to be re-exports
+//!
+//! They came from the embedded OpenHuman core, which is gone. Restating them is
+//! the one honest option left: tinyagents publishes no equivalent, and a host
+//! that silently took tokio's defaults would hit the failure below in front of
+//! a user rather than in CI. The numbers are this crate's own now — change them
+//! here, and say why.
 
 /// Worker-thread stack size for a runtime that may host an agent turn.
 ///
-/// tokio defaults worker threads to 2 MiB, which is not enough: the agent
-/// harness async chain is deep enough that OpenHuman raises its own
-/// `recursion_limit` to 256 for it, and a nested delegation overflows the
-/// default stack.
+/// tokio defaults worker threads to 2 MiB, which is not enough: an agent loop's
+/// async chain is deep on its own, and a turn that delegates to a sub-agent
+/// nests a second one inside the first — enough to overflow the default stack.
 ///
-/// That failure mode is why this matters more than it looks — it reproduces
-/// only under real nesting, so it surfaces in front of a user rather than in a
-/// unit test. The same depth already overflows `cargo test`'s 2 MiB test
-/// threads, which is why the suite needs `RUST_MIN_STACK=16777216`.
-pub const WORKER_STACK_BYTES: usize = openhuman_core::core::runtime::AGENT_WORKER_STACK_BYTES;
+/// That failure mode is why this matters more than it looks: it reproduces only
+/// under real nesting, so it surfaces in front of a user rather than in a unit
+/// test, and it aborts the process rather than returning an error. 16 MiB is
+/// the value the embedded core used and the same figure `cargo test` needs as
+/// `RUST_MIN_STACK` for the suite's own 2 MiB test threads.
+pub const WORKER_STACK_BYTES: usize = 16 * 1024 * 1024;
 
 /// Upper bound on tokio's blocking-thread pool.
 ///
 /// tokio defaults to 512. Blocking work in this process is bursty and bounded
 /// (filesystem, sqlite, process spawn), so the default mostly buys idle
-/// footprint. Threads still retire on tokio's idle timeout.
-pub const MAX_BLOCKING_THREADS: usize = openhuman_core::core::runtime::MAX_BLOCKING_THREADS;
+/// footprint. Threads still retire on tokio's idle timeout, so this is a
+/// ceiling on a burst rather than a steady-state cost.
+pub const MAX_BLOCKING_THREADS: usize = 64;
 
 /// Build a multi-thread runtime tuned for hosting agent turns.
 ///
