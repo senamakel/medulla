@@ -282,18 +282,23 @@ impl CustomHarnessConfig {
         env
     }
 
-    /// Whether the referenced OpenRouter key is present and non-blank.
+    /// Whether the referenced key is present and non-blank.
     ///
-    /// Always true for an OpenHuman preset. The key gates a preset because a
-    /// spawned CLI cannot reach the routed endpoint without it, and the
-    /// embedded core reaches no such endpoint: it authenticates its own turns
-    /// with the account the operator is already signed in as. Gating it on an
-    /// OpenRouter key would hide a perfectly usable preset on any machine that
-    /// never set one.
+    /// Applies to every base harness, the local one included.
+    ///
+    /// It used to be unconditionally true for `openhuman`, and the reasoning was
+    /// sound while that meant the embedded core: the core reached no routed
+    /// endpoint, authenticating its own turns as the signed-in account, so an
+    /// OpenRouter key would have hidden a perfectly usable preset on a machine
+    /// that never set one.
+    ///
+    /// The local harness is not that. It is an ordinary chat-completions client
+    /// and needs an endpoint and a credential to make any call at all, so a
+    /// keyless preset is not usable — and the exemption meant it was advertised
+    /// to the fleet and offered in the TUI, then rejected once a task had
+    /// already been delegated to it. Failing the advert is the honest place for
+    /// that: an unusable preset should be absent, not present and broken.
     pub fn key_present(&self, env: &HashMap<String, String>) -> bool {
-        if self.base_harness == HarnessProvider::Openhuman {
-            return true;
-        }
         env.get(&self.api_key_env)
             .is_some_and(|value| !value.trim().is_empty())
     }

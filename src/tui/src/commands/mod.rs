@@ -94,6 +94,21 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     // A refusal stops the login here, before a core is booted or a token
     // written: the alternative is storing this account's bearer in a directory
     // that belongs to somebody else.
+    // Before `adopt_account`, which moves the active-account marker. An inline
+    // `backend.token` or a `backend.tokenEnv` variable outranks the store, so a
+    // login under one writes a JWT nothing will present — and worse, re-homes
+    // the install to the pasted token's account while every client keeps
+    // authenticating as whoever the external token belongs to. The account on
+    // screen and the identity on the wire would disagree.
+    if let Some(source) =
+        medulla::runtime::cloud::connect::external_credential_source(&env, &loaded.config.backend)
+    {
+        anyhow::bail!(
+            "signed in, but {source} outranks the stored session — this shell would keep \
+             using that credential, so the login was not saved; remove it and sign in again"
+        );
+    }
+
     adopt_account(&env, &me, &base_url).map_err(|why| anyhow::anyhow!("signed in, but {why}"))?;
 
     // Store last. `store` re-verifies the token against `/auth/me` before it
@@ -268,17 +283,22 @@ pub(crate) fn adopt_account(
 
 /// The stored app session as a `(base_url, jwt)` pair, or `None` when signed out.
 ///
-/// `base_url` comes from the loaded Medulla config rather than from the stored
-/// record: the record's own `baseUrl` is diagnostic, and the config is what the
-/// rest of this process addresses. An absent or unreadable store reads as signed
-/// out — every caller degrades to "no backend" rather than failing outright.
+/// The URL comes from the loaded config rather than from the stored record: the
+/// record's own `baseUrl` is diagnostic, and the config is what the rest of this
+/// process addresses. Nothing resolvable reads as signed out — every caller
+/// degrades to "no backend" rather than failing outright.
 fn session_credentials(
     env: &std::collections::HashMap<String, String>,
-    base_url: &str,
+    backend: &medulla::config::BackendConfig,
 ) -> Option<Credentials> {
-    let jwt = medulla::auth::session_token(env)?;
+    // The whole precedence chain, not the store alone. `medulla hub` reads a
+    // bearer the same way every other backend surface does, or an operator
+    // running on `MEDULLA_TOKEN` is told to `medulla login` while that token is
+    // already authenticating the TUI and the runtime beside it.
+    let session = medulla::auth::session_token(env);
+    let jwt = medulla::auth::resolve_backend_token(env, backend, session.as_deref())?;
     Some(Credentials {
-        base_url: base_url.to_string(),
+        base_url: backend.base_url.clone(),
         jwt,
     })
 }
@@ -367,7 +387,7 @@ pub(crate) async fn run_hub(_args: &[String]) -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
     let home = medulla::home::medulla_home(&env);
     let loaded = load_config(None, &env, &home)?;
-    let session = session_credentials(&env, &loaded.config.backend.base_url);
+    let session = session_credentials(&env, &loaded.config.backend);
     // The standalone `medulla hub` owns its terminal, so stderr is right there.
     match crate::hub_relay::build_hub_config_with_log(
         &env,

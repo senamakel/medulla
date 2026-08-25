@@ -255,19 +255,24 @@ pub fn write_private(path: &Path, body: &[u8]) -> std::io::Result<()> {
     let parent = path
         .parent()
         .ok_or_else(|| std::io::Error::other("the session path has no parent directory"))?;
-    // Named for the destination and the process, so two concurrent writers do
-    // not collide on one temporary and a leftover is traceable to what made it.
+    // Unique per *write*, not per process. A pid-scoped name collides with
+    // itself: two turns saving the same resumed thread concurrently would both
+    // pick it, and the loser can unlink the winner's open temporary and
+    // recreate it — after which the winner renames a half-written file into
+    // place. The counter closes that, and the pid keeps a leftover traceable to
+    // the process that made it.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let temp = parent.join(format!(
-        ".{}.{}.tmp",
+        ".{}.{}.{}.tmp",
         path.file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| "session".to_string()),
-        std::process::id()
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
 
-    // A leftover from a crashed earlier write would make `create_new` fail, and
-    // it is ours by name — nothing else writes this path.
-    let _ = std::fs::remove_file(&temp);
+    // No pre-emptive removal: the name is unique to this write, so anything
+    // already there was not ours and `create_new` below is right to refuse it.
 
     let mut opts = std::fs::OpenOptions::new();
     // `create_new`, not `create`: anything already at this path was put there by
