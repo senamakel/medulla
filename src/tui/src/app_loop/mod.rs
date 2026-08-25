@@ -74,7 +74,17 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // instead of storing it against its issuer and letting the
     // deployment-mismatch notice do its job.
     let mut pending_jwt: Option<(String, String)> = None;
-    if !args.mock && !account_is_active(&env) {
+    // `account_is_active` reads the marker alone, which is not the same question
+    // as "is this host authenticated". A clean host running on `MEDULLA_TOKEN`
+    // has no marker and needs no login — and running one anyway is not merely
+    // redundant: it would move the marker to the pasted token's account while
+    // every client kept authenticating with the higher-precedence external
+    // credential, so the account on screen and the identity on the wire would
+    // disagree from the first frame.
+    let externally_authenticated =
+        medulla::runtime::cloud::connect::external_credential_source(&env, &loaded.config.backend)
+            .is_some();
+    if !args.mock && !account_is_active(&env) && !externally_authenticated {
         let issuer = loaded.config.backend.base_url.clone();
         match sign_in_first_account(&env, &issuer, args.alt_screen).await? {
             // Quit from the login screen before any account exists: there is no

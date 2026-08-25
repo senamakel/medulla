@@ -60,6 +60,45 @@ fn a_symlink_pointing_out_of_the_workspace_is_refused() {
     ));
 }
 
+/// The case the resolvable-symlink test above misses entirely: a link whose
+/// target does *not* exist. `canonicalize` fails on it exactly as it does on a
+/// path yet to be created, so walking past it and re-attaching its name yields a
+/// contained-looking path — and `write_file`'s open then follows the link and
+/// writes outside the checkout.
+#[cfg(unix)]
+#[test]
+fn a_dangling_symlink_pointing_out_of_the_workspace_is_refused() {
+    let dir = workspace();
+    let outside = tempfile::tempdir().unwrap();
+    // Deliberately not created: the target must not exist.
+    let target = outside.path().join("not-created-yet.txt");
+    std::os::unix::fs::symlink(&target, dir.path().join("dangling")).unwrap();
+
+    assert!(
+        contained(dir.path(), "dangling").is_err(),
+        "a dangling link out of the workspace must not resolve as containable"
+    );
+    assert!(
+        !target.exists(),
+        "the guard must not have created the external target"
+    );
+}
+
+/// The same trap one level down: the dangling link is a *directory* component
+/// of the requested path, so the write lands inside whatever it points at.
+#[cfg(unix)]
+#[test]
+fn a_dangling_symlink_as_a_parent_component_is_refused() {
+    let dir = workspace();
+    let outside = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink(outside.path().join("nowhere"), dir.path().join("linkdir")).unwrap();
+
+    assert!(
+        contained(dir.path(), "linkdir/inside.txt").is_err(),
+        "a path through a dangling link must not resolve as containable"
+    );
+}
+
 /// A symlink that stays inside is fine — containment is about where the path
 /// lands, not about whether a link was involved.
 #[cfg(unix)]

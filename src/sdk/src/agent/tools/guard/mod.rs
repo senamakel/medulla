@@ -77,6 +77,20 @@ pub fn contained(root: &Path, candidate: &str) -> Result<PathBuf, PathError> {
 /// unresolved rather than by normalising it: those components were never
 /// canonicalized, so treating `existing/../../etc` as valid would let a write
 /// leave the ancestor whose containment was actually verified.
+///
+/// # Dangling symlinks are refused for the same reason, and it is subtler
+///
+/// `canonicalize` fails on a symlink whose target does not exist, so a dangling
+/// link inside the workspace pointing at `/etc/something` looks exactly like a
+/// path that has not been created yet. Walking past it and re-attaching its
+/// *name* under the canonical root produces a contained-looking path — and the
+/// open that follows resolves the link and writes outside. The symlink test
+/// beside this one only covered links whose targets exist, which is why the
+/// containment check passed while the write escaped.
+///
+/// So every component re-attached below the resolved ancestor is checked with
+/// `symlink_metadata`, which reports a dangling link where `canonicalize` and
+/// `exists` both say nothing is there.
 fn resolve_deepest(path: &Path) -> Option<PathBuf> {
     let mut trailing: Vec<&std::ffi::OsStr> = Vec::new();
     let mut cursor = path;
@@ -90,6 +104,11 @@ fn resolve_deepest(path: &Path) -> Option<PathBuf> {
             let mut out = base;
             for component in trailing.into_iter().rev() {
                 out.push(component);
+                // Exists-as-a-link but does not resolve: a dangling symlink,
+                // which an open would follow straight out of the workspace.
+                if std::fs::symlink_metadata(&out).is_ok() {
+                    return None;
+                }
             }
             return Some(out);
         }
