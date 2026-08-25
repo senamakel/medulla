@@ -115,11 +115,33 @@ pub async fn store(
     // the marker here would not change where *this* process writes, but it would
     // silently re-home every later launch that does not export the variable.
     // An override is a statement about one process, not a change of default.
-    let overridden = env
+    let pinned = env
         .get("MEDULLA_USER")
-        .map(|v| !v.trim().is_empty())
-        .unwrap_or(false);
-    if let Some(id) = user_id.as_deref().filter(|_| !overridden) {
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty());
+
+    // A pinned account and a token belonging to a different one is a conflict,
+    // not a precedence question. Suppressing the marker write is right — the
+    // override is a statement about this process — but the home below still
+    // resolves to the *pinned* account, so continuing would write the other
+    // account's bearer into it. Every later run scoped to the pinned account
+    // would then authenticate as somebody else, with nothing on screen saying
+    // so. Refuse instead, naming both sides.
+    if let (Some(pinned), Some(actual)) = (pinned, user_id.as_deref()) {
+        let same = crate::home::user::sanitize_account_id(pinned)
+            .zip(crate::home::user::sanitize_account_id(actual))
+            .map(|(a, b)| a == b)
+            .unwrap_or(false);
+        if !same {
+            return Err(LoginError::Backend(format!(
+                "MEDULLA_USER pins account {pinned}, but this token belongs to {actual} — \
+                 storing it would authenticate the pinned account as somebody else; \
+                 unset MEDULLA_USER or sign in as {pinned}"
+            )));
+        }
+    }
+
+    if let Some(id) = user_id.as_deref().filter(|_| pinned.is_none()) {
         crate::home::user::write_active_user_id(&root, id).map_err(LoginError::Io)?;
     }
     let home = crate::home::medulla_home(env);

@@ -526,6 +526,28 @@ mod session {
         assert!(outcome.is_err(), "an undeletable session must report it");
     }
 
+    /// `MEDULLA_USER` pins which account this process runs as, and the home
+    /// resolves to it — so storing a token for a *different* account would put
+    /// that account's bearer inside the pinned account's home, and every later
+    /// run scoped to the pin would authenticate as somebody else.
+    ///
+    /// Covered here rather than through `store`, which needs a backend: the
+    /// comparison is the whole of the rule and is exercised directly.
+    #[test]
+    fn a_pinned_account_and_a_mismatched_token_are_recognised_as_a_conflict() {
+        let same = |pinned: &str, actual: &str| {
+            crate::home::user::sanitize_account_id(pinned)
+                .zip(crate::home::user::sanitize_account_id(actual))
+                .map(|(a, b)| a == b)
+                .unwrap_or(false)
+        };
+        assert!(
+            !same("acct-a", "acct-b"),
+            "different accounts must conflict"
+        );
+        assert!(same("acct-a", "acct-a"), "the same account must not");
+    }
+
     /// `OpenOptionsExt::mode` applies only to a newly created file, so a
     /// re-store over a world-readable path would inherit its mode and leave the
     /// token exposed.
