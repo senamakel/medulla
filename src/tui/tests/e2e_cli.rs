@@ -51,7 +51,21 @@ fn wait_with_output_bounded(mut child: std::process::Child) -> Output {
 /// credentials or model keys that could make an offline command contact a
 /// service.
 fn run(args: &[&str], cwd: &std::path::Path, home: &std::path::Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_medulla"))
+    run_with_env(args, cwd, home, &[])
+}
+
+/// `run`, with `extra` set on the child after the scrubbing below.
+///
+/// The scrubbing is what makes these tests independent of whoever is running
+/// them, so anything a test needs has to be re-added rather than relied upon.
+fn run_with_env(
+    args: &[&str],
+    cwd: &std::path::Path,
+    home: &std::path::Path,
+    extra: &[(&str, &str)],
+) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_medulla"));
+    command
         .args(args)
         .current_dir(cwd)
         .env("MEDULLA_HOME", home)
@@ -59,9 +73,11 @@ fn run(args: &[&str], cwd: &std::path::Path, home: &std::path::Path) -> Output {
         .env("MEDULLA_CODEX_SESSIONS_DIR", home.join("codex-sessions"))
         .env_remove("MEDULLA_TOKEN")
         .env_remove("OPENROUTER_API_KEY")
-        .env_remove("MEDULLA_BACKEND_URL")
-        .output()
-        .expect("the medulla binary should run")
+        .env_remove("MEDULLA_BACKEND_URL");
+    for (name, value) in extra {
+        command.env(name, value);
+    }
+    command.output().expect("the medulla binary should run")
 }
 
 #[test]
@@ -82,11 +98,12 @@ fn version_help_and_sessions_are_available_without_a_tty() {
 }
 
 #[test]
-fn logout_clears_the_session_and_leaves_a_legacy_credential_alone() {
-    // Logout no longer sweeps. A pre-cutover `credentials.json` holds a token
-    // for the same deployment the store now serves, so it is something to adopt
-    // at the next `login`, not something to delete — deleting it would sign the
-    // operator out of an install that was signed in before the store moved.
+fn logout_clears_the_session_and_the_retired_credential() {
+    // Adoption is a *startup* behaviour: an install predating the store is
+    // signed in and should stay signed in. That is exactly why logout must
+    // sweep — leaving the file means the next launch verifies the retired
+    // bearer and signs the operator straight back in, having just been told
+    // they were logged out.
     let dir = TempDir::new().unwrap();
     // Inside the account directory, where a pre-cutover install's file would be
     // read from: `MEDULLA_HOME` names the root that holds accounts.
@@ -114,11 +131,12 @@ fn logout_clears_the_session_and_leaves_a_legacy_credential_alone() {
     );
     assert!(!session.exists(), "the session store is cleared");
     assert!(
-        credentials.exists(),
-        "the legacy credential is left to adopt"
+        !credentials.exists(),
+        "a retired credential must not survive logout — the next launch adopts it"
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Logged out"), "{stdout}");
+    assert!(stdout.contains("retired credential file"), "{stdout}");
 }
 
 /// Logging out when already signed out succeeds, so an operator unsure of their
@@ -133,6 +151,30 @@ fn logout_is_idempotent_when_signed_out() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("Logged out"));
+}
+
+/// An environment bearer outranks the store, so clearing the store leaves the
+/// next process authenticated. Reporting success there tells an operator they
+/// revoked access they still hold — the failure logging out exists to prevent.
+#[test]
+fn logout_refuses_to_claim_success_while_an_environment_token_still_wins() {
+    let dir = TempDir::new().unwrap();
+    let output = run_with_env(
+        &["logout"],
+        dir.path(),
+        dir.path(),
+        &[("MEDULLA_TOKEN", "still-authenticated")],
+    );
+
+    assert!(
+        !output.status.success(),
+        "logout must not report success while a token still authenticates"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("MEDULLA_TOKEN"),
+        "the message must name the source to remove: {stderr}"
+    );
 }
 
 #[test]

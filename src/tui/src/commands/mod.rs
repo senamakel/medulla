@@ -289,8 +289,48 @@ fn session_credentials(
 /// unsure of their state can always run it.
 pub(crate) async fn run_logout() -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+    let home = medulla::home::medulla_home(&env);
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
     medulla::auth::clear(&env)
         .map_err(|e| anyhow::anyhow!("the stored session could not be removed: {e}"))?;
+
+    // Retired credential files go too. Adoption is a *startup* behaviour — an
+    // install that predates the store is signed in and should stay signed in —
+    // but that is exactly what makes leaving one here wrong: the next launch
+    // would verify the retired bearer and sign the operator straight back in,
+    // having just been told they were logged out. Logging out is the one moment
+    // those files must not survive.
+    for legacy in medulla::auth::adopt_legacy_credentials(&home) {
+        if medulla::auth::discard_legacy_credential(&legacy.path) {
+            println!(
+                "Removed a retired credential file at {}.",
+                legacy.path.display()
+            );
+        }
+    }
+
+    // Same check the runtime's own logout makes, for the same reason: an inline
+    // `backend.token` or a `backend.tokenEnv` variable outranks the store, so
+    // clearing it leaves the next process authenticated. Reported after the
+    // removals, which should happen either way — the session really is gone, and
+    // what remains is a source this command cannot reach.
+    if let Ok(loaded) = load_config(None, &env, &cwd) {
+        if medulla::auth::resolve_backend_token(&env, &loaded.config.backend, None).is_some() {
+            let source = if loaded.config.backend.token.is_some() {
+                "`backend.token` in the config".to_string()
+            } else {
+                format!(
+                    "the `{}` environment variable",
+                    loaded.config.backend.token_env
+                )
+            };
+            anyhow::bail!(
+                "the stored session was cleared, but this shell is still authenticated \
+                 from {source} — remove it to finish signing out"
+            );
+        }
+    }
     // The session is cleared; the account selection is deliberately not.
     //
     // "Signed out" means "no session", not "no account". The account's directory
