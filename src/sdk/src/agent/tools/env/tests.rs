@@ -67,3 +67,63 @@ fn scrubbing_keeps_values_intact_for_what_it_retains() {
     assert_eq!(out.get("PATH").map(String::as_str), Some("/usr/bin"));
     assert!(!out.contains_key("MEDULLA_TOKEN"));
 }
+
+/// The scrub must be on the path a real turn takes, not merely available.
+///
+/// This is the check that was missing when `env_clear` was added without it:
+/// the call was changed, the map it installed was never traced, and the
+/// credential path stayed open while the fix read as complete. Asserting at the
+/// seam — the tool set a turn is actually built with — is what would have caught
+/// it.
+#[tokio::test]
+async fn a_turns_shell_cannot_read_a_credential_from_the_task_environment() {
+    use tinyagents::harness::tool::{Tool, ToolCall};
+
+    let dir = tempfile::tempdir().unwrap();
+    // The shape a daemon hands down: the ambient environment, credentials and all.
+    let mut task_env: HashMap<String, String> = std::env::vars().collect();
+    task_env.insert("MEDULLA_TOKEN".to_string(), "leaked-bearer".to_string());
+    task_env.insert("OPENROUTER_API_KEY".to_string(), "leaked-key".to_string());
+
+    let tools = crate::agent::tools::all(
+        crate::agent::tools::Workspace {
+            root: dir.path().to_path_buf(),
+        },
+        std::time::Duration::from_secs(10),
+        task_env,
+    );
+    let shell = tools
+        .iter()
+        .find(|t| t.name() == "shell")
+        .expect("the tool set includes a shell");
+
+    let out = shell
+        .call(
+            &(),
+            ToolCall {
+                id: "c1".into(),
+                name: "shell".into(),
+                arguments: serde_json::json!({ "command": "env" }),
+                invalid: None,
+            },
+        )
+        .await
+        .expect("the command runs");
+
+    assert!(
+        !out.content.contains("leaked-bearer"),
+        "MEDULLA_TOKEN reached the shell: {}",
+        out.content
+    );
+    assert!(
+        !out.content.contains("leaked-key"),
+        "a router key reached the shell: {}",
+        out.content
+    );
+    // The turn still has a usable environment, or the scrub broke every build.
+    assert!(
+        out.content.contains("PATH="),
+        "the shell lost its PATH: {}",
+        out.content
+    );
+}
