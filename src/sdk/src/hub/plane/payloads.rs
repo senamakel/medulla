@@ -72,12 +72,11 @@ pub struct WorkflowDescriptor {
 /// run it.
 ///
 /// Mirrors `tinyflows::model::WorkflowInput` field-for-field rather than
-/// re-exporting it, for the same reason [`TaskEnvelope`] keeps its envelope as
-/// raw JSON: this module is a transport vocabulary and is compiled in every
-/// build, while the engine is behind the `flows` feature gate. Naming the engine
-/// type here would make the medulla plane fail to build whenever flows is off.
-/// The mapping from the engine type lives in `flows::medulla_bridge`, which is
-/// gated and may name it.
+/// re-exporting it, for the same reason the task frames keep their payloads as
+/// raw JSON: this module is a transport vocabulary compiled in every build,
+/// while the engine sits behind the `flows` feature gate. Naming the engine type
+/// here would make the plane fail to build whenever flows is off.
+/// The mapping from the engine type lives behind that gate, which may name it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowInputDescriptor {
@@ -106,6 +105,9 @@ pub struct WorkflowInputDescriptor {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterWorkflows {
+    /// The complete advert set for this socket. Not a delta — the backend
+    /// replaces its whole entry with this list, so omitting a workflow is how
+    /// a removal is communicated.
     pub workflows: Vec<WorkflowDescriptor>,
     /// Batch-level provenance stamped onto adverts that do not name their own
     /// owner. Absent means "this host, agent unspecified".
@@ -138,14 +140,23 @@ pub enum WorkflowOp {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowRequest {
+    /// Correlation id the answering [`WorkflowResult`] must echo. A request
+    /// carrying none is unanswerable and is dropped rather than guessed at.
     pub request_id: String,
+    /// Which read this is. Decides which of the optional fields below apply.
     pub op: WorkflowOp,
+    /// The workflow to read, for `get` and `runs`. For `copilot` it is the
+    /// workflow to edit, and its absence means "create a new one".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workflow_id: Option<String>,
+    /// Narrows `node_kinds` to a single kind. Absent asks for the whole catalog.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
+    /// The authoring instruction for `copilot`; ignored by every other op.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instruction: Option<String>,
+    /// Which roster agent the request is addressed to, on a host that runs more
+    /// than one identity. Absent addresses the socket as a whole.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
 }
@@ -160,10 +171,19 @@ pub struct WorkflowRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowResult {
+    /// Echoed verbatim from the [`WorkflowRequest`] this answers; the backend
+    /// routes on it and cannot match a reply that changes it.
     pub request_id: String,
+    /// Whether the read succeeded. `false` is a *delivered* failure — the
+    /// request was answered — not a dropped one.
     pub ok: bool,
+    /// The host-shaped payload, opaque to the backend and size-bounded at
+    /// 1 MiB. Absent when `ok` is `false`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
+    /// A sentence the orchestrator renders as a tool error. Set exactly when
+    /// `ok` is `false`; it reaches a model's prompt surface, so it must read as
+    /// something a reader can act on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -178,15 +198,27 @@ pub struct WorkflowResult {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CopilotOutcome {
+    /// The assistant's own answer to the instruction.
     pub reply: String,
+    /// What the turn actually changed, derived by the host from a re-read of
+    /// its own store rather than from the model's account of what it did. That
+    /// derivation is the accountability property the whole delegation rests on.
     #[serde(default)]
     pub changes: Vec<String>,
+    /// The id of a workflow the turn created, when it created one. Absent for
+    /// an edit to an existing workflow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created: Option<String>,
 }
 
+/// Inbound: the backend asking this host for a workflow read or an authoring
+/// turn. Carries a [`WorkflowRequest`].
 pub const EVENT_WORKFLOW_REQUEST: &str = "medulla:workflow_request";
 
+/// Outbound: this host's advert batch, carrying [`RegisterWorkflows`]. Emitted
+/// on connect and on every store change.
 pub const EVENT_REGISTER_WORKFLOWS: &str = "medulla:register_workflows";
 
+/// Outbound: the one reply a [`EVENT_WORKFLOW_REQUEST`] earns, carrying a
+/// [`WorkflowResult`].
 pub const EVENT_WORKFLOW_RESULT: &str = "medulla:workflow_result";

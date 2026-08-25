@@ -3,7 +3,7 @@
 //! # The environment is explicit, never inherited
 //!
 //! The command runs under `env_clear()` plus a caller-supplied map — the same
-//! discipline [`crate::daemon::providers::execute`] applies to every spawned CLI
+//! discipline `daemon::providers::execute` applies to every spawned CLI
 //! harness. Inheriting instead would hand the model the Medulla process's own
 //! environment, which holds `MEDULLA_TOKEN`, router API keys and whatever else
 //! the operator exported; `env` is a one-word command, so that is a direct

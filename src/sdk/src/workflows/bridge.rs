@@ -45,11 +45,14 @@ use crate::workflows::{
 /// The store side of the cloud workflow plane, backed by this host's layered
 /// JSON workflow store.
 ///
-/// Install it once with
-/// [`set_workflow_bridge`](crate::hub::plane::bridge::set_workflow_bridge)
-/// and re-advertise with
-/// [`emit_register_workflows`](crate::hub::plane::bridge::emit_register_workflows)
-/// whenever the store changes.
+/// Install it on the hub through
+/// [`HubConfig::workflows`](crate::hub::HubConfig::workflows); the hub
+/// re-advertises from it on connect and whenever the store changes.
+///
+/// It used to be installed through a pair of free functions on the embedded
+/// core's socket module. Those went with the core — the plane's transport is
+/// this crate's own now, and it takes the bridge as configuration rather than
+/// from a process-global slot.
 ///
 /// **Install it only when workflows are enabled on this host.** Nothing in here
 /// consults `workflows.enabled`: the bridge is a view of the store, and the

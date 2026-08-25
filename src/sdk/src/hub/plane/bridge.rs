@@ -1,7 +1,7 @@
 //! The store side of the workflow plane: the trait an embedding host installs.
 //!
-//! The transport half lives in [`super::super::workflows`]; this is the contract
-//! it calls into. Moved here with the payloads it speaks — see
+//! The transport half lives in `hub::workflows`; this is the contract it calls
+//! into. Moved here with the payloads it speaks — see
 //! [`super::payloads`] for why a Medulla-to-Medulla-backend contract stopped
 //! being sourced from a desktop product.
 

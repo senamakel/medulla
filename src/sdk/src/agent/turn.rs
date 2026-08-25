@@ -10,7 +10,7 @@
 //!
 //! So this forwards [`AgentEvent`] verbatim and lets the consumer map it. The
 //! mapping for the daemon provider lives beside its sibling line-mappers, in
-//! [`crate::daemon::providers::local`], which is where a reader comparing the
+//! `daemon::providers::local`, which is where a reader comparing the
 //! embedded harness with a spawned one would look.
 
 use std::sync::Arc;

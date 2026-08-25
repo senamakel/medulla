@@ -5,7 +5,7 @@
 //! core until it was removed; they are declared here now because this host is
 //! the only one left that speaks them.
 //!
-//! The transport that carries them is [`super::workflows`], kept separate so the
+//! The transport that carries them is `hub::workflows`, kept separate so the
 //! contract can be read without the plumbing.
 
 pub mod bridge;

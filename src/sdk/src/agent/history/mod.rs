@@ -23,9 +23,10 @@
 //!
 //! # Layout
 //!
-//! [`types`] is the stored record, [`store`] the reading and writing, and the
-//! trimming rule below is here because both halves apply it and it is the one
-//! piece with a correctness argument worth reading in one place.
+//! `types` is the stored record, `store` the reading and writing — both
+//! private, since the surface is [`load`] and [`save`] — and the trimming rule
+//! below is here because both halves apply it and it is the one piece with a
+//! correctness argument worth reading in one place.
 
 mod store;
 mod types;
