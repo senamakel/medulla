@@ -33,17 +33,6 @@ fn failing_command() -> &'static str {
     }
 }
 
-/// A command that writes forever without saturating a core.
-fn steady_producer() -> &'static str {
-    if cfg!(windows) {
-        // `timeout` is the cmd builtin sleep; `/nobreak` stops it consuming
-        // keystrokes, and stdin is null here anyway.
-        "for /l %i in () do @(echo x & timeout /t 1 /nobreak >nul)"
-    } else {
-        "while :; do echo x; sleep 0.05; done"
-    }
-}
-
 /// A tool whose commands can actually find programs.
 ///
 /// These tests are about the shell's behaviour — working directory, exit codes,
@@ -258,16 +247,32 @@ fn a_flood_costs_only_the_cap() {
 /// A command that keeps producing is still bounded by the deadline — the drain
 /// loop must not keep it alive past it.
 ///
-/// Deliberately a *paced* producer rather than `yes`. The unbounded case is
-/// covered by `a_flood_costs_only_the_cap` above, which proves the ring holds
-/// memory flat without spawning anything; pegging a core here would buy the same
-/// assurance while perturbing every timing-sensitive test cargo happens to run
-/// on a neighbouring thread.
+/// Paced rather than spinning: the unbounded case is covered by
+/// `a_flood_costs_only_the_cap`, which proves the ring holds memory flat without
+/// spawning anything, and pegging a core here would perturb every
+/// timing-sensitive test cargo happens to schedule on a neighbouring thread.
+///
+/// # Unix only, on purpose
+///
+/// The `cmd` spelling of a paced writer is where this went wrong twice. My
+/// version used `timeout /t 1`, which **errors immediately when stdin is
+/// redirected** — and it is, to `Stdio::null()` — so the `for /l` loop spun at
+/// full speed spawning a process per iteration for the whole second. That is a
+/// core-saturating loop dressed as a paced one, and it broke the
+/// wall-clock-timing tests in `daemon::tests::admission_tests` on the Windows
+/// runner.
+///
+/// The behaviour under test is the drain loop's, which is platform-independent
+/// Rust, and the deadline itself is already covered on both platforms by
+/// `a_command_that_outruns_the_deadline_is_killed_and_says_so`. Rather than
+/// guess at a third cmd incantation I cannot run locally, this one stays on the
+/// platform where the pacing is known to pace.
+#[cfg(unix)]
 #[tokio::test]
 async fn a_command_that_keeps_producing_is_still_killed_at_the_deadline() {
     let dir = tempfile::tempdir().unwrap();
     let out = tool(&dir, 1)
-        .call(&(), call(steady_producer()))
+        .call(&(), call("while :; do echo x; sleep 0.05; done"))
         .await
         .unwrap();
     assert_eq!(out.error.as_deref(), Some("timeout"));
