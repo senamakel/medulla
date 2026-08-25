@@ -527,11 +527,22 @@ fn an_explicit_empty_template_catalog_opts_out_of_coding_defaults() {
     assert!(!serde_json::to_string(&cfg).unwrap().contains("\"fleet\""));
 }
 
-/// Naming the embedded core as the workflow default is a choice, not a
-/// misconfiguration: it says "run unrouted nodes on my own core". This
-/// asserted the refusal until OpenHuman gained a task executor of its own.
+/// Naming the local harness as the workflow default is accepted, but it no
+/// longer means what it used to.
+///
+/// It said "run unrouted nodes on my own core", and the embedded core made that
+/// true: it authenticated its own turns as the signed-in account and needed no
+/// route. With the core gone the local harness is an ordinary
+/// chat-completions client, so a node that supplies no router **fails at
+/// dispatch** with a message naming both remedies.
+///
+/// Config still accepts it, because it is not knowable here whether a node will
+/// supply one: a workflow naming a router preset on the node, with this as the
+/// default provider, is a working configuration. What is knowable at
+/// configuration time is a *preset* with no key, and that is refused —
+/// `CustomHarnessConfig::key_present` no longer exempts this harness.
 #[test]
-fn workflows_accept_the_embedded_core_as_a_default_provider() {
+fn workflows_accept_the_local_harness_as_a_default_provider() {
     let config: TuiConfig =
         serde_json::from_str(r#"{"workflows":{"defaultProvider":"openhuman"}}"#)
             .expect("the embedded core is a dispatchable default");

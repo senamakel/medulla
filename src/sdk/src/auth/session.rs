@@ -102,7 +102,24 @@ pub async fn store(
             LoginError::Backend(format!("session validation failed (GET /auth/me): {e}"))
         })?;
 
-    let user_id = crate::auth::user_id_from_me(&me);
+    // An id-less response cannot be stored safely. Every guard below is keyed on
+    // knowing whose token this is: the `MEDULLA_USER` conflict check, the
+    // account switch, and the choice of home. With `None` all three are skipped
+    // and the bearer lands in whichever account happens to be selected — which
+    // `adopt_legacy` reaches directly, so a token from the *global* retired
+    // credential file could be persisted under an unrelated account.
+    //
+    // Refusing costs a deployment that genuinely returns no id the ability to
+    // log in, which is the right trade: a session nobody can attribute is one
+    // this host cannot place, and placing it anyway is how two accounts end up
+    // sharing one bearer.
+    let user_id = crate::auth::user_id_from_me(&me).ok_or_else(|| {
+        LoginError::Backend(
+            "the backend accepted the token but named no account for it, so there is no \
+             home to store it under"
+                .to_string(),
+        )
+    })?;
     let root = crate::home::medulla_root(env);
 
     // `MEDULLA_USER` suppresses the account switch entirely. That variable is an explicit
@@ -123,7 +140,8 @@ pub async fn store(
     // account's bearer into it. Every later run scoped to the pinned account
     // would then authenticate as somebody else, with nothing on screen saying
     // so. Refuse instead, naming both sides.
-    if let (Some(pinned), Some(actual)) = (pinned, user_id.as_deref()) {
+    if let Some(pinned) = pinned {
+        let actual = user_id.as_str();
         let same = crate::home::user::sanitize_account_id(pinned)
             .zip(crate::home::user::sanitize_account_id(actual))
             .map(|(a, b)| a == b)
@@ -146,7 +164,7 @@ pub async fn store(
     //
     // So the session is written into its own account's home first, and the
     // marker is published only once that has succeeded.
-    let home = match user_id.as_deref().filter(|_| pinned.is_none()) {
+    let home = match Some(user_id.as_str()).filter(|_| pinned.is_none()) {
         // Unreachable fallback in practice: the conflict check above already
         // sanitized this id. Falling back to the resolved home rather than
         // failing keeps a backend that answers with an unusable id from making
@@ -162,7 +180,7 @@ pub async fn store(
 
     let record = StoredSession {
         token: jwt.to_string(),
-        user_id: user_id.clone(),
+        user_id: Some(user_id.clone()),
         base_url: base_url.trim_end_matches('/').to_string(),
     };
     let body = serde_json::to_vec_pretty(&record)
@@ -172,14 +190,14 @@ pub async fn store(
     // Published last, now that the session it points at is durable. A failure
     // above leaves the previous account selected and its session intact, which
     // is the state an operator can retry from.
-    if let Some(id) = user_id.as_deref().filter(|_| pinned.is_none()) {
-        crate::home::user::write_active_user_id(&root, id).map_err(LoginError::Io)?;
+    if pinned.is_none() {
+        crate::home::user::write_active_user_id(&root, &user_id).map_err(LoginError::Io)?;
     }
 
     tracing::debug!("[auth] app session stored");
     Ok(AuthState {
         is_authenticated: true,
-        user_id,
+        user_id: Some(user_id),
     })
 }
 
