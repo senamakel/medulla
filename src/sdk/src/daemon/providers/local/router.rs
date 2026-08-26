@@ -1,33 +1,30 @@
-//! Where an embedded OpenHuman turn's inference goes.
+//! Where a local (in-process OpenHuman) turn's inference goes.
 //!
 //! The sibling of [`super::model`]: that module answers *which model*, this one
 //! answers *whose endpoint and whose credential*. They are separate questions
-//! because a model name alone is inert — the core resolves it against its own
-//! provider bindings, and a name no configured provider serves falls back to the
-//! account's default with a diagnostic.
+//! because a model name alone is inert — it has to be paired with an endpoint
+//! and a credential that actually serves it, or the call fails with a
+//! diagnostic.
 //!
-//! # What changed, and why this module exists
+//! # What this module resolves
 //!
 //! A `[[customHarnesses]]` preset carries `model`, `baseUrl` and `apiKeyEnv`.
 //! For a spawned CLI all three are live: the endpoint and key are layered into
-//! the child's environment at the spawn seam. For an OpenHuman turn there is no
-//! child, so the latter two used to be documented as inert — the preset could
-//! name a model but not the provider that serves it, and the operator had to
-//! configure the core separately for the preset to do anything.
+//! the child's environment at the spawn seam. For a local turn there is no
+//! child process to hand an environment to, so this module builds the
+//! equivalent as a per-call [`Route`](crate::agent::harness::Route) instead:
+//! this model, on this endpoint, with this key, passed straight into the
+//! harness call rather than persisted anywhere.
 //!
-//! It no longer is. The core accepts a per-call route (`inference_url` +
-//! `api_key` on `inference_agent_chat`) that it applies to the turn's own
-//! in-memory config and never persists, so a preset can state the whole answer:
-//! this model, on this endpoint, with this key.
+//! # Why the OpenRouter key is not forwarded as-is
 //!
-//! # Why the core is not given the OpenRouter key
-//!
-//! For the same reason a child harness is not — see [`crate::inference_proxy`].
-//! The endpoint handed over is Medulla's loopback mount and the credential is a
-//! machine-local token, so the traffic is re-headed on the way out and credited
-//! to Medulla rather than to OpenHuman. The one difference from a spawned run is
-//! that there is no environment to scrub: the key is read here, exchanged for a
-//! token here, and never written anywhere the turn can reach it.
+//! For the same reason a child harness does not get it directly — see
+//! [`crate::inference_proxy`]. The endpoint handed to the turn is Medulla's
+//! loopback mount and the credential is a machine-local token, so the traffic
+//! is re-headed on the way out and credited to Medulla rather than to
+//! OpenHuman. The one difference from a spawned run is that there is no
+//! environment to scrub: the key is read here, exchanged for a token here, and
+//! never written anywhere the turn's own process could leak it.
 //!
 //! # Endpoints that are not OpenRouter
 //!
