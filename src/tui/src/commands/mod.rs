@@ -87,14 +87,14 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
         Err(e) => return Err(anyhow::anyhow!("token verification failed: {e}")),
     };
 
-    // Record who this is *before* booting, because the id chooses the home the
-    // core is about to be pointed at. Taken from `/auth/me` rather than from the
-    // core's own auth state for the same reason: the core's state lives inside
+    // Record who this is before writing anything, because the id chooses the
+    // home the session is about to be stored under. Taken from `/auth/me`
+    // rather than from any existing local state, since that state lives inside
     // the directory this id selects.
     //
-    // A refusal stops the login here, before a core is booted or a token
-    // written: the alternative is storing this account's bearer in a directory
-    // that belongs to somebody else.
+    // A refusal stops the login here, before a token is written: the
+    // alternative is storing this account's bearer in a directory that
+    // belongs to somebody else.
     // Before `adopt_account`, which moves the active-account marker. An inline
     // `backend.token` or a `backend.tokenEnv` variable outranks the store, so a
     // login under one writes a JWT nothing will present — and worse, re-homes
