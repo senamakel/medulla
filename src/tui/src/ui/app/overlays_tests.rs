@@ -19,7 +19,7 @@ use medulla::runtime::mock::MockRuntime;
 
 use super::types::{
     tab_pos, App, Overlay, PromptKind, ResumePicker, SessionPicker, SessionPickerStep,
-    WorkspaceChoice, RP_TEMPLATES,
+    WorkspaceChoice,
 };
 use crate::ui::composer::TextPrompt;
 
@@ -34,11 +34,6 @@ fn app() -> App {
 fn raise(app: &mut App, overlay: Overlay) {
     match overlay {
         Overlay::Decisions => app.decision_open = true,
-        Overlay::TemplatePopup => {
-            app.template_modal = true;
-            app.tab_index = tab_pos("Hosts");
-            app.routing_index = RP_TEMPLATES;
-        }
         Overlay::SessionPicker => {
             app.session_picker = Some(SessionPicker {
                 choices: Vec::new(),
@@ -54,7 +49,10 @@ fn raise(app: &mut App, overlay: Overlay) {
         Overlay::SessionKill => app.arm_harness_close("s".into()),
         Overlay::WorkflowDelete => app.workflow_delete_armed = Some(("id".into(), "name".into())),
         Overlay::InlinePrompt => {
-            app.prompt = Some(TextPrompt::new(PromptKind::HostAdd, "Add a host"))
+            app.prompt = Some(TextPrompt::new(
+                PromptKind::ChangesBaseline,
+                "Diff from commit or revision",
+            ))
         }
         Overlay::ResumePicker => {
             app.resume_picker = Some(ResumePicker {
@@ -66,9 +64,8 @@ fn raise(app: &mut App, overlay: Overlay) {
 }
 
 /// Every variant, so a new one cannot be added without appearing here.
-const EVERY_OVERLAY: [Overlay; 7] = [
+const EVERY_OVERLAY: [Overlay; 6] = [
     Overlay::Decisions,
-    Overlay::TemplatePopup,
     Overlay::SessionPicker,
     Overlay::SessionKill,
     Overlay::WorkflowDelete,
@@ -258,24 +255,6 @@ fn no_overlay_lets_a_paste_through_to_the_composer_behind_it() {
             "{overlay:?} is in front of the composer, so the paste is not its text"
         );
     }
-}
-
-#[test]
-fn the_template_popup_needs_the_page_that_can_dismiss_it() {
-    // `Tab` switches tabs with the popup open and nothing clears the flag, so
-    // the flag alone is not "the popup is up". Reading it as such drew the popup
-    // over another tab, where none of its keys are bound.
-    let mut app = app();
-    raise(&mut app, Overlay::TemplatePopup);
-    assert_eq!(app.visible_overlays(), vec![Overlay::TemplatePopup]);
-
-    app.tab_index = tab_pos("Sessions");
-
-    assert!(
-        app.visible_overlays().is_empty(),
-        "the popup does not follow the operator off its own page"
-    );
-    assert!(!app.overlay_owns_keys());
 }
 
 #[test]

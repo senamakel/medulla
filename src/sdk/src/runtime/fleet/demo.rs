@@ -15,14 +15,14 @@
 //! takes precedence, so the stand-in cannot mask the thing it stands in for.
 //!
 //! Every record is deliberately ordinary — two hosts, three harnesses, two
-//! workspaces, two agents, two templates — because the point is to see the
+//! workspaces and two agents — because the point is to see the
 //! layout, the budget colouring, and the placement walk, not to stress the caps.
 
 use serde_json::{json, Map};
 
 use super::{
-    AgentTemplate, AgentTemplateHarnessOverride, CapacitySnapshot, HarnessBudget,
-    HarnessDescriptor, HostDescriptor, HostResources, WorkspaceDescriptor, WorkspaceProfile,
+    CapacitySnapshot, HarnessBudget, HarnessDescriptor, HostDescriptor, HostResources,
+    WorkspaceDescriptor, WorkspaceProfile,
 };
 use crate::runtime::AgentDescriptor;
 
@@ -167,51 +167,8 @@ pub fn demo_capacity() -> CapacitySnapshot {
                 harness_id: "demo-harness-codex".into(),
                 profile: None,
                 project: Some("site".into()),
-                // Only the reviewer may be stood up here, so the Templates page
-                // has a real allowlist to report.
                 template_ids: vec!["demo-reviewer".into()],
                 metadata: Map::new(),
-            },
-        ],
-        templates: vec![
-            AgentTemplate {
-                id: "demo-implementer".into(),
-                name: Some("Implementer".into()),
-                description: "Implements a scoped change and reports what it did.".into(),
-                instructions: Some(
-                    "Make the smallest change that satisfies the task, then summarize it.".into(),
-                ),
-                tools: Some(vec!["read".into(), "edit".into(), "shell".into()]),
-                model: Some("reasoning".into()),
-                effort: Some("medium".into()),
-                params: Map::new(),
-                tags: vec!["code".into()],
-                metadata: Map::new(),
-                harnesses: Default::default(),
-            },
-            AgentTemplate {
-                id: "demo-reviewer".into(),
-                name: Some("Reviewer".into()),
-                description: "Reviews a diff and reports what would break.".into(),
-                instructions: None,
-                tools: Some(vec!["read".into()]),
-                model: Some("reasoning".into()),
-                effort: None,
-                params: Map::new(),
-                tags: vec!["review".into()],
-                metadata: Map::new(),
-                // Restricted to codex: a `harnesses` block is an allowlist as
-                // well as an override set.
-                harnesses: [(
-                    "codex".to_string(),
-                    AgentTemplateHarnessOverride {
-                        model: Some("reasoning".into()),
-                        effort: Some("high".into()),
-                        ..Default::default()
-                    },
-                )]
-                .into_iter()
-                .collect(),
             },
         ],
     }

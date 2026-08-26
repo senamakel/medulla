@@ -16,10 +16,9 @@ use super::AppearanceConfig;
 use crate::harness_hooks::HooksConfig;
 use crate::protocol::{BudgetWindow, HarnessProvider};
 use crate::runtime::fleet::{
-    AgentDeclaration, AgentTemplate, CapacitySnapshot, HarnessDescriptor, HostDescriptor,
-    WorkspaceDescriptor,
+    AgentDeclaration, CapacitySnapshot, HarnessDescriptor, HostDescriptor, WorkspaceDescriptor,
 };
-use crate::runtime::{AgentDescriptor, RoutingStrategy, SubscriptionRoutingStrategy};
+use crate::runtime::AgentDescriptor;
 
 // --- serde default helpers -------------------------------------------------
 

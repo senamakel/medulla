@@ -193,7 +193,7 @@ fn a_declaration_naming_an_unconfigured_host_still_gets_a_local_row() {
 fn an_agent_that_names_no_host_belongs_to_the_machine_looking_at_it() {
     // Both tabs draw this tree, and the Agents rail has always drawn an unplaced
     // agent beside the local ones. Dropping it here would mean the two lenses
-    // disagree about what exists — and on the Hosts tab it would simply vanish.
+    // disagree about what exists — and in the rail it would simply vanish.
     let unplaced = AgentDeclaration::new("drifter", "", "claude", "/w/drifter");
     let rows = host_rows(&[], &[unplaced], &[this_device()]);
 

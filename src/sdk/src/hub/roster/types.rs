@@ -143,7 +143,3 @@ pub type SharedRoster = Arc<Mutex<Vec<HubWorker>>>;
 /// Empty is the honest answer for a hub that hosts nothing itself — every agent
 /// it advertises then belongs to somebody else's machine.
 pub type SharedLocalHosts = Arc<Mutex<Vec<crate::config::LocalHostRef>>>;
-
-/// Live subscription-selection policy shared by the socket task path and the
-/// operator-facing hub handle.
-pub type SharedSubscriptionStrategy = Arc<Mutex<crate::runtime::SubscriptionRoutingStrategy>>;

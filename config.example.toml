@@ -99,10 +99,11 @@ tokenEnv = "MEDULLA_TOKEN"
 # ---------------------------------------------------------------------------
 # customHarnesses — OpenRouter models through a coding CLI
 # ---------------------------------------------------------------------------
-# When OPENROUTER_API_KEY is present, Routing › Harnesses can add and edit these
-# presets. The coding CLI remains the agent harness while OpenRouter supplies
-# the model. This makes, for example, DeepSeek through Claude Code available as
-# named capacity on one fleet host.
+# When OPENROUTER_API_KEY is present, these presets are declared here, in
+# config, as `[[customHarnesses]]` entries — there is no longer a page to add
+# or edit them from. The coding CLI remains the agent harness while OpenRouter
+# supplies the model. This makes, for example, DeepSeek through Claude Code
+# available as named capacity on one fleet host.
 #
 # apiKeyEnv stores only the environment-variable name; never put the key value
 # in this file. Claude presets map the main model onto Opus and fastModel onto
@@ -377,15 +378,15 @@ tokenEnv = "MEDULLA_TOKEN"
 
 # ---------------------------------------------------------------------------
 # fleet — operator-declared capacity: the Host → Harness → Workspace → Agent
-# containment chain plus the agent templates that may be provisioned onto it.
-# Declared, never probed. The terminal app declares this to a local
-# orchestration server at handshake time, and the Agents rail renders it
-# whenever the runtime itself reports no capacity of its own.
+# containment chain. Declared, never probed. The terminal app declares this to
+# a local orchestration server at handshake time, and the Agents rail renders
+# it whenever the runtime itself reports no capacity of its own.
 #
 # Every level names exactly one parent (hostId on a harness, harnessId on a
 # workspace, workspaceId on an agent). An agent with no workspaceId is a local
-# agent and may name a hostId directly instead. templateIds narrows the catalog
-# for a place; absent means inherit, so an allowlist only ever subtracts.
+# agent and may name a hostId directly instead. There is no agent-template
+# catalog any more: a harness's or workspace's templateIds, if present, is
+# preserved as opaque labels but narrows nothing, since nothing resolves them.
 #
 # To see the surfaces with no fleet at all, set MEDULLA_DEMO_FLEET=1 (here or in
 # .env) for a small stand-in fleet. It is opt-in and never overrides a real one.
@@ -417,7 +418,6 @@ tokenEnv = "MEDULLA_TOKEN"
 # description = "Implements scoped changes in the medulla repo."
 # availability = "online"
 # workspaceId = "medulla"
-# templateId = "implementer"
 
 # agentDeclarations — the agents *you* declare on your own machines, and the
 # source of this client's roster. One per (harness × workspace): a machine with
@@ -435,15 +435,8 @@ tokenEnv = "MEDULLA_TOKEN"
 # hostId = "this-device"
 # harness = "claude"           # claude · codex · opencode · a custom harness id
 # name = "medulla"             # optional; the rail falls back to the host's name
-# roles = ["implementer"]      # optional agentTemplate ids this agent is offered for
 # strategy = "checkout"
 # workspace = { path = "/srv/repos/medulla", type = "checkout" }
-
-# [[fleet.agentTemplates]]
-# id = "implementer"
-# name = "Implementer"
-# description = "Implements a scoped change and reports what it did."
-# model = "reasoning"        # an abstract tier, never a concrete SKU
 
 # ---------------------------------------------------------------------------
 # Lifecycle hooks

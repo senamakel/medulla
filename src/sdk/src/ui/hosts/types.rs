@@ -23,7 +23,7 @@ impl HostKind {
     }
 }
 
-/// One host in the Hosts tab, with the agents known to be on it.
+/// One host in the `Host → Agent` projection, with the agents known to be on it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostRow {
     /// The `hostId`: the bus address a local host binds, or the tiny.place

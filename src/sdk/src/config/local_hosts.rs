@@ -8,7 +8,7 @@
 //! host under a remote one and quietly show it as read-only.
 //!
 //! Resolution is deliberately config-only: it holds before anything starts,
-//! which is the case the Hosts tab needs (declared agents on a host that is not
+//! which is the case the rail needs (declared agents on a host that is not
 //! running are still that host's agents) and the case the roster clean-up needs
 //! (recognising remembered local entries when nothing started at all).
 

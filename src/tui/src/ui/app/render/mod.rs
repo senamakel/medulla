@@ -25,7 +25,6 @@ mod frame_state;
 pub(super) mod graph;
 mod points;
 mod prompt;
-mod routing;
 mod selection;
 mod session_modals;
 mod sessions;
@@ -34,7 +33,6 @@ mod status_line;
 mod subconscious;
 #[cfg(test)]
 mod subconscious_tests;
-mod template_modal;
 #[cfg(feature = "workflows")]
 pub(super) mod workflows;
 
@@ -144,7 +142,6 @@ impl App {
         for overlay in self.visible_overlays() {
             match overlay {
                 Overlay::Decisions => self.draw_decisions(f, rows[2]),
-                Overlay::TemplatePopup => self.draw_template_modal(f, rows[2]),
                 Overlay::SessionPicker => self.draw_harness_picker(f, rows[2]),
                 Overlay::SessionKill => self.draw_session_kill_prompt(f, rows[2]),
                 Overlay::WorkflowDelete => self.draw_workflow_delete_prompt(f, rows[2]),
@@ -310,7 +307,6 @@ impl App {
             // placeholder has nothing to draw that the workflow engine provides.
             "Subconscious" => self.draw_subconscious(f, area),
             "TokenMaxxxing" => self.draw_points(f, area),
-            "Hosts" => self.draw_routing(f, area),
             "Feedback" => self.draw_feedback(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.
             "Settings" => self.draw_settings(f, area),

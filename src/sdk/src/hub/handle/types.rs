@@ -11,8 +11,6 @@ pub struct HubHandle {
     pub(super) address: String,
     /// The transport tasks are dispatched over.
     pub(super) relay: Arc<dyn Relay>,
-    /// The agent-role catalog, read when re-advertising the roster.
-    pub(super) catalog: Arc<Vec<crate::runtime::AgentTemplate>>,
     /// The hosts this machine declares, read when re-advertising the roster so
     /// a host started mid-session is registered as `local`.
     pub(super) local_hosts: super::super::roster::SharedLocalHosts,
@@ -28,8 +26,6 @@ pub struct HubHandle {
     pub(super) persist: Option<super::super::types::RosterSink>,
     /// What the workers are doing, for the Agents view.
     pub(super) activity: super::super::ActivityLog,
-    /// Live provider-subscription selection policy used by task dispatch.
-    pub(super) subscription_strategy: super::super::roster::SharedSubscriptionStrategy,
 }
 /// Everything a [`HubHandle`] is built from.
 ///
@@ -46,10 +42,6 @@ pub(in super::super) struct HandleWiring {
     pub address: String,
     /// The transport tasks are dispatched over.
     pub relay: Arc<dyn Relay>,
-    /// The agent-role catalog, for resolving a worker's roles into what it
-    /// advertises. Shared and read-only: registration reads it, nothing here
-    /// writes it.
-    pub catalog: Arc<Vec<crate::runtime::AgentTemplate>>,
     /// The hosts this machine declares, for the `hosts[]` block of every
     /// re-registration this handle triggers.
     pub local_hosts: super::super::roster::SharedLocalHosts,
@@ -61,6 +53,4 @@ pub(in super::super) struct HandleWiring {
     pub persist: Option<super::super::types::RosterSink>,
     /// What the workers are doing, for the Agents view.
     pub activity: super::super::ActivityLog,
-    /// Initial live provider-subscription selection policy.
-    pub subscription_strategy: super::super::roster::SharedSubscriptionStrategy,
 }

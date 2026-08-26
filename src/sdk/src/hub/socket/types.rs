@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use super::super::roster::{SharedLocalHosts, SharedRoster, SharedSubscriptionStrategy};
+use super::super::roster::{SharedLocalHosts, SharedRoster};
 use super::super::runner::TaskRunner;
 use super::super::types::HubLog;
 use super::super::workflows::WorkflowPlane;
@@ -21,14 +21,12 @@ pub(in super::super) struct HarnessWiring {
     pub roster: SharedRoster,
     /// Agent-role definitions used to decorate roster adverts and constrain
     /// capability replies.
-    pub catalog: Arc<Vec<crate::runtime::AgentTemplate>>,
     /// The hosts this machine declares, for the advert's `hosts[]` block — the
     /// one thing that says which of the advertised agents run *here*.
     pub local_hosts: SharedLocalHosts,
     /// Where a delegated task is dispatched.
     pub runner: Arc<TaskRunner>,
     /// How an untargeted task chooses among a worker's provider subscriptions.
-    pub subscription_strategy: SharedSubscriptionStrategy,
     /// Where socket diagnostics are narrated.
     pub log: HubLog,
     /// What the workers are doing, for the Agents view. `None` keeps no history.

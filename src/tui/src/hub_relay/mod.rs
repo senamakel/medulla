@@ -139,17 +139,6 @@ fn link_from_resolved_config(
     })
 }
 
-/// Subscription routing remembered beside the roster.
-fn subscription_strategy_from_config(home: &Path) -> medulla::runtime::SubscriptionRoutingStrategy {
-    let Ok(text) = std::fs::read_to_string(roster_path(home)) else {
-        return medulla::runtime::SubscriptionRoutingStrategy::Manual;
-    };
-    toml::from_str::<medulla::config::TuiConfig>(&text)
-        .ok()
-        .and_then(|config| config.subscription_routing_strategy)
-        .unwrap_or(medulla::runtime::SubscriptionRoutingStrategy::Manual)
-}
-
 /// A sink that writes roster changes back to the config file.
 ///
 /// Best-effort and narrated: failing to save a roster must not take the hub down
@@ -356,7 +345,7 @@ pub(crate) fn build_hub_config_with_log(
 ) -> Option<HubConfig> {
     // No catalog: this builder is the no-host path used by probes and tests,
     // where nothing is advertised for a role.
-    build_hub_config_with_host(env, home, log, None, session, Vec::new())
+    build_hub_config_with_host(env, home, log, None, session)
 }
 
 /// Like [`build_hub_config_with_log`], additionally dispatching over `local` —
@@ -373,10 +362,9 @@ pub(crate) fn build_hub_config_with_host(
     log: medulla::hub::HubLog,
     local: Option<LocalDispatch>,
     session: Option<&Credentials>,
-    agent_templates: Vec<medulla::runtime::AgentTemplate>,
 ) -> Option<HubConfig> {
     let link = link_from_config(env, home);
-    build_hub_config_with_host_and_link(env, home, log, local, session, agent_templates, link)
+    build_hub_config_with_host_and_link(env, home, log, local, session, link)
 }
 
 /// Build a hub using link wiring already resolved by the embedding process.
@@ -386,7 +374,6 @@ fn build_hub_config_with_host_and_link(
     log: medulla::hub::HubLog,
     local: Option<LocalDispatch>,
     session: Option<&Credentials>,
-    agent_templates: Vec<medulla::runtime::AgentTemplate>,
     link: Option<HubLinkConfig>,
 ) -> Option<HubConfig> {
     if !hub_enabled(env) {
@@ -444,7 +431,6 @@ fn build_hub_config_with_host_and_link(
         .map(|dispatch| dispatch.local_hosts.clone())
         .unwrap_or_default();
     Some(HubConfig {
-        agent_templates,
         local_hosts: local_hosts.clone(),
         persist: Some(roster_sink(home, log.clone(), local_hosts)),
         log,
@@ -455,7 +441,6 @@ fn build_hub_config_with_host_and_link(
         poll: Duration::from_millis(poll_ms),
         local_network,
         local_address,
-        subscription_strategy: subscription_strategy_from_config(home),
         workflows: workflow_bridge(env, home),
     })
 }
@@ -481,15 +466,7 @@ pub(crate) async fn start(
         .link
         .as_ref()
         .and_then(|link| link_from_resolved_config(&link.config, Some(link.handle.clone())));
-    let config = build_hub_config_with_host_and_link(
-        env,
-        home,
-        logs.sink(),
-        local,
-        session,
-        startup.agent_templates,
-        link,
-    )?;
+    let config = build_hub_config_with_host_and_link(env, home, logs.sink(), local, session, link)?;
     match start_hub(config).await {
         Ok(session) => {
             *slot.lock().expect("hub slot") = Some(session.handle.clone());
@@ -510,8 +487,6 @@ pub(crate) use types::{HubSlot, LocalDispatch};
 
 /// Inputs already resolved by the TUI's layered configuration load.
 pub(crate) struct StartupConfig {
-    /// Agent roles shown by the same running TUI.
-    pub agent_templates: Vec<medulla::runtime::AgentTemplate>,
     /// The one link handle shared by observation and dispatch.
     pub link: Option<ResolvedLink>,
 }

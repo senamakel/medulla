@@ -93,15 +93,6 @@ pub struct TuiConfig {
     /// advertises a best-effort estimate instead of configured numbers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub budget: Option<BudgetConfig>,
-    /// The operator's persisted worker routing strategy (camelCase on the wire).
-    /// Loaded on start and reconciled with the backend's routing-strategy config
-    /// when present. Absent means no local preference (defaults to `manual`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub routing_strategy: Option<RoutingStrategy>,
-    /// How the orchestrator chooses among ready provider subscriptions after
-    /// selecting a host. Absent preserves the requested or host-default provider.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subscription_routing_strategy: Option<SubscriptionRoutingStrategy>,
     /// Operator-declared hosts, harnesses, workspaces, agents, and templates.
     #[serde(default, skip_serializing_if = "FleetConfig::is_empty")]
     pub fleet: FleetConfig,
@@ -133,8 +124,6 @@ impl Default for TuiConfig {
             hook_defaults: HookDefaultsConfig::default(),
             router: None,
             budget: None,
-            routing_strategy: None,
-            subscription_routing_strategy: None,
             fleet: FleetConfig::default(),
         }
     }

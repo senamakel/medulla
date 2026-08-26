@@ -136,94 +136,6 @@ pub struct WorkerInfo {
     /// when none were reported. Display-only.
     pub readiness: Vec<crate::protocol::HarnessReadiness>,
 }
-/// How the hub chooses a default host from captured capacity details.
-///
-/// Wire values are camelCase (`manual` / `balanced` / `cpuFirst` / `memoryFirst`),
-/// matching the backend's `GET/PUT /medulla/v1/routing/strategy` contract and the
-/// persisted `routingStrategy` config key, so one value round-trips across config,
-/// backend, and TUI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum RoutingStrategy {
-    /// Preserve the operator's explicit host selection.
-    Manual,
-    /// Prefer CPU, using available memory as the tie-breaker.
-    Balanced,
-    /// Prefer the worker with the most logical CPU cores.
-    CpuFirst,
-    /// Prefer the worker with the most currently available memory.
-    MemoryFirst,
-}
-
-impl RoutingStrategy {
-    /// The camelCase wire token (`manual` / `balanced` / `cpuFirst` / `memoryFirst`).
-    pub fn as_wire(&self) -> &'static str {
-        match self {
-            RoutingStrategy::Manual => "manual",
-            RoutingStrategy::Balanced => "balanced",
-            RoutingStrategy::CpuFirst => "cpuFirst",
-            RoutingStrategy::MemoryFirst => "memoryFirst",
-        }
-    }
-
-    /// Parse a camelCase wire token, or `None` when unrecognized.
-    pub fn from_wire(value: &str) -> Option<Self> {
-        match value {
-            "manual" => Some(RoutingStrategy::Manual),
-            "balanced" => Some(RoutingStrategy::Balanced),
-            "cpuFirst" => Some(RoutingStrategy::CpuFirst),
-            "memoryFirst" => Some(RoutingStrategy::MemoryFirst),
-            _ => None,
-        }
-    }
-
-    /// Reconcile a locally-configured strategy with a backend-provided one.
-    ///
-    /// The backend wins as configuration when it provides one; otherwise the local
-    /// config applies; absent both, [`RoutingStrategy::Manual`] preserves the
-    /// operator's explicit selection. An operator change is persisted locally by
-    /// the caller regardless, so a later backend value overrides the *display* but
-    /// never silently discards what the operator saved.
-    pub fn reconcile(local: Option<Self>, backend: Option<Self>) -> Self {
-        backend.or(local).unwrap_or(RoutingStrategy::Manual)
-    }
-}
-/// How the hub chooses a provider subscription after it has selected a host.
-///
-/// This is deliberately separate from [`RoutingStrategy`]: CPU and memory
-/// describe a host, while token headroom and readiness describe a subscription
-/// on that host. Wire values are camelCase for config and future backend parity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum SubscriptionRoutingStrategy {
-    /// Preserve an explicitly requested provider or the host's configured default.
-    Manual,
-    /// Prefer the ready subscription with the greatest remaining percentage.
-    Balanced,
-    /// Prefer the ready subscription with the greatest absolute token headroom.
-    MostAvailableBudget,
-}
-
-impl SubscriptionRoutingStrategy {
-    /// The camelCase wire token used by configuration and runtime adapters.
-    pub fn as_wire(&self) -> &'static str {
-        match self {
-            SubscriptionRoutingStrategy::Manual => "manual",
-            SubscriptionRoutingStrategy::Balanced => "balanced",
-            SubscriptionRoutingStrategy::MostAvailableBudget => "mostAvailableBudget",
-        }
-    }
-
-    /// Parse a camelCase wire token, or `None` when unrecognized.
-    pub fn from_wire(value: &str) -> Option<Self> {
-        match value {
-            "manual" => Some(SubscriptionRoutingStrategy::Manual),
-            "balanced" => Some(SubscriptionRoutingStrategy::Balanced),
-            "mostAvailableBudget" => Some(SubscriptionRoutingStrategy::MostAvailableBudget),
-            _ => None,
-        }
-    }
-}
 /// A mutation on the worker-peer registry (`worker.add`/`select`/`update`/`remove`).
 #[derive(Debug, Clone)]
 pub enum WorkerOp {
@@ -272,16 +184,6 @@ pub enum WorkerOp {
     RefreshDetails {
         /// Registry identifier of the worker to probe.
         id: String,
-    },
-    /// Choose the default worker according to captured capacity details.
-    ApplyStrategy {
-        /// Host-selection strategy to persist and apply.
-        strategy: RoutingStrategy,
-    },
-    /// Choose provider subscriptions independently from host resources.
-    ApplySubscriptionStrategy {
-        /// Subscription-selection strategy to persist and apply.
-        strategy: SubscriptionRoutingStrategy,
     },
 }
 /// The event stream's health, surfaced in the header when a cycle runs under the

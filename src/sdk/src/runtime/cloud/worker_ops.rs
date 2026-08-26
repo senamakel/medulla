@@ -91,11 +91,6 @@ pub(super) async fn apply_worker_op(
         WorkerOp::Remove { id } => handle.remove(&id).await,
         WorkerOp::SetRoles { id, roles } => handle.set_roles(&id, roles).await,
         WorkerOp::RefreshDetails { id } => handle.refresh_system_info(&id).await,
-        WorkerOp::ApplyStrategy { strategy } => handle.apply_strategy(strategy),
-        WorkerOp::ApplySubscriptionStrategy { strategy } => {
-            handle.apply_subscription_strategy(strategy);
-            Ok(())
-        }
         WorkerOp::Update { id, patch } => {
             let label = label_from_patch(&patch)?;
             handle.set_label(&id, label).await

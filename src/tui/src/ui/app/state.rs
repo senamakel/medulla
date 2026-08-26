@@ -14,8 +14,7 @@ use medulla::config::LoadedConfig;
 use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
-    App, Cmd, PaneView, ResumePicker, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK,
-    SP_USAGE, TABS,
+    App, Cmd, PaneView, ResumePicker, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_USAGE, TABS,
 };
 
 impl App {
@@ -24,26 +23,6 @@ impl App {
     pub fn new(runtime: Arc<dyn Runtime>, loaded: LoadedConfig) -> Self {
         let snapshot = runtime.snapshot();
         let theme = Theme::from_config(&loaded.config.theme);
-        // Load the persisted routing strategy onto the chooser so the operator's
-        // saved selection is highlighted on start rather than always Manual.
-        let routing_strategy_index = loaded
-            .config
-            .routing_strategy
-            .and_then(|strategy| {
-                super::types::ROUTING_STRATEGIES
-                    .iter()
-                    .position(|option| option.strategy == strategy)
-            })
-            .unwrap_or(0);
-        let subscription_strategy_index = loaded
-            .config
-            .subscription_routing_strategy
-            .and_then(|strategy| {
-                super::types::SUBSCRIPTION_STRATEGIES
-                    .iter()
-                    .position(|option| option.strategy == strategy)
-            })
-            .unwrap_or(0);
         let harness_skip_permissions = loaded.config.harness.skip_permissions;
         let status_line_promotion_pending = loaded.config.status_line.is_none();
         App {
@@ -68,17 +47,7 @@ impl App {
             workflow_delete_armed: None,
             agent_scroll: 0,
             command_index: 0,
-            host_index: 0,
-            host_roles_focus: false,
-            host_role_index: 0,
-            workspace_index: 0,
-            template_index: 0,
-            custom_harnesses: Vec::new(),
-            custom_harness_index: 0,
-            hook_index: 0,
             hook_log: medulla::harness_hooks::HookEventLog::new(),
-            template_scroll: 0,
-            template_modal: false,
             #[cfg(feature = "workflows")]
             workflow_index: 0,
             #[cfg(feature = "workflows")]
@@ -95,12 +64,6 @@ impl App {
             wf: Default::default(),
             #[cfg(feature = "workflows")]
             workflow_store_override: None,
-            routing_index: 0,
-            routing_focused: false,
-            routing_strategy_index,
-            subscription_strategy_index,
-            subscription_strategy_focused: false,
-            credential_status: super::credentials::detect_credential_status(),
             tokenmaxxing_index: 0,
             tokenmaxxing_focused: false,
             feedback: Default::default(),
@@ -179,7 +142,6 @@ impl App {
     pub fn set_config_path(&mut self, path: std::path::PathBuf) {
         self.config_path = Some(path.clone());
         self.hooks_config_path = Some(path);
-        self.reload_custom_harnesses();
     }
 
     /// Point hook persistence at a file distinct from [`Self::config_path`].
@@ -302,32 +264,6 @@ impl App {
     /// Test/inspection seam for the X/A steering flows.
     pub fn selected_task_id(&self) -> Option<String> {
         self.selected_agent_task().map(|t| t.task_id)
-    }
-
-    /// The active worker-selection index. Test/inspection seam.
-    pub fn host_index(&self) -> usize {
-        self.host_index
-    }
-
-    /// The active Routing subpage name. Test/inspection seam.
-    pub fn routing_subpage(&self) -> &'static str {
-        ROUTING_SUBPAGES[self.routing_index.min(ROUTING_SUBPAGES.len() - 1)]
-    }
-
-    /// Whether Routing focus is inside the active content pane.
-    pub fn routing_focused(&self) -> bool {
-        self.routing_focused
-    }
-
-    /// Focus Routing on a named subpage and enter its content pane.
-    pub fn focus_routing_subpage(&mut self, name: &str) {
-        self.tab_index = super::types::tab_pos("Hosts");
-        self.routing_index = ROUTING_SUBPAGES
-            .iter()
-            .position(|page| *page == name)
-            .unwrap_or(0);
-        self.routing_focused = true;
-        self.refresh_credential_status_if_needed();
     }
 
     /// Route `copy_chat` into a captured sink instead of the OS clipboard, and
@@ -511,17 +447,9 @@ impl App {
     /// Settings subpages rather than tabs, the Settings arm dispatches on the
     /// active subpage.
     pub(super) fn tab_enter_cmd(&mut self) -> Option<Cmd> {
-        // Arriving at a tab should put the keyboard on the thing the tab is
-        // *about*. Hosts used to land on its two-item menu, so the first arrow
-        // press did nothing visible and the list had to be clicked before it
-        // would move — the list is the page, and the menu is two rows reachable
-        // with `1` and `2` or Esc.
-        if self.tab() == "Hosts" {
-            self.routing_focused = true;
-        }
-        // No other tab needs a nudge: the rail forwards typing, so a printable
-        // key moves focus to the composer and lands the character there, and
-        // nothing is lost by not starting in it.
+        // No tab needs a focus nudge on entry: the rail forwards typing, so a
+        // printable key moves focus to the composer and lands the character
+        // there, and nothing is lost by not starting in it.
         match self.tab() {
             "Feedback" => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
             // The diff pane is the Changes surface now, so entering the tab
@@ -614,11 +542,6 @@ impl App {
     /// not merged: two half-descriptions of one fleet interleaved would be
     /// harder to trust than whichever one is authoritative.
     ///
-    /// The template catalog is the exception. This client's own catalog — the
-    /// `.medulla/agents` store, or the built-in coding roles when nothing is
-    /// installed — is merged into whatever wins, by id, because it is what this
-    /// client declares it can provision. A runtime that names the same id keeps
-    /// its own record.
     pub(super) fn fleet_capacity(&self) -> medulla::runtime::CapacitySnapshot {
         let mut declared = if self.snapshot.capacity.is_empty() {
             self.loaded.config.fleet.capacity()
@@ -628,19 +551,13 @@ impl App {
         // Last resort, and opt-in only: with `MEDULLA_DEMO_FLEET` set and nothing
         // real declared, stand in a small fake fleet so the surfaces can be
         // exercised without a backend. It never overrides a real reading.
-        if (declared.is_empty() || self.loaded.config.fleet.declares_only_templates())
-            && medulla::runtime::demo_fleet_requested()
-        {
+        if declared.is_empty() && medulla::runtime::demo_fleet_requested() {
             declared = medulla::runtime::demo_capacity();
         }
         // The locally registered peers are hosts too, and they are frequently
         // the only capacity a hub-backed session has. Declared records win on a
         // collision; the registry only ever adds machines nothing else named.
-        let merged = merge_capacity(&declared, &registry_capacity(&self.runtime.workers()));
-        // This client's catalog comes last and only fills gaps: a template the
-        // runtime already declares under the same id wins, so the page is never
-        // empty on a fresh install and never overrides an authoritative record.
-        medulla::agents::merge_templates(&merged, &self.loaded.config.fleet.agent_templates)
+        merge_capacity(&declared, &registry_capacity(&self.runtime.workers()))
     }
 
     /// The agent identities the fleet surfaces place.
@@ -656,14 +573,6 @@ impl App {
             return medulla::runtime::demo_agents();
         }
         self.snapshot.roster.clone()
-    }
-
-    /// The agent-template catalog, which is the set of roles a host may be
-    /// offered for. Read through [`fleet_capacity`](App::fleet_capacity) so the
-    /// Hosts page and the Agent Templates page can never disagree about which
-    /// roles exist.
-    pub(super) fn agent_templates(&self) -> Vec<medulla::runtime::AgentTemplate> {
-        self.fleet_capacity().templates
     }
 
     /// The index of the active thread in the snapshot's thread list.

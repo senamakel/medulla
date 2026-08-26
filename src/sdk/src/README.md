@@ -4,7 +4,6 @@ The Rust module tree for the `medulla` SDK crate. `lib.rs` defines the public su
 
 ## Contents
 
-- [`agents/`](./agents/) — Where agent templates come from: the built-in coding catalog, the on-disk `.medulla/agents/*.toml` store that supersedes it, and the installer that writes the catalog into that store so it can be edited.
 - [`auth/`](./auth/) — Login plumbing: an RFC 8252 loopback OAuth flow against the Medulla backend and the pure URL/query helpers the CLI and tests share.
 - [`bridge/`](./bridge/) — Message delivery bridges for local and remote agent communication.
 - [`client/`](./client/) — HTTP/SSE client for the Medulla orchestration backend.

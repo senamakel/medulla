@@ -335,7 +335,6 @@ fn a_roster_remembered_from_a_hosting_run_is_dropped_when_hosting_is_off() {
             hosts: Vec::new(),
         }),
         Some(&session),
-        Vec::new(),
     )
     .expect("the hub config builds with a session present");
 

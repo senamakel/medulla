@@ -34,11 +34,19 @@ use super::rail_hit::RailHit;
 /// scroll positions and no way to answer an agent's question from where the
 /// question was visible.
 ///
-/// Workflows used to be a Routing subpage. It is a tab because it is not a
-/// management surface: Routing is where an operator declares what capacity
-/// exists, and a workflow is *work* — a plan they read, edit, and run, with a
-/// graph to navigate and a copilot to edit it by. Three panes' worth of surface
-/// does not fit in a subpage of something else.
+/// Workflows is a tab because it is *work* — a plan an operator reads, edits,
+/// and runs, with a graph to navigate and a copilot to edit it by. Three panes'
+/// worth of surface does not fit in a subpage of something else.
+///
+/// `Hosts` is gone. It was the fleet's management surface — the hosts registered
+/// on it, the harness types and their credentials, the hook declarations, the
+/// agent-template catalog, host onboarding, and the routing strategies — and all
+/// of it existed to feed an orchestration engine that no longer exists. Most of
+/// it survives as config: `[[hosts]]`, `[[harnesses]]` and `[[hooks]]` are still
+/// read at load, so the runtime behaves exactly as before for those; there is
+/// simply no page that edits them by hand any more. The agent-template catalog
+/// did not survive — the `.medulla/agents` store and its loader are gone with
+/// the tab, so any templates it held are no longer read.
 /// Subconscious sits after Workflows because it is the tier *under* the work
 /// rather than another view of it: what gets filtered on the way in, what is
 /// learned from the difference between expectation and outcome, and what is
@@ -60,11 +68,10 @@ use super::rail_hit::RailHit;
 /// bindings stay in `app::changes`; only the top-level tab and its `D` shortcut
 /// were removed.
 #[cfg(feature = "workflows")]
-pub const TABS: [&str; 6] = [
+pub const TABS: [&str; 5] = [
     "Sessions",
     "Workflows",
     "Subconscious",
-    "Hosts",
     "Feedback",
     "Settings",
 ];
@@ -74,55 +81,9 @@ pub const TABS: [&str; 6] = [
 ///
 /// This is the workflow-enabled list minus `Workflows`: every remaining tab —
 /// the Sessions rail with its `d` diff pane, the live Subconscious signal
-/// field, Hosts, Feedback, and Settings — renders without the workflow engine.
+/// field, Feedback, and Settings — renders without the workflow engine.
 #[cfg(not(feature = "workflows"))]
-pub const TABS: [&str; 5] = ["Sessions", "Subconscious", "Hosts", "Feedback", "Settings"];
-
-/// The Routing tab's left-nav pages.
-///
-/// Ordered by the containment chain. `Hosts` is the machine level the operator
-/// registers and steers by hand; `Harness Types` is the runtime level, which is
-/// where credentials live — a subscription or an API key is a property of the
-/// CLI runtime that spends it, not of the machine it happens to sit on;
-/// `Workspaces` is the folder level, which is what the orchestrator actually
-/// reasons about — a machine is capacity, a directory is *work*; `Agent
-/// Templates` is the catalog of what may be provisioned onto any of it. `Add
-/// Host` and `Strategies` are the two actions that belong to no level.
-///
-/// There is no `Fleet` page: the whole declared tree lives in the Sessions rail,
-/// beside the lanes running on it. These pages are the *management* surfaces —
-/// what you register, authenticate, and choose — not the picture. Workflows is
-/// not here either: it is a tab of its own (see [`TABS`]).
-/// Ordered by the containment chain, as before: the machine, what runs on it,
-/// what may be stood up there, how to add another, and how work is routed
-/// between them.
-///
-/// Only Workspaces is commented out. An entry there was advisory routing
-/// context; declaring an agent is what actually puts work in a directory, and
-/// that is done from the host tree. Its draw arm, keys and `[host].workspaces`
-/// persistence all still build, so restoring it is putting its name back here
-/// and renumbering.
-pub const ROUTING_SUBPAGES: [&str; 6] = [
-    "Hosts",
-    "Harness Types",
-    "Hooks",
-    "Agent Templates",
-    "Add Host",
-    "Strategies",
-];
-
-pub(in crate::ui::app) const RP_HOSTS: usize = 0;
-pub(in crate::ui::app) const RP_HARNESSES: usize = 1;
-// Beside Harness Types on purpose: a hook is a property of every harness
-// Medulla launches, and this page is the one place they are declared for all of
-// them.
-pub(in crate::ui::app) const RP_HOOKS: usize = 2;
-pub(in crate::ui::app) const RP_TEMPLATES: usize = 3;
-pub(in crate::ui::app) const RP_ADD_HOST: usize = 4;
-pub(in crate::ui::app) const RP_STRATEGIES: usize = 5;
-// Past the end of `ROUTING_SUBPAGES`, so the nav clamp cannot reach it and its
-// arm is unreachable — the page is off without its code rotting.
-pub(in crate::ui::app) const RP_WORKSPACES: usize = 6;
+pub const TABS: [&str; 4] = ["Sessions", "Subconscious", "Feedback", "Settings"];
 
 /// The TokenMaxxxing tab's sidebar pages.
 pub(in crate::ui::app) const TOKENMAXXING_SUBPAGES: [&str; 3] =
@@ -131,10 +92,6 @@ pub(in crate::ui::app) const TOKENMAXXING_SUBPAGES: [&str; 3] =
 pub(in crate::ui::app) const TM_OVERVIEW: usize = 0;
 pub(in crate::ui::app) const TM_BOUNTIES: usize = 1;
 pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
-
-pub(in crate::ui::app) use super::super::routing_options::{
-    ROUTING_STRATEGIES, SUBSCRIPTION_STRATEGIES,
-};
 
 /// The Settings tab's left-nav subpages, in order (number keys 1-9 jump to them).
 ///
@@ -562,16 +519,6 @@ impl Default for FeedbackState {
     }
 }
 
-/// Cached credential-presence flags displayed by Routing's Manage Keys pane.
-#[derive(Default)]
-pub(in crate::ui::app) struct CredentialStatus {
-    pub(in crate::ui::app) claude_subscription: bool,
-    pub(in crate::ui::app) codex_subscription: bool,
-    pub(in crate::ui::app) anthropic_api_key: bool,
-    pub(in crate::ui::app) openai_api_key: bool,
-    pub(in crate::ui::app) openrouter_api_key: bool,
-}
-
 /// The interactive TUI screen: all tab state, input focus, and render geometry.
 pub struct App {
     /// The runtime this screen drives.
@@ -621,33 +568,12 @@ pub struct App {
     pub(in crate::ui::app) agent_scroll: usize,
     /// Selected row in the command peek, while it is open.
     pub(in crate::ui::app) command_index: usize,
-    /// Selected row on the Routing Hosts page.
-    pub(in crate::ui::app) host_index: usize,
-    /// Whether ↑↓ on the Hosts page drives the role toggles in the preview
-    /// rather than the host list above it. Tab moves between the two.
-    pub(in crate::ui::app) host_roles_focus: bool,
-    /// Selected role in the preview's toggle list, while it has focus.
-    pub(in crate::ui::app) host_role_index: usize,
-    /// Selected row on the Routing Workspaces page.
-    pub(in crate::ui::app) workspace_index: usize,
-    /// Selected row on the Routing Agent Templates page.
-    pub(in crate::ui::app) template_index: usize,
-    /// OpenRouter-backed harness presets loaded from the active config.
-    pub(in crate::ui::app) custom_harnesses: Vec<medulla::config::CustomHarnessConfig>,
-    /// Selected row on the Routing Harness Types page.
-    pub(in crate::ui::app) custom_harness_index: usize,
-    /// Selected row on the Routing Hooks page.
-    pub(in crate::ui::app) hook_index: usize,
     /// Lifecycle reports arriving from the harnesses this Medulla launched.
     ///
     /// Written by the control socket's `hook.report` handler and read here; an
     /// app with no control plane bound simply renders an empty log.
     pub(in crate::ui::app) hook_log: medulla::harness_hooks::HookEventLog,
-    /// Scroll offset inside the open agent-template popup.
-    pub(in crate::ui::app) template_scroll: usize,
-    /// Whether the agent-template popup is open over the catalog.
-    pub(in crate::ui::app) template_modal: bool,
-    /// Selected row on the Routing Workflows page.
+    /// Selected row on the Workflows tab.
     #[cfg(feature = "workflows")]
     pub(in crate::ui::app) workflow_index: usize,
     /// The installed workflows, as last read from disk.
@@ -686,18 +612,6 @@ pub struct App {
     #[cfg(feature = "workflows")]
     pub(in crate::ui::app) workflow_store_override:
         Option<Arc<dyn medulla::workflows::WorkflowStore>>,
-    /// The active Routing subpage (index into [`ROUTING_SUBPAGES`]).
-    pub(in crate::ui::app) routing_index: usize,
-    /// Whether keyboard focus is inside the Routing content pane.
-    pub(in crate::ui::app) routing_focused: bool,
-    /// Selected row on the Routing strategy page.
-    pub(in crate::ui::app) routing_strategy_index: usize,
-    /// Selected subscription rule on the Routing strategy page.
-    pub(in crate::ui::app) subscription_strategy_index: usize,
-    /// Whether the subscription group, rather than the host group, has focus.
-    pub(in crate::ui::app) subscription_strategy_focused: bool,
-    /// Credential presence captured on startup and refreshed when its pane opens.
-    pub(in crate::ui::app) credential_status: CredentialStatus,
     /// The active TokenMaxxxing sidebar page.
     pub(in crate::ui::app) tokenmaxxing_index: usize,
     /// Whether keyboard focus is inside the TokenMaxxxing content pane.

@@ -1,103 +1,12 @@
-//! An agent's declared roles, workspace and capacity, carried into the advert.
+//! An agent's declared workspace, host and capacity, carried into the advert.
 
 use super::super::super::roster::register_payload;
 use super::helpers::{no_presence, worker};
 
-#[test]
-fn a_toggled_role_reaches_the_orchestrator_as_description_tags_and_id() {
-    // What the orchestrator can route on. The description is a prompt surface —
-    // it is the text the model reads when choosing — the tags are the coarse
-    // filter, and the id is the join key for anything that later wants the
-    // role's tools or instructions.
-    let catalog = crate::agents::default_templates();
-    let mut w = worker("claude-worker-2", "GRVaddr");
-    w.roles = vec!["code-reviewer".to_string()];
-
-    let payload = register_payload(&[w], &no_presence(), &catalog, &[]);
-    let agent = &payload["agents"][0];
-
-    assert!(
-        agent["description"]
-            .as_str()
-            .expect("a description")
-            .contains("Reviews a change"),
-        "the role's own words, not \"claude daemon\": {agent}"
-    );
-    let tags: Vec<&str> = agent["tags"]
-        .as_array()
-        .expect("tags")
-        .iter()
-        .map(|t| t.as_str().expect("a tag"))
-        .collect();
-    // `code` survives whatever else is set: every one of these runs a coding
-    // harness, and dropping it would take the worker out of code fan-outs.
-    assert!(tags.contains(&"code"), "{tags:?}");
-    assert!(tags.contains(&"review"), "{tags:?}");
-    assert_eq!(agent["metadata"]["roles"][0], "code-reviewer");
-}
-
-#[test]
-fn a_worker_with_no_roles_is_advertised_exactly_as_before() {
-    // Unspecified must stay general. Describing a worker as nothing, or tagging
-    // it out of every fan-out, would make declaring roles compulsory.
-    let payload = register_payload(
-        &[worker("w1", "GRVaddr")],
-        &no_presence(),
-        &crate::agents::default_templates(),
-        &[],
-    );
-    let agent = &payload["agents"][0];
-    assert_eq!(agent["description"], "claude daemon");
-    assert_eq!(agent["tags"][0], "code");
-    assert_eq!(agent["tags"].as_array().expect("tags").len(), 1);
-}
-
-#[test]
-fn a_role_the_catalog_does_not_have_is_dropped_rather_than_advertised() {
-    // A role the orchestrator cannot look up is a routing hint it cannot act
-    // on, and advertising it would describe the worker as something no template
-    // backs.
-    let mut w = worker("w1", "GRVaddr");
-    w.roles = vec!["deleted-role".to_string()];
-    let payload = register_payload(
-        &[w],
-        &no_presence(),
-        &crate::agents::default_templates(),
-        &[],
-    );
-    assert_eq!(payload["agents"][0]["description"], "claude daemon");
-    // Including from `metadata.roles`, which is the join key: an id with no
-    // template behind it hands a downstream lookup a key that resolves to
-    // nothing, which is the same unactionable hint the description drops.
-    assert!(
-        payload["agents"][0]["metadata"]["roles"].is_null(),
-        "unresolved ids must not survive in metadata: {}",
-        payload["agents"][0]["metadata"]
-    );
-}
-
-#[test]
-fn metadata_roles_carries_only_the_ids_the_catalog_resolves() {
-    let mut w = worker("w1", "GRVaddr");
-    w.roles = vec!["code-reviewer".to_string(), "deleted-role".to_string()];
-    let payload = register_payload(
-        &[w],
-        &no_presence(),
-        &crate::agents::default_templates(),
-        &[],
-    );
-    assert_eq!(
-        payload["agents"][0]["metadata"]["roles"],
-        serde_json::json!(["code-reviewer"])
-    );
-}
-
 /// The declaration → advert chain, at the seam where a declared agent becomes a
-/// roster row. Roles had no source here before agents were declared: the
-/// mapping hard-coded an empty list, so a host in this process advertised itself
-/// as a general worker however the operator had configured it.
+/// roster row.
 #[test]
-fn a_declared_agents_roles_and_placement_survive_into_the_advert() {
+fn a_declared_agents_placement_survives_into_the_advert() {
     let spec = crate::hub::WorkerSpec {
         id: "api-claude".to_string(),
         host_id: "this-device".to_string(),
@@ -117,14 +26,8 @@ fn a_declared_agents_roles_and_placement_survive_into_the_advert() {
     assert_eq!(w.workspace_path(), Some("/srv/api"));
     assert_eq!(w.max_sessions, 1);
 
-    let payload = register_payload(
-        &[w],
-        &no_presence(),
-        &crate::agents::default_templates(),
-        &[],
-    );
+    let payload = register_payload(&[w], &no_presence(), &[]);
     let agent = &payload["agents"][0];
-    assert_eq!(agent["metadata"]["roles"][0], "code-reviewer");
     // Placement still rides `metadata.workspace` as a path — the `{path, type}`
     // object is deferred, and the backend reads both anyway.
     assert_eq!(agent["metadata"]["workspace"], "/srv/api");
@@ -161,12 +64,7 @@ fn a_workspaceless_agent_still_carries_its_host_id() {
         max_sessions: 1,
     };
     let w = super::super::super::roster::worker_from_spec(&spec);
-    let payload = register_payload(
-        &[w],
-        &no_presence(),
-        &crate::agents::default_templates(),
-        &[],
-    );
+    let payload = register_payload(&[w], &no_presence(), &[]);
     let agent = &payload["agents"][0];
     assert!(agent["metadata"].get("workspace").is_none());
     assert_eq!(agent["hostId"], "this-device");

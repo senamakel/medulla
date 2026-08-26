@@ -101,18 +101,14 @@ pub(super) async fn connect_harness(
 ) -> anyhow::Result<Client> {
     let HarnessWiring {
         roster,
-        catalog,
         local_hosts,
         runner,
-        subscription_strategy,
         log,
         activity,
         workflows: workflow_plane,
     } = wiring;
     let connect_roster = roster.clone();
-    let connect_catalog = catalog.clone();
     let connect_local_hosts = local_hosts.clone();
-    let cap_catalog = catalog.clone();
     let connect_relay = runner.relay();
     let connect_log = log.clone();
     let connect_workflows = workflow_plane.clone();
@@ -125,7 +121,6 @@ pub(super) async fn connect_harness(
     let cap_runner = runner.clone();
     let abort_runner = runner.clone();
     let abort_log = log.clone();
-    let run_subscription_strategy = subscription_strategy.clone();
 
     let client = ClientBuilder::new(backend_url.to_string())
         .auth(json!({ "token": jwt }))
@@ -150,7 +145,6 @@ pub(super) async fn connect_harness(
         // connect.
         .on(Event::Connect, move |_payload, socket| {
             let roster = connect_roster.clone();
-            let catalog = connect_catalog.clone();
             let local_hosts = connect_local_hosts.clone();
             let relay = connect_relay.clone();
             let connect_log = connect_log.clone();
@@ -200,7 +194,7 @@ pub(super) async fn connect_harness(
                 let payload = {
                     let workers = roster.lock().expect("roster lock");
                     let local_hosts = local_hosts.lock().expect("local hosts lock");
-                    register_payload(&workers, &online, &catalog, &local_hosts)
+                    register_payload(&workers, &online, &local_hosts)
                 };
                 let _ = socket.emit("medulla:register_agents", payload).await;
                 // Beside the roster, not instead of it: the backend keys a
@@ -242,14 +236,12 @@ pub(super) async fn connect_harness(
             let runner = runner.clone();
             let roster = run_roster.clone();
             let run_activity = run_activity.clone();
-            let subscription_strategy = run_subscription_strategy.clone();
             async move {
                 tokio::spawn(handle_task_run(
                     payload,
                     socket,
                     runner,
                     roster,
-                    subscription_strategy,
                     run_log,
                     run_activity,
                 ));
@@ -299,12 +291,9 @@ pub(super) async fn connect_harness(
         // every later delegation while this process still looks alive.
         .on("medulla:capabilities_request", move |payload, socket| {
             let roster = cap_roster.clone();
-            let catalog = cap_catalog.clone();
             let runner = cap_runner.clone();
             async move {
-                tokio::spawn(handle_capabilities(
-                    payload, socket, roster, catalog, runner,
-                ));
+                tokio::spawn(handle_capabilities(payload, socket, roster, runner));
             }
             .boxed()
         })
