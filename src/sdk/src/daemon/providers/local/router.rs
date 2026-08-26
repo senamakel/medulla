@@ -29,10 +29,10 @@
 //! # Endpoints that are not OpenRouter
 //!
 //! A preset may name a local router, a self-hosted gateway, or a vendor's own
-//! OpenAI-compatible endpoint. Those are handed to the core as they are spelled,
-//! with the key the preset named: there is no third party to credit and no
-//! header to rewrite, so interposing the attribution proxy would add a hop that
-//! rewrites requests for an upstream it knows nothing about. That decision is
+//! OpenAI-compatible endpoint. Those reach the turn exactly as spelled, with the
+//! key the preset named: there is no third party to credit and no header to
+//! rewrite, so interposing the attribution proxy would add a hop that rewrites
+//! requests for an upstream it knows nothing about. That decision is
 //! [`crate::inference_proxy::route_embedded`]'s; this module only supplies the
 //! preconditions.
 
