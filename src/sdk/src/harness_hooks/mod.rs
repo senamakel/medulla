@@ -46,10 +46,12 @@
 //! - **OpenCode** exposes hooks as a scripted plugin API rather than a
 //!   declarative command hook, and is not adapted yet; its hooks are reported as
 //!   [`DroppedHook`]s rather than silently ignored.
-//! - **OpenHuman** runs in-process and has no external harness to configure; its
-//!   `PreToolUse`, `PostToolUse`, and `Stop` hooks are instead routed to the
-//!   embedded core's embedder hooks at boot (see [`crate::core_host::hooks`]),
-//!   so `hook_injection` here carries no argv for it.
+//! - **OpenHuman** runs in-process and has no external harness to configure, so
+//!   `hook_injection` here carries no argv for it. Its `PreToolUse`,
+//!   `PostToolUse`, and `Stop` events are declared supported (see
+//!   [`HookEvent::supported_by`]) for the in-process turn to raise directly,
+//!   rather than through the command-injection path this module builds for a
+//!   spawned CLI.
 //!
 //! Both delivery paths were verified end-to-end against the versions named
 //! above: a `SessionStart` hook injected this way fires on Claude Code, and on
