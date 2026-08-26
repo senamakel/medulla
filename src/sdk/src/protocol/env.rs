@@ -171,8 +171,8 @@ fn bin_keys(provider: HarnessProvider) -> &'static [&'static str] {
 /// that answers "run this machine's turns on that model right now" without
 /// editing a config file or a graph. Callers that resolve a model from several
 /// sources should consult this first — see
-/// [`crate::daemon::providers::openhuman::effective_model`], which does exactly
-/// that for the embedded core.
+/// [`crate::daemon::providers::local::model::effective_model`], which does
+/// exactly that for the in-process (OpenHuman) provider.
 pub fn model_override(provider: HarnessProvider, env: &HashMap<String, String>) -> Option<String> {
     let provider_keys = provider_keys(provider, "MODEL");
     let harness_keys = harness_keys("MODEL");
