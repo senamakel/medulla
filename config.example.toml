@@ -142,15 +142,20 @@ tokenEnv = "MEDULLA_TOKEN"
 # unchanged — the pin is skipped rather than refusing the request.
 # providerOnly = ["streamlake"]
 
-# baseHarness = "openhuman" runs the turn on the embedded core rather than
-# spawning a CLI, so there is nothing to install. The preset's model, endpoint
-# and key apply to that turn only: Medulla passes the core a per-call route
-# through the same loopback proxy, and the core never persists it, so the
-# account's own OpenHuman inference is left where you set it.
+# baseHarness = "openhuman" runs the turn in-process on the vendored
+# tinyagents agent loop with Medulla's own tools, rather than spawning a CLI,
+# so there is nothing to install. There is no embedded OpenHuman core anymore
+# and nothing for the model or endpoint to fall back to: both are resolved
+# entirely from this preset and the environment. The order (highest first) is
+# MEDULLA_OPENHUMAN_MODEL / MEDULLA_HARNESS_MODEL, then the workflow node's own
+# model, then this preset's model, then `[workflows] defaultModel`. The
+# endpoint and key travel the same loopback proxy a spawned CLI's would.
 #
-# A preset that names only a model still works and still needs no OpenRouter
-# key. With nothing exported under apiKeyEnv the turn runs on whatever the
-# account's OpenHuman configuration already resolves.
+# Unlike the other base harnesses, an "openhuman" preset with no key present
+# under apiKeyEnv is not advertised at all — it used to be exempted because the
+# embedded core authenticated as the signed-in account, but this harness is an
+# ordinary chat-completions client and an unusable preset should be absent
+# rather than offered and then rejected once a task is delegated to it.
 # [[customHarnesses]]
 # id = "deepseek-oh"
 # name = "DeepSeek via OpenHuman"
