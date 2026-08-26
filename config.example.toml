@@ -97,6 +97,67 @@ tokenEnv = "MEDULLA_TOKEN"
 # skipPermissions = true
 
 # ---------------------------------------------------------------------------
+# [[hosts]] — extra hosted directories on this same machine (optional)
+# ---------------------------------------------------------------------------
+# One laptop routinely holds several unrelated repos, and [host] can only name
+# one working directory — its `workspaces` list is advisory, so a task still
+# runs in the primary one. Each [[hosts]] entry binds its own device-local
+# address and registers as its own agent, so the orchestrator can be told
+# *which project* to work in, not only *which machine*. Additive: [host] keeps
+# its own meaning, and a config with no [[hosts]] behaves exactly as before.
+# Every field below is the same one documented under [host] above.
+# [[hosts]]
+# enabled = true
+# name = "medulla-v1"
+# address = "medulla-v1"
+# workspace = "/absolute/path/to/other/repo"
+# providers = ["claude", "codex"]
+# defaultProvider = "claude"
+# concurrency = 2
+# taskTimeoutMs = 600000
+# model = "claude-sonnet-4-5"
+# skipPermissions = true
+
+# ---------------------------------------------------------------------------
+# harness — how harnesses the operator starts themselves behave (optional)
+# ---------------------------------------------------------------------------
+# Distinct from [host]/[[hosts]] above, which are about harnesses the
+# *orchestrator* starts to serve tasks. These are the ones an operator opens by
+# hand from the manual launcher, and the orchestrator never touches them.
+# [harness]
+# Whether an operator-started harness launches with its provider's
+# permission-bypass flag. Off by default — deliberately the opposite of
+# [host]'s skipPermissions, because this session is by definition attended, so
+# there is always someone to answer a prompt. Default: false
+# skipPermissions = false
+# Recently chosen directories in the manual harness launcher, newest first.
+# Picker history only; it never changes where orchestrated tasks may run.
+# Default: []
+# recentWorkspaces = ["/absolute/path/to/repo"]
+# Saved directory shortcuts for the manual harness launcher. A favorite is an
+# operator's named destination, kept separate from recent history so it stays
+# useful even after it falls out of the recent list. Default: []
+# favoriteWorkspaces = [{ name = "medulla", path = "/absolute/path/to/repo" }]
+
+# ---------------------------------------------------------------------------
+# routingStrategy / subscriptionRoutingStrategy — how the hub auto-picks
+# capacity (optional, top-level keys)
+# ---------------------------------------------------------------------------
+# routingStrategy picks a default *host* from captured capacity details:
+# "manual" (default; preserves your explicit selection) | "balanced" (CPU,
+# available memory as tie-breaker) | "cpuFirst" | "memoryFirst". Reconciled
+# with the backend's routing-strategy config when the backend has one, which
+# wins as configuration over this local value.
+# routingStrategy = "manual"
+# subscriptionRoutingStrategy picks a provider *subscription* once a host is
+# already selected — a different axis from routingStrategy: token headroom and
+# readiness on that host rather than CPU/memory across hosts. "manual"
+# (default; preserves an explicitly requested provider or the host's
+# configured default) | "balanced" (greatest remaining percentage) |
+# "mostAvailableBudget" (greatest absolute token headroom).
+# subscriptionRoutingStrategy = "manual"
+
+# ---------------------------------------------------------------------------
 # customHarnesses — OpenRouter models through a coding CLI
 # ---------------------------------------------------------------------------
 # When OPENROUTER_API_KEY is present, Routing › Harnesses can add and edit these
