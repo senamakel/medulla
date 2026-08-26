@@ -14,7 +14,6 @@ pub(super) fn no_presence() -> std::collections::HashMap<String, bool> {
 /// A plain advertised worker: an id, an address, and the default harness.
 pub(super) fn worker(id: &str, addr: &str) -> HubWorker {
     HubWorker {
-        roles: Vec::new(),
         id: id.to_string(),
         address: addr.to_string(),
         harness: "claude".to_string(),

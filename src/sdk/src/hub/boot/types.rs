@@ -67,11 +67,6 @@ pub struct WorkerSpec {
     /// Its path is advertised as `metadata.workspace`; see
     /// [`HubWorker::workspace`](crate::hub::HubWorker::workspace).
     pub workspace: Option<crate::runtime::WorkspaceRef>,
-    /// Agent-template ids this worker is offered for. Empty means unspecified.
-    ///
-    /// Sourced from the agent's declaration, which is what finally gives
-    /// `metadata.roles` something to carry for a host in this process.
-    pub roles: Vec<String>,
     /// Sessions this worker may run at once, derived from its declared
     /// strategy. Zero means unstated and is normalised to the serial default
     /// when the roster entry is built.

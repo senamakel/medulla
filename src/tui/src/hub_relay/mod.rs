@@ -61,7 +61,6 @@ fn workers_from_config(home: &Path) -> Vec<WorkerSpec> {
             // injected fresh each launch (see `build_hub_config_with_host`),
             // and a remote peer's is unknown here.
             workspace: None,
-            roles: w.roles,
             // Unstated for a remote peer: its concurrency is whatever it
             // declares on its own machine. Normalised where the roster entry is
             // built.
@@ -172,7 +171,6 @@ fn roster_sink(
                 harness: w.harness.clone(),
                 label: w.label.clone(),
                 selected: w.selected,
-                roles: w.roles.clone(),
             })
             .collect();
         if let Err(e) = medulla::config::persist_hub_workers(&path, &rows) {

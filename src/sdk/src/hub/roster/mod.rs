@@ -182,11 +182,9 @@ fn to_hosts(advertised: &[&HubWorker], declared: &[crate::config::LocalHostRef])
 /// The roster entry a [`WorkerSpec`](crate::hub::WorkerSpec) describes.
 ///
 /// The one place a spec becomes a live roster row, so the declaration → advert
-/// chain has a single seam: an agent's `roles`, workspace and derived capacity
-/// arrive here from what the operator declared, and `to_agent` turns them into
-/// `metadata`. Before declarations existed this mapping hard-coded empty roles,
-/// which is why a host in this process advertised itself as a general worker
-/// however it was configured.
+/// chain has a single seam: an agent's workspace and derived capacity arrive
+/// here from what the operator declared, and `to_agent` turns them into
+/// `metadata`.
 ///
 /// Lives here rather than beside the hub's boot wiring because it is pure data
 /// translation, and because everything downstream of it is tested here.
@@ -201,7 +199,6 @@ pub(crate) fn worker_from_spec(spec: &crate::hub::WorkerSpec) -> HubWorker {
         // label would put a constant on screen where the id belongs.
         label: (spec.name != "medulla-worker").then(|| spec.name.clone()),
         selected: false,
-        roles: spec.roles.clone(),
         workspace: spec.workspace.clone(),
         // A spec that states no capacity is a remembered roster row or a remote
         // peer, not a declaration; the serial default is the safe reading.

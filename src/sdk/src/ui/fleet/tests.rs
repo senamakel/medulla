@@ -29,7 +29,6 @@ use crate::runtime::WorkerInfo;
 /// A registered peer with the capacity facts the projection reads.
 fn peer(id: &str) -> WorkerInfo {
     WorkerInfo {
-        roles: Vec::new(),
         id: id.into(),
         address: format!("{id}.example:9000"),
         handle: Some(format!("@{id}")),

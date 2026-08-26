@@ -229,7 +229,6 @@ fn agent_from_declaration(
             .unwrap_or_else(|| declaration.agent_id.clone()),
         harness: Some(declaration.harness.clone()),
         workspace,
-        roles: declaration.roles.clone(),
         max_sessions: Some(declaration.max_sessions()),
         declared: true,
         editable: true,
@@ -241,7 +240,7 @@ fn agent_from_declaration(
 /// An agent row for a roster entry no declaration on this machine covers.
 ///
 /// `local` says whether it sits on a host this machine runs, which is the only
-/// thing that decides whether its roles can be assigned here.
+/// thing that decides whether this machine owns its declaration.
 fn agent_from_worker(worker: &WorkerInfo, local: bool) -> HostAgentRow {
     HostAgentRow {
         agent_id: worker.id.clone(),
@@ -252,7 +251,6 @@ fn agent_from_worker(worker: &WorkerInfo, local: bool) -> HostAgentRow {
             .unwrap_or_else(|| worker.id.clone()),
         harness: worker.harness.clone(),
         workspace: worker.workspace.clone(),
-        roles: worker.roles.clone(),
         max_sessions: None,
         declared: false,
         editable: local,

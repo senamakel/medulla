@@ -15,7 +15,6 @@ fn a_declared_agents_placement_survives_into_the_advert() {
         description: "claude on this machine · /srv/api".to_string(),
         harness: "claude".to_string(),
         workspace: Some(crate::runtime::WorkspaceRef::checkout("/srv/api")),
-        roles: vec!["code-reviewer".to_string()],
         max_sessions: 1,
     };
 
@@ -60,7 +59,6 @@ fn a_workspaceless_agent_still_carries_its_host_id() {
         description: "codex on this machine".to_string(),
         harness: "codex".to_string(),
         workspace: None,
-        roles: vec![],
         max_sessions: 1,
     };
     let w = super::super::super::roster::worker_from_spec(&spec);

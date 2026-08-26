@@ -141,11 +141,10 @@ fn budgets_and_readiness_still_ride_along() {
 }
 
 #[test]
-fn a_roles_tool_allowlist_narrows_what_the_probe_reported() {
-    // The probe reports what the *harness* has; a role says what the worker is
-    // *allowed*. Reporting the first unfiltered made the two channels
-    // contradict each other about one worker — the descriptor saying "reviews
-    // diffs" while capabilities claimed it could edit files.
+fn a_tool_allowlist_narrows_what_the_probe_reported() {
+    // The probe reports what the *harness* has; an allowlist says what the
+    // worker is *allowed*. Reporting the first unfiltered would let the two
+    // channels contradict each other about one worker.
     let mut caps = probed();
     caps.tools = vec![
         "read".to_string(),
@@ -168,13 +167,16 @@ fn a_roles_tool_allowlist_narrows_what_the_probe_reported() {
         .collect();
 
     assert_eq!(tools, vec!["read", "search", "shell"]);
-    assert!(!tools.contains(&"edit"), "the role does not permit editing");
+    assert!(
+        !tools.contains(&"edit"),
+        "the allowlist does not permit editing"
+    );
 }
 
 #[test]
-fn a_worker_with_no_role_allowlist_reports_every_tool_it_has() {
+fn a_worker_with_no_allowlist_reports_every_tool_it_has() {
     // "Unconstrained" and "allowed nothing" must stay distinct: an unspecified
-    // worker advertising no tools would make declaring roles compulsory.
+    // worker advertising no tools would make an allowlist compulsory.
     let caps = probed();
     let expected = caps.tools.len();
     let payload = capabilities_payload("claude", Some(&caps), None);

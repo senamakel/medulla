@@ -24,7 +24,6 @@ fn a_declared_agent_round_trips_through_the_config_file() {
     let (_dir, path) = scratch("config.toml");
     let mut declared = declaration_for("api-claude", "claude", "/srv/api");
     declared.name = Some("API".to_string());
-    declared.roles = vec!["reviewer".to_string()];
 
     let written = declare_agent(&path, &[], declared.clone()).expect("the config is writable");
     assert_eq!(written, vec![declared.clone()]);
@@ -44,7 +43,6 @@ fn a_declared_agent_round_trips_through_a_json_config() {
     let (_dir, path) = scratch("medulla.tui.json");
     let mut declared = declaration_for("api-codex", "codex", "/srv/api");
     declared.name = Some("API".to_string());
-    declared.roles = vec!["reviewer".to_string()];
 
     let written = declare_agent(&path, &[], declared.clone()).expect("the config is writable");
     assert_eq!(written, vec![declared.clone()]);
@@ -88,14 +86,12 @@ fn redeclaring_an_agent_replaces_it_in_place() {
     let first = declare_agent(&path, &[], declaration_for("a", "claude", "/one")).unwrap();
     let both = declare_agent(&path, &first, declaration_for("b", "codex", "/two")).unwrap();
 
-    let mut edited = declaration_for("a", "claude", "/moved");
-    edited.roles = vec!["reviewer".to_string()];
+    let edited = declaration_for("a", "claude", "/moved");
     let after = declare_agent(&path, &both, edited).unwrap();
 
     assert_eq!(after.len(), 2, "an edit is not a new agent");
     assert_eq!(after[0].agent_id, "a", "and it keeps its position");
     assert_eq!(after[0].workspace.path, "/moved");
-    assert_eq!(after[0].roles, ["reviewer"]);
     assert_eq!(load_agent_declarations(&path), after);
 }
 

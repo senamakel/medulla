@@ -255,18 +255,15 @@ async fn siblings_sharing_a_harness_are_named_by_their_agent_id() {
     assert_eq!(unique.len(), names.len(), "no two rows share a label");
 }
 
-/// Roles are assigned on the declaration and ride the advert as
-/// `metadata.roles`. The emit path already existed; the declaration is what
-/// finally gives it a source for an agent on this machine.
+/// Capacity rides the advert from the declaration's strategy, which is the one
+/// thing that decides how many sessions an agent may run at once.
 #[tokio::test]
-async fn declared_roles_and_strategy_reach_the_roster_entry() {
+async fn the_declared_strategy_reaches_the_roster_entry() {
     let mut declared = declaration("api-claude", "claude");
-    declared.roles = vec!["code-reviewer".to_string(), "test-writer".to_string()];
     declared.strategy = WorkspaceStrategy::Checkout;
 
     let specs = advertised(&[declared]);
 
-    assert_eq!(specs[0].roles, ["code-reviewer", "test-writer"]);
     assert_eq!(
         specs[0].max_sessions, 1,
         "capacity is derived from the strategy, never configured"

@@ -335,27 +335,6 @@ impl HubHandle {
         self.reregister().await
     }
 
-    /// Replace the agent-template roles a worker is offered for.
-    ///
-    /// Unlike a label this is not display-only: roles ride the descriptor the
-    /// hub advertises, so the re-register is what actually makes the
-    /// orchestrator start routing role-matched subtasks here.
-    /// Errors when no worker holds `id` — a host can be removed between the
-    /// render the operator toggled against and this call, and reporting that as
-    /// a successful role change would leave the UI claiming a roster state that
-    /// never existed.
-    pub async fn set_roles(&self, id: &str, roles: Vec<String>) -> anyhow::Result<()> {
-        {
-            let mut r = self.roster.lock().expect("roster lock");
-            let Some(w) = r.iter_mut().find(|w| w.id == id) else {
-                anyhow::bail!("no host {id} to set roles on");
-            };
-            w.roles = roles;
-        }
-        self.save();
-        self.reregister().await
-    }
-
     /// Mark a worker as the selected default (local display state only).
     pub fn select(&self, id: &str) {
         {

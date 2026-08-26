@@ -36,17 +36,6 @@ pub struct HubWorker {
     pub label: Option<String>,
     /// Whether this worker is the currently-selected default.
     pub selected: bool,
-    /// Agent-template ids this worker is offered for.
-    ///
-    /// A worker is a *harness* — a claude or codex daemon. A role is a
-    /// *template*: a description, a tool allowlist, a model tier. Naming roles
-    /// here says "this machine is available for these", which is what lets the
-    /// orchestrator route a matching subtask to it rather than treating every
-    /// worker as an interchangeable code runner.
-    ///
-    /// Empty means unspecified, and is advertised exactly as before — a general
-    /// worker, not one excluded from everything.
-    pub roles: Vec<String>,
     /// The workspace this worker runs tasks in, when known: its path and its
     /// declared type.
     ///
@@ -109,7 +98,6 @@ impl Default for HubWorker {
             harness: String::new(),
             label: None,
             selected: false,
-            roles: Vec::new(),
             workspace: None,
             max_sessions: crate::runtime::WorkspaceStrategy::Checkout.max_sessions(),
             control: super::super::HandoffControl::default(),

@@ -287,16 +287,6 @@ pub fn persist_hub_workers(
             if let Some(label) = &w.label {
                 row.insert("label".into(), toml::Value::String(label.clone()));
             }
-            // The roles the operator assigned. Dropped here before, so a
-            // remembered worker came back as a general one and the assignment
-            // had to be redone every launch — and the roster is the only place a
-            // *remote* peer's roles are written down.
-            if !w.roles.is_empty() {
-                row.insert(
-                    "roles".into(),
-                    toml::Value::Array(w.roles.iter().cloned().map(toml::Value::String).collect()),
-                );
-            }
             row.insert("selected".into(), toml::Value::Boolean(w.selected));
             toml::Value::Table(row)
         })

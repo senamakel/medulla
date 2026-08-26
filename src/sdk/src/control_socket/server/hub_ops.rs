@@ -140,7 +140,6 @@ impl FleetOps for HubFleetOps {
                         address: worker.address,
                         harness: worker.harness,
                         label: worker.label,
-                        roles: worker.roles,
                         workspace,
                         selected: worker.selected,
                         held,

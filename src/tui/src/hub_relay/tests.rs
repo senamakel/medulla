@@ -176,7 +176,6 @@ fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
 /// A live roster entry, as the hub holds it.
 fn worker(id: &str, address: &str, selected: bool) -> medulla::hub::HubWorker {
     medulla::hub::HubWorker {
-        roles: Vec::new(),
         id: id.to_string(),
         address: address.to_string(),
         harness: "claude".to_string(),
