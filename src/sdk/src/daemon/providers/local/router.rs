@@ -43,16 +43,19 @@ use crate::inference_proxy::EmbeddedRouting;
 
 /// Resolve the route this turn should run on, if any.
 ///
-/// `Ok(None)` — the common case — means the turn runs on whatever the account's
-/// own OpenHuman configuration resolves, which is the behaviour every run had
-/// before presets could state an endpoint. It covers a run with no router at
-/// all, a router that names no endpoint, a router whose named key is not
-/// exported, and a run with no model to route.
+/// `Ok(None)` means no per-call route could be built: a run with no router
+/// preset at all, a router that names no endpoint, a router whose named key is
+/// not exported, or a run with no model to route. Unlike the embedded core this
+/// harness replaced, there is no account-level inference configuration to fall
+/// back to — the caller ([`super::run::run_local_task`](crate::daemon::providers::local::run::run_local_task))
+/// treats a missing route as a hard error rather than a silent default, because
+/// there is nothing left to run the turn on.
 ///
-/// The model is required because the core's per-call route is expressed as a
-/// provider/model pair: with no model there is nothing to pin the route to, and
-/// the core would ignore it. Reporting that here as "not routed" keeps the two
-/// sides agreeing rather than sending a request the core discards.
+/// The model is required because the resolved route is expressed as a
+/// provider/model pair: with no model there is nothing to pin the route to.
+/// Reporting that here as "not routed" keeps this module's answer and the
+/// caller's requirement agreeing, rather than building a route the caller
+/// rejects anyway.
 ///
 /// # Errors
 ///
