@@ -310,14 +310,49 @@ tokenEnv = "MEDULLA_TOKEN"
 # set allowCode = false before loading workflows you do not trust. HTTP and
 # third-party tools remain deny-by-default.
 # [workflows]
+# Whether workflows may be listed and run at all.
+# enabled = true
+# The worker `agent` nodes dispatch to when they name no agentRef. Empty means
+# a node must name one, and a run fails saying so.
+# defaultWorker = "medulla-claude"
+# The harness hint sent with each dispatch. Absent uses the worker's own
+# default. Must be a dispatchable harness (not a manual-only one).
+# defaultProvider = "claude"
+# The model hint sent with each dispatch.
+# defaultModel = "claude-sonnet-4-5"
 # allowCode = true
+# The interpreter a `shell` script node runs under. Empty keeps bash. "user"
+# follows the operator's login shell ($SHELL) — pair it with shellArgs =
+# ["-l"] since a script otherwise runs non-login and sources none of their
+# startup files.
+# shell = "user"
+# shellArgs = ["-l"]
 # runTimeoutSecs = 600
 # toolAllowlist = []
 # httpAllowlist = []
+# The most harness tasks one run may have in flight at once, across every
+# per_item fan-out. A graph asking for more is clamped to this, not refused.
+# maxParallelAgents = 4
+# The ceiling on any one loop node's max_iterations. Like maxParallelAgents,
+# an over-ask is clamped rather than refused.
+# maxLoopIterations = 25
 # How many of a workflow's runs the Workflows page lists under it, newest
 # first. Only the listing: every run stays in the store, and `medulla workflow
 # list-runs` still shows the lot. Settings › Config edits this live.
 # maxListedRuns = 15
+#
+# evolve — whether and how a workflow reviews its own run history. On by
+# default because a pass cannot change anything by itself: it only records
+# notes and produces proposals an operator has to accept.
+# [workflows.evolve]
+# enabled = true
+# Whether a failed run starts a review by itself. The one worth turning off —
+# it spends a harness session per failed workflow.
+# autoOnFailure = true
+# How many recent runs reach the review's brief.
+# maxRuns = 5
+# How many current notes reach the review's brief.
+# maxNotes = 40
 
 # ---------------------------------------------------------------------------
 # mcp — Medulla's tool server, as offered to the harnesses it spawns
