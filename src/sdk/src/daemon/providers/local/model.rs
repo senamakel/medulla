@@ -22,8 +22,9 @@
 //! 3. the node's / task request's own model
 //! 4. the selected custom harness preset's `model`
 //! 5. `medulla workflow run --model <name>`, then `[workflows] defaultModel`
-//! 6. nothing — the request reaches the endpoint with no model set, and the
-//!    endpoint answers with its own default or an error
+//! 6. nothing — unlike a spawned CLI provider, which can pick its own default,
+//!    this harness has none to fall back to: the run is refused with a
+//!    diagnostic rather than started with an unset model
 //!
 //! The environment sits on top for the same reason `MEDULLA_<P>_BIN` does: it
 //! is the operator's override of what the configuration says, applied to the
