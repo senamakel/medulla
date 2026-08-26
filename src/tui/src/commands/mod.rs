@@ -36,12 +36,13 @@ use medulla::config::load_config;
 use medulla_tui::cli::{parse_init_args, parse_login_args, LoginArgs};
 
 /// `medulla login`: obtain a JWT (loopback OAuth or a one-time token), verify it
-/// with `/auth/me`, and hand it to the embedded core as its app session.
+/// with `/auth/me`, and store it as the app session via `medulla::auth::store`.
 ///
-/// The core is the only credential store. This used to write a Medulla-owned
-/// `credentials.json` beside it, which meant `medulla login` could report
-/// success while the core — whose session actually drives the runtime — stayed
-/// signed out, and the TUI would still open its login screen.
+/// The stored session is the only credential store. An embedded core once sat
+/// between this command and the session, which meant `medulla login` could
+/// report success while the core — whose session actually drove the runtime —
+/// stayed signed out, and the TUI would still open its login screen. With the
+/// core gone, this command writes the one store every later launch reads.
 pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     let parsed: LoginArgs = match parse_login_args(args) {
         Ok(p) => p,
