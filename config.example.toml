@@ -622,6 +622,27 @@ tokenEnv = "MEDULLA_TOKEN"
 # model = "reasoning"        # an abstract tier, never a concrete SKU
 
 # ---------------------------------------------------------------------------
+# attribution — whether a Medulla-launched harness says so in its commits
+# ---------------------------------------------------------------------------
+# A `Co-authored-by: Medulla` trailer on the commit *message* only — never a
+# change of git author or committer identity, so blame, `git log --author`,
+# and the GitHub contribution graph are unaffected. On by default: a harness
+# commit that does not name the tool that wrote it is the surprising case.
+# [attribution]
+# commit = true
+
+# ---------------------------------------------------------------------------
+# hookDefaults — Medulla's own lifecycle reporting hooks (optional)
+# ---------------------------------------------------------------------------
+# On by default, for the same reason attribution is: a harness Medulla started
+# should be one Medulla can see. These built-ins only report — they never deny
+# a tool call or rewrite an input — so leaving them on changes what Medulla
+# knows, not what the session does. Turning them off leaves your own
+# [[hooks]] below untouched.
+# [hookDefaults]
+# enabled = true
+
+# ---------------------------------------------------------------------------
 # Lifecycle hooks
 # ---------------------------------------------------------------------------
 #
