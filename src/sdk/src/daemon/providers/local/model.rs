@@ -6,7 +6,7 @@
 //!
 //! # The routes, and where each one is decided
 //!
-//! By the time [`run_openhuman_task`](super::run::run_openhuman_task) is
+//! By the time [`run_local_task`](super::run::run_local_task) is
 //! called, most of them have already collapsed into
 //! [`RunTaskOptions::model`](crate::daemon::providers::RunTaskOptions::model) —
 //! the workflow dispatch resolves the node's own `config.model`, then the
