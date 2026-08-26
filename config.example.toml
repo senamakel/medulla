@@ -157,9 +157,10 @@ tokenEnv = "MEDULLA_TOKEN"
 # "mostAvailableBudget" (greatest absolute token headroom).
 # subscriptionRoutingStrategy = "manual"
 #
-# [hub] also lives in this file, but it is app-persisted state the TUI writes
-# (the operator's worker roster) rather than something to hand-author, so it
-# is not documented here with an example block.
+# [hub].workers and [onboarding].welcomeCompleted also live in this file, but
+# both are app-persisted state the TUI writes (the worker roster, and whether
+# the welcome flow has run) rather than something to hand-author, so neither
+# gets an example block here.
 
 # ---------------------------------------------------------------------------
 # customHarnesses — OpenRouter models through a coding CLI
