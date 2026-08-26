@@ -47,9 +47,9 @@ use crate::inference_proxy::EmbeddedRouting;
 /// preset at all, a router that names no endpoint, a router whose named key is
 /// not exported, or a run with no model to route. Unlike the embedded core this
 /// harness replaced, there is no account-level inference configuration to fall
-/// back to — the caller ([`super::run::run_local_task`](crate::daemon::providers::local::run::run_local_task))
-/// treats a missing route as a hard error rather than a silent default, because
-/// there is nothing left to run the turn on.
+/// back to — the caller ([`super::run::run_local_task`]) treats a missing route
+/// as a hard error rather than a silent default, because there is nothing left
+/// to run the turn on.
 ///
 /// The model is required because the resolved route is expressed as a
 /// provider/model pair: with no model there is nothing to pin the route to.
