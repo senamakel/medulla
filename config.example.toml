@@ -156,6 +156,10 @@ tokenEnv = "MEDULLA_TOKEN"
 # configured default) | "balanced" (greatest remaining percentage) |
 # "mostAvailableBudget" (greatest absolute token headroom).
 # subscriptionRoutingStrategy = "manual"
+#
+# [hub] also lives in this file, but it is app-persisted state the TUI writes
+# (the operator's worker roster) rather than something to hand-author, so it
+# is not documented here with an example block.
 
 # ---------------------------------------------------------------------------
 # customHarnesses — OpenRouter models through a coding CLI
