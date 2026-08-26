@@ -22,7 +22,8 @@
 //! 3. the node's / task request's own model
 //! 4. the selected custom harness preset's `model`
 //! 5. `medulla workflow run --model <name>`, then `[workflows] defaultModel`
-//! 6. nothing — the core's own `default_model` answers, as it always did
+//! 6. nothing — the request reaches the endpoint with no model set, and the
+//!    endpoint answers with its own default or an error
 //!
 //! The environment sits on top for the same reason `MEDULLA_<P>_BIN` does: it
 //! is the operator's override of what the configuration says, applied to the
