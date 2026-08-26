@@ -259,33 +259,29 @@ pub fn provider_bin(provider: HarnessProvider, env: &HashMap<String, String>) ->
     default_bin(provider).to_string()
 }
 
-/// Variables that aim a process at the **embedded OpenHuman core's** state
-/// directory — the workspace holding its credential store.
+/// Variables that used to aim a process at the **embedded OpenHuman core's**
+/// state directory — the workspace holding its credential store.
 ///
-/// [`crate::core_host::bind_workspace`] sets `OPENHUMAN_WORKSPACE` on this
-/// process so the in-process core resolves the account's home rather than the
-/// developer's `~/.openhuman`. That is right for the core and wrong for
-/// everything else this process starts: `std::env::set_var` is inherited by
-/// every child, and the app hands the same environment snapshot to the coding
-/// harnesses it spawns.
-///
-/// A `claude` or `codex` session has no use for the core's workspace, and one
-/// concrete use it *does* find is destructive. Every secret the core owns lives
-/// in one file there, rewritten whole on each `set`. A `cargo test` run started
-/// from a Medulla-spawned shell inherits the variable, so OpenHuman's own test
-/// suite resolves that file as its keyring and writes thousands of per-test
-/// entries into it — beside the live app session, through the same
-/// read-modify-write cycle. Losing the session to one of those writes is what
-/// "I rebuilt and got logged out" was.
+/// Nothing in this process sets `OPENHUMAN_WORKSPACE` any more: the function
+/// that used to (`core_host::bind_workspace`) was removed along with the
+/// embedded core in v0.11.0. The scrub below is kept defensive rather than
+/// deleted, in case the variable is still inherited from an older environment
+/// a developer's shell was launched from — see [`scrub_core_state`] for why
+/// that inheritance was destructive.
 pub const CORE_STATE_VARS: &[&str] = &["OPENHUMAN_WORKSPACE"];
 
-/// Remove the core's state variables from a harness's spawn environment —
-/// unless that harness *is* the core.
+/// Remove the legacy embedded-core state variables from a harness's spawn
+/// environment — unless that harness *is* the in-process OpenHuman provider.
 ///
-/// [`HarnessProvider::Openhuman`] is the one child that must keep them: it runs
-/// the same core against the same account, and stripping them would send it to
-/// `~/.openhuman` with a different set of agents, memory, and credentials than
-/// the Medulla process it was started from.
+/// [`HarnessProvider::Openhuman`] is the one child that must keep them, for
+/// backward compatibility with any environment that still carries them: a
+/// `claude` or `codex` session has no use for the old core's workspace, and one
+/// concrete use it *did* find was destructive — every secret the core owned
+/// lived in one file there, rewritten whole on each `set`, so a `cargo test`
+/// run started from a Medulla-spawned shell inherited the variable and the
+/// core's own test suite resolved that file as its keyring, writing thousands
+/// of per-test entries into it beside the live app session. Losing the session
+/// to one of those writes is what "I rebuilt and got logged out" was.
 pub fn scrub_core_state(env: &mut HashMap<String, String>, provider: HarnessProvider) {
     if provider == HarnessProvider::Openhuman {
         return;
