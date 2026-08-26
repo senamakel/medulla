@@ -108,8 +108,8 @@ tokenEnv = "MEDULLA_TOKEN"
 # Every field below is the same one documented under [host] above.
 # [[hosts]]
 # enabled = true
-# name = "medulla-v1"
-# address = "medulla-v1"
+# name = "sidecar"
+# address = "sidecar"
 # workspace = "/absolute/path/to/other/repo"
 # providers = ["claude", "codex"]
 # defaultProvider = "claude"
