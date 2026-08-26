@@ -1,8 +1,8 @@
-//! Which model an embedded OpenHuman turn runs on.
+//! Which model a local (in-process OpenHuman) turn runs on.
 //!
 //! Every route an operator has for choosing that model converges here, so the
-//! precedence between them is stated in one place and testable without booting
-//! the core.
+//! precedence between them is stated in one place and testable without a live
+//! inference route.
 //!
 //! # The routes, and where each one is decided
 //!
