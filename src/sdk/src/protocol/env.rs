@@ -133,9 +133,9 @@ pub fn receive_enabled(provider: HarnessProvider, env: &HashMap<String, String>)
 /// OpenHuman's bare `OPENHUMAN_BIN` predates the namespaced convention and is
 /// kept behind the conventional pair rather than dropped: it names the
 /// standalone `openhuman-core` binary a bridged wrapper or PTY session spawns,
-/// which is a real process even though the *embedded* provider
-/// ([`crate::daemon::providers::openhuman`]) spawns nothing. It says nothing
-/// about which model an embedded turn runs on — that is
+/// which is a real process even though the *local, in-process* provider
+/// ([`crate::daemon::providers::local`]) spawns nothing. It says nothing
+/// about which model an in-process turn runs on — that is
 /// [`model_override`].
 fn bin_keys(provider: HarnessProvider) -> &'static [&'static str] {
     match provider {
