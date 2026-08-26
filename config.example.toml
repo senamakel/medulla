@@ -481,12 +481,30 @@ tokenEnv = "MEDULLA_TOKEN"
 # working. They are read only when [statusLine] below is absent, in which case
 # `false` means that field is hidden. Settings › Status line writes
 # [statusLine] and takes over.
+#
+# showSessionTitles toggles whether orchestrator-managed harness titles appear
+# in the Agents sidebar at all.
+#
+# The six resource fields choose how one local-process or whole-device
+# resource is drawn in the Agents sidebar. Each is "off" (default; not drawn),
+# "percent", "value" (native units — bytes, bytes/sec), or "bar" (a compact bar
+# with a percentage or rate beside it). cpu/ram/diskIo are this Medulla
+# process's own usage; deviceCpu/deviceRam/deviceDisk are whole-machine
+# pressure, useful when a host is close to a real ceiling rather than only
+# curious about its own footprint.
 # ---------------------------------------------------------------------------
 # [appearance]
 # sidebarGrouping = "host"
 # sidebarSort = "created"
 # showHarnessBranch = true
 # showHarnessPath = true
+# showSessionTitles = true
+# cpu = "off"
+# ram = "off"
+# diskIo = "off"
+# deviceCpu = "off"
+# deviceRam = "off"
+# deviceDisk = "off"
 
 # ---------------------------------------------------------------------------
 # statusLine — how one operator-started harness row on the Agents rail is laid
