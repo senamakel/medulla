@@ -226,6 +226,56 @@ tokenEnv = "MEDULLA_TOKEN"
 # apiKeyEnv = "OPENROUTER_API_KEY"
 
 # ---------------------------------------------------------------------------
+# router — a custom OpenAI-compatible router for every harness (optional)
+# ---------------------------------------------------------------------------
+# Router-wide, distinct from the per-preset baseUrl/apiKeyEnv/providerOnly
+# documented under customHarnesses above: this steers *every* harness the
+# worker spawns (not just OpenRouter-bound presets) at one gateway or proxy,
+# so inference is centralized, metered, and re-routable without hand-editing
+# each harness's own on-disk config. Absent entirely (the default) is zero
+# behaviour change. Matches the contract served at
+# GET/PUT /medulla/v1/router, so one document round-trips across clients and
+# the backend.
+# [router]
+# Top-level OpenAI-compatible (or Anthropic-passthrough) endpoint for every
+# provider without its own override below.
+# baseUrl = "https://router.example.com"
+# Env-var NAME holding the API key — never the secret itself.
+# apiKeyEnv = "ROUTER_API_KEY"
+# Tier → model/SKU mapping. A missing tier falls through to the harness's own
+# configuration.
+# models = { reasoning = "deepseek/deepseek-chat", compress = "deepseek/deepseek-chat-mini" }
+# Per-provider endpoint overrides, keyed by provider id (claude / codex /
+# opencode); takes precedence over the top-level baseUrl for that provider.
+# [router.providers.claude]
+# baseUrl = "https://router.example.com/anthropic"
+# providerOnly restricts which upstream serving provider may answer, honored
+# only for OpenRouter-bound routes — see the customHarnesses providerOnly note
+# above for why this has to live in the request body rather than the URL.
+# providerOnly = ["streamlake"]
+
+# ---------------------------------------------------------------------------
+# budget — operator-declared per-provider token budgets (optional)
+# ---------------------------------------------------------------------------
+# Absent entirely (the default) means every installed, usable harness
+# advertises a best-effort estimate with no invented numbers. An entry here
+# promotes that provider's advertised descriptor to a configured source with
+# your exact numbers, so a hosted orchestrator can size tasks against a real
+# allowance. Keyed by provider id, mirroring [router.providers.<p>].
+# [budget.providers.claude]
+# Opaque seat/subscription label you recorded (never a credential).
+# seat = "team-plan"
+# The metering window the allowance renews on: "daily" | "weekly" | "five_hour" | "unknown".
+# window = "five_hour"
+# limitTokens = 1000000
+# usedTokens = 240000
+# Only needed if you want to record it directly rather than let it be derived
+# from limitTokens - usedTokens.
+# remainingTokens = 760000
+# Unix seconds until which the seat is parked.
+# cooldownUntil = 1735689600
+
+# ---------------------------------------------------------------------------
 # core — the medulla-serve NDJSON orchestration socket (optional)
 # ---------------------------------------------------------------------------
 # [core]
