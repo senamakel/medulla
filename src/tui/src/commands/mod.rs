@@ -196,8 +196,8 @@ async fn run_code_login(
 ///
 /// Writes the root-level active-user marker, which is what every later launch
 /// reads to resolve its home — so this must happen before anything derives a
-/// path from [`medulla::home::medulla_home`], and certainly before the core is
-/// booted against one.
+/// path from [`medulla::home::medulla_home`], and certainly before the session
+/// is stored under one.
 ///
 /// # Why this refuses rather than warns
 ///
