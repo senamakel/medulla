@@ -38,19 +38,7 @@ pub(super) fn kind_lines(
         ),
         "http_request" => request_lines(config),
         "tool_call" if config.get("slug").and_then(Value::as_str) == Some("medulla:shell") => {
-            let args = config.get("args").unwrap_or(&Value::Null);
-            let source = args
-                .get("script")
-                .and_then(Value::as_str)
-                .map(redact_source)
-                .unwrap_or_default();
-            code_lines(
-                &source,
-                args.get("language")
-                    .and_then(Value::as_str)
-                    .unwrap_or("shell"),
-                width,
-            )
+            shell_tool_lines(config, width)
         }
         "tool_call" => tool_lines(config),
         "transform" | "set" | "merge" => labelled_value("mapping", config),
