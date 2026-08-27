@@ -106,9 +106,20 @@ pub fn epoch_millis_from_iso(text: &str) -> Option<i64> {
         return None;
     }
 
+    // Checked from here down: `year` came off the wire as an unrestricted i64,
+    // so a payload naming a year far outside anything real (`"1000000000-01-01"`)
+    // must be refused rather than let `days * 86_400` or `seconds * 1_000`
+    // overflow — a debug build would panic on startup, and a release build would
+    // wrap into an arbitrary instant and hand entitlement an answer for the
+    // wrong day instead of the `None` a caller can fail closed on.
     let days = days_from_civil(year, month, day);
-    let seconds = days * 86_400 + hour * 3_600 + minute * 60 + second - offset_minutes * 60;
-    Some(seconds * 1_000 + milli)
+    let seconds = days
+        .checked_mul(86_400)?
+        .checked_add(hour * 3_600)?
+        .checked_add(minute * 60)?
+        .checked_add(second)?
+        .checked_sub(offset_minutes * 60)?;
+    seconds.checked_mul(1_000)?.checked_add(milli)
 }
 
 /// Split a trailing `Z` or `±HH:MM`/`±HHMM` zone off a time, returning the time

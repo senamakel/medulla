@@ -125,6 +125,11 @@ fn iso_parsing_refuses_what_it_cannot_read_in_full() {
         "2026-08-27T12:00:00.12x3Z",
         "2026-08-27T12:00:00+99:00",
         "2026-08-27-01T12:00:00Z",
+        // A year so large that days_from_civil's result overflows i64 once
+        // multiplied out to milliseconds — must be refused, not panic (debug)
+        // or wrap into an arbitrary instant (release).
+        "1000000000-01-01T00:00:00Z",
+        "-1000000000-01-01T00:00:00Z",
     ] {
         assert_eq!(
             epoch_millis_from_iso(bad),
