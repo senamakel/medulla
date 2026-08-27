@@ -37,6 +37,8 @@ impl FoldState {
             workspace_context,
             gh_repo_is_set,
             on_workspace_context,
+            error: None,
+            last_retried_error: None,
         }
     }
 
@@ -131,6 +133,14 @@ impl FoldState {
             }
             "plan" => ("plan", "agent", value.clone()),
             "usage_update" => ("usage", "system", value.clone()),
+            "session_info_update" => match self.fold_turn_error(&value) {
+                Some(message) => (
+                    "error",
+                    "agent",
+                    json!({ "message": message, "fatal": true }),
+                ),
+                None => ("status", "system", value.clone()),
+            },
             _ => ("status", "system", value.clone()),
         };
         let semantic = HarnessSemanticEvent {
@@ -149,6 +159,47 @@ impl FoldState {
             callback(&semantic);
         }
         completed
+    }
+
+    /// Record a turn-fatal failure carried on a `session_info_update`, and
+    /// return its message when this update is the one that ends the turn.
+    ///
+    /// ACP has no standard field for "this turn failed": the stop reason is
+    /// `end_turn` either way (verified against `codex-acp` 1.7.0 answering an
+    /// upstream 402). Codex reports it on the update's `_meta` instead, in two
+    /// halves — an `error` object per attempt, and a `threadStatus` that turns
+    /// to `systemError` once it stops retrying. Only the second half is
+    /// terminal, and only the first half says what went wrong, so both are read
+    /// and the retried message is held until the status confirms the give-up.
+    ///
+    /// An `error` that is not retrying is terminal on its own; that is the same
+    /// rule the app-server transport applies to its own error notifications
+    /// (see [`crate::daemon::providers::codex_server`]).
+    fn fold_turn_error(&mut self, value: &Value) -> Option<String> {
+        let codex = value.get("_meta")?.get("codex")?;
+        if let Some(error) = codex.get("error") {
+            let message = error_text(error);
+            if error.get("willRetry").and_then(Value::as_bool) == Some(true) {
+                self.last_retried_error = message;
+                return None;
+            }
+            let message = message?;
+            self.error = Some(message.clone());
+            return Some(message);
+        }
+        if codex
+            .get("threadStatus")
+            .and_then(|status| status.get("type"))
+            != Some(&json!("systemError"))
+        {
+            return None;
+        }
+        let message = self
+            .last_retried_error
+            .take()
+            .unwrap_or_else(|| "codex reported a system error".to_string());
+        self.error = Some(message.clone());
+        Some(message)
     }
 
     pub(super) fn reply(&self) -> String {
@@ -258,6 +309,21 @@ impl FoldState {
             callback(&event);
         }
     }
+}
+
+/// The readable half of a codex `_meta` error object.
+///
+/// `message` is the agent's own line about the attempt ("Reconnecting... 3/5"),
+/// while `additionalDetails` carries the provider's actual complaint — the HTTP
+/// status and its body. The details are what an operator needs, so they win,
+/// and `message` is the fallback for an error that carries none.
+fn error_text(error: &Value) -> Option<String> {
+    ["additionalDetails", "message"]
+        .iter()
+        .find_map(|key| error.get(*key).and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_string)
 }
 
 fn command_from_input(input: &Value) -> Option<&str> {

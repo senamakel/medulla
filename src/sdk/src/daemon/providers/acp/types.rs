@@ -51,4 +51,19 @@ pub(in crate::daemon::providers) struct FoldState {
     pub(super) gh_repo_is_set: bool,
     /// Observer persisting changed workspace state into the session binding.
     pub(super) on_workspace_context: Option<OnWorkspaceContext>,
+    /// The turn-fatal error the agent reported, if it reported one.
+    ///
+    /// An ACP agent may answer `session/prompt` with `stopReason: end_turn`
+    /// after a turn that never produced an answer — `codex-acp` does exactly
+    /// that for an upstream HTTP failure, streaming the provider's error text
+    /// as an ordinary assistant message. The stop reason therefore cannot
+    /// decide whether the turn succeeded; this can.
+    pub(super) error: Option<String>,
+    /// The most recent error the agent said it would retry.
+    ///
+    /// `codex-acp` announces each attempt as a `willRetry` error and then
+    /// gives up with a bare `systemError` thread status carrying no message of
+    /// its own, so the last retried error is the only description of what
+    /// actually went wrong.
+    pub(super) last_retried_error: Option<String>,
 }
