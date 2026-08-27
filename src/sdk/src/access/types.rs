@@ -60,12 +60,34 @@ pub struct Entitlement {
     pub admin_granted: bool,
     /// When the account was created, in milliseconds since the Unix epoch.
     pub registered_at_ms: Option<i64>,
-    /// The backend's own clock at the moment it answered, in milliseconds since
-    /// the Unix epoch.
+    /// The backend's own clock at the moment it answered.
     ///
-    /// Used in place of this machine's clock wherever it is present — see
-    /// [`Entitlement::account_age_ms`].
-    pub server_time_ms: Option<i64>,
+    /// Used in place of this machine's clock wherever the backend sent one —
+    /// see [`Entitlement::account_age_ms`].
+    pub server_time: ServerClock,
+}
+
+/// The backend's clock, as extracted from `serverTime` on `/auth/me`.
+///
+/// A three-way read rather than `Option<i64>` because "the backend sent
+/// nothing" and "the backend sent something this binary could not parse" are
+/// not the same fact and must not resolve the same way: the first is a safe
+/// invitation to fall back to the local clock, the second is a signal that
+/// something is wrong with the field this binary asked for and falling back
+/// would silently trade the backend's authority for a clock the operator
+/// controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerClock {
+    /// `/auth/me` had no `serverTime` field at all. Falling back to the local
+    /// clock is the deployment's normal, documented behaviour, not a fault.
+    Absent,
+    /// `/auth/me` sent a `serverTime` that did not parse. Never fall back from
+    /// this: the backend attempted to hand over its authoritative clock and
+    /// failed, and a skewed local clock could turn that into a wrongly granted
+    /// (or wrongly refused) trial.
+    Malformed,
+    /// The backend's clock, in milliseconds since the Unix epoch.
+    Present(i64),
 }
 
 impl Entitlement {
@@ -75,13 +97,20 @@ impl Entitlement {
     /// Preferring the server's clock is the point of sending it: the age of an
     /// account is the difference between two instants the *backend* owns, and
     /// subtracting one of them from a local clock that is wrong by a week hands
-    /// out either an extra week of trial or none at all.
+    /// out either an extra week of trial or none at all. A `serverTime` the
+    /// backend sent but this binary could not parse is never treated as if it
+    /// were absent — see [`ServerClock`] — so it returns `None` here rather
+    /// than quietly falling back to `local_now_ms`.
     ///
     /// A negative age — an account registered in this machine's future — is
     /// clamped to zero rather than refused, so a small forward skew reads as
     /// "brand new" instead of failing the whole check.
     pub fn account_age_ms(&self, local_now_ms: i64) -> Option<i64> {
-        let now = self.server_time_ms.unwrap_or(local_now_ms);
+        let now = match self.server_time {
+            ServerClock::Present(ms) => ms,
+            ServerClock::Absent => local_now_ms,
+            ServerClock::Malformed => return None,
+        };
         Some((now - self.registered_at_ms?).max(0))
     }
 }

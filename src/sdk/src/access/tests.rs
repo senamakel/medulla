@@ -17,7 +17,7 @@ fn aged(age_days: i64) -> Entitlement {
         has_active_subscription: false,
         admin_granted: false,
         registered_at_ms: Some(NOW_MS - age_days * DAY_MS),
-        server_time_ms: Some(NOW_MS),
+        server_time: ServerClock::Present(NOW_MS),
     }
 }
 
@@ -127,7 +127,7 @@ fn the_server_clock_beats_a_skewed_local_one() {
 #[test]
 fn the_local_clock_is_used_when_the_server_sent_none() {
     let e = Entitlement {
-        server_time_ms: None,
+        server_time: ServerClock::Absent,
         ..aged(2)
     };
     assert!(decide(&e, NOW_MS).is_granted());
@@ -138,10 +138,42 @@ fn the_local_clock_is_used_when_the_server_sent_none() {
 }
 
 #[test]
+fn a_malformed_server_clock_is_never_treated_as_absent() {
+    // The backend sent *something* for serverTime, but this binary could not
+    // read it. Falling back to the local clock here — the way an absent field
+    // legitimately does — would let a skewed operator clock decide an age the
+    // backend explicitly tried and failed to hand over.
+    let e = Entitlement {
+        server_time: ServerClock::Malformed,
+        ..aged(2)
+    };
+    assert_eq!(e.account_age_ms(NOW_MS), None);
+    assert_eq!(decide(&e, NOW_MS), Access::Denied(Denial::Undetermined));
+    // Even a skewed local clock that would otherwise expire the trial must not
+    // change the verdict: Malformed refuses before local_now_ms is consulted.
+    assert_eq!(
+        decide(&e, NOW_MS + 365 * DAY_MS),
+        Access::Denied(Denial::Undetermined)
+    );
+}
+
+#[test]
+fn an_unparseable_server_time_extracts_as_malformed_not_absent() {
+    let me = json!({
+        "entitlement": {
+            "plan": "FREE",
+            "registeredAt": "2026-08-01T00:00:00.000Z",
+            "serverTime": "not-a-timestamp",
+        }
+    });
+    assert_eq!(entitlement_from_me(&me).server_time, ServerClock::Malformed);
+}
+
+#[test]
 fn an_account_registered_in_the_future_reads_as_brand_new() {
     let e = Entitlement {
         registered_at_ms: Some(NOW_MS + DAY_MS),
-        server_time_ms: None,
+        server_time: ServerClock::Absent,
         ..aged(0)
     };
     assert_eq!(e.account_age_ms(NOW_MS), Some(0));
@@ -185,7 +217,7 @@ fn entitlement_is_read_off_the_response() {
     assert_eq!(e.plan, Plan::Basic);
     assert!(e.has_active_subscription);
     assert!(!e.admin_granted);
-    assert_eq!(e.server_time_ms, Some(NOW_MS));
+    assert_eq!(e.server_time, ServerClock::Present(NOW_MS));
     assert_eq!(
         e.registered_at_ms,
         Some(NOW_MS - 26 * DAY_MS - 12 * 3_600_000)

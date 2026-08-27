@@ -47,7 +47,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use types::{Access, Denial, Entitlement, Grant, Plan};
+pub use types::{Access, Denial, Entitlement, Grant, Plan, ServerClock};
 
 /// How long a newly registered account may use Medulla without paying.
 ///
@@ -122,9 +122,16 @@ pub fn entitlement_from_me(me: &serde_json::Value) -> Entitlement {
         registered_at_ms: field("registeredAt")
             .and_then(serde_json::Value::as_str)
             .and_then(crate::clock::epoch_millis_from_iso),
-        server_time_ms: field("serverTime")
-            .and_then(serde_json::Value::as_str)
-            .and_then(crate::clock::epoch_millis_from_iso),
+        // `field("serverTime")` being `None` and it holding an unparseable
+        // value are different facts — see `ServerClock` — so the two are kept
+        // apart here rather than collapsed the way `.and_then` alone would.
+        server_time: match field("serverTime") {
+            None => ServerClock::Absent,
+            Some(value) => match value.as_str().and_then(crate::clock::epoch_millis_from_iso) {
+                Some(ms) => ServerClock::Present(ms),
+                None => ServerClock::Malformed,
+            },
+        },
     }
 }
 
