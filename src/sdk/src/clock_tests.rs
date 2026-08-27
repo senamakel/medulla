@@ -130,6 +130,11 @@ fn iso_parsing_refuses_what_it_cannot_read_in_full() {
         // or wrap into an arbitrary instant (release).
         "1000000000-01-01T00:00:00Z",
         "-1000000000-01-01T00:00:00Z",
+        // A year so large it overflows inside days_from_civil itself (its own
+        // `era * 146_097`), before the checked arithmetic downstream ever runs.
+        // A bare i64::MAX still parses as `year`, so this has to be bounded up
+        // front rather than trusted to the later checked_mul chain.
+        "9223372036854775807-01-01T00:00:00Z",
     ] {
         assert_eq!(
             epoch_millis_from_iso(bad),

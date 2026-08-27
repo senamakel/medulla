@@ -7,6 +7,13 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// The largest `|year|` [`epoch_millis_from_iso`] will attempt to convert.
+///
+/// Conservatively inside the roughly ±292,277,024-year range i64 milliseconds
+/// since the epoch can represent — see the call site for why it has to be
+/// checked before, not just during, the civil-date conversion.
+const MAX_YEAR: u64 = 292_000_000;
+
 /// Current wall-clock time in milliseconds since the Unix epoch (0 on error).
 pub fn now_millis() -> i64 {
     SystemTime::now()
@@ -73,12 +80,22 @@ pub fn epoch_millis_from_iso(text: &str) -> Option<i64> {
     let year: i64 = date_parts.next()?.parse().ok()?;
     let month: u32 = date_parts.next()?.parse().ok()?;
     let day: u32 = date_parts.next()?.parse().ok()?;
+    // Bounded before it ever reaches days_from_civil, not just before the
+    // checked arithmetic below: that helper's own `era * 146_097` overflows i64
+    // for a year anywhere near its bare numeric range (a 19-digit year parses
+    // fine as an i64), which would panic a debug build before the checked
+    // arithmetic downstream got a chance to catch it. i64 milliseconds since the
+    // epoch cover roughly ±292,277,024 years; MAX_YEAR stays comfortably inside
+    // that so every step from here down — including days_from_civil's internal
+    // multiplication — has room.
+    //
     // Validated against the actual length of `month` (leap years included), not
     // just the 1..=31 range: `2026-02-31` is the wrong shape to reject on range
     // alone, and days_from_civil below normalizes an out-of-range day into the
     // next month rather than rejecting it — silently turning a bad payload into
     // a plausible-looking, wrong date.
     if date_parts.next().is_some()
+        || year.unsigned_abs() > MAX_YEAR
         || !(1..=12).contains(&month)
         || day == 0
         || day > days_in_month(year, month)
