@@ -113,6 +113,11 @@ impl App {
     /// other case — including a plain, non-revisit node, where both rows name
     /// the same line — falls back to resolving by node.
     pub(in crate::ui::app) fn outline_cursor_row(&self, rows: &[OutlineRow]) -> usize {
+        if let Some(row) = rows.get(self.wf.outline_row) {
+            if row.node == self.wf.node_index {
+                return self.wf.outline_row;
+            }
+        }
         rows.iter()
             .position(|row| row.node == self.wf.node_index && !row.revisit)
             .or_else(|| rows.iter().position(|row| row.node == self.wf.node_index))
