@@ -142,15 +142,15 @@ pub async fn run_provider_task(mut options: RunTaskOptions) -> Result<RunTaskRes
     // defaulted tool calls silently snap back to where the daemon started.
     options.cwd = effective_cwd(&options.cwd, &options.workspace_context);
     // Ahead of all child-process preparation, including the credential scrub
-    // below. OpenHuman has no child: the turn runs in this process against the
-    // embedded core. Scrubbing the core's own workspace out of the environment
-    // on its way to the core would be exactly backwards.
-    if super::openhuman::uses_embedded_core(&options) {
-        return super::openhuman::run_openhuman_task(options).await;
+    // below. The local harness has no child — the turn runs in this process —
+    // and the scrub exists to keep this host's own state out of a child's
+    // environment, which is not a question that arises here.
+    if super::local::uses_local_harness(&options) {
+        return super::local::run_local_task(options).await;
     }
     // This has to precede every transport choice below. ACP and the pooled
     // app-server return before the CLI spawn seam, but each child is still an
-    // external harness and must never inherit the embedded core's credential
+    // external harness and must never inherit this host's credential
     // workspace.
     crate::protocol::env::scrub_core_state(&mut options.env, options.provider);
     // Ahead of the ACP branch on purpose: both transports end up talking to the

@@ -4,91 +4,27 @@
 #
 # Why not `git submodule update --init --recursive`:
 #
-# `vendor/openhuman` carries submodules of its own, and two of them belong to
-# the OpenHuman *desktop* app rather than to anything medulla compiles:
+# `vendor/tinyagents` carries a `wiki` submodule that nothing here compiles, and
+# `--recursive` descends unconditionally. That is the whole of the difference
+# now, so this script is close to trivial — worth keeping anyway, because it is
+# also the one place the vendored set is written down, and it must stay in
+# lockstep with the root manifest's `[patch.crates-io]` table.
 #
-#   app/src-tauri/vendor/tauri-cef                  a Tauri fork bundling CEF
-#   app/src-tauri/vendor/tauri-plugin-notification
-#
-# `--recursive` descends unconditionally and would clone both. The Cargo
-# workspace excludes `vendor/`, so `app/src-tauri` is not a workspace member and
-# nothing in medulla's dependency graph references either tree. It is pure cost.
-#
-# Also skipped: the `wiki` documentation submodules, and
-# `vendor/openhuman/vendor/tinycortex/vendor/tinyagents` — the root
-# `[patch.crates-io]` table redirects `tinyagents` to
-# `vendor/openhuman/vendor/tinyagents`, so tinycortex's own nested copy is never
-# resolved. (tinycortex ships a `.cargo/config.toml` patching it, but that file
-# is CWD-scoped and is ignored when tinycortex is a path dependency of this
-# workspace.) If a build ever does stat that path, add it to the list below —
-# it is cheap.
-#
-# Note a git-dependency on openhuman would NOT avoid the Tauri clone: Cargo
-# updates git-dependency submodules recursively with no opt-out. The submodule
-# plus this explicit list is the only way to keep the CEF fork out.
+# This used to be a long file. `vendor/openhuman` carried sixteen submodules of
+# its own, two of them a Tauri fork bundling CEF, and every crate the root
+# manifest patched had to be listed here by hand or resolution failed before a
+# line compiled — with cargo reporting one missing entry at a time, so each fix
+# cost a CI round trip. Removing the embedded core removed all of it.
 
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# The embedded OpenHuman core.
-git submodule update --init --depth 1 vendor/openhuman
-
-# Its vendored crates and direct path dependencies. The crates patched by the
-# root manifest must stay in lockstep with its `[patch.crates-io]` table;
-# tinybus and tinymemory are unpublished direct paths from OpenHuman's manifest.
-#
-# `vendor/motosan-ai-oauth` is NOT in this list: OpenHuman vendors it as a
-# plain tracked directory rather than a submodule, so it comes along for free
-# with the `vendor/openhuman` checkout above. `vendor/tinyjuice` came back: a
-# later OpenHuman bump reintroduced both the submodule and `tinyjuice-bus` as
-# a dependency, so it is cloned again here (see the root `[patch.crates-io]`
-# table for the matching redirect).
-#
-# This list must contain **every** `vendor/<name>` submodule that OpenHuman's
-# manifest declares a path dependency on — optional ones included. Cargo reads
-# the manifest of every declared path dependency while resolving, so a missing
-# one fails at *resolution*: every lane dies before compiling a line, with
-# "failed to load source for dependency <name>". Cargo reports only the first
-# missing entry, so fixing them one error at a time takes a CI round trip each.
-#
-# Derive the list instead. From `vendor/openhuman`:
-#
-#   grep -oE 'path = "vendor/[a-z0-9-]+' Cargo.toml | sed 's|.*vendor/||' | sort -u
-#
-# then drop the entries that are plain tracked directories rather than
-# submodules (check against `.gitmodules`) — `motosan-ai-oauth` is one.
-#
-# Beware verifying a bump only against a local checkout: a developer tree that
-# has ever run `git submodule update --init --recursive` already has these, so
-# `cargo check` passes locally while CI, which has only this allowlist, fails.
-# To reproduce CI, deinit first:
-#
-#   git -C vendor/openhuman submodule deinit --all -f
-#   bash scripts/init-submodules.sh && cargo metadata >/dev/null
-git -C vendor/openhuman submodule update --init --depth 1 \
+# The workflow engine, the agent harness, and the backend client. All three are
+# self-contained: none declares a path or git dependency of its own.
+git submodule update --init --depth 1 \
   vendor/tinyagents \
-  vendor/tinybus \
-  vendor/tinychannels \
-  vendor/tinycortex \
-  vendor/tinydocs \
   vendor/tinyflows \
-  vendor/tinyhosts \
-  vendor/tinyhumans-sdk \
-  vendor/tinyjuice \
-  vendor/tinymcp \
-  vendor/tinymemory \
-  vendor/tinyplace \
-  vendor/tinyruntime \
-  vendor/tinyvoice \
-  vendor/tinywallet
+  vendor/tinyhumans-sdk
 
-# Deliberately NOT recursive. Three of these vendor crates of their own —
-# tinyflows has its own `tinyagents`, tinymemory its own `tinyagents`, `tinybus`
-# and `tinycortex` — and none of those nested copies is ever resolved: the root
-# patch table redirects each name to the copy beside OpenHuman, so the graph
-# holds one of each. Initializing them recursively would clone several hundred
-# megabytes that nothing links, and would put two checkouts of one crate on
-# disk for anyone reading the tree.
-
-echo "Submodules initialized (OpenHuman core + its vendored path dependencies)."
+echo "Submodules initialized (tinyagents, tinyflows, tinyhumans-sdk)."

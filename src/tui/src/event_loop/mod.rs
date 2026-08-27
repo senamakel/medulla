@@ -145,7 +145,10 @@ pub(crate) async fn run(
                         app.logged_out();
                     }
                     AppMsg::Resumed(s) => {
-                        app.tab_index = TABS.iter().position(|t| *t == "Chat").unwrap_or(1);
+                        app.tab_index = TABS
+                            .iter()
+                            .position(|tab| *tab == "Sessions")
+                            .expect("Sessions tab is listed");
                         app.refresh_snapshot();
                         app.set_status(s);
                     }

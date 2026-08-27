@@ -41,32 +41,31 @@ FROM rust:1.96.1-bookworm AS build
 
 WORKDIR /build
 
-# System deps for the vendored OpenHuman core's native builds. Needed only when
-# the `openhuman-core` feature is on, but installed unconditionally so enabling
-# it never turns into a confusing link failure here.
+# System deps for the graph's native builds.
 #   - libssl-dev + pkg-config: openssl-sys links the SYSTEM libssl
-#     (-lssl -lcrypto), reached via native-tls <- hyper-tls <- reqwest, which an
-#     OpenHuman dependency turns on. It is NOT vendored.
-#   - X11 set: `rdev`, `enigo` and `arboard` are NON-optional OpenHuman
-#     dependencies (input events, synthetic input, clipboard), so they are in
-#     the graph even on a headless build and their build scripts fail without
-#     these. Not needed by medulla itself.
-#   - libgit2 needs nothing: libgit2-sys builds its own C (libgit2_vendored)
-#     using cc, which the rust image already provides.
+#     (-lssl -lcrypto), reached via native-tls <- hyper-tls <- reqwest. It is
+#     NOT vendored, so it still has to be here.
+#
+# The X11 set (libx11, libxi, libxtst, libxdo) left with the embedded OpenHuman
+# core: `rdev`, `enigo` and `arboard` were non-optional dependencies of it —
+# input events, synthetic input, clipboard — so they were in the graph even on a
+# headless build and their build scripts failed without those headers. None of
+# the three is in `Cargo.lock` any more. libgit2-sys went the same way, and it
+# needed no package regardless (it built its own C with cc).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      pkg-config libssl-dev libx11-dev libxi-dev libxtst-dev libxdo-dev \
+      pkg-config libssl-dev \
  && rm -rf /var/lib/apt/lists/*
 
-# The workspace's vendored path deps all live under vendor/openhuman/vendor/*
-# now (see docs/vendoring.md). src/ carries every member crate (src/sdk,
-# src/tui, src/link) including their tests/ and examples/ trees.
+# The workspace's vendored path deps live under vendor/* (tinyagents, tinyflows,
+# tinyhumans-sdk). src/ carries every member crate (src/sdk, src/tui, src/link)
+# including their tests/ and examples/ trees.
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY vendor ./vendor
 
 # One shot; path-dep crates make the dummy-main cache trick brittle, so just
-# build. Cold compile is ~25 min. A BuildKit cache mount keeps the downloaded
+# build. A BuildKit cache mount keeps the downloaded
 # crate registry across rebuilds so only compilation reruns, not the fetch.
 # (target/ is NOT cache-mounted — the runtime stage COPYs binaries out of it.)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

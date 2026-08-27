@@ -30,10 +30,12 @@ const PROGRESS_GLYPHS: &[char] = &['·', '*', '✢', '✳', '∗', '✻', '✽',
 
 /// How far up from the live tail a progress line may be found.
 ///
-/// It is drawn immediately above the composer, so a short window is enough — and
-/// necessary, because a transcript is full of retained progress lines from turns
-/// that finished long ago.
-const PROGRESS_TAIL_LINES: usize = 6;
+/// Claude draws it inside the chrome it keeps pinned to the bottom of the pane —
+/// the composer, its two rules, the status line, the mode hint, and the tip line
+/// it slips under the spinner — so the window has to be deep enough to clear all
+/// of that, and no deeper: a transcript further up is full of ordinary output
+/// that must not be mistaken for the live line.
+const PROGRESS_TAIL_LINES: usize = 10;
 
 /// Whether Claude's animated progress line is on the live tail of `screen`.
 ///
@@ -53,16 +55,23 @@ const PROGRESS_TAIL_LINES: usize = 6;
 /// "Cogitating", "Puzzling"). Three things are required together — the spinner
 /// glyph, the ellipsis, and the elapsed timer — because each alone appears in
 /// ordinary output and the combination does not.
+///
+/// A composer *below* the line is not evidence that it is stale, which is what
+/// this used to assume. Claude 2.1 never takes its composer away: it stays drawn
+/// and typeable for the whole turn, framed by rules, with the status line and
+/// mode hint beneath it and often a tip line wedged between it and the spinner.
+/// Stopping the scan at the first composer met from the bottom therefore never
+/// reached the progress line at all, and every working Claude read as idle. What
+/// keeps a *retained* line from spinning the row forever is the window instead:
+/// a finished turn rewrites the spinner in place — into `✻ Sautéed for 48s ·
+/// done 6:06 PM`, which has neither ellipsis nor live timer — and pushes
+/// anything older well above the pinned chrome.
 fn has_live_progress_line(screen: &str) -> bool {
     screen
         .lines()
         .filter(|line| !line.trim().is_empty())
         .rev()
         .take(PROGRESS_TAIL_LINES)
-        // A normal composer below a retained spinner means Claude has returned
-        // control to the operator. Do not let that old line keep the session
-        // marked busy forever.
-        .take_while(|line| !is_composer(line))
         .any(is_progress_line)
 }
 
@@ -437,22 +446,6 @@ fn squash(text: &str) -> String {
 /// the harness is plainly working is a progress chime, not a request.
 pub fn is_working(screen: &str) -> bool {
     has_live_working_marker(screen) || has_live_progress_line(screen)
-}
-
-/// Whether the live tail has returned to an ordinary input composer.
-///
-/// This is the explicit idle signal that balances [`is_working`]. Lifecycle
-/// hooks and terminal paints are asynchronous: after `Stop`, a new spinner can
-/// appear before `UserPromptSubmit` arrives, and after the composer returns the
-/// previous mid-turn hook can still be last in the log. A live screen wins at
-/// either edge; hooks fill the otherwise opaque middle of the turn.
-pub fn is_idle(screen: &str) -> bool {
-    screen
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .rev()
-        .take(PROGRESS_TAIL_LINES)
-        .any(is_composer)
 }
 
 /// Whether a known working footer remains in the live bottom-of-screen region.

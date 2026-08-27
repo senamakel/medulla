@@ -60,8 +60,7 @@ use super::rail_hit::RailHit;
 /// bindings stay in `app::changes`; only the top-level tab and its `D` shortcut
 /// were removed.
 #[cfg(feature = "workflows")]
-pub const TABS: [&str; 7] = [
-    "Overview",
+pub const TABS: [&str; 6] = [
     "Sessions",
     "Workflows",
     "Subconscious",
@@ -74,18 +73,10 @@ pub const TABS: [&str; 7] = [
 /// draw anything.
 ///
 /// This is the workflow-enabled list minus `Workflows`: every remaining tab —
-/// the fleet Overview, the Sessions rail with its `d` diff pane, Subconscious
-/// (still drawing its placeholder), Hosts, Feedback, and Settings — renders
-/// without the workflow engine.
+/// the Sessions rail with its `d` diff pane, the live Subconscious signal
+/// field, Hosts, Feedback, and Settings — renders without the workflow engine.
 #[cfg(not(feature = "workflows"))]
-pub const TABS: [&str; 6] = [
-    "Overview",
-    "Sessions",
-    "Subconscious",
-    "Hosts",
-    "Feedback",
-    "Settings",
-];
+pub const TABS: [&str; 5] = ["Sessions", "Subconscious", "Hosts", "Feedback", "Settings"];
 
 /// The Routing tab's left-nav pages.
 ///
@@ -585,7 +576,7 @@ pub(in crate::ui::app) struct CredentialStatus {
 pub struct App {
     /// The runtime this screen drives.
     pub runtime: Arc<dyn Runtime>,
-    /// The loaded configuration (for the Config/Overview surfaces).
+    /// The loaded configuration (for the Config and settings surfaces).
     pub loaded: LoadedConfig,
     /// The most recent runtime snapshot, refreshed each loop tick.
     pub snapshot: RuntimeSnapshot,
@@ -595,7 +586,7 @@ pub struct App {
     pub(in crate::ui::app) changes: super::super::changes::GitChangesState,
     pub(in crate::ui::app) draft: Draft,
     pub(in crate::ui::app) selected: usize,
-    /// The Overview tab's animated workflow graph. Held on the app because its
+    /// The Subconscious tab's animated signal graph. Held on the app because its
     /// simulation has to survive between frames; it is advanced by the draw
     /// path, which is the only thing that looks at it.
     pub(in crate::ui::app) graph: super::super::render::graph::Graph,
@@ -742,8 +733,26 @@ pub struct App {
     /// the page entirely. Entering the pane hands `↑↓` to the content and makes
     /// the letter bindings deliberate rather than ambient.
     pub(in crate::ui::app) settings_focused: bool,
-    /// The selected theme role on the Appearance subpage.
+    /// The selected row on the Appearance subpage.
     pub(in crate::ui::app) appearance_index: usize,
+    /// Whether Appearance is showing its Preview tab rather than its Options
+    /// tab. Two tabs rather than one long page because the controls and what
+    /// they do to the interface are two different things to look at, and
+    /// stacking them meant neither fitted on a short terminal.
+    pub(in crate::ui::app) appearance_preview: bool,
+    /// Whether Appearance last drew as two columns rather than as two tabs.
+    /// Written by the renderer, read by the key handler to decide whether `Tab`
+    /// has anything to switch.
+    pub(in crate::ui::app) appearance_split: bool,
+    /// Whether the Status line page is showing its Preview tab rather than its
+    /// Switches tab. Only consulted while the pane is too narrow to show both
+    /// halves side by side.
+    pub(in crate::ui::app) status_line_preview: bool,
+    /// Whether the Status line page last drew as two columns rather than as two
+    /// tabs. Written by the renderer, which is the only thing that knows the
+    /// pane's width, and read by the key handler to decide whether `Tab` has
+    /// anything to switch.
+    pub(in crate::ui::app) status_line_split: bool,
     /// Throttled sampler backing the optional local-process status indicators.
     pub(in crate::ui::app) resource_monitor: crate::ui::resources::ResourceMonitor,
     /// Throttled sampler backing the optional whole-device sidebar indicators.
@@ -764,7 +773,7 @@ pub struct App {
     /// returns to the login screen instead of returning to the shell.
     pub(in crate::ui::app) relogin_requested: bool,
     /// Who the embedded core is signed in as, for the Account subpage.
-    pub(in crate::ui::app) account: Option<medulla::core_host::auth::AuthState>,
+    pub(in crate::ui::app) account: Option<medulla::auth::AuthState>,
     /// The Medulla home directory, used to locate the credential store the
     /// Account subpage clears. Injectable so feature tests never touch the real
     /// home; `None` disables logout.
@@ -847,7 +856,7 @@ pub struct App {
 
     // Optional observational overlay from the background host-link service:
     // this endpoint's own identity, its peer roster, and peer presence. Merged
-    // into the snapshot on every refresh so the Overview panel and Agents lanes
+    // into the snapshot on every refresh so the routing and Agents lanes
     // light up without the runtime having to know about the link.
     pub(in crate::ui::app) link_obs:
         Option<Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>>,

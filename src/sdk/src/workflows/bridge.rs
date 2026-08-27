@@ -2,7 +2,7 @@
 //!
 //! The transport — the advert batch, the `medulla:workflow_request` round trip,
 //! the deadlines the backend enforces — lives in the embedded OpenHuman core
-//! ([`openhuman_core::openhuman::platform::socket::medulla::workflows`]), because two
+//! ([`crate::hub::plane::bridge`]), because two
 //! hosts share it and only one of them is this crate. What the core cannot
 //! supply is the *store*: it deliberately knows nothing about a graph, a node
 //! kind, or a run record. So it asks for a [`WorkflowBridge`] and this module
@@ -30,10 +30,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde_json::Value;
 
-use openhuman_core::openhuman::platform::socket::medulla::payloads::{
+use crate::hub::plane::payloads::{
     CopilotOutcome as WireCopilotOutcome, WorkflowDescriptor, WorkflowInputDescriptor,
 };
-use openhuman_core::openhuman::platform::socket::medulla::workflows::WorkflowBridge;
+use crate::hub::plane::WorkflowBridge;
 
 use crate::flow_engine::caps::dispatch::HarnessDispatch;
 use crate::protocol::HarnessProvider;
@@ -45,11 +45,14 @@ use crate::workflows::{
 /// The store side of the cloud workflow plane, backed by this host's layered
 /// JSON workflow store.
 ///
-/// Install it once with
-/// [`set_workflow_bridge`](openhuman_core::openhuman::platform::socket::medulla::workflows::set_workflow_bridge)
-/// and re-advertise with
-/// [`emit_register_workflows`](openhuman_core::openhuman::platform::socket::medulla::workflows::emit_register_workflows)
-/// whenever the store changes.
+/// Install it on the hub through
+/// [`HubConfig::workflows`](crate::hub::HubConfig::workflows); the hub
+/// re-advertises from it on connect and whenever the store changes.
+///
+/// It used to be installed through a pair of free functions on the embedded
+/// core's socket module. Those went with the core — the plane's transport is
+/// this crate's own now, and it takes the bridge as configuration rather than
+/// from a process-global slot.
 ///
 /// **Install it only when workflows are enabled on this host.** Nothing in here
 /// consults `workflows.enabled`: the bridge is a view of the store, and the
