@@ -415,6 +415,50 @@ fn a_bell_rung_mid_turn_is_a_progress_chime_not_a_question() {
     manager.shutdown();
 }
 
+/// A bell sampled while the *screen itself* plainly shows live work must be
+/// consumed immediately, not deferred: deferral exists only for the narrow
+/// case where `working` is true solely because a stale-tolerant hook report
+/// says so while the screen already looks idle. Deferring every bell whenever
+/// `working` happened to be true for any reason would instead let an ordinary
+/// progress chime survive the whole rest of the turn and resurface as a false
+/// completion cue the moment it silently ends.
+#[test]
+fn a_progress_bell_seen_during_a_live_spinner_does_not_resurface_at_completion() {
+    let now = Arc::new(AtomicI64::new(0));
+    let clock = Arc::clone(&now);
+    let manager = PtyManager::with_now(Arc::new(move || clock.load(Ordering::SeqCst)));
+    let id = manager
+        .open(sh(
+            "printf 'thinking… (esc to interrupt)\\a\\n'; read line; printf '\\033[2J\\033[Hdone\\n'; sleep 30",
+        ))
+        .expect("a session");
+
+    wait_for("the progress bell to paint", || {
+        super::screen_text(&manager, &id).contains("thinking")
+    });
+    now.store(200, Ordering::SeqCst);
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(
+        manager.attention(&id),
+        None,
+        "a spinner-visible progress bell produces no cue, same as always"
+    );
+
+    // The turn ends silently: no second, distinct completion bell.
+    manager.write(&id, b"\r").expect("end the turn");
+    wait_for("the settled screen to paint", || {
+        super::screen_text(&manager, &id).contains("done")
+    });
+    now.store(500, Ordering::SeqCst);
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(
+        manager.attention(&id),
+        None,
+        "the earlier progress chime, safely consumed while genuinely working, must not resurface as a false completion cue"
+    );
+    manager.shutdown();
+}
+
 #[test]
 fn a_working_vetoed_completion_does_not_hide_the_next_request() {
     let now = Arc::new(AtomicI64::new(0));

@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 use portable_pty::{Child, ChildKiller, ExitStatus};
 
-use super::attention::working_state;
+use super::attention::{
+    bell_accounting, bells_are_deferred, working_state, HOOK_STALE_GRACE_MS, OPEN_ENDED_ABANDON_MS,
+};
 use super::open::LaunchGuard;
 use super::session::consumed_bell_count;
-
-use medulla::harness_hooks::{HookEvent, HookEventLog, HookReport};
 
 #[test]
 fn a_stale_bell_sample_cannot_move_the_watermark_backwards() {
@@ -18,44 +18,181 @@ fn a_stale_bell_sample_cannot_move_the_watermark_backwards() {
     assert_eq!(consumed_bell_count(2, 1), 2);
 }
 
-#[test]
-fn lifecycle_reports_fill_the_working_state_between_terminal_paints() {
-    let log = HookEventLog::new();
-    log.record(HookReport::new("grant-1", HookEvent::UserPromptSubmit));
+// `working_state` is a pure function of the booleans/ages `refresh` derives
+// from one hook-log snapshot (see `attention::hook::tests` for the log-level
+// scoping and event-classification rules that feed `hook_active`, and
+// `attention::detect::tests` for `screen_working`), so these tests drive it
+// directly with those values rather than re-building a `HookEventLog` per
+// case.
 
-    assert!(working_state(
-        "model request pending",
-        Some("grant-1"),
-        Some(&log)
-    ));
+#[test]
+fn a_live_spinner_and_the_reports_between_them_cover_a_turn() {
+    // A composer on screen no longer ends a turn on its own: Claude keeps its
+    // prompt drawn for the whole turn, and `PostToolUse` is exactly the middle
+    // of one — a tool result painted over the spinner, with the composer below
+    // it as always.
     assert!(
-        !working_state("model request pending", Some("another"), Some(&log)),
-        "reports remain scoped to their own session"
+        working_state(false, Some(true), None, None),
+        "a mid-turn report holds the working state through a spinner-less paint"
+    );
+    assert!(
+        !working_state(false, Some(false), None, None),
+        "the turn's own Stop report ends it"
+    );
+    assert!(
+        working_state(true, Some(false), None, None),
+        "a fresh spinner starts work before UserPromptSubmit is filed"
     );
 }
 
+/// `run_hook_cmd` swallows a report's delivery failure or timeout
+/// (`commands/hook.rs`), so a session whose `Stop` report never arrived must
+/// not hold `working` forever once the screen has gone idle — that would
+/// suppress its completion bell for the rest of the session. Staleness is
+/// judged from the report's own age (`report_age_ms`, as the caller would
+/// compute from `HookReport::at_ms`), not from how long the screen has looked
+/// idle.
 #[test]
-fn a_live_screen_wins_while_hook_delivery_catches_up() {
-    let active = HookEventLog::new();
-    active.record(HookReport::new("grant-1", HookEvent::PostToolUse));
-    assert!(
-        !working_state(
-            "answer complete\n❯ Write a message",
-            Some("grant-1"),
-            Some(&active)
-        ),
-        "the restored composer ends work before Stop is filed"
-    );
-
-    let stopped = HookEventLog::new();
-    stopped.record(HookReport::new("grant-1", HookEvent::Stop));
+fn a_dropped_stop_report_does_not_latch_working_forever() {
     assert!(
         working_state(
-            "✽ Considering… (7s · ↓ 193 tokens)",
-            Some("grant-1"),
-            Some(&stopped),
+            false,
+            Some(true),
+            Some(HOOK_STALE_GRACE_MS - 1),
+            Some(HOOK_STALE_GRACE_MS),
         ),
-        "a fresh spinner starts work before UserPromptSubmit is filed"
+        "a report just inside the grace window is trusted over the idle screen"
+    );
+    assert!(
+        !working_state(
+            false,
+            Some(true),
+            Some(HOOK_STALE_GRACE_MS),
+            Some(HOOK_STALE_GRACE_MS),
+        ),
+        "a report this old, with the pty just as quiet, outweighs staying working"
+    );
+}
+
+/// The report's staleness is only suggestive on its own: there is no hook
+/// event bracketing "now writing the reply", so a stale `PostToolUse` or
+/// `UserPromptSubmit` can be exactly what a long, spinner-less answer looks
+/// like from the hook's side. Fresh output is what tells that apart from a
+/// genuinely dropped report.
+#[test]
+fn fresh_output_corroborates_a_stale_report_that_is_still_a_long_reply() {
+    assert!(
+        working_state(false, Some(true), Some(HOOK_STALE_GRACE_MS * 10), Some(0),),
+        "new output keeps arriving, so the ancient report is still a live reply, not a dropped one"
+    );
+}
+
+/// A fresh report right after a long-idle screen must be trusted immediately —
+/// staleness tracks the report's own age, not a clock started the moment the
+/// screen went quiet, so resuming an idle session (a new `UserPromptSubmit`) or
+/// the next tool report past a permission menu is not penalised for how long
+/// the prompt sat idle before it arrived.
+#[test]
+fn a_fresh_report_after_a_long_idle_screen_is_trusted_at_once() {
+    assert!(working_state(false, Some(true), Some(0), None));
+}
+
+/// An open-ended report (`PreToolUse`/`SubagentStart`/`PreCompact`) is not
+/// aged by `HOOK_STALE_GRACE_MS`, but it is not trusted forever either: if its
+/// own closing event never arrives, total pty silence for
+/// `OPEN_ENDED_ABANDON_MS` is presumed abandonment rather than a tool that
+/// merely produces no output.
+#[test]
+fn an_abandoned_open_ended_report_eventually_expires() {
+    assert!(
+        working_state(false, Some(true), None, Some(OPEN_ENDED_ABANDON_MS - 1)),
+        "still within the backstop, an open-ended report is trusted regardless of its own age"
+    );
+    assert!(
+        !working_state(false, Some(true), None, Some(OPEN_ENDED_ABANDON_MS)),
+        "total silence this long means abandoned even for an open-ended report"
+    );
+}
+
+/// A *known* fresh age must outrank the abandonment backstop: a report
+/// recorded moments ago is direct evidence of life on its own, and silence
+/// that ended before the report was even filed says nothing about it. A
+/// session silent for the whole `OPEN_ENDED_ABANDON_MS` window that then gets
+/// a brand-new boundary report must read `working` at once, not wait for the
+/// next pty byte to catch up.
+#[test]
+fn a_fresh_report_outranks_the_abandon_backstop() {
+    assert!(
+        working_state(false, Some(true), Some(0), Some(OPEN_ENDED_ABANDON_MS)),
+        "a report this fresh is direct evidence of life, whatever the prior silence was"
+    );
+}
+
+/// With no lifecycle report there is nothing to hold the state between paints,
+/// so only a spinner says a harness is busy.
+#[test]
+fn a_session_without_reports_falls_back_to_the_screen() {
+    assert!(!working_state(false, None, None, None));
+    assert!(working_state(true, None, None, None));
+}
+
+/// The debt consumption and the bell watermark must be made as one decision:
+/// a deferred poll must leave *both* the completion debt and the watermark
+/// untouched, or the debt gets silently spent on a bell the watermark then
+/// also fails to remember — reproducing, on the very next non-deferring
+/// poll, exactly the spurious completion cue this pairing exists to prevent.
+#[test]
+fn a_deferred_poll_leaves_the_completion_debt_and_watermark_paired() {
+    // Poll 1: deferring. A promised completion bell has just arrived (`bells`
+    // is one past `seen_bells`), but the poll defers because the hook, not
+    // the screen, is what says `working`.
+    let (consumed, seen_bells) = bell_accounting(true, 1, 1, 0, 1);
+    assert_eq!(
+        (consumed, seen_bells),
+        (0, 0),
+        "deferring must leave both the debt and the watermark exactly as they were"
+    );
+
+    // Poll 2: the same bell, `working` now cleared. With the debt and
+    // watermark both still where poll 1 left them, this must be the decision
+    // poll 1 would have made had it not deferred at all — the debt still
+    // standing absorbs the bell, leaving nothing eligible.
+    let (consumed, seen_bells) = bell_accounting(false, 1, 1, seen_bells, 1);
+    assert_eq!(
+        (consumed, seen_bells),
+        (1, 1),
+        "the debt still standing absorbs the deferred bell; nothing is left eligible"
+    );
+}
+
+/// A bell rung while an open-ended report is still open is a progress chime,
+/// not a completion one, and must be accounted at once.
+///
+/// The tool's own output is what is on screen during a `PreToolUse`, so
+/// `screen_working` is false by construction — the spinner is Claude's chrome,
+/// not the tool's. Keying deferral on that alone held every bell a running
+/// tool emitted (a build that prints one, a shell beeping at an error) and let
+/// it resurface as a false "wants you" once the turn ended, for a chime nobody
+/// meant as a request.
+#[test]
+fn a_bell_under_an_open_ended_report_is_not_deferred() {
+    assert!(
+        !bells_are_deferred(true, false, true),
+        "an open-ended report is the harness saying the operation is still \
+         open — demonstrably working, so the bell is a progress chime"
+    );
+    assert!(
+        !bells_are_deferred(true, true, false),
+        "a spinner on screen is the ordinary working case and never defers"
+    );
+    assert!(
+        bells_are_deferred(true, false, false),
+        "a boundary report trusted through a corroboration gap is the one \
+         state whose bell may be the completion chime of a finished turn"
+    );
+    assert!(
+        !bells_are_deferred(false, false, false),
+        "a session that is not working decides its bells immediately"
     );
 }
 

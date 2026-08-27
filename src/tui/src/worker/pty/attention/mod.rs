@@ -70,8 +70,10 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use detect::{bell_cue, detect, is_idle, is_working};
-pub use hook::{hook_attention, hook_working};
+pub use detect::{bell_cue, detect, is_working};
+pub use hook::{
+    hook_attention, hook_event_marks_active_turn, hook_report_is_open_ended, hook_working,
+};
 pub use session::{lifecycle_cue, row_cue};
 pub use types::{AttentionKind, HarnessAttention};
 
