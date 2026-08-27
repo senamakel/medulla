@@ -1,0 +1,130 @@
+//! Data types for the `access` module: the plan tiers, the facts `/auth/me`
+//! reports, and the verdict [`decide`](super::decide) reaches from them.
+
+#[allow(unused_imports)]
+use super::*;
+
+/// A billing tier, as the backend's `SubscriptionPlan` enum spells it.
+///
+/// [`Unknown`](Plan::Unknown) is a real state, not a parse failure to paper
+/// over: the backend sends `null` when the billing lookup itself failed, and
+/// that has to stay distinguishable from a confirmed `Free` so the refusal can
+/// say which of the two happened.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Plan {
+    /// Registered, paying nothing.
+    Free,
+    /// The entry paid tier.
+    Basic,
+    /// The full paid tier.
+    Pro,
+    /// The backend could not say.
+    Unknown,
+}
+
+impl Plan {
+    /// Parse the wire spelling, case-insensitively.
+    ///
+    /// An unrecognized name is [`Plan::Unknown`] rather than [`Plan::Free`]:
+    /// a name this binary cannot place is one it cannot bill against either
+    /// way, and calling it `Free` would put a confident label on a value nobody
+    /// confirmed.
+    pub fn parse(name: &str) -> Plan {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "free" => Plan::Free,
+            "basic" => Plan::Basic,
+            "pro" => Plan::Pro,
+            _ => Plan::Unknown,
+        }
+    }
+
+    /// Whether this tier is one the operator pays for.
+    ///
+    /// This is the "paid or basic plan" half of the access rule.
+    pub fn is_paid(self) -> bool {
+        matches!(self, Plan::Basic | Plan::Pro)
+    }
+}
+
+/// The access facts an `/auth/me` response reports, already extracted.
+///
+/// Facts only — the verdict is [`decide`](super::decide)'s job. Keeping the two
+/// apart is what lets the whole policy be tested without a backend.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entitlement {
+    /// The account's billing tier.
+    pub plan: Plan,
+    /// Whether a live subscription backs that tier.
+    pub has_active_subscription: bool,
+    /// The admin-set `hasMedullaAccess` allowlist flag.
+    pub admin_granted: bool,
+    /// When the account was created, in milliseconds since the Unix epoch.
+    pub registered_at_ms: Option<i64>,
+    /// The backend's own clock at the moment it answered, in milliseconds since
+    /// the Unix epoch.
+    ///
+    /// Used in place of this machine's clock wherever it is present — see
+    /// [`Entitlement::account_age_ms`].
+    pub server_time_ms: Option<i64>,
+}
+
+impl Entitlement {
+    /// How old the account is in milliseconds, measured against the backend's
+    /// clock when it sent one and this machine's otherwise.
+    ///
+    /// Preferring the server's clock is the point of sending it: the age of an
+    /// account is the difference between two instants the *backend* owns, and
+    /// subtracting one of them from a local clock that is wrong by a week hands
+    /// out either an extra week of trial or none at all.
+    ///
+    /// A negative age — an account registered in this machine's future — is
+    /// clamped to zero rather than refused, so a small forward skew reads as
+    /// "brand new" instead of failing the whole check.
+    pub fn account_age_ms(&self, local_now_ms: i64) -> Option<i64> {
+        let now = self.server_time_ms.unwrap_or(local_now_ms);
+        Some((now - self.registered_at_ms?).max(0))
+    }
+}
+
+/// Why access was granted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Grant {
+    /// The account is on a paid tier.
+    Paid(Plan),
+    /// Inside the free window every new account gets. Carries the whole
+    /// milliseconds left of it, for the countdown the UI shows.
+    Trial { remaining_ms: i64 },
+    /// The admin-set allowlist flag is on.
+    AdminGranted,
+}
+
+/// Why access was refused.
+///
+/// Two variants because they are not the same news. One is about the operator's
+/// account; the other is about us failing to answer, and saying "your free week
+/// is up" to somebody whose week is not up would be a lie the screen tells on
+/// our behalf.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Denial {
+    /// Registered, on no paid tier, and past the free window.
+    TrialExpired,
+    /// The backend did not report enough to decide — no entitlement block, an
+    /// unresolvable plan, or no registration instant.
+    Undetermined,
+}
+
+/// The verdict on whether this account may use Medulla.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Access {
+    /// May use the product.
+    Granted(Grant),
+    /// May not, until they subscribe.
+    Denied(Denial),
+}
+
+impl Access {
+    /// Whether this verdict lets the operator through.
+    pub fn is_granted(self) -> bool {
+        matches!(self, Access::Granted(_))
+    }
+}
