@@ -89,15 +89,15 @@ fn update_notice_renders_in_header_once_set() {
 #[test]
 fn tab_and_backtab_cycle_tabs() {
     let (mut app, _rt) = demo_app();
-    assert_eq!(app.tab(), "Overview");
-    let _ = app.on_event(key(KeyCode::Tab));
     assert_eq!(app.tab(), "Sessions");
-    // Tasks is commented out of `TABS`, so Agents is followed by Workflows.
     let _ = app.on_event(key(KeyCode::Tab));
     assert_eq!(app.tab(), "Workflows");
+    // Workflows is followed by the live Subconscious surface.
+    let _ = app.on_event(key(KeyCode::Tab));
+    assert_eq!(app.tab(), "Subconscious");
     let _ = app.on_event(key_mod(KeyCode::BackTab, KeyModifiers::SHIFT));
-    assert_eq!(app.tab(), "Sessions");
-    // Wrap backwards from Overview to the last tab (Settings).
+    assert_eq!(app.tab(), "Workflows");
+    // Wrap backwards from Sessions to the last tab (Settings).
     let _ = app.on_event(key_mod(KeyCode::BackTab, KeyModifiers::SHIFT));
     let _ = app.on_event(key_mod(KeyCode::BackTab, KeyModifiers::SHIFT));
     assert_eq!(app.tab(), "Settings");
@@ -108,7 +108,7 @@ fn clicking_tab_bar_selects_tab() {
     let (mut app, _rt) = demo_app();
     // Draw first so the tab hit-boxes are recorded, then click within "Sessions".
     let _ = render(&mut app, 120, 40);
-    let _ = app.on_event(mouse(MouseEventKind::Down(MouseButton::Left), 12, 1));
+    let _ = app.on_event(mouse(MouseEventKind::Down(MouseButton::Left), 5, 1));
     assert_eq!(app.tab(), "Sessions");
 }
 
@@ -117,7 +117,7 @@ fn each_tab_renders_its_signature() {
     let signatures = [
         ("Sessions", "Sessions ·"),
         ("Workflows", "Workflows"),
-        ("Subconscious", "Coming soon"),
+        ("Subconscious", "Signal field · demo"),
         ("Hosts", "Hosts"),
         ("Settings", "Settings"),
     ];
@@ -136,7 +136,10 @@ fn each_tab_renders_its_signature() {
 /// only scrollable transcript the tab still draws.
 fn app_on_a_task_transcript() -> App {
     let (mut app, _rt) = demo_app();
-    app.tab_index = 1;
+    app.tab_index = TABS
+        .iter()
+        .position(|tab| *tab == "Sessions")
+        .expect("Sessions tab is listed");
     app.refresh_snapshot();
     app
 }
