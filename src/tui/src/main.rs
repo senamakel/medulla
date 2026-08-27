@@ -15,6 +15,7 @@ use crate::commands::{run_hub, run_init, run_login, run_logout, run_workspace};
 use crate::commands::{run_mcp_cmd, run_skills_cmd, run_workflow_cmd};
 use crate::run::run_core;
 
+mod access_gate;
 mod app_loop;
 #[cfg(test)]
 mod app_loop_tests;

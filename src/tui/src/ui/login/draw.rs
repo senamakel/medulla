@@ -188,8 +188,8 @@ impl LoginScreen {
         }
 
         let screen = f.area();
-        let width = panel_width(&lines, screen.width);
-        let height = panel_height(&lines, width, screen.height);
+        let width = crate::ui::layout::panel_width(&lines, screen.width);
+        let height = crate::ui::layout::panel_height(&lines, width, screen.height);
         let area = crate::ui::layout::centered_fixed(width, height, screen);
         let block = Block::default()
             .borders(Borders::ALL)
@@ -208,30 +208,6 @@ impl LoginScreen {
             inner,
         );
     }
-}
-
-/// The panel width that fits `lines`: the widest row plus both borders, held
-/// wide enough for the `" login "` title and never wider than the terminal.
-fn panel_width(lines: &[Line<'_>], screen_width: u16) -> u16 {
-    const TITLE: u16 = 11;
-    const BORDERS: u16 = 2;
-    let widest = lines.iter().map(Line::width).max().unwrap_or(0) as u16;
-    widest
-        .saturating_add(BORDERS)
-        .max(TITLE)
-        .min(screen_width.max(1))
-}
-
-/// The panel height that fits `lines` at `width`, counting the extra rows a
-/// too-long line costs once [`Wrap`] has folded it.
-fn panel_height(lines: &[Line<'_>], width: u16, screen_height: u16) -> u16 {
-    const BORDERS: u16 = 2;
-    let inner = width.saturating_sub(BORDERS).max(1);
-    let rows: u16 = lines
-        .iter()
-        .map(|line| ((line.width() as u16).div_ceil(inner)).max(1))
-        .sum();
-    rows.saturating_add(BORDERS).min(screen_height.max(1))
 }
 
 /// Dim/truncate a token for display (no masking): show a leading window with an
