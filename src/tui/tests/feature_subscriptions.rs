@@ -248,7 +248,7 @@ fn tinyhumans_meter_loads_account_usage_before_sampling() {
     let account = serde_json::json!({"remainingUsd": 42.5});
     let cmd = app.set_account_usage(Some(account.clone()));
     assert!(
-        matches!(cmd, Some(Cmd::LoadSubscriptions(Some(data))) if data == account),
+        matches!(cmd, Some(Cmd::LoadSubscriptions(Some(ref data))) if *data == account),
         "{cmd:?}"
     );
 }
@@ -272,7 +272,10 @@ fn a_setting_changed_during_sampling_queues_one_follow_up() {
     let mut app = settings_app(SubscriptionsConfig::default());
 
     let first = key(&mut app, KeyCode::Char('r'));
-    assert!(matches!(first, Some(Cmd::LoadSubscriptions(_))), "{first:?}");
+    assert!(
+        matches!(first, Some(Cmd::LoadSubscriptions(_))),
+        "{first:?}"
+    );
 
     // The active command already cloned the all-off config. Enabling the first
     // row cannot start a second concurrent sample, but must be remembered.
