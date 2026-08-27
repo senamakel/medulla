@@ -398,8 +398,7 @@ impl App {
     pub fn set_account_usage(&mut self, data: Option<serde_json::Value>) -> Option<Cmd> {
         self.account_usage = data;
         if self.subscriptions_waiting_for_account {
-            self.subscriptions_waiting_for_account = false;
-            return Some(Cmd::LoadSubscriptions(self.account_usage.clone()));
+            return Some(self.begin_subscription_sample());
         }
         if self
             .loaded
@@ -407,9 +406,23 @@ impl App {
             .subscriptions
             .source_enabled(medulla::config::MeterSource::Tinyhumans)
         {
-            return self.refresh_subscriptions();
+            if self.subscriptions_loading {
+                self.subscriptions_refresh_pending = true;
+                return None;
+            }
+            return Some(self.begin_subscription_sample());
         }
         None
+    }
+
+    /// Release a subscription refresh whose account-usage read failed.
+    ///
+    /// The last successful account payload remains available to the Usage page
+    /// and the TinyHumans meter; a transient failure should not turn a visible
+    /// balance into an unavailable row.
+    pub fn usage_load_failed(&mut self) -> Option<Cmd> {
+        self.subscriptions_waiting_for_account
+            .then(|| self.begin_subscription_sample())
     }
 
     /// Deliver a fresh subscription-usage sample and start a queued refresh.
@@ -470,22 +483,27 @@ impl App {
         Some(self.begin_subscription_refresh())
     }
 
-    /// Start a refresh, loading the shared account payload first when needed.
+    /// Start a refresh, loading a current account payload for TinyHumans first.
     fn begin_subscription_refresh(&mut self) -> Cmd {
         self.subscriptions_loading = true;
-        if self.account_usage.is_none()
-            && self
-                .loaded
-                .config
-                .subscriptions
-                .source_enabled(medulla::config::MeterSource::Tinyhumans)
+        if self
+            .loaded
+            .config
+            .subscriptions
+            .source_enabled(medulla::config::MeterSource::Tinyhumans)
         {
             self.subscriptions_waiting_for_account = true;
             Cmd::LoadUsage
         } else {
-            self.subscriptions_waiting_for_account = false;
-            Cmd::LoadSubscriptions(self.account_usage.clone())
+            self.begin_subscription_sample()
         }
+    }
+
+    /// Start provider sampling with the account payload currently held in App.
+    fn begin_subscription_sample(&mut self) -> Cmd {
+        self.subscriptions_loading = true;
+        self.subscriptions_waiting_for_account = false;
+        Cmd::LoadSubscriptions(self.account_usage.clone())
     }
 
     /// Set the status-line text.

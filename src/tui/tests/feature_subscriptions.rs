@@ -268,6 +268,37 @@ fn loaded_account_usage_resamples_an_enabled_tinyhumans_meter() {
 }
 
 #[test]
+fn tinyhumans_refreshes_usage_even_after_a_previous_load() {
+    let mut app = agents_app(SubscriptionsConfig {
+        tinyhumans_balance: ResourceDisplay::Value,
+        ..SubscriptionsConfig::default()
+    });
+    let _ = app.set_account_usage(Some(serde_json::json!({"remainingUsd": 7.0})));
+    let _ = app.set_subscriptions(sample());
+
+    let cmd = app.due_subscription_refresh();
+    assert!(matches!(cmd, Some(Cmd::LoadUsage)), "{cmd:?}");
+}
+
+#[test]
+fn failed_tinyhumans_usage_refresh_keeps_the_last_reading() {
+    let mut app = agents_app(SubscriptionsConfig {
+        tinyhumans_balance: ResourceDisplay::Value,
+        ..SubscriptionsConfig::default()
+    });
+    let account = serde_json::json!({"remainingUsd": 7.0});
+    let _ = app.set_account_usage(Some(account.clone()));
+    let _ = app.set_subscriptions(sample());
+
+    assert!(matches!(app.due_subscription_refresh(), Some(Cmd::LoadUsage)));
+    let cmd = app.usage_load_failed();
+    assert!(
+        matches!(cmd, Some(Cmd::LoadSubscriptions(Some(ref data))) if *data == account),
+        "{cmd:?}"
+    );
+}
+
+#[test]
 fn a_setting_changed_during_sampling_queues_one_follow_up() {
     let mut app = settings_app(SubscriptionsConfig::default());
 
