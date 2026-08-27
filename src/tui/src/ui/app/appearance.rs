@@ -1,5 +1,11 @@
-//! Appearance-setting mutations and persistence, including the Agents-sidebar
-//! grouping and ordering controls.
+//! The Appearance page's row table, its mutations, and its persistence.
+//!
+//! [`APPEARANCE_TABLE`] is the page: every row's heading, label, one-line
+//! explanation, and the setting it edits, in the order the page lists them.
+//! `appearance_index` is an index into it, so the renderer and the cycler
+//! agree on what row 12 is by reading the same table rather than by each
+//! doing the same arithmetic over group sizes — which is how the two came
+//! apart before, leaving a row that described one setting and changed another.
 //!
 //! Colour roles, local-process indicators, whole-device indicators, and the
 //! sidebar's grouping and sort preferences live here. The two
@@ -13,23 +19,13 @@
 //! that move: see
 //! [`StatusLineConfig::from_appearance`](medulla::config::StatusLineConfig::from_appearance).
 
-use crate::ui::theme::{blink_ms_from_seconds, blink_seconds, color_to_string, THEME_ROLES};
+use medulla::config::ResourceDisplay::{self, Bar, Off, Percent, Value};
+
+use crate::ui::theme::{
+    blink_ms_from_seconds, blink_seconds, color_to_string, PALETTE, THEME_ROLES,
+};
 
 use super::types::App;
-
-/// Non-theme rows: session titles, the process and device resource indicators,
-/// and the two Agents-sidebar layout controls.
-pub(super) const APPEARANCE_OPTION_ROWS: usize = 9;
-
-/// The option offset of the sidebar grouping row, past the resource indicators.
-pub(super) const SIDEBAR_GROUPING_OPTION: usize = 7;
-
-/// The option offset of the sidebar sort row.
-pub(super) const SIDEBAR_SORT_OPTION: usize = 8;
-
-/// Number of behavior controls shown after the editable theme colors: the blink
-/// toggle and the rate it blinks at.
-pub(super) const ATTENTION_ROWS: usize = 2;
 
 /// The pulse lengths the Appearance editor offers, in seconds.
 ///
@@ -40,9 +36,198 @@ pub(super) const ATTENTION_ROWS: usize = 2;
 /// list steps into it from the nearest end rather than being lost.
 const BLINK_SECONDS: [f64; 6] = [0.3, 0.5, 1.0, 1.5, 2.0, 3.0];
 
-/// Number of selectable rows: theme colors, attention behavior, and options.
-pub(super) const APPEARANCE_ROWS: usize =
-    THEME_ROLES.len() + ATTENTION_ROWS + APPEARANCE_OPTION_ROWS;
+/// The resource indicators, in page order, each with the formats it offers.
+///
+/// One table, read by both the cycler and the page: an indicator that offered
+/// `value` in the footer but refused to cycle to it would be a lie the two
+/// could only tell by being written twice.
+pub(super) const RESOURCE_INDICATORS: [(&str, &[ResourceDisplay]); 6] = [
+    ("Process CPU", &[Off, Percent, Bar]),
+    ("Process RAM", &[Off, Percent, Value, Bar]),
+    ("Process disk I/O", &[Off, Value, Bar]),
+    ("Device CPU", &[Off, Percent, Bar]),
+    ("Device RAM", &[Off, Percent, Value, Bar]),
+    ("Device disk", &[Off, Percent, Value, Bar]),
+];
+
+/// What one selectable row on the Appearance page changes.
+///
+/// The rows are addressed by position — `appearance_index` is an index into
+/// [`APPEARANCE_TABLE`] — so this enum is what turns that position back into a
+/// setting. Everything the page needs to draw or edit a row (its heading, its
+/// label, its one-line explanation, its current value, and the values it can
+/// take) hangs off the table rather than off arithmetic spread between the
+/// renderer and the cycler, which is what made the two drift apart before.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum AppearanceControl {
+    /// One editable theme colour, by its index into [`THEME_ROLES`].
+    Color(usize),
+    /// Whether the attention colour pulses.
+    Blink,
+    /// How long one attention pulse takes.
+    BlinkRate,
+    /// One resource indicator, by its index into [`RESOURCE_INDICATORS`].
+    Resource(usize),
+    /// Whether extracted harness titles appear on agent rows.
+    SessionTitles,
+    /// What the Agents sidebar sections its agents by.
+    Grouping,
+    /// How the Agents sidebar orders rows inside a section.
+    Sort,
+}
+
+/// One row of the Appearance page.
+pub(super) struct AppearanceRow {
+    /// The group heading this row opens, when it is a group's first row.
+    pub group: Option<&'static str>,
+    /// The row's name, as shown in the left column.
+    pub label: &'static str,
+    /// One sentence for the pinned footer: what changing this row does.
+    pub help: &'static str,
+    /// The setting the row edits.
+    pub control: AppearanceControl,
+}
+
+/// A row-table entry, kept terse because the table is read as a table.
+const fn row(
+    group: Option<&'static str>,
+    label: &'static str,
+    help: &'static str,
+    control: AppearanceControl,
+) -> AppearanceRow {
+    AppearanceRow {
+        group,
+        label,
+        help,
+        control,
+    }
+}
+
+/// Every Appearance row, in the order the page lists them.
+///
+/// The groups are the four questions the page answers — what Medulla is
+/// coloured in, how it asks for attention, what the status line measures, and
+/// how the Sessions sidebar is arranged. A row belongs to the group whose
+/// *surface* it changes, not to the config section it happens to be written to,
+/// which is what split the sidebar's own settings across a "Sessions sidebar"
+/// group and an "Agents sidebar" group naming a panel that has been titled
+/// "Sessions" for some time.
+pub(super) const APPEARANCE_TABLE: [AppearanceRow; 16] = [
+    row(
+        Some("Colors"),
+        "Primary",
+        "The colour behind a selected row, the active tab, and the panel titles.",
+        AppearanceControl::Color(0),
+    ),
+    row(
+        None,
+        "Accent",
+        "The secondary highlight: counts, badges, and the softer chrome.",
+        AppearanceControl::Color(1),
+    ),
+    row(
+        None,
+        "Selection text",
+        "The text drawn on top of a selected row's primary background.",
+        AppearanceControl::Color(2),
+    ),
+    row(
+        None,
+        "Dim border",
+        "Panel borders, rules, and the lines that separate one pane from the next.",
+        AppearanceControl::Color(3),
+    ),
+    row(
+        Some("Attention"),
+        "Color",
+        "The colour an agent that is waiting on you is marked in.",
+        AppearanceControl::Color(4),
+    ),
+    row(
+        None,
+        "Blink",
+        "Whether that mark pulses or simply stays lit.",
+        AppearanceControl::Blink,
+    ),
+    row(
+        None,
+        "Blink rate",
+        "How long one pulse takes, from bright back to bright.",
+        AppearanceControl::BlinkRate,
+    ),
+    row(
+        Some("Status line"),
+        "Process CPU",
+        "Medulla's own CPU use, in the status line along the bottom.",
+        AppearanceControl::Resource(0),
+    ),
+    row(
+        None,
+        "Process RAM",
+        "Memory Medulla itself is holding, in the status line.",
+        AppearanceControl::Resource(1),
+    ),
+    row(
+        None,
+        "Process disk I/O",
+        "What Medulla is reading and writing per second, in the status line.",
+        AppearanceControl::Resource(2),
+    ),
+    row(
+        Some("Sessions sidebar"),
+        "Session titles",
+        "Whether an orchestrator-run agent shows the title taken from its work.",
+        AppearanceControl::SessionTitles,
+    ),
+    row(
+        None,
+        "Device CPU",
+        "This whole machine's CPU load, under the sidebar.",
+        AppearanceControl::Resource(3),
+    ),
+    row(
+        None,
+        "Device RAM",
+        "This whole machine's memory pressure, under the sidebar.",
+        AppearanceControl::Resource(4),
+    ),
+    row(
+        None,
+        "Device disk",
+        "How full this machine's disk is, under the sidebar.",
+        AppearanceControl::Resource(5),
+    ),
+    row(
+        None,
+        "Group by",
+        "What the sidebar sections its rows by. No row disappears either way.",
+        AppearanceControl::Grouping,
+    ),
+    row(
+        None,
+        "Sort by",
+        "The order rows come in inside a section.",
+        AppearanceControl::Sort,
+    ),
+];
+
+/// Number of selectable rows on the page.
+pub(super) const APPEARANCE_ROWS: usize = APPEARANCE_TABLE.len();
+
+/// The lower-case name a resource format is shown and persisted under.
+pub(super) fn display_label(display: ResourceDisplay) -> String {
+    format!("{display:?}").to_ascii_lowercase()
+}
+
+/// The label a pulse length is shown under, in the unit it is configured in.
+fn blink_rate_label(seconds: f64) -> String {
+    format!("{seconds:.1}s")
+}
+
+/// How every two-state row on the page spells itself.
+fn on_off(value: bool) -> String {
+    if value { "on" } else { "off" }.into()
+}
 
 /// The next value after `current` in `choices`, wrapping in either direction.
 ///
@@ -59,33 +244,107 @@ fn cycled<T: Copy + PartialEq>(choices: &[T], current: T, forward: bool) -> T {
 }
 
 impl App {
-    /// Cycle the selected colour role and persist the theme.
-    pub(super) fn cycle_appearance_row(&mut self, forward: bool) {
-        let index = self.appearance_index.min(APPEARANCE_ROWS - 1);
-        if index < THEME_ROLES.len() {
-            self.theme.cycle_role(index, forward);
-            self.persist_theme_now(THEME_ROLES[index]);
-        } else if index == THEME_ROLES.len() {
-            self.theme.attention_blink = !self.theme.attention_blink;
-            let value = if self.theme.attention_blink {
-                "on"
-            } else {
-                "off"
-            };
-            self.persist_theme_value_now("Attention blink", value.into());
-        } else if index == THEME_ROLES.len() + 1 {
-            self.cycle_blink_rate(forward);
-        } else {
-            let option = index - THEME_ROLES.len() - ATTENTION_ROWS;
-            match option {
-                3 => self.toggle_session_titles(),
-                SIDEBAR_GROUPING_OPTION => self.cycle_sidebar_grouping(forward),
-                SIDEBAR_SORT_OPTION => self.cycle_sidebar_sort(forward),
-                _ => {
-                    let resource = if option < 3 { option } else { option - 1 };
-                    self.cycle_resource_display(resource, forward);
-                }
+    /// The row the cursor is on, clamped to the table.
+    pub(super) fn appearance_row(&self) -> &'static AppearanceRow {
+        &APPEARANCE_TABLE[self.appearance_index.min(APPEARANCE_ROWS - 1)]
+    }
+
+    /// The value shown in the selected row's right-hand column.
+    pub(super) fn appearance_value(&self, index: usize) -> String {
+        match APPEARANCE_TABLE[index.min(APPEARANCE_ROWS - 1)].control {
+            AppearanceControl::Color(role) => color_to_string(self.theme.role(role)),
+            AppearanceControl::Blink => on_off(self.theme.attention_blink),
+            // A rate for an effect that is not running is a number that means
+            // nothing, so it reads as an em dash until the pulse is switched on.
+            AppearanceControl::BlinkRate if !self.theme.attention_blink => "—".into(),
+            AppearanceControl::BlinkRate => {
+                blink_rate_label(blink_seconds(self.theme.attention_blink_ms))
             }
+            AppearanceControl::Resource(indicator) => {
+                display_label(self.resource_display(indicator))
+            }
+            AppearanceControl::SessionTitles => {
+                on_off(self.loaded.config.appearance.show_session_titles)
+            }
+            AppearanceControl::Grouping => self
+                .loaded
+                .config
+                .appearance
+                .sidebar_grouping
+                .label()
+                .into(),
+            AppearanceControl::Sort => self.loaded.config.appearance.sidebar_sort.label().into(),
+        }
+    }
+
+    /// Every value the selected row can take, in the order `←/→` walk them.
+    ///
+    /// The page shows this set with the current member highlighted, because a
+    /// lone value says nothing about what else is on offer or what the next
+    /// keypress is about to do — the operator would have to press it and watch.
+    pub(super) fn appearance_choices(&self, index: usize) -> Vec<String> {
+        match APPEARANCE_TABLE[index.min(APPEARANCE_ROWS - 1)].control {
+            AppearanceControl::Color(_) => PALETTE.iter().copied().map(color_to_string).collect(),
+            AppearanceControl::Blink | AppearanceControl::SessionTitles => {
+                vec!["on".into(), "off".into()]
+            }
+            AppearanceControl::BlinkRate => BLINK_SECONDS
+                .iter()
+                .copied()
+                .map(blink_rate_label)
+                .collect(),
+            AppearanceControl::Resource(indicator) => RESOURCE_INDICATORS[indicator]
+                .1
+                .iter()
+                .copied()
+                .map(display_label)
+                .collect(),
+            AppearanceControl::Grouping => medulla::config::SidebarGrouping::ALL
+                .iter()
+                .map(|value| value.label().to_string())
+                .collect(),
+            AppearanceControl::Sort => medulla::config::SidebarSort::ALL
+                .iter()
+                .map(|value| value.label().to_string())
+                .collect(),
+        }
+    }
+
+    /// The current format of resource indicator `index`.
+    pub(super) fn resource_display(&self, index: usize) -> ResourceDisplay {
+        let appearance = &self.loaded.config.appearance;
+        match index {
+            0 => appearance.cpu,
+            1 => appearance.ram,
+            2 => appearance.disk_io,
+            3 => appearance.device_cpu,
+            4 => appearance.device_ram,
+            _ => appearance.device_disk,
+        }
+    }
+
+    /// Cycle the selected row to its next (or previous) value and persist it.
+    pub(super) fn cycle_appearance_row(&mut self, forward: bool) {
+        match self.appearance_row().control {
+            AppearanceControl::Color(role) => {
+                self.theme.cycle_role(role, forward);
+                self.persist_theme_value_now(
+                    THEME_ROLES[role],
+                    color_to_string(self.theme.role(role)),
+                );
+            }
+            AppearanceControl::Blink => {
+                self.theme.attention_blink = !self.theme.attention_blink;
+                let value = on_off(self.theme.attention_blink);
+                self.persist_theme_value_now("Attention blink", value);
+            }
+            AppearanceControl::BlinkRate => self.cycle_blink_rate(forward),
+            AppearanceControl::Resource(indicator) => {
+                self.cycle_resource_display(indicator, forward)
+            }
+            AppearanceControl::SessionTitles => self.toggle_session_titles(),
+            AppearanceControl::Grouping => self.cycle_sidebar_grouping(forward),
+            AppearanceControl::Sort => self.cycle_sidebar_sort(forward),
         }
     }
 
@@ -107,15 +366,15 @@ impl App {
             None => BLINK_SECONDS[BLINK_SECONDS.len() - 1],
         };
         self.theme.attention_blink_ms = blink_ms_from_seconds(next);
-        self.persist_theme_value_now("Attention blink rate", format!("{next:.1}s"));
+        self.persist_theme_value_now("Attention blink rate", blink_rate_label(next));
     }
 
     /// Toggle extracted harness titles on orchestrator-managed agent rows.
     fn toggle_session_titles(&mut self) {
         let appearance = &mut self.loaded.config.appearance;
         appearance.show_session_titles = !appearance.show_session_titles;
-        let shown = appearance.show_session_titles;
-        self.persist_appearance_now("Session titles", if shown { "on" } else { "off" }.into());
+        let shown = on_off(appearance.show_session_titles);
+        self.persist_appearance_now("Session titles", shown);
     }
 
     /// Cycle and persist what the Agents sidebar sections its agents by.
@@ -140,58 +399,29 @@ impl App {
 
     /// Cycle and persist one resource indicator, process-scoped or device-wide.
     ///
-    /// `index` is the row's offset past the theme roles, in the order the
-    /// renderer lists them. Each indicator offers only the formats that mean
-    /// something for it: throughput has no percentage of a known total, and a
-    /// device's CPU has no byte value.
+    /// `index` is the indicator's offset into [`RESOURCE_INDICATORS`], which is
+    /// also the order the page lists them in. Each indicator offers only the
+    /// formats that mean something for it: throughput has no percentage of a
+    /// known total, and a device's CPU has no byte value.
     fn cycle_resource_display(&mut self, index: usize, forward: bool) {
-        use medulla::config::ResourceDisplay::{Bar, Off, Percent, Value};
+        let (name, choices) = RESOURCE_INDICATORS[index.min(RESOURCE_INDICATORS.len() - 1)];
+        let display = self.resource_display_mut(index);
+        let next = cycled(choices, *display, forward);
+        *display = next;
+        self.persist_appearance_now(name, display_label(next));
+    }
 
-        let (name, display, choices): (&str, &mut _, &[_]) = match index {
-            0 => (
-                "Process CPU",
-                &mut self.loaded.config.appearance.cpu,
-                &[Off, Percent, Bar],
-            ),
-            1 => (
-                "Process RAM",
-                &mut self.loaded.config.appearance.ram,
-                &[Off, Percent, Value, Bar],
-            ),
-            2 => (
-                "Process disk I/O",
-                &mut self.loaded.config.appearance.disk_io,
-                &[Off, Value, Bar],
-            ),
-            3 => (
-                "Device CPU",
-                &mut self.loaded.config.appearance.device_cpu,
-                &[Off, Percent, Bar],
-            ),
-            4 => (
-                "Device RAM",
-                &mut self.loaded.config.appearance.device_ram,
-                &[Off, Percent, Value, Bar],
-            ),
-            _ => (
-                "Device disk",
-                &mut self.loaded.config.appearance.device_disk,
-                &[Off, Percent, Value, Bar],
-            ),
-        };
-        let current = choices
-            .iter()
-            .position(|choice| choice == display)
-            .unwrap_or(0);
-        let next = if forward {
-            (current + 1) % choices.len()
-        } else {
-            (current + choices.len() - 1) % choices.len()
-        };
-        *display = choices[next];
-        let value = format!("{:?}", *display).to_ascii_lowercase();
-
-        self.persist_appearance_now(name, value);
+    /// The live config field behind indicator `index`.
+    fn resource_display_mut(&mut self, index: usize) -> &mut medulla::config::ResourceDisplay {
+        let appearance = &mut self.loaded.config.appearance;
+        match index {
+            0 => &mut appearance.cpu,
+            1 => &mut appearance.ram,
+            2 => &mut appearance.disk_io,
+            3 => &mut appearance.device_cpu,
+            4 => &mut appearance.device_ram,
+            _ => &mut appearance.device_disk,
+        }
     }
 
     /// Persist the complete appearance section after one live option changes.
@@ -248,12 +478,6 @@ impl App {
             }
             None => self.set_status(format!("Appearance · {name} → {value} (not persisted)")),
         }
-    }
-
-    /// Write the current theme to the injected config path.
-    fn persist_theme_now(&mut self, role: &str) {
-        let value = color_to_string(self.theme.role(self.appearance_index));
-        self.persist_theme_value_now(role, value);
     }
 
     /// Persist the live theme and report the edited value in the status line.
