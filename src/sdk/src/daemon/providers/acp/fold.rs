@@ -304,6 +304,21 @@ impl FoldState {
     }
 }
 
+/// The readable half of a codex `_meta` error object.
+///
+/// `message` is the agent's own line about the attempt ("Reconnecting... 3/5"),
+/// while `additionalDetails` carries the provider's actual complaint — the HTTP
+/// status and its body. The details are what an operator needs, so they win,
+/// and `message` is the fallback for an error that carries none.
+fn error_text(error: &Value) -> Option<String> {
+    ["additionalDetails", "message"]
+        .iter()
+        .find_map(|key| error.get(*key).and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_string)
+}
+
 fn command_from_input(input: &Value) -> Option<&str> {
     input
         .get("command")
