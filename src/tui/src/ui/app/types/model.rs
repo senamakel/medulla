@@ -289,6 +289,16 @@ pub struct WorkflowsState {
     pub(in crate::ui::app) layout: medulla::ui::workflows::GraphLayout,
     /// Selected node in the canvas, in the layout's reading order.
     pub(in crate::ui::app) node_index: usize,
+    /// Which outline row [`node_index`](Self::node_index) sits on, when the
+    /// cursor last moved by outline navigation.
+    ///
+    /// A join is drawn on two rows — the subtree and its `revisit` reference —
+    /// that share one `node_index`, so the index alone cannot tell which row is
+    /// current. `outline_cursor_row` trusts this row only while it still points
+    /// at `node_index`; any selection that changes `node_index` without going
+    /// through [`App::move_outline_cursor`] (the rail, the canvas, a fresh
+    /// workflow) leaves it stale and falls back to resolving by node.
+    pub(in crate::ui::app) outline_row: usize,
     /// Vertical scroll of the canvas, in rows.
     ///
     /// The only scroll the canvas has: the graph folds onto a new band whenever
