@@ -104,7 +104,20 @@ impl App {
     }
 
     /// Which outline row holds the cursor's node.
+    ///
+    /// A join sits on two rows that share one `node_index` — the subtree it was
+    /// first reached from, and the `revisit` row that references it — so the
+    /// index alone cannot tell which is current. [`WorkflowsState::outline_row`]
+    /// remembers the row outline navigation last landed on; it is trusted only
+    /// while it still points at `node_index` (see its doc comment), and any
+    /// other case — including a plain, non-revisit node, where both rows name
+    /// the same line — falls back to resolving by node.
     pub(in crate::ui::app) fn outline_cursor_row(&self, rows: &[OutlineRow]) -> usize {
+        if let Some(row) = rows.get(self.wf.outline_row) {
+            if row.node == self.wf.node_index {
+                return self.wf.outline_row;
+            }
+        }
         rows.iter()
             .position(|row| row.node == self.wf.node_index && !row.revisit)
             .or_else(|| rows.iter().position(|row| row.node == self.wf.node_index))
