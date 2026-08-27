@@ -81,7 +81,22 @@ pub fn hook_attention(
 /// names are the API contract used to run hooks in the first place.
 pub fn hook_working(grant: Option<&str>, log: &HookEventLog) -> Option<bool> {
     let event = log.last_event(grant?)?;
-    Some(matches!(
+    Some(hook_event_marks_active_turn(event))
+}
+
+/// Whether `event`, as a session's most recent lifecycle report, means a turn
+/// is active.
+///
+/// Factored out of [`hook_working`] so a caller that already holds one
+/// [`HookReport`](medulla::harness_hooks::HookReport) snapshot — event and
+/// `at_ms` together — can classify it without a second, separately-timed read
+/// of the log. Two reads of "the last report" a poll apart can name different
+/// reports if one is recorded in between; deriving both the active/idle
+/// verdict and the report's age from the *same* snapshot is what keeps a
+/// classification from mixing an old report's age with a newer report's
+/// event.
+pub fn hook_event_marks_active_turn(event: HookEvent) -> bool {
+    matches!(
         event,
         HookEvent::UserPromptSubmit
             | HookEvent::PreToolUse
@@ -90,5 +105,29 @@ pub fn hook_working(grant: Option<&str>, log: &HookEventLog) -> Option<bool> {
             | HookEvent::SubagentStop
             | HookEvent::PreCompact
             | HookEvent::PostCompact
-    ))
+    )
+}
+
+/// Whether `event` opens an operation of unbounded duration rather than
+/// marking a boundary after which visible activity is expected imminently.
+///
+/// `PreToolUse`, `SubagentStart`, and `PreCompact` say an operation *started*
+/// and has not yet returned — a slow build under `Bash`, a long-running
+/// subagent, a large compaction — and there is no legitimate upper bound on
+/// how long that can take while the harness is genuinely still working. Their
+/// matching `Post`/`Stop` event is what closes them.
+///
+/// Every other active event (`UserPromptSubmit`, `PostToolUse`,
+/// `SubagentStop`, `PostCompact`) instead marks a moment *just after* which the
+/// harness should paint something visible again within moments — the model
+/// resuming generation, a fresh spinner — so a report stuck there for a long
+/// time with nothing on screen to corroborate it is what a dropped follow-up
+/// report looks like. Only that second group is a candidate for the staleness
+/// grace in [`super::super::manager::attention::working_state`]; this function
+/// is what tells the caller which group a report falls into.
+pub fn hook_report_is_open_ended(event: HookEvent) -> bool {
+    matches!(
+        event,
+        HookEvent::PreToolUse | HookEvent::SubagentStart | HookEvent::PreCompact
+    )
 }

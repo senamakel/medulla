@@ -15,7 +15,7 @@
 use medulla::harness_hooks::{HookEvent, HookEventLog, HookReport};
 use medulla::protocol::HarnessProvider;
 
-use super::super::hook::{hook_attention, hook_working};
+use super::super::hook::{hook_attention, hook_report_is_open_ended, hook_working};
 use super::super::types::AttentionKind;
 
 /// The grant key a session's MCP fleet hook reports are filed under.
@@ -149,6 +149,42 @@ fn terminal_and_operator_wait_reports_stop_the_working_state() {
             hook_working(Some(GRANT), &log),
             Some(false),
             "{event:?} should not describe active work"
+        );
+    }
+}
+
+/// `PreToolUse`, `SubagentStart`, and `PreCompact` mark an operation that has
+/// started and not yet returned — a slow build under `Bash`, a long-running
+/// subagent, a large compaction — with no legitimate upper bound on how long
+/// it can take while genuinely still working. Every other active event marks
+/// a boundary the harness should show visible activity again shortly after
+/// crossing, so only those are candidates for a staleness grace.
+#[test]
+fn only_events_with_no_natural_upper_bound_are_open_ended() {
+    for event in [
+        HookEvent::PreToolUse,
+        HookEvent::SubagentStart,
+        HookEvent::PreCompact,
+    ] {
+        assert!(
+            hook_report_is_open_ended(event),
+            "{event:?} can legitimately run for an unbounded time"
+        );
+    }
+    for event in [
+        HookEvent::UserPromptSubmit,
+        HookEvent::PostToolUse,
+        HookEvent::SubagentStop,
+        HookEvent::PostCompact,
+        HookEvent::Stop,
+        HookEvent::SessionStart,
+        HookEvent::SessionEnd,
+        HookEvent::PermissionRequest,
+        HookEvent::Notification,
+    ] {
+        assert!(
+            !hook_report_is_open_ended(event),
+            "{event:?} marks a boundary, not an open-ended operation"
         );
     }
 }
