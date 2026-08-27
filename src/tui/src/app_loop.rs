@@ -405,6 +405,31 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
 
     // `mut` because a relogin rebuilds it around the same core.
     let mut runtime = runtime.expect("a runtime is always selected");
+
+    // Entitlement gate. Placed here because this is where both boot paths meet —
+    // the launch that found a stored session and the one that just signed in —
+    // so the check runs on *every* launch rather than only after a login. A
+    // trial that ran out overnight has to be caught by the next launch, and the
+    // session it ran out under is still perfectly valid.
+    //
+    // Skipped when there is no session at all, which is the `--mock` demo: it
+    // never reaches a backend, so there is nothing to ask and nobody to bill.
+    if let Some(session) = session.as_ref() {
+        match crate::access_gate::check(&mut terminal, session).await? {
+            crate::access_gate::Gate::Allowed(note) => {
+                // Does not clobber a status the runtime selection already set:
+                // that one describes whether the app works at all, which outranks
+                // a trial countdown.
+                if startup_status.is_none() {
+                    startup_status = note;
+                }
+            }
+            crate::access_gate::Gate::Refused => {
+                drop(guard);
+                return Ok(());
+            }
+        }
+    }
     // Set when a relogin lands on a different account than this process runs as.
     // Reported after the terminal is restored, not while the app owns the screen.
     let mut account_switched: Option<Option<String>> = None;
