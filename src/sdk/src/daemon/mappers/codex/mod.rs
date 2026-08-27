@@ -48,8 +48,29 @@ pub(super) fn codex_events_from_line(
         // `thread_id` is captured by the session-id extractor, not as an event.
         Some("thread.started") => return Vec::new(),
         Some("turn.started") => return vec![codex_status(line, ts, "turn.started", "running")],
-        Some("turn.completed") | Some("turn.failed") => {
-            return vec![codex_status(line, ts, record_type.unwrap(), "idle")]
+        Some("turn.completed") => return vec![codex_status(line, ts, "turn.completed", "idle")],
+        // A failed turn is idle in the same sense a completed one is, but the
+        // status alone is all the run used to keep — so the reason the turn
+        // failed (an upstream HTTP status, a refused request) was thrown away,
+        // and the caller had only codex's exit code to go on. The error rides
+        // alongside the status so a run can report what actually happened.
+        Some("turn.failed") => {
+            let message = record
+                .get("error")
+                .and_then(|error| error.get("message"))
+                .and_then(Value::as_str)
+                .unwrap_or("codex reported a failed turn");
+            return vec![
+                codex_status(line, ts, "turn.failed", "idle"),
+                semantic(
+                    line,
+                    ts,
+                    "turn.failed",
+                    "error",
+                    "agent",
+                    serde_json::json!({ "message": message, "fatal": true }),
+                ),
+            ];
         }
         Some("item.started") | Some("item.completed") => {
             return codex_item(
