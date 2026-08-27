@@ -462,3 +462,89 @@ fn a_resumed_session_starts_from_the_directory_its_last_turn_ended_in() {
     );
     assert_eq!(state.workspace_cwd(), Some("/repo/worktrees/hook-cwd"));
 }
+
+/// The stream `codex-acp` 1.7.0 produces when the provider answers a turn with
+/// an HTTP error: a `willRetry` error per attempt, a bare `systemError` thread
+/// status when it gives up, and then the provider's complaint streamed as if it
+/// were the assistant's answer. Captured from a real 402 run.
+fn codex_failure_updates() -> Vec<serde_json::Value> {
+    let detail = "unexpected status 402 Payment Required: Insufficient credits. \
+                  Add more using https://openrouter.ai/settings/credits";
+    let mut updates: Vec<serde_json::Value> = (1..=5)
+        .map(|attempt| {
+            serde_json::json!({
+                "sessionUpdate": "session_info_update",
+                "_meta": {"codex": {"error": {
+                    "message": format!("Reconnecting... {attempt}/5"),
+                    "additionalDetails": detail,
+                    "willRetry": true,
+                }}}
+            })
+        })
+        .collect();
+    updates.push(serde_json::json!({
+        "sessionUpdate": "session_info_update",
+        "_meta": {"codex": {"threadStatus": {"type": "systemError"}}}
+    }));
+    updates.push(serde_json::json!({
+        "sessionUpdate": "agent_message_chunk",
+        "content": {"type": "text", "text": detail}
+    }));
+    updates
+}
+
+#[test]
+fn a_codex_turn_that_gave_up_retrying_is_recorded_as_failed() {
+    let mut state = FoldState::new(None);
+    for update in codex_failure_updates() {
+        state.fold(serde_json::from_value(update).unwrap());
+    }
+    // Without this the run answers `stopReason: end_turn` and the provider's
+    // 402 becomes the agent's reply — a workflow step marked success whose
+    // output is an error message.
+    assert_eq!(
+        state.error.as_deref(),
+        Some(
+            "unexpected status 402 Payment Required: Insufficient credits. \
+             Add more using https://openrouter.ai/settings/credits"
+        )
+    );
+}
+
+#[test]
+fn a_codex_error_still_being_retried_does_not_fail_the_turn() {
+    let mut state = FoldState::new(None);
+    for update in codex_failure_updates().into_iter().take(3) {
+        state.fold(serde_json::from_value(update).unwrap());
+    }
+    assert_eq!(state.error, None);
+}
+
+#[test]
+fn a_codex_error_that_will_not_be_retried_fails_the_turn_on_its_own() {
+    let mut state = FoldState::new(None);
+    let update = serde_json::json!({
+        "sessionUpdate": "session_info_update",
+        "_meta": {"codex": {"error": {
+            "message": "stream disconnected",
+            "willRetry": false,
+        }}}
+    });
+    state.fold(serde_json::from_value(update).unwrap());
+    assert_eq!(state.error.as_deref(), Some("stream disconnected"));
+}
+
+#[test]
+fn an_ordinary_session_info_update_is_not_a_failure() {
+    let mut state = FoldState::new(None);
+    for update in [
+        serde_json::json!({"sessionUpdate": "session_info_update", "title": "Reply with PONG"}),
+        serde_json::json!({
+            "sessionUpdate": "session_info_update",
+            "_meta": {"codex": {"threadStatus": {"type": "active", "activeFlags": []}}}
+        }),
+    ] {
+        state.fold(serde_json::from_value(update).unwrap());
+    }
+    assert_eq!(state.error, None);
+}
