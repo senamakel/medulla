@@ -340,17 +340,8 @@ pub(super) fn run_cmd(
             let rt = runtime.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
-                match rt.team_usage().await {
-                    Ok(data) => {
-                        let _ = tx.send(AppMsg::UsageLoaded(data));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(AppMsg::Status(format!("usage fetch failed: {e}")));
-                        // Release a subscription refresh waiting on this fetch;
-                        // its TinyHumans row will explain that usage is absent.
-                        let _ = tx.send(AppMsg::UsageLoaded(None));
-                    }
-                }
+                let result = rt.team_usage().await.map_err(|error| error.to_string());
+                let _ = tx.send(AppMsg::UsageLoaded(result));
             });
         }
     }

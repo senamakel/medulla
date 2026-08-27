@@ -138,7 +138,14 @@ pub(crate) async fn run(
                 match msg {
                     AppMsg::Status(s) => { app.set_status(s); app.refresh_snapshot(); }
                     AppMsg::Contexts(c) => app.set_contexts(c),
-                    AppMsg::UsageLoaded(data) => {
+                    AppMsg::UsageLoaded(result) => {
+                        let data = match result {
+                            Ok(data) => data,
+                            Err(error) => {
+                                app.set_status(format!("usage fetch failed: {error}"));
+                                None
+                            }
+                        };
                         if let Some(cmd) = app.set_account_usage(data) {
                             run_cmd(
                                 cmd,
