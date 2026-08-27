@@ -134,7 +134,11 @@ impl FoldState {
             "plan" => ("plan", "agent", value.clone()),
             "usage_update" => ("usage", "system", value.clone()),
             "session_info_update" => match self.fold_turn_error(&value) {
-                Some(message) => ("error", "agent", json!({ "message": message, "fatal": true })),
+                Some(message) => (
+                    "error",
+                    "agent",
+                    json!({ "message": message, "fatal": true }),
+                ),
                 None => ("status", "system", value.clone()),
             },
             _ => ("status", "system", value.clone()),
@@ -183,7 +187,10 @@ impl FoldState {
             self.error = Some(message.clone());
             return Some(message);
         }
-        if codex.get("threadStatus").and_then(|status| status.get("type")) != Some(&json!("systemError"))
+        if codex
+            .get("threadStatus")
+            .and_then(|status| status.get("type"))
+            != Some(&json!("systemError"))
         {
             return None;
         }
