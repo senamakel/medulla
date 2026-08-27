@@ -218,7 +218,7 @@ async fn dispatches_conversation_fleet_usage_and_context_commands() {
     assert!(matches!(next(&mut rx).await, AppMsg::Status(s) if s == "Worker registry updated"));
 
     run_cmd(Cmd::LoadUsage, &runtime, None, &tx);
-    assert!(matches!(next(&mut rx).await, AppMsg::UsageLoaded(None)));
+    assert!(matches!(next(&mut rx).await, AppMsg::UsageLoaded(Ok(None))));
 }
 
 #[tokio::test]
@@ -335,9 +335,16 @@ async fn dispatcher_surfaces_every_runtime_failure() {
 
     for command in commands {
         run_cmd(command, &runtime, None, &tx);
-        assert!(matches!(next(&mut rx).await, AppMsg::Status(status)
-                if status.contains("injected runtime failure")
-                    || status.contains("requires a signed-in backend")));
+        let message = next(&mut rx).await;
+        let status = match message {
+            AppMsg::Status(status) | AppMsg::UsageLoaded(Err(status)) => status,
+            _ => panic!("runtime failure returned a non-error message"),
+        };
+        assert!(
+            status.contains("injected runtime failure")
+                || status.contains("requires a signed-in backend"),
+            "{status}"
+        );
     }
 }
 

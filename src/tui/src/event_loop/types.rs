@@ -73,8 +73,15 @@ pub(super) enum AppMsg {
     Resumed(String),
     /// The session was cleared; quit back to the login screen.
     LoggedOut,
-    /// Account usage returned by the runtime.
-    UsageLoaded(Option<serde_json::Value>),
+    /// Account usage returned by the runtime, or the fetch failure.
+    ///
+    /// Failure stays in this message rather than arriving as a separate status
+    /// so a subscription refresh waiting on usage is always released exactly
+    /// once and no unrelated command can consume a trailing notification.
+    UsageLoaded(Result<Option<serde_json::Value>, String>),
+    /// A fresh subscription-usage sample. Boxed because it is the largest
+    /// variant by some way and every message would otherwise carry its width.
+    SubscriptionsLoaded(Box<medulla::subscriptions::SubscriptionSnapshot>),
     /// A newer release was detected by the background update checker.
     UpdateAvailable(String),
     /// An automatic review began outside the selected pane.

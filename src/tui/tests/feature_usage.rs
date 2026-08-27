@@ -116,7 +116,7 @@ fn usage_tab_without_backend_shows_login_hint() {
 #[test]
 fn account_panel_renders_backend_payload() {
     let (mut app, _rt) = usage_app();
-    app.set_account_usage(Some(json!({
+    let _ = app.set_account_usage(Some(json!({
         "plan": "pro",
         "inferenceTotals": { "spent": 1.2345, "calls": 42 },
         "remainingUsd": 8.7655,

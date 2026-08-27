@@ -3,17 +3,16 @@
 //! Kept apart from sampling so every rendering decision — which metrics fit,
 //! how narrow is too narrow, what an unavailable reading looks like — is a pure
 //! function of an injected [`DeviceSnapshot`] and can be asserted exactly.
+//!
+//! The layout itself lives in [`crate::ui::gauge`], which the subscription
+//! meters below this block in the footer use too: labels flush left, values
+//! flush right, fixed-width bars and percentages.
 
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
+use crate::ui::gauge::{bar_value, percent, Gauge};
+
 use super::super::types::DeviceSnapshot;
-
-/// Below this inner width the bar glyphs crowd out the label, and the line
-/// falls back to a percentage.
-const BAR_MIN_WIDTH: usize = 20;
-
-/// Glyph count of a compact pressure bar.
-const BAR_WIDTH: usize = 4;
 
 /// Shown in place of a reading the platform could not supply.
 const UNAVAILABLE: &str = "—";
@@ -35,22 +34,31 @@ pub fn device_lines(
     width: usize,
     max_lines: usize,
 ) -> Vec<String> {
+    device_gauges(config, sample, width)
+        .into_iter()
+        .take(max_lines)
+        .map(|gauge| gauge.render(width))
+        .collect()
+}
+
+/// The enabled readings as gauges, already degraded to what `width` can hold.
+fn device_gauges(config: &AppearanceConfig, sample: DeviceSnapshot, width: usize) -> Vec<Gauge> {
     [
-        metric_line(
+        metric_gauge(
             "Device CPU",
             config.device_cpu,
             sample.cpu_fraction,
             None,
             width,
         ),
-        metric_line(
+        metric_gauge(
             "Device RAM",
             config.device_ram,
             fraction(sample.memory_used_bytes, sample.memory_total_bytes),
             sample.memory_used_bytes.zip(sample.memory_total_bytes),
             width,
         ),
-        metric_line(
+        metric_gauge(
             "Device disk",
             config.device_disk,
             fraction(sample.disk_used_bytes, sample.disk_total_bytes),
@@ -60,7 +68,6 @@ pub fn device_lines(
     ]
     .into_iter()
     .flatten()
-    .take(max_lines)
     .collect()
 }
 
@@ -69,34 +76,33 @@ pub fn device_lines(
 /// An enabled metric whose reading is missing still emits a line: a metric that
 /// silently vanished would read as "nothing to report" rather than "this
 /// platform cannot say".
-fn metric_line(
+fn metric_gauge(
     label: &str,
     display: ResourceDisplay,
     fraction: Option<f64>,
     values: Option<(u64, u64)>,
     width: usize,
-) -> Option<String> {
+) -> Option<Gauge> {
     if display == ResourceDisplay::Off {
         return None;
     }
     let Some(fraction) = fraction.map(|value| value.clamp(0.0, 1.0)) else {
-        return Some(format!("{label} {UNAVAILABLE}"));
+        return Some(Gauge::new(label, UNAVAILABLE));
     };
-    let percent = format!("{label} {:.0}%", fraction * 100.0);
-    let line = match display {
+    let percent = Gauge::new(label, percent(fraction));
+    let gauge = match display {
         ResourceDisplay::Off => return None,
         ResourceDisplay::Percent => percent,
         // `Value` and `Bar` both need room. When the finished line does not fit,
         // or the byte counts behind a `Value` are unavailable, the percentage is
-        // the detail worth keeping. Measuring the assembled line beats a fixed
+        // the detail worth keeping. Measuring the assembled gauge beats a fixed
         // minimum width: a byte pair's length depends on the magnitudes in it,
         // so any constant is simultaneously too strict for `8G/32G` and too
-        // generous for a petabyte filesystem. Labels and byte counts are ASCII,
-        // so bytes are columns here.
+        // generous for a petabyte filesystem.
         ResourceDisplay::Value => match values {
             Some((used, total)) => {
-                let pair = format!("{label} {}/{}", bytes(used), bytes(total));
-                if pair.len() <= width {
+                let pair = Gauge::new(label, format!("{}/{}", bytes(used), bytes(total)));
+                if pair.natural_width() <= width {
                     pair
                 } else {
                     percent
@@ -104,19 +110,16 @@ fn metric_line(
             }
             None => percent,
         },
-        ResourceDisplay::Bar if width >= BAR_MIN_WIDTH => {
-            let bar = format!("{label} {} {:.0}%", bar(fraction), fraction * 100.0);
-            if bar.chars().count() <= width {
+        ResourceDisplay::Bar => {
+            let bar = Gauge::new(label, bar_value(fraction));
+            if bar.natural_width() <= width {
                 bar
             } else {
                 percent
             }
         }
-        // `Value` is handled above for every width now that it measures its own
-        // line, so only a bar too narrow for its glyphs still lands here.
-        ResourceDisplay::Bar => percent,
     };
-    Some(line)
+    Some(gauge)
 }
 
 /// Used over total as a 0..=1 fraction, or `None` if either side is missing or
@@ -124,12 +127,6 @@ fn metric_line(
 fn fraction(used: Option<u64>, total: Option<u64>) -> Option<f64> {
     let (used, total) = used.zip(total)?;
     (total > 0).then(|| used as f64 / total as f64)
-}
-
-/// A fixed-width filled/empty block bar for a 0..=1 fraction.
-fn bar(fraction: f64) -> String {
-    let filled = (fraction.clamp(0.0, 1.0) * BAR_WIDTH as f64).round() as usize;
-    format!("{}{}", "█".repeat(filled), "░".repeat(BAR_WIDTH - filled))
 }
 
 /// Byte counts at device scale: whole gigabytes, dropping to megabytes for the
@@ -152,15 +149,10 @@ fn bytes(value: u64) -> String {
 /// configured bar (19–20 columns) silently degraded to a percentage and the
 /// `Bar` setting looked broken until unrelated rows widened the rail.
 ///
-/// Two readings are measured and the wider wins, because the widest rendering
-/// of a metric depends on which display it is set to. A bar or percentage is
-/// widest at 100% — `Device disk ████ 100%` is a column longer than the same
-/// line at 75% — so sizing against live values would leave the rail a column
-/// short the moment a metric rounded up, and it would degrade silently. A byte
-/// pair, by contrast, is widest at whatever magnitudes the host actually
-/// reports, which only the live sample knows. Taking the maximum over both
-/// covers each case without inflating the other, and keeps the width stable as
-/// usage moves.
+/// Percentages and bars are fixed width, so they measure the same whatever the
+/// machine is doing. A byte pair is not: it is widest at whatever magnitudes the
+/// host actually reports, and widest again when used catches up with total, so
+/// the hint is taken over both the live reading and a saturated copy of it.
 pub fn device_width_hint(config: &AppearanceConfig, sample: DeviceSnapshot) -> usize {
     let saturated = DeviceSnapshot {
         cpu_fraction: Some(1.0),
@@ -171,11 +163,11 @@ pub fn device_width_hint(config: &AppearanceConfig, sample: DeviceSnapshot) -> u
     };
     [sample, saturated]
         .into_iter()
-        .flat_map(|reading| device_lines(config, reading, usize::MAX, DEVICE_METRIC_COUNT))
-        .map(|line| line.chars().count())
+        // Measured against an unbounded rail: the question is what the readings
+        // *want*, and asking at a real width would degrade them first and then
+        // report the narrower answer as the requirement.
+        .flat_map(|reading| device_gauges(config, reading, usize::MAX))
+        .map(|gauge| gauge.natural_width())
         .max()
         .unwrap_or(0)
 }
-
-/// Device readings the footer can show: CPU, RAM, and disk.
-const DEVICE_METRIC_COUNT: usize = 3;

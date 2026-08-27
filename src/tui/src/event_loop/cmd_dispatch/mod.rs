@@ -328,18 +328,20 @@ pub(super) fn run_cmd(
                 }
             });
         }
+        Cmd::LoadSubscriptions(account) => {
+            let config = _config.subscriptions.clone();
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                let snapshot = medulla::subscriptions::sample(&config, account.as_ref()).await;
+                let _ = tx.send(AppMsg::SubscriptionsLoaded(Box::new(snapshot)));
+            });
+        }
         Cmd::LoadUsage => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
-                match rt.team_usage().await {
-                    Ok(data) => {
-                        let _ = tx.send(AppMsg::UsageLoaded(data));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(AppMsg::Status(format!("usage fetch failed: {e}")));
-                    }
-                }
+                let result = rt.team_usage().await.map_err(|error| error.to_string());
+                let _ = tx.send(AppMsg::UsageLoaded(result));
             });
         }
     }

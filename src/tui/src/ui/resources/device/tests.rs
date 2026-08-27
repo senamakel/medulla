@@ -8,6 +8,16 @@ use medulla::config::{AppearanceConfig, ResourceDisplay};
 use super::super::types::DeviceSnapshot;
 use super::{device_lines, device_width_hint, DeviceMonitor};
 
+/// The line one reading renders to: label flush left, value flush right.
+///
+/// Written out rather than hard-coded so the assertions below say what they
+/// mean — the gap is whatever the rail width leaves, and it is the *edges* that
+/// are being pinned, not a particular number of spaces.
+fn row(label: &str, value: &str, width: usize) -> String {
+    let gap = width - label.chars().count() - value.chars().count();
+    format!("{label}{}{value}", " ".repeat(gap))
+}
+
 /// A 32 GiB machine at 25% CPU with 8 GiB in use and a 400 GiB disk 75% full.
 fn sample() -> DeviceSnapshot {
     DeviceSnapshot {
@@ -32,9 +42,9 @@ fn each_device_metric_uses_its_selected_format_and_a_device_label() {
     assert_eq!(
         device_lines(&config, sample(), 30, 3),
         [
-            "Device CPU 25%",
-            "Device RAM 8G/32G",
-            "Device disk ███░ 75%"
+            row("Device CPU", " 25%", 30),
+            row("Device RAM", "8G/32G", 30),
+            row("Device disk", "███░  75%", 30),
         ]
     );
 }
@@ -45,7 +55,10 @@ fn metrics_are_toggled_independently() {
         device_ram: ResourceDisplay::Percent,
         ..AppearanceConfig::default()
     };
-    assert_eq!(device_lines(&config, sample(), 30, 3), ["Device RAM 25%"]);
+    assert_eq!(
+        device_lines(&config, sample(), 30, 3),
+        [row("Device RAM", " 25%", 30)]
+    );
     assert!(device_lines(&AppearanceConfig::default(), sample(), 30, 3).is_empty());
 }
 
@@ -67,7 +80,11 @@ fn unavailable_readings_render_without_hiding_available_metrics() {
     };
     assert_eq!(
         device_lines(&config, sample, 30, 3),
-        ["Device CPU —", "Device RAM —", "Device disk █░░░ 25%"]
+        [
+            row("Device CPU", "—", 30),
+            row("Device RAM", "—", 30),
+            row("Device disk", "█░░░  25%", 30),
+        ]
     );
 }
 
@@ -81,7 +98,11 @@ fn narrow_rails_degrade_values_and_bars_to_percentages() {
     };
     assert_eq!(
         device_lines(&config, sample(), 16, 3),
-        ["Device CPU 25%", "Device RAM 25%", "Device disk 75%"]
+        [
+            row("Device CPU", " 25%", 16),
+            row("Device RAM", " 25%", 16),
+            row("Device disk", " 75%", 16),
+        ]
     );
 }
 
@@ -95,7 +116,7 @@ fn a_short_sidebar_drops_the_lowest_priority_metrics_first() {
     };
     assert_eq!(
         device_lines(&config, sample(), 30, 2),
-        ["Device CPU 25%", "Device RAM 25%"]
+        [row("Device CPU", " 25%", 30), row("Device RAM", " 25%", 30)]
     );
     assert!(device_lines(&config, sample(), 30, 0).is_empty());
 }
@@ -113,7 +134,7 @@ fn small_filesystems_report_megabytes_rather_than_zero_gigabytes() {
     };
     assert_eq!(
         device_lines(&config, sample, 30, 3),
-        ["Device disk 200M/512M"]
+        [row("Device disk", "200M/512M", 30)]
     );
 }
 
@@ -190,12 +211,15 @@ fn an_oversized_value_pair_falls_back_to_the_percentage() {
         disk_used_bytes: Some(9_500_000_000_000_000),
         disk_total_bytes: Some(10_000_000_000_000_000),
     };
-    assert_eq!(device_lines(&config, sample, 25, 3), ["Device disk 95%"]);
+    assert_eq!(
+        device_lines(&config, sample, 25, 3),
+        [row("Device disk", " 95%", 25)]
+    );
 
     // With room for the full pair it is kept.
     assert_eq!(
         device_lines(&config, sample, 40, 3),
-        ["Device disk 8847564G/9313226G"]
+        [row("Device disk", "8847564G/9313226G", 40)]
     );
 }
 
@@ -213,7 +237,7 @@ fn completed_value_and_bar_lines_fall_back_at_their_exact_boundaries() {
     };
     assert_eq!(
         device_lines(&value_config, full_disk, 24, 3),
-        ["Device disk 100%"]
+        [row("Device disk", "100%", 24)]
     );
 
     let bar_config = AppearanceConfig {
@@ -222,7 +246,7 @@ fn completed_value_and_bar_lines_fall_back_at_their_exact_boundaries() {
     };
     assert_eq!(
         device_lines(&bar_config, full_disk, 20, 3),
-        ["Device disk 100%"]
+        [row("Device disk", "100%", 20)]
     );
 }
 
@@ -237,10 +261,13 @@ fn a_value_pair_is_kept_on_any_rail_wide_enough_to_hold_it() {
     // degraded to a percentage for no reason.
     assert_eq!(
         device_lines(&config, sample(), 17, 3),
-        ["Device RAM 8G/32G"]
+        [row("Device RAM", "8G/32G", 17)]
     );
     // One column short, and the percentage is the honest fallback.
-    assert_eq!(device_lines(&config, sample(), 16, 3), ["Device RAM 25%"]);
+    assert_eq!(
+        device_lines(&config, sample(), 16, 3),
+        [row("Device RAM", " 25%", 16)]
+    );
 }
 
 #[test]
@@ -272,11 +299,15 @@ fn the_width_hint_reserves_room_for_every_bar_at_full() {
         device_disk: ResourceDisplay::Bar,
         ..AppearanceConfig::default()
     };
-    // The sample's disk sits at 75%, rendering `Device disk ███░ 75%` — 20
-    // columns. At 100% the same line needs 21 for the extra digit, so a hint
-    // taken from the live reading alone would leave the bar a column short and
-    // silently degrade it to a percentage even on a wide terminal.
+    // `Device disk ███░  75%` — 21 columns, and the same 21 at 100%, because
+    // the percentage is a fixed four columns whatever the reading. That is what
+    // stops the bar shuffling sideways as the disk fills.
     assert_eq!(device_width_hint(&config, sample()), 21);
+    let full = DeviceSnapshot {
+        disk_used_bytes: sample().disk_total_bytes,
+        ..sample()
+    };
+    assert_eq!(device_width_hint(&config, full), 21);
 
     // A value pair is widest at whatever magnitudes the host reports, so the
     // live reading has to be measured as well: saturating RAM to 32G/32G gives

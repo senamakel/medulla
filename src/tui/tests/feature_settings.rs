@@ -57,6 +57,7 @@ fn settings_tab_renders_nav_and_default_usage_subpage() {
     for name in [
         "Usage",
         "Appearance",
+        "Subscriptions",
         "Status line",
         "Config",
         "Feedback",
@@ -78,11 +79,19 @@ fn number_keys_jump_subpages() {
     let _ = key(&mut app, KeyCode::Char('2'));
     assert_eq!(app.settings_subpage(), "Appearance");
     let _ = key(&mut app, KeyCode::Char('3'));
-    assert_eq!(app.settings_subpage(), "Status line");
+    assert_eq!(app.settings_subpage(), "Subscriptions");
     let _ = key(&mut app, KeyCode::Char('4'));
+    assert_eq!(app.settings_subpage(), "Status line");
+    let _ = key(&mut app, KeyCode::Char('5'));
     assert_eq!(app.settings_subpage(), "Config");
-    // Help is the last subpage — ninth, now that Status line is on the nav.
+    // Help is the last subpage, and past the nine a digit can reach now that
+    // Subscriptions is on the nav — so the arrows are what get there.
     let _ = key(&mut app, KeyCode::Char('9'));
+    assert_eq!(app.settings_subpage(), "Account");
+    // A digit also enters the pane, so getting to Help means stepping back out
+    // to the nav first — the arrows browse content once a page has focus.
+    let _ = key(&mut app, KeyCode::Esc);
+    let _ = key(&mut app, KeyCode::Down);
     assert_eq!(app.settings_subpage(), "Help");
     // Render the full help page: this test verifies numeric subpage navigation,
     // while short-viewport scrolling has its own focused coverage.
@@ -103,7 +112,7 @@ fn arrow_keys_move_subpage_selector() {
     let _ = key(&mut app, KeyCode::Down);
     assert_eq!(app.settings_subpage(), "Appearance");
     let _ = key(&mut app, KeyCode::Down);
-    assert_eq!(app.settings_subpage(), "Status line");
+    assert_eq!(app.settings_subpage(), "Subscriptions");
     let _ = key(&mut app, KeyCode::Up);
     assert_eq!(app.settings_subpage(), "Appearance");
 }
@@ -111,7 +120,7 @@ fn arrow_keys_move_subpage_selector() {
 #[test]
 fn status_line_selection_scrolls_into_view_on_a_short_terminal() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     // Walk to the final path-style qualifier. Thread name and worktree each add
     // two rows ahead of the path group, so this must cover the complete
     // status-line catalog.
@@ -130,7 +139,7 @@ fn status_line_selection_scrolls_into_view_on_a_short_terminal() {
 #[test]
 fn a_status_line_field_is_headed_described_and_its_choices_spelled_out() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     // Down four times: the harness group's "spelled" row.
     for _ in 0..4 {
         let _ = key(&mut app, KeyCode::Down);
@@ -400,8 +409,15 @@ fn enabled_device_indicators_render_in_the_agents_sidebar() {
         ..AppearanceConfig::default()
     });
     let out = text_of(&draw(&mut app, 140, 40));
-    for label in ["Device CPU 42%", "Device RAM 8G/32G", "Device disk 75%"] {
+    // Each reading is labelled on the left and flushed to the rail's right
+    // edge, so the value is what sits against the border.
+    for (label, value) in [
+        ("Device CPU", " 42%│"),
+        ("Device RAM", "8G/32G│"),
+        ("Device disk", " 75%│"),
+    ] {
         assert!(out.contains(label), "missing {label}: {out}");
+        assert!(out.contains(value), "{label} is not flush right: {out}");
     }
 }
 
@@ -424,7 +440,11 @@ fn a_narrow_sidebar_keeps_navigation_and_drops_device_detail() {
     // A narrow rail fits a bar but not a `used/total` pair, so the byte counts
     // collapse to percentages rather than spilling past the border.
     assert!(out.contains("Device CPU"), "{out}");
-    assert!(out.contains("Device RAM 25%"), "{out}");
+    assert!(out.contains("Device RAM"), "{out}");
+    assert!(
+        out.contains(" 25%│"),
+        "the percentage is flush right: {out}"
+    );
     // Navigation survives: the rail's own rows are still on screen above the
     // footer rather than being crowded out by it.
     assert!(out.contains("task-1"), "{out}");
@@ -749,7 +769,7 @@ fn appearance_preview_shows_the_indicators_that_are_switched_on() {
 #[test]
 fn status_line_puts_every_field_beside_the_preview() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     let out = text_of(&draw(&mut app, 140, 40));
 
     assert!(
@@ -779,7 +799,7 @@ fn status_line_puts_every_field_beside_the_preview() {
 #[test]
 fn status_line_describes_the_selected_field_in_the_footer() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     let out = text_of(&draw(&mut app, 140, 40));
 
     assert!(
@@ -806,7 +826,7 @@ fn status_line_describes_the_selected_field_in_the_footer() {
 #[test]
 fn status_line_folds_to_tabs_on_a_narrow_pane() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     let out = text_of(&draw(&mut app, 90, 40));
 
     assert!(
@@ -842,7 +862,7 @@ fn status_line_folds_to_tabs_on_a_narrow_pane() {
 #[test]
 fn status_line_preview_reports_a_plausible_age_on_the_alert_row() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
 
     let out = text_of(&draw(&mut app, 140, 40));
     assert!(out.contains("45s"), "the sample's age is fixed: {out}");
@@ -852,7 +872,7 @@ fn status_line_preview_reports_a_plausible_age_on_the_alert_row() {
 #[test]
 fn status_line_preview_redraws_as_the_selected_field_changes() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     let before = text_of(&draw(&mut app, 140, 40));
 
     // The state glyph's position is the selected row; hide it.

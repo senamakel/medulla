@@ -42,6 +42,7 @@ pub mod protocol;
 pub mod runtime;
 pub mod session_history;
 pub mod sessions;
+pub mod subscriptions;
 pub mod tokio_tuning;
 pub mod ui;
 pub mod update;

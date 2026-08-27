@@ -30,6 +30,7 @@ mod session_control;
 mod settings_edit;
 mod state;
 mod status_line;
+mod subscriptions;
 mod types;
 #[cfg(feature = "workflows")]
 mod workflows;

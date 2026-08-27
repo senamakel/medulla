@@ -36,6 +36,9 @@ impl App {
                 "Appearance: j / k pick a row · ←/→ or Enter change it (saved live) · preview sits beside it",
             ),
             TLine::from(
+                "Subscriptions: j / k pick a usage meter · ←/→ or Enter change it · r re-read now",
+            ),
+            TLine::from(
                 "Status line: j / k pick a field · ←/→ or Enter cycle it · the sample row redraws beside it",
             ),
             TLine::from(

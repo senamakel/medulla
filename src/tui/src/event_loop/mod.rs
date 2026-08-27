@@ -138,7 +138,35 @@ pub(crate) async fn run(
                 match msg {
                     AppMsg::Status(s) => { app.set_status(s); app.refresh_snapshot(); }
                     AppMsg::Contexts(c) => app.set_contexts(c),
-                    AppMsg::UsageLoaded(data) => app.set_account_usage(data),
+                    AppMsg::UsageLoaded(result) => {
+                        let cmd = match result {
+                            Ok(data) => app.set_account_usage(data),
+                            Err(error) => {
+                                app.set_status(format!("usage fetch failed: {error}"));
+                                app.usage_load_failed()
+                            }
+                        };
+                        if let Some(cmd) = cmd {
+                            run_cmd(
+                                cmd,
+                                &runtime,
+                                &app.loaded.config,
+                                &msg_tx,
+                                local_hosts.as_ref(),
+                            );
+                        }
+                    }
+                    AppMsg::SubscriptionsLoaded(snapshot) => {
+                        if let Some(cmd) = app.set_subscriptions(*snapshot) {
+                            run_cmd(
+                                cmd,
+                                &runtime,
+                                &app.loaded.config,
+                                &msg_tx,
+                                local_hosts.as_ref(),
+                            );
+                        }
+                    }
                     AppMsg::OpenResume(chats) => app.open_resume(chats),
                     AppMsg::LoggedOut => {
                         app.set_status("Account · logged out. Returning to the login screen…");
@@ -305,6 +333,19 @@ pub(crate) async fn run(
                 // last tick stops being listed, and the record it was holding
                 // is dropped with it.
                 app.sweep_finished_sessions();
+                // The subscription meters are sampled from the tick rather than
+                // on a timer of their own: `due_subscription_refresh` is the
+                // one place that knows whether a sample is switched on, stale,
+                // and not already running.
+                if let Some(cmd) = app.due_subscription_refresh() {
+                    run_cmd(
+                        cmd,
+                        &runtime,
+                        &app.loaded.config,
+                        &msg_tx,
+                        local_hosts.as_ref(),
+                    );
+                }
             }
         }
     }

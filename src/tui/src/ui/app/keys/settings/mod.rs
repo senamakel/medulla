@@ -22,7 +22,7 @@ use medulla::client::FeedbackType;
 use super::super::appearance::APPEARANCE_ROWS;
 use super::super::types::{
     App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK,
-    SP_HELP, SP_STATUS_LINE, SP_TRACE, SP_USAGE,
+    SP_HELP, SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
 };
 
 impl App {
@@ -70,6 +70,7 @@ impl App {
         match self.settings_index {
             SP_USAGE => self.usage_key(code),
             SP_APPEARANCE => self.appearance_key(code),
+            SP_SUBSCRIPTIONS => self.subscriptions_key(code),
             SP_STATUS_LINE => self.status_line_key(code),
             SP_CONFIG => self.config_key(code),
             SP_FEEDBACK => self.feedback_key(code),
@@ -92,6 +93,10 @@ impl App {
                 } else {
                     (self.appearance_index + 1).min(APPEARANCE_ROWS - 1)
                 };
+                SettingsKey::handled(None)
+            }
+            SP_SUBSCRIPTIONS => {
+                self.move_subscriptions_index(up);
                 SettingsKey::handled(None)
             }
             SP_STATUS_LINE => {
@@ -180,6 +185,31 @@ impl App {
             KeyCode::Left | KeyCode::Right | KeyCode::Enter => {
                 self.cycle_appearance_row(!matches!(code, KeyCode::Left));
                 SettingsKey::handled(None)
+            }
+            _ => SettingsKey::Unhandled,
+        }
+    }
+
+    /// Subscriptions: pick a meter and cycle how it is shown, or re-sample.
+    ///
+    /// Switching a meter on returns the sampling command, so a row that was just
+    /// enabled fills in rather than sitting empty until the next tick.
+    fn subscriptions_key(&mut self, code: KeyCode) -> SettingsKey {
+        match code {
+            KeyCode::Char('j') | KeyCode::Char('k') => {
+                self.move_subscriptions_index(matches!(code, KeyCode::Char('k')));
+                SettingsKey::handled(None)
+            }
+            KeyCode::Left | KeyCode::Right | KeyCode::Enter => {
+                let cmd = self.cycle_subscription_row(!matches!(code, KeyCode::Left));
+                SettingsKey::handled(cmd)
+            }
+            KeyCode::Char('r') => {
+                let cmd = self.refresh_subscriptions();
+                if cmd.is_some() {
+                    self.set_status("Subscriptions · sampling…");
+                }
+                SettingsKey::handled(cmd)
             }
             _ => SettingsKey::Unhandled,
         }

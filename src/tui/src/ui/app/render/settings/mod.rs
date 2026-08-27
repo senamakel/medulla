@@ -1,7 +1,7 @@
 //! The Settings tab: the grouped left-nav plus every subpage it selects.
 //!
 //! Settings is where the secondary surfaces live. Alongside the settings proper
-//! (Usage, Appearance, Config) it hosts Feedback, the two diagnostic views
+//! (Usage, Appearance, Subscriptions, Config) it hosts Feedback, the two diagnostic views
 //! (Trace, Context), and Account — all of which used to be top-level tabs. The
 //! nav groups them so the diagnostic pages read as diagnostics rather than as
 //! peers of the everyday settings.
@@ -17,8 +17,8 @@ use ratatui::Frame;
 use crate::ui::multi_pane;
 
 use super::super::types::{
-    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK, SP_STATUS_LINE, SP_TRACE,
-    SP_USAGE,
+    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK, SP_STATUS_LINE,
+    SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
 };
 
 mod account;
@@ -28,6 +28,7 @@ mod debug;
 mod help;
 mod nav;
 mod status_line;
+mod subscriptions;
 mod usage;
 
 /// Return the number of terminal rows a rendered, wrapped footer occupies.
@@ -54,6 +55,7 @@ impl App {
         match self.settings_index {
             SP_USAGE => self.draw_usage(f, content),
             SP_APPEARANCE => self.draw_appearance(f, content),
+            SP_SUBSCRIPTIONS => self.draw_subscriptions(f, content),
             SP_STATUS_LINE => self.draw_status_line_settings(f, content),
             SP_CONFIG => self.draw_config(f, content),
             SP_FEEDBACK => self.draw_feedback(f, content),

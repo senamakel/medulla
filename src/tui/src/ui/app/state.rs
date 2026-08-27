@@ -14,7 +14,8 @@ use medulla::config::LoadedConfig;
 use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
-    App, Cmd, PaneView, ResumePicker, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_USAGE, TABS,
+    App, Cmd, PaneView, ResumePicker, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_SUBSCRIPTIONS,
+    SP_USAGE, TABS,
 };
 
 impl App {
@@ -76,6 +77,11 @@ impl App {
             settings_index: 0,
             settings_focused: false,
             appearance_index: 0,
+            subscriptions_index: 0,
+            subscriptions: Default::default(),
+            subscriptions_loading: false,
+            subscriptions_waiting_for_account: false,
+            subscriptions_refresh_pending: false,
             appearance_preview: false,
             appearance_split: false,
             status_line_preview: false,
@@ -385,8 +391,119 @@ impl App {
     }
 
     /// Deliver the fetched account usage payload (None = backend unavailable).
-    pub fn set_account_usage(&mut self, data: Option<serde_json::Value>) {
+    ///
+    /// Returns the subscription sample that was waiting for this payload, or a
+    /// fresh sample when an independently loaded payload makes an enabled
+    /// TinyHumans meter newly readable.
+    pub fn set_account_usage(&mut self, data: Option<serde_json::Value>) -> Option<Cmd> {
         self.account_usage = data;
+        if self.subscriptions_waiting_for_account {
+            return Some(self.begin_subscription_sample());
+        }
+        if self
+            .loaded
+            .config
+            .subscriptions
+            .source_enabled(medulla::config::MeterSource::Tinyhumans)
+        {
+            if self.subscriptions_loading {
+                self.subscriptions_refresh_pending = true;
+                return None;
+            }
+            return Some(self.begin_subscription_sample());
+        }
+        None
+    }
+
+    /// Release a subscription refresh whose account-usage read failed.
+    ///
+    /// The last successful account payload remains available to the Usage page
+    /// and the TinyHumans meter; a transient failure should not turn a visible
+    /// balance into an unavailable row.
+    pub fn usage_load_failed(&mut self) -> Option<Cmd> {
+        self.subscriptions_waiting_for_account
+            .then(|| self.begin_subscription_sample())
+    }
+
+    /// Deliver a fresh subscription-usage sample and start a queued refresh.
+    pub fn set_subscriptions(
+        &mut self,
+        snapshot: medulla::subscriptions::SubscriptionSnapshot,
+    ) -> Option<Cmd> {
+        self.subscriptions = snapshot;
+        self.subscriptions_loading = false;
+        if self.subscriptions_refresh_pending {
+            self.subscriptions_refresh_pending = false;
+            return Some(self.begin_subscription_refresh());
+        }
+        None
+    }
+
+    /// The latest subscription-usage readings. Render/test seam.
+    pub fn subscriptions(&self) -> &medulla::subscriptions::SubscriptionSnapshot {
+        &self.subscriptions
+    }
+
+    /// The command that re-samples the meters, when one is due and none is
+    /// already running.
+    ///
+    /// Called on the event loop's tick. Returns `None` while every meter is off
+    /// — the sample would be empty and, more to the point, no request should
+    /// leave the machine for a meter nobody asked for.
+    pub fn due_subscription_refresh(&mut self) -> Option<Cmd> {
+        let config = &self.loaded.config.subscriptions;
+        if self.subscriptions_loading || !config.any_enabled() {
+            return None;
+        }
+        let now = medulla::clock::now_millis() / 1000;
+        if !self
+            .subscriptions
+            .is_stale(now, config.sampling_interval_seconds())
+        {
+            return None;
+        }
+        Some(self.begin_subscription_refresh())
+    }
+
+    /// Force a re-sample regardless of when the last one landed.
+    ///
+    /// What `r` on the Subscriptions page does: the automatic cadence is sized
+    /// for windows that move over hours, and "tell me now" is the case it does
+    /// not cover.
+    pub(in crate::ui::app) fn refresh_subscriptions(&mut self) -> Option<Cmd> {
+        if self.subscriptions_loading {
+            // Account usage is fetched before the subscription command clones
+            // its config, so edits made during that stage are already included.
+            // Once the provider sample starts, however, one follow-up is needed.
+            if !self.subscriptions_waiting_for_account {
+                self.subscriptions_refresh_pending = true;
+            }
+            return None;
+        }
+        Some(self.begin_subscription_refresh())
+    }
+
+    /// Start a refresh, loading a current account payload for TinyHumans first.
+    fn begin_subscription_refresh(&mut self) -> Cmd {
+        self.subscriptions_loading = true;
+        if self
+            .loaded
+            .config
+            .subscriptions
+            .source_enabled(medulla::config::MeterSource::Tinyhumans)
+        {
+            self.subscriptions_waiting_for_account = true;
+            Cmd::LoadUsage
+        } else {
+            self.begin_subscription_sample()
+        }
+    }
+
+    /// Start provider sampling with the account payload currently held in App.
+    fn begin_subscription_sample(&mut self) -> Cmd {
+        self.subscriptions_loading = true;
+        self.subscriptions_waiting_for_account = false;
+        Cmd::LoadSubscriptions(self.account_usage.clone())
     }
 
     /// Set the status-line text.
@@ -476,6 +593,7 @@ impl App {
             }
             "Settings" => match self.settings_index {
                 SP_USAGE => Some(Cmd::LoadUsage),
+                SP_SUBSCRIPTIONS => self.refresh_subscriptions(),
                 SP_CONTEXT => Some(Cmd::InspectContext),
                 SP_FEEDBACK => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
                 _ => None,

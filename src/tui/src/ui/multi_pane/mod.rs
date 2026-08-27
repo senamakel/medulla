@@ -24,6 +24,9 @@ mod tests;
 /// Default width of the subpage navigation column.
 pub(crate) const NAV_WIDTH: u16 = 20;
 
+/// How many rows a digit can reach: `navigate` binds '1'..='9'.
+pub(crate) const DIGIT_JUMPS: usize = 9;
+
 /// Split an area into the standard subpage menu and content panes.
 pub(crate) fn split(area: Rect) -> (Rect, Rect) {
     let columns = Layout::default()
@@ -133,7 +136,9 @@ pub(crate) fn draw_nav(
             rows.push(NavRow::heading(heading));
         }
         rows.push(NavRow {
-            jump: Some(index + 1),
+            // Only the first nine are jump targets: `navigate` binds '1'..='9',
+            // so numbering a tenth row would advertise a key that does nothing.
+            jump: (index < DIGIT_JUMPS).then_some(index + 1),
             indent: pad,
             selected: index == selected,
             ..NavRow::new(page)
@@ -142,7 +147,7 @@ pub(crate) fn draw_nav(
     let hint = if focused {
         "Esc menu".to_string()
     } else {
-        format!("↑↓ nav · ⏎ open · 1-{} jump", pages.len())
+        format!("↑↓ nav · ⏎ open · 1-{} jump", pages.len().min(DIGIT_JUMPS))
     };
     // `focused` here means the *content* pane holds the keyboard — the sense
     // this function has always been called with. `draw_rows` asks about the
