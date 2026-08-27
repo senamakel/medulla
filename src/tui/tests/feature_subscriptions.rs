@@ -87,7 +87,7 @@ fn settings_app(config: SubscriptionsConfig) -> App {
     // in-flight flag, so the keys under test are not swallowed by the guard
     // that stops a refresh being queued behind itself.
     let _ = key(&mut app, KeyCode::Char('3'));
-    app.set_subscriptions(sample());
+    let _ = app.set_subscriptions(sample());
     app
 }
 
@@ -103,7 +103,7 @@ fn agents_app_with(config: SubscriptionsConfig, appearance: AppearanceConfig) ->
     loaded.config.subscriptions = config;
     loaded.config.appearance = appearance;
     let mut app = App::new(Arc::new(MockRuntime::demo()), loaded);
-    app.set_subscriptions(sample());
+    let _ = app.set_subscriptions(sample());
     app.tab_index = TABS.iter().position(|tab| *tab == "Sessions").unwrap();
     app
 }
@@ -232,6 +232,74 @@ fn a_stale_sample_is_what_schedules_the_next_one() {
     let cmd = app.due_subscription_refresh();
     assert!(matches!(cmd, Some(Cmd::LoadSubscriptions(_))), "{cmd:?}");
     // …and a second tick does not queue a duplicate behind the one in flight.
+    assert!(app.due_subscription_refresh().is_none());
+}
+
+#[test]
+fn tinyhumans_meter_loads_account_usage_before_sampling() {
+    let mut app = agents_app(SubscriptionsConfig {
+        tinyhumans_balance: ResourceDisplay::Value,
+        ..SubscriptionsConfig::default()
+    });
+
+    let cmd = app.due_subscription_refresh();
+    assert!(matches!(cmd, Some(Cmd::LoadUsage)), "{cmd:?}");
+
+    let account = serde_json::json!({"remainingUsd": 42.5});
+    let cmd = app.set_account_usage(Some(account.clone()));
+    assert!(
+        matches!(cmd, Some(Cmd::LoadSubscriptions(Some(data))) if data == account),
+        "{cmd:?}"
+    );
+}
+
+#[test]
+fn loaded_account_usage_resamples_an_enabled_tinyhumans_meter() {
+    let mut app = agents_app(SubscriptionsConfig {
+        tinyhumans_balance: ResourceDisplay::Value,
+        ..SubscriptionsConfig::default()
+    });
+
+    let cmd = app.set_account_usage(Some(serde_json::json!({"remainingUsd": 7.0})));
+    assert!(
+        matches!(cmd, Some(Cmd::LoadSubscriptions(Some(_)))),
+        "{cmd:?}"
+    );
+}
+
+#[test]
+fn a_setting_changed_during_sampling_queues_one_follow_up() {
+    let mut app = settings_app(SubscriptionsConfig::default());
+
+    let first = key(&mut app, KeyCode::Char('r'));
+    assert!(matches!(first, Some(Cmd::LoadSubscriptions(_))), "{first:?}");
+
+    // The active command already cloned the all-off config. Enabling the first
+    // row cannot start a second concurrent sample, but must be remembered.
+    assert!(key(&mut app, KeyCode::Right).is_none());
+    let follow_up = app.set_subscriptions(sample());
+    assert!(
+        matches!(follow_up, Some(Cmd::LoadSubscriptions(_))),
+        "{follow_up:?}"
+    );
+
+    // Completing the follow-up drains the one-slot queue.
+    assert!(app.set_subscriptions(sample()).is_none());
+}
+
+#[test]
+fn automatic_sampling_clamps_too_short_configured_intervals() {
+    let mut app = agents_app(SubscriptionsConfig {
+        claude_session: ResourceDisplay::Percent,
+        refresh_seconds: 0,
+        ..SubscriptionsConfig::default()
+    });
+    let now = medulla::clock::now_millis() / 1_000;
+    let _ = app.set_subscriptions(SubscriptionSnapshot {
+        sampled_at: now.saturating_sub(1),
+        ..SubscriptionSnapshot::default()
+    });
+
     assert!(app.due_subscription_refresh().is_none());
 }
 
