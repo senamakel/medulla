@@ -6,7 +6,7 @@ The `Runtime` trait the UI drives, plus its snapshot contract. Concrete implemen
 
 - [`capabilities/`](./capabilities/) — Narrow capability interfaces over the compatibility-facing `Runtime`.
 - [`event_log/`](./event_log/) — Shared bounded event storage for runtime conversation threads.
-- [`fleet/`](./fleet/) — The declared-capacity contracts: the strict single-parent containment chain `Host → Harness → Workspace → Agent`, the agent-template catalog that constrains what may be provisioned into it, and the `CapacitySnapshot` roll-up the UI renders.
+- [`fleet/`](./fleet/) — The declared-capacity contracts: the strict single-parent containment chain `Host → Harness → Workspace → Agent` and the `CapacitySnapshot` roll-up the UI renders.
 - [`headless/`](./headless/) — A non-interactive driver over the `Runtime` trait for scripting and end-to-end automation (a docker container, a CI probe): attach a runtime, submit exactly one instruction, stream the folded events to a writer as JSON lines, and return once the cycle result lands.
 - [`mock/`](./mock/) — A scripted, self-contained `Runtime` used by `main` until the backend runtime lands, and by tests. It fabricates a plausible event stream so every tab has something to render.
 - [`cloud/`](./cloud/) — `Runtime` backed by the Medulla cloud backend, driving the orchestration API directly through `MedullaClient`.

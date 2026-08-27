@@ -23,7 +23,7 @@ impl HostKind {
     }
 }
 
-/// One host in the Hosts tab, with the agents known to be on it.
+/// One host in the `Host → Agent` projection, with the agents known to be on it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostRow {
     /// The `hostId`: the bus address a local host binds, or the tiny.place
@@ -55,9 +55,9 @@ impl HostRow {
 
 /// One agent under a host.
 ///
-/// Two sources feed it, and the difference is what the tab must not blur. A
+/// Two sources feed it, and the difference is what a reader must not blur. A
 /// **declared** agent is written down in this machine's `[fleet]`: it is an
-/// agent whether or not anything is running, and its roles are editable here. An
+/// agent whether or not anything is running. An
 /// **undeclared** one is only known because the roster has an entry for it —
 /// a migration seed on this machine, or a remote peer whose declarations this
 /// hub cannot see until the host link learns to exchange them.
@@ -71,15 +71,12 @@ pub struct HostAgentRow {
     pub harness: Option<String>,
     /// The directory its sessions work in, when known.
     pub workspace: Option<String>,
-    /// Agent-template ids it is offered for. Empty means unspecified — a
-    /// general agent, not one excluded from every role.
-    pub roles: Vec<String>,
     /// Sessions it may run at once, derived from its declared strategy. `None`
     /// for an agent this machine has not declared.
     pub max_sessions: Option<u32>,
     /// Whether this machine's config declares it.
     pub declared: bool,
-    /// Whether its roles can be assigned here. True only on a local host: a
+    /// Whether this machine owns its declaration. True only on a local host: a
     /// remote host's agents are declared on that machine.
     pub editable: bool,
     /// Whether the live roster carries an entry for it — i.e. whether the

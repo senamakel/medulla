@@ -184,29 +184,6 @@ pub fn clear_setting(path: &Path, section: &str, key: &str) -> anyhow::Result<()
     Ok(())
 }
 
-/// Persist the top-level `routingStrategy` key (camelCase wire value), preserving
-/// every other key and section. Used by the Routing tab to remember the operator's
-/// selection across runs.
-pub fn persist_routing_strategy(path: &Path, wire_value: &str) -> anyhow::Result<()> {
-    let mut doc = read_document(path)?;
-    doc.insert(
-        "routingStrategy".to_string(),
-        toml::Value::String(wire_value.to_string()),
-    );
-    write_document(path, &doc)
-}
-
-/// Persist the top-level `subscriptionRoutingStrategy` key while preserving
-/// every other key and section.
-pub fn persist_subscription_routing_strategy(path: &Path, wire_value: &str) -> anyhow::Result<()> {
-    let mut doc = read_document(path)?;
-    doc.insert(
-        "subscriptionRoutingStrategy".to_string(),
-        toml::Value::String(wire_value.to_string()),
-    );
-    write_document(path, &doc)
-}
-
 /// Replace the top-level `customHarnesses` array while preserving all unrelated
 /// configuration.
 ///
@@ -309,16 +286,6 @@ pub fn persist_hub_workers(
             row.insert("harness".into(), toml::Value::String(w.harness.clone()));
             if let Some(label) = &w.label {
                 row.insert("label".into(), toml::Value::String(label.clone()));
-            }
-            // The roles the operator assigned. Dropped here before, so a
-            // remembered worker came back as a general one and the assignment
-            // had to be redone every launch — and the roster is the only place a
-            // *remote* peer's roles are written down.
-            if !w.roles.is_empty() {
-                row.insert(
-                    "roles".into(),
-                    toml::Value::Array(w.roles.iter().cloned().map(toml::Value::String).collect()),
-                );
             }
             row.insert("selected".into(), toml::Value::Boolean(w.selected));
             toml::Value::Table(row)

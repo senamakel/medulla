@@ -319,44 +319,6 @@ fn router_blank_base_url_is_unset_at_both_levels() {
 }
 
 #[test]
-fn routing_strategy_round_trips_camel_case() {
-    use crate::runtime::RoutingStrategy;
-    // camelCase wire value matching the backend's routing-strategy contract.
-    let cfg: TuiConfig = serde_json::from_str(r#"{"routingStrategy":"cpuFirst"}"#).unwrap();
-    assert_eq!(cfg.routing_strategy, Some(RoutingStrategy::CpuFirst));
-
-    let out = serde_json::to_string(&cfg).unwrap();
-    assert!(out.contains("\"routingStrategy\":\"cpuFirst\""), "{out}");
-
-    // Absent by default and omitted from output.
-    let empty: TuiConfig = serde_json::from_str("{}").unwrap();
-    assert!(empty.routing_strategy.is_none());
-    let json = serde_json::to_value(&empty).unwrap();
-    assert!(json.get("routingStrategy").is_none());
-}
-
-#[test]
-fn subscription_routing_strategy_round_trips_camel_case() {
-    use crate::runtime::SubscriptionRoutingStrategy;
-
-    let cfg: TuiConfig =
-        serde_json::from_str(r#"{"subscriptionRoutingStrategy":"mostAvailableBudget"}"#).unwrap();
-    assert_eq!(
-        cfg.subscription_routing_strategy,
-        Some(SubscriptionRoutingStrategy::MostAvailableBudget)
-    );
-
-    let out = serde_json::to_string(&cfg).unwrap();
-    assert!(
-        out.contains("\"subscriptionRoutingStrategy\":\"mostAvailableBudget\""),
-        "{out}"
-    );
-    let empty = TuiConfig::default();
-    let json = serde_json::to_value(empty).unwrap();
-    assert!(json.get("subscriptionRoutingStrategy").is_none());
-}
-
-#[test]
 fn budget_absent_by_default_and_omitted_from_output() {
     // No [budget] section → estimates only, and it never appears in output.
     let cfg: TuiConfig = serde_json::from_str("{}").unwrap();
@@ -443,8 +405,7 @@ fn fleet_parses_the_containment_chain_and_round_trips_in_camel_case() {
                           "budgets":[{"provider":"anthropic","window":"5h",
                                       "remainingTokens":500,"source":"configured"}]}],
             "workspaces":[{"id":"ws1","name":"repo","path":"/srv/repo","harnessId":"hn1"}],
-            "agents":[{"id":"a1","name":"dev","workspaceId":"ws1","templateId":"impl"}],
-            "agentTemplates":[{"id":"impl","description":"Implements a change."}]
+            "agents":[{"id":"a1","name":"dev","workspaceId":"ws1","templateId":"impl"}]
         }}"#,
     )
     .unwrap();
@@ -459,7 +420,6 @@ fn fleet_parses_the_containment_chain_and_round_trips_in_camel_case() {
     // The capacity roll-up drops the agent level, which reaches the UI through
     // the snapshot roster instead.
     let capacity = cfg.fleet.capacity();
-    assert_eq!(capacity.templates.len(), 1);
     assert_eq!(
         capacity.placement(&cfg.fleet.agents[0]).host.unwrap().id,
         "h1"
@@ -467,60 +427,16 @@ fn fleet_parses_the_containment_chain_and_round_trips_in_camel_case() {
 
     let out = serde_json::to_string(&cfg).unwrap();
     assert!(out.contains("\"harnessId\""));
-    assert!(out.contains("\"agentTemplates\""));
     assert!(!out.contains("harness_id"));
     let reparsed: TuiConfig = serde_json::from_str(&out).unwrap();
     assert_eq!(reparsed.fleet, cfg.fleet);
 }
 
 #[test]
-fn an_absent_fleet_section_seeds_the_coding_catalog() {
+fn an_absent_fleet_section_declares_nothing() {
     let cfg: TuiConfig = serde_json::from_str("{}").unwrap();
-    let ids: Vec<&str> = cfg
-        .fleet
-        .agent_templates
-        .iter()
-        .map(|template| template.id.as_str())
-        .collect();
-
-    assert_eq!(
-        ids,
-        [
-            "plan-writer",
-            "implementer",
-            "test-writer",
-            "code-reviewer",
-            "debugger",
-            "verifier",
-            "doc-writer",
-            "refactorer",
-            "merge-resolver",
-            "pr-manager",
-            "triager",
-            "repo-orchestrator",
-        ]
-    );
-    // Every seeded role declares what it may use and how hard to think, and
-    // none of them restricts itself to a harness kind.
-    assert!(cfg
-        .fleet
-        .agent_templates
-        .iter()
-        .all(|template| template.model.is_some()
-            && template.tools.is_some()
-            && template.harnesses.is_empty()));
-    assert!(cfg.fleet.declares_only_templates());
-    assert!(serde_json::to_string(&cfg)
-        .unwrap()
-        .contains("\"agentTemplates\""));
-}
-
-#[test]
-fn an_explicit_empty_template_catalog_opts_out_of_coding_defaults() {
-    let cfg: TuiConfig = serde_json::from_str(r#"{"fleet":{"agentTemplates":[]}}"#).unwrap();
 
     assert!(cfg.fleet.is_empty());
-    assert!(cfg.fleet.declares_only_templates());
     assert!(cfg.fleet.capacity().is_empty());
     // The key, not a bare substring: `[mcp]` carries a `fleetTools` flag, and a
     // substring match would read that as the `fleet` section coming back.

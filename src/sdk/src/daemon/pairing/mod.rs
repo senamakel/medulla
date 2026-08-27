@@ -95,7 +95,8 @@ pub fn pairing_banner(address: &str, handle: Option<&str>, copied: bool) -> Stri
         out.push_str("  Copied to your clipboard (via the terminal, so it works over SSH).\n\n");
     }
     out.push_str(
-        "  On the orchestrator: Routing › Add Host › press a, then paste.\n  \
+        "  On the orchestrator: add a `[[link.peers]]` entry in config.toml with\n  \
+         this address (and handle, if you have one), then restart.\n  \
          Leave this daemon running; it accepts the connection automatically.\n",
     );
     out.push_str(&rule);

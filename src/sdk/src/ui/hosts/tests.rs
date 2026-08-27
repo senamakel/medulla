@@ -19,7 +19,6 @@ fn worker(id: &str, address: &str) -> WorkerInfo {
         memory_available_bytes: None,
         ip_address: None,
         selected: false,
-        roles: Vec::new(),
         budgets: Vec::new(),
         readiness: Vec::new(),
     }
@@ -48,9 +47,7 @@ fn the_local_host_is_present_with_no_agents_and_no_roster() {
 
 #[test]
 fn declared_agents_hang_off_their_host_whether_or_not_they_are_running() {
-    let mut running =
-        AgentDeclaration::new("medulla-claude", "this-device", "claude", "/w/medulla");
-    running.roles = vec!["coder".into()];
+    let running = AgentDeclaration::new("medulla-claude", "this-device", "claude", "/w/medulla");
     let idle = AgentDeclaration::new("api-codex", "this-device", "codex", "/w/api");
 
     let rows = host_rows(
@@ -65,7 +62,6 @@ fn declared_agents_hang_off_their_host_whether_or_not_they_are_running() {
     assert_eq!(agents[0].agent_id, "medulla-claude");
     assert_eq!(agents[0].harness.as_deref(), Some("claude"));
     assert_eq!(agents[0].workspace.as_deref(), Some("/w/medulla"));
-    assert_eq!(agents[0].roles, vec!["coder".to_string()]);
     assert_eq!(agents[0].max_sessions, Some(1), "checkout ⇒ serial");
     assert!(agents[0].declared && agents[0].editable && agents[0].live);
     // Declared but with nothing in the roster: still an agent, not yet running.
@@ -193,7 +189,7 @@ fn a_declaration_naming_an_unconfigured_host_still_gets_a_local_row() {
 fn an_agent_that_names_no_host_belongs_to_the_machine_looking_at_it() {
     // Both tabs draw this tree, and the Agents rail has always drawn an unplaced
     // agent beside the local ones. Dropping it here would mean the two lenses
-    // disagree about what exists — and on the Hosts tab it would simply vanish.
+    // disagree about what exists — and in the rail it would simply vanish.
     let unplaced = AgentDeclaration::new("drifter", "", "claude", "/w/drifter");
     let rows = host_rows(&[], &[unplaced], &[this_device()]);
 
@@ -274,21 +270,18 @@ fn a_padded_declared_id_still_claims_its_worker_exactly_once() {
 }
 
 #[test]
-fn the_declared_name_and_roles_win_over_the_live_entry() {
+fn the_declared_name_wins_over_the_live_entry() {
     // The declaration is what survives a restart, so it is what the row shows —
-    // a live entry whose roles were set but never written down must not read as
+    // a live entry whose label was set but never written down must not read as
     // the persisted answer.
     let mut declared = AgentDeclaration::new("a1", "this-device", "claude", "/w");
     declared.name = Some("the good one".into());
-    declared.roles = vec!["reviewer".into()];
     let mut live = worker("a1", "this-device");
     live.label = Some("stale label".into());
-    live.roles = vec!["coder".into()];
     live.selected = true;
 
     let rows = host_rows(&[live], &[declared], &[this_device()]);
     let agent = &rows[0].agents[0];
     assert_eq!(agent.label, "the good one");
-    assert_eq!(agent.roles, vec!["reviewer".to_string()]);
     assert!(agent.selected, "selection is live state, and is kept");
 }

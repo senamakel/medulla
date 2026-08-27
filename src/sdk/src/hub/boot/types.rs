@@ -67,11 +67,6 @@ pub struct WorkerSpec {
     /// Its path is advertised as `metadata.workspace`; see
     /// [`HubWorker::workspace`](crate::hub::HubWorker::workspace).
     pub workspace: Option<crate::runtime::WorkspaceRef>,
-    /// Agent-template ids this worker is offered for. Empty means unspecified.
-    ///
-    /// Sourced from the agent's declaration, which is what finally gives
-    /// `metadata.roles` something to carry for a host in this process.
-    pub roles: Vec<String>,
     /// Sessions this worker may run at once, derived from its declared
     /// strategy. Zero means unstated and is normalised to the serial default
     /// when the roster entry is built.
@@ -90,13 +85,6 @@ pub struct HubConfig {
     pub link: Option<HubLinkConfig>,
     /// The workers to advertise initially (may be empty; add more at runtime).
     pub workers: Vec<WorkerSpec>,
-    /// The agent-role catalog, for resolving the roles a worker is toggled on
-    /// for into the tags and description it advertises.
-    ///
-    /// Passed in rather than read here: the catalog is layered config the TUI
-    /// already loads, and a second read could disagree with what the operator
-    /// is looking at on the Agent Templates page.
-    pub agent_templates: Vec<crate::runtime::AgentTemplate>,
     /// The hosts *this machine* declares, advertised as the payload's `hosts[]`
     /// block and used to decide which advertised agents run locally.
     ///
@@ -124,8 +112,6 @@ pub struct HubConfig {
     /// [`local_network`](Self::local_network); empty falls back to
     /// [`DEFAULT_LOCAL_HUB_ADDRESS`](super::DEFAULT_LOCAL_HUB_ADDRESS).
     pub local_address: String,
-    /// How untargeted tasks choose among provider subscriptions on a host.
-    pub subscription_strategy: crate::runtime::SubscriptionRoutingStrategy,
     /// This host's saved workflows, as the cloud plane's store side.
     ///
     /// `Some` advertises them to the orchestrator on every (re)connect and

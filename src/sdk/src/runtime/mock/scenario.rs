@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use serde_json::{json, Map};
 
 use crate::runtime::fleet::{
-    AgentTemplate, CapacitySnapshot, HarnessBudget, HarnessDescriptor, HostDescriptor,
-    HostResources, WorkspaceDescriptor,
+    CapacitySnapshot, HarnessBudget, HarnessDescriptor, HostDescriptor, HostResources,
+    WorkspaceDescriptor,
 };
 use crate::runtime::{
     AgentDescriptor, AgentPresence, CycleResultSummary, LinkIdentity, PeerSession,
@@ -225,19 +225,6 @@ fn demo_capacity() -> CapacitySnapshot {
             project: Some("medulla".into()),
             template_ids: Vec::new(),
             metadata: Map::new(),
-        }],
-        templates: vec![AgentTemplate {
-            id: "implementer".into(),
-            name: Some("Implementer".into()),
-            description: "Implements a scoped change and reports what it did.".into(),
-            instructions: None,
-            tools: None,
-            model: Some("reasoning".into()),
-            effort: None,
-            params: Map::new(),
-            tags: vec!["code".into()],
-            metadata: Map::new(),
-            harnesses: Default::default(),
         }],
     }
 }

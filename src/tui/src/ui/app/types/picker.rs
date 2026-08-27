@@ -21,9 +21,9 @@ pub(in crate::ui::app) struct ResumePicker {
 
 /// An overlay the app can draw over the content pane.
 ///
-/// Ordered as they stack, back to front: the two that float over the content,
-/// then the session picker and destructive confirmations, and finally the two
-/// that claim a row of their own below it.
+/// Ordered as they stack, back to front: the decision board that floats over
+/// the content, then the session picker and destructive confirmations, and
+/// finally the two that claim a row of their own below it.
 ///
 /// Produced by [`App::visible_overlays`](crate::ui::app::App::visible_overlays),
 /// which is the single source of truth for what is in front of the content —
@@ -32,8 +32,6 @@ pub(in crate::ui::app) struct ResumePicker {
 pub(in crate::ui::app) enum Overlay {
     /// The prepared-decision board.
     Decisions,
-    /// The agent-template detail popup.
-    TemplatePopup,
     /// The "start a session" picker.
     SessionPicker,
     /// The destructive confirmation before ending a local harness or remote task.
@@ -144,22 +142,8 @@ pub(in crate::ui::app) enum PromptKind {
         /// Position within that file's patch the note is bound to.
         anchor: medulla::ui::git_review::CommentAnchor,
     },
-    /// Add a worker from an address/@handle line.
-    HostAdd,
-    /// Edit the label of the worker with the given id.
-    HostEditLabel(String),
-    /// Declare another directory this device may work in.
-    WorkspaceAdd,
     /// Save the selected manual-launcher directory under an operator-chosen name.
     FavoriteWorkspaceAdd(String),
-    /// Add a named OpenRouter-backed coding harness.
-    CustomHarnessAdd,
-    /// Edit the custom harness with the given stable id.
-    CustomHarnessEdit(String),
-    /// Declare a lifecycle hook for every harness Medulla launches.
-    HookAdd,
-    /// Edit the hook at the given row of the Hooks page.
-    HookEdit(usize),
     /// Reject a workflow proposal with the operator's explanation.
     RejectProposal {
         /// The workflow the proposal belongs to.

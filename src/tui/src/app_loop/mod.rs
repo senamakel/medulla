@@ -580,9 +580,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         Some(local_dispatch.clone()),
         session.as_ref(),
         crate::hub_relay::StartupConfig {
-            // The roles a worker can be toggled on for. Read from the same
-            // layered config the Agent Templates page shows.
-            agent_templates: loaded.config.fleet.agent_templates.clone(),
             link: link_service
                 .as_ref()
                 .map(|service| crate::hub_relay::ResolvedLink {

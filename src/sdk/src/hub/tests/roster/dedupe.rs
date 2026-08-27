@@ -109,12 +109,7 @@ fn an_unlabelled_worker_advertises_one_token_not_two() {
     // `agent_list` renders `id (name)`. When those differ and both read as
     // names, the model picks one and may pick the unroutable one — which is the
     // original bug. Unlabelled, they must coincide.
-    let payload = register_payload(
-        &[worker("claude-worker", "3Hob1Fxu")],
-        &no_presence(),
-        &[],
-        &[],
-    );
+    let payload = register_payload(&[worker("claude-worker", "3Hob1Fxu")], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert_eq!(agents[0]["id"], "claude-worker");
     assert_eq!(
@@ -125,7 +120,7 @@ fn an_unlabelled_worker_advertises_one_token_not_two() {
     // A labelled one keeps its human name; the id stays a visible slug of it.
     let mut labelled = worker("sanil-laptop", "3Hob1Fxu");
     labelled.label = Some("Sanil Laptop".to_string());
-    let payload = register_payload(&[labelled], &no_presence(), &[], &[]);
+    let payload = register_payload(&[labelled], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert_eq!(agents[0]["id"], "sanil-laptop");
     assert_eq!(agents[0]["name"], "Sanil Laptop");
@@ -141,7 +136,6 @@ fn a_worker_the_relay_reports_down_is_withheld_entirely() {
         &[worker("live", "GRVlive"), worker("dead", "GRVdead")],
         &online,
         &[],
-        &[],
     );
     let agents = payload["agents"].as_array().expect("an agent list");
 
@@ -155,7 +149,7 @@ fn a_worker_the_relay_reports_down_is_withheld_entirely() {
 #[test]
 fn a_worker_the_relay_reports_up_is_advertised() {
     let online = std::collections::HashMap::from([("GRVaddr".to_string(), true)]);
-    let payload = register_payload(&[worker("w1", "GRVaddr")], &online, &[], &[]);
+    let payload = register_payload(&[worker("w1", "GRVaddr")], &online, &[]);
     assert_eq!(payload["agents"].as_array().expect("agents").len(), 1);
     assert_eq!(payload["agents"][0]["availability"], "online");
 }
@@ -167,7 +161,6 @@ fn no_answer_from_the_relay_advertises_everything() {
     let payload = register_payload(
         &[worker("w1", "GRVone"), worker("w2", "GRVtwo")],
         &no_presence(),
-        &[],
         &[],
     );
     assert_eq!(payload["agents"].as_array().expect("agents").len(), 2);

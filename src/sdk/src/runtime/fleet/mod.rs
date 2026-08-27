@@ -1,7 +1,6 @@
 //! The declared-capacity contracts: the strict single-parent containment chain
-//! `Host → Harness → Workspace → Agent`, the agent-template catalog that
-//! constrains what may be provisioned into it, and the [`CapacitySnapshot`]
-//! roll-up the UI renders.
+//! `Host → Harness → Workspace → Agent` and the [`CapacitySnapshot`] roll-up the
+//! UI renders.
 //!
 //! Everything here is *declared, never probed*: a record is what an operator or
 //! a manager said exists, not a live measurement. Parsing is deliberately
@@ -183,66 +182,8 @@ pub struct WorkspaceDescriptor {
     pub metadata: serde_json::Map<String, Value>,
 }
 
-/// Harness-specific overrides for one agent template.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentTemplateHarnessOverride {
-    /// Harness-specific model selection.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    /// Harness-specific reasoning effort.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub effort: Option<String>,
-    /// Harness-specific tool allowlist.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<String>>,
-    /// Harness-specific provider parameters.
-    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub params: serde_json::Map<String, Value>,
-    /// Harness-specific instruction replacement.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub instructions: Option<String>,
-}
-
-/// Operator-declared kind of agent that a manager may provision.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentTemplate {
-    /// Stable manager-scoped template identifier.
-    pub id: String,
-    /// Optional operator-facing template name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    /// Operator-facing description of the agent role.
-    pub description: String,
-    /// Default instruction text supplied to instantiated agents.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub instructions: Option<String>,
-    /// Default tool allowlist.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<String>>,
-    /// Default model selection.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    /// Default reasoning effort.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub effort: Option<String>,
-    /// Default provider-specific parameters.
-    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub params: serde_json::Map<String, Value>,
-    /// Discovery and routing labels.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<String>,
-    /// Deployment-specific template attributes.
-    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub metadata: serde_json::Map<String, Value>,
-    /// Per-harness overrides keyed by harness kind.
-    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub harnesses: std::collections::BTreeMap<String, AgentTemplateHarnessOverride>,
-}
-
-/// The declared capacity a runtime currently knows about: the containment chain
-/// and the template catalog, with the agent level supplied separately by
+/// The declared capacity a runtime currently knows about: the containment
+/// chain, with the agent level supplied separately by
 /// [`RuntimeSnapshot::roster`](crate::runtime::RuntimeSnapshot::roster).
 ///
 /// Empty is the normal resting state — a backend that declares nothing yields a
@@ -257,18 +198,13 @@ pub struct CapacitySnapshot {
     pub harnesses: Vec<HarnessDescriptor>,
     /// Folders exposed by those harnesses.
     pub workspaces: Vec<WorkspaceDescriptor>,
-    /// Kinds of agent that may be provisioned into the chain.
-    pub templates: Vec<AgentTemplate>,
 }
 
 impl CapacitySnapshot {
     /// Whether nothing at all is declared. The UI hides its fleet surfaces
     /// entirely in that case rather than rendering an empty tree.
     pub fn is_empty(&self) -> bool {
-        self.hosts.is_empty()
-            && self.harnesses.is_empty()
-            && self.workspaces.is_empty()
-            && self.templates.is_empty()
+        self.hosts.is_empty() && self.harnesses.is_empty() && self.workspaces.is_empty()
     }
 
     /// The workspace with this id, if declared.
@@ -284,11 +220,6 @@ impl CapacitySnapshot {
     /// The host with this id, if declared.
     pub fn host(&self, id: &str) -> Option<&HostDescriptor> {
         self.hosts.iter().find(|h| h.id == id)
-    }
-
-    /// The template with this id, if declared.
-    pub fn template(&self, id: &str) -> Option<&AgentTemplate> {
-        self.templates.iter().find(|t| t.id == id)
     }
 
     /// Walk an agent up the containment chain to its declared placement.
@@ -311,10 +242,6 @@ impl CapacitySnapshot {
             host,
             harness,
             workspace,
-            template: agent
-                .template_id
-                .as_deref()
-                .and_then(|id| self.template(id)),
         }
     }
 }
@@ -329,8 +256,6 @@ pub struct AgentPlacement<'a> {
     pub harness: Option<&'a HarnessDescriptor>,
     /// The folder the agent is deployed into.
     pub workspace: Option<&'a WorkspaceDescriptor>,
-    /// The template the agent was provisioned from.
-    pub template: Option<&'a AgentTemplate>,
 }
 
 impl HarnessBudget {

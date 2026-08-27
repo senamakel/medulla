@@ -4,9 +4,6 @@
 //! under test, so a test reads as the rule and not as its setup.
 
 use super::super::super::roster::HubWorker;
-use crate::protocol::{
-    BudgetSource, BudgetWindow, HarnessBudget, HarnessProvider, WorkerSystemInfo,
-};
 
 /// No liveness opinion — what a bridge with no presence signal reports, and
 /// what most of these tests want, since they are about payload shape.
@@ -17,7 +14,6 @@ pub(super) fn no_presence() -> std::collections::HashMap<String, bool> {
 /// A plain advertised worker: an id, an address, and the default harness.
 pub(super) fn worker(id: &str, addr: &str) -> HubWorker {
     HubWorker {
-        roles: Vec::new(),
         id: id.to_string(),
         address: addr.to_string(),
         harness: "claude".to_string(),
@@ -31,35 +27,6 @@ pub(super) fn worker(id: &str, addr: &str) -> HubWorker {
 /// The same shape as [`worker`], under the name the dedupe tests use.
 pub(super) fn hw(id: &str, address: &str) -> HubWorker {
     worker(id, address)
-}
-
-/// Measured capacity: `cpu` cores and `available_gib` of free memory.
-pub(super) fn details(cpu: u32, available_gib: u64) -> WorkerSystemInfo {
-    WorkerSystemInfo {
-        cpu_cores: cpu,
-        memory_total_bytes: None,
-        memory_available_bytes: Some(available_gib * 1024 * 1024 * 1024),
-        ip_address: "10.0.0.1".into(),
-    }
-}
-
-/// A weekly budget for `provider` with `remaining_tokens` left of
-/// `limit_tokens`.
-pub(super) fn provider_budget(
-    provider: HarnessProvider,
-    limit_tokens: i64,
-    remaining_tokens: i64,
-) -> HarnessBudget {
-    HarnessBudget {
-        provider,
-        seat: None,
-        window: BudgetWindow::Weekly,
-        limit_tokens: Some(limit_tokens),
-        used_tokens: Some(limit_tokens - remaining_tokens),
-        remaining_tokens: Some(remaining_tokens),
-        cooldown_until: None,
-        source: BudgetSource::Configured,
-    }
 }
 
 /// One declared local host, as `local_hosts` resolves one.

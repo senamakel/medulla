@@ -345,10 +345,10 @@ mod tests;
 mod types;
 pub use fleet::{
     demo_agents, demo_capacity, demo_fleet_requested, demo_requested_from, seed_declarations,
-    suggest_agent_id, AgentDeclaration, AgentPlacement, AgentTemplate,
-    AgentTemplateHarnessOverride, CapacitySnapshot, HarnessBudget, HarnessDescriptor,
-    HostDescriptor, HostResources, WorkspaceDescriptor, WorkspaceProfile, WorkspaceRef,
-    WorkspaceStrategy, DEMO_FLEET_ENV, SELECTABLE_STRATEGIES, WORKSPACE_TYPE_CHECKOUT,
+    suggest_agent_id, AgentDeclaration, AgentPlacement, CapacitySnapshot, HarnessBudget,
+    HarnessDescriptor, HostDescriptor, HostResources, WorkspaceDescriptor, WorkspaceProfile,
+    WorkspaceRef, WorkspaceStrategy, DEMO_FLEET_ENV, SELECTABLE_STRATEGIES,
+    WORKSPACE_TYPE_CHECKOUT,
 };
 pub use types::AgentDescriptor;
 pub use types::AgentPresence;
@@ -362,4 +362,3 @@ pub use types::SubmitReceipt;
 pub use types::ThreadSummary;
 pub use types::WorkerInfo;
 pub use types::WorkerOp;
-pub use types::{RoutingStrategy, SubscriptionRoutingStrategy};

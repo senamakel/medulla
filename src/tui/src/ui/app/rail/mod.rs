@@ -24,8 +24,8 @@
 //!
 //! The agent tier is still *resolved*, just not drawn. [`place_agents`] still
 //! puts the folded lanes onto the shared `Host → Agent` projection
-//! ([`medulla::ui::hosts::host_rows`]) — the same call the Hosts tab renders, so
-//! the two lenses cannot disagree — and that is what gives a session its lane
+//! ([`medulla::ui::hosts::host_rows`]), wrapped here by [`App::host_tree`], and
+//! that is what gives a session its lane
 //! (hence its transcript) and its place in the order. Sessions are resolved
 //! here: a dispatched one by the roster id the hub filed its task under, an
 //! operator-started one by [`resolve::agent_for_session`]. A session in a
@@ -50,6 +50,7 @@ mod cleanup_tests;
 mod cursor;
 #[cfg(test)]
 mod cursor_tests;
+mod hosts;
 mod organize;
 mod paging;
 pub(in crate::ui::app) mod resolve;
@@ -434,7 +435,7 @@ impl App {
 /// Place the folded lanes onto the shared `Host → Agent` tree.
 ///
 /// The tree decides what exists and in what order — it is the same projection
-/// the Hosts tab renders, so the two lenses list the same agents under the same
+/// [`App::host_tree`] resolves, so both lenses list the same agents under the same
 /// hosts. A lane is matched onto its agent by id and contributes only what the
 /// projection cannot know: the transcript behind the row, and the tasks folded
 /// under it.

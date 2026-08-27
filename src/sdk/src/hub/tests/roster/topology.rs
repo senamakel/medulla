@@ -18,7 +18,7 @@ fn the_advert_names_every_host_its_agents_run_on() {
         declared("local-backend", "backend"),
     ];
 
-    let payload = register_payload(&workers, &no_presence(), &[], &declared_hosts);
+    let payload = register_payload(&workers, &no_presence(), &declared_hosts);
     let hosts = payload["hosts"].as_array().expect("a hosts block");
 
     assert_eq!(
@@ -54,7 +54,6 @@ fn a_host_this_machine_did_not_declare_is_advertised_as_remote() {
     let payload = register_payload(
         &workers,
         &no_presence(),
-        &[],
         &[declared("this-device", "this device")],
     );
     let hosts = payload["hosts"].as_array().expect("a hosts block");
@@ -74,7 +73,7 @@ fn a_host_this_machine_did_not_declare_is_advertised_as_remote() {
 /// the backend's own `host:${socketId}` fallback still applies to exactly those.
 #[test]
 fn an_unplaced_worker_carries_no_host_and_creates_none() {
-    let payload = register_payload(&[worker("peer", "GRVaddr")], &no_presence(), &[], &[]);
+    let payload = register_payload(&[worker("peer", "GRVaddr")], &no_presence(), &[]);
 
     assert!(
         payload.get("hosts").is_none(),
@@ -90,12 +89,7 @@ fn an_unplaced_worker_carries_no_host_and_creates_none() {
 fn a_host_whose_agents_are_all_offline_is_withheld_with_them() {
     let workers = [placed("live", "this-device"), placed("dead", "mac-studio")];
     let online = std::collections::HashMap::from([("mac-studio".to_string(), false)]);
-    let payload = register_payload(
-        &workers,
-        &online,
-        &[],
-        &[declared("this-device", "this device")],
-    );
+    let payload = register_payload(&workers, &online, &[declared("this-device", "this device")]);
 
     let hosts = payload["hosts"].as_array().expect("a hosts block");
     assert_eq!(hosts.len(), 1, "{hosts:?}");
@@ -112,7 +106,6 @@ fn a_host_advertises_no_resources_it_did_not_measure() {
     let payload = register_payload(
         &[placed("mine", "this-device")],
         &no_presence(),
-        &[],
         &[declared("this-device", "this device")],
     );
 
@@ -124,7 +117,7 @@ fn a_host_advertises_no_resources_it_did_not_measure() {
 /// engages.
 #[test]
 fn an_agent_advertises_the_sessions_it_may_run_at_once() {
-    let payload = register_payload(&[worker("w1", "GRVaddr")], &no_presence(), &[], &[]);
+    let payload = register_payload(&[worker("w1", "GRVaddr")], &no_presence(), &[]);
     assert_eq!(
         payload["agents"][0]["metadata"]["maxSessions"], 1,
         "the serial checkout default"
@@ -132,14 +125,14 @@ fn an_agent_advertises_the_sessions_it_may_run_at_once() {
 
     let mut parallel = worker("w2", "ADDR2");
     parallel.max_sessions = 4;
-    let payload = register_payload(&[parallel], &no_presence(), &[], &[]);
+    let payload = register_payload(&[parallel], &no_presence(), &[]);
     assert_eq!(payload["agents"][0]["metadata"]["maxSessions"], 4);
 
     // Zero is withheld rather than sent: a capacity of nothing reads as
     // saturated, which is the opposite of what every other omission here means.
     let mut unstated = worker("w3", "ADDR3");
     unstated.max_sessions = 0;
-    let payload = register_payload(&[unstated], &no_presence(), &[], &[]);
+    let payload = register_payload(&[unstated], &no_presence(), &[]);
     assert!(payload["agents"][0]["metadata"]
         .get("maxSessions")
         .is_none());
@@ -149,7 +142,7 @@ fn an_agent_advertises_the_sessions_it_may_run_at_once() {
 /// key, and everything the backend already read left where it was.
 #[test]
 fn an_agent_with_no_declared_workspace_still_serializes() {
-    let payload = register_payload(&[worker("peer", "GRVaddr")], &no_presence(), &[], &[]);
+    let payload = register_payload(&[worker("peer", "GRVaddr")], &no_presence(), &[]);
     let agent = &payload["agents"][0];
 
     assert!(agent["metadata"].get("workspace").is_none());
@@ -180,7 +173,6 @@ fn the_advert_metadata_carries_placement_and_never_control() {
     let payload = register_payload(
         &[held],
         &no_presence(),
-        &[],
         &[declared("this-device", "this device")],
     );
 
@@ -212,7 +204,7 @@ fn the_advert_metadata_carries_placement_and_never_control() {
         transcript: "…pnpm test".to_string(),
         transcript_truncated: false,
     });
-    let payload = register_payload(&[handed_back], &no_presence(), &[], &[]);
+    let payload = register_payload(&[handed_back], &no_presence(), &[]);
     assert!(
         payload["agents"][0]["metadata"].get("handoff").is_none(),
         "a per-session brief has no honest home on a per-agent advert"

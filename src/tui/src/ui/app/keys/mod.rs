@@ -22,14 +22,12 @@ use crate::ui::composer::{edit_prompt, PromptAction};
 
 mod changes;
 mod harness;
-mod routing;
 mod sessions;
 mod settings;
 mod tokenmaxxing;
 #[cfg(feature = "workflows")]
 mod workflows;
 
-use routing::RoutingKey;
 pub(in crate::ui::app) use sessions::SessionsKey;
 use settings::SettingsKey;
 use tokenmaxxing::TokenMaxxxingKey;
@@ -237,11 +235,6 @@ impl App {
         if tab == "Settings" {
             if let SettingsKey::Handled(cmd) = self.on_settings_key(k.code) {
                 return *cmd;
-            }
-        }
-        if tab == "Hosts" {
-            if let RoutingKey::Handled(cmd) = self.on_routing_key(k.code) {
-                return cmd;
             }
         }
         if tab == "TokenMaxxxing" {

@@ -149,14 +149,12 @@ impl HubHandle {
             socket: wiring.socket,
             address: wiring.address,
             relay: wiring.relay,
-            catalog: wiring.catalog,
             local_hosts: wiring.local_hosts,
             runner: wiring.runner,
             system_info: Arc::new(Mutex::new(HashMap::new())),
             log: wiring.log,
             persist: wiring.persist,
             activity: wiring.activity,
-            subscription_strategy: wiring.subscription_strategy,
         }
     }
 
@@ -228,35 +226,6 @@ impl HubHandle {
             anyhow::bail!("worker {id} changed while details were refreshed");
         }
         Ok(())
-    }
-
-    /// Choose the current default worker from cached capacity details.
-    pub fn apply_strategy(&self, strategy: crate::runtime::RoutingStrategy) -> anyhow::Result<()> {
-        use crate::runtime::RoutingStrategy;
-
-        if strategy == RoutingStrategy::Manual {
-            return Ok(());
-        }
-        let roster = self.list();
-        let details = self.system_info.lock().expect("system info lock");
-        let selected =
-            super::roster::worker_for_strategy(&roster, &details, strategy).ok_or_else(|| {
-                anyhow::anyhow!("refresh worker details before applying an automatic strategy")
-            })?;
-        drop(details);
-        self.select(&selected);
-        Ok(())
-    }
-
-    /// Change how untargeted tasks choose a ready provider subscription.
-    pub fn apply_subscription_strategy(
-        &self,
-        strategy: crate::runtime::SubscriptionRoutingStrategy,
-    ) {
-        *self
-            .subscription_strategy
-            .lock()
-            .expect("subscription strategy lock") = strategy;
     }
 
     /// Add (or replace, by id) a worker and re-register.
@@ -366,27 +335,6 @@ impl HubHandle {
         self.reregister().await
     }
 
-    /// Replace the agent-template roles a worker is offered for.
-    ///
-    /// Unlike a label this is not display-only: roles ride the descriptor the
-    /// hub advertises, so the re-register is what actually makes the
-    /// orchestrator start routing role-matched subtasks here.
-    /// Errors when no worker holds `id` — a host can be removed between the
-    /// render the operator toggled against and this call, and reporting that as
-    /// a successful role change would leave the UI claiming a roster state that
-    /// never existed.
-    pub async fn set_roles(&self, id: &str, roles: Vec<String>) -> anyhow::Result<()> {
-        {
-            let mut r = self.roster.lock().expect("roster lock");
-            let Some(w) = r.iter_mut().find(|w| w.id == id) else {
-                anyhow::bail!("no host {id} to set roles on");
-            };
-            w.roles = roles;
-        }
-        self.save();
-        self.reregister().await
-    }
-
     /// Mark a worker as the selected default (local display state only).
     pub fn select(&self, id: &str) {
         {
@@ -411,7 +359,7 @@ impl HubHandle {
         // the hub happens to front.
         let payload = {
             let local_hosts = self.local_hosts.lock().expect("local hosts lock");
-            register_payload(&workers, &online, &self.catalog, &local_hosts)
+            register_payload(&workers, &online, &local_hosts)
         };
         self.socket
             .emit("medulla:register_agents", payload)

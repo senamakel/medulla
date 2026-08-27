@@ -176,9 +176,6 @@ impl App {
                             .map(|h| h.kind.clone())
                             .or_else(|| meta("harness")),
                         workspace.map(|w| format!("dir {w}")),
-                        placement.template.map(|t| {
-                            format!("via {}", t.name.clone().unwrap_or_else(|| t.id.clone()))
-                        }),
                     ]
                     .into_iter()
                     .flatten(),
