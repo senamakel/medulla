@@ -138,8 +138,28 @@ pub(crate) async fn run(
                 match msg {
                     AppMsg::Status(s) => { app.set_status(s); app.refresh_snapshot(); }
                     AppMsg::Contexts(c) => app.set_contexts(c),
-                    AppMsg::UsageLoaded(data) => app.set_account_usage(data),
-                    AppMsg::SubscriptionsLoaded(snapshot) => app.set_subscriptions(*snapshot),
+                    AppMsg::UsageLoaded(data) => {
+                        if let Some(cmd) = app.set_account_usage(data) {
+                            run_cmd(
+                                cmd,
+                                &runtime,
+                                &app.loaded.config,
+                                &msg_tx,
+                                local_hosts.as_ref(),
+                            );
+                        }
+                    }
+                    AppMsg::SubscriptionsLoaded(snapshot) => {
+                        if let Some(cmd) = app.set_subscriptions(*snapshot) {
+                            run_cmd(
+                                cmd,
+                                &runtime,
+                                &app.loaded.config,
+                                &msg_tx,
+                                local_hosts.as_ref(),
+                            );
+                        }
+                    }
                     AppMsg::OpenResume(chats) => app.open_resume(chats),
                     AppMsg::LoggedOut => {
                         app.set_status("Account · logged out. Returning to the login screen…");

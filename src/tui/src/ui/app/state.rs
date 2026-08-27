@@ -116,6 +116,8 @@ impl App {
             subscriptions_index: 0,
             subscriptions: Default::default(),
             subscriptions_loading: false,
+            subscriptions_waiting_for_account: false,
+            subscriptions_refresh_pending: false,
             appearance_preview: false,
             appearance_split: false,
             status_line_preview: false,
@@ -452,14 +454,39 @@ impl App {
     }
 
     /// Deliver the fetched account usage payload (None = backend unavailable).
-    pub fn set_account_usage(&mut self, data: Option<serde_json::Value>) {
+    ///
+    /// Returns the subscription sample that was waiting for this payload, or a
+    /// fresh sample when an independently loaded payload makes an enabled
+    /// TinyHumans meter newly readable.
+    pub fn set_account_usage(&mut self, data: Option<serde_json::Value>) -> Option<Cmd> {
         self.account_usage = data;
+        if self.subscriptions_waiting_for_account {
+            self.subscriptions_waiting_for_account = false;
+            return Some(Cmd::LoadSubscriptions(self.account_usage.clone()));
+        }
+        if self
+            .loaded
+            .config
+            .subscriptions
+            .source_enabled(medulla::config::MeterSource::Tinyhumans)
+        {
+            return self.refresh_subscriptions();
+        }
+        None
     }
 
-    /// Deliver a fresh subscription-usage sample and clear the in-flight flag.
-    pub fn set_subscriptions(&mut self, snapshot: medulla::subscriptions::SubscriptionSnapshot) {
+    /// Deliver a fresh subscription-usage sample and start a queued refresh.
+    pub fn set_subscriptions(
+        &mut self,
+        snapshot: medulla::subscriptions::SubscriptionSnapshot,
+    ) -> Option<Cmd> {
         self.subscriptions = snapshot;
         self.subscriptions_loading = false;
+        if self.subscriptions_refresh_pending {
+            self.subscriptions_refresh_pending = false;
+            return self.begin_subscription_refresh();
+        }
+        None
     }
 
     /// The latest subscription-usage readings. Render/test seam.
@@ -479,11 +506,13 @@ impl App {
             return None;
         }
         let now = medulla::clock::now_millis() / 1000;
-        if !self.subscriptions.is_stale(now, config.refresh_seconds) {
+        if !self
+            .subscriptions
+            .is_stale(now, config.sampling_interval_seconds())
+        {
             return None;
         }
-        self.subscriptions_loading = true;
-        Some(Cmd::LoadSubscriptions(self.account_usage.clone()))
+        self.begin_subscription_refresh()
     }
 
     /// Force a re-sample regardless of when the last one landed.
@@ -493,10 +522,33 @@ impl App {
     /// not cover.
     pub(in crate::ui::app) fn refresh_subscriptions(&mut self) -> Option<Cmd> {
         if self.subscriptions_loading {
+            // Account usage is fetched before the subscription command clones
+            // its config, so edits made during that stage are already included.
+            // Once the provider sample starts, however, one follow-up is needed.
+            if !self.subscriptions_waiting_for_account {
+                self.subscriptions_refresh_pending = true;
+            }
             return None;
         }
+        self.begin_subscription_refresh()
+    }
+
+    /// Start a refresh, loading the shared account payload first when needed.
+    fn begin_subscription_refresh(&mut self) -> Option<Cmd> {
         self.subscriptions_loading = true;
-        Some(Cmd::LoadSubscriptions(self.account_usage.clone()))
+        if self.account_usage.is_none()
+            && self
+                .loaded
+                .config
+                .subscriptions
+                .source_enabled(medulla::config::MeterSource::Tinyhumans)
+        {
+            self.subscriptions_waiting_for_account = true;
+            Some(Cmd::LoadUsage)
+        } else {
+            self.subscriptions_waiting_for_account = false;
+            Some(Cmd::LoadSubscriptions(self.account_usage.clone()))
+        }
     }
 
     /// Set the status-line text.

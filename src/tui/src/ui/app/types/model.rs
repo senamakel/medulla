@@ -768,6 +768,12 @@ pub struct App {
     /// Whether a subscription sample is in flight, so a slow probe cannot be
     /// queued behind itself by the refresh tick.
     pub(in crate::ui::app) subscriptions_loading: bool,
+    /// Whether the current refresh is fetching the account payload needed by
+    /// the TinyHumans meter before it starts the provider sample.
+    pub(in crate::ui::app) subscriptions_waiting_for_account: bool,
+    /// Whether a setting changed after the active provider sample cloned its
+    /// configuration, requiring one follow-up sample when it completes.
+    pub(in crate::ui::app) subscriptions_refresh_pending: bool,
     /// Whether Appearance is showing its Preview tab rather than its Options
     /// tab. Two tabs rather than one long page because the controls and what
     /// they do to the interface are two different things to look at, and

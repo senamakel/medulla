@@ -126,6 +126,12 @@ pub enum MeterSource {
 /// settings page is what covers "I want to know right now".
 pub const DEFAULT_REFRESH_SECONDS: u64 = 300;
 
+/// Shortest automatic sampling interval accepted from configuration.
+///
+/// Provider probes use the operator's authenticated accounts, so a malformed
+/// hand-written value must not turn the UI tick into a request loop.
+pub const MIN_REFRESH_SECONDS: u64 = 60;
+
 /// The `[subscriptions]` section: which usage meters are shown and how.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
@@ -221,6 +227,15 @@ impl SubscriptionsConfig {
         MeterId::ALL
             .iter()
             .any(|meter| meter.source() == source && self.display(*meter) != ResourceDisplay::Off)
+    }
+
+    /// The refresh interval used by the automatic scheduler.
+    ///
+    /// Values below one minute are clamped at the scheduling boundary. The
+    /// public field remains unchanged so the settings page can show and replace
+    /// a hand-written value rather than silently rewriting the file on load.
+    pub fn sampling_interval_seconds(&self) -> u64 {
+        self.refresh_seconds.max(MIN_REFRESH_SECONDS)
     }
 }
 

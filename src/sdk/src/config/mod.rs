@@ -58,6 +58,7 @@ pub use persist::{
 };
 pub use subscriptions::{
     MeterId, MeterSource, SubscriptionsConfig, DEFAULT_SUBSCRIPTION_REFRESH_SECONDS,
+    MIN_SUBSCRIPTION_REFRESH_SECONDS,
 };
 pub use types::{
     wire_value, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle, CoreConfig,

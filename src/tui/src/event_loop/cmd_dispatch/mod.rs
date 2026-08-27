@@ -346,6 +346,9 @@ pub(super) fn run_cmd(
                     }
                     Err(e) => {
                         let _ = tx.send(AppMsg::Status(format!("usage fetch failed: {e}")));
+                        // Release a subscription refresh waiting on this fetch;
+                        // its TinyHumans row will explain that usage is absent.
+                        let _ = tx.send(AppMsg::UsageLoaded(None));
                     }
                 }
             });

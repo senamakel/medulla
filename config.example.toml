@@ -541,7 +541,8 @@ tokenEnv = "MEDULLA_TOKEN"
 #
 # refreshSeconds is how often the switched-on meters are re-read. These windows
 # move over hours, so the default of five minutes is already generous; `r` on
-# the settings page re-reads immediately when you want to know now.
+# the settings page re-reads immediately when you want to know now. Values below
+# 60 seconds are sampled at the 60-second minimum.
 # ---------------------------------------------------------------------------
 # [subscriptions]
 # claudeSession = "bar"          # rolling five-hour window
