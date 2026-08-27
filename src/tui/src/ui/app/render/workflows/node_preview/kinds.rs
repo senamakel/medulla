@@ -311,7 +311,9 @@ fn shell_tool_lines(config: &Value, width: usize) -> Vec<Line<'static>> {
         .unwrap_or_default();
     let mut lines = code_lines(
         &source,
-        args.get("language").and_then(Value::as_str).unwrap_or("shell"),
+        args.get("language")
+            .and_then(Value::as_str)
+            .unwrap_or("shell"),
         width,
     );
     let rest = without_keys(args, &["script", "language"]);
