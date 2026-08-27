@@ -19,9 +19,18 @@ fn moving_onto_a_joins_revisit_row_keeps_the_cursor_there() {
     // `false` arm becomes the spine walked last.
     let rows = app.outline_rows();
     assert_eq!(rows.len(), 6, "{rows:?}");
-    assert!(!rows[3].revisit, "the first join row is the subtree: {rows:?}");
-    assert_eq!(rows[3].node, rows[5].node, "both rows are the join: {rows:?}");
-    assert!(rows[5].revisit, "the second join row is the reference: {rows:?}");
+    assert!(
+        !rows[3].revisit,
+        "the first join row is the subtree: {rows:?}"
+    );
+    assert_eq!(
+        rows[3].node, rows[5].node,
+        "both rows are the join: {rows:?}"
+    );
+    assert!(
+        rows[5].revisit,
+        "the second join row is the reference: {rows:?}"
+    );
 
     for _ in 0..5 {
         app.move_outline_cursor(true);
