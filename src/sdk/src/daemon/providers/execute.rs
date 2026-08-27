@@ -496,6 +496,10 @@ async fn run_provider_attempt(
     );
     let mut messages: Vec<String> = Vec::new();
     let mut claude_result: Option<String> = None;
+    // The turn-fatal error the harness reported in its own event stream, if it
+    // reported one. Kept separately from the stderr tail because the tail is a
+    // guess at the cause and this is the harness stating it.
+    let mut turn_error: Option<String> = None;
     // First announcement wins — a run reports exactly one session.
     let mut session_id: Option<String> = None;
     let mut events: usize = 0;
@@ -597,6 +601,7 @@ async fn run_provider_attempt(
                             &mut mapper,
                             &mut messages,
                             &mut claude_result,
+                            &mut turn_error,
                             &mut events,
                             on_event.as_mut(),
                         );
@@ -688,6 +693,7 @@ fn consume_line(
     mapper: &mut HarnessLineMapper,
     messages: &mut Vec<String>,
     claude_result: &mut Option<String>,
+    turn_error: &mut Option<String>,
     events: &mut usize,
     mut on_event: Option<&mut OnEvent>,
 ) -> bool {
@@ -709,6 +715,15 @@ fn consume_line(
         if semantic.event.kind == "agent_message" {
             if let Some(text) = semantic.event.payload.get("text").and_then(|v| v.as_str()) {
                 messages.push(text.to_string());
+            }
+        }
+        // Last one wins: a harness that retries reports each attempt, and the
+        // attempt it gave up on is the one that describes the failure.
+        if semantic.event.kind == "error"
+            && semantic.event.payload.get("fatal").and_then(|v| v.as_bool()) == Some(true)
+        {
+            if let Some(text) = semantic.event.payload.get("message").and_then(|v| v.as_str()) {
+                *turn_error = Some(text.to_string());
             }
         }
     }
