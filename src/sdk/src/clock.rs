@@ -53,6 +53,123 @@ fn iso_from_epoch_millis(millis: i64) -> String {
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{sub_milli:03}Z")
 }
 
+/// Parse an ISO-8601 instant into milliseconds since the Unix epoch.
+///
+/// The inverse of [`iso_from_epoch_millis`], and hand-rolled for the same
+/// reason: this and that formatter are the only date handling the SDK does, so
+/// a date crate would be carried for two functions.
+///
+/// Accepts what a JSON API actually emits — `YYYY-MM-DDTHH:MM:SS` with optional
+/// fractional seconds, and either a `Z` suffix or a `±HH:MM` offset. A space in
+/// place of the `T` is accepted too, because some serializers emit one. Returns
+/// `None` for anything it cannot read in full rather than guessing: a caller
+/// deciding entitlement from a timestamp must be able to tell "this is old" from
+/// "I could not read this".
+pub fn epoch_millis_from_iso(text: &str) -> Option<i64> {
+    let text = text.trim();
+    let (date, rest) = text.split_once(['T', 't', ' '])?;
+
+    let mut date_parts = date.split('-');
+    let year: i64 = date_parts.next()?.parse().ok()?;
+    let month: u32 = date_parts.next()?.parse().ok()?;
+    let day: u32 = date_parts.next()?.parse().ok()?;
+    if date_parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+
+    // Split the zone off before parsing the time. The offset sign is searched
+    // from the end so it cannot be confused with anything earlier in the string.
+    let (time, offset_minutes) = split_zone(rest)?;
+
+    let mut time_parts = time.split(':');
+    let hour: i64 = time_parts.next()?.parse().ok()?;
+    let minute: i64 = time_parts.next()?.parse().ok()?;
+    let (second, milli) = match time_parts.next() {
+        Some(sec) => parse_seconds(sec)?,
+        None => (0, 0),
+    };
+    if time_parts.next().is_some() || !(0..24).contains(&hour) || !(0..60).contains(&minute) {
+        return None;
+    }
+    // 60 is allowed: a leap second is a real value to receive, and clamping it
+    // to the next minute is closer than refusing the whole timestamp.
+    if !(0..=60).contains(&second) {
+        return None;
+    }
+
+    let days = days_from_civil(year, month, day);
+    let seconds = days * 86_400 + hour * 3_600 + minute * 60 + second - offset_minutes * 60;
+    Some(seconds * 1_000 + milli)
+}
+
+/// Split a trailing `Z` or `±HH:MM`/`±HHMM` zone off a time, returning the time
+/// and the zone's offset in minutes east of UTC.
+///
+/// A missing zone is read as UTC. That is the lenient half of this parser and it
+/// is deliberate: every timestamp the backend sends is UTC, and refusing a naive
+/// one would fail closed on a serializer change rather than on real ambiguity.
+fn split_zone(rest: &str) -> Option<(&str, i64)> {
+    if let Some(time) = rest.strip_suffix(['Z', 'z']) {
+        return Some((time, 0));
+    }
+    // Skip index 0: a leading sign would mean there is no time at all.
+    if let Some(idx) = rest.rfind(['+', '-']).filter(|&i| i > 0) {
+        let (time, zone) = rest.split_at(idx);
+        let sign = if zone.starts_with('-') { -1 } else { 1 };
+        let zone = &zone[1..];
+        let (hours, minutes) = match zone.split_once(':') {
+            Some((h, m)) => (h, m),
+            // `±HHMM`, the compact spelling.
+            None if zone.len() == 4 => zone.split_at(2),
+            None if zone.len() == 2 => (zone, "0"),
+            None => return None,
+        };
+        let hours: i64 = hours.parse().ok()?;
+        let minutes: i64 = minutes.parse().ok()?;
+        if !(0..=23).contains(&hours) || !(0..=59).contains(&minutes) {
+            return None;
+        }
+        return Some((time, sign * (hours * 60 + minutes)));
+    }
+    Some((rest, 0))
+}
+
+/// Parse a seconds field that may carry a fraction, into `(seconds, millis)`.
+///
+/// Fractions finer than a millisecond are truncated rather than rounded, and
+/// shorter ones are padded — `.5` is 500ms, not 5ms.
+fn parse_seconds(field: &str) -> Option<(i64, i64)> {
+    let (whole, fraction) = match field.split_once('.') {
+        Some((w, f)) => (w, f),
+        None => (field, ""),
+    };
+    let seconds: i64 = whole.parse().ok()?;
+    if fraction.is_empty() {
+        return Some((seconds, 0));
+    }
+    if !fraction.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let mut millis = 0i64;
+    for i in 0..3 {
+        millis = millis * 10 + i64::from(fraction.as_bytes().get(i).map_or(0, |b| b - b'0'));
+    }
+    Some((seconds, millis))
+}
+
+/// `(year, month, day)` → days since 1970-01-01.
+///
+/// Howard Hinnant's `days_from_civil`, the exact inverse of [`civil_from_days`].
+fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
+    let year = year - i64::from(month <= 2);
+    let era = year.div_euclid(400);
+    let year_of_era = year - era * 400;
+    let month = i64::from(month);
+    let day_of_year = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + i64::from(day) - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
+}
+
 /// Days since 1970-01-01 → `(year, month, day)`.
 ///
 /// Howard Hinnant's `civil_from_days`, which shifts the era to start in March so

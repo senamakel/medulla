@@ -33,3 +33,93 @@ fn iso_rendering_matches_known_instants() {
         "2025-12-31T23:59:59.999Z"
     );
 }
+
+#[test]
+fn iso_parsing_matches_known_instants() {
+    assert_eq!(epoch_millis_from_iso("1970-01-01T00:00:00.000Z"), Some(0));
+    assert_eq!(
+        epoch_millis_from_iso("2024-02-29T00:00:00.123Z"),
+        Some(1_709_164_800_123)
+    );
+    assert_eq!(
+        epoch_millis_from_iso("2025-12-31T23:59:59.999Z"),
+        Some(1_767_225_599_999)
+    );
+}
+
+/// The two halves must agree for every instant, which is the property that
+/// keeps a hand-rolled pair honest.
+#[test]
+fn iso_parsing_round_trips_the_rendering() {
+    for millis in [
+        0,
+        1_709_164_800_123,
+        1_787_832_000_000,
+        -86_400_000,
+        253_402_300_799_000,
+    ] {
+        let rendered = iso_from_epoch_millis(millis);
+        assert_eq!(
+            epoch_millis_from_iso(&rendered),
+            Some(millis),
+            "round trip failed for {rendered}"
+        );
+    }
+}
+
+#[test]
+fn iso_parsing_accepts_the_shapes_a_json_api_emits() {
+    let expected = Some(1_787_832_000_000);
+    // No fraction, lowercase `z`, a space separator, and a naive instant.
+    assert_eq!(epoch_millis_from_iso("2026-08-27T12:00:00Z"), expected);
+    assert_eq!(epoch_millis_from_iso("2026-08-27t12:00:00z"), expected);
+    assert_eq!(epoch_millis_from_iso("2026-08-27 12:00:00Z"), expected);
+    assert_eq!(epoch_millis_from_iso("2026-08-27T12:00:00"), expected);
+    assert_eq!(epoch_millis_from_iso("  2026-08-27T12:00:00Z  "), expected);
+    // Sub-millisecond precision truncates rather than rounding.
+    assert_eq!(
+        epoch_millis_from_iso("2026-08-27T12:00:00.123456Z"),
+        Some(1_787_832_000_123)
+    );
+    // A short fraction pads: `.5` is half a second.
+    assert_eq!(
+        epoch_millis_from_iso("2026-08-27T12:00:00.5Z"),
+        Some(1_787_832_000_500)
+    );
+}
+
+#[test]
+fn iso_parsing_applies_a_numeric_zone_offset() {
+    let utc = Some(1_787_832_000_000);
+    assert_eq!(epoch_millis_from_iso("2026-08-27T14:00:00+02:00"), utc);
+    assert_eq!(epoch_millis_from_iso("2026-08-27T10:00:00-02:00"), utc);
+    // The compact spellings.
+    assert_eq!(epoch_millis_from_iso("2026-08-27T14:00:00+0200"), utc);
+    assert_eq!(epoch_millis_from_iso("2026-08-27T14:00:00+02"), utc);
+}
+
+/// Refusing is the point: a caller deciding entitlement from a timestamp has to
+/// be able to tell "this is old" from "I could not read this".
+#[test]
+fn iso_parsing_refuses_what_it_cannot_read_in_full() {
+    for bad in [
+        "",
+        "not a date",
+        "2026-08-27",
+        "2026-08-27T12",
+        "2026-13-01T00:00:00Z",
+        "2026-08-32T00:00:00Z",
+        "2026-08-27T24:00:00Z",
+        "2026-08-27T12:60:00Z",
+        "2026-08-27T12:00:61Z",
+        "2026-08-27T12:00:00.12x3Z",
+        "2026-08-27T12:00:00+99:00",
+        "2026-08-27-01T12:00:00Z",
+    ] {
+        assert_eq!(
+            epoch_millis_from_iso(bad),
+            None,
+            "should have refused {bad:?}"
+        );
+    }
+}
