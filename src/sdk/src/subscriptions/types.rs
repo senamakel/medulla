@@ -70,6 +70,8 @@ impl SubscriptionSnapshot {
     /// A never-sampled snapshot is always stale, which is what makes the first
     /// tick after start-up fetch.
     pub fn is_stale(&self, now: i64, refresh_seconds: u64) -> bool {
-        self.sampled_at == 0 || now.saturating_sub(self.sampled_at) >= refresh_seconds as i64
+        self.sampled_at == 0
+            || u64::try_from(now.saturating_sub(self.sampled_at)).unwrap_or_default()
+                >= refresh_seconds
     }
 }

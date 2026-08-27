@@ -63,7 +63,7 @@ fn meter_gauge(
         .map(|fraction| Gauge::new(label.clone(), percent(fraction)));
     let amount = reading
         .remaining
-        .map(|remaining| Gauge::new(label.clone(), money(remaining)));
+        .map(|remaining| Gauge::new(label.clone(), money(remaining, reading.currency.as_deref())));
     // Whichever of the two the provider gave, when the requested form is not
     // the one it supports: a balance with no cap has no percentage, and a
     // window has no amount. Falling back beats printing an em dash over a
@@ -105,13 +105,19 @@ fn label(meter: MeterId, reading: Option<&MeterReading>) -> String {
 ///
 /// Cents matter on a balance that is nearly out and are noise on one that is
 /// not, and the rail is too narrow to spend four columns saying `.00`.
-fn money(value: f64) -> String {
+fn money(value: f64, currency: Option<&str>) -> String {
+    let prefix = match currency.unwrap_or("USD") {
+        "USD" => "$",
+        "EUR" => "€",
+        "GBP" => "£",
+        code => return format!("{code} {value:.2}"),
+    };
     if value >= 100.0 {
-        format!("${value:.0}")
+        format!("{prefix}{value:.0}")
     } else if value >= 10.0 {
-        format!("${value:.1}")
+        format!("{prefix}{value:.1}")
     } else {
-        format!("${value:.2}")
+        format!("{prefix}{value:.2}")
     }
 }
 
