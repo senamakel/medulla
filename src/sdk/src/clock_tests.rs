@@ -109,6 +109,16 @@ fn iso_parsing_refuses_what_it_cannot_read_in_full() {
         "2026-08-27T12",
         "2026-13-01T00:00:00Z",
         "2026-08-32T00:00:00Z",
+        // Impossible calendar dates: real months, day out of range for that
+        // month. `days_from_civil` has no invalid-date case of its own — it
+        // would silently normalize these into the following month instead of
+        // refusing them, which is exactly the failure this list guards against.
+        "2026-02-31T00:00:00Z",
+        "2026-02-30T00:00:00Z",
+        "2025-02-29T00:00:00Z", // 2025 is not a leap year
+        "2026-04-31T00:00:00Z",
+        "2026-00-01T00:00:00Z",
+        "2026-08-00T00:00:00Z",
         "2026-08-27T24:00:00Z",
         "2026-08-27T12:60:00Z",
         "2026-08-27T12:00:61Z",

@@ -73,7 +73,16 @@ pub fn epoch_millis_from_iso(text: &str) -> Option<i64> {
     let year: i64 = date_parts.next()?.parse().ok()?;
     let month: u32 = date_parts.next()?.parse().ok()?;
     let day: u32 = date_parts.next()?.parse().ok()?;
-    if date_parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+    // Validated against the actual length of `month` (leap years included), not
+    // just the 1..=31 range: `2026-02-31` is the wrong shape to reject on range
+    // alone, and days_from_civil below normalizes an out-of-range day into the
+    // next month rather than rejecting it — silently turning a bad payload into
+    // a plausible-looking, wrong date.
+    if date_parts.next().is_some()
+        || !(1..=12).contains(&month)
+        || day == 0
+        || day > days_in_month(year, month)
+    {
         return None;
     }
 
@@ -155,6 +164,26 @@ fn parse_seconds(field: &str) -> Option<(i64, i64)> {
         millis = millis * 10 + i64::from(fraction.as_bytes().get(i).map_or(0, |b| b - b'0'));
     }
     Some((seconds, millis))
+}
+
+/// Whether `year` is a leap year in the proleptic Gregorian calendar.
+fn is_leap_year(year: i64) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+/// The number of days in `month` of `year`, or `0` for an out-of-range month.
+///
+/// Used only to validate an incoming day-of-month before it reaches
+/// [`days_from_civil`], which has no invalid-date case of its own: it treats
+/// day 31 of a 30-day month as day 1 of the next one instead of rejecting it.
+fn days_in_month(year: i64, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        _ => 0,
+    }
 }
 
 /// `(year, month, day)` → days since 1970-01-01.
