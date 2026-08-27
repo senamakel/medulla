@@ -16,6 +16,7 @@ mod custom_harnesses;
 mod load;
 mod local_hosts;
 mod persist;
+mod subscriptions;
 mod types;
 mod urls;
 
@@ -54,6 +55,9 @@ pub use persist::{
     persist_local_hosts, persist_root_setting, persist_routing_strategy, persist_section,
     persist_setting, persist_subscription_routing_strategy, persist_welcome_completed,
     persist_workflow_workspaces,
+};
+pub use subscriptions::{
+    MeterId, MeterSource, SubscriptionsConfig, DEFAULT_SUBSCRIPTION_REFRESH_SECONDS,
 };
 pub use types::{
     wire_value, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle, CoreConfig,

@@ -75,6 +75,9 @@ pub(super) enum AppMsg {
     LoggedOut,
     /// Account usage returned by the runtime.
     UsageLoaded(Option<serde_json::Value>),
+    /// A fresh subscription-usage sample. Boxed because it is the largest
+    /// variant by some way and every message would otherwise carry its width.
+    SubscriptionsLoaded(Box<medulla::subscriptions::SubscriptionSnapshot>),
     /// A newer release was detected by the background update checker.
     UpdateAvailable(String),
     /// An automatic review began outside the selected pane.

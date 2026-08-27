@@ -177,6 +177,14 @@ impl App {
                 &self.loaded.config.appearance,
                 self.device_monitor.last(),
             )))
+            // The subscription meters share that footer, and their labels are
+            // the longer ones — a rail sized without them clips every bar.
+            .chain(std::iter::once(
+                crate::ui::subscriptions::subscription_width_hint(
+                    &self.loaded.config.subscriptions,
+                    self.subscriptions(),
+                ),
+            ))
             .max()
             .unwrap_or(0)
             .min(rail::RAIL_MAX_CONTENT);

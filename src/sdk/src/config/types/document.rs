@@ -35,6 +35,9 @@ pub struct TuiConfig {
     /// for a config written before that section existed.
     #[serde(default)]
     pub appearance: AppearanceConfig,
+    /// Which subscription-usage meters the Agents sidebar shows, and how.
+    #[serde(default)]
+    pub subscriptions: SubscriptionsConfig,
     /// How a harness row on the Agents rail is laid out. Absent means "derive
     /// it from `[appearance]`" — see [`TuiConfig::status_line`].
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,6 +122,7 @@ impl Default for TuiConfig {
             update: UpdateConfig::default(),
             theme: ThemeConfig::default(),
             appearance: AppearanceConfig::default(),
+            subscriptions: SubscriptionsConfig::default(),
             status_line: None,
             onboarding: OnboardingConfig::default(),
             workflow: WorkflowConfig::default(),

@@ -15,7 +15,7 @@ use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
     App, Cmd, PaneView, ResumePicker, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK,
-    SP_USAGE, TABS,
+    SP_SUBSCRIPTIONS, SP_USAGE, TABS,
 };
 
 impl App {
@@ -113,6 +113,9 @@ impl App {
             settings_index: 0,
             settings_focused: false,
             appearance_index: 0,
+            subscriptions_index: 0,
+            subscriptions: Default::default(),
+            subscriptions_loading: false,
             resource_monitor: Default::default(),
             device_monitor: Default::default(),
             status_line_index: 0,
@@ -449,6 +452,49 @@ impl App {
         self.account_usage = data;
     }
 
+    /// Deliver a fresh subscription-usage sample and clear the in-flight flag.
+    pub fn set_subscriptions(&mut self, snapshot: medulla::subscriptions::SubscriptionSnapshot) {
+        self.subscriptions = snapshot;
+        self.subscriptions_loading = false;
+    }
+
+    /// The latest subscription-usage readings. Render/test seam.
+    pub fn subscriptions(&self) -> &medulla::subscriptions::SubscriptionSnapshot {
+        &self.subscriptions
+    }
+
+    /// The command that re-samples the meters, when one is due and none is
+    /// already running.
+    ///
+    /// Called on the event loop's tick. Returns `None` while every meter is off
+    /// — the sample would be empty and, more to the point, no request should
+    /// leave the machine for a meter nobody asked for.
+    pub fn due_subscription_refresh(&mut self) -> Option<Cmd> {
+        let config = &self.loaded.config.subscriptions;
+        if self.subscriptions_loading || !config.any_enabled() {
+            return None;
+        }
+        let now = medulla::clock::now_millis() / 1000;
+        if !self.subscriptions.is_stale(now, config.refresh_seconds) {
+            return None;
+        }
+        self.subscriptions_loading = true;
+        Some(Cmd::LoadSubscriptions(self.account_usage.clone()))
+    }
+
+    /// Force a re-sample regardless of when the last one landed.
+    ///
+    /// What `r` on the Subscriptions page does: the automatic cadence is sized
+    /// for windows that move over hours, and "tell me now" is the case it does
+    /// not cover.
+    pub(in crate::ui::app) fn refresh_subscriptions(&mut self) -> Option<Cmd> {
+        if self.subscriptions_loading {
+            return None;
+        }
+        self.subscriptions_loading = true;
+        Some(Cmd::LoadSubscriptions(self.account_usage.clone()))
+    }
+
     /// Set the status-line text.
     pub fn set_status(&mut self, s: impl Into<String>) {
         // A destructive confirmation is valid only while its question remains
@@ -544,6 +590,7 @@ impl App {
             }
             "Settings" => match self.settings_index {
                 SP_USAGE => Some(Cmd::LoadUsage),
+                SP_SUBSCRIPTIONS => self.refresh_subscriptions(),
                 SP_CONTEXT => Some(Cmd::InspectContext),
                 SP_FEEDBACK => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
                 _ => None,

@@ -338,6 +338,50 @@ tokenEnv = "MEDULLA_TOKEN"
 # showHarnessPath = true
 
 # ---------------------------------------------------------------------------
+# subscriptions — how much of each paid allowance is already spent, metered in
+# the Agents sidebar under the device readings. Settings › Subscriptions edits
+# all of these live, shows each meter's current reading beside its setting, and
+# is the easier way to arrive at a set you want on screen.
+#
+# Every meter takes one of:
+#   "off"      not shown, and — this is the point — not sampled either
+#   "percent"  the share of the window or cap already used
+#   "bar"      a compact bar with that percentage beside it
+#   "value"    money left; balance meters only, since a window has no amount
+#
+# Where the numbers come from:
+#   claude*        claude.ai, read with the local Claude CLI's own login. No
+#                  second credential, and nothing is asked for while every
+#                  Claude meter is "off".
+#   codex*         the newest Codex transcript on this machine, which records
+#                  the rate limits the server returned. No network call, and no
+#                  fresher than the last Codex turn here.
+#   openRouter*    OpenRouter's credits endpoint, read with the key held in the
+#                  environment variable openRouterKeyEnv names (default
+#                  OPENROUTER_API_KEY). The key itself is never written here.
+#   tinyhumans*    the same account balance Settings › Usage loads, not a second
+#                  request for it.
+#
+# claudeScoped is Claude's seven-day window for one model; the sidebar labels it
+# with whichever model the account reports, e.g. "Claude Fable".
+#
+# refreshSeconds is how often the switched-on meters are re-read. These windows
+# move over hours, so the default of five minutes is already generous; `r` on
+# the settings page re-reads immediately when you want to know now.
+# ---------------------------------------------------------------------------
+# [subscriptions]
+# claudeSession = "bar"          # rolling five-hour window
+# claudeWeekly = "bar"           # seven-day window, all models
+# claudeScoped = "off"           # seven-day window for one model
+# claudeCredits = "off"          # usage credits against their monthly cap
+# codexSession = "off"           # Codex's shorter rate-limit window
+# codexWeekly = "bar"            # Codex's weekly rate-limit window
+# openRouterCredits = "value"    # prepaid balance
+# tinyhumansBalance = "off"      # portal balance
+# refreshSeconds = 300
+# openRouterKeyEnv = "OPENROUTER_API_KEY"
+
+# ---------------------------------------------------------------------------
 # statusLine — how one operator-started harness row on the Agents rail is laid
 # out. Settings › Status line edits these live and previews the result, which
 # is by far the easier way to arrive at a layout you like.

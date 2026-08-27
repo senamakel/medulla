@@ -140,9 +140,10 @@ pub(in crate::ui::app) use super::super::routing_options::{
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 9] = [
+pub const SETTINGS_SUBPAGES: [&str; 10] = [
     "Usage",
     "Appearance",
+    "Subscriptions",
     "Status line",
     "Config",
     "Feedback",
@@ -166,13 +167,14 @@ pub const SETTINGS_GROUPS: [(&str, usize); 3] = [
 // Settings subpage indices.
 pub(in crate::ui::app) const SP_USAGE: usize = 0;
 pub(in crate::ui::app) const SP_APPEARANCE: usize = 1;
-pub(in crate::ui::app) const SP_STATUS_LINE: usize = 2;
-pub(in crate::ui::app) const SP_CONFIG: usize = 3;
-pub(in crate::ui::app) const SP_FEEDBACK: usize = 4;
-pub(in crate::ui::app) const SP_TRACE: usize = 5;
-pub(in crate::ui::app) const SP_CONTEXT: usize = 6;
-pub(in crate::ui::app) const SP_ACCOUNT: usize = 7;
-pub(in crate::ui::app) const SP_HELP: usize = 8;
+pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 2;
+pub(in crate::ui::app) const SP_STATUS_LINE: usize = 3;
+pub(in crate::ui::app) const SP_CONFIG: usize = 4;
+pub(in crate::ui::app) const SP_FEEDBACK: usize = 5;
+pub(in crate::ui::app) const SP_TRACE: usize = 6;
+pub(in crate::ui::app) const SP_CONTEXT: usize = 7;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 8;
+pub(in crate::ui::app) const SP_HELP: usize = 9;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
@@ -373,6 +375,12 @@ pub enum Cmd {
     },
     /// Fetch account-level usage from the backend for the Usage tab.
     LoadUsage,
+    /// Re-sample the subscription-usage meters that are switched on.
+    ///
+    /// Carries the account-usage document the Usage page loaded, since the
+    /// portal meter reads its balance from that rather than issuing a second
+    /// request; `None` when it has not been fetched yet.
+    LoadSubscriptions(Option<serde_json::Value>),
     /// Load a page of the feedback board for the Feedback surface.
     LoadFeedback(FeedbackQuery),
     /// Load one board item's comments for the detail pane.
@@ -735,6 +743,14 @@ pub struct App {
     pub(in crate::ui::app) settings_focused: bool,
     /// The selected theme role on the Appearance subpage.
     pub(in crate::ui::app) appearance_index: usize,
+    /// The selected meter row on the Subscriptions subpage.
+    pub(in crate::ui::app) subscriptions_index: usize,
+    /// The latest subscription-usage readings, shown in the sidebar and on the
+    /// Subscriptions subpage. Empty until the first sample lands.
+    pub(in crate::ui::app) subscriptions: medulla::subscriptions::SubscriptionSnapshot,
+    /// Whether a subscription sample is in flight, so a slow probe cannot be
+    /// queued behind itself by the refresh tick.
+    pub(in crate::ui::app) subscriptions_loading: bool,
     /// Throttled sampler backing the optional local-process status indicators.
     pub(in crate::ui::app) resource_monitor: crate::ui::resources::ResourceMonitor,
     /// Throttled sampler backing the optional whole-device sidebar indicators.

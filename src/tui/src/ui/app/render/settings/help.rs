@@ -35,6 +35,9 @@ impl App {
             TLine::from("↑↓ move between subpages · 1-9 jump straight to one"),
             TLine::from("Appearance: j / k pick an option · ←/→ or Enter change it (saved live)"),
             TLine::from(
+                "Subscriptions: j / k pick a usage meter · ←/→ or Enter change it · r re-read now",
+            ),
+            TLine::from(
                 "Status line: j / k pick a session-row field · ←/→ or Enter cycle it (live preview)",
             ),
             TLine::from("Config: j / k pick a setting · ←/→ change · Enter toggle (saved to config.toml)"),

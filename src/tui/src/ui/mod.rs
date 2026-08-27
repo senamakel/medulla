@@ -20,6 +20,9 @@ pub(crate) mod agent_lane;
 pub mod app;
 pub mod chat;
 pub mod composer;
+pub(crate) mod gauge;
+#[cfg(test)]
+mod gauge_tests;
 pub mod harness_pane;
 pub(crate) mod layout;
 pub mod login;
@@ -28,6 +31,7 @@ pub mod onboarding;
 pub mod resources;
 pub mod screen;
 pub(crate) mod selection;
+pub mod subscriptions;
 pub mod theme;
 pub mod welcome;
 pub(crate) mod widgets;
