@@ -20,9 +20,17 @@ SIZES="${SIZES:-100x30 140x40 200x50}"
 MEDULLA_HOME="${MEDULLA_HOME:-$HOME/.medulla}"
 
 resolve() {
-  # A path is taken as given. An id is looked up in the revision store, whose
-  # filenames sort lexicographically by mint time — so the last one is current.
+  # A path is taken as given. An id is looked up in the live store first — the
+  # store's own current definition, at `<home>/workflows/<id>.json` — because
+  # the revisions directory holds only *superseded* graphs (see
+  # `src/sdk/src/workflows/store/mod.rs`): the current graph after any edit is
+  # the live definition, not a revision, and a workflow that has never been
+  # edited has no revision at all. Only when there is no live definition does
+  # this fall back to the newest revision, whose filenames sort lexicographically
+  # by mint time — so the last one is current.
   if [ -f "$TARGET" ]; then printf '%s' "$TARGET"; return; fi
+  local live="$MEDULLA_HOME/workflows/$TARGET.json"
+  if [ -f "$live" ]; then printf '%s' "$live"; return; fi
   local newest
   newest=$(find "$MEDULLA_HOME" -type d -name "$TARGET" -path '*/revisions/*' -prune \
              -exec sh -c 'ls "$1"/*.json 2>/dev/null | sort | tail -n 1' _ {} \; 2>/dev/null \
