@@ -169,26 +169,26 @@ fn refresh(
     let hook_active = last_report
         .as_ref()
         .map(|report| attention::hook_event_marks_active_turn(report.event));
-    // How old that report is, if it is the kind staleness applies to at all.
-    //
-    // `None` covers an open-ended report on purpose — a tool, subagent, or
-    // compaction that has *started* and not yet returned
-    // (`hook_report_is_open_ended`) has no legitimate upper bound on how long
-    // it can run while genuinely still working (a slow build under `Bash` can
-    // easily outlast any fixed grace), so it is trusted for as long as it
-    // remains the last report rather than aged out from under a tool that is
-    // simply taking a while. It is not trusted *forever*, though — see
-    // `output_quiet_ms` below and [`OPEN_ENDED_ABANDON_MS`].
+    // Whether the report opens an operation of unbounded duration rather than
+    // marking a boundary after which visible activity is expected imminently
+    // — a tool, subagent, or compaction that has *started* and not yet
+    // returned (`hook_report_is_open_ended`) has no legitimate upper bound on
+    // how long it can run while genuinely still working (a slow build under
+    // `Bash` can easily outlast any fixed grace). Kept as its own fact rather
+    // than folded into `report_age_ms` as `None`: age and open-endedness are
+    // independent properties of the report, and a fresh open-ended report
+    // needs both — its youth to prove life at once, and its open-endedness to
+    // stay untouched by the fast clock once it is no longer young. Encoding
+    // one as the absence of the other made that impossible to say.
     let report_open_ended = last_report
         .as_ref()
         .is_some_and(|report| attention::hook_report_is_open_ended(report.event));
-    let report_age_ms = last_report.as_ref().and_then(|report| {
-        if report_open_ended {
-            None
-        } else {
-            Some(now.saturating_sub(report.at_ms))
-        }
-    });
+    // How old that report is, measured for every report alike — open-ended or
+    // not. `working_state` is what decides which reports the age actually
+    // gates; this is just the fact.
+    let report_age_ms = last_report
+        .as_ref()
+        .map(|report| now.saturating_sub(report.at_ms));
     // How long since the pty last produced a new byte. A boundary report's own
     // staleness only *suggests* a dropped follow-up — the harness can still be
     // writing a long reply for the rest of the turn with no further report at
@@ -224,6 +224,7 @@ fn refresh(
         screen_working,
         hook_active,
         report_age_ms,
+        report_open_ended,
         Some(output_quiet_ms),
     );
     let rang = eligible_bells > 0 && !working;
@@ -395,19 +396,28 @@ pub(super) fn bell_accounting(
 /// after a long-idle prompt is trusted immediately, rather than inheriting a
 /// staleness clock that had nothing to do with it.
 ///
-/// The bound is deliberately not applied to every report, though: the caller
-/// passes `None` for `report_age_ms` — "trust regardless of age" — while the
-/// most recent report is an open-ended one (`hook_report_is_open_ended`: a
-/// tool, subagent, or compaction that has started and not yet returned). A
-/// slow build under `Bash`, or a long-running subagent, can legitimately sit
-/// on `PreToolUse`/`SubagentStart` far longer than [`HOOK_STALE_GRACE_MS`]
-/// with no visible spinner of its own — the tool's own output is what is on
-/// screen, not Claude's chrome — and that is still genuine work, not a dropped
-/// report. Only a report marking a *boundary* just crossed (`PostToolUse`,
-/// `SubagentStop`, `UserPromptSubmit`, `PostCompact`) is aged on the fast
-/// clock, because visible activity is expected again within moments of one of
-/// those, and a long silence after one is what a dropped follow-up report
-/// looks like.
+/// The fast clock is not applied to every report, though: `report_open_ended`
+/// (`hook_report_is_open_ended`: a tool, subagent, or compaction that has
+/// started and not yet returned) exempts one from it entirely once it is no
+/// longer fresh. A slow build under `Bash`, or a long-running subagent, can
+/// legitimately sit on `PreToolUse`/`SubagentStart` far longer than
+/// [`HOOK_STALE_GRACE_MS`] with no visible spinner of its own — the tool's own
+/// output is what is on screen, not Claude's chrome — and that is still
+/// genuine work, not a dropped report. Only a report marking a *boundary* just
+/// crossed (`PostToolUse`, `SubagentStop`, `UserPromptSubmit`, `PostCompact`)
+/// is held to the fast clock once stale, because visible activity is expected
+/// again within moments of one of those, and a long silence after one is what
+/// a dropped follow-up report looks like.
+///
+/// `report_age_ms` and `report_open_ended` are deliberately two separate
+/// facts rather than one collapsed into the other (an *aged* `report_age_ms`
+/// used to read `None` for an open-ended report, "no age to check"). A report
+/// can be both open-ended *and* fresh — a `PreToolUse` that just started after
+/// ten minutes of silence — and the two facts pull in different directions:
+/// its youth is direct evidence of life on its own, while its open-endedness
+/// is what should keep it trusted *once it is no longer young*. Folding one
+/// into the other picks only one of those and loses the other; kept apart,
+/// the order below can honour both.
 ///
 /// An open-ended report is not trusted with *no* bound at all, though — see
 /// [`OPEN_ENDED_ABANDON_MS`]. If its own closing event is the one that got
@@ -440,6 +450,7 @@ pub(super) fn working_state(
     screen_working: bool,
     hook_active: Option<bool>,
     report_age_ms: Option<i64>,
+    report_open_ended: bool,
     output_quiet_ms: Option<i64>,
 ) -> bool {
     if screen_working {
@@ -455,39 +466,38 @@ pub(super) fn working_state(
     if !active {
         return false;
     }
-    // A *known* fresh age is checked before the abandonment backstop, ahead
-    // of everything else: a report recorded moments ago is direct evidence of
-    // life on its own, and silence that ended before the report was even
-    // filed says nothing about whether the report itself is stale. Without
-    // this ordering, a session silent for `OPEN_ENDED_ABANDON_MS` that then
-    // gets a brand-new report would read idle until the next pty byte
-    // happened to arrive, even though the report already proved the session
-    // alive.
+    // A *known* fresh age is checked first, ahead of everything else,
+    // regardless of open-endedness: a report recorded moments ago is direct
+    // evidence of life on its own, and silence that ended before the report
+    // was even filed says nothing about whether the report itself is stale.
+    // Without this, a session silent for `OPEN_ENDED_ABANDON_MS` that then
+    // gets a brand-new open-ended report — a fresh `PreToolUse` — would read
+    // idle until the tool's first byte, even though the report already proved
+    // the session alive.
     if report_age_ms.is_some_and(|age| age < HOOK_STALE_GRACE_MS) {
         return true;
     }
     // The backstop: however open-ended the report, total pty silence this
     // long means abandoned, not merely between visible beats. Checked next —
-    // after a known-fresh age, but before the `None` (open-ended, no age to
-    // check at all) case below — because it must still override an
-    // open-ended report whose *own* closing event was lost; that is the
-    // property this backstop exists for, and a fresh boundary report is the
-    // only thing allowed to outrank it.
+    // after a known-fresh age, but before the open-ended exemption below —
+    // because it must still override an open-ended report whose *own*
+    // closing event was lost; that is the property this backstop exists for,
+    // and a fresh report (of either kind) is the only thing allowed to
+    // outrank it.
     if output_quiet_ms.is_some_and(|quiet| quiet >= OPEN_ENDED_ABANDON_MS) {
         return false;
     }
-    // Unknown age is treated as fresh rather than stale: `hook_active`
-    // already answered `Some(true)`, so a missing age here is either an
-    // open-ended report (trusted up to the backstop above, by design — see
-    // the doc comment) or a measurement gap, neither of which is evidence the
-    // report is old.
-    if report_age_ms.is_none() {
+    // Open-ended and past its fresh window, but not past the backstop either:
+    // exactly the ordinary case a slow build sits in for most of its life,
+    // and the whole reason `report_open_ended` exists as its own fact rather
+    // than as an absent age.
+    if report_open_ended {
         return true;
     }
     // A *stale* boundary report reaches here (a known age that failed the
-    // freshness check above). Fresh output still corroborates continued work
-    // even though nothing on it matched a recognised marker; unknown
-    // quietness (no measurement) is treated the same way as an unknown age
-    // above — trusted rather than presumed stale.
+    // freshness check above, and not open-ended). Fresh output still
+    // corroborates continued work even though nothing on it matched a
+    // recognised marker; unknown quietness (no measurement) is treated the
+    // same way as an unknown age above — trusted rather than presumed stale.
     output_quiet_ms.is_none_or(|quiet| quiet < HOOK_STALE_GRACE_MS)
 }
