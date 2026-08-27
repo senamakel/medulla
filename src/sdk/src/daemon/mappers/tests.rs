@@ -525,3 +525,35 @@ fn failed_pr_commands_do_not_publish_a_url() {
         );
     }
 }
+
+#[test]
+fn codex_turn_failed_carries_the_reason_beside_the_idle_status() {
+    // Captured verbatim from codex-cli 0.150.1 against an endpoint answering
+    // 402: the reason appears only here, on stdout — stderr holds nothing but
+    // codex's startup chatter, so a caller keying off the stderr tail reports
+    // the wrong cause.
+    let mut mapper = HarnessLineMapper::new_with_gh_repo_override("codex", false);
+    let detail = "unexpected status 402 Payment Required: Insufficient credits.";
+    let events = mapper.map_line(
+        &format!(r#"{{"type":"turn.failed","error":{{"message":"{detail}"}}}}"#),
+        0,
+    );
+
+    let kinds: Vec<&str> = events.iter().map(kind_of).collect();
+    assert_eq!(kinds, vec!["status", "error"]);
+    assert_eq!(events[0].event.payload["state"], "idle");
+    assert_eq!(events[1].event.payload["message"], detail);
+    assert_eq!(events[1].event.payload["fatal"], true);
+}
+
+#[test]
+fn codex_turn_failed_without_a_message_still_reports_the_failure() {
+    let mut mapper = HarnessLineMapper::new_with_gh_repo_override("codex", false);
+    let events = mapper.map_line(r#"{"type":"turn.failed"}"#, 0);
+
+    assert_eq!(
+        events.iter().map(kind_of).collect::<Vec<_>>(),
+        vec!["status", "error"]
+    );
+    assert_eq!(events[1].event.payload["fatal"], true);
+}
