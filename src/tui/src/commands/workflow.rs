@@ -314,10 +314,10 @@ fn local_context(
 /// A *default*, not a command: it is what an `agent` step runs on when neither
 /// the step nor the harness preset it selected named a model of its own, which
 /// is the same slot the config key fills. That includes a step dispatched to
-/// the embedded OpenHuman core, where it becomes the turn's `model_override`
-/// — the one route to choosing that model without editing anything on disk,
-/// short of the `MEDULLA_OPENHUMAN_MODEL` environment override that outranks
-/// it (see [`medulla::daemon::providers::openhuman::effective_model`]).
+/// the in-process OpenHuman provider, where it becomes the turn's model
+/// request — the one route to choosing that model without editing anything on
+/// disk, short of the `MEDULLA_OPENHUMAN_MODEL` environment override that
+/// outranks it (see `medulla::daemon::providers::local::model::effective_model`).
 ///
 /// An explicitly empty `--model ""` clears the configured default for this run
 /// rather than being ignored, matching what the same flag means on
