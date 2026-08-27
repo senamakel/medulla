@@ -133,6 +133,10 @@ impl FoldState {
             }
             "plan" => ("plan", "agent", value.clone()),
             "usage_update" => ("usage", "system", value.clone()),
+            "session_info_update" => match self.fold_turn_error(&value) {
+                Some(message) => ("error", "agent", json!({ "message": message, "fatal": true })),
+                None => ("status", "system", value.clone()),
+            },
             _ => ("status", "system", value.clone()),
         };
         let semantic = HarnessSemanticEvent {
