@@ -293,6 +293,35 @@ fn safe_preview_url(raw: &str) -> String {
     )
 }
 
+/// Render a `medulla:shell` step as its script, plus whatever `args` configures
+/// beyond the script and language that already have their own headline.
+///
+/// The shell step used to fall through to [`tool_lines`], which dumps all of
+/// `args` as JSON — unreadable for a script, since the script *is* the config
+/// that matters. Showing only the script traded that for the opposite problem:
+/// a step's `env`, working directory, or timeout became invisible even though
+/// this screen replaced the old exhaustive `field  value` inspector. Both
+/// belong: the script as a script, then anything else configured under it.
+fn shell_tool_lines(config: &Value, width: usize) -> Vec<Line<'static>> {
+    let args = config.get("args").unwrap_or(&Value::Null);
+    let source = args
+        .get("script")
+        .and_then(Value::as_str)
+        .map(redact_source)
+        .unwrap_or_default();
+    let mut lines = code_lines(
+        &source,
+        args.get("language").and_then(Value::as_str).unwrap_or("shell"),
+        width,
+    );
+    let rest = without_keys(args, &["script", "language"]);
+    if !rest.is_empty() {
+        lines.push(Line::from(""));
+        lines.extend(labelled_value("arguments", &Value::Object(rest)));
+    }
+    lines
+}
+
 /// Render a non-shell tool invocation with its slug and arguments.
 fn tool_lines(config: &Value) -> Vec<Line<'static>> {
     let slug = config
