@@ -290,7 +290,10 @@ fn failed_tinyhumans_usage_refresh_keeps_the_last_reading() {
     let _ = app.set_account_usage(Some(account.clone()));
     let _ = app.set_subscriptions(sample());
 
-    assert!(matches!(app.due_subscription_refresh(), Some(Cmd::LoadUsage)));
+    assert!(matches!(
+        app.due_subscription_refresh(),
+        Some(Cmd::LoadUsage)
+    ));
     let cmd = app.usage_load_failed();
     assert!(
         matches!(cmd, Some(Cmd::LoadSubscriptions(Some(ref data))) if *data == account),
