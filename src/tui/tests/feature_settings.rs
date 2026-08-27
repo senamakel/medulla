@@ -769,7 +769,7 @@ fn appearance_preview_shows_the_indicators_that_are_switched_on() {
 #[test]
 fn status_line_puts_every_field_beside_the_preview() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     let out = text_of(&draw(&mut app, 140, 40));
 
     assert!(
@@ -799,7 +799,7 @@ fn status_line_puts_every_field_beside_the_preview() {
 #[test]
 fn status_line_describes_the_selected_field_in_the_footer() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     let out = text_of(&draw(&mut app, 140, 40));
 
     assert!(
@@ -826,7 +826,7 @@ fn status_line_describes_the_selected_field_in_the_footer() {
 #[test]
 fn status_line_folds_to_tabs_on_a_narrow_pane() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     let out = text_of(&draw(&mut app, 90, 40));
 
     assert!(
@@ -862,7 +862,7 @@ fn status_line_folds_to_tabs_on_a_narrow_pane() {
 #[test]
 fn status_line_preview_reports_a_plausible_age_on_the_alert_row() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
 
     let out = text_of(&draw(&mut app, 140, 40));
     assert!(out.contains("45s"), "the sample's age is fixed: {out}");
@@ -872,7 +872,7 @@ fn status_line_preview_reports_a_plausible_age_on_the_alert_row() {
 #[test]
 fn status_line_preview_redraws_as_the_selected_field_changes() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = key(&mut app, KeyCode::Char('4'));
     let before = text_of(&draw(&mut app, 140, 40));
 
     // The state glyph's position is the selected row; hide it.
