@@ -626,6 +626,21 @@ async fn run_provider_attempt(
         return Err(format!("{} task aborted", provider_name(spec.provider)));
     }
     let code = status.ok().and_then(|s| s.code());
+    // A harness that said why it failed is believed over its exit status, in
+    // both directions. Codex prints its reason as a `turn.failed` record on
+    // stdout and leaves stderr holding only its startup chatter, so keying the
+    // message off the stderr tail reported `codex exited 1: Reading additional
+    // input from stdin...` for an upstream 402 — a true statement about the
+    // wrong thing. And a turn that failed but exited 0 must not be handed back
+    // as an answer at all; see the ACP transport, which has the same rule.
+    if let Some(error) = turn_error {
+        report_workspace_context(&mapper, spec);
+        return Err(format!(
+            "{} turn failed: {}",
+            provider_name(spec.provider),
+            with_auth_hint(error.trim())
+        ));
+    }
     if let Some(code) = code {
         if code != 0 {
             let stderr = stderr_tail.lock().unwrap().clone();
