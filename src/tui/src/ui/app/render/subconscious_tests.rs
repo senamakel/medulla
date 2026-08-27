@@ -45,6 +45,10 @@ fn the_observation_header_has_a_clear_status_and_demo_graph() {
         "the live status should be explicit: {out}"
     );
     assert!(
+        out.contains("observation unavailable"),
+        "a mock runtime must not claim to be live: {out}"
+    );
+    assert!(
         out.contains("Signal field · demo"),
         "the animated graph has moved here: {out}"
     );

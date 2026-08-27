@@ -110,7 +110,7 @@ impl App {
     /// Runtimes with no stream to track (the mock and plain-HTTP backends)
     /// report nothing, and get a dim hollow dot rather than a green one — an
     /// unknown connection must not read as a healthy one.
-    fn connection_dot(&self) -> (char, Color) {
+    pub(super) fn connection_dot(&self) -> (char, Color) {
         match self.runtime.stream_state() {
             Some(medulla::runtime::StreamState::Live) => ('●', Color::Green),
             Some(medulla::runtime::StreamState::Resyncing) => ('◌', Color::Yellow),

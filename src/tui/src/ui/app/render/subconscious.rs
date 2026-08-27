@@ -32,6 +32,13 @@ impl App {
         let decisions = self.decisions().len();
         let active_calls = stream::running_calls(&self.snapshot.events);
         let agents = self.snapshot.roster.len();
+        let (connection_dot, connection_color) = self.connection_dot();
+        let observation_status = match self.runtime.stream_state() {
+            Some(medulla::runtime::StreamState::Live) => "watching",
+            Some(medulla::runtime::StreamState::Resyncing) => "resyncing",
+            Some(medulla::runtime::StreamState::Stalled) => "offline",
+            None => "observation unavailable",
+        };
         let decision_line = if decisions == 0 {
             Span::styled(
                 "clear · no human decision pending",
@@ -56,8 +63,14 @@ impl App {
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(vec![
-                Span::styled("● ", Style::default().fg(Color::Green)),
-                Span::styled("watching", Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{connection_dot} "),
+                    Style::default().fg(connection_color),
+                ),
+                Span::styled(
+                    observation_status,
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("  signals become work only when they matter"),
             ]),
             Line::from(vec![
