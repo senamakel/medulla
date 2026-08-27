@@ -735,9 +735,19 @@ fn consume_line(
         // Last one wins: a harness that retries reports each attempt, and the
         // attempt it gave up on is the one that describes the failure.
         if semantic.event.kind == "error"
-            && semantic.event.payload.get("fatal").and_then(|v| v.as_bool()) == Some(true)
+            && semantic
+                .event
+                .payload
+                .get("fatal")
+                .and_then(|v| v.as_bool())
+                == Some(true)
         {
-            if let Some(text) = semantic.event.payload.get("message").and_then(|v| v.as_str()) {
+            if let Some(text) = semantic
+                .event
+                .payload
+                .get("message")
+                .and_then(|v| v.as_str())
+            {
                 *turn_error = Some(text.to_string());
             }
         }
