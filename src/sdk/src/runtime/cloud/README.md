@@ -1,14 +1,16 @@
-# Openhuman
+# Cloud
 
-`Runtime` backed by the embedded OpenHuman core.
+`Runtime` backed by the Medulla cloud backend, driving the orchestration API directly through `MedullaClient`. There is no embedded core in this path.
 
 ## Contents
 
+- [`connect/`](./connect/) — Building the backend client this runtime drives, and deciding whether a host can actually use it (run, sign in, or stop).
 - [`cell.rs`](./cell.rs) — The folded snapshot plus its change-notification channel.
-- [`fold.rs`](./fold.rs) — Pure translation from core wire types into the render snapshot.
-- [`mod.rs`](./mod.rs) — `Runtime` backed by the embedded OpenHuman core.
-- [`tests.rs`](./tests.rs) — Unit tests for the embedded-core runtime.
-- [`worker_ops.rs`](./worker_ops.rs) — Adapting hub workers and worker mutations to the embedded runtime surface.
+- [`feedback.rs`](./feedback.rs) — The feedback board half of `CloudRuntime`.
+- [`fold.rs`](./fold.rs) — Pure translation from backend wire types into the render snapshot.
+- [`mod.rs`](./mod.rs) — `Runtime` backed by the Medulla cloud backend.
+- [`tests.rs`](./tests.rs) — Unit tests for the cloud runtime.
+- [`worker_ops.rs`](./worker_ops.rs) — Adapting hub workers and worker mutations to the runtime surface.
 
 ## Maintenance
 

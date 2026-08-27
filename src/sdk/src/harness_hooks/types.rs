@@ -127,8 +127,9 @@ impl HookEvent {
     /// OpenCode returns `false` throughout: its hook surface is a scripted
     /// plugin API rather than a declarative command hook, and is not yet
     /// adapted. OpenHuman — which runs in-process and has no external harness to
-    /// configure — implements `PreToolUse`, `PostToolUse`, and `Stop` through
-    /// its embedder hook API; every other event returns `false`.
+    /// configure — declares `PreToolUse`, `PostToolUse`, and `Stop` supported
+    /// for the in-process turn to raise directly; every other event returns
+    /// `false`.
     pub fn supported_by(self, provider: HarnessProvider) -> bool {
         match provider {
             HarnessProvider::Claude => true,

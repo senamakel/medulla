@@ -322,3 +322,89 @@ fn node_and_leaf<'a>(fields: &[&'a str]) -> Option<(&'a str, &'a str)> {
         .unwrap_or("output");
     Some((node, leaf))
 }
+
+/// Decode a jq *interpolated* string literal — `"… \(.inputs.issue) …"` — into
+/// the same readable prose [`decode_expression`] produces for a concatenation.
+///
+/// The other shape authors write, and the one that hurt: a six-thousand
+/// character prompt written as one literal with `\(…)` holes in it matched no
+/// concatenation, so it fell through to the raw-binding line and was drawn as a
+/// single unbroken row with `\n` in it, clipped at the pane edge. Every escape
+/// the author wrote is honoured here instead, so the prompt reads as the
+/// paragraphs it is.
+pub(super) fn decode_interpolation(expression: &str) -> Option<PromptTemplate> {
+    let body = strip_outer_parentheses(expression.strip_prefix('=')?.trim());
+    let inner = body.strip_prefix('"')?.strip_suffix('"')?;
+    let mut text = String::new();
+    let mut inputs = Vec::new();
+    let mut chars = inner.char_indices().peekable();
+
+    while let Some((offset, character)) = chars.next() {
+        if character != '\\' {
+            text.push(character);
+            continue;
+        }
+        match chars.peek().map(|(_, next)| *next) {
+            // The interpolation itself: everything to the matching paren is a
+            // program, named the way a concatenated operand is named.
+            Some('(') => {
+                let start = offset + 2;
+                let end = matching_paren(inner, start)?;
+                let operand = operand(&inner[start..end]);
+                text.push_str(&format!("${{{}}}", variable_name(&operand)));
+                inputs.push(describe_input(&operand));
+                while chars.peek().map(|(index, _)| *index) < Some(end + 1) {
+                    chars.next();
+                }
+            }
+            Some(escape) => {
+                text.push(match escape {
+                    'n' => '\n',
+                    't' => '\t',
+                    'r' => '\r',
+                    other => other,
+                });
+                chars.next();
+            }
+            None => break,
+        }
+    }
+    // A literal with nothing in it is not a prompt worth a template heading; a
+    // decoded one that gained neither a hole nor a line break says nothing the
+    // raw binding did not.
+    (!text.trim().is_empty() && (!inputs.is_empty() || text.contains('\n'))).then_some(
+        PromptTemplate {
+            text,
+            inputs: {
+                inputs.dedup();
+                inputs
+            },
+        },
+    )
+}
+
+/// The byte offset of the `)` closing the `(` that `start` is just inside of.
+fn matching_paren(text: &str, start: usize) -> Option<usize> {
+    let mut depth = 1_usize;
+    let mut quoted = false;
+    let mut escaped = false;
+    for (offset, character) in text[start..].char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match character {
+            '\\' => escaped = true,
+            '"' => quoted = !quoted,
+            '(' if !quoted => depth += 1,
+            ')' if !quoted => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(start + offset);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}

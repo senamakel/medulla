@@ -135,6 +135,23 @@ const fn row(
         help,
     }
 }
+/// The group row `index` belongs to.
+///
+/// Rows that continue a group carry `None` so the heading is drawn exactly once
+/// per field; the footer still has to name the field the selected row is about,
+/// so it walks back to the nearest row that opens one.
+pub(in crate::ui::app) fn status_line_group(index: usize) -> StatusLineGroup {
+    STATUS_LINE_ROWS[..=index.min(STATUS_LINE_ROW_COUNT - 1)]
+        .iter()
+        .rev()
+        .find_map(|row| row.group)
+        .unwrap_or(
+            STATUS_LINE_ROWS[0]
+                .group
+                .expect("the first row opens a group"),
+        )
+}
+
 /// `const fn` shorthand for the heading a group's first row opens.
 const fn head(title: &'static str, description: &'static str) -> Option<StatusLineGroup> {
     Some(StatusLineGroup { title, description })

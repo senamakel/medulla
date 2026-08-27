@@ -1,30 +1,22 @@
-//! The pinned detail footer: what the selected row does, every value it can
-//! take, and where the answer is written.
+//! The pinned detail footer: which field the selected row belongs to and what
+//! that field shows, what the row itself does, every value it can take, and
+//! where the answer is written.
 //!
 //! The choice list is the reason the footer exists. A row shows one value, and a
 //! value alone tells an operator nothing about what else is available or what
 //! `←/→` is about to do — they would have to press it and watch. Listing the set
 //! with the current member highlighted answers both without a keystroke.
+//!
+//! The field description moved here from a line under every heading. It answers
+//! a question asked about one field at a time, so paying seven lines of the
+//! list for it — on a page whose list did not fit — was the wrong trade.
 
 use medulla::config::StatusLineConfig;
 use ratatui::style::Style;
-use ratatui::text::{Line as TLine, Span, Text};
-use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::text::{Line as TLine, Span};
 
-use crate::ui::app::status_line::STATUS_LINE_ROWS;
+use crate::ui::app::status_line::{status_line_group, STATUS_LINE_ROWS};
 use crate::ui::app::types::App;
-
-/// Return the number of terminal rows the rendered, wrapped footer occupies.
-///
-/// The page renders its footer through this exact `Paragraph` configuration.
-/// Asking Ratatui for its line count avoids duplicating its wrapping semantics,
-/// notably for words wider than the available pane.
-pub(super) fn rendered_height(lines: &[TLine<'_>], width: u16) -> u16 {
-    Paragraph::new(Text::from(lines.to_vec()))
-        .wrap(Wrap { trim: false })
-        .line_count(width)
-        .min(usize::from(u16::MAX)) as u16
-}
 
 impl App {
     /// Build the footer lines for the selected row, most specific first.
@@ -40,10 +32,15 @@ impl App {
         width: usize,
     ) -> Vec<TLine<'static>> {
         let row = STATUS_LINE_ROWS[selected.min(STATUS_LINE_ROWS.len() - 1)];
+        let group = status_line_group(selected);
         let (value, _) = row.field.value(cfg);
 
         let mut lines = vec![
             TLine::from(Span::styled("─".repeat(width), dim)),
+            TLine::from(vec![
+                Span::styled(group.title, Style::default().fg(self.theme.accent)),
+                Span::styled(format!(" · {}", group.description), dim),
+            ]),
             TLine::from(Span::styled(row.help, dim)),
         ];
 
@@ -62,7 +59,22 @@ impl App {
         lines.push(TLine::from(spans));
 
         lines.push(TLine::from(Span::styled(
-            format!("statusLine.{} · j/k select · ←/→ change", row.field.key()),
+            format!(
+                "statusLine.{} · {}",
+                row.field.key(),
+                if self.status_line_split {
+                    // Both halves are on screen, so there is nothing for `Tab`
+                    // to switch and no reason to advertise it.
+                    "↑↓ or j/k select · ←/→ change"
+                } else if self.status_line_preview {
+                    // The rows are not on screen here, but the selection and
+                    // `←/→` still work — adjusting a field while watching the
+                    // sample redraw is the reason to be on this tab at all.
+                    "←/→ change this field · ↑↓ pick another · Tab back"
+                } else {
+                    "↑↓ or j/k select · ←/→ change · Tab previews"
+                }
+            ),
             dim,
         )));
         // Config is layered, so a higher-precedence file can still override what

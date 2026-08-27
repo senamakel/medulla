@@ -10,6 +10,8 @@
 //! the nav, and the dispatch.
 
 use ratatui::layout::Rect;
+use ratatui::text::{Line as TLine, Text};
+use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::ui::multi_pane;
@@ -20,13 +22,26 @@ use super::super::types::{
 };
 
 mod account;
-mod appearance_usage;
+mod appearance;
 mod config;
 mod debug;
 mod help;
 mod nav;
 mod status_line;
 mod subscriptions;
+mod usage;
+
+/// Return the number of terminal rows a rendered, wrapped footer occupies.
+///
+/// Both pages with a pinned footer render it through this exact `Paragraph`
+/// configuration. Asking Ratatui for its line count avoids duplicating its
+/// wrapping semantics, notably for words wider than the available pane.
+pub(super) fn rendered_height(lines: &[TLine<'_>], width: u16) -> u16 {
+    Paragraph::new(Text::from(lines.to_vec()))
+        .wrap(Wrap { trim: false })
+        .line_count(width)
+        .min(usize::from(u16::MAX)) as u16
+}
 
 impl App {
     /// Draw the Settings tab: the grouped subpage nav on the left, the active

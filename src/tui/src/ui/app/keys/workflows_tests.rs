@@ -329,6 +329,9 @@ fn left_with_room_moves_the_cursor_back_instead_of_leaving_the_canvas() {
 #[test]
 fn right_and_h_and_k_and_j_move_the_graph_cursor() {
     let (_home, mut app) = app_with(&[diamond("sweep")]);
+    // The wire canvas's bindings, so the view is pinned to it: up and down mean
+    // lanes here and rows in the outline, which is what the next test covers.
+    app.wf.outline = Some(false);
     key(&mut app, KeyCode::Enter);
 
     key(&mut app, KeyCode::Right);
@@ -346,6 +349,25 @@ fn right_and_h_and_k_and_j_move_the_graph_cursor() {
 
     key(&mut app, KeyCode::Char('k'));
     assert_eq!(app.selected_graph_node().unwrap().id, "yes");
+}
+
+#[test]
+fn j_and_k_walk_the_outline_by_row_and_v_swaps_the_view() {
+    // In a list, down is the next line. The graph's lanes are a property of the
+    // drawing the outline does not make, so binding them there would move the
+    // cursor somewhere the reader cannot see it go.
+    let (_home, mut app) = app_with(&[diamond("sweep")]);
+    app.wf.outline = Some(true);
+    key(&mut app, KeyCode::Enter);
+
+    let rows = app.outline_rows();
+    key(&mut app, KeyCode::Char('j'));
+    assert_eq!(app.wf.node_index, rows[1].node, "down is the next row");
+    key(&mut app, KeyCode::Char('k'));
+    assert_eq!(app.wf.node_index, rows[0].node, "and up is the one before");
+
+    key(&mut app, KeyCode::Char('v'));
+    assert!(!app.outline_view(), "v swaps to the wires");
 }
 
 #[test]

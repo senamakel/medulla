@@ -36,12 +36,13 @@ use medulla::config::load_config;
 use medulla_tui::cli::{parse_init_args, parse_login_args, LoginArgs};
 
 /// `medulla login`: obtain a JWT (loopback OAuth or a one-time token), verify it
-/// with `/auth/me`, and hand it to the embedded core as its app session.
+/// with `/auth/me`, and store it as the app session via `medulla::auth::store`.
 ///
-/// The core is the only credential store. This used to write a Medulla-owned
-/// `credentials.json` beside it, which meant `medulla login` could report
-/// success while the core — whose session actually drives the runtime — stayed
-/// signed out, and the TUI would still open its login screen.
+/// The stored session is the only credential store. An embedded core once sat
+/// between this command and the session, which meant `medulla login` could
+/// report success while the core — whose session actually drove the runtime —
+/// stayed signed out, and the TUI would still open its login screen. With the
+/// core gone, this command writes the one store every later launch reads.
 pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     let parsed: LoginArgs = match parse_login_args(args) {
         Ok(p) => p,
@@ -86,14 +87,14 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
         Err(e) => return Err(anyhow::anyhow!("token verification failed: {e}")),
     };
 
-    // Record who this is *before* booting, because the id chooses the home the
-    // core is about to be pointed at. Taken from `/auth/me` rather than from the
-    // core's own auth state for the same reason: the core's state lives inside
+    // Record who this is before writing anything, because the id chooses the
+    // home the session is about to be stored under. Taken from `/auth/me`
+    // rather than from any existing local state, since that state lives inside
     // the directory this id selects.
     //
-    // A refusal stops the login here, before a core is booted or a token
-    // written: the alternative is storing this account's bearer in a directory
-    // that belongs to somebody else.
+    // A refusal stops the login here, before a token is written: the
+    // alternative is storing this account's bearer in a directory that
+    // belongs to somebody else.
     // Before `adopt_account`, which moves the active-account marker. An inline
     // `backend.token` or a `backend.tokenEnv` variable outranks the store, so a
     // login under one writes a JWT nothing will present — and worse, re-homes
@@ -195,8 +196,8 @@ async fn run_code_login(
 ///
 /// Writes the root-level active-user marker, which is what every later launch
 /// reads to resolve its home — so this must happen before anything derives a
-/// path from [`medulla::home::medulla_home`], and certainly before the core is
-/// booted against one.
+/// path from [`medulla::home::medulla_home`], and certainly before the session
+/// is stored under one.
 ///
 /// # Why this refuses rather than warns
 ///
@@ -393,7 +394,7 @@ async fn adopt_legacy_credentials(
 }
 
 /// `medulla hub`: run the orchestrator hub — bridge the hosted backend brain to
-/// host-link worker daemons. Takes the backend JWT from the core's app session
+/// host-link worker daemons. Takes the backend JWT from the stored app session
 /// and the worker roster from `MEDULLA_LINK_PEER` / `MEDULLA_HUB_WORKERS`.
 pub(crate) async fn run_hub(_args: &[String]) -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();

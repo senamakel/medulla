@@ -31,6 +31,7 @@ mod canvas;
 mod copilot;
 mod inspector;
 mod node_preview;
+mod outline;
 
 pub(in crate::ui::app::render) use node_preview::live_lines;
 mod paint;
@@ -54,9 +55,13 @@ pub(in crate::ui::app) const MIN_LABEL_WIDTH: usize = 6;
 
 /// The widest a node's label is drawn, however much room there is.
 ///
-/// A node is a marker and a short name. Past this the extra columns are trailing
-/// blanks that push the next column further away for nothing.
-pub(in crate::ui::app) const MAX_NODE_WIDTH: usize = 24;
+/// Wide enough for the names people actually write. At twenty-four — a node is a
+/// marker and a *short* name — nine of the fifteen steps in a real workflow read
+/// `Read the issue and it…`, and a graph whose every box is elided is not a
+/// graph anyone can navigate by. A column is still sized to its own content, so
+/// this only bounds the one runaway name that would otherwise push a whole band
+/// off the pane.
+pub(in crate::ui::app) const MAX_NODE_WIDTH: usize = 40;
 
 /// Columns between one node's label and the next column's, for the wire routed
 /// through the gap and the port name written along it.
@@ -134,8 +139,24 @@ impl App {
         }
     }
 
-    /// Size the workflow rail from its content, bounded like the Sessions rail.
+    /// Size the workflow rail from its content, bounded like the Sessions rail —
+    /// and give its columns to the content while the content is what is being
+    /// read.
+    ///
+    /// The catalogue is a way in, not a thing to watch: once an operator has
+    /// stepped into a graph, the rail is a column of names they are not looking
+    /// at, and on a machine with one workflow it is twenty-eight columns holding
+    /// a single row. Those columns are exactly what the graph needs to stop
+    /// clipping its labels, so focus decides who has them — and `Esc`, which is
+    /// already how you get back to the list, brings it straight back.
     pub(in crate::ui::app) fn workflow_sidebar_width(&self, total: u16) -> u16 {
+        // Only on the tab that draws the rail. The Sessions tab borrows this
+        // canvas to overlay a run, and its pane has no workflow rail beside it
+        // to reclaim columns from — the fold arithmetic would then lay the graph
+        // out wider than the pane it is drawn in.
+        if self.tab() == "Workflows" && self.wf.focus != WorkflowFocus::Sidebar {
+            return 0;
+        }
         let widest = self
             .workflow_rail_rows()
             .iter()

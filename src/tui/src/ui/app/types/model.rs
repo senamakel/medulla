@@ -282,6 +282,16 @@ pub struct WorkflowsState {
     pub(in crate::ui::app) layout: medulla::ui::workflows::GraphLayout,
     /// Selected node in the canvas, in the layout's reading order.
     pub(in crate::ui::app) node_index: usize,
+    /// Which outline row [`node_index`](Self::node_index) sits on, when the
+    /// cursor last moved by outline navigation.
+    ///
+    /// A join is drawn on two rows — the subtree and its `revisit` reference —
+    /// that share one `node_index`, so the index alone cannot tell which row is
+    /// current. `outline_cursor_row` trusts this row only while it still points
+    /// at `node_index`; any selection that changes `node_index` without going
+    /// through [`App::move_outline_cursor`] (the rail, the canvas, a fresh
+    /// workflow) leaves it stale and falls back to resolving by node.
+    pub(in crate::ui::app) outline_row: usize,
     /// Vertical scroll of the canvas, in rows.
     ///
     /// The only scroll the canvas has: the graph folds onto a new band whenever
@@ -297,6 +307,13 @@ pub struct WorkflowsState {
     pub(in crate::ui::app) graph_rows: usize,
     /// Top line of the rich selected-step preview.
     pub(in crate::ui::app) preview_scroll: usize,
+    /// Whether the graph is drawn as an outline, when the operator has said.
+    ///
+    /// `None` — the default — leaves the choice to the graph itself (see
+    /// `App::prefers_outline`); `v` pins it either way for this session. Stored
+    /// per tab rather than per workflow because it is a reading preference, and
+    /// an operator who wants wires wants them for the next workflow too.
+    pub(in crate::ui::app) outline: Option<bool>,
     /// Whether the inspector below the canvas is expanded over it.
     pub(in crate::ui::app) inspector_open: bool,
     /// The run being overlaid on the graph, when a run row is selected.
@@ -741,7 +758,7 @@ pub struct App {
     /// the page entirely. Entering the pane hands `↑↓` to the content and makes
     /// the letter bindings deliberate rather than ambient.
     pub(in crate::ui::app) settings_focused: bool,
-    /// The selected theme role on the Appearance subpage.
+    /// The selected row on the Appearance subpage.
     pub(in crate::ui::app) appearance_index: usize,
     /// The selected meter row on the Subscriptions subpage.
     pub(in crate::ui::app) subscriptions_index: usize,
@@ -751,6 +768,24 @@ pub struct App {
     /// Whether a subscription sample is in flight, so a slow probe cannot be
     /// queued behind itself by the refresh tick.
     pub(in crate::ui::app) subscriptions_loading: bool,
+    /// Whether Appearance is showing its Preview tab rather than its Options
+    /// tab. Two tabs rather than one long page because the controls and what
+    /// they do to the interface are two different things to look at, and
+    /// stacking them meant neither fitted on a short terminal.
+    pub(in crate::ui::app) appearance_preview: bool,
+    /// Whether Appearance last drew as two columns rather than as two tabs.
+    /// Written by the renderer, read by the key handler to decide whether `Tab`
+    /// has anything to switch.
+    pub(in crate::ui::app) appearance_split: bool,
+    /// Whether the Status line page is showing its Preview tab rather than its
+    /// Switches tab. Only consulted while the pane is too narrow to show both
+    /// halves side by side.
+    pub(in crate::ui::app) status_line_preview: bool,
+    /// Whether the Status line page last drew as two columns rather than as two
+    /// tabs. Written by the renderer, which is the only thing that knows the
+    /// pane's width, and read by the key handler to decide whether `Tab` has
+    /// anything to switch.
+    pub(in crate::ui::app) status_line_split: bool,
     /// Throttled sampler backing the optional local-process status indicators.
     pub(in crate::ui::app) resource_monitor: crate::ui::resources::ResourceMonitor,
     /// Throttled sampler backing the optional whole-device sidebar indicators.
