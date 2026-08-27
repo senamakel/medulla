@@ -157,6 +157,44 @@ impl FoldState {
         completed
     }
 
+    /// Record a turn-fatal failure carried on a `session_info_update`, and
+    /// return its message when this update is the one that ends the turn.
+    ///
+    /// ACP has no standard field for "this turn failed": the stop reason is
+    /// `end_turn` either way (verified against `codex-acp` 1.7.0 answering an
+    /// upstream 402). Codex reports it on the update's `_meta` instead, in two
+    /// halves — an `error` object per attempt, and a `threadStatus` that turns
+    /// to `systemError` once it stops retrying. Only the second half is
+    /// terminal, and only the first half says what went wrong, so both are read
+    /// and the retried message is held until the status confirms the give-up.
+    ///
+    /// An `error` that is not retrying is terminal on its own; that is the same
+    /// rule the app-server transport applies to its own error notifications
+    /// (see [`crate::daemon::providers::codex_server`]).
+    fn fold_turn_error(&mut self, value: &Value) -> Option<String> {
+        let codex = value.get("_meta")?.get("codex")?;
+        if let Some(error) = codex.get("error") {
+            let message = error_text(error);
+            if error.get("willRetry").and_then(Value::as_bool) == Some(true) {
+                self.last_retried_error = message;
+                return None;
+            }
+            let message = message?;
+            self.error = Some(message.clone());
+            return Some(message);
+        }
+        if codex.get("threadStatus").and_then(|status| status.get("type")) != Some(&json!("systemError"))
+        {
+            return None;
+        }
+        let message = self
+            .last_retried_error
+            .take()
+            .unwrap_or_else(|| "codex reported a system error".to_string());
+        self.error = Some(message.clone());
+        Some(message)
+    }
+
     pub(super) fn reply(&self) -> String {
         if self.text.trim().is_empty() {
             "ACP agent completed without a text response.".to_string()
