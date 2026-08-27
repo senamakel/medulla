@@ -380,6 +380,15 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
             }
 
             let state = state.lock().unwrap();
+            // A stop reason of `end_turn` is not a claim that the turn worked:
+            // `codex-acp` answers that way after an upstream failure and streams
+            // the provider's error text as the assistant's message, so a caller
+            // trusting the reply gets "unexpected status 402 Payment Required"
+            // as the agent's considered answer and a workflow step marked
+            // success. Fail the turn on the agent's own report of it instead.
+            if let Some(error) = state.error.as_deref() {
+                return Err(AcpError::new(-32603, error.to_string()));
+            }
             Ok(RunTaskResult {
                 provider,
                 reply: state.reply(),
