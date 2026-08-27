@@ -198,6 +198,9 @@ fn task_lines(prompt: &Value) -> Vec<Line<'static>> {
     if let Some(template) = prompt::decode_expression(text) {
         return prompt_template_lines(template);
     }
+    if let Some(template) = prompt::decode_interpolation(text) {
+        return prompt_template_lines(template);
+    }
 
     let explanation = text
         .strip_prefix("=item.")
@@ -233,16 +236,20 @@ fn prompt_template_lines(template: PromptTemplate) -> Vec<Line<'static>> {
             .lines()
             .map(|line| Line::from(Span::raw(format!("  {line}")))),
     );
-    lines.push(Line::from(vec![
-        Span::styled(
-            "dynamic input  ",
-            Style::default().add_modifier(Modifier::DIM),
-        ),
-        Span::styled(
-            template.inputs.join(", "),
-            Style::default().fg(Color::Magenta),
-        ),
-    ]));
+    // A prompt with no holes in it is a literal, and a "dynamic input" line
+    // under it would name nothing.
+    if !template.inputs.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled(
+                "dynamic input  ",
+                Style::default().add_modifier(Modifier::DIM),
+            ),
+            Span::styled(
+                template.inputs.join(", "),
+                Style::default().fg(Color::Magenta),
+            ),
+        ]));
+    }
     lines
 }
 

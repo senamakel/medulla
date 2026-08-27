@@ -84,7 +84,15 @@ impl App {
         if let Some(next) = self.wf.layout.moved(self.wf.node_index, direction) {
             self.wf.node_index = next;
             self.wf.preview_scroll = 0;
-            self.scroll_canvas_to_cursor();
+            // Both views scroll the same field, and which one owns it is which
+            // one is on screen: a row index and a cell row are not the same
+            // number, and anchoring the wrong one scrolls the cursor out of
+            // view rather than to it.
+            if self.outline_view() {
+                self.scroll_outline_to_cursor();
+            } else {
+                self.scroll_canvas_to_cursor();
+            }
         }
     }
 

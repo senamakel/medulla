@@ -304,6 +304,13 @@ pub struct WorkflowsState {
     pub(in crate::ui::app) graph_rows: usize,
     /// Top line of the rich selected-step preview.
     pub(in crate::ui::app) preview_scroll: usize,
+    /// Whether the graph is drawn as an outline, when the operator has said.
+    ///
+    /// `None` — the default — leaves the choice to the graph itself (see
+    /// `App::prefers_outline`); `v` pins it either way for this session. Stored
+    /// per tab rather than per workflow because it is a reading preference, and
+    /// an operator who wants wires wants them for the next workflow too.
+    pub(in crate::ui::app) outline: Option<bool>,
     /// Whether the inspector below the canvas is expanded over it.
     pub(in crate::ui::app) inspector_open: bool,
     /// The run being overlaid on the graph, when a run row is selected.

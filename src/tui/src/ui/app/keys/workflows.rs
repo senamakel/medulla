@@ -144,12 +144,44 @@ impl App {
                 self.move_graph_cursor(Move::Forward);
                 WorkflowsKey::Handled(None)
             }
+            // Up and down mean lanes on the wire canvas and rows in the
+            // outline, because that is what they mean in the thing being
+            // looked at: an outline is a list, and in a list down is the next
+            // line whatever lane the graph put it in.
             KeyCode::Up | KeyCode::Char('k') => {
-                self.move_graph_cursor(Move::LaneUp);
+                if self.outline_view() {
+                    self.move_outline_cursor(false);
+                } else {
+                    self.move_graph_cursor(Move::LaneUp);
+                }
                 WorkflowsKey::Handled(None)
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.move_graph_cursor(Move::LaneDown);
+                if self.outline_view() {
+                    self.move_outline_cursor(true);
+                } else {
+                    self.move_graph_cursor(Move::LaneDown);
+                }
+                WorkflowsKey::Handled(None)
+            }
+            // `v` for "view": the same graph, drawn the other way. It pins the
+            // choice the graph would otherwise make for itself, so an operator
+            // who wants the wires for a chain — or the outline for a fan-out —
+            // says so once.
+            KeyCode::Char('v') => {
+                let outline = !self.outline_view();
+                self.wf.outline = Some(outline);
+                self.wf.canvas_row = 0;
+                if outline {
+                    self.scroll_outline_to_cursor();
+                } else {
+                    self.scroll_canvas_to_cursor();
+                }
+                self.set_status(if outline {
+                    "Outline · v for the wires"
+                } else {
+                    "Wires · v for the outline"
+                });
                 WorkflowsKey::Handled(None)
             }
             KeyCode::Char('i') => {

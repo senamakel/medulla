@@ -279,7 +279,7 @@ impl App {
             // the default hint below advertises the session steering chords.
             "Tab views · Subconscious coming soon"
         } else if workflows {
-            "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ lanes · i inspect · c copilot · x run · d dry-run · r refresh"
+            "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ steps · v layout · i inspect · c copilot · x run · d dry-run · r refresh"
         } else if self.tab() == "Sessions" && self.pane_view == PaneView::Diff {
             // The pane is showing a session's diff, so it binds the Changes
             // keys — read from `pane_view` rather than from `pane_session`,
