@@ -13,18 +13,18 @@ use crate::helpers::*;
 #[test]
 fn an_open_prompt_overlay_takes_the_paste_flattened_to_one_line() {
     let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
-    app.tab_index = tab_index("Hosts");
-    app.focus_routing_subpage("Add Host");
-    // One confirm opens the address prompt, which is the single-line field here.
-    let _ = app.on_event(key(KeyCode::Char('a')));
-    assert!(app.prompt_state().is_some(), "the address prompt is open");
+    app.tab_index = tab_index("Settings");
+    app.focus_settings_subpage("Feedback");
+    // `n` opens the new-feedback title prompt, which is the single-line field here.
+    let _ = app.on_event(key(KeyCode::Char('n')));
+    assert!(app.prompt_state().is_some(), "the title prompt is open");
 
-    let cmd = paste(&mut app, "host:1234\r\nmy label\n");
+    let cmd = paste(&mut app, "cannot resume\r\nafter a restart\n");
 
     assert!(cmd.is_none(), "a paste never submits the prompt either");
     assert_eq!(
         app.prompt_state().map(|(_, text)| text),
-        Some("host:1234 my label ".into()),
+        Some("cannot resume after a restart ".into()),
         "a single-line field has no second row to put a break on"
     );
 }

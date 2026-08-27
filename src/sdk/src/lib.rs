@@ -3,8 +3,8 @@
 //! [`runtime`]. The HTTP/SSE client lives in [`client`]. The terminal app that
 //! consumes this crate is the sibling `medulla-tui` crate.
 
+pub mod access;
 pub mod agent;
-pub mod agents;
 pub mod attribution;
 pub mod auth;
 pub mod bridge;

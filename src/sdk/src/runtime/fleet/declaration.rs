@@ -177,10 +177,6 @@ pub struct AgentDeclaration {
     /// instead of a label nobody typed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    /// Agent-template ids this agent is offered for. Empty means unspecified —
-    /// a general agent, not one excluded from everything.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub roles: Vec<String>,
     /// How its sessions get a working copy, and so how many may run at once.
     #[serde(default)]
     pub strategy: WorkspaceStrategy,
@@ -200,7 +196,6 @@ impl AgentDeclaration {
             harness: harness.into(),
             workspace: WorkspaceRef::checkout(workspace),
             name: None,
-            roles: Vec::new(),
             strategy: WorkspaceStrategy::Checkout,
         }
     }
@@ -224,7 +219,7 @@ impl AgentDeclaration {
 /// **Seeding rule.** A machine that has never declared an agent must not go from
 /// "one worker in the roster" to "nothing in the roster" on upgrade, so on first
 /// load with no declarations for a host, one is synthesized per harness the
-/// daemon detected, all at that host's workspace, `strategy: checkout`, no roles
+/// daemon detected, all at that host's workspace, `strategy: checkout`
 /// and no name. Two properties make this a migration rather than a guess:
 ///
 /// - the **default harness keeps the host's own id**, so the agent that already

@@ -17,7 +17,6 @@ impl App {
         let bold = Style::default().add_modifier(Modifier::BOLD);
         let lines = vec![
             TLine::from("Tab / Shift-Tab switch views · Ctrl-C quit"),
-            TLine::from("Routing: a add host · Enter/s select · e edit label · d/x remove"),
             TLine::from(" "),
             TLine::from(Span::styled("Sessions", bold)),
             TLine::from("Ctrl-T opens a session: pick a harness type, then a workspace directory"),

@@ -89,23 +89,19 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
             .map(super::roster::worker_from_spec)
             .collect(),
     ));
-    let subscription_strategy = Arc::new(Mutex::new(config.subscription_strategy));
 
     (config.log)(&format!(
         "hub: connecting to {} ({} worker(s))",
         config.backend_url,
         config.workers.len()
     ));
-    let catalog = Arc::new(config.agent_templates.clone());
     let socket = connect_harness(
         &config.backend_url,
         &config.jwt,
         super::socket::HarnessWiring {
             roster: roster.clone(),
-            catalog: catalog.clone(),
             local_hosts: config.local_hosts.clone(),
             runner: runner.clone(),
-            subscription_strategy: subscription_strategy.clone(),
             log: config.log.clone(),
             activity: Some(activity.clone()),
             // Installed here and nowhere else: this is the one place a hub's
@@ -122,13 +118,11 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
         socket: socket.clone(),
         address: hub_address,
         relay,
-        catalog,
         local_hosts: config.local_hosts.clone(),
         runner: runner.clone(),
         log: config.log.clone(),
         persist: config.persist.clone(),
         activity,
-        subscription_strategy,
     });
     Ok(HubSession {
         handle,

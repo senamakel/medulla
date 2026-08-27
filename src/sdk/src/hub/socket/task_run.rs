@@ -13,7 +13,7 @@ use rust_socketio::Payload;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
-use super::super::roster::{address_of, lane_id, SharedRoster, SharedSubscriptionStrategy};
+use super::super::roster::{address_of, lane_id, SharedRoster};
 use super::super::runner::TaskRunner;
 use super::super::types::{HubLog, RunError, TaskOutcome, TaskRequest};
 use super::super::ActivityLog;
@@ -136,7 +136,6 @@ pub(super) async fn handle_task_run(
     socket: Client,
     runner: Arc<TaskRunner>,
     roster: SharedRoster,
-    subscription_strategy: SharedSubscriptionStrategy,
     log: HubLog,
     activity: Option<ActivityLog>,
 ) {
@@ -219,24 +218,9 @@ pub(super) async fn handle_task_run(
         (Err(_), abort) => (None, abort),
     };
 
-    // An explicit provider is authoritative. Only an untargeted task consults
-    // the subscription strategy, and a failed/unknown budget probe falls open
-    // to the daemon's own configured default.
-    let provider = match requested_provider {
-        Some(provider) => Some(provider),
-        None => {
-            let strategy = *subscription_strategy
-                .lock()
-                .expect("subscription strategy lock");
-            if strategy == crate::runtime::SubscriptionRoutingStrategy::Manual {
-                None
-            } else {
-                capabilities.as_ref().and_then(|capabilities| {
-                    super::super::roster::subscription_for_strategy(capabilities, strategy)
-                })
-            }
-        }
-    };
+    // An explicit provider is authoritative; an untargeted task falls open to
+    // the daemon's own configured default.
+    let provider = requested_provider;
 
     let wire_task_id = wire_task_id(&task_id);
 

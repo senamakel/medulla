@@ -1,92 +1,7 @@
-//! Routing fleet, Context navigation, mouse routing, and resume-picker coverage:
-//! the add-worker prompt forms, empty-registry no-ops, j/k and wheel scrolling,
-//! tab-bar and row clicks, and resume-modal navigation.
+//! Context navigation, mouse routing, and resume-picker coverage: j/k and wheel
+//! scrolling, tab-bar and row clicks, and resume-modal navigation.
 
 use crate::helpers::*;
-
-// --- Workers add prompt (empty registry) ------------------------------------
-
-#[test]
-fn hosts_add_prompt_emits_add_cmd_for_address() {
-    let (mut app, _rt) = empty_app();
-    tab(&mut app, "Hosts");
-    app.focus_routing_subpage("Add Host");
-    // The page adds a machine and nothing else, so there is no kind to choose:
-    // one confirm opens the address prompt.
-    let _ = app.on_event(key(KeyCode::Char('a')));
-    let (title, _) = app.prompt_state().expect("add prompt open");
-    assert!(title.starts_with("Add host"));
-    type_str(&mut app, "host:1234 my label");
-    let cmd = app.on_event(key(KeyCode::Enter));
-    match cmd {
-        Some(Cmd::WorkerOp(op)) => {
-            let dbg = format!("{op:?}");
-            assert!(dbg.contains("host:1234"));
-            assert!(dbg.contains("my label"));
-        }
-        other => panic!("expected WorkerOp Add, got {other:?}"),
-    }
-}
-
-#[test]
-fn workers_add_prompt_handle_form() {
-    let (mut app, _rt) = empty_app();
-    tab(&mut app, "Hosts");
-    app.focus_routing_subpage("Add Host");
-    // The page adds a machine and nothing else, so there is no kind to choose:
-    // one confirm opens the address prompt.
-    let _ = app.on_event(key(KeyCode::Char('a')));
-    type_str(&mut app, "@dev-2");
-    let cmd = app.on_event(key(KeyCode::Enter));
-    match cmd {
-        Some(Cmd::WorkerOp(op)) => {
-            let dbg = format!("{op:?}");
-            assert!(dbg.contains("@dev-2"));
-            // Handle form leaves address None.
-            assert!(dbg.contains("handle: Some"));
-        }
-        other => panic!("expected WorkerOp Add, got {other:?}"),
-    }
-}
-
-#[test]
-fn workers_add_prompt_empty_is_cancelled() {
-    let (mut app, _rt) = empty_app();
-    tab(&mut app, "Hosts");
-    app.focus_routing_subpage("Add Host");
-    // The page adds a machine and nothing else, so there is no kind to choose:
-    // one confirm opens the address prompt.
-    let _ = app.on_event(key(KeyCode::Char('a')));
-    let cmd = app.on_event(key(KeyCode::Enter));
-    assert!(cmd.is_none());
-    assert!(
-        app.status().contains("Add cancelled"),
-        "status: {}",
-        app.status()
-    );
-}
-
-#[test]
-fn hosts_select_and_remove_no_op_when_the_roster_is_empty() {
-    let (mut app, _rt) = empty_app();
-    tab(&mut app, "Hosts");
-    app.focus_routing_subpage("Hosts");
-    // No workers → select/remove have no roster entry to act on.
-    assert!(app.on_event(key(KeyCode::Enter)).is_none());
-    assert!(app.on_event(key(KeyCode::Char('d'))).is_none());
-    // The tree is still one row — this device — so the cursor clamps at 0.
-    let _ = app.on_event(key(KeyCode::Down));
-    let _ = app.on_event(key(KeyCode::Up));
-    assert_eq!(app.host_index(), 0);
-    assert_eq!(app.hosts_row_count(), 1);
-    // And the local host says it has declared nothing rather than reading as a
-    // machine that is not there.
-    let out = render(&mut app, 120, 40);
-    assert!(out.contains("this device"), "{out}");
-    assert!(out.contains("no agents"), "{out}");
-}
-
-// --- Context navigation & mouse ---------------------------------------------
 
 #[test]
 fn context_jk_navigation_and_render() {
@@ -234,19 +149,12 @@ fn resume_picker_navigates_and_loads() {
     assert!(!app.resume_open(), "Enter closes the picker");
 }
 
-// --- Workers registry with a harness + stream-health header -----------------
+// --- Status-line stream health ---------------------------------------------
 
 #[test]
-fn workers_render_with_harness_and_stream_health() {
+fn the_status_line_shows_stream_health_beside_the_backend_host() {
     let mut app = fleet_app();
-    tab(&mut app, "Hosts");
-    app.focus_routing_subpage("Hosts");
-    let out = render(&mut app, 120, 40);
-    assert!(out.contains("CLAUDE"), "worker harness badge upper-cased");
-    assert!(out.contains("primary"), "worker label renders");
-
-    // The status line shows stream health as a dot beside the backend host when
-    // the runtime tracks one — the spelled-out label it replaced cost a third of
+    // A dot rather than the spelled-out label it replaced: that cost a third of
     // the line to say what a glyph says.
     tab(&mut app, "Subconscious");
     let out = render(&mut app, 120, 40);

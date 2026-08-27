@@ -52,9 +52,8 @@ pub use local_hosts::{local_host_address, local_host_name, local_hosts, LocalHos
 pub use persist::{
     clear_setting, persist_agent_declarations, persist_custom_harnesses, persist_hook_defaults,
     persist_hooks, persist_host_workspaces, persist_hub_workers, persist_link_peers,
-    persist_local_hosts, persist_root_setting, persist_routing_strategy, persist_section,
-    persist_setting, persist_subscription_routing_strategy, persist_welcome_completed,
-    persist_workflow_workspaces,
+    persist_local_hosts, persist_root_setting, persist_section, persist_setting,
+    persist_welcome_completed, persist_workflow_workspaces,
 };
 pub use subscriptions::{
     MeterId, MeterSource, SubscriptionsConfig, DEFAULT_SUBSCRIPTION_REFRESH_SECONDS,

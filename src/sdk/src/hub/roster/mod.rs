@@ -9,7 +9,6 @@
 //! runtime. Every mutation re-emits `medulla:register_agents` so the backend's
 //! roster tracks the change.
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
@@ -21,15 +20,7 @@ use serde_json::{json, Value};
 /// orchestrator only auto-assigns an untargeted task to an agent whose
 /// availability is exactly `"online"`, and a blank one would be silently
 /// excluded from every fan-out.
-fn to_agent(w: &HubWorker, catalog: &[crate::runtime::AgentTemplate]) -> Value {
-    // The roles this worker was toggled on for, resolved against the catalog.
-    // An id with no template behind it is dropped rather than advertised: a
-    // role the orchestrator cannot look up is a routing hint it cannot act on.
-    let roles: Vec<&crate::runtime::AgentTemplate> = w
-        .roles
-        .iter()
-        .filter_map(|id| catalog.iter().find(|t| &t.id == id))
-        .collect();
+fn to_agent(w: &HubWorker) -> Value {
     // `metadata.workspace` is what places the agent: the backend turns it into a
     // WorkspaceDescriptor and sets the agent's `workspaceId` from it. Omitted
     // rather than sent empty when unknown, so the backend falls through to the
@@ -45,16 +36,6 @@ fn to_agent(w: &HubWorker, catalog: &[crate::runtime::AgentTemplate]) -> Value {
     // as available, not as full.
     if w.max_sessions > 0 {
         metadata["maxSessions"] = json!(w.max_sessions);
-    }
-    // The role ids, not just their text. The description and tags are what the
-    // model reads; the ids are what anything downstream joins on — asking for a
-    // role by name, or applying its tools and instructions at delegate time.
-    //
-    // The *resolved* ids, for that reason. Advertising an id the catalog does
-    // not have hands a joiner a key with nothing behind it, which is the same
-    // unactionable hint the description and tags already drop.
-    if !roles.is_empty() {
-        metadata["roles"] = json!(roles.iter().map(|t| t.id.as_str()).collect::<Vec<_>>());
     }
     // The path, not the `{path, type}` object the entity model carries. The
     // backend parses both, so widening it buys nothing today and would only
@@ -102,26 +83,14 @@ fn to_agent(w: &HubWorker, catalog: &[crate::runtime::AgentTemplate]) -> Value {
         // here. Unlabelled, the two coincide and there is nothing to get wrong;
         // labelled, the id is a visible slug of the name.
         "name": w.label.clone().unwrap_or_else(|| w.id.clone()),
-        // What this worker is *for*, when the operator has said. The harness is
-        // how work runs; the role is what work it should get, and only the
-        // second is something the orchestrator can route on. With no roles
-        // chosen this is the harness line it always was — an unspecified worker
-        // stays a general one rather than being described as nothing.
-        "description": if roles.is_empty() {
-            format!("{} daemon", w.harness)
-        } else {
-            roles
-                .iter()
-                .map(|t| t.description.trim())
-                .filter(|d| !d.is_empty())
-                .collect::<Vec<_>>()
-                .join(" · ")
-        },
+        // What this worker is: the harness that runs the work. The role
+        // catalog that used to refine this went with the orchestration engine.
+        "description": format!("{} daemon", w.harness),
         "availability": "online",
-        // `code` is kept whatever else is set: every one of these runs a coding
-        // harness, and dropping it would take a role-tagged worker out of the
-        // fan-outs that ask for code.
-        "tags": role_tags(&roles),
+        // Every one of these runs a coding harness, so `code` is what it is:
+        // dropping the tag would take the worker out of the fan-outs that ask
+        // for code.
+        "tags": ["code"],
         "metadata": metadata,
     });
     // `hostId` goes ONLY on an agent with no workspace. The library's contract
@@ -210,29 +179,12 @@ fn to_hosts(advertised: &[&HubWorker], declared: &[crate::config::LocalHostRef])
     hosts
 }
 
-/// The tag set a worker advertises: `code`, plus each role's own tags.
-///
-/// Deduplicated and ordered, so two roles sharing a tag advertise it once and
-/// the list does not reshuffle between registrations for no reason.
-fn role_tags(roles: &[&crate::runtime::AgentTemplate]) -> Vec<String> {
-    let mut tags = vec!["code".to_string()];
-    for tag in roles.iter().flat_map(|t| t.tags.iter()) {
-        let tag = tag.trim();
-        if !tag.is_empty() && !tags.iter().any(|held| held == tag) {
-            tags.push(tag.to_string());
-        }
-    }
-    tags
-}
-
 /// The roster entry a [`WorkerSpec`](crate::hub::WorkerSpec) describes.
 ///
 /// The one place a spec becomes a live roster row, so the declaration → advert
-/// chain has a single seam: an agent's `roles`, workspace and derived capacity
-/// arrive here from what the operator declared, and `to_agent` turns them into
-/// `metadata`. Before declarations existed this mapping hard-coded empty roles,
-/// which is why a host in this process advertised itself as a general worker
-/// however it was configured.
+/// chain has a single seam: an agent's workspace and derived capacity arrive
+/// here from what the operator declared, and `to_agent` turns them into
+/// `metadata`.
 ///
 /// Lives here rather than beside the hub's boot wiring because it is pure data
 /// translation, and because everything downstream of it is tested here.
@@ -247,7 +199,6 @@ pub(crate) fn worker_from_spec(spec: &crate::hub::WorkerSpec) -> HubWorker {
         // label would put a constant on screen where the id belongs.
         label: (spec.name != "medulla-worker").then(|| spec.name.clone()),
         selected: false,
-        roles: spec.roles.clone(),
         workspace: spec.workspace.clone(),
         // A spec that states no capacity is a remembered roster row or a remote
         // peer, not a declaration; the serial default is the safe reading.
@@ -279,7 +230,6 @@ pub(crate) fn worker_from_spec(spec: &crate::hub::WorkerSpec) -> HubWorker {
 pub(super) fn register_payload(
     workers: &[HubWorker],
     online: &std::collections::HashMap<String, bool>,
-    catalog: &[crate::runtime::AgentTemplate],
     declared_hosts: &[crate::config::LocalHostRef],
 ) -> Value {
     let reachable: Vec<&HubWorker> = workers.iter().filter(|w| is_reachable(w, online)).collect();
@@ -287,7 +237,7 @@ pub(super) fn register_payload(
     let mut payload = json!({
         "agents": reachable
             .iter()
-            .map(|w| to_agent(w, catalog))
+            .map(|w| to_agent(w))
             .collect::<Vec<_>>()
     });
     // Omitted rather than sent empty. `hosts: []` is a key that says nothing —
@@ -419,88 +369,6 @@ pub(super) fn remove_conflicting(
     removed_ids
 }
 
-/// Choose a worker id from captured capacity details.
-///
-/// Manual routing deliberately returns `None`: preserving the current selection
-/// is an action in itself, not an automatic re-selection.
-pub(super) fn worker_for_strategy(
-    workers: &[HubWorker],
-    details: &HashMap<String, crate::protocol::WorkerSystemInfo>,
-    strategy: crate::runtime::RoutingStrategy,
-) -> Option<String> {
-    use crate::runtime::RoutingStrategy;
-
-    if strategy == RoutingStrategy::Manual {
-        return None;
-    }
-    workers
-        .iter()
-        .filter_map(|worker| {
-            let info = details.get(&worker.id)?;
-            let memory = info.memory_available_bytes.unwrap_or(0);
-            let key = match strategy {
-                RoutingStrategy::Balanced => (info.cpu_cores as u64, memory),
-                RoutingStrategy::CpuFirst => (info.cpu_cores as u64, 0),
-                RoutingStrategy::MemoryFirst => (memory, info.cpu_cores as u64),
-                RoutingStrategy::Manual => unreachable!("handled above"),
-            };
-            Some((key, worker.id.clone()))
-        })
-        .max_by_key(|(key, _)| *key)
-        .map(|(_, id)| id)
-}
-
-/// Choose a ready provider subscription from advertised budget headroom.
-///
-/// Manual routing returns `None`, preserving an explicit task hint or the
-/// daemon's configured default. Automatic strategies also return `None` when no
-/// provider reports remaining tokens, keeping budget metadata advisory and
-/// fail-open rather than blocking a valid host default.
-pub(super) fn subscription_for_strategy(
-    capabilities: &crate::protocol::AgentCapabilities,
-    strategy: crate::runtime::SubscriptionRoutingStrategy,
-) -> Option<crate::protocol::HarnessProvider> {
-    use crate::runtime::SubscriptionRoutingStrategy;
-
-    if strategy == SubscriptionRoutingStrategy::Manual {
-        return None;
-    }
-    capabilities
-        .providers
-        .iter()
-        .enumerate()
-        .filter(|(_, provider)| {
-            capabilities
-                .readiness
-                .iter()
-                .find(|readiness| readiness.provider == **provider)
-                .map(|readiness| readiness.ready)
-                .unwrap_or(true)
-        })
-        .filter_map(|(index, provider)| {
-            let budget = capabilities
-                .budgets
-                .iter()
-                .find(|budget| budget.provider == *provider)?;
-            let remaining = budget.remaining_tokens?.max(0);
-            let ratio = match budget.limit_tokens {
-                Some(limit) if limit > 0 => i128::from(remaining) * 1_000_000 / i128::from(limit),
-                _ => 0,
-            };
-            let preference = usize::MAX - index;
-            let key = match strategy {
-                SubscriptionRoutingStrategy::Balanced => (ratio, i128::from(remaining), preference),
-                SubscriptionRoutingStrategy::MostAvailableBudget => {
-                    (i128::from(remaining), ratio, preference)
-                }
-                SubscriptionRoutingStrategy::Manual => unreachable!("handled above"),
-            };
-            Some((key, *provider))
-        })
-        .max_by_key(|(key, _)| *key)
-        .map(|(_, provider)| provider)
-}
-
 /// A short, stable, human-scale id for a worker.
 ///
 /// The id is what the orchestrator must reproduce to address this worker: it is
@@ -550,4 +418,4 @@ fn slug(text: &str) -> String {
 
 mod types;
 pub use types::SharedRoster;
-pub use types::{HubWorker, SharedLocalHosts, SharedSubscriptionStrategy};
+pub use types::{HubWorker, SharedLocalHosts};

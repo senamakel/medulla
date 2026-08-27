@@ -1,6 +1,6 @@
 //! Project the local peer registry onto the containment chain.
 //!
-//! The registry — what `Runtime::workers()` returns, and what the Hosts page
+//! The registry — what `Runtime::workers()` returns, and what the rail
 //! manages — predates the chain and keeps the wire's old name. What it holds is
 //! the host level: a machine, reachable over the host link, advertising the agent
 //! CLI runtimes it has, the cores and memory it runs on, and the token budgets

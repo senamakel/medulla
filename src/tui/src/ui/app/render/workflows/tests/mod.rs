@@ -136,15 +136,6 @@ fn render_sized(app: &mut App, width: u16, height: u16) -> String {
 #[test]
 fn workflows_is_a_top_level_tab() {
     assert!(TABS.contains(&"Workflows"));
-    assert!(
-        !medulla_tui_routing_subpages().contains(&"Workflows"),
-        "it moved out of Routing rather than being listed in both"
-    );
-}
-
-/// The Routing subpages, for the test above.
-fn medulla_tui_routing_subpages() -> &'static [&'static str] {
-    &super::super::super::types::ROUTING_SUBPAGES
 }
 
 #[test]

@@ -77,7 +77,7 @@ pub struct GroupRailRow {
 /// workspace accessors went with that row.
 ///
 /// Sourced from the shared `Host → Agent` projection
-/// ([`medulla::ui::hosts::host_rows`]), which is the same tree the Hosts tab
+/// ([`medulla::ui::hosts::host_rows`]), which is the same tree [`App::host_tree`]
 /// renders: an agent exists because it is declared (or because the roster
 /// advertises it), never because traffic happened to fold a lane for it. A lane
 /// the fold produced for an agent that projection does not know (a backend-side

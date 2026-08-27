@@ -597,22 +597,17 @@ fn sustained_failure_reports_stalled() {
 }
 
 #[test]
-fn the_roster_mapping_carries_a_workers_roles_to_the_ui() {
-    // The Hosts preview reads roles off `WorkerInfo`, and a worker that reaches
-    // it roleless is indistinguishable from one the operator never assigned —
-    // so a dropped field here reads as "the toggles do nothing", not as a bug.
+fn the_roster_mapping_carries_a_workers_handle_to_the_ui() {
     let worker = crate::hub::HubWorker {
         id: "w1".into(),
         address: "@w1".into(),
         harness: "claude".into(),
         label: None,
         selected: false,
-        roles: vec!["code-reviewer".into(), "test-writer".into()],
         workspace: Some(crate::runtime::WorkspaceRef::checkout("/work")),
         ..Default::default()
     };
 
     let info = super::worker_ops::hub_worker_to_info(worker, None);
-    assert_eq!(info.roles, vec!["code-reviewer", "test-writer"]);
     assert_eq!(info.handle.as_deref(), Some("@w1"));
 }

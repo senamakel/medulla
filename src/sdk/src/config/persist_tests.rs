@@ -255,27 +255,6 @@ fn persist_section_replaces_a_complete_json_section_and_preserves_others() {
 }
 
 #[test]
-fn subscription_routing_strategy_persists_without_clobbering_host_strategy() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("config.toml");
-    std::fs::write(
-        &path,
-        "routingStrategy = \"cpuFirst\"\n[onboarding]\nwelcomeCompleted = true\n",
-    )
-    .unwrap();
-
-    super::persist_subscription_routing_strategy(&path, "mostAvailableBudget").unwrap();
-
-    let saved = std::fs::read_to_string(path).unwrap();
-    assert!(saved.contains("routingStrategy = \"cpuFirst\""), "{saved}");
-    assert!(
-        saved.contains("subscriptionRoutingStrategy = \"mostAvailableBudget\""),
-        "{saved}"
-    );
-    assert!(saved.contains("welcomeCompleted = true"), "{saved}");
-}
-
-#[test]
 fn persist_section_replaces_only_the_named_table() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("config.toml");
@@ -329,7 +308,6 @@ fn the_hub_roster_round_trips_through_the_config_file() {
 
     let workers = vec![
         crate::config::HubWorkerConfig {
-            roles: Vec::new(),
             id: "alpha".into(),
             address: "3Hob1FxUwsy1K2rweppbmCkuPef6unAr5Amj6kQ2fM3A".into(),
             harness: "claude".into(),
@@ -337,7 +315,6 @@ fn the_hub_roster_round_trips_through_the_config_file() {
             selected: true,
         },
         crate::config::HubWorkerConfig {
-            roles: Vec::new(),
             id: "beta".into(),
             address: "@someone".into(),
             harness: "codex".into(),
@@ -368,7 +345,6 @@ fn removing_the_last_worker_is_remembered_as_removal() {
     super::persist_hub_workers(
         &path,
         &[crate::config::HubWorkerConfig {
-            roles: Vec::new(),
             id: "alpha".into(),
             address: "addr".into(),
             harness: "claude".into(),

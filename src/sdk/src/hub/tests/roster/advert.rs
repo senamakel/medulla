@@ -5,7 +5,7 @@ use super::helpers::{no_presence, worker};
 
 #[test]
 fn register_payload_advertises_id_address_and_harness() {
-    let payload = register_payload(&[worker("w1", "GRVaddr")], &no_presence(), &[], &[]);
+    let payload = register_payload(&[worker("w1", "GRVaddr")], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert_eq!(agents.len(), 1);
     assert_eq!(agents[0]["id"], "w1");
@@ -21,7 +21,7 @@ fn register_payload_advertises_id_address_and_harness() {
 fn register_payload_advertises_a_known_workspace() {
     let mut w = worker("this-device", "this-device");
     w.workspace = Some(crate::runtime::WorkspaceRef::checkout("/srv/repos/medulla"));
-    let payload = register_payload(&[w], &no_presence(), &[], &[]);
+    let payload = register_payload(&[w], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert_eq!(agents[0]["metadata"]["workspace"], "/srv/repos/medulla");
 }
@@ -31,13 +31,13 @@ fn register_payload_advertises_a_known_workspace() {
 /// win that fallback and place the agent nowhere.
 #[test]
 fn register_payload_omits_an_unknown_or_blank_workspace() {
-    let payload = register_payload(&[worker("w1", "GRVaddr")], &no_presence(), &[], &[]);
+    let payload = register_payload(&[worker("w1", "GRVaddr")], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert!(agents[0]["metadata"].get("workspace").is_none());
 
     let mut blank = worker("w2", "ADDR2");
     blank.workspace = Some(crate::runtime::WorkspaceRef::checkout("   "));
-    let payload = register_payload(&[blank], &no_presence(), &[], &[]);
+    let payload = register_payload(&[blank], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert!(agents[0]["metadata"].get("workspace").is_none());
 }
@@ -83,7 +83,7 @@ fn an_advertised_worker_is_online_so_it_can_be_auto_assigned() {
     // availability is exactly "online". Advertising a blank one excluded this
     // hub's workers from every fan-out, and rendered as an empty column in
     // agent_list — which reads as a broken row, not an idle worker.
-    let payload = register_payload(&[worker("w1", "GRVaddr")], &no_presence(), &[], &[]);
+    let payload = register_payload(&[worker("w1", "GRVaddr")], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert_eq!(agents[0]["availability"], "online");
 }

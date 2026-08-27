@@ -46,7 +46,6 @@ fn sections(app: &App) -> Vec<(Option<String>, Vec<String>)> {
                     label: declaration.agent_id.clone(),
                     harness: Some(declaration.harness.clone()),
                     workspace: Some(declaration.workspace.path.clone()),
-                    roles: Vec::new(),
                     max_sessions: None,
                     declared: true,
                     editable: true,

@@ -4,7 +4,6 @@ use crate::ui::agents::TaskState;
 use crate::ui::clipboard::{copy_for_operator, copy_to_clipboard, current_platform};
 use crate::ui::command::{self, CopyScope};
 use crate::ui::composer::Draft;
-use medulla::runtime::WorkerOp;
 
 use super::super::types::{tab_pos, App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES};
 
@@ -90,42 +89,8 @@ impl App {
                 self.submit_changes_comment(&path, anchor, &text);
                 None
             }
-            PromptKind::HostAdd => match WorkerOp::parse_add(&text) {
-                Some(op) => {
-                    // Land on the list the add is about. Staying on Add Host
-                    // leaves the operator on a page describing work they have
-                    // just finished, with no sight of whether it landed.
-                    self.focus_routing_subpage("Hosts");
-                    self.set_status("Adding worker…");
-                    Some(Cmd::WorkerOp(op))
-                }
-                None => {
-                    self.set_status("Add cancelled (empty)");
-                    None
-                }
-            },
-            PromptKind::WorkspaceAdd => {
-                self.add_workspace(&text);
-                None
-            }
             PromptKind::FavoriteWorkspaceAdd(workspace) => {
                 self.save_favorite_workspace(&text, &workspace);
-                None
-            }
-            PromptKind::CustomHarnessAdd => {
-                self.save_custom_harness(None, &text);
-                None
-            }
-            PromptKind::CustomHarnessEdit(id) => {
-                self.save_custom_harness(Some(&id), &text);
-                None
-            }
-            PromptKind::HookAdd => {
-                self.save_hook(None, &text);
-                None
-            }
-            PromptKind::HookEdit(index) => {
-                self.save_hook(Some(index), &text);
                 None
             }
             PromptKind::RejectProposal {
@@ -142,20 +107,6 @@ impl App {
                     proposal_id,
                     reason: text,
                 })
-            }
-            PromptKind::HostEditLabel(id) => {
-                let mut patch = serde_json::Map::new();
-                patch.insert("label".into(), serde_json::Value::String(text.clone()));
-                // Set first so the persist can overrule it: renaming has two
-                // outcomes worth more than "Updating label…" — a write that
-                // failed, and an install with no config file, where the new name
-                // lasts one run and the operator has to be told so.
-                self.set_status("Updating label…");
-                // The roster label is this run's; the declaration's name is the
-                // one that comes back after a restart, so an agent this machine
-                // declared is renamed in both places or the edit half-survives.
-                self.persist_agent_name(&id, &text);
-                Some(Cmd::WorkerOp(WorkerOp::Update { id, patch }))
             }
             PromptKind::AnswerQuestion {
                 cycle_id,
@@ -396,55 +347,6 @@ impl App {
         // would strand the next arrow key on whatever page you just left.
         self.settings_focused = false;
         self.tab_enter_cmd()
-    }
-
-    /// Persist the operator's routing strategy to config and remember it on the
-    /// loaded config, so the selection survives a restart and reloads highlighted.
-    ///
-    /// Mirrors the theme editor: a `None` config path applies live (the strategy is
-    /// still sent to the runtime) but is not written to disk.
-    pub(in crate::ui::app) fn persist_routing_strategy_now(
-        &mut self,
-        strategy: medulla::runtime::RoutingStrategy,
-    ) {
-        self.loaded.config.routing_strategy = Some(strategy);
-        match &self.config_path {
-            Some(path) => {
-                match medulla::config::persist_routing_strategy(path, strategy.as_wire()) {
-                    Ok(()) => {
-                        self.set_status(format!("Applying {strategy:?} routing strategy… (saved)"))
-                    }
-                    Err(e) => self.set_status(format!("Routing strategy save failed: {e}")),
-                }
-            }
-            None => self.set_status(format!(
-                "Applying {strategy:?} routing strategy… (not persisted)"
-            )),
-        }
-    }
-
-    /// Persist and remember the provider-subscription routing strategy.
-    pub(in crate::ui::app) fn persist_subscription_strategy_now(
-        &mut self,
-        strategy: medulla::runtime::SubscriptionRoutingStrategy,
-    ) {
-        self.loaded.config.subscription_routing_strategy = Some(strategy);
-        match &self.config_path {
-            Some(path) => {
-                match medulla::config::persist_subscription_routing_strategy(
-                    path,
-                    strategy.as_wire(),
-                ) {
-                    Ok(()) => self.set_status(format!(
-                        "Applying {strategy:?} subscription strategy… (saved)"
-                    )),
-                    Err(e) => self.set_status(format!("Subscription strategy save failed: {e}")),
-                }
-            }
-            None => self.set_status(format!(
-                "Applying {strategy:?} subscription strategy… (not persisted)"
-            )),
-        }
     }
 }
 

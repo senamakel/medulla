@@ -431,33 +431,6 @@ impl MedullaClient {
         convert(self.sdk.medulla().abort_session(session_id).await?)
     }
 
-    /// Read the backend's configured worker routing strategy
-    /// (`GET /medulla/v1/routing/strategy`).
-    ///
-    /// Returns `None` when the backend has no strategy configured or the value is
-    /// unrecognized, so an absent/garbled strategy degrades to "no backend
-    /// preference" rather than an error — the operator's local config still wins.
-    pub async fn get_routing_strategy(&self) -> Result<Option<crate::runtime::RoutingStrategy>> {
-        let value = self.sdk.medulla().routing_strategy().await?;
-        Ok(value
-            .strategy
-            .as_deref()
-            .and_then(crate::runtime::RoutingStrategy::from_wire))
-    }
-
-    /// Persist the operator's worker routing strategy to the backend
-    /// (`PUT /medulla/v1/routing/strategy`) as `{ "strategy": <camelCase> }`.
-    pub async fn set_routing_strategy(
-        &self,
-        strategy: crate::runtime::RoutingStrategy,
-    ) -> Result<()> {
-        self.sdk
-            .medulla()
-            .set_routing_strategy(strategy.as_wire())
-            .await?;
-        Ok(())
-    }
-
     /// Read the connected worker roster (`GET /medulla/v1/roster`).
     pub async fn roster(&self) -> Result<Vec<RosterWorker>> {
         convert(self.sdk.medulla().roster().await?)

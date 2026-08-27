@@ -177,7 +177,7 @@ fn agent_harness(agent: &AgentGroup) -> String {
 /// Alphabetical for the orders that are about identity, most-recently-active
 /// first for the one that is about activity. Host sections are left in the
 /// projection's order whatever the sort: that order is the tree's, shared with
-/// the Hosts tab, and the two lenses are meant to list hosts the same way.
+/// the host projection, so both lenses list hosts the same way.
 fn order_sections(sections: &mut [Section], sort: SidebarSort) {
     if sections
         .iter()

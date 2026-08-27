@@ -82,7 +82,6 @@ fn specs_from(
                 ),
                 harness: declaration.harness.clone(),
                 workspace: Some(workspace),
-                roles: declaration.roles.clone(),
                 max_sessions: declaration.max_sessions(),
             }
         })

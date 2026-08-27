@@ -25,4 +25,3 @@ pub mod util;
 pub mod work;
 #[cfg(feature = "workflows")]
 pub mod workflows;
-pub mod workspaces;

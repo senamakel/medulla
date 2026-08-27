@@ -255,7 +255,9 @@ impl WorkerApp {
                 let _ = std::io::stdout().flush();
             },
         );
-        self.set_status("Copied this worker's address — paste it into Routing › Add Host");
+        self.set_status(
+            "Copied this worker's address — add it as a [[link.peers]] entry in the orchestrator's config.toml",
+        );
     }
 
     /// Whether this worker runs tasks headlessly.

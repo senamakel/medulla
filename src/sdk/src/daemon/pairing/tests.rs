@@ -27,7 +27,7 @@ fn the_banner_puts_the_address_on_a_line_of_its_own() {
         banner.lines().any(|l| l.trim() == "abc123"),
         "the address must be selectable on its own line: {banner}"
     );
-    assert!(banner.contains("Routing › Add Host"), "{banner}");
+    assert!(banner.contains("[[link.peers]]"), "{banner}");
 }
 
 #[test]

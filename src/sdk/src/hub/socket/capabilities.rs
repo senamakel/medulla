@@ -30,7 +30,6 @@ pub(super) async fn handle_capabilities(
     payload: Payload,
     socket: Client,
     roster: SharedRoster,
-    catalog: Arc<Vec<crate::runtime::AgentTemplate>>,
     runner: Arc<TaskRunner>,
 ) {
     let Some(obj) = first_obj(payload) else {
@@ -52,11 +51,10 @@ pub(super) async fn handle_capabilities(
         };
         found.cloned()
     };
-    let (harness, address, roles) = match &worker {
-        Some(w) => (w.harness.clone(), Some(w.address.clone()), w.roles.clone()),
-        None => (String::new(), None, Vec::new()),
+    let (harness, address) = match &worker {
+        Some(w) => (w.harness.clone(), Some(w.address.clone())),
+        None => (String::new(), None),
     };
-    let allowed_tools = super::super::probe::role_tool_allowlist(&roles, &catalog);
     // Ask the worker what it can actually do, and answer with that. Fails open:
     // a transport error, timeout, or malformed reply leaves only the static
     // facts the roster already knows. See [`super::super::probe`].
@@ -64,12 +62,7 @@ pub(super) async fn handle_capabilities(
         Some(address) => runner.capabilities(&address).await.ok(),
         None => None,
     };
-    let capabilities = super::super::probe::capabilities_payload(
-        &harness,
-        caps.as_ref(),
-        allowed_tools.as_deref(),
-        &roles,
-    );
+    let capabilities = super::super::probe::capabilities_payload(&harness, caps.as_ref(), None);
     let _ = socket
         .emit(
             "medulla:capabilities_result",

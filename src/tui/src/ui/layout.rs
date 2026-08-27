@@ -5,6 +5,7 @@
 //! memory, and daemon overlays.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::text::Line;
 
 /// Center a fixed-size rectangle inside `area`, clamping it to the available
 /// terminal dimensions.
@@ -53,6 +54,30 @@ pub(crate) fn centered_percent(area: Rect, width_percent: u16, height_percent: u
             Constraint::Percentage((100 - width) / 2),
         ])
         .split(vertical[1])[1]
+}
+
+/// The panel width that fits `lines`: the widest row plus both borders, held
+/// wide enough for the `" login "` title and never wider than the terminal.
+pub(crate) fn panel_width(lines: &[Line<'_>], screen_width: u16) -> u16 {
+    const TITLE: u16 = 11;
+    const BORDERS: u16 = 2;
+    let widest = lines.iter().map(Line::width).max().unwrap_or(0) as u16;
+    widest
+        .saturating_add(BORDERS)
+        .max(TITLE)
+        .min(screen_width.max(1))
+}
+
+/// The panel height that fits `lines` at `width`, counting the extra rows a
+/// too-long line costs once [`Wrap`] has folded it.
+pub(crate) fn panel_height(lines: &[Line<'_>], width: u16, screen_height: u16) -> u16 {
+    const BORDERS: u16 = 2;
+    let inner = width.saturating_sub(BORDERS).max(1);
+    let rows: u16 = lines
+        .iter()
+        .map(|line| ((line.width() as u16).div_ceil(inner)).max(1))
+        .sum();
+    rows.saturating_add(BORDERS).min(screen_height.max(1))
 }
 
 #[cfg(test)]

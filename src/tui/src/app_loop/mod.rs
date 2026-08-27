@@ -336,6 +336,16 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
 
     // `mut` because a relogin rebuilds it around a fresh client.
     let mut runtime = runtime.expect("a runtime is always selected");
+
+    // Entitlement gate. Placed here because this is where both boot paths meet —
+    // the launch that found a stored session and the one that just signed in —
+    // so the check runs on *every* launch rather than only after a login. `None`
+    // means the refusal screen already ran; `guard` restores the terminal the
+    // same way as every other early return here, by going out of scope.
+    let Some(note) = crate::access_gate::run(&mut terminal, session.as_ref()).await? else {
+        return Ok(());
+    };
+    startup_status = startup_status.or(note);
     // Set when a relogin lands on a different account than this process runs as.
     // Reported after the terminal is restored, not while the app owns the screen.
     let mut account_switched: Option<Option<String>> = None;
@@ -580,9 +590,6 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         Some(local_dispatch.clone()),
         session.as_ref(),
         crate::hub_relay::StartupConfig {
-            // The roles a worker can be toggled on for. Read from the same
-            // layered config the Agent Templates page shows.
-            agent_templates: loaded.config.fleet.agent_templates.clone(),
             link: link_service
                 .as_ref()
                 .map(|service| crate::hub_relay::ResolvedLink {

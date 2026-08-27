@@ -283,7 +283,6 @@ fn the_host_tree_keeps_a_second_declared_host() {
         memory_available_bytes: None,
         ip_address: None,
         selected: false,
-        roles: Vec::new(),
         budgets: Vec::new(),
         readiness: Vec::new(),
     }]);

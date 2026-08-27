@@ -33,5 +33,6 @@ pub mod screen;
 pub(crate) mod selection;
 pub mod subscriptions;
 pub mod theme;
+pub mod upgrade;
 pub mod welcome;
 pub(crate) mod widgets;

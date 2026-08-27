@@ -220,7 +220,7 @@ impl ToolFamilies {
 /// model has no use for and should not have to reason about.
 ///
 /// Every optional field is `default` as well as `skip_serializing_if`, so this
-/// round-trips its own output. Without that a worker with no roles serializes to
+/// round-trips its own output. Without that a worker with no label serializes to
 /// a document this same type refuses to read, which is invisible until something
 /// deserializes a roster back — as [`crate::workflows::mcp`]'s run inspection
 /// does — and then fails on the ordinary case rather than an exotic one.
@@ -236,9 +236,6 @@ pub struct FleetWorker {
     /// A human label, when the operator set one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
-    /// Agent-template ids this worker is offered for. Empty means unspecified.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub roles: Vec<String>,
     /// The directory it runs tasks in, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,

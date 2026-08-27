@@ -8,7 +8,7 @@ mod session_access;
 use super::*;
 use std::sync::Arc;
 
-use super::types::{PaneView, RP_HARNESSES};
+use super::types::PaneView;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
@@ -88,46 +88,6 @@ fn drawing_an_intervening_tab_preserves_the_harness_selected_for_changes() {
         Some("older-harness"),
         "tab navigation must not discard the Changes repository selection"
     );
-}
-
-#[test]
-fn harnesses_page_renders_custom_openrouter_presets_and_editor_controls() {
-    let mut a = app();
-    a.tab_index = tab("Hosts");
-    a.routing_index = RP_HARNESSES;
-    a.routing_focused = true;
-    a.credential_status.openrouter_api_key = true;
-    a.custom_harnesses = vec![medulla::config::CustomHarnessConfig::from_editor_line(
-        "deepseek | DeepSeek via Claude | claude | deepseek/deepseek-chat | | this-device",
-    )
-    .expect("valid custom harness")];
-
-    let out = render(&mut a);
-
-    assert!(out.contains("Custom OpenRouter harnesses"));
-    assert!(out.contains("DeepSeek via Claude"));
-    assert!(out.contains("key connected"));
-    assert!(out.contains("a add"));
-    assert!(out.contains("e edit"));
-    assert!(!out.contains("sk-or-"));
-}
-
-#[test]
-fn harnesses_page_marks_openhuman_presets_as_embedded_without_a_router_key() {
-    let mut a = app();
-    a.tab_index = tab("Hosts");
-    a.routing_index = RP_HARNESSES;
-    a.routing_focused = true;
-    a.custom_harnesses = vec![medulla::config::CustomHarnessConfig::from_editor_line(
-        "openhuman | OpenHuman | openhuman | some/model | | this-device",
-    )
-    .expect("valid OpenHuman custom harness")];
-
-    let out = render(&mut a);
-
-    assert!(out.contains("OpenHuman"));
-    assert!(out.contains("embedded core"));
-    assert!(!out.contains("key missing"));
 }
 
 #[test]
@@ -400,49 +360,6 @@ fn the_wheel_scrolls_the_workflow_preview_only_when_the_pointer_is_over_it() {
 
     a.scroll_at(50, 15, true);
     assert_eq!(a.wf.preview_scroll, 0);
-}
-
-#[test]
-fn routing_strategies_render_host_and_subscription_groups() {
-    let mut a = app();
-    a.tab_index = tab("Hosts");
-    a.routing_index = types::RP_STRATEGIES;
-    a.routing_focused = true;
-
-    let out = render(&mut a);
-    assert!(out.contains("Host strategy"), "{out}");
-    assert!(out.contains("CPU First"), "{out}");
-    assert!(out.contains("Subscription strategy"), "{out}");
-    assert!(out.contains("Most Available Budget"), "{out}");
-}
-
-#[test]
-fn subscription_strategy_navigation_persists_and_emits_its_own_operation() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut a = app();
-    a.set_config_path(dir.path().join("config.toml"));
-    a.tab_index = tab("Hosts");
-    a.routing_index = types::RP_STRATEGIES;
-    a.routing_focused = true;
-
-    a.on_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-    a.on_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-    a.on_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-    let cmd = a.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-
-    assert!(matches!(
-        cmd,
-        Some(Cmd::WorkerOp(
-            medulla::runtime::WorkerOp::ApplySubscriptionStrategy {
-                strategy: medulla::runtime::SubscriptionRoutingStrategy::MostAvailableBudget
-            }
-        ))
-    ));
-    let saved = std::fs::read_to_string(dir.path().join("config.toml")).unwrap();
-    assert!(
-        saved.contains("subscriptionRoutingStrategy = \"mostAvailableBudget\""),
-        "{saved}"
-    );
 }
 
 // --- screen subscriptions follow the selection -----------------------------

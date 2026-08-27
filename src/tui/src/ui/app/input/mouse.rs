@@ -7,9 +7,7 @@
 
 use crossterm::event::{MouseButton, MouseEventKind};
 
-use super::super::types::{
-    App, Cmd, PointerGrab, ROUTING_SUBPAGES, SETTINGS_SUBPAGES, TOKENMAXXING_SUBPAGES,
-};
+use super::super::types::{App, Cmd, PointerGrab, SETTINGS_SUBPAGES, TOKENMAXXING_SUBPAGES};
 
 /// Rows one wheel notch moves, matching the transcript's own step so the two
 /// panes feel like one surface. Only used for a harness we scroll ourselves —
@@ -437,7 +435,6 @@ impl App {
                 self.tokenmaxxing_index =
                     step(self.tokenmaxxing_index, TOKENMAXXING_SUBPAGES.len());
             }
-            "Hosts" => self.routing_index = step(self.routing_index, ROUTING_SUBPAGES.len()),
             "Settings" => self.settings_index = step(self.settings_index, SETTINGS_SUBPAGES.len()),
             _ => {}
         }
@@ -484,7 +481,6 @@ impl App {
                 "TokenMaxxxing" => {
                     (self.tokenmaxxing_index, self.tokenmaxxing_focused) = (page, true);
                 }
-                "Hosts" => (self.routing_index, self.routing_focused) = (page, true),
                 "Settings" => (self.settings_index, self.settings_focused) = (page, true),
                 _ => {}
             }

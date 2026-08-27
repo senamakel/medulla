@@ -48,7 +48,6 @@ fn only_checkout_is_selectable_in_v1() {
 fn a_declaration_round_trips_through_its_serialized_form() {
     let mut declaration = AgentDeclaration::new("api-codex", "this-device", "codex", "/srv/api");
     declaration.name = Some("API".to_string());
-    declaration.roles = vec!["reviewer".to_string()];
     declaration.strategy = WorkspaceStrategy::Worktree;
     declaration.workspace.kind = "worktree".to_string();
 
@@ -73,7 +72,6 @@ fn a_minimal_declaration_defaults_to_a_checkout() {
             .unwrap();
     assert_eq!(parsed.strategy, WorkspaceStrategy::Checkout);
     assert_eq!(parsed.workspace.kind, WORKSPACE_TYPE_CHECKOUT);
-    assert!(parsed.roles.is_empty());
     assert_eq!(parsed.name, None);
     assert_eq!(parsed.max_sessions(), 1);
 }
@@ -98,7 +96,6 @@ fn seeding_gives_the_default_harness_the_hosts_own_id() {
     assert_eq!(seeded[0].workspace.path, "/repo");
     assert_eq!(seeded[0].workspace.kind, WORKSPACE_TYPE_CHECKOUT);
     assert_eq!(seeded[0].strategy, WorkspaceStrategy::Checkout);
-    assert!(seeded[0].roles.is_empty());
     assert_eq!(
         seeded[0].name, None,
         "a seed names nothing the operator did not"

@@ -118,7 +118,6 @@ fn each_tab_renders_its_signature() {
         ("Sessions", "Sessions ·"),
         ("Workflows", "Workflows"),
         ("Subconscious", "Signal field · demo"),
-        ("Hosts", "Hosts"),
         ("Settings", "Settings"),
     ];
     for (name, sig) in signatures {
