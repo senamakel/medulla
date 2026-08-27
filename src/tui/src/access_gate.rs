@@ -83,6 +83,29 @@ pub(crate) async fn check(
     }
 }
 
+/// Run [`check`] and fold its outcome into the caller's boot sequence.
+///
+/// `None` means the caller should return immediately: the refusal screen has
+/// already run, and the terminal guard the caller still holds restores it the
+/// same way every other early return in [`crate::app_loop::run_tui`] does, by
+/// going out of scope. `Some` carries the startup note to show, when the grant
+/// is one worth mentioning.
+///
+/// A missing `session` — the `--mock` demo, which never reaches a backend — is
+/// not asked at all, since there is nothing to bill.
+pub(crate) async fn run(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    session: Option<&medulla::auth::Credentials>,
+) -> anyhow::Result<Option<Option<String>>> {
+    let Some(session) = session else {
+        return Ok(Some(None));
+    };
+    match check(terminal, session).await? {
+        Gate::Allowed(note) => Ok(Some(note)),
+        Gate::Refused => Ok(None),
+    }
+}
+
 /// The best "who am I" line available without a backend to ask.
 ///
 /// `/auth/me` is what normally phrases this, so when that is the call that
