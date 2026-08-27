@@ -177,9 +177,15 @@ fn state(display: ResourceDisplay, reading: Option<&MeterReading>, now: i64) -> 
         parts.push(format!("{:.0}% used", fraction * 100.0));
     }
     if let Some(remaining) = reading.remaining {
+        let money = |value| match reading.currency.as_deref().unwrap_or("USD") {
+            "USD" => format!("${value:.2}"),
+            "EUR" => format!("€{value:.2}"),
+            "GBP" => format!("£{value:.2}"),
+            code => format!("{code} {value:.2}"),
+        };
         parts.push(match reading.limit {
-            Some(limit) => format!("${remaining:.2} of ${limit:.2} left"),
-            None => format!("${remaining:.2} left"),
+            Some(limit) => format!("{} of {} left", money(remaining), money(limit)),
+            None => format!("{} left", money(remaining)),
         });
     }
     if let Some(resets_at) = reading.resets_at {
