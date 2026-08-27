@@ -37,6 +37,8 @@ impl FoldState {
             workspace_context,
             gh_repo_is_set,
             on_workspace_context,
+            error: None,
+            last_retried_error: None,
         }
     }
 
