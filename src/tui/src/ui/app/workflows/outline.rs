@@ -142,6 +142,7 @@ impl App {
         };
         if next != current {
             self.wf.node_index = rows[next].node;
+            self.wf.outline_row = next;
             self.wf.preview_scroll = 0;
             self.scroll_outline_to_cursor();
         }
