@@ -149,9 +149,25 @@ impl App {
         }
     }
 
-    /// Appearance: pick an option and cycle its color, mode, or toggle.
+    /// Appearance: switch between the two tabs, pick a row, and cycle its
+    /// value.
+    ///
+    /// `Tab` is claimed only while the page is drawn as two tabs. Once the pane
+    /// is wide enough to show the switches beside the preview there is nothing
+    /// to switch, so the key goes back to the global tab cycler. `BackTab` is
+    /// never claimed, so that cycler is reachable either way.
     fn appearance_key(&mut self, code: KeyCode) -> SettingsKey {
         match code {
+            KeyCode::Tab if !self.appearance_split => {
+                self.appearance_preview = !self.appearance_preview;
+                let tab = if self.appearance_preview {
+                    "Preview"
+                } else {
+                    "Switches"
+                };
+                self.set_status(format!("Appearance · {tab} · Tab to switch"));
+                SettingsKey::handled(None)
+            }
             KeyCode::Char('j') | KeyCode::Char('k') => {
                 let up = matches!(code, KeyCode::Char('k'));
                 self.appearance_index = if up {
@@ -169,10 +185,25 @@ impl App {
         }
     }
 
-    /// Status line: pick a harness-row field and cycle where it sits or how it
-    /// is spelled. Every change redraws the preview on the same page.
+    /// Status line: switch between the two tabs, pick a harness-row field, and
+    /// cycle where it sits or how it is spelled.
+    ///
+    /// `Tab` is claimed only while the page is drawn as two tabs. Once the pane
+    /// is wide enough to show the switches beside the preview there is nothing
+    /// to switch, so the key goes back to the global tab cycler. `BackTab` is
+    /// never claimed, so that cycler is reachable either way.
     fn status_line_key(&mut self, code: KeyCode) -> SettingsKey {
         match code {
+            KeyCode::Tab if !self.status_line_split => {
+                self.status_line_preview = !self.status_line_preview;
+                let tab = if self.status_line_preview {
+                    "Preview"
+                } else {
+                    "Switches"
+                };
+                self.set_status(format!("Status line · {tab} · Tab to switch"));
+                SettingsKey::handled(None)
+            }
             KeyCode::Char('j') | KeyCode::Char('k') => {
                 self.move_status_line_index(matches!(code, KeyCode::Char('k')));
                 SettingsKey::handled(None)

@@ -2,7 +2,7 @@
 
 use ratatui::text::Line;
 
-use super::footer::rendered_height;
+use super::super::rendered_height;
 
 #[test]
 fn footer_height_accounts_for_wrapped_detail_lines() {

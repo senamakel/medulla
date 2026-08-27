@@ -158,7 +158,10 @@ fn the_tab_is_a_sidebar_beside_one_content_pane() {
 fn canvas_navigation_uses_the_split_graph_panes_measured_height() {
     let (_home, mut app) = app_with(&[fanout("parallel")], &[]);
 
-    render_sized(&mut app, 140, 34);
+    // Short enough that eight parallel lanes cannot all be on screen: the point
+    // of the test is that navigation scrolls by what the *graph pane* measured,
+    // and a pane tall enough for the whole fanout never has to scroll at all.
+    render_sized(&mut app, 140, 16);
     let measured_rows = app.visible_rows();
     assert_eq!(measured_rows, app.wf.graph_rows.max(1));
 
@@ -186,17 +189,25 @@ fn each_view_takes_the_content_pane_in_turn() {
 
     app.wf.inspector_open = true;
     let inspector = render(&mut app);
-    assert!(inspector.contains("trigger_kind"), "{inspector}");
+    assert!(inspector.contains("i back to the graph"), "{inspector}");
     assert!(!inspector.contains("▶ Start"), "one view at a time");
 
     // The copilot wins over the inspector: it is the one you step into.
     app.wf.focus = WorkflowFocus::Copilot;
     let copilot = render(&mut app);
     assert!(copilot.contains("Copilot"), "{copilot}");
-    assert!(!copilot.contains("trigger_kind"), "one view at a time");
+    assert!(
+        !copilot.contains("i back to the graph"),
+        "one view at a time"
+    );
 
-    // The sidebar is present throughout — it is how you get back.
-    assert!(copilot.contains("Workflows · 1"), "{copilot}");
+    // Stepping into a view hands the rail's columns to that view — a catalogue
+    // of one is twenty-eight columns of nothing beside a graph that needs them.
+    // Esc is still the way back, and brings the list with it.
+    assert!(!copilot.contains("Workflows · 1"), "{copilot}");
+    app.wf.focus = WorkflowFocus::Sidebar;
+    let list = render(&mut app);
+    assert!(list.contains("Workflows · 1"), "{list}");
 }
 
 #[test]
@@ -355,14 +366,15 @@ fn selecting_a_run_overlays_it_on_the_graph() {
 fn the_inspector_is_a_view_of_its_own_that_i_opens_and_closes() {
     let (_home, mut app) = app_with(&[diamond("nightly")], &[]);
 
-    // Closed, it is not on screen at all — the graph has the whole pane.
+    // Closed, it is not on screen at all — the graph has the pane, with the
+    // step under the cursor peeked at beneath it.
     let closed = render(&mut app);
-    assert!(!closed.contains("trigger_kind"), "{closed}");
+    assert!(!closed.contains("i back to the graph"), "{closed}");
 
     app.wf.inspector_open = true;
     let open = render(&mut app);
     assert!(
-        open.contains("trigger_kind"),
+        open.contains("manual"),
         "the open inspector shows the node's declaration: {open}"
     );
     assert!(open.contains("i back to the graph"), "{open}");
@@ -533,7 +545,7 @@ fn every_view_draws_at_any_terminal_width() {
         assert!(graph.contains("▶ Start"), "{width}x{height}: {graph}");
 
         app.wf.inspector_open = true;
-        assert!(render_sized(&mut app, width, height).contains("trigger_kind"));
+        assert!(render_sized(&mut app, width, height).contains("i back to the graph"));
 
         app.wf.focus = WorkflowFocus::Copilot;
         assert!(render_sized(&mut app, width, height).contains("Copilot"));
@@ -548,6 +560,7 @@ fn a_terminal_too_small_to_draw_anything_does_not_panic() {
 }
 
 mod layout_tests;
+mod outline_tests;
 
 /// A trigger into a loop whose body is a four-step chain that returns to it —
 /// the shape every "keep going until it is done" workflow has.

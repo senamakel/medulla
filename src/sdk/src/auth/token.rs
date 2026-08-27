@@ -1,5 +1,5 @@
 //! Backend bearer-token resolution: pick the effective token from config, the
-//! environment, or the core's app session; describe the missing-token state; and
+//! environment, or the stored app session; describe the missing-token state; and
 //! classify one-time login tokens versus JWTs. Depends on
 //! [`crate::config::BackendConfig`] for the configured backend.
 

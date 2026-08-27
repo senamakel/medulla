@@ -187,10 +187,11 @@ async fn an_unknown_op_is_a_bad_request() {
     assert_eq!(kind(&response), "badRequest");
 }
 
-/// The embedded core is a harness the control plane will dispatch to.
+/// The in-process OpenHuman provider is a harness the control plane will
+/// dispatch to.
 ///
 /// This asserted the opposite until OpenHuman gained a task executor of its
-/// own ([`crate::daemon::providers::openhuman`]). The refusal was never about
+/// own ([`crate::daemon::providers::local`]). The refusal was never about
 /// the control plane — it was that nothing could *run* the task — so with a
 /// runner in place the dispatch is admitted like any other.
 #[tokio::test]

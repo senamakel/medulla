@@ -1,13 +1,16 @@
 //! Tests for the PTY session layer, split so no file exceeds the repo's
 //! 500-line ceiling: [`session`] covers allocation, the reader thread, emulator
 //! parsing, resize, input and reaping; [`identity`] which harnesses get a minted
-//! session id and how one is learned back; [`attention`] a live screen becoming
-//! the flag that makes a row blink, and the bell watermark on its own;
-//! [`hooks`] the harness's own lifecycle reports layered onto that same
-//! screen-and-bell machinery — the staleness grace, its open-ended exemption,
-//! and the output-quiet corroboration; [`clipboard`] a harness's own copy
-//! being carried out of the pane; [`types`] the row model on its own, which
-//! needs no child at all.
+//! session id and how one is learned back; [`attention`] cue recognition — a
+//! live screen becoming the flag that makes a row blink, permission prompts
+//! and dialogs, and the screen/hook classification a bell is checked against;
+//! [`settlement`] the turn-to-turn handoff `attention` does not cover —
+//! `settle_turn`/`claim_idle`/`release` and the bell watermark and
+//! completion-chime debt that carry across them; [`hooks`] the harness's own
+//! lifecycle reports layered onto that same screen-and-bell machinery — the
+//! staleness grace, its open-ended exemption, and the output-quiet
+//! corroboration; [`clipboard`] a harness's own copy being carried out of the
+//! pane; [`types`] the row model on its own, which needs no child at all.
 //!
 //! The rest drive a real child on a real pseudo-terminal — `/bin/sh`, not a coding
 //! agent, so they stay fast, offline, and deterministic while still exercising
@@ -31,6 +34,7 @@ mod hooks;
 mod identity;
 mod scrollback;
 mod session;
+mod settlement;
 mod types;
 
 #[test]
