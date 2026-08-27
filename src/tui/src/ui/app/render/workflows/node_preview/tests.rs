@@ -56,6 +56,46 @@ fn shell_tool_steps_use_the_same_code_viewer() {
 }
 
 #[test]
+fn shell_tool_steps_show_args_beyond_the_script_and_language() {
+    let preview = text(kind_lines(
+        "tool_call",
+        &json!({
+            "slug": "medulla:shell",
+            "args": {
+                "language": "shell",
+                "script": "cargo test",
+                "cwd": "src/tui",
+                "timeout_seconds": 120,
+                "env": { "RUST_LOG": "debug" }
+            }
+        }),
+        80,
+        &AgentDefaults::default(),
+    ));
+
+    assert!(preview.contains("1 │ cargo test"), "{preview}");
+    assert!(preview.contains("cwd"), "{preview}");
+    assert!(preview.contains("src/tui"), "{preview}");
+    assert!(preview.contains("timeout_seconds"), "{preview}");
+    assert!(preview.contains("RUST_LOG"), "{preview}");
+}
+
+#[test]
+fn shell_tool_steps_omit_the_arguments_section_when_there_is_nothing_beyond_the_script() {
+    let preview = text(kind_lines(
+        "tool_call",
+        &json!({
+            "slug": "medulla:shell",
+            "args": { "language": "shell", "script": "cargo test" }
+        }),
+        80,
+        &AgentDefaults::default(),
+    ));
+
+    assert!(!preview.contains("arguments"), "{preview}");
+}
+
+#[test]
 fn shell_tool_steps_redact_credentials_before_highlighting() {
     let preview = text(kind_lines(
         "tool_call",

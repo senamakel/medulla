@@ -538,5 +538,6 @@ fn installing_the_first_workflow_moves_the_cursor_off_the_new_row() {
 
 mod creation;
 mod navigation;
+mod outline_cursor;
 mod retention;
 mod transcripts;

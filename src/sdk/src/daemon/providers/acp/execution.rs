@@ -129,8 +129,7 @@ pub const HARNESS_PROTOCOL_ENV: &str = "MEDULLA_HARNESS_PROTOCOL";
 /// [`super::fold`]), which is how Medulla learns that a session created a
 /// worktree and continued there. A `PostToolUse` auto-commit hook resolves its
 /// repository from this, so handing it the launch directory after such a move
-/// checkpoints the wrong checkout — the ACP counterpart of what
-/// [`crate::core_host::turn_cwd`] fixes for the embedded core.
+/// checkpoints the wrong checkout.
 ///
 /// A tracked directory that does not exist is ignored rather than passed on:
 /// the report may name a worktree that has since been removed, and spawning

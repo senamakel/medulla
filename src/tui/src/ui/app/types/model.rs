@@ -280,6 +280,16 @@ pub struct WorkflowsState {
     pub(in crate::ui::app) layout: medulla::ui::workflows::GraphLayout,
     /// Selected node in the canvas, in the layout's reading order.
     pub(in crate::ui::app) node_index: usize,
+    /// Which outline row [`node_index`](Self::node_index) sits on, when the
+    /// cursor last moved by outline navigation.
+    ///
+    /// A join is drawn on two rows — the subtree and its `revisit` reference —
+    /// that share one `node_index`, so the index alone cannot tell which row is
+    /// current. `outline_cursor_row` trusts this row only while it still points
+    /// at `node_index`; any selection that changes `node_index` without going
+    /// through [`App::move_outline_cursor`] (the rail, the canvas, a fresh
+    /// workflow) leaves it stale and falls back to resolving by node.
+    pub(in crate::ui::app) outline_row: usize,
     /// Vertical scroll of the canvas, in rows.
     ///
     /// The only scroll the canvas has: the graph folds onto a new band whenever
@@ -295,6 +305,13 @@ pub struct WorkflowsState {
     pub(in crate::ui::app) graph_rows: usize,
     /// Top line of the rich selected-step preview.
     pub(in crate::ui::app) preview_scroll: usize,
+    /// Whether the graph is drawn as an outline, when the operator has said.
+    ///
+    /// `None` — the default — leaves the choice to the graph itself (see
+    /// `App::prefers_outline`); `v` pins it either way for this session. Stored
+    /// per tab rather than per workflow because it is a reading preference, and
+    /// an operator who wants wires wants them for the next workflow too.
+    pub(in crate::ui::app) outline: Option<bool>,
     /// Whether the inspector below the canvas is expanded over it.
     pub(in crate::ui::app) inspector_open: bool,
     /// The run being overlaid on the graph, when a run row is selected.

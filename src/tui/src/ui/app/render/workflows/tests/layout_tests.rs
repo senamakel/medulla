@@ -166,7 +166,7 @@ fn each_column_is_sized_to_its_own_label() {
     // in it and every connector stays short.
     let wordy = chain("wordy", 4, |index| {
         if index == 2 {
-            "A conspicuously long step name".into()
+            "A conspicuously long step name that runs past every reasonable column".into()
         } else {
             format!("S{index}")
         }
@@ -258,5 +258,40 @@ fn a_fold_starts_the_next_band_at_the_left_margin() {
         first_x,
         super::super::FOLD_MARGIN,
         "which is the left margin"
+    );
+}
+
+#[test]
+fn a_folds_return_run_is_dashed_and_carries_its_port_name_like_any_other() {
+    // The fold's long run back across the pane is the drawing turning a corner,
+    // not a stretch of the plan. Drawn solid at pane width it read as a rule
+    // between two bands with the port name as its heading, which is the one
+    // thing a port name must not look like.
+    let mut branching = diamond("folded");
+    branching.graph = serde_json::from_value(json!({
+        "nodes": (0..8).map(|index| json!({
+            "id": format!("n{index}"),
+            "kind": if index == 0 { "trigger" } else if index == 2 { "condition" } else { "transform" },
+            "name": format!("Step number {index}"),
+            "config": {},
+        })).collect::<Vec<_>>(),
+        "edges": (0..7).map(|index| json!({
+            "from_node": format!("n{index}"),
+            "to_node": format!("n{}", index + 1),
+            // The gate sits at the end of a band, so its labelled arm is the
+            // edge that has to fold onto the next one.
+            "from_port": if index == 2 { "true" } else { "main" },
+        })).collect::<Vec<_>>(),
+    }))
+    .expect("graph parses");
+    let (_home, mut app) = app_with(&[branching], &[]);
+    app.wf.outline = Some(false);
+
+    let screen = render_sized(&mut app, 100, 30);
+
+    assert!(screen.contains('┄'), "the return run is dashed: {screen}");
+    assert!(
+        screen.contains(" true "),
+        "and the port name is a caption on it, blanks and all: {screen}"
     );
 }

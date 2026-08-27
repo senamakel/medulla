@@ -32,15 +32,15 @@ fn a_live_spinner_and_the_reports_between_them_cover_a_turn() {
     // of one — a tool result painted over the spinner, with the composer below
     // it as always.
     assert!(
-        working_state(false, Some(true), None, None),
+        working_state(false, Some(true), None, false, None),
         "a mid-turn report holds the working state through a spinner-less paint"
     );
     assert!(
-        !working_state(false, Some(false), None, None),
+        !working_state(false, Some(false), None, false, None),
         "the turn's own Stop report ends it"
     );
     assert!(
-        working_state(true, Some(false), None, None),
+        working_state(true, Some(false), None, false, None),
         "a fresh spinner starts work before UserPromptSubmit is filed"
     );
 }
@@ -59,6 +59,7 @@ fn a_dropped_stop_report_does_not_latch_working_forever() {
             false,
             Some(true),
             Some(HOOK_STALE_GRACE_MS - 1),
+            false,
             Some(HOOK_STALE_GRACE_MS),
         ),
         "a report just inside the grace window is trusted over the idle screen"
@@ -68,6 +69,7 @@ fn a_dropped_stop_report_does_not_latch_working_forever() {
             false,
             Some(true),
             Some(HOOK_STALE_GRACE_MS),
+            false,
             Some(HOOK_STALE_GRACE_MS),
         ),
         "a report this old, with the pty just as quiet, outweighs staying working"
@@ -82,7 +84,13 @@ fn a_dropped_stop_report_does_not_latch_working_forever() {
 #[test]
 fn fresh_output_corroborates_a_stale_report_that_is_still_a_long_reply() {
     assert!(
-        working_state(false, Some(true), Some(HOOK_STALE_GRACE_MS * 10), Some(0),),
+        working_state(
+            false,
+            Some(true),
+            Some(HOOK_STALE_GRACE_MS * 10),
+            false,
+            Some(0)
+        ),
         "new output keeps arriving, so the ancient report is still a live reply, not a dropped one"
     );
 }
@@ -94,7 +102,7 @@ fn fresh_output_corroborates_a_stale_report_that_is_still_a_long_reply() {
 /// the prompt sat idle before it arrived.
 #[test]
 fn a_fresh_report_after_a_long_idle_screen_is_trusted_at_once() {
-    assert!(working_state(false, Some(true), Some(0), None));
+    assert!(working_state(false, Some(true), Some(0), false, None));
 }
 
 /// An open-ended report (`PreToolUse`/`SubagentStart`/`PreCompact`) is not
@@ -105,11 +113,23 @@ fn a_fresh_report_after_a_long_idle_screen_is_trusted_at_once() {
 #[test]
 fn an_abandoned_open_ended_report_eventually_expires() {
     assert!(
-        working_state(false, Some(true), None, Some(OPEN_ENDED_ABANDON_MS - 1)),
+        working_state(
+            false,
+            Some(true),
+            Some(HOOK_STALE_GRACE_MS * 100),
+            true,
+            Some(OPEN_ENDED_ABANDON_MS - 1),
+        ),
         "still within the backstop, an open-ended report is trusted regardless of its own age"
     );
     assert!(
-        !working_state(false, Some(true), None, Some(OPEN_ENDED_ABANDON_MS)),
+        !working_state(
+            false,
+            Some(true),
+            Some(HOOK_STALE_GRACE_MS * 100),
+            true,
+            Some(OPEN_ENDED_ABANDON_MS),
+        ),
         "total silence this long means abandoned even for an open-ended report"
     );
 }
@@ -123,8 +143,35 @@ fn an_abandoned_open_ended_report_eventually_expires() {
 #[test]
 fn a_fresh_report_outranks_the_abandon_backstop() {
     assert!(
-        working_state(false, Some(true), Some(0), Some(OPEN_ENDED_ABANDON_MS)),
+        working_state(
+            false,
+            Some(true),
+            Some(0),
+            false,
+            Some(OPEN_ENDED_ABANDON_MS)
+        ),
         "a report this fresh is direct evidence of life, whatever the prior silence was"
+    );
+}
+
+/// The open-ended side of the same property: a fresh `PreToolUse` arriving
+/// after `OPEN_ENDED_ABANDON_MS` of silence must also read `working` at once.
+/// Folding "open-ended" into `report_age_ms` as `None` made this impossible to
+/// say — a `None` age could not also be a *fresh* age, so a brand-new
+/// open-ended report had no way to take the fresh-age path and lost to the
+/// backstop until the tool's first byte arrived. Keeping `report_open_ended`
+/// as its own fact is what lets a report be both at once.
+#[test]
+fn a_fresh_open_ended_report_outranks_the_abandon_backstop() {
+    assert!(
+        working_state(
+            false,
+            Some(true),
+            Some(0),
+            true,
+            Some(OPEN_ENDED_ABANDON_MS)
+        ),
+        "a fresh PreToolUse is direct evidence of life even after a long silence"
     );
 }
 
@@ -132,8 +179,8 @@ fn a_fresh_report_outranks_the_abandon_backstop() {
 /// so only a spinner says a harness is busy.
 #[test]
 fn a_session_without_reports_falls_back_to_the_screen() {
-    assert!(!working_state(false, None, None, None));
-    assert!(working_state(true, None, None, None));
+    assert!(!working_state(false, None, None, false, None));
+    assert!(working_state(true, None, None, false, None));
 }
 
 /// The debt consumption and the bell watermark must be made as one decision:

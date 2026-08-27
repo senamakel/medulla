@@ -20,10 +20,12 @@ mod canvas;
 pub(super) use canvas::node_label;
 mod copilot;
 mod live;
+mod outline;
 pub use copilot::thread_of as copilot_thread_of;
 mod rail;
 
 pub(in crate::ui::app) use live::LiveRun;
+pub(in crate::ui::app) use outline::{OutlineRow, SinkGroup};
 pub(in crate::ui::app) use rail::{WorkflowRailRow, NEW_LABEL};
 
 #[cfg(test)]

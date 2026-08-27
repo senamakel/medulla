@@ -41,6 +41,8 @@ struct Cell {
     bold: bool,
     /// Whether the cell is reversed — how the cursor marks the selected box.
     selected: bool,
+    /// Whether the wire through this cell is drawn dashed.
+    dashed: bool,
     /// Whether a node owns this cell. Wires never paint over one.
     locked: bool,
 }
@@ -54,6 +56,7 @@ impl Default for Cell {
             dim: false,
             bold: false,
             selected: false,
+            dashed: false,
             locked: false,
         }
     }
@@ -233,6 +236,7 @@ impl Canvas {
             return;
         }
         cell.wire |= sides;
+        cell.dashed |= style.dashed;
         // The first wire to reach a cell colours it. A crossing keeps the
         // earlier colour rather than flickering between two edges' colours,
         // which is arbitrary either way and stable this way.
@@ -251,7 +255,12 @@ impl Canvas {
             let mut run_style: Option<(Option<Color>, bool, bool, bool)> = None;
             for cell in row {
                 let ch = if cell.wire != 0 && cell.ch == ' ' {
-                    wire_char(cell.wire)
+                    let ch = wire_char(cell.wire);
+                    if cell.dashed {
+                        dashed_char(ch)
+                    } else {
+                        ch
+                    }
                 } else {
                     cell.ch
                 };
@@ -285,6 +294,8 @@ pub(super) struct CellStyle {
     pub(super) bold: bool,
     /// Whether the cell renders reversed.
     pub(super) selected: bool,
+    /// Whether the wire is drawn dashed rather than solid.
+    pub(super) dashed: bool,
 }
 
 impl CellStyle {
@@ -295,6 +306,21 @@ impl CellStyle {
             dim: false,
             bold: false,
             selected: false,
+            dashed: false,
+        }
+    }
+
+    /// The same style, drawn dashed.
+    ///
+    /// For the run a folded edge takes back across the pane. That run is not
+    /// where the work goes — it is the drawing turning a corner, the same way a
+    /// paragraph turning onto the next line is not a new paragraph — and drawn
+    /// solid at full pane width it read as a rule between two bands, with the
+    /// port name sitting on it as if it were a heading.
+    pub(super) fn dashed(self) -> Self {
+        Self {
+            dashed: true,
+            ..self
         }
     }
 
@@ -331,6 +357,18 @@ fn span(text: &str, style: Option<(Option<Color>, bool, bool, bool)>) -> Span<'s
         out = out.add_modifier(Modifier::REVERSED);
     }
     Span::styled(text.to_string(), out)
+}
+
+/// The dashed twin of a straight run's character.
+///
+/// Corners and junctions keep their solid glyphs: there is no dashed `╭`, and a
+/// corner is where the eye is told the wire turns.
+fn dashed_char(ch: char) -> char {
+    match ch {
+        '─' => '┄',
+        '│' => '┆',
+        other => other,
+    }
 }
 
 /// The box-drawing character for a set of sides.

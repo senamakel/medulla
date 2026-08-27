@@ -9,9 +9,9 @@ architecture detail:
 - [Developers overview](https://tinyhumans.gitbook.io/medulla/developers)
 - [Getting Started](https://tinyhumans.gitbook.io/medulla/developers/getting-started) covers install, building from source, and the first run.
 - [CLI Reference](https://tinyhumans.gitbook.io/medulla/developers/cli-reference) covers the TUI, `medulla daemon`, the `claude`/`codex`/`opencode` wrappers, and `medulla update`.
-- [Configuration](https://tinyhumans.gitbook.io/medulla/developers/configuration) covers the Medulla home directory, layered config, and the three runtimes (core socket / backend / mock).
+- [Configuration](https://tinyhumans.gitbook.io/medulla/developers/configuration) covers the Medulla home directory, layered config, and the two runtimes (the backend, and the offline mock).
 - [Authentication](https://tinyhumans.gitbook.io/medulla/developers/authentication) covers `medulla login`, tokens, and the loopback security model.
-- [Architecture](https://tinyhumans.gitbook.io/medulla/developers/architecture) covers the SDK/TUI crate split, the `Runtime` trait, RLM, and the tiny.place bridge.
+- [Architecture](https://tinyhumans.gitbook.io/medulla/developers/architecture) covers the crate split, the `Runtime` trait, the in-process agent loop, the workflow plane, and the host-link bridge.
 - [Contributing](https://tinyhumans.gitbook.io/medulla/developers/contributing) covers build, test, lint, coverage, and releasing.
 
 The engineering specs this code refers to — `docs/host-link-protocol.md`,
