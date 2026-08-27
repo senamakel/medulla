@@ -108,7 +108,7 @@ fn clicking_tab_bar_selects_tab() {
     let (mut app, _rt) = demo_app();
     // Draw first so the tab hit-boxes are recorded, then click within "Sessions".
     let _ = render(&mut app, 120, 40);
-    let _ = app.on_event(mouse(MouseEventKind::Down(MouseButton::Left), 12, 1));
+    let _ = app.on_event(mouse(MouseEventKind::Down(MouseButton::Left), 5, 1));
     assert_eq!(app.tab(), "Sessions");
 }
 
@@ -117,7 +117,7 @@ fn each_tab_renders_its_signature() {
     let signatures = [
         ("Sessions", "Sessions ·"),
         ("Workflows", "Workflows"),
-        ("Subconscious", "Signal field · live"),
+        ("Subconscious", "Signal field · demo"),
         ("Hosts", "Hosts"),
         ("Settings", "Settings"),
     ];

@@ -1,4 +1,4 @@
-//! The Subconscious tab: Medulla's live, always-on signal field.
+//! The Subconscious tab: Medulla's live observation layer and signal map.
 //!
 //! This is the visible home for the quiet layer below active work. It makes the
 //! flow of signals legible without turning the layer into another control room:
@@ -16,7 +16,7 @@ use crate::ui::stream;
 use super::super::types::App;
 
 impl App {
-    /// Draw the live signal field and the small set of facts worth escalating.
+    /// Draw the live observation header and demonstration signal map.
     pub(super) fn draw_subconscious(&mut self, frame: &mut Frame, area: Rect) {
         let rows = Layout::default()
             .direction(Direction::Vertical)
@@ -31,12 +31,7 @@ impl App {
     fn draw_subconscious_header(&self, frame: &mut Frame, area: Rect) {
         let decisions = self.decisions().len();
         let active_calls = stream::running_calls(&self.snapshot.events);
-        let agents = self
-            .snapshot
-            .last_result
-            .as_ref()
-            .map(|result| result.task_ledger.len())
-            .unwrap_or(0);
+        let agents = self.snapshot.roster.len();
         let decision_line = if decisions == 0 {
             Span::styled(
                 "clear · no human decision pending",
@@ -72,7 +67,7 @@ impl App {
                 ),
                 Span::raw("  ·  "),
                 Span::styled(
-                    format!("{agents} agents observed"),
+                    format!("{agents} agents known"),
                     Style::default().fg(Color::LightMagenta),
                 ),
                 Span::raw("  ·  "),

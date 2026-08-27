@@ -1,4 +1,4 @@
-//! Rendering for the animated signal graph on the Subconscious tab.
+//! Rendering for the animated demonstration signal graph on the Subconscious tab.
 //!
 //! The panel shows what the quiet layer is watching: signals fan *in* from the
 //! left, Medulla weighs them at the centre, and downstream work fans *out* into
@@ -44,7 +44,7 @@ const EDGE_DIM: f64 = 0.62;
 const RISER_SPREAD: f64 = 0.18;
 
 impl App {
-    /// Draw the subconscious signal graph, advancing its simulation by one frame.
+    /// Draw the subconscious demonstration signal graph, advancing its simulation by one frame.
     ///
     /// Stepping the simulation from the draw path is intentional: the panel's
     /// only clock is the render tick, and the graph owns no state that anything
@@ -55,7 +55,7 @@ impl App {
         f: &mut Frame,
         area: Rect,
     ) {
-        let block = self.panel("Signal field · live");
+        let block = self.panel("Signal field · demo");
         let inner = block.inner(area);
         f.render_widget(block, area);
         let drawable_width = inner.width as f64 - 1.0 - 2.0 * LABEL_GUTTER;

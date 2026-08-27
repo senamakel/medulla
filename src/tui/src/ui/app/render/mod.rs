@@ -274,7 +274,7 @@ impl App {
         } else if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
         } else if self.tab() == "Subconscious" {
-            "Tab views · live signal field · E decisions"
+            "Tab views · signal map · E decisions"
         } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ lanes · i inspect · c copilot · x run · d dry-run · r refresh"
         } else if self.tab() == "Sessions" && self.pane_view == PaneView::Diff {

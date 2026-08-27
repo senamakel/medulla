@@ -168,10 +168,7 @@ fn a_stale_harness_diff_does_not_advertise_agents_shortcuts_on_another_tab() {
         .map(|cell| cell.symbol())
         .collect();
 
-    assert!(
-        output.contains("live signal field · E decisions"),
-        "{output}"
-    );
+    assert!(output.contains("signal map · E decisions"), "{output}");
     assert!(!output.contains("d/Esc harness"), "{output}");
 }
 

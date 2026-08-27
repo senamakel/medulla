@@ -1,4 +1,4 @@
-//! Unit tests for the Subconscious live signal tab.
+//! Unit tests for the Subconscious observation and signal-map tab.
 //!
 //! Pinned through a rendered buffer rather than by calling the draw helper: the
 //! point of the tab is what an operator reads on it, and the shortcut line is
@@ -34,7 +34,7 @@ fn render_subconscious() -> String {
 }
 
 #[test]
-fn the_live_signal_field_has_a_clear_status_and_animated_graph() {
+fn the_observation_header_has_a_clear_status_and_demo_graph() {
     let out = render_subconscious();
     assert!(
         out.contains("Quietly processing"),
@@ -45,7 +45,7 @@ fn the_live_signal_field_has_a_clear_status_and_animated_graph() {
         "the live status should be explicit: {out}"
     );
     assert!(
-        out.contains("Signal field · live"),
+        out.contains("Signal field · demo"),
         "the animated graph has moved here: {out}"
     );
 }
@@ -54,7 +54,7 @@ fn the_live_signal_field_has_a_clear_status_and_animated_graph() {
 fn the_shortcut_line_advertises_decision_review_not_session_chords() {
     let out = render_subconscious();
     assert!(
-        out.contains("live signal field · E decisions"),
+        out.contains("signal map · E decisions"),
         "the tab needs its own shortcut line"
     );
     assert!(
