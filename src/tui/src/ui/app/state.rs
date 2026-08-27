@@ -541,7 +541,7 @@ impl App {
                 .loaded
                 .config
                 .subscriptions
-            .source_enabled(medulla::config::MeterSource::Tinyhumans)
+                .source_enabled(medulla::config::MeterSource::Tinyhumans)
         {
             self.subscriptions_waiting_for_account = true;
             Cmd::LoadUsage
