@@ -484,7 +484,7 @@ impl App {
         self.subscriptions_loading = false;
         if self.subscriptions_refresh_pending {
             self.subscriptions_refresh_pending = false;
-            return self.begin_subscription_refresh();
+            return Some(self.begin_subscription_refresh());
         }
         None
     }
@@ -512,7 +512,7 @@ impl App {
         {
             return None;
         }
-        self.begin_subscription_refresh()
+        Some(self.begin_subscription_refresh())
     }
 
     /// Force a re-sample regardless of when the last one landed.
@@ -530,24 +530,24 @@ impl App {
             }
             return None;
         }
-        self.begin_subscription_refresh()
+        Some(self.begin_subscription_refresh())
     }
 
     /// Start a refresh, loading the shared account payload first when needed.
-    fn begin_subscription_refresh(&mut self) -> Option<Cmd> {
+    fn begin_subscription_refresh(&mut self) -> Cmd {
         self.subscriptions_loading = true;
         if self.account_usage.is_none()
             && self
                 .loaded
                 .config
                 .subscriptions
-                .source_enabled(medulla::config::MeterSource::Tinyhumans)
+            .source_enabled(medulla::config::MeterSource::Tinyhumans)
         {
             self.subscriptions_waiting_for_account = true;
-            Some(Cmd::LoadUsage)
+            Cmd::LoadUsage
         } else {
             self.subscriptions_waiting_for_account = false;
-            Some(Cmd::LoadSubscriptions(self.account_usage.clone()))
+            Cmd::LoadSubscriptions(self.account_usage.clone())
         }
     }
 
