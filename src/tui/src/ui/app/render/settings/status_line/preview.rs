@@ -1,5 +1,5 @@
-//! The Status line page's preview: three sample harness rows drawn through the
-//! real rail renderer, inside a rail-width frame.
+//! The Preview tab: three sample harness rows drawn through the real rail
+//! renderer, inside a rail-width frame.
 //!
 //! Sampling rather than describing is deliberate. The rail row is thirty-six
 //! columns shared between six fields, so what a placement costs the fields
@@ -25,9 +25,19 @@ impl App {
     /// one thing this page exists to prevent.
     pub(super) fn status_line_preview(&self, dim: Style) -> Vec<TLine<'static>> {
         let width = RAIL_MAX_CONTENT;
-        let rule = |left: &str, right: &str| {
+        // The caption rides in the rule above its sample rather than in a
+        // column beside it. Beside, it set the pane's minimum width at the
+        // frame plus the longest caption; in the rule the block is as wide as
+        // the rail row and no wider, which is what lets it sit in half a pane.
+        let rule = |left: &str, right: &str, caption: &str| {
+            let dashes = width.saturating_sub(caption.len() + 2);
+            let lead = dashes / 2;
             TLine::from(Span::styled(
-                format!("  {left}{}{right}", "─".repeat(width)),
+                format!(
+                    " {left}{} {caption} {}{right}",
+                    "─".repeat(lead),
+                    "─".repeat(dashes - lead)
+                ),
                 dim,
             ))
         };
@@ -39,35 +49,49 @@ impl App {
             (sample_orchestrator, false, "not selected"),
             (sample_alerting, false, "on alert"),
         ];
-        let mut lines = vec![rule("┌", "┐")];
+        let mut lines = vec![TLine::from(Span::styled(
+            format!("{width} columns, as on the rail"),
+            dim,
+        ))];
         for (index, (sample, active, caption)) in samples.iter().enumerate() {
-            if index > 0 {
-                lines.push(rule("├", "┤"));
-            }
+            lines.push(if index == 0 {
+                rule("┌", "┐", caption)
+            } else {
+                rule("├", "┤", caption)
+            });
             let row = sample();
-            for (offset, line) in self
-                .own_session_lines(&row, *active, width, medulla::clock::now_millis())
-                .into_iter()
-                .enumerate()
-            {
+            for line in self.own_session_lines(&row, *active, width, SAMPLE_NOW_MS) {
                 let used: usize = line.spans.iter().map(|span| span.content.width()).sum();
-                let mut spans = vec![Span::styled("  │", dim)];
+                let mut spans = vec![Span::styled(" │", dim)];
                 spans.extend(line.spans);
                 spans.push(Span::styled(
                     format!("{}│", " ".repeat(width.saturating_sub(used))),
                     dim,
                 ));
-                // Caption the sample once, beside its first line.
-                if offset == 0 {
-                    spans.push(Span::styled(format!("  {caption}"), dim));
-                }
                 lines.push(TLine::from(spans));
             }
         }
-        lines.push(rule("└", "┘"));
+        lines.push(TLine::from(Span::styled(
+            format!(" └{}┘", "─".repeat(width)),
+            dim,
+        )));
+        lines.push(TLine::from(""));
+        lines.push(TLine::from(Span::styled(
+            "sample sessions, at a fixed moment",
+            dim,
+        )));
         lines
     }
 }
+
+/// The moment the samples are drawn at, measured against their zeroed
+/// timestamps.
+///
+/// A wall clock here read the sample's `started_at: 0` as an age of fifty-odd
+/// years and printed it into the alert row, which is both nonsense and a moving
+/// target between redraws. Forty-five seconds is what a harness that has just
+/// stopped answering actually looks like.
+const SAMPLE_NOW_MS: i64 = 45_000;
 
 /// A running, operator-held harness in a linked worktree — the common case, and
 /// the one whose path is long enough to show what the layout costs it.

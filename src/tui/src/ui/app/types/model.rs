@@ -742,8 +742,26 @@ pub struct App {
     /// the page entirely. Entering the pane hands `↑↓` to the content and makes
     /// the letter bindings deliberate rather than ambient.
     pub(in crate::ui::app) settings_focused: bool,
-    /// The selected theme role on the Appearance subpage.
+    /// The selected row on the Appearance subpage.
     pub(in crate::ui::app) appearance_index: usize,
+    /// Whether Appearance is showing its Preview tab rather than its Options
+    /// tab. Two tabs rather than one long page because the controls and what
+    /// they do to the interface are two different things to look at, and
+    /// stacking them meant neither fitted on a short terminal.
+    pub(in crate::ui::app) appearance_preview: bool,
+    /// Whether Appearance last drew as two columns rather than as two tabs.
+    /// Written by the renderer, read by the key handler to decide whether `Tab`
+    /// has anything to switch.
+    pub(in crate::ui::app) appearance_split: bool,
+    /// Whether the Status line page is showing its Preview tab rather than its
+    /// Switches tab. Only consulted while the pane is too narrow to show both
+    /// halves side by side.
+    pub(in crate::ui::app) status_line_preview: bool,
+    /// Whether the Status line page last drew as two columns rather than as two
+    /// tabs. Written by the renderer, which is the only thing that knows the
+    /// pane's width, and read by the key handler to decide whether `Tab` has
+    /// anything to switch.
+    pub(in crate::ui::app) status_line_split: bool,
     /// Throttled sampler backing the optional local-process status indicators.
     pub(in crate::ui::app) resource_monitor: crate::ui::resources::ResourceMonitor,
     /// Throttled sampler backing the optional whole-device sidebar indicators.

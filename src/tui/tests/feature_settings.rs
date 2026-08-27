@@ -245,7 +245,7 @@ fn appearance_cycles_the_attention_blink_rate_in_seconds() {
         app.status()
     );
     let out = text_of(&draw(&mut app, 180, 45));
-    assert!(out.contains("Blink rate        1.5s"), "{out}");
+    assert!(out.contains("Blink rate           1.5s"), "{out}");
     let saved = std::fs::read_to_string(path).unwrap();
     assert!(saved.contains("attentionBlinkSeconds = 1.5"), "{saved}");
 }
@@ -487,7 +487,7 @@ fn each_settings_subpage_renders_its_signature() {
     let signatures = [
         ("Usage", "This session"),
         ("Appearance", "Appearance"),
-        ("Status line", "Preview"),
+        ("Status line", "as on the rail"),
         ("Config", "Effective configuration ·"),
         ("Trace", "Trace ·"),
         ("Context", "Environment ·"),
@@ -606,4 +606,265 @@ fn tab_leaves_the_settings_tab_from_both_focus_states() {
     let mut app = settings_app();
     let _ = key(&mut app, KeyCode::BackTab);
     assert_ne!(app.tab(), "Settings", "BackTab escapes from the nav");
+}
+
+/// The page opens on Options: the tab strip, the grouped rows, and a footer
+/// that explains the row under the cursor rather than every group at once.
+#[test]
+fn appearance_opens_on_options_with_a_footer_for_the_selected_row() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('2'));
+    let out = text_of(&draw(&mut app, 150, 45));
+
+    for group in ["Colors", "Attention", "Status line", "Sessions sidebar"] {
+        assert!(out.contains(group), "group {group} is headed: {out}");
+    }
+    assert!(
+        out.contains("The colour behind a selected row"),
+        "the footer explains the selected row: {out}"
+    );
+    assert!(
+        out.contains("red \u{b7} cyan"),
+        "the footer lists every value the row can take: {out}"
+    );
+}
+
+/// The sidebar's own settings read as one group, under the name the panel
+/// actually carries. They used to be split across a "Sessions sidebar" group
+/// and an "Agents sidebar" one naming a panel titled "Sessions".
+#[test]
+fn appearance_keeps_the_sidebar_settings_in_one_group() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('2'));
+    let out = text_of(&draw(&mut app, 150, 45));
+
+    assert!(!out.contains("Agents sidebar"), "one sidebar group: {out}");
+    let sidebar = out.find("Sessions sidebar").expect("sidebar group");
+    for row in ["Session titles", "Device CPU", "Group by", "Sort by"] {
+        let at = out
+            .find(row)
+            .unwrap_or_else(|| panic!("{row} is listed: {out}"));
+        assert!(at > sidebar, "{row} sits under the sidebar heading: {out}");
+    }
+}
+
+/// A wide pane shows the switches beside the preview, with no tab strip and
+/// nothing for `Tab` to do.
+#[test]
+fn appearance_puts_the_switches_beside_the_preview_when_it_fits() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('2'));
+    let out = text_of(&draw(&mut app, 150, 45));
+
+    assert!(out.contains("Blink rate"), "the switches are drawn: {out}");
+    assert!(
+        out.contains("selected row") && out.contains("attention, pulsing"),
+        "and so is the preview, captioned: {out}"
+    );
+    assert!(!out.contains("Tab switches"), "no tab strip: {out}");
+
+    // Tab belongs to the global cycler again while both halves are on screen.
+    let _ = key(&mut app, KeyCode::Tab);
+    assert_ne!(app.tab(), "Settings", "Tab still cycles the top-level tabs");
+}
+
+/// A pane too narrow to halve folds back to two tabs, walked with `Tab`.
+#[test]
+fn appearance_folds_to_tabs_on_a_narrow_pane() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('2'));
+    let out = text_of(&draw(&mut app, 90, 45));
+
+    assert!(
+        out.contains("Tab switches"),
+        "the tab strip is drawn: {out}"
+    );
+    assert!(
+        out.contains("Blink rate"),
+        "Switches is the first tab: {out}"
+    );
+    assert!(
+        !out.contains("attention, pulsing"),
+        "the preview is behind the other tab: {out}"
+    );
+
+    let _ = key(&mut app, KeyCode::Tab);
+    let out = text_of(&draw(&mut app, 90, 45));
+    assert_eq!(app.tab(), "Settings", "Tab is the page's own binding here");
+    assert!(out.contains("attention, pulsing"), "Tab reveals it: {out}");
+    assert!(!out.contains("Blink rate"), "and hides the switches: {out}");
+}
+
+/// The preview is drawn from the live config, so a change on the Options tab is
+/// visible on the Preview tab — which is the only reason the tab exists.
+#[test]
+fn appearance_preview_follows_the_sidebar_grouping() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('2'));
+    assert!(
+        text_of(&draw(&mut app, 150, 45)).contains("workstation"),
+        "the default grouping sections the sample by host"
+    );
+
+    // Down to Group by, and on to `path`. The preview is beside the row.
+    for _ in 0..14 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Right);
+
+    let out = text_of(&draw(&mut app, 150, 45));
+    assert!(
+        out.contains("~/work/medulla"),
+        "sectioned by path now: {out}"
+    );
+    assert!(!out.contains("workstation"), "and no longer by host: {out}");
+}
+
+/// An indicator that is switched off is absent from the preview, and the
+/// preview says so rather than showing an empty status line.
+#[test]
+fn appearance_preview_shows_the_indicators_that_are_switched_on() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('2'));
+    assert!(
+        text_of(&draw(&mut app, 150, 45)).contains("no process indicators are switched on"),
+        "the default config enables none of them"
+    );
+
+    // Down to Process CPU, and on to `percent`.
+    for _ in 0..7 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Right);
+
+    let out = text_of(&draw(&mut app, 150, 45));
+    assert!(
+        out.contains("CPU 25%"),
+        "the sample reading is formatted: {out}"
+    );
+}
+
+/// A wide pane shows every field beside the preview at once. The preview used
+/// to sit above the list, and it is fourteen rows tall.
+#[test]
+fn status_line_puts_every_field_beside_the_preview() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('3'));
+    let out = text_of(&draw(&mut app, 140, 40));
+
+    assert!(
+        out.contains("as on the rail"),
+        "the preview is drawn: {out}"
+    );
+    assert!(!out.contains("Tab switches"), "no tab strip: {out}");
+    for field in [
+        "State glyph",
+        "Harness name",
+        "Managed / unmanaged",
+        "Thread name",
+        "Git branch",
+        "Worktree",
+        "Working path",
+    ] {
+        assert!(out.contains(field), "{field} is on screen at once: {out}");
+    }
+
+    // Tab belongs to the global cycler again while both halves are on screen.
+    let _ = key(&mut app, KeyCode::Tab);
+    assert_ne!(app.tab(), "Settings", "Tab still cycles the top-level tabs");
+}
+
+/// The field descriptions moved off the list and into the footer, where only
+/// the selected row's is paid for.
+#[test]
+fn status_line_describes_the_selected_field_in_the_footer() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('3'));
+    let out = text_of(&draw(&mut app, 140, 40));
+
+    assert!(
+        out.contains("State glyph · the ●/✓/✕ dot"),
+        "the footer names the field and what it shows: {out}"
+    );
+    assert!(
+        !out.contains("which CLI is driving the session"),
+        "an unselected field's description is not drawn: {out}"
+    );
+
+    // Walk into the harness group; the footer follows the cursor.
+    for _ in 0..2 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let out = text_of(&draw(&mut app, 140, 40));
+    assert!(
+        out.contains("Harness name · which CLI is driving the session"),
+        "the footer follows the selection: {out}"
+    );
+}
+
+/// A pane too narrow to halve folds back to two tabs, walked with `Tab`.
+#[test]
+fn status_line_folds_to_tabs_on_a_narrow_pane() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('3'));
+    let out = text_of(&draw(&mut app, 90, 40));
+
+    assert!(
+        out.contains("Tab switches"),
+        "the tab strip is drawn: {out}"
+    );
+    assert!(
+        out.contains("Thread name"),
+        "Switches is the first tab: {out}"
+    );
+    assert!(
+        !out.contains("as on the rail"),
+        "the preview is behind the other tab: {out}"
+    );
+
+    let _ = key(&mut app, KeyCode::Tab);
+    let out = text_of(&draw(&mut app, 90, 40));
+    assert_eq!(app.tab(), "Settings", "Tab is the page's own binding here");
+    assert!(
+        out.contains("as on the rail"),
+        "Tab reveals the preview: {out}"
+    );
+    assert!(
+        out.contains("selected") && out.contains("on alert"),
+        "each sample is captioned with the condition it stands for: {out}"
+    );
+    assert!(!out.contains("Thread name"), "and hides the fields: {out}");
+}
+
+/// The preview is drawn at a fixed moment against the samples' own timestamps.
+/// A wall clock here read `started_at: 0` as an age of fifty-odd years and
+/// printed it into the alert row.
+#[test]
+fn status_line_preview_reports_a_plausible_age_on_the_alert_row() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('3'));
+
+    let out = text_of(&draw(&mut app, 140, 40));
+    assert!(out.contains("45s"), "the sample's age is fixed: {out}");
+}
+
+/// Changing a field redraws the sample beside it — the reason for the split.
+#[test]
+fn status_line_preview_redraws_as_the_selected_field_changes() {
+    let mut app = settings_app();
+    let _ = key(&mut app, KeyCode::Char('3'));
+    let before = text_of(&draw(&mut app, 140, 40));
+
+    // The state glyph's position is the selected row; hide it.
+    for _ in 0..3 {
+        let _ = key(&mut app, KeyCode::Right);
+    }
+    let after = text_of(&draw(&mut app, 140, 40));
+
+    assert_ne!(before, after, "the sample rows follow the change");
+    assert!(
+        app.status().contains("state glyph"),
+        "the status line names the field: {}",
+        app.status()
+    );
 }

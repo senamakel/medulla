@@ -38,9 +38,14 @@ impl App {
             TLine::from(" "),
             TLine::from(Span::styled("Settings", bold)),
             TLine::from("↑↓ move between subpages · 1-9 jump straight to one"),
-            TLine::from("Appearance: j / k pick an option · ←/→ or Enter change it (saved live)"),
             TLine::from(
-                "Status line: j / k pick a session-row field · ←/→ or Enter cycle it (live preview)",
+                "Appearance: j / k pick a row · ←/→ or Enter change it (saved live) · preview sits beside it",
+            ),
+            TLine::from(
+                "Status line: j / k pick a field · ←/→ or Enter cycle it · the sample row redraws beside it",
+            ),
+            TLine::from(
+                "A narrow pane folds either page to two tabs, walked with Tab.",
             ),
             TLine::from("Config: j / k pick a setting · ←/→ change · Enter toggle (saved to config.toml)"),
             TLine::from("Feedback: j / k browse · u/d vote · c comment · n feature · b bug · s sort · f filter"),
