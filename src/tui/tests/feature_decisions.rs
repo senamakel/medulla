@@ -120,6 +120,10 @@ fn subconscious_badge_opens_prepared_context_and_answer_routes_to_runtime() {
 #[test]
 fn informational_escalations_dismiss_and_empty_queue_reports_cleanly() {
     let (mut app, _) = app();
+    app.tab_index = medulla_tui::ui::app::TABS
+        .iter()
+        .position(|tab| *tab == "Subconscious")
+        .expect("Subconscious tab is listed");
     key(&mut app, KeyCode::Char('E'));
     key(&mut app, KeyCode::Up);
     key(&mut app, KeyCode::Char('x'));
