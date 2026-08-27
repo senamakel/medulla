@@ -62,29 +62,62 @@ const DRIFT_RATE: f64 = 0.06;
 const FLOW_SPEED: f64 = 0.45;
 
 impl App {
-    /// Draw the graph of the selected workflow.
+    /// Draw the graph of the selected workflow, and the step under the cursor.
+    ///
+    /// The graph is given what it needs and the preview what it has to say,
+    /// rather than each a fixed share: the preview used to take half the pane
+    /// whatever was in it, so a fifteen-step graph folded into four bands above
+    /// a twenty-row box describing a manual trigger. Now the graph is served
+    /// first, up to the rows it actually occupies, and the preview takes what is
+    /// left up to its own content — which for a trigger is three lines.
     pub(in crate::ui::app::render) fn draw_workflow_canvas(&mut self, f: &mut Frame, area: Rect) {
-        let panes = if area.height >= 16 && self.selected_graph_node().is_some() {
-            // Tall enough for every band the fold produced plus the panel's own
-            // borders, and no taller: a graph that reserved more would spend the
-            // difference on blank canvas while the inspector under it went
-            // short. Past half the pane the canvas scrolls instead of growing —
-            // the inspector is not worth starving for a graph nobody asked to
-            // see all of at once.
-            let graph_height = (self.folded_rows() as u16 + 2).max(5).min(area.height / 2);
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Length(graph_height), Constraint::Min(8)])
-                .split(area)
+        let preview = if self.selected_graph_node().is_some() {
+            self.preview_split(area)
         } else {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(0), Constraint::Length(0)])
-                .split(area)
+            0
         };
-        self.draw_workflow_graph(f, panes[0]);
+        let panes = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(preview)])
+            .split(area);
+        if self.outline_view() {
+            self.draw_workflow_outline(f, panes[0]);
+        } else {
+            self.draw_workflow_graph(f, panes[0]);
+        }
         if panes[1].height > 0 {
             self.draw_workflow_node_preview(f, panes[1]);
+        }
+    }
+
+    /// How many rows the step preview gets under the graph.
+    ///
+    /// Zero when the graph itself would be left with too little to read — a pane
+    /// too short for both shows the graph, because the preview is one keystroke
+    /// away (`i`) and the graph is what the tab is for.
+    fn preview_split(&self, area: Rect) -> u16 {
+        const BORDERS: u16 = 2;
+        /// The fewest rows worth drawing a preview in: a border pair and two
+        /// lines of content.
+        const MIN_PREVIEW: u16 = 4;
+        /// The most of the pane the preview may take even when it has more to
+        /// say. Past this the graph is the thing being starved.
+        const MAX_SHARE: u16 = 3;
+
+        let graph_needs = if self.outline_view() {
+            self.outline_rows().len() as u16 + BORDERS
+        } else {
+            self.folded_rows() as u16 + BORDERS
+        };
+        let wants = self.workflow_preview_height(area.width as usize) as u16;
+        let spare = area.height.saturating_sub(graph_needs.max(MIN_PREVIEW + 1));
+        let room = wants
+            .min(spare)
+            .min(area.height * (MAX_SHARE - 1) / MAX_SHARE);
+        if room < MIN_PREVIEW {
+            0
+        } else {
+            room
         }
     }
 
@@ -94,7 +127,7 @@ impl App {
             self.wf.focus,
             super::super::super::types::WorkflowFocus::Canvas
         );
-        let block = crate::ui::widgets::panel(&self.theme, self.canvas_title(), focused);
+        let block = crate::ui::widgets::panel(&self.theme, self.workflow_title(), focused);
         let inner = block.inner(area);
         self.wf.graph_rows = inner.height as usize;
         // A width change can refold the selected node onto another row. Anchor
@@ -123,8 +156,11 @@ impl App {
         f.render_widget(Paragraph::new(Text::from(canvas.into_lines())), inner);
     }
 
-    /// The canvas panel's title: the workflow, and what is overlaid on it.
-    fn canvas_title(&self) -> String {
+    /// The graph panel's title: the workflow, and what is overlaid on it.
+    ///
+    /// Shared with the outline, which is the same graph drawn another way and
+    /// should not be titled as if it were another thing.
+    pub(in crate::ui::app::render) fn workflow_title(&self) -> String {
         let Some(workflow) = self.selected_workflow() else {
             return "Graph".to_string();
         };
@@ -146,7 +182,7 @@ impl App {
     }
 
     /// What the canvas says when there is no graph to draw.
-    fn empty_canvas_lines(&self) -> Vec<TLine<'static>> {
+    pub(in crate::ui::app::render) fn empty_canvas_lines(&self) -> Vec<TLine<'static>> {
         let dim = ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::DIM);
         let message = if self.workflows.is_empty() {
             vec![
@@ -319,7 +355,11 @@ impl App {
                     (entry, to_row),
                 ],
             };
-            let route = paint_route(canvas, &points, style);
+            // A fold's long run back across the pane is drawn dashed: it is the
+            // drawing turning a corner rather than a stretch of the plan, and
+            // solid at pane width it read as a rule with the port name as its
+            // heading.
+            let route = paint_route(canvas, &points, style, link_row.filter(|_| folds));
             canvas.arrow(entry, to_row, head, style);
 
             // The moving highlight. Undimmed against the dim wire, so the eye
@@ -343,11 +383,7 @@ impl App {
                     // so the name is squeezed into it and clipped rather than
                     // dropped: its first letters still tell it from its
                     // siblings, which is the one thing it exists to say.
-                    None => (
-                        crate::ui::util::clip(label, LABEL_WIDTH),
-                        gutter + 1,
-                        to_row,
-                    ),
+                    None => (port_caption(label, LABEL_WIDTH), gutter + 1, to_row),
                 };
                 canvas.label(x, row, &caption, style);
             }
@@ -356,15 +392,13 @@ impl App {
 
     /// Where a folded edge's port name goes, and what fits there.
     ///
-    /// A fold's run spans the pane, so unlike the gutter case this has room to
-    /// spare: the name is written in full and given a blank cell either side,
-    /// because the [`Canvas::label`] blanks are what separate it from the wire.
-    /// Butted straight onto the corner the run turns at, `body` read as part of
-    /// the drawing — `╭body────────` — rather than as a caption on it.
-    ///
-    /// It sits at the corner rather than mid-run because that is the end a
-    /// reader arrives at: the corner is directly above the arrowhead, so the
-    /// name and the step it names are read together.
+    /// The same caption an inline branch gets — [`port_caption`] builds both, so
+    /// a `false` arm is written the same way whether the wire it labels crosses
+    /// a gutter or a band boundary. Only the placement differs, because the
+    /// geometry does: a fold has no horizontal run into its target to write on,
+    /// so the name sits at the corner the run turns down at, which is directly
+    /// above the arrowhead and therefore still read together with the step it
+    /// names.
     fn fold_caption(
         &self,
         label: &str,
@@ -378,7 +412,7 @@ impl App {
         if room == 0 {
             return (String::new(), entry, link_row);
         }
-        let caption = format!(" {} ", crate::ui::util::clip(label, room));
+        let caption = port_caption(label, room);
         // Inside the run, on the side it comes across from — which is the right
         // for a fold turning down at the left margin, and the left for one whose
         // target sits further along its band.
@@ -469,6 +503,23 @@ fn label_of(node: &PlacedNode, mark: &str, width: usize) -> String {
     format!("{}{mark}", crate::ui::util::clip(&label, width))
 }
 
+/// A port name as it is written onto a wire.
+///
+/// One builder for both placements, so the two are the same caption rather than
+/// two conventions for one thing. The blanks are what separate a name from the
+/// run it sits on — `╭false────────` reads as part of the drawing — and are
+/// dropped rather than eating into the name when the room is only a gutter
+/// wide: five columns is exactly `false`, and a clipped case name says less
+/// than a tight one.
+fn port_caption(label: &str, room: usize) -> String {
+    let clipped = crate::ui::util::clip(label, room);
+    if clipped.width() + 2 <= room {
+        format!(" {clipped} ")
+    } else {
+        clipped
+    }
+}
+
 /// Paint a polyline as axis-aligned runs, returning the cells it covers in
 /// flow order.
 ///
@@ -478,11 +529,17 @@ fn paint_route(
     canvas: &mut Canvas,
     points: &[(usize, usize)],
     style: CellStyle,
+    dashed_row: Option<usize>,
 ) -> Vec<(usize, usize)> {
     let mut route: Vec<(usize, usize)> = Vec::new();
     for pair in points.windows(2) {
         let ((x0, y0), (x1, y1)) = (pair[0], pair[1]);
         if y0 == y1 {
+            let style = if dashed_row == Some(y0) {
+                style.dashed()
+            } else {
+                style
+            };
             canvas.horizontal(x0, x1, y0, style);
             let step: Box<dyn Iterator<Item = usize>> = if x0 <= x1 {
                 Box::new(x0..=x1)
