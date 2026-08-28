@@ -202,6 +202,17 @@ pub enum RunTaskOrigin {
     Interactive,
     /// Medulla's own provider-capability probe.
     CapabilityProbe,
+    /// A workflow-evolution review the daemon spawned after a run failed.
+    ///
+    /// Restricted to proposal tools rather than granted workflow authority —
+    /// it is not an authored workflow node — which is why it is not
+    /// [`Workflow`](Self::Workflow). But nothing awaits it either: it is
+    /// spawned detached, and what it produces lands in the evolution store for
+    /// an operator to find later, not on a pane anyone is watching live. That
+    /// makes it distinct from [`DelegatedTask`](Self::DelegatedTask) too, which
+    /// otherwise means exactly "detached but somebody can still attach to it" —
+    /// see [`has_operator_in_the_loop`](Self::has_operator_in_the_loop).
+    UnattendedReview,
 }
 
 impl RunTaskOrigin {
@@ -222,7 +233,9 @@ impl RunTaskOrigin {
     /// be made to state its answer, rather than inheriting one.
     pub fn has_operator_in_the_loop(self) -> bool {
         match self {
-            RunTaskOrigin::Workflow | RunTaskOrigin::CapabilityProbe => false,
+            RunTaskOrigin::Workflow
+            | RunTaskOrigin::CapabilityProbe
+            | RunTaskOrigin::UnattendedReview => false,
             RunTaskOrigin::DelegatedTask
             | RunTaskOrigin::Conversation
             | RunTaskOrigin::Interactive => true,
