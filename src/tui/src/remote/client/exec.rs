@@ -77,14 +77,33 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     })
     .await?;
 
-    let shell = host
-        .capabilities()
-        .harnesses
-        .iter()
-        .find(|choice| choice.provider == "shell")
-        .ok_or_else(|| anyhow::anyhow!("{host_id} offers no shell"))?
-        .id
-        .clone();
+    // `--harness` names one of the host's own advertised ids; without it a shell
+    // is chosen, because that is what "run this command over there" means.
+    let wanted = flag(args, "--harness");
+    let offered = host.capabilities().harnesses.clone();
+    let shell = match wanted.as_deref() {
+        Some(wanted) => offered
+            .iter()
+            .find(|choice| choice.id == wanted || choice.provider == wanted)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "{host_id} does not offer {wanted}; it offers: {}",
+                    offered
+                        .iter()
+                        .map(|choice| choice.id.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })?
+            .id
+            .clone(),
+        None => offered
+            .iter()
+            .find(|choice| choice.provider == "shell")
+            .ok_or_else(|| anyhow::anyhow!("{host_id} offers no shell"))?
+            .id
+            .clone(),
+    };
 
     host.open("exec", &shell, &workspace, 120, 40, None)
         .await
@@ -109,16 +128,40 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     tokio::time::sleep(Duration::from_millis(200)).await;
     // A sentinel after the command, so we can tell "the output has arrived" from
     // "the screen has not caught up yet" without guessing at a delay.
-    let marker = format!("__medulla_done_{}", std::process::id());
-    host.input(format!("{command}; echo {marker}\n").as_bytes())
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
-
-    await_for("the command to finish", OUTPUT_TIMEOUT, &mut host, |host| {
-        // Twice: once in the echoed command line, once as the actual output.
-        screen_text(host).matches(&marker).count() >= 2
-    })
-    .await?;
+    match wanted {
+        // A shell: run the command and wait for a sentinel echoed after it, so
+        // "the output has arrived" is distinguishable from "the screen has not
+        // caught up" without guessing at a delay.
+        None => {
+            let marker = format!("__medulla_done_{}", std::process::id());
+            host.input(format!("{command}; echo {marker}\n").as_bytes())
+                .await
+                .map_err(|e| anyhow::anyhow!(e))?;
+            await_for("the command to finish", OUTPUT_TIMEOUT, &mut host, |host| {
+                // Twice: once in the echoed command line, once as the output.
+                screen_text(host).matches(&marker).count() >= 2
+            })
+            .await?;
+        }
+        // A harness: there is no shell to echo a sentinel, so the command is
+        // typed at it and the screen is read once it has settled. `--exec` is
+        // the prompt here rather than a shell command.
+        Some(_) => {
+            await_for("the harness to start", OUTPUT_TIMEOUT, &mut host, |host| {
+                !screen_text(host).trim().is_empty()
+            })
+            .await?;
+            if !command.trim().is_empty() {
+                host.input(format!("{command}\n").as_bytes())
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                // A beat for the harness to answer. There is no sentinel to
+                // wait on: what a harness prints is its own business.
+                tokio::time::sleep(Duration::from_millis(1500)).await;
+                host.pump().await;
+            }
+        }
+    }
 
     println!("{}", screen_text(&host));
     let _ = host.close(&session_id).await;
