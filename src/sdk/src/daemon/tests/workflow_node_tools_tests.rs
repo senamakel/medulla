@@ -135,7 +135,7 @@ async fn a_scoped_review_turn_keeps_its_workflow_tools() {
     );
     assert_eq!(
         env.get(crate::mcp::TOOL_MODE_ENV).map(String::as_str),
-        Some("propose"),
+        Some("propose:nightly"),
         "the review's mode must still reach its tool server: {env:?}"
     );
 }
