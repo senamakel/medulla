@@ -325,17 +325,19 @@ impl PtySessionExecutor {
             .row(id)
             .is_some_and(|row| row.state.is_running());
         let retain = retains_finished_session(class, control, settled, origin);
-        // A retained session can serve the operator a later turn, so its mapper
-        // state outlives the task the same way a taken session's does.
-        if !retain && !retains_workspace_context(class, control, running) {
-            self.workspace_context
-                .lock()
-                .expect("workspace context lock poisoned")
-                .remove(id);
-        }
         let bounded_for_the_orchestrator =
             class == SessionClass::Bounded && control != Some(SessionControl::User);
         if retain {
+            // A retained session can serve the operator a later turn, so its
+            // mapper state outlives the task the same way a taken session's
+            // does. No close is attempted on this path, so the snapshot above
+            // is not racing anything and is safe to decide from directly.
+            if !retains_workspace_context(class, control, running) {
+                self.workspace_context
+                    .lock()
+                    .expect("workspace context lock poisoned")
+                    .remove(id);
+            }
             self.sessions.retain(id);
             // Freed as well as retained: the turn is over, and a session left
             // busy would read as working forever in every surface that asks.
@@ -363,22 +365,60 @@ impl PtySessionExecutor {
             // snapshot above and this call are not otherwise atomic with a
             // concurrent takeover, and the whole point of the `User` guard is
             // that adoption must win that race, not lose it silently.
-            self.sessions.close_if_orchestrator(id);
-        } else {
-            // Free it for the operator or this peer's next turn. Released on
-            // error too: a failed turn left busy can never be reused again.
-            if settled {
-                self.sessions.settle_turn(id);
+            //
+            // Its return says which one happened, and the two outcomes are not
+            // interchangeable. A `true` really did close the session, so its
+            // mapper state is gone with it. A `false` means an operator took
+            // control in the gap between the snapshot above and this call — the
+            // session is theirs now, running, exactly the case the `else` branch
+            // below exists for, and it must get that branch's cleanup: settled
+            // or released so `busy` clears and `try_claim` can reuse it after
+            // handback, with its mapper state left alone rather than torn down
+            // for a close that never happened.
+            if self.sessions.close_if_orchestrator(id) {
+                self.workspace_context
+                    .lock()
+                    .expect("workspace context lock poisoned")
+                    .remove(id);
             } else {
-                // A failed reusable turn can leave the harness blocked on the
-                // very prompt that caused the failure. The daemon is about to
-                // drop its task-to-session binding, so hand it to the operator
-                // unconditionally: attention sampling is asynchronous and may
-                // not have latched a brand-new cue yet. User-held sessions have
-                // a direct rail row and cannot be reclaimed behind their back.
-                self.sessions.set_control(id, SessionControl::User);
-                self.sessions.release(id);
+                self.settle_or_hand_back(id, settled);
             }
+        } else {
+            // Snapshot decided this without a race: either the session was
+            // already the operator's turn's-start control() read, no close was
+            // ever attempted, and nothing here could have raced set_control.
+            if !retains_workspace_context(class, control, running) {
+                self.workspace_context
+                    .lock()
+                    .expect("workspace context lock poisoned")
+                    .remove(id);
+            }
+            self.settle_or_hand_back(id, settled);
+        }
+    }
+
+    /// Free a settled turn's session for reuse, or hand a failed one to the
+    /// operator.
+    ///
+    /// The shared tail of [`finish_turn`]'s two non-retaining, non-closing
+    /// outcomes: a session that was already the operator's at the snapshot, and
+    /// one that became theirs by winning the close race underneath it. Both are
+    /// running sessions nobody is going to kill, so both get the same completion
+    /// bookkeeping.
+    fn settle_or_hand_back(&self, id: &str, settled: bool) {
+        // Free it for the operator or this peer's next turn. Released on
+        // error too: a failed turn left busy can never be reused again.
+        if settled {
+            self.sessions.settle_turn(id);
+        } else {
+            // A failed reusable turn can leave the harness blocked on the very
+            // prompt that caused the failure. The daemon is about to drop its
+            // task-to-session binding, so hand it to the operator
+            // unconditionally: attention sampling is asynchronous and may not
+            // have latched a brand-new cue yet. User-held sessions have a
+            // direct rail row and cannot be reclaimed behind their back.
+            self.sessions.set_control(id, SessionControl::User);
+            self.sessions.release(id);
         }
     }
 
