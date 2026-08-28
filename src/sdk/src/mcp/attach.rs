@@ -440,6 +440,17 @@ fn write_owner_only(path: &Path, contents: &str) -> std::io::Result<()> {
 /// directory happens to find. An unreadable config is treated as enabled, which
 /// matches [`crate::config`]'s own default.
 pub fn workflows_enabled(env: &HashMap<String, String>) -> bool {
+    // A launch whose workflow surface was withheld is answered before the
+    // config is consulted: the host's own `workflows.enabled` says what this
+    // machine permits in general, and this says what *this* launch gets. Here
+    // rather than at each call site because this function is the shared policy
+    // both transports resolve through — the ACP session's `mcpServers` and the
+    // CLI's `--mcp-config` — and it is also what `session_grant` turns into
+    // [`ToolFamilies::fleet_only`](crate::control_socket::ToolFamilies::fleet_only),
+    // so the tools are absent from `tools/list` rather than refused on call.
+    if crate::harness_tools::workflows_withheld(env) {
+        return false;
+    }
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     crate::config::load_config(crate::config::explicit_config_from_env(env), env, &cwd)
         .map(|loaded| loaded.config.workflows.enabled)
