@@ -23,7 +23,10 @@ services:
     volumes:
       - ../../target/debug:/opt/medulla:ro
       - ./run-e2e.sh:/run-e2e.sh:ro
-      - ./medulla.toml:/root/.medulla/config.toml:ro
+      # `<home>/local/…` because nobody is signed in: medulla files a home per
+      # account and `local` is the pre-login one. Dropping it one level up is a
+      # silently ignored config, which is exactly the bug this suite caught.
+      - ./medulla.toml:/root/.medulla/local/config.toml:ro
     command: ["/bin/bash", "/run-e2e.sh"]
     networks: [remote]
 

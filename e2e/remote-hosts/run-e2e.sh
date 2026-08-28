@@ -9,14 +9,40 @@ set -uo pipefail
 pass=0
 fail=0
 
+# Assert `expected` appears in `output`, and that the command did not error.
+#
+# The error check is not belt-and-braces: a first draft of this suite "passed"
+# its hostname test because the failure message *also* contained the hostname it
+# was grepping for. An assertion that a broken run can satisfy is worse than no
+# assertion, so anything that looks like a failure fails the check outright.
 check() {
   local what="$1" expected="$2" output="$3"
+  if grep -qE '^Error:|error:' <<<"$output"; then
+    printf '  FAIL  %s\n         the command reported an error:\n' "$what"
+    printf '%s\n' "$output" | sed 's/^/         | /'
+    fail=$((fail + 1))
+    return
+  fi
   if grep -qF -- "$expected" <<<"$output"; then
     printf '  PASS  %s\n' "$what"
     pass=$((pass + 1))
   else
     printf '  FAIL  %s\n         expected to find: %s\n' "$what" "$expected"
-    printf '         got:\n%s\n' "$output" | sed 's/^/         | /'
+    printf '         got:\n' 
+    printf '%s\n' "$output" | sed 's/^/         | /'
+    fail=$((fail + 1))
+  fi
+}
+
+# Assert a command fails, and says something useful about why.
+check_error() {
+  local what="$1" expected="$2" output="$3"
+  if grep -qF -- "$expected" <<<"$output"; then
+    printf '  PASS  %s\n' "$what"
+    pass=$((pass + 1))
+  else
+    printf '  FAIL  %s\n         expected to find: %s\n         got:\n' "$what" "$expected"
+    printf '%s\n' "$output" | sed 's/^/         | /'
     fail=$((fail + 1))
   fi
 }
@@ -30,10 +56,21 @@ ssh -o ConnectTimeout=2 root@host true || { echo "FATAL: sshd never came up"; ex
 echo "sshd is up"
 echo
 
-# 1. The session runs on the other machine. `hostname` is the cleanest possible
-#    proof: the client is `medulla-e2e-client`, the host is `buildbox`.
-out=$(medulla remote buildbox --exec 'hostname' 2>&1)
-check "the session runs on the remote machine, not this one" "buildbox" "$out"
+# 0. Where we are, so a failure below can be read against it.
+echo "this container is $(hostname)"
+echo
+
+# 1. The session runs on the other machine.
+#
+#    Tagged rather than bare: a plain `buildbox` would also match the text of
+#    several *failure* messages, and an assertion a broken run can satisfy is
+#    worse than none. The tag can only come from a shell that really ran there.
+out=$(medulla remote buildbox --exec 'echo "ran-on=$(hostname)"' 2>&1)
+check "the session runs on the remote machine" "ran-on=buildbox" "$out"
+if grep -qF "ran-on=$(hostname)" <<<"$out"; then
+  echo "  FAIL  the session ran locally — that is not a remote session at all"
+  fail=$((fail + 1))
+fi
 
 # 2. It runs in the remote filesystem. This file is mounted only into the host
 #    container, so reading it proves the pty is over there.
@@ -51,7 +88,8 @@ check "a screenful of output survives the wire" "195 196 197 198 199 200" "$out"
 
 # 5. A bad host id fails clearly rather than hanging.
 out=$(medulla remote nosuchhost --exec 'true' 2>&1)
-check "an unknown host names the ones that are configured" "buildbox" "$out"
+check_error "an unknown host names the ones that are configured" \
+  "no [[remoteHosts]] entry called nosuchhost" "$out"
 
 echo
 printf 'passed %d, failed %d\n' "$pass" "$fail"
