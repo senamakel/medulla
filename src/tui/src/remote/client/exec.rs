@@ -35,8 +35,14 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         .find(|arg| !arg.starts_with("--"))
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("usage: medulla remote <host> --exec <command>"))?;
-    let command =
-        flag(args, "--exec").ok_or_else(|| anyhow::anyhow!("--exec <command> is required"))?;
+    // Optional when a harness is named: `--harness claude` on its own is "open a
+    // session there and show me what it says", which is a complete request. A
+    // shell needs a command, because a shell with nothing to run has nothing to
+    // report.
+    let command = flag(args, "--exec").unwrap_or_default();
+    if command.trim().is_empty() && flag(args, "--harness").is_none() {
+        anyhow::bail!("--exec <command> is required, or name a --harness to open");
+    }
 
     let env: HashMap<String, String> = std::env::vars().collect();
     let cwd = std::env::current_dir()?;
