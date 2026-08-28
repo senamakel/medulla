@@ -83,5 +83,7 @@ e2e-remote-hosts: ## Run the remote-host suite: real sshd, real UDP, two contain
 	cargo build -p medulla-tui --bin medulla
 	docker compose -f e2e/remote-hosts/compose.yaml build
 	docker compose -f e2e/remote-hosts/compose.yaml up \
-	  --abort-on-container-exit --exit-code-from client --force-recreate
-	docker compose -f e2e/remote-hosts/compose.yaml down -v
+	  --abort-on-container-exit --exit-code-from client --force-recreate; \
+	status=$$?; \
+	docker compose -f e2e/remote-hosts/compose.yaml down -v; \
+	exit $$status
