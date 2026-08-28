@@ -218,6 +218,42 @@ async fn watching_a_second_session_moves_the_stream() {
     );
 }
 
+#[tokio::test]
+async fn an_unadvertised_open_reports_why_it_failed() {
+    // Before `PumpEvent::OpenFailed` existed, `pump` parsed `OpenFailed`'s
+    // `reason` off the wire and threw it away — a caller waiting for
+    // `PumpEvent::Opened` had nothing to distinguish "still starting" from
+    // "already refused, will never arrive" except a 30s timeout.
+    let (mut client, mut server) = pair();
+    client.hello().await.unwrap();
+    settle("capabilities", &mut client, &mut server, |client| {
+        !client.capabilities().harnesses.is_empty()
+    })
+    .await;
+
+    client
+        .open("r1", "shell:/usr/bin/evil", "", 80, 24, None)
+        .await
+        .unwrap();
+
+    let mut failure = None;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline && failure.is_none() {
+        server.pump_once().await;
+        for event in client.pump().await {
+            if let PumpEvent::OpenFailed(reason) = event {
+                failure = Some(reason);
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let reason = failure.expect("the refusal must reach the caller, not just time out");
+    assert!(
+        reason.contains("does not offer"),
+        "the host's actual reason must survive: {reason}"
+    );
+}
+
 /// The watched screen as text.
 fn screen_text(client: &RemoteHost) -> String {
     client
