@@ -321,7 +321,10 @@ fn starting_on_a_remote_host_does_not_fall_back_to_this_device() {
     // Enter on the workspace step launches.
     app.handle_session_picker_key(key(KeyCode::Enter));
 
-    assert!(app.session_picker.is_none(), "the picker should have closed");
+    assert!(
+        app.session_picker.is_none(),
+        "the picker should have closed"
+    );
     // The host is not actually connected, so the request cannot be delivered —
     // and that specific complaint is the proof it took the remote path at all.
     // A local launch would have complained about a directory instead.
