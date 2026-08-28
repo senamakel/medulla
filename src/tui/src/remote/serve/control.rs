@@ -21,14 +21,21 @@
 //! already has — so this is an existing, documented state rather than a new one.
 
 use std::collections::HashMap;
+#[cfg(unix)]
 use std::sync::Arc;
 
 use medulla::config::TuiConfig;
+#[cfg(unix)]
 use medulla::control_socket::{
     control_socket_path, ActiveControlPlane, ControlServer, FleetDefaults, FleetOps, HubFleetOps,
 };
 
 /// Bind this host's control socket and publish it process-wide.
+///
+/// Unix only, because the socket is one: `control_socket::server` is itself
+/// `#[cfg(unix)]`. A Windows host still serves sessions — it simply serves them
+/// without tools, which is the same thing a unix host with `fleet_tools = false`
+/// does, and is reported the same way.
 ///
 /// Returns the server, which must be kept alive: dropping it unbinds the socket
 /// and every grant minted against it becomes unredeemable.
@@ -36,6 +43,7 @@ use medulla::control_socket::{
 /// `None` when fleet tools are switched off in config, or the socket cannot be
 /// bound. Neither is fatal — a session still starts, just without tools — so the
 /// caller logs and carries on rather than refusing to serve.
+#[cfg(unix)]
 pub async fn start(
     env: &HashMap<String, String>,
     config: &TuiConfig,
@@ -86,4 +94,19 @@ pub async fn start(
             None
         }
     }
+}
+
+/// No control socket off unix: there is no unix socket to bind.
+///
+/// Returns `()` rather than an `Option<ControlServer>` because the type does not
+/// exist on this platform. The caller holds the result for its lifetime either
+/// way, so a unit is exactly the right shape for "nothing to hold".
+#[cfg(not(unix))]
+pub async fn start(
+    env: &HashMap<String, String>,
+    config: &TuiConfig,
+    log: impl Fn(String),
+) {
+    let _ = (env, config);
+    log("control socket: not bound (unix only), so sessions start without tools".to_string());
 }
