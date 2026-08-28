@@ -350,11 +350,14 @@ async fn run_provider_attempt(
     // or deleted since the last install is described correctly here. Empty for
     // a provider with no directory flag, so those argvs are unchanged.
     //
-    // Skipped entirely when this launch is getting no Medulla tools: every one
+    // Skipped entirely when this launch is getting no workflow tools: every one
     // of these skills instructs the model to call `workflow_run`, and a session
     // told to call a tool it was not served spends a turn discovering that.
+    // Worse for a workflow `agent` node than for any other launch — the skill
+    // it would read describes the very graph it is a step of, which is how one
+    // babysitter came to start a second on its own pull request.
     #[cfg(feature = "workflows")]
-    if !crate::harness_tools::withheld(&spec.env) {
+    if !crate::harness_tools::workflows_withheld(&spec.env) {
         extra_args.extend(crate::workflows::skills::refresh_managed(
             spec.provider,
             &spec.env,

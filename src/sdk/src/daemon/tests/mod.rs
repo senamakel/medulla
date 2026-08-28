@@ -32,6 +32,8 @@ mod task_attribution_tests;
 mod task_continuity_tests;
 mod task_tests;
 #[cfg(feature = "workflows")]
+mod workflow_node_tools_tests;
+#[cfg(feature = "workflows")]
 mod workflow_tests;
 
 /// A [`SendFn`] that records every `(to, body)` it is handed, paired with the

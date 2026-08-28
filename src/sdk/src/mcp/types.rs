@@ -101,6 +101,20 @@ impl McpSession {
         self
     }
 
+    /// Take the workflow family away whatever the grant it redeemed said.
+    ///
+    /// Applied *after* [`with_fleet`](Self::with_fleet), which is the point:
+    /// that method replaces both flags with the grant's authority, and a grant
+    /// exchanged from a parent handoff inherits the parent's families rather
+    /// than being minted against this launch's policy. So a server started
+    /// under a withholding marker narrows itself here, and the withholding
+    /// holds on the one path where the launch-side decision could not reach the
+    /// grant. Only ever narrows — there is no counterpart that adds a family.
+    pub(super) fn without_workflow_tools(mut self) -> Self {
+        self.families.workflows = false;
+        self
+    }
+
     /// Apply the host workflow switch before a fleet handshake is attempted.
     ///
     /// A successful handshake replaces both family flags with the grant's

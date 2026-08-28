@@ -365,13 +365,22 @@ pub async fn serve_stdio(env: &HashMap<String, String>, cwd: &Path) -> Result<()
     // the Agents rail draw the run under the harness that asked for it instead
     // of only in the global workflow history.
     let origin = origin_from_env(env, cwd);
-    let session = Arc::new(
-        McpSession::local(store, policy, mode)
-            .with_workflows_enabled(workflows_enabled)
-            .with_fleet(backend::from_env(env).await)
-            .with_origin(origin)
-            .with_notifications(responses.clone()),
-    );
+    let mut session = McpSession::local(store, policy, mode)
+        .with_workflows_enabled(workflows_enabled)
+        .with_fleet(backend::from_env(env).await)
+        .with_origin(origin)
+        .with_notifications(responses.clone());
+    // Defence in depth for a launch whose workflow surface was withheld
+    // ([`crate::harness_tools`]). The launcher already declines to serve this
+    // family — it resolves `workflows_enabled` to false, which mints a
+    // fleet-only grant — so reaching here means the grant came from somewhere
+    // that decision could not reach, such as a parent handoff exchanged on a
+    // worker with no control plane of its own. Applied after the handshake so
+    // it narrows whatever that grant carried.
+    if crate::harness_tools::workflows_withheld(env) {
+        session = session.without_workflow_tools();
+    }
+    let session = Arc::new(session);
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     let mut writer = tokio::spawn(async move {
         let mut stdout = tokio::io::stdout();
