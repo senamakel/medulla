@@ -153,11 +153,18 @@ impl Driver {
         } else {
             config.peers.clone()
         };
+        let direct = matches!(config.path, LinkPath::Direct { .. });
         let sessions = peers
             .into_iter()
             .map(|peer| {
                 let session = Session::new(
-                    session_config(&node, &peer, config.queue_limits, config.max_sent_states),
+                    session_config(
+                        &node,
+                        &peer,
+                        config.queue_limits,
+                        config.max_sent_states,
+                        direct,
+                    ),
                     0,
                 );
                 (peer.node_id, session)
@@ -383,18 +390,27 @@ fn complete_screen_frame(rows: &[Vec<u8>]) -> Option<Vec<u8>> {
 }
 
 /// Build a session configuration from the node identity and one peer.
+///
+/// `direct` selects the outer-header key, and it is the only thing that differs
+/// between the two paths at this layer. Forwarded: the key the backend issued
+/// this node, which only the backend can check. Direct: a key derived from the
+/// pair key, which the peer can check — see [`direct::path_key`].
 fn session_config(
     node: &AcquiredNode,
     peer: &PeerConfig,
     queue_limits: QueueLimits,
     max_sent_states: usize,
+    direct: bool,
 ) -> SessionConfig {
     SessionConfig {
         node_id: node.state.node_id,
         peer_node_id: peer.node_id,
         role: node.state.role,
         pair_key: peer.pair_key.clone(),
-        forwarder_key: node.state.forwarder_key.clone(),
+        forwarder_key: match direct {
+            true => direct::path_key(&peer.pair_key),
+            false => node.state.forwarder_key.clone(),
+        },
         queue_limits,
         max_sent_states,
     }
