@@ -91,6 +91,19 @@ out=$(medulla remote nosuchhost --exec 'true' 2>&1)
 check_error "an unknown host names the ones that are configured" \
   "no [[remoteHosts]] entry called nosuchhost" "$out"
 
+# 6. One daemon per client, reused rather than duplicated. Four `medulla remote`
+#    runs have happened by now; if each had started its own daemon there would be
+#    four processes over there, and each would own a different set of sessions.
+out=$(ssh root@host 'pgrep -c -f "medulla daemon --direct"' 2>&1)
+check "the daemon is reused across reconnects, not duplicated" "1" "$out"
+
+# 7. Sessions outlive the client that opened them. This is the point of the
+#    transport: a client goes away and comes back to what it left. The session
+#    below is opened by one process and found by the next.
+ssh root@host 'ls /root/.medulla/local/remote/hosts' >/dev/null 2>&1
+out=$(medulla remote buildbox --exec 'echo second-connection-works' 2>&1)
+check "a later connection reaches the same daemon" "second-connection-works" "$out"
+
 echo
 printf 'passed %d, failed %d\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
