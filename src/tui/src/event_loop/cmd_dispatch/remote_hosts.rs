@@ -70,9 +70,10 @@ pub(super) fn spawn_connect(
                 },
                 RemoteUpdate::Failed(reason) => AppMsg::RemoteHostFailed { host_id, reason },
                 RemoteUpdate::Sessions(rows) => AppMsg::RemoteHostSessions { host_id, rows },
-                RemoteUpdate::Opened { session_id, .. } => {
-                    AppMsg::RemoteSessionOpened { host_id, session_id }
-                }
+                RemoteUpdate::Opened { session_id, .. } => AppMsg::RemoteSessionOpened {
+                    host_id,
+                    session_id,
+                },
                 RemoteUpdate::Screen {
                     session_id,
                     snapshot,

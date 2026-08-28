@@ -83,9 +83,7 @@ pub(super) enum AppMsg {
         /// Which `[[remoteHosts]]` entry.
         host_id: String,
         /// The task's request channel.
-        requests: tokio::sync::mpsc::UnboundedSender<
-            medulla_tui::remote::client::RemoteRequest,
-        >,
+        requests: tokio::sync::mpsc::UnboundedSender<medulla_tui::remote::client::RemoteRequest>,
     },
     /// A remote host's session list changed.
     RemoteHostSessions {

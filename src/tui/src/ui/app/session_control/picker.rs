@@ -241,6 +241,13 @@ impl App {
     /// appears somewhere below the fold, with the pane still showing whatever
     /// was selected before, reads as "nothing happened".
     pub(crate) fn spawn_session(&mut self, choice: HarnessChoice, cwd: &str) {
+        // A remote host runs its own launch, on its own machine, through the
+        // same `open_unmanaged_named` this calls locally — so the two differ in
+        // where the pty ends up and nowhere else.
+        if let Some(host) = self.picker_host().filter(|host| host.remote).cloned() {
+            self.spawn_remote_session(&host.id, &host.label, &choice, cwd);
+            return;
+        }
         let Some(harnesses) = self.local_sessions.clone() else {
             self.set_status("This device is not hosting, so it has no sessions to start");
             return;
@@ -408,4 +415,58 @@ pub(in crate::ui::app) fn is_text_input(modifiers: KeyModifiers) -> bool {
     modifiers == KeyModifiers::NONE
         || modifiers == KeyModifiers::SHIFT
         || modifiers == (KeyModifiers::CONTROL | KeyModifiers::ALT)
+}
+
+impl App {
+    /// Ask a remote host to start a session, and close the picker.
+    ///
+    /// The answer arrives asynchronously — the request goes up the link and the
+    /// host replies with the id it minted — so there is nothing to select yet.
+    /// The status line says what was asked for; `select_remote_session` moves
+    /// the cursor when it lands.
+    fn spawn_remote_session(
+        &mut self,
+        host_id: &str,
+        host_label: &str,
+        choice: &HarnessChoice,
+        cwd: &str,
+    ) {
+        // The pane's size, so the far side's pty starts at the geometry it will
+        // actually live in rather than starting at a default and reflowing on
+        // the first frame the operator sees.
+        let (cols, rows) = self
+            .remote_host(host_id)
+            .and_then(|state| state.pane_size)
+            .unwrap_or((120, 30));
+        let workspace = cwd.trim().to_string();
+        let request = crate::remote::client::RemoteRequest::Open {
+            request_id: String::new(),
+            harness_id: choice.id().to_string(),
+            workspace: workspace.clone(),
+            cols,
+            rows,
+            name: None,
+        };
+        let sent = self
+            .remote_hosts
+            .get_mut(host_id)
+            .map(|state| state.request(request))
+            .unwrap_or_else(|| Err(format!("{host_label} is not connected")));
+        self.session_picker = None;
+        match sent {
+            Ok(()) => {
+                let where_ = match workspace.is_empty() {
+                    true => host_label.to_string(),
+                    false => format!("{workspace} on {host_label}"),
+                };
+                self.set_status(format!("Starting {} in {where_}…", choice.display_name()));
+            }
+            // Surfaced, never swallowed: a spawn that fails silently leaves the
+            // operator waiting for a pane that is never coming.
+            Err(error) => self.set_status(format!(
+                "Could not start {} on {host_label}: {error}",
+                choice.display_name()
+            )),
+        }
+    }
 }
