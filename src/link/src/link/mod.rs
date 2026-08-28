@@ -116,6 +116,32 @@ fn resolve(endpoint: &str, ipv4: bool) -> Result<SocketAddr, LinkError> {
         .ok_or_else(|| LinkError::Endpoint(endpoint.to_string()))
 }
 
+/// Bind a UDP socket, explicitly requesting dual-stack when `addr` is IPv6.
+///
+/// A bare `UdpSocket::bind` leaves `IPV6_V6ONLY` at the OS default, and that
+/// default is not dual-stack everywhere `[::]` successfully binds — a host
+/// where it defaults on accepts IPv6 traffic only, so an IPv4-only peer's
+/// datagrams never arrive even though bootstrap and the bind itself both
+/// succeeded. `std`/tokio's `UdpSocket` expose no way to set the option, hence
+/// `socket2` here rather than a plain bind.
+///
+/// Best-effort: `set_only_v6` failing (a stack that refuses the option
+/// entirely) is not fatal, since the alternative is refusing to serve at all
+/// on that host. The bind itself still surfaces its error, since a socket that
+/// cannot be bound is a real failure, not a degraded case.
+fn bind_dual_stack(addr: SocketAddr) -> std::io::Result<std::net::UdpSocket> {
+    use socket2::{Domain, Protocol, Socket, Type};
+
+    let domain = if addr.is_ipv6() { Domain::IPV6 } else { Domain::IPV4 };
+    let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
+    if addr.is_ipv6() {
+        let _ = socket.set_only_v6(false);
+    }
+    socket.set_nonblocking(true)?;
+    socket.bind(&addr.into())?;
+    Ok(socket.into())
+}
+
 /// The task that owns the socket, the sessions and the sequence source.
 struct Driver {
     socket: UdpSocket,
