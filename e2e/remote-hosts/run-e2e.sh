@@ -86,6 +86,13 @@ check "the configured workspace is where the session starts" "/work" "$out"
 out=$(medulla remote buildbox --exec 'seq 1 200 | tr "\n" " "' 2>&1)
 check "a screenful of output survives the wire" "195 196 197 198 199 200" "$out"
 
+# 4b. Output long enough to scroll the command line off the 40-row screen. The
+#     completion marker has to be detectable when only the *output* copy is
+#     still visible — counting two occurrences fails here, and reported a
+#     timeout for a command that had finished.
+out=$(medulla remote buildbox --exec 'seq 1 300' 2>&1)
+check "a command whose output scrolls past a screenful still completes" "300" "$out"
+
 # 5. A bad host id fails clearly rather than hanging.
 out=$(medulla remote nosuchhost --exec 'true' 2>&1)
 check_error "an unknown host names the ones that are configured" \
