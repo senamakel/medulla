@@ -407,9 +407,19 @@ impl RemoteServer {
     }
 
     /// Send `peer` the whole session list.
-    pub async fn publish_sessions(&self, peer: &str) {
-        let rows = self
-            .sessions
+    pub async fn publish_sessions(&mut self, peer: &str) {
+        // Refreshed here too, not only in `publish_sessions_if_changed`: this is
+        // called right after a request that itself changed a row (`Open`,
+        // `Close`, `Kill`, …), and without updating the cache the very next
+        // tick would see that same change as "new" and send it a second time
+        // to every peer.
+        self.last_rows = self.current_rows();
+        self.send_sessions(peer).await;
+    }
+
+    /// The session list as the client's rail draws it, freshly computed.
+    fn current_rows(&self) -> Vec<RemoteSessionRow> {
+        self.sessions
             .sessions
             .rows()
             .iter()
@@ -421,10 +431,16 @@ impl RemoteServer {
                     .unwrap_or(false);
                 wire_row(row, bracketed)
             })
-            .collect();
+            .collect()
+    }
+
+    /// Send `peer` the cached session list.
+    async fn send_sessions(&self, peer: &str) {
         self.send(
             peer,
-            &encode_remote_message(&RemoteMessage::Sessions { rows }),
+            &encode_remote_message(&RemoteMessage::Sessions {
+                rows: self.last_rows.clone(),
+            }),
         )
         .await;
     }
