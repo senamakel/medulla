@@ -7,7 +7,7 @@
 use medulla::protocol::{Color, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
 
 use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
-use crate::worker::stream::convert;
+use crate::worker::stream::convert::{snapshot_from_grid, wire_grid};
 
 /// A cell with text and no styling.
 fn cell(text: &str) -> ScreenCell {
@@ -104,36 +104,6 @@ fn an_empty_snapshot_converts_without_panicking() {
 
 /// A snapshot with one styled run and one plain one, for round-trip tests.
 fn styled_snapshot() -> ScreenSnapshot {
-    let cell = |ch: &str, bold: bool, fg: vt100::Color| ScreenCell {
-        text: CellText::from(ch),
-        fg,
-        bg: vt100::Color::Default,
-        bold,
-        italic: false,
-        underline: false,
-        inverse: false,
-    };
-    ScreenSnapshot {
-        cells: vec![
-            vec![
-                cell("h", true, vt100::Color::Idx(4)),
-                cell("i", true, vt100::Color::Idx(4)),
-                cell(" ", false, vt100::Color::Default),
-                cell("x", false, vt100::Color::Rgb(1, 2, 3)),
-            ],
-            vec![
-                cell("o", false, vt100::Color::Default),
-                cell("k", false, vt100::Color::Default),
-                cell(" ", false, vt100::Color::Default),
-                cell(" ", false, vt100::Color::Default),
-            ],
-        ],
-        cursor: (1, 2),
-        hide_cursor: false,
-    }
-}
-
-    use super::super::pty::{CellText, ScreenCell, ScreenSnapshot};
     let cell = |ch: &str, bold: bool, fg: vt100::Color| ScreenCell {
         text: CellText::from(ch),
         fg,
