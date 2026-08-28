@@ -24,7 +24,7 @@ impl App {
             .iter()
             .filter(|e| matches!(e.event, TuiEvent::Trace { .. }))
             .collect();
-        let block = self.panel(format!("Trace · {} events", source.len()));
+        let block = self.content_panel(format!("Trace · {} events", source.len()));
         let inner = block.inner(area);
         f.render_widget(block, area);
         let vis = (inner.height as usize).max(1);
@@ -58,7 +58,7 @@ impl App {
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(38), Constraint::Percentage(62)])
             .split(area);
-        let block = self.panel(format!("Environment · {} chunks", self.contexts.len()));
+        let block = self.content_panel(format!("Environment · {} chunks", self.contexts.len()));
         let inner = block.inner(cols[0]);
         f.render_widget(block, cols[0]);
         self.hit_context = Some(inner);

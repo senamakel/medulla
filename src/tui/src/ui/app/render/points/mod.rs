@@ -35,7 +35,7 @@ impl App {
         self.hit_nav = multi_pane::draw_nav(
             frame,
             nav,
-            self.panel("TokenMaxxxing"),
+            self.nav_panel("TokenMaxxxing"),
             &self.theme,
             &TOKENMAXXING_SUBPAGES,
             &[],

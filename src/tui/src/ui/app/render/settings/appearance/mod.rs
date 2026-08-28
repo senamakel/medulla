@@ -44,7 +44,7 @@ impl App {
     /// Draw Appearance: the switches beside (or behind) the preview, over the
     /// pinned detail footer for the selected row.
     pub(super) fn draw_appearance(&mut self, f: &mut Frame, area: Rect) {
-        let block = self.panel("Appearance");
+        let block = self.content_panel("Appearance");
         let inner = block.inner(area);
         f.render_widget(block, area);
 

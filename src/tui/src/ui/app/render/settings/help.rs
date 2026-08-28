@@ -64,7 +64,7 @@ impl App {
         // Clamped here rather than at the key press: how far this page can
         // scroll depends on the terminal it is being drawn into, which the key
         // handler does not know.
-        let block = self.panel("Keyboard & REPL help");
+        let block = self.content_panel("Keyboard & REPL help");
         let inner = block.inner(area);
         let paragraph = Paragraph::new(Text::from(lines)).wrap(Wrap { trim: true });
         // Logical lines are not screen rows once wrapping is enabled. Ask the
