@@ -152,25 +152,15 @@ pub async fn run(
         // Only when it moved: a watched-but-idle session should cost nothing,
         // which is the whole reason the screen is synchronised state rather than
         // a stream.
-        if let (Some(session_id), Some(snapshot)) = (host.watching(), host.screen()) {
-            let unchanged = last_screen
-                .as_ref()
-                .is_some_and(|(id, cached)| id == session_id && cached == &snapshot);
-            if !unchanged {
-                last_screen = Some((session_id.to_string(), snapshot.clone()));
-                let _ = updates.send((
-                    host_id.clone(),
-                    RemoteUpdate::Screen {
-                        session_id: session_id.to_string(),
-                        snapshot: Box::new(snapshot),
-                    },
-                ));
-            }
-        } else {
-            // Nothing is being watched (or nothing has arrived yet): clear the
-            // cache so a `Watch` that lands moments later is compared against
-            // nothing rather than the last session's grid.
-            last_screen = None;
+        if let Some(update) = next_screen_update(&mut last_screen, host.watching(), host.screen())
+        {
+            let _ = updates.send((
+                host_id.clone(),
+                RemoteUpdate::Screen {
+                    session_id: update.0,
+                    snapshot: Box::new(update.1),
+                },
+            ));
         }
 
         if requests.is_closed() && requests.is_empty() {
