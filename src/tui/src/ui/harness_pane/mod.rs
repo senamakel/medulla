@@ -37,7 +37,7 @@ mod types;
 mod tests;
 
 pub use shells::ShellChoice;
-pub use types::{HarnessChoice, HarnessFocus, LocalSessions};
+pub use types::{HarnessChoice, HarnessFocus, LocalSessions, RemoteChoice};
 
 /// How the focus chord is written in hints and titles.
 ///
