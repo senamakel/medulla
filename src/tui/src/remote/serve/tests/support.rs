@@ -12,7 +12,8 @@ pub(super) use std::sync::Arc;
 pub(super) use std::time::{Duration, Instant};
 
 pub(super) use medulla::bridge::{Bridge, LocalBridgeNetwork};
-use medulla::protocol::{
+pub(super) use crate::remote::serve::RemoteServer;
+pub(super) use medulla::protocol::{
     encode_remote_message, encode_screen_message, parse_remote_message, HarnessProvider,
     RemoteHarnessChoice, RemoteMessage, ScreenMessage,
 };
