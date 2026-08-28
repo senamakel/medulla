@@ -1,5 +1,6 @@
 //! Focused tests for task-frame encoding and restricted tool-mode decoding.
 
+mod attachments;
 mod capabilities;
 mod codec;
 mod shell_provider;
