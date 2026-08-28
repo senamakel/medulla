@@ -244,14 +244,29 @@ impl Driver {
     /// dropped. That is not an error condition: with a blind forwarder in the
     /// middle, junk arriving is expected, and SSP recovers from a dropped
     /// datagram by construction.
-    fn handle_datagram(&mut self, datagram: &[u8]) {
+    ///
+    /// `from` matters only on a direct route, where it is both the thing that
+    /// cannot be trusted before authentication and the answer to "where has this
+    /// peer moved to" after it.
+    fn handle_datagram(&mut self, datagram: &[u8], from: SocketAddr) {
         let now = self.now_ms();
         let Ok(header) = crate::header::OuterHeader::decode(datagram) else {
             return;
         };
+        let direct = matches!(self.route, Route::Direct(_));
         let Some(session) = self.sessions.get_mut(&header.src) else {
             return;
         };
+        // Only a direct link can do this: under a forwarder the peer's tag is
+        // keyed to a secret we have never held. Here both ends derive the same
+        // path key from the pair key, so junk is rejected in constant time
+        // before it reaches ChaCha20-Poly1305 — the one job the forwarder used
+        // to do for us.
+        if direct
+            && !crate::header::verify_tag(datagram, &direct::path_key(session.pair_key()))
+        {
+            return;
+        }
         let pending = self.pending_inbound.entry(header.src).or_default();
         if !pending.is_empty() {
             return;
@@ -259,6 +274,9 @@ impl Driver {
         if session.handle_datagram(datagram, now).is_err() {
             return;
         }
+        // After authentication, never before: an unauthenticated datagram must
+        // not be able to move where this link sends.
+        direct::learn(&mut self.route, session, from);
         let messages = session.take_messages();
         let epoch = session
             .peer_epoch()
