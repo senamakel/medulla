@@ -593,7 +593,11 @@ fn dropped_trailing_blanks_come_back_as_a_full_rectangle() {
     let original = styled_snapshot();
     let grid = super::convert::wire_grid(&original);
     assert!(
-        grid.lines[1].iter().map(|run| run.text.chars().count()).sum::<usize>() < 4,
+        grid.lines[1]
+            .iter()
+            .map(|run| run.text.chars().count())
+            .sum::<usize>()
+            < 4,
         "the fixture's second row must have trailing blanks for this to test anything"
     );
     let restored = super::convert::snapshot_from_grid(&grid);
@@ -608,7 +612,9 @@ fn a_grid_declaring_more_rows_than_it_carries_is_padded() {
     grid.rows = 5;
     let restored = super::convert::snapshot_from_grid(&grid);
     assert_eq!(restored.cells.len(), 5);
-    assert!(restored.cells[4].iter().all(|cell| cell.text.as_str() == " "));
+    assert!(restored.cells[4]
+        .iter()
+        .all(|cell| cell.text.as_str() == " "));
 }
 
 #[test]
