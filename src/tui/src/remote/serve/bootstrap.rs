@@ -288,6 +288,11 @@ pub fn enroll_client(
 /// so one socket serves both, and a host reachable only over IPv6 works at all.
 /// A hard-coded `0.0.0.0` made such a host bootstrap successfully over SSH and
 /// then be unreachable over UDP, which is the worst shape a failure can take.
+/// Dual-stack itself is not this function's job: `Link::connect`
+/// (`medulla_link::link::bind_dual_stack`) explicitly disables `IPV6_V6ONLY`
+/// on whatever `[::]` address this returns, since the OS default is not
+/// dual-stack everywhere the bind below succeeds. This function only decides
+/// *which* address to hand it.
 ///
 /// Probed rather than assumed: `bindv6only` is not universally off, and a host
 /// with IPv6 disabled cannot bind `[::]` whatever the default says. Falling back
