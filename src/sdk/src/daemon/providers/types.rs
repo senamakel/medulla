@@ -298,3 +298,7 @@ pub(super) enum LineRead {
     /// The stream ended with nothing buffered.
     Eof,
 }
+
+#[cfg(test)]
+#[path = "types_tests.rs"]
+mod tests;
