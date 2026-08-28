@@ -62,7 +62,17 @@ impl App {
     /// Only the local manager owns a record this can remove.
     /// [`remote_session_rows`](App::remote_session_rows) is rebuilt from what
     /// each host reports, so forgetting a remote row here would restore it on
-    /// the next update — the host's own sweep is what retires it.
+    /// the next update.
+    ///
+    /// That leaves a remote exited row with no dismissal, and the status says
+    /// so rather than implying the host will deal with it: nothing on a
+    /// headless host retires one. `sweep_finished_sessions` runs from the
+    /// interactive frame loop only, and
+    /// [`current_rows`](crate::remote::serve) publishes `PtyManager::rows()`
+    /// verbatim — so a remote failure row is as permanent as a local one used
+    /// to be. Closing that gap needs a host-side forget that can see the run
+    /// registry, since the guard below has no counterpart there; tracked
+    /// separately rather than bolted on here.
     fn dismiss_exited_session(&mut self, session: &str) {
         match SessionRef::parse(session) {
             SessionRef::Local(id) => {
@@ -100,7 +110,9 @@ impl App {
                 self.set_status("Dismissed the exited session");
             }
             SessionRef::Remote { .. } => {
-                self.set_status("That session has already exited — its host retires the row");
+                self.set_status(
+                    "That session has already exited — a remote row cannot be dismissed from here",
+                );
             }
         }
     }
