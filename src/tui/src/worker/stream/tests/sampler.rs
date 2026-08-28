@@ -5,9 +5,13 @@
 //! ends up holding the emulator's screen — is asserted here too, since it is
 //! the only check that covers the conversion and the diff *together*.
 
-use medulla::protocol::{apply_frame, ApplyOutcome, ScreenView};
+use medulla::protocol::{
+    apply_frame, ApplyOutcome, Color, ScreenView, ATTR_BOLD, ATTR_INVERSE,
+};
 
-use crate::worker::stream::SessionStream;
+use crate::worker::pty::ScreenCell;
+use crate::worker::stream::convert::wire_grid;
+use crate::worker::stream::{sample_interval, SessionStream};
 
 use super::conversion::snapshot;
 
