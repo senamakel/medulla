@@ -29,5 +29,12 @@ RUN printf 'StrictHostKeyChecking no\nUserKnownHostsFile /dev/null\nLogLevel ERR
     && sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
 
 # The binary under test, built on the host and mounted in by compose.
+#
+# A symlink rather than a `PATH` entry, because `ssh host -- medulla …` runs a
+# non-login, non-interactive shell: sshd sets its own PATH and sources no profile,
+# so an `ENV PATH` here would be invisible to exactly the invocation that matters.
+# `/usr/local/bin` is on sshd's default PATH. The target does not exist until
+# compose mounts it, which is fine — a symlink resolves when it is used.
 ENV PATH="/opt/medulla:${PATH}"
+RUN ln -s /opt/medulla/medulla /usr/local/bin/medulla
 WORKDIR /work
