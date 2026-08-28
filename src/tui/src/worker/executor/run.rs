@@ -358,7 +358,12 @@ impl PtySessionExecutor {
             // nobody to read it. Leaving it standing costs a live harness
             // process and a rail row for the life of the daemon, since nothing
             // ends retention but a person taking or closing the session.
-            self.sessions.close(id);
+            //
+            // `close_if_orchestrator`, not a plain `close`: the `control`
+            // snapshot above and this call are not otherwise atomic with a
+            // concurrent takeover, and the whole point of the `User` guard is
+            // that adoption must win that race, not lose it silently.
+            self.sessions.close_if_orchestrator(id);
         } else {
             // Free it for the operator or this peer's next turn. Released on
             // error too: a failed turn left busy can never be reused again.
