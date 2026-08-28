@@ -118,14 +118,20 @@ pub fn ssh_argv(host: &RemoteHostSection, client: NodeId, workspace: &str) -> Ve
         user => format!("{user}@{}", host.host.trim()),
     });
     argv.push("--".to_string());
-    argv.push(remote_command(host));
+    // `ssh host -- a b c` does not exec `a` with argv `[b, c]`: everything after
+    // `--` is joined with spaces into one string and handed to the remote login
+    // shell, which re-tokenizes it. So each word of the command tail must be
+    // shell-quoted individually here, before ssh ever concatenates them —
+    // otherwise a workspace path with a space becomes two arguments, and one
+    // with `$()` or `;` gets evaluated by the remote shell.
+    argv.push(posix_quote(&remote_command(host)));
     argv.push("daemon".to_string());
     argv.push("--direct".to_string());
     argv.push("--peer-node".to_string());
     argv.push(client.to_string());
     if !workspace.trim().is_empty() {
         argv.push("--workspace".to_string());
-        argv.push(workspace.trim().to_string());
+        argv.push(posix_quote(workspace.trim()));
     }
     argv
 }
@@ -136,6 +142,23 @@ pub fn remote_command(host: &RemoteHostSection) -> String {
         "" => "medulla".to_string(),
         value => value.to_string(),
     }
+}
+
+/// Quote one word for the POSIX shell that receives ssh's command tail.
+///
+/// Plain single-quoting, with embedded quotes escaped by closing the quoted
+/// string, appending an escaped quote, and reopening it — the standard
+/// `'\''` trick. Every character is safe inside single quotes except `'`
+/// itself, so this needs no allowlist of "safe" characters to get wrong.
+fn posix_quote(value: &str) -> String {
+    if !value.is_empty()
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/'))
+    {
+        return value.to_string();
+    }
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 /// The SSH client to run.
