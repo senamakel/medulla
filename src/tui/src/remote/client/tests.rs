@@ -252,7 +252,7 @@ async fn an_unadvertised_open_reports_why_it_failed() {
     }
     let reason = failure.expect("the refusal must reach the caller, not just time out");
     assert!(
-        reason.contains("does not offer"),
+        reason.contains("directory"),
         "the host's actual reason must survive: {reason}"
     );
 }
