@@ -75,6 +75,10 @@ impl Link {
             }
         };
 
+        // Read before the socket moves into the driver task; an ephemeral bind
+        // means this is the only chance to learn the assigned port.
+        let local_addr = socket.local_addr()?;
+
         let (command_tx, command_rx) = mpsc::channel(COMMAND_CAPACITY);
         let (inbound_tx, inbound_rx) = mpsc::channel(INBOUND_CAPACITY);
         let (status_tx, status_rx) = watch::channel(LinkStatus::default());
@@ -93,6 +97,7 @@ impl Link {
         tokio::spawn(driver.run(command_rx));
 
         Ok(LinkHandle {
+            local_addr,
             commands: command_tx,
             inbound: Mutex::new(inbound_rx),
             status: status_rx,

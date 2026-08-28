@@ -175,6 +175,12 @@ pub(super) enum Command {
 /// `Arc` instead — every method takes `&self`.
 #[derive(Debug)]
 pub struct LinkHandle {
+    /// The address the driver's socket is bound to.
+    ///
+    /// Captured at connect rather than asked of the socket later, because the
+    /// socket moves into the driver task. A direct-mode host needs it: it binds
+    /// an ephemeral port and has to tell the client which one it got.
+    pub(super) local_addr: SocketAddr,
     pub(super) commands: mpsc::Sender<Command>,
     pub(super) inbound: Mutex<mpsc::Receiver<(NodeId, u64, Vec<u8>)>>,
     pub(super) status: watch::Receiver<LinkStatus>,
@@ -250,6 +256,14 @@ impl LinkHandle {
     /// `None` means the driver has stopped and no further message will arrive.
     pub async fn recv(&self) -> Option<(NodeId, u64, Vec<u8>)> {
         self.inbound.lock().await.recv().await
+    }
+
+    /// The local address this link's socket is bound to.
+    ///
+    /// With an ephemeral `bind` (the usual choice) this is the only way to learn
+    /// the port that was actually assigned.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.local_addr
     }
 
     /// Every peer this link opened a session with.

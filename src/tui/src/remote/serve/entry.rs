@@ -87,7 +87,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         pair_key: pair_key.clone(),
     }];
     let link = Link::connect(config).await?;
-    let bound = link.local_addr()?;
+    let bound = link.local_addr();
 
     let bridge = Arc::new(LinkBridge::new(
         Arc::new(link),
@@ -137,8 +137,9 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
 /// and attribution included for a coding agent, and deliberately none of them
 /// for a shell.
 fn local_sessions(env: &HashMap<String, String>, workspace: &str) -> LocalSessions {
-    let lookup = medulla::daemon::providers::make_path_lookup(env);
-    let providers = medulla::daemon::providers::detect_providers(env, &lookup);
+    // `None` for the filter: a remote host offers whatever it actually has,
+    // rather than a list configured on the client's machine.
+    let providers = medulla::daemon::providers::detect_providers(env, None, None);
     let config = medulla::daemon::DaemonConfig {
         hooks: medulla::harness_hooks::HooksConfig::default(),
         providers: providers.clone(),
