@@ -3,8 +3,6 @@
 //!
 //! Pure and fast — no pty, no bridge, no runtime.
 
-use super::support::*;
-
 #[test]
 fn an_ipv6_literal_is_bracketed_when_joined_to_a_port() {
     // `format!("{host}:{port}")` turns `::1` into `::1:9`, which parses as a
