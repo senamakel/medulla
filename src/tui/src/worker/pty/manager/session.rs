@@ -156,6 +156,17 @@ impl PtyManager {
         self.handle(id).map(|session| session.row())
     }
 
+    /// The process id of a *running* session's child.
+    ///
+    /// `None` for a session that has ended, deliberately: a reaped pid is a
+    /// number the kernel may already have reissued, and sampling it would
+    /// report an unrelated process's CPU under this session's name.
+    pub fn pid(&self, id: &str) -> Option<u32> {
+        self.handle(id)
+            .filter(|session| session.is_running())
+            .and_then(|session| session.pid())
+    }
+
     /// Whether the named session's child environment selects a GitHub repository.
     pub(in crate::worker) fn gh_repo_is_set(&self, id: &str) -> Option<bool> {
         self.handle(id).map(|session| session.gh_repo_is_set())
