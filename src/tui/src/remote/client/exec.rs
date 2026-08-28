@@ -86,8 +86,10 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         .map_err(|error| anyhow::anyhow!("{error}"))?;
 
     host.hello().await.map_err(|e| anyhow::anyhow!(e))?;
+    // Waits for the answer, not for it to be non-empty: a host with nothing
+    // installed answers with an empty list and is still connected.
     await_for("the host to answer", REPLY_TIMEOUT, &mut host, |host| {
-        !host.capabilities().harnesses.is_empty()
+        !host.capabilities().version.is_empty()
     })
     .await?;
 
@@ -127,6 +129,8 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     while Instant::now() < deadline && session_id.is_empty() {
         for event in host.pump().await {
             match event {
+                // Already waited for above; nothing to do a second time.
+                super::PumpEvent::Connected => {}
                 super::PumpEvent::Opened(id) => session_id = id,
                 // Reported immediately rather than left to time out: the host
                 // already said exactly why, and waiting out REPLY_TIMEOUT to
