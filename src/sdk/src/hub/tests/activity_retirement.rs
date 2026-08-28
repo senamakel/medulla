@@ -23,8 +23,15 @@ use super::super::{RunError, TaskOutcome, TokenUsage};
 /// The retention window, mirroring the private `SETTLED_RETENTION_MS`.
 const SETTLED_RETENTION_MS: i64 = 2 * 60 * 1_000;
 
-/// A fixed "now", so retirement is exercised against a clock the test owns.
-const NOW: i64 = 1_800_000_000_000;
+/// The reference instant these tests place their frames around.
+///
+/// Read from the real clock rather than fixed, because `record_outcome` stamps
+/// its own frame with the real clock and a literal would drift past it. Every
+/// assertion below supplies its own `now` to the retirement pass, so nothing
+/// here depends on wall time actually passing.
+fn base() -> i64 {
+    crate::clock::now_millis()
+}
 
 /// A successful outcome carrying `reply`.
 fn done(reply: &str) -> Result<TaskOutcome, RunError> {
@@ -43,7 +50,7 @@ fn done(reply: &str) -> Result<TaskOutcome, RunError> {
 /// The task ids still represented in the log, in no particular order.
 fn task_ids(log: &ActivityLog) -> Vec<String> {
     let mut ids: Vec<String> = log
-        .snapshot_unretired()
+        .snapshot_at(now)
         .into_iter()
         .map(|entry| entry.task_id)
         .collect();
@@ -118,7 +125,7 @@ fn a_run_that_fails_at_an_agent_step_leaves_no_row_behind() {
         "an agent step that errored is not still running"
     );
     let error = log
-        .snapshot_unretired()
+        .snapshot_at(now)
         .into_iter()
         .find(|entry| entry.kind == "error")
         .expect("the failure is recorded where the operator reads it");
@@ -177,7 +184,7 @@ fn retiring_a_task_forgets_its_attribution_too() {
     log.retire_settled(NOW + SETTLED_RETENTION_MS);
 
     log.observed("wire-1", "status", "a stray late frame", NOW);
-    let entry = &log.snapshot_unretired()[0];
+    let entry = &log.snapshot_at(now)[0];
     assert_eq!(
         entry.task_id, "wire-1",
         "with the attribution gone the wire id no longer resolves to the retired alias"
@@ -194,7 +201,7 @@ fn the_fallback_never_settles_a_task_twice() {
     log.record_outcome("wire-1", &done("a second account of the same work"));
 
     let terminal: Vec<_> = log
-        .snapshot_unretired()
+        .snapshot_at(now)
         .into_iter()
         .filter(|entry| matches!(entry.kind.as_str(), "reply" | "error"))
         .collect();
