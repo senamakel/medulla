@@ -60,6 +60,22 @@ const ACK_WINDOW: Duration = Duration::from_secs(12);
 /// dispatches reaped as `bridge task timed out`.
 const IDLE_WINDOW: Duration = Duration::from_secs(240);
 
+/// Which workflow-plane marker, if any, a dispatch's task frame carries.
+///
+/// One enum rather than two booleans so the impossible fourth combination
+/// — authoring but not workflow-plane — cannot be written down, and so the
+/// choice stays owned by [`TaskRunner`]'s three entry points rather than by a
+/// caller-supplied request field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkflowFrame {
+    /// An ordinary task: no marker at all.
+    None,
+    /// A step of a running graph, emitted by an `agent` node.
+    Node,
+    /// A copilot authoring turn, which keeps the workflow tools a node loses.
+    Authoring,
+}
+
 /// How many times to reset the transport session + resend before giving up.
 /// Covers a peer that has genuinely stopped listening in one extra round.
 const MAX_RESETS: u32 = 2;
