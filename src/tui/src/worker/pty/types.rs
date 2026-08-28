@@ -115,6 +115,29 @@ impl SessionControl {
     }
 }
 
+/// What a settled-turn close attempt actually did, so a caller can tell three
+/// outcomes apart that a plain `bool` collapses into two.
+///
+/// `close_if_orchestrator`'s ownership recheck refuses for two entirely
+/// different reasons that both used to come back as `false`: an operator
+/// really does hold the session (their session, keep its state), or the
+/// session's handle is simply gone — the rail's per-frame sweep forgets any
+/// row whose child has already exited, independent of whether a caller has
+/// gotten around to processing that turn's completion yet. Conflating the two
+/// meant a vanished session's mapper state was kept as if an operator were
+/// about to read it, when nobody ever will again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseAttempt {
+    /// The close won: the session existed, was still orchestrator-owned, and
+    /// is now dead.
+    Closed,
+    /// The recheck refused because an operator holds this session. It is
+    /// theirs now, running, untouched.
+    UserOwned,
+    /// The recheck found no such session at all.
+    Missing,
+}
+
 /// How to launch one harness session.
 #[derive(Debug, Clone)]
 pub struct LaunchSpec {
