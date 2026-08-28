@@ -72,7 +72,7 @@ fn qualify_and_parse_are_inverses() {
 
 #[test]
 fn a_remote_row_becomes_a_session_row_the_rail_can_place() {
-    let row = session_row("tower", &remote_row("w_1"));
+    let row = session_row("tower", &remote_row("w_1"), 0);
     assert_eq!(row.id, "tower/w_1");
     assert_eq!(row.cwd, "/work");
     assert_eq!(row.name.as_deref(), Some("build"));
@@ -86,7 +86,7 @@ fn a_remote_session_is_always_the_operators() {
     // Nothing dispatches into a remote session — it exists because somebody
     // asked for it in the picker. The orchestrator must never see one as
     // available, so both fields are fixed rather than carried.
-    let row = session_row("tower", &remote_row("w_1"));
+    let row = session_row("tower", &remote_row("w_1"), 0);
     assert_eq!(row.control, crate::worker::pty::SessionControl::User);
     assert!(row.origin.is_user());
 }
@@ -95,7 +95,7 @@ fn a_remote_session_is_always_the_operators() {
 fn a_remote_row_claims_no_checkout_it_cannot_see() {
     // The Changes view reads these. A fabricated checkout would have it claim to
     // know a repository on a filesystem this machine cannot reach.
-    let row = session_row("tower", &remote_row("w_1"));
+    let row = session_row("tower", &remote_row("w_1"), 0);
     assert!(row.launch_root.is_none());
     assert!(row.launch_commit.is_none());
     assert!(row.mcp_grant_session.is_none());
@@ -106,7 +106,7 @@ fn a_remote_row_claims_no_checkout_it_cannot_see() {
 fn an_exited_remote_session_keeps_its_code() {
     let mut remote = remote_row("w_1");
     remote.state = RemoteSessionState::Exited { code: Some(130) };
-    let row = session_row("tower", &remote);
+    let row = session_row("tower", &remote, 0);
     assert!(matches!(
         row.state,
         crate::worker::pty::PtyState::Exited { code: Some(130) }
@@ -120,7 +120,7 @@ fn a_named_attention_kind_survives_the_wire() {
         summary: "allow this command?".to_string(),
         kind: "approval".to_string(),
     });
-    let row = session_row("tower", &remote);
+    let row = session_row("tower", &remote, 0);
     let attention = row.attention.expect("the cue should cross");
     assert_eq!(attention.kind, crate::worker::pty::AttentionKind::Approval);
     assert_eq!(attention.what, "allow this command?");
@@ -136,7 +136,7 @@ fn an_unknown_attention_kind_still_raises_a_cue() {
         summary: "something new".to_string(),
         kind: "teleport-consent".to_string(),
     });
-    let row = session_row("tower", &remote);
+    let row = session_row("tower", &remote, 0);
     assert!(
         row.attention.is_some(),
         "an unrecognized kind must not silence the cue"
@@ -349,4 +349,59 @@ fn closing_a_remote_session_on_a_disconnected_host_says_so() {
         "got: {}",
         app.status()
     );
+}
+
+
+#[test]
+fn an_attention_cue_is_timestamped_by_this_client_not_the_sender() {
+    // `HarnessAttention::label` subtracts `since` from *our* clock, so carrying
+    // the sender's would make a fresh prompt on a skewed host read as stuck for
+    // hours — or pinned at zero forever.
+    let mut waiting = remote_row("w_1");
+    waiting.attention = Some(RemoteAttention {
+        summary: "allow this command?".to_string(),
+        kind: "approval".to_string(),
+    });
+    // A sender timestamp far in the past; if it crossed, the cue would look
+    // ancient.
+    waiting.last_output_at = 1_000;
+
+    let mut app = app_with_host(vec![waiting.clone()]);
+    let before = medulla::clock::now_millis();
+    app.remote_host_sessions("tower", vec![waiting.clone()]);
+
+    let row = app
+        .session_row_for_test("tower/w_1")
+        .expect("the session is listed");
+    let since = row.attention.expect("the cue crosses").since;
+    assert!(
+        since >= before - 1_000,
+        "the cue should be stamped locally, got {since} against a local clock near {before}"
+    );
+
+    // And the stamp holds while the same cue does, rather than resetting on
+    // every session-list update.
+    app.remote_host_sessions("tower", vec![waiting.clone()]);
+    let again = app
+        .session_row_for_test("tower/w_1")
+        .expect("still listed")
+        .attention
+        .expect("still asking")
+        .since;
+    assert_eq!(since, again, "an unchanged cue must keep its first-seen moment");
+
+    // A different cue starts again.
+    let mut changed = waiting.clone();
+    changed.attention = Some(RemoteAttention {
+        summary: "something else".to_string(),
+        kind: "approval".to_string(),
+    });
+    app.remote_host_sessions("tower", vec![changed]);
+    let restamped = app
+        .session_row_for_test("tower/w_1")
+        .expect("still listed")
+        .attention
+        .expect("still asking")
+        .since;
+    assert!(restamped >= since, "a new cue should restamp, not inherit");
 }

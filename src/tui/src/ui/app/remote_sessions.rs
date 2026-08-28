@@ -389,6 +389,11 @@ impl App {
         self.local_sessions = None;
     }
 
+    /// [`session_row`](crate::ui::app::App::session_row) for tests.
+    pub(in crate::ui::app) fn session_row_for_test(&self, id: &str) -> Option<SessionRow> {
+        self.session_row(id)
+    }
+
     /// [`session_write`](Self::session_write) for tests.
     pub(in crate::ui::app) fn session_write_for_test(
         &mut self,
