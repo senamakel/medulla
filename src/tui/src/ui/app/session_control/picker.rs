@@ -11,6 +11,7 @@ use super::super::types::{
     tab_pos, App, PickerHost, Prompt, PromptKind, SessionPicker, SessionPickerStep,
 };
 use crate::ui::composer::Draft;
+use super::super::types::Cmd;
 
 impl App {
     /// Open the "start a session" picker, or spawn directly when the command
@@ -141,6 +142,33 @@ impl App {
         let Some(host) = self.picker_host().cloned() else {
             return;
         };
+        if host.remote {
+            // Dialled here rather than at startup, which is the whole of "opened
+            // when needed": a configured host that is switched off, or on a
+            // network this laptop is not on, costs nothing until somebody asks
+            // for it. The picker stays on this step while `ssh` runs — the
+            // harness list has to come from the host, and there is nothing
+            // truthful to show until it answers.
+            let should_dial = self
+                .remote_host(&host.id)
+                .map(|state| state.should_dial())
+                .unwrap_or(true);
+            if should_dial {
+                self.remote_host_connecting(&host.id);
+                self.queue_cmd(Cmd::ConnectRemoteHost {
+                    host_id: host.id.clone(),
+                });
+                self.set_status(format!("Connecting to {}…", host.label));
+                return;
+            }
+            if !matches!(
+                self.remote_host(&host.id).map(|state| state.status.clone()),
+                Some(crate::ui::app::remote_hosts::RemoteHostStatus::Live)
+            ) {
+                self.set_status(format!("{} is still connecting…", host.label));
+                return;
+            }
+        }
         let choices = match host.remote {
             false => self
                 .local_sessions
