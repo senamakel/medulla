@@ -18,6 +18,7 @@ pub mod control;
 pub mod env;
 pub mod envelope;
 pub mod frames;
+pub mod remote;
 pub mod screen;
 pub mod service;
 pub mod status;
@@ -39,6 +40,11 @@ pub use frames::{
     EncodeFrameInput, FrameAttachments, HarnessBudget, HarnessProvider, HarnessReadiness,
     HarnessTransport, TaskFrame, TaskFrameKind, TokenUsage, WorkflowAdvert, WorkflowInputAdvert,
     CODEX_SERVER_FLAVOR, MEDULLA_TASK_PROTO,
+};
+pub use remote::{
+    encode_remote_message, parse_remote_message, RemoteAttention, RemoteCapabilities,
+    RemoteEnvelope, RemoteHarnessChoice, RemoteMessage, RemoteSessionRow, RemoteSessionState,
+    REMOTE_PROTO,
 };
 pub use screen::{
     apply_frame, build_frame, changed_rows, coalesce_runs, encode_screen_message,

@@ -16,6 +16,7 @@ mod custom_harnesses;
 mod load;
 mod local_hosts;
 mod persist;
+mod remote_hosts;
 mod subscriptions;
 mod types;
 mod urls;
@@ -32,6 +33,8 @@ mod load_tests;
 mod local_hosts_tests;
 #[cfg(test)]
 mod persist_tests;
+#[cfg(test)]
+mod remote_hosts_tests;
 #[cfg(test)]
 mod types_tests;
 #[cfg(test)]
@@ -55,6 +58,9 @@ pub use persist::{
     persist_local_hosts, persist_root_setting, persist_section, persist_setting,
     persist_welcome_completed, persist_workflow_workspaces,
 };
+pub use remote_hosts::{
+    remote_host_id, remote_host_name, remote_host_section, remote_hosts, RemoteHostRef,
+};
 pub use subscriptions::{
     MeterId, MeterSource, SubscriptionsConfig, DEFAULT_SUBSCRIPTION_REFRESH_SECONDS,
     MIN_SUBSCRIPTION_REFRESH_SECONDS,
@@ -64,8 +70,8 @@ pub use types::{
     EvolveSettings, FavoriteWorkspace, FieldPlacement, FieldVisibility, FleetConfig,
     HarnessNameStyle, HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig,
     LinkConfig, LoadedConfig, McpSection, MedullaConfig, OnboardingConfig, OpencodeConfig,
-    PathStyle, Peer, ProviderBudgetConfig, RouterConfig, RouterProviderConfig, StatusLineConfig,
-    ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
+    PathStyle, Peer, ProviderBudgetConfig, RemoteHostSection, RouterConfig, RouterProviderConfig,
+    StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
     DEFAULT_CONTEXT_WINDOW_TOKENS,
 };
 pub use urls::{

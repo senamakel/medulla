@@ -15,6 +15,7 @@ use super::AppMsg;
 #[cfg(feature = "workflows")]
 mod copilot_hosts;
 mod feedback;
+mod remote_hosts;
 #[cfg(feature = "workflows")]
 mod workflow_evolution;
 #[cfg(feature = "workflows")]
@@ -145,6 +146,14 @@ pub(super) fn run_cmd(
                     }
                 }
             });
+        }
+        Cmd::ConnectRemoteHost { host_id } => {
+            if let Some(requests) = remote_hosts::spawn_connect(host_id.clone(), _config, msg_tx) {
+                // Handed straight back to the App: it is the only thing that can
+                // hold the channel, and without it the connection would be up
+                // with nothing able to ask it for anything.
+                let _ = msg_tx.send(AppMsg::RemoteHostDialling { host_id, requests });
+            }
         }
         Cmd::InspectContext => {
             let rt = runtime.clone();

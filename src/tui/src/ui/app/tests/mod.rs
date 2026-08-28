@@ -103,6 +103,8 @@ fn enter_answers_the_harness_picker_not_the_harness_behind_it() {
     // attached instead of advancing to the workspace step.
     a.pane_session = Some("already-running".to_string());
     a.session_picker = Some(SessionPicker {
+        hosts: vec![crate::ui::app::types::PickerHost::this_device(String::new())],
+        host_index: 0,
         choices: vec![HarnessChoice::native(
             medulla::protocol::HarnessProvider::Claude,
         )],

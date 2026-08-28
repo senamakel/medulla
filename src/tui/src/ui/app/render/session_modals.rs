@@ -111,6 +111,10 @@ impl App {
             return;
         };
         let (rows, title) = match picker.step {
+            SessionPickerStep::Host => (
+                picker.hosts.len(),
+                "Choose a host — Enter agent · Esc cancel",
+            ),
             SessionPickerStep::Harness => (
                 picker.choices.len(),
                 "Choose a session type — Enter workspace · Esc cancel",
@@ -162,6 +166,42 @@ impl App {
             }
         };
         let mut lines = match picker.step {
+            SessionPickerStep::Host => picker
+                .hosts
+                .iter()
+                .enumerate()
+                .map(|(index, host)| {
+                    row_hit(index, index, &mut hits);
+                    let marker = if index == picker.host_index {
+                        "❯ "
+                    } else {
+                        "  "
+                    };
+                    let style = if index == picker.host_index {
+                        self.theme.selection()
+                    } else {
+                        Style::default()
+                    };
+                    // Remote rows carry their connection state, because the
+                    // difference between "this device" and a machine that is not
+                    // answering is the whole of what the operator is choosing
+                    // between — and a row that just says its name would let them
+                    // pick a host that cannot start anything.
+                    let suffix = match host.remote {
+                        false => String::new(),
+                        true => format!(
+                            " · {}",
+                            self.remote_host(&host.id)
+                                .map(|state| state.summary())
+                                .unwrap_or_else(|| "not connected".to_string())
+                        ),
+                    };
+                    TLine::from(Span::styled(
+                        format!("{marker}{}{suffix}", host.label),
+                        style,
+                    ))
+                })
+                .collect(),
             SessionPickerStep::Harness => {
                 let capacity = (inner.height as usize).saturating_sub(HARNESS_TRAILER_LINES);
                 let range = harness_choice_window(picker.choices.len(), picker.index, capacity);
@@ -295,13 +335,19 @@ impl App {
 
 /// The footer hint under the picker, stated per step.
 ///
-/// `↑/↓ choose` applies to both steps, and the "unmanaged" statement is true
-/// of any hand-started session, so both are said everywhere. `Tab complete`
-/// and `Shift+F save favorite` are only meaningful on the workspace step — the
-/// one with a text field to complete and a chosen directory to remember — and
-/// the keys are not bound on the harness step, so the hint is not shown there.
+/// `↑/↓ choose` applies to every step, and the "unmanaged" statement is true of
+/// any hand-started session, so both are said everywhere they are relevant.
+/// `Tab complete` and `Shift+F save favorite` are only meaningful on the
+/// workspace step — the one with a text field to complete and a chosen
+/// directory to remember — and the keys are not bound elsewhere, so the hint is
+/// not shown elsewhere.
+///
+/// The host step says nothing about "unmanaged": a machine is not managed or
+/// unmanaged, and the word would only invite the question of what the other
+/// kind would be.
 pub(super) fn harness_picker_hint(step: SessionPickerStep) -> &'static str {
     match step {
+        SessionPickerStep::Host => "  ↑/↓ choose a machine",
         SessionPickerStep::Harness => "  ↑/↓ choose · unmanaged",
         SessionPickerStep::Workspace => {
             "  ↑/↓ choose · Tab complete · Shift+F save favorite · unmanaged"

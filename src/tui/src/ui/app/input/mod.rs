@@ -22,8 +22,14 @@ pub(in crate::ui::app) use nav::SUBTASK_PAGE;
 impl App {
     /// Route a terminal event to the key, mouse, or paste handler, producing any
     /// command the event loop must run.
+    ///
+    /// A handler that cannot return a command itself — the mouse path answers
+    /// `bool`, and the picker's key path answers nothing — leaves one on
+    /// [`App::queue_cmd`] instead, and it is collected here. This is the single
+    /// funnel every event passes through, so a queued command cannot be
+    /// stranded by whichever surface produced it.
     pub fn on_event(&mut self, ev: Event) -> Option<Cmd> {
-        match ev {
+        let direct = match ev {
             Event::Key(k) if matches!(k.kind, KeyEventKind::Press | KeyEventKind::Repeat) => {
                 self.on_key(k)
             }
@@ -33,6 +39,9 @@ impl App {
                 None
             }
             _ => None,
-        }
+        };
+        // A handler that returned a command directly wins: it was answering this
+        // event, whereas a queued one was left by a nested surface.
+        direct.or_else(|| self.take_queued_cmd())
     }
 }

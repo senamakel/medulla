@@ -408,3 +408,53 @@ fn only_the_rows_that_name_something_take_the_cursor() {
         }
     }
 }
+
+#[test]
+fn a_configured_remote_host_is_in_the_host_projection() {
+    // Config is the source, exactly as it is for local hosts, so the machine is
+    // known before it is ever dialled. Whether it is *drawn* is a separate
+    // question, answered by the rail's own progressive-disclosure rule: a
+    // section with no sessions in it gets no header, remote or local.
+    let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
+        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.remote_hosts = vec![medulla::config::RemoteHostSection {
+        name: "Tower".to_string(),
+        host: "tower.local".to_string(),
+        enabled: true,
+        ..medulla::config::RemoteHostSection::default()
+    }];
+    let app = crate::ui::app::App::new(rt, loaded);
+
+    let tree = app.host_tree();
+    let remote = tree
+        .iter()
+        .find(|row| row.kind == medulla::ui::hosts::HostKind::Remote)
+        .expect("the configured remote host should be in the projection");
+    assert_eq!(remote.id, "tower");
+    assert_eq!(remote.label, "Tower");
+    assert!(
+        !remote.accepts_new_agents(),
+        "a remote host's agents are declared on its own machine, not here"
+    );
+    assert!(
+        tree.iter()
+            .position(|row| row.kind == medulla::ui::hosts::HostKind::Remote)
+            > tree
+                .iter()
+                .position(|row| row.kind == medulla::ui::hosts::HostKind::Local),
+        "this device leads, as it does in the picker"
+    );
+}
+
+#[test]
+fn no_remote_hosts_means_no_remote_rows() {
+    let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
+        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
+    let app = crate::ui::app::App::new(rt, loaded);
+    assert!(app
+        .host_tree()
+        .iter()
+        .all(|row| row.kind == medulla::ui::hosts::HostKind::Local));
+}

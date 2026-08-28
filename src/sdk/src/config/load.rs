@@ -162,7 +162,9 @@ pub fn load_config(
             // choice and remain trusted as the sole layer.
             if explicit_config.is_none() && layer != &global_config {
                 if let Some(document) = value.as_object_mut() {
-                    document.remove("hooks");
+                    for key in PROJECT_FORBIDDEN {
+                        document.remove(key);
+                    }
                 }
             }
             merge_value(&mut merged, value);
@@ -250,6 +252,23 @@ pub fn load_config(
         sources,
     })
 }
+
+/// Keys a project-local config layer may not set.
+///
+/// One rule, not two coincidences: a repository may tune the project, but it may
+/// never name a command to run or a machine to run one on. A checked-in
+/// `medulla.toml` is under the control of whoever can open a pull request, and
+/// both of these execute something the moment they are read.
+///
+/// - `hooks` runs shell commands around every harness tool call.
+/// - `remoteHosts` carries `sshBinary`, `remoteCommand`, and `sshOptions` — and
+///   `-o ProxyCommand=…` is a command run on *this* machine, not the remote one.
+///   So an entry could execute anything as soon as the operator opened the
+///   session picker.
+///
+/// An explicit `--config` remains trusted: choosing a file by hand is the
+/// operator's own decision, and it is the sole layer when given.
+const PROJECT_FORBIDDEN: [&str; 2] = ["hooks", "remoteHosts"];
 
 /// The environment variable carrying the active `--config` path to a
 /// subprocess this process spawns.

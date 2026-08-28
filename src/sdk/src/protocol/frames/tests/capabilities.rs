@@ -27,6 +27,26 @@ fn screen_kill_support_is_additive_and_defaults_off_for_older_workers() {
 }
 
 #[test]
+fn as_wire_is_the_exact_inverse_of_from_wire() {
+    // The two names a provider has are easy to mix up: `as_str` is the display
+    // name (`OpenCode`) and does not parse back. Asserting the round trip here
+    // means a new provider cannot be added with only half the pair.
+    for provider in [
+        HarnessProvider::Claude,
+        HarnessProvider::Codex,
+        HarnessProvider::Opencode,
+        HarnessProvider::Openhuman,
+        HarnessProvider::Shell,
+    ] {
+        assert_eq!(
+            HarnessProvider::from_wire(provider.as_wire()),
+            Some(provider),
+            "{provider:?} does not survive as_wire → from_wire"
+        );
+    }
+}
+
+#[test]
 fn parses_agent_capabilities() {
     let text = json!({
         "cwd": "/repo",

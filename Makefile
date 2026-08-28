@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help init public-boundary fmt clippy test build check ci e2e-image e2e-image-base \
-        e2e-docker e2e-docker-all e2e-live
+        e2e-docker e2e-docker-all e2e-live e2e-remote-hosts
 
 # Tag for the containerized e2e harness image (see e2e/coordination/Dockerfile).
 E2E_IMAGE ?= medulla-e2e:latest
@@ -73,3 +73,17 @@ e2e-docker-all: e2e-image ## Run every offline e2e suite against all three codin
 # your ambient credentials, and refuses to start without E2E_LIVE=1.
 e2e-live: ## Run the live staging + OpenRouter suite (needs E2E_LIVE=1 and OPENROUTER_API_KEY)
 	bash e2e/coordination/run-live.sh
+
+# Two containers on one bridge network, which is the smallest arrangement that
+# can tell the truth about remote hosts: the in-process tests prove the protocol,
+# but only a second machine proves the SSH bootstrap and the UDP path. Mounts
+# `target/debug` rather than rebuilding, so the base image must match this
+# machine's glibc — see e2e/remote-hosts/Dockerfile.
+e2e-remote-hosts: ## Run the remote-host suite: real sshd, real UDP, two containers
+	cargo build -p medulla-tui --bin medulla
+	docker compose -f e2e/remote-hosts/compose.yaml build
+	docker compose -f e2e/remote-hosts/compose.yaml up \
+	  --abort-on-container-exit --exit-code-from client --force-recreate; \
+	status=$$?; \
+	docker compose -f e2e/remote-hosts/compose.yaml down -v; \
+	exit $$status

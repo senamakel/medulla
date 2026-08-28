@@ -140,19 +140,19 @@ impl App {
     /// callers that already know which rail row was clicked do not have to
     /// round-trip through the cursor to say so.
     pub(in crate::ui::app) fn attach_to_session(&mut self, session: &str) {
-        let running = self
-            .local_sessions
-            .as_ref()
-            .is_some_and(|harnesses| harnesses.is_running(session));
-        if !running {
+        // Routed by id, or a remote session reads as exited: the local manager
+        // has never heard of it, and `is_running` answering "no" for a session
+        // that is running perfectly well on another machine is how attaching to
+        // one silently did nothing.
+        let Some(row) = self.session_row(session) else {
+            self.set_status("That session has exited — its last screen is all that is left");
+            return;
+        };
+        if !row.state.is_running() {
             self.set_status("That session has exited — its last screen is all that is left");
             return;
         }
-        let control = self
-            .local_sessions
-            .as_ref()
-            .and_then(|harnesses| harnesses.control(session));
-        if control == Some(SessionControl::Orchestrator) {
+        if row.control == SessionControl::Orchestrator {
             self.set_status("Task sessions are view-only while they are running");
             return;
         }
@@ -199,11 +199,7 @@ impl App {
     /// that case for the same reason [`encode`] maps Enter to it: the child's
     /// line discipline is raw and reads carriage return as the end of a line.
     pub(in crate::ui::app) fn paste_into_harness(&mut self, session: &str, text: &str) {
-        let bracketed = self
-            .local_sessions
-            .as_ref()
-            .and_then(|harnesses| harnesses.sessions.bracketed_paste(session))
-            .unwrap_or(false);
+        let bracketed = self.session_bracketed_paste(session);
         let bytes = if bracketed {
             bracket_paste(text)
         } else {
@@ -215,18 +211,21 @@ impl App {
     /// Write already-encoded bytes to the attached harness, detaching if the
     /// child has stopped listening.
     fn write_to_harness(&mut self, session: &str, bytes: &[u8]) {
-        let Some(harnesses) = self.local_sessions.clone() else {
-            self.release_session();
-            return;
-        };
-        if let Err(err) = harnesses.write(session, bytes) {
+        // Routed by id: a remote session's keystrokes go up its host's link
+        // instead of into a local pty, and the failure handling is the same
+        // either way — a pane whose keys go nowhere must detach and say so
+        // rather than silently swallow them.
+        if let Err(err) = self.session_write(session, bytes) {
             self.release_session();
             self.set_status(format!("Session stopped listening ({err})"));
             return;
         }
         // Typing means "I am here now". A pane left scrolled back would keep
         // showing history while the harness answered below it, unseen. No-op
-        // for a harness that owns its own scrollback.
-        harnesses.scroll_to_live(session);
+        // for a harness that owns its own scrollback, and for a remote session,
+        // whose scrollback lives on the machine running it.
+        if let Some(harnesses) = self.local_sessions.as_ref() {
+            harnesses.scroll_to_live(session);
+        }
     }
 }

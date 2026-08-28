@@ -7,3 +7,6 @@ mod close;
 mod focus;
 mod picker;
 mod select;
+
+#[cfg(test)]
+mod tests;

@@ -1,11 +1,22 @@
 //! Serving inbound `medulla.screen.v1` messages: resolving which session a
 //! subscriber may watch, and starting or stopping the stream that answers.
 //!
-//! This is the half of the protocol the worker *receives*. The vocabulary is
-//! deliberately tiny — subscribe, unsubscribe, acknowledge, and an explicit kill.
-//! There is no message that can type into or resize a session. Kill is resolved
-//! through the same task ownership check as subscribe, so a controller can stop
-//! only a harness running work that controller dispatched.
+//! This is the half of the protocol the worker *receives*, and its subscribers
+//! are **watchers**: an orchestrator observing the tasks it dispatched. The
+//! vocabulary is deliberately tiny — subscribe, unsubscribe, acknowledge, and an
+//! explicit kill. Kill is resolved through the same task ownership check as
+//! subscribe, so a controller can stop only a harness running work that
+//! controller dispatched.
+//!
+//! The protocol also carries [`ScreenMessage::Input`] and
+//! [`ScreenMessage::Resize`], and this router **refuses both**. They belong to
+//! an *attached* viewer — a person whose pane is that session's terminal — which
+//! is a different relationship with a different authorization model. Here the
+//! subscriber is a machine that dispatched work; letting it type into the
+//! harness would turn "may watch what I asked for" into "may drive it", and the
+//! task-ownership check was never designed to carry that weight. A remote
+//! session an operator opened themselves is served elsewhere, by the host-serve
+//! relay, which knows who is attached.
 //!
 //! Which leaves one question, and the answer is structural rather than a check.
 //! A subscription names a **task**, and the daemon's running-task record is
@@ -117,6 +128,15 @@ impl ScreenRouter {
             // We are the sender; a frame arriving here is either a loopback or a
             // peer that has the protocol backwards.
             ScreenMessage::Frame(_) => {}
+            // Refused rather than ignored, and logged, because the difference
+            // matters to whoever is debugging it: a watcher that tries to type
+            // is not a dropped message, it is a peer using the wrong door. See
+            // the module doc for why this door in particular stays shut.
+            ScreenMessage::Input { task_id, .. } | ScreenMessage::Resize { task_id, .. } => {
+                self.log(&format!(
+                    "screen: refused input/resize from {from} on {task_id} —                      a dispatch watcher may observe a session, not drive it"
+                ));
+            }
         }
     }
 

@@ -67,6 +67,71 @@ pub(super) enum AppMsg {
     Status(String),
     /// Fresh context-inspection rows.
     Contexts(Vec<ContextItem>),
+    /// A remote host answered, and this is what it can do.
+    RemoteHostConnected {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// What it advertised.
+        capabilities: Box<medulla::protocol::RemoteCapabilities>,
+    },
+    /// A remote host's connection task has started; this is how to reach it.
+    ///
+    /// Carried through the same channel as everything else so the App is the
+    /// sole owner of the handle — a connection nothing can talk to is worse than
+    /// no connection, because it looks like one.
+    RemoteHostDialling {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// The task's request channel.
+        requests: tokio::sync::mpsc::UnboundedSender<medulla_tui::remote::client::RemoteRequest>,
+    },
+    /// A remote host's session list changed.
+    RemoteHostSessions {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// Every session on it.
+        rows: Vec<medulla::protocol::RemoteSessionRow>,
+    },
+    /// A session started on a remote host.
+    RemoteSessionOpened {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// The new session's id, as that host knows it.
+        session_id: String,
+    },
+    /// The watched remote session's screen moved.
+    RemoteScreen {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// Which session, as that host knows it.
+        session_id: String,
+        /// The screen, ready for the ordinary renderer.
+        snapshot: Box<medulla_tui::worker::pty::ScreenSnapshot>,
+    },
+    /// A remote host could not be reached, and this is why.
+    ///
+    /// The reason is carried rather than reduced to a flag because the useful
+    /// cases — an unknown host key, a missing binary, a refused login — have
+    /// different fixes, and "could not connect" is not one an operator can act
+    /// on.
+    RemoteHostFailed {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// What went wrong, in the operator's terms.
+        reason: String,
+    },
+    /// A remote host refused to start a session, and this is why.
+    ///
+    /// Distinct from `RemoteHostFailed`: the *connection* is fine, only the
+    /// `Open` was refused (an invalid workspace, a harness that failed to
+    /// launch), so this must not touch the host's connection status — only say
+    /// why, where the operator was waiting for an answer.
+    RemoteOpenFailed {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// What the host said went wrong.
+        reason: String,
+    },
     /// Chats to display in the resume picker.
     OpenResume(Vec<medulla::ui::chat_store::MainChatSummary>),
     /// Confirmation that a chat was resumed.

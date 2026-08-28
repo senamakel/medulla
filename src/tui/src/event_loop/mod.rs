@@ -138,6 +138,51 @@ pub(crate) async fn run(
                 match msg {
                     AppMsg::Status(s) => { app.set_status(s); app.refresh_snapshot(); }
                     AppMsg::Contexts(c) => app.set_contexts(c),
+                    AppMsg::RemoteHostConnected {
+                        host_id,
+                        capabilities,
+                    } => {
+                        app.remote_host_connected(&host_id, *capabilities);
+                        // Advance the picker if it is still sitting on this
+                        // host: the operator pressed Enter and has been waiting
+                        // on exactly this answer, so making them press it again
+                        // would be asking for a decision they already made.
+                        app.resume_picker_host(&host_id);
+                    }
+                    AppMsg::RemoteHostDialling { host_id, requests } => {
+                        app.remote_host_dialling(&host_id, requests);
+                    }
+                    AppMsg::RemoteHostSessions { host_id, rows } => {
+                        app.remote_host_sessions(&host_id, rows);
+                    }
+                    AppMsg::RemoteSessionOpened {
+                        host_id,
+                        session_id,
+                    } => {
+                        // Select it, for the same reason a local spawn does: a
+                        // session that appears below the fold while the pane
+                        // still shows what was there before reads as "nothing
+                        // happened".
+                        app.select_remote_session(&host_id, &session_id);
+                    }
+                    AppMsg::RemoteScreen {
+                        host_id,
+                        session_id,
+                        snapshot,
+                    } => {
+                        app.remote_host_screen(&host_id, &session_id, *snapshot);
+                    }
+                    AppMsg::RemoteHostFailed { host_id, reason } => {
+                        app.remote_host_failed(&host_id, reason.clone());
+                        app.set_status(format!("{host_id}: {reason}"));
+                    }
+                    AppMsg::RemoteOpenFailed { host_id, reason } => {
+                        // The connection itself is fine — only say why the
+                        // session did not start, rather than marking the host
+                        // as failed and dropping its live sessions from the
+                        // rail.
+                        app.set_status(format!("{host_id} could not start it: {reason}"));
+                    }
                     AppMsg::UsageLoaded(result) => {
                         let cmd = match result {
                             Ok(data) => app.set_account_usage(data),

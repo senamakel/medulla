@@ -42,7 +42,19 @@ rustls = { workspace = true }
 toml = { workspace = true }
 dirs = { workspace = true }
 sysinfo = { workspace = true }
+# Grapheme clustering for rebuilding terminal cells from a wire run. A cell holds
+# one cluster (see `worker/pty/cell_text.rs`), which scalar-by-scalar iteration
+# cannot reproduce: a ZWJ emoji or a flag is several scalars in one cell.
+unicode-segmentation = "1"
+# The advisory lock that closes the enroll-then-connect window on a remote
+# host; the link crate uses the same one for its identity lock.
+fs2 = { workspace = true }
 unicode-width = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+# `setsid` and `dup2`, for detaching a remote daemon from the SSH session that
+# started it. Unix only, like the daemon itself.
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = { workspace = true }

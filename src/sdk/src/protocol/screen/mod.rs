@@ -14,10 +14,22 @@
 //!   the viewer asks to resynchronise and the next full frame supersedes
 //!   everything missed. Dropped, duplicated and reordered frames share one
 //!   recovery path, which matters because mailbox ordering is not guaranteed.
-//! - **Geometry belongs to the sender.** The viewer is a passive observer: it
-//!   never resizes the session and never types into it. There is no `input` and
-//!   no `resize` message, so there is nothing to negotiate and nothing to fight
-//!   over.
+//! - **Geometry belongs to the sender.** The screen that crosses the wire is the
+//!   one the sender's emulator holds, so there is nothing to negotiate and no
+//!   two-sided reflow to get wrong.
+//!
+//! That third property once meant the viewer was strictly passive — no `input`,
+//! no `resize`. It no longer does, because there turned out to be two kinds of
+//! viewer. A *watcher* (an orchestrator observing a fan-out) still is passive:
+//! it must not type into a session someone else is using, or resize a harness
+//! under them. An *attached* viewer is a remote session's terminal, and its pane
+//! genuinely is that terminal — so [`types::ScreenMessage::Input`] and
+//! [`types::ScreenMessage::Resize`] exist for it.
+//!
+//! The property survives in a narrower form: the sender's geometry is still
+//! authoritative and still the only one on the wire; what changed is that a
+//! single attached viewer may ask it to change. A watcher sends neither message
+//! and is exactly as passive as before.
 //!
 //! Split by responsibility: [`types`] holds the wire model, [`diff`] is the
 //! sender's cell-coalescing and row diffing, [`apply`] is the viewer's fold, and

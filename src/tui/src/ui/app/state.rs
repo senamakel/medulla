@@ -119,6 +119,8 @@ impl App {
             link_obs: None,
             host_obs: None,
             local_sessions: None,
+            remote_hosts: std::collections::HashMap::new(),
+            pending_cmds: std::collections::VecDeque::new(),
             harness_runs: Default::default(),
             #[cfg(feature = "workflows")]
             live_runs: Default::default(),

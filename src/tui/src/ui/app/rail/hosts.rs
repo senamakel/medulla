@@ -65,11 +65,66 @@ impl App {
     }
 
     /// The `Host → Agents` tree the rail places its folded lanes onto.
+    ///
+    /// Local hosts first, then the configured remote machines. The order is the
+    /// same one the picker offers: this device is where a session goes when
+    /// nobody says otherwise, so it leads.
     pub(in crate::ui::app) fn host_tree(&self) -> Vec<HostRow> {
-        host_rows(
+        let mut rows = host_rows(
             &self.runtime.workers(),
             &self.loaded.config.fleet.agent_declarations,
             &self.local_host_refs(),
-        )
+        );
+        rows.extend(self.remote_host_rows());
+        rows
     }
+}
+
+impl App {
+    /// The remote machines in the `Host → Agent` projection.
+    ///
+    /// Config is the source, exactly as it is for local hosts, so a host appears
+    /// here whether or not it has been connected to.
+    ///
+    /// Note that being *in the projection* is not the same as being drawn: the
+    /// rail drops any section with no sessions in it
+    /// ([`rail_rows_in`](super::App::rail_rows_in)), which is the same
+    /// progressive-disclosure rule that keeps an idle local host from claiming a
+    /// header. So a configured-but-idle remote machine is reached through the
+    /// session picker, and earns a lane once it has something running on it.
+    pub(in crate::ui::app) fn remote_host_rows(&self) -> Vec<HostRow> {
+        medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
+            .into_iter()
+            .map(|host| HostRow {
+                // Sanitized: this is the label the rail renders, and
+                // `host.name`/`host.id` are untrusted configuration — see
+                // `sanitize_for_rail`. `id` itself stays raw: it is a routing
+                // key compared against worker addresses and agent
+                // declarations elsewhere, never rendered on its own.
+                label: sanitize_for_rail(match host.name.trim() {
+                    "" => &host.id,
+                    name => name,
+                }),
+                id: host.id,
+                kind: medulla::ui::hosts::HostKind::Remote,
+                // Empty rather than guessed: a remote host's agents are declared
+                // in its own config, on its own machine. Its live sessions ride
+                // the session list instead.
+                agents: Vec::new(),
+                detail_worker: None,
+            })
+            .collect()
+    }
+}
+
+/// Strip control characters from configuration before it reaches a rail span.
+///
+/// `[[remoteHosts]]` name and id come from `medulla.toml`, which the operator
+/// wrote but which the render path must treat as untrusted the same way it
+/// treats a harness's own stdout: ratatui does not neutralize an ESC or OSC
+/// sequence in a rendered string, so a crafted host name reaches the terminal
+/// and is interpreted there, not on screen. See
+/// `render::workflows::node_preview::live::inline_text` for the same trim.
+fn sanitize_for_rail(value: &str) -> String {
+    value.trim().chars().filter(|ch| !ch.is_control()).collect()
 }

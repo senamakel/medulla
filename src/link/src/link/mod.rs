@@ -7,6 +7,9 @@
 //! receives (§5 rule 5). A laptop that wakes on a different network therefore
 //! resumes by sending, with no reconnect, no handshake and no re-enrollment.
 
+pub mod direct;
+#[cfg(test)]
+mod tests;
 mod types;
 
 use std::collections::{HashMap, VecDeque};
@@ -21,8 +24,9 @@ use crate::keys::{self, AcquiredNode, NodeId};
 use crate::state::QueueLimits;
 use crate::transport::{Session, SessionConfig};
 
+use direct::Route;
 use types::{Command, SCREEN_FRAME_HEADER, SCREEN_FRAME_MAGIC};
-pub use types::{LinkConfig, LinkError, LinkHandle, LinkStatus, PeerConfig};
+pub use types::{LinkConfig, LinkError, LinkHandle, LinkPath, LinkStatus, PeerConfig};
 
 /// How many messages may sit in the inbound queue before the driver blocks.
 ///
@@ -49,18 +53,39 @@ impl Link {
     /// not resolve; [`LinkError::Io`] when the socket cannot be bound.
     pub async fn connect(config: LinkConfig) -> Result<LinkHandle, LinkError> {
         let node = keys::acquire(&config.state_dir)?;
-        let endpoint = config
-            .forwarder_endpoint
-            .clone()
-            .unwrap_or_else(|| node.state.forwarder_endpoint.clone());
-        let socket = UdpSocket::bind(config.bind).await?;
-        let forwarder = resolve(&endpoint, config.bind.is_ipv4())?;
+        let socket = UdpSocket::from_std(bind_dual_stack(config.bind)?)?;
+        let route = match &config.path {
+            LinkPath::Forwarder { endpoint } => {
+                let endpoint = endpoint
+                    .clone()
+                    .unwrap_or_else(|| node.state.forwarder_endpoint.clone());
+                Route::Forwarder(resolve(&endpoint, config.bind.is_ipv4())?)
+            }
+            LinkPath::Direct { endpoint } => {
+                // Checked before the socket is used rather than after: a direct
+                // link points one socket at one address, so a second peer would
+                // silently be sent the first one's datagrams.
+                let peers = if config.peers.is_empty() {
+                    node.state.enrolled_peers().len()
+                } else {
+                    config.peers.len()
+                };
+                if peers != 1 {
+                    return Err(LinkError::DirectPeerCount(peers));
+                }
+                Route::Direct(resolve(endpoint, config.bind.is_ipv4())?)
+            }
+        };
+
+        // Read before the socket moves into the driver task; an ephemeral bind
+        // means this is the only chance to learn the assigned port.
+        let local_addr = socket.local_addr()?;
 
         let (command_tx, command_rx) = mpsc::channel(COMMAND_CAPACITY);
         let (inbound_tx, inbound_rx) = mpsc::channel(INBOUND_CAPACITY);
         let (status_tx, status_rx) = watch::channel(LinkStatus::default());
 
-        let driver = Driver::new(&config, node, socket, forwarder, inbound_tx, status_tx);
+        let driver = Driver::new(&config, node, socket, route, inbound_tx, status_tx);
         // Captured before the driver moves into its task: the peer table is
         // fixed at connect, and a caller that needs it must not have to wait for
         // the first status publication to see it.
@@ -74,6 +99,7 @@ impl Link {
         tokio::spawn(driver.run(command_rx));
 
         Ok(LinkHandle {
+            local_addr,
             commands: command_tx,
             inbound: Mutex::new(inbound_rx),
             status: status_rx,
@@ -85,17 +111,65 @@ impl Link {
 
 /// Resolve a `host:port` forwarder endpoint to one address.
 fn resolve(endpoint: &str, ipv4: bool) -> Result<SocketAddr, LinkError> {
-    endpoint
+    let mut candidates = endpoint
         .to_socket_addrs()
         .map_err(|_| LinkError::Endpoint(endpoint.to_string()))?
-        .find(|address| address.is_ipv4() == ipv4)
-        .ok_or_else(|| LinkError::Endpoint(endpoint.to_string()))
+        .peekable();
+    let mut mapped: Option<SocketAddr> = None;
+    for address in &mut candidates {
+        if address.is_ipv4() == ipv4 {
+            return Ok(address);
+        }
+        // A dual-stack socket (`[::]` with `IPV6_V6ONLY` off — see
+        // `bind_dual_stack`) reaches an IPv4 peer through its v4-mapped form.
+        // Kept as a fallback rather than returned immediately, so a host with
+        // both records still prefers its native match.
+        if let (false, SocketAddr::V4(v4)) = (ipv4, address) {
+            mapped.get_or_insert(SocketAddr::new(
+                std::net::Ipv4Addr::to_ipv6_mapped(v4.ip()).into(),
+                v4.port(),
+            ));
+        }
+    }
+    mapped.ok_or_else(|| LinkError::Endpoint(endpoint.to_string()))
+}
+
+/// Bind a UDP socket, explicitly requesting dual-stack when `addr` is IPv6.
+///
+/// A bare `UdpSocket::bind` leaves `IPV6_V6ONLY` at the OS default, and that
+/// default is not dual-stack everywhere `[::]` successfully binds — a host
+/// where it defaults on accepts IPv6 traffic only, so an IPv4-only peer's
+/// datagrams never arrive even though bootstrap and the bind itself both
+/// succeeded. `std`/tokio's `UdpSocket` expose no way to set the option, hence
+/// `socket2` here rather than a plain bind.
+///
+/// Best-effort: `set_only_v6` failing (a stack that refuses the option
+/// entirely) is not fatal, since the alternative is refusing to serve at all
+/// on that host. The bind itself still surfaces its error, since a socket that
+/// cannot be bound is a real failure, not a degraded case.
+fn bind_dual_stack(addr: SocketAddr) -> std::io::Result<std::net::UdpSocket> {
+    use socket2::{Domain, Protocol, Socket, Type};
+
+    let domain = if addr.is_ipv6() {
+        Domain::IPV6
+    } else {
+        Domain::IPV4
+    };
+    let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
+    if addr.is_ipv6() {
+        let _ = socket.set_only_v6(false);
+    }
+    socket.set_nonblocking(true)?;
+    socket.bind(&addr.into())?;
+    Ok(socket.into())
 }
 
 /// The task that owns the socket, the sessions and the sequence source.
 struct Driver {
     socket: UdpSocket,
-    forwarder: SocketAddr,
+    /// Where datagrams go, and which sources are admissible. A direct route may
+    /// move as the peer roams; a forwarded one never does.
+    route: Route,
     sessions: HashMap<NodeId, Session>,
     node: AcquiredNode,
     inbound: mpsc::Sender<(NodeId, u64, Vec<u8>)>,
@@ -115,7 +189,7 @@ impl Driver {
         config: &LinkConfig,
         node: AcquiredNode,
         socket: UdpSocket,
-        forwarder: SocketAddr,
+        route: Route,
         inbound: mpsc::Sender<(NodeId, u64, Vec<u8>)>,
         status: watch::Sender<LinkStatus>,
     ) -> Self {
@@ -132,11 +206,18 @@ impl Driver {
         } else {
             config.peers.clone()
         };
+        let direct = matches!(config.path, LinkPath::Direct { .. });
         let sessions = peers
             .into_iter()
             .map(|peer| {
                 let session = Session::new(
-                    session_config(&node, &peer, config.queue_limits, config.max_sent_states),
+                    session_config(
+                        &node,
+                        &peer,
+                        config.queue_limits,
+                        config.max_sent_states,
+                        direct,
+                    ),
                     0,
                 );
                 (peer.node_id, session)
@@ -144,7 +225,7 @@ impl Driver {
             .collect();
         Driver {
             socket,
-            forwarder,
+            route,
             sessions,
             node,
             inbound,
@@ -186,10 +267,10 @@ impl Driver {
                 },
                 received = self.socket.recv_from(&mut buffer) => {
                     if let Ok((len, from)) = received {
-                        if from != self.forwarder {
+                        if !self.route.accepts(from) {
                             continue;
                         }
-                        self.handle_datagram(&buffer[..len]);
+                        self.handle_datagram(&buffer[..len], from);
                     }
                 }
                 _ = tokio::time::sleep(delay) => {}
@@ -223,14 +304,27 @@ impl Driver {
     /// dropped. That is not an error condition: with a blind forwarder in the
     /// middle, junk arriving is expected, and SSP recovers from a dropped
     /// datagram by construction.
-    fn handle_datagram(&mut self, datagram: &[u8]) {
+    ///
+    /// `from` matters only on a direct route, where it is both the thing that
+    /// cannot be trusted before authentication and the answer to "where has this
+    /// peer moved to" after it.
+    fn handle_datagram(&mut self, datagram: &[u8], from: SocketAddr) {
         let now = self.now_ms();
         let Ok(header) = crate::header::OuterHeader::decode(datagram) else {
             return;
         };
+        let direct = matches!(self.route, Route::Direct(_));
         let Some(session) = self.sessions.get_mut(&header.src) else {
             return;
         };
+        // Only a direct link can do this: under a forwarder the peer's tag is
+        // keyed to a secret we have never held. Here both ends derive the same
+        // path key from the pair key, so junk is rejected in constant time
+        // before it reaches ChaCha20-Poly1305 — the one job the forwarder used
+        // to do for us.
+        if direct && !crate::header::verify_tag(datagram, &direct::path_key(session.pair_key())) {
+            return;
+        }
         let pending = self.pending_inbound.entry(header.src).or_default();
         if !pending.is_empty() {
             return;
@@ -238,6 +332,9 @@ impl Driver {
         if session.handle_datagram(datagram, now).is_err() {
             return;
         }
+        // After authentication, never before: an unauthenticated datagram must
+        // not be able to move where this link sends.
+        direct::learn(&mut self.route, session, from);
         let messages = session.take_messages();
         let epoch = session
             .peer_epoch()
@@ -287,7 +384,7 @@ impl Driver {
     /// Send whatever every session says is due now.
     async fn flush(&mut self) {
         let now = self.now_ms();
-        let forwarder = self.forwarder;
+        let destination = self.route.destination();
         // Destructured because the sessions and the sequence source are separate
         // fields: the borrow checker cannot see that through `self`.
         let Driver {
@@ -305,7 +402,7 @@ impl Driver {
                 Err(_) => continue,
             };
             for datagram in datagrams {
-                let _ = socket.send_to(&datagram, forwarder).await;
+                let _ = socket.send_to(&datagram, destination).await;
             }
         }
     }
@@ -344,18 +441,27 @@ fn complete_screen_frame(rows: &[Vec<u8>]) -> Option<Vec<u8>> {
 }
 
 /// Build a session configuration from the node identity and one peer.
+///
+/// `direct` selects the outer-header key, and it is the only thing that differs
+/// between the two paths at this layer. Forwarded: the key the backend issued
+/// this node, which only the backend can check. Direct: a key derived from the
+/// pair key, which the peer can check — see [`direct::path_key`].
 fn session_config(
     node: &AcquiredNode,
     peer: &PeerConfig,
     queue_limits: QueueLimits,
     max_sent_states: usize,
+    direct: bool,
 ) -> SessionConfig {
     SessionConfig {
         node_id: node.state.node_id,
         peer_node_id: peer.node_id,
         role: node.state.role,
         pair_key: peer.pair_key.clone(),
-        forwarder_key: node.state.forwarder_key.clone(),
+        forwarder_key: match direct {
+            true => direct::path_key(&peer.pair_key),
+            false => node.state.forwarder_key.clone(),
+        },
         queue_limits,
         max_sent_states,
     }

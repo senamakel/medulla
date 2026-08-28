@@ -130,6 +130,8 @@ fn picker_on_workspace_step(workspace: &std::path::Path) -> super::types::App {
         attribution: true,
     });
     app.session_picker = Some(SessionPicker {
+        hosts: vec![crate::ui::app::types::PickerHost::this_device(String::new())],
+        host_index: 0,
         choices: Vec::new(),
         index: 0,
         step: SessionPickerStep::Workspace,

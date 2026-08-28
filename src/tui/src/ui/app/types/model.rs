@@ -314,6 +314,15 @@ pub enum Cmd {
     Resume(String),
     /// Fetch the list of resumable chats for the resume picker.
     ListChats,
+    /// Bootstrap a `[[remoteHosts]]` machine and learn what it can do.
+    ///
+    /// Runs `ssh`, so it must never be on the render path. Issued the first time
+    /// an operator picks the host, not at startup — a configured machine that is
+    /// switched off should cost nothing until somebody asks for it.
+    ConnectRemoteHost {
+        /// The `[[remoteHosts]]` id to dial.
+        host_id: String,
+    },
     /// Re-inspect the runtime's context chunks for the Context tab.
     InspectContext,
     /// Clear the session this host is signed in with.
@@ -824,6 +833,21 @@ pub struct App {
     // does not host, in which case the Sessions tab has no local screen to show
     // and falls back to a remote worker's streamed one, or to the transcript.
     pub(in crate::ui::app) local_sessions: Option<crate::ui::harness_pane::LocalSessions>,
+    /// What each `[[remoteHosts]]` machine last said about itself, by host id.
+    ///
+    /// A cache rather than a connection: bootstrapping one runs `ssh` and waits,
+    /// which the render pass must never do. Populated lazily — a configured host
+    /// costs nothing until somebody picks it. See
+    /// [`remote_hosts`](crate::ui::app::remote_hosts).
+    pub(in crate::ui::app) remote_hosts:
+        std::collections::HashMap<String, crate::ui::app::remote_hosts::RemoteHostState>,
+    /// Commands left by a handler that had no way to return one.
+    ///
+    /// The mouse path answers `bool` and the picker's key path answers nothing,
+    /// so neither can hand a [`Cmd`] back up. Drained by
+    /// [`App::on_event`](crate::ui::app::App::on_event), which every event passes
+    /// through.
+    pub(in crate::ui::app) pending_cmds: std::collections::VecDeque<Cmd>,
     // Workflow runs the harnesses on this device started over MCP, keyed by the
     // grant session the launcher recorded on each PTY row. Read at render so a
     // run reported a moment ago is on screen at the next frame, and empty on a

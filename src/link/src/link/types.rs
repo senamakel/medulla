@@ -26,18 +26,46 @@ pub struct PeerConfig {
     pub pair_key: PairKey,
 }
 
+/// Where a link's datagrams go, and what authenticates the outer header.
+///
+/// The two variants are the two ways a peer is reached, and they differ in more
+/// than an address: see [`crate::link::direct`] for what a forwarder was doing
+/// that a direct link has to do for itself.
+#[derive(Debug, Clone)]
+pub enum LinkPath {
+    /// Through the backend forwarder — the enrolled default. Outer headers are
+    /// tagged with this node's forwarder key and never verified locally, because
+    /// the receiver has never held the sender's key.
+    Forwarder {
+        /// Overrides the forwarder endpoint recorded in `node.json`.
+        endpoint: Option<String>,
+    },
+    /// Straight to one peer, at an address an SSH bootstrap supplied. There is
+    /// no third party, so the outer tag is derived from the pair key and *is*
+    /// verified, and the peer's address is learned rather than relayed.
+    Direct {
+        /// `host:port` to start sending to. Roaming may move it from here.
+        endpoint: String,
+    },
+}
+
 /// How to bring a link up.
 #[derive(Debug, Clone)]
 pub struct LinkConfig {
     /// The identity directory, normally `<medulla_home>/link`.
+    ///
+    /// One process may hold only one link per directory: `keys::acquire` takes an
+    /// advisory lock, so a second [`Link`](crate::Link) on the same directory
+    /// fails with [`KeyError`]. A client that talks to several remote hosts
+    /// therefore needs a directory per host.
     pub state_dir: PathBuf,
     /// Local UDP address to bind. `0.0.0.0:0` is the usual choice: the forwarder
     /// learns the endpoint's address from the datagrams it receives (§5), so
     /// nothing depends on the local port staying the same — that is what makes
     /// roaming free.
     pub bind: SocketAddr,
-    /// Overrides the forwarder endpoint recorded in `node.json`.
-    pub forwarder_endpoint: Option<String>,
+    /// How the peer is reached.
+    pub path: LinkPath,
     /// Peers to open sessions with. When empty, the single peer recorded in
     /// `node.json` is used — the host case, which has exactly one.
     pub peers: Vec<PeerConfig>,
@@ -56,7 +84,7 @@ impl LinkConfig {
             bind: "0.0.0.0:0"
                 .parse()
                 .expect("a literal socket address parses"),
-            forwarder_endpoint: None,
+            path: LinkPath::Forwarder { endpoint: None },
             peers: Vec::new(),
             queue_limits: QueueLimits::default(),
             max_sent_states: MAX_SENT_STATES,
@@ -82,6 +110,13 @@ pub enum LinkError {
     /// No session exists for that node id.
     #[error("no session for peer {0}")]
     UnknownPeer(NodeId),
+    /// A direct link was configured with anything other than exactly one peer.
+    ///
+    /// Refused rather than approximated: a direct link has one socket pointed at
+    /// one address, so a second peer would silently receive the first one's
+    /// datagrams. The forwarded path is the one that fans out.
+    #[error("a direct link needs exactly one peer, got {0}")]
+    DirectPeerCount(usize),
     /// The driver task has stopped; the handle is dead.
     #[error("link is closed")]
     Closed,
@@ -140,6 +175,12 @@ pub(super) enum Command {
 /// `Arc` instead — every method takes `&self`.
 #[derive(Debug)]
 pub struct LinkHandle {
+    /// The address the driver's socket is bound to.
+    ///
+    /// Captured at connect rather than asked of the socket later, because the
+    /// socket moves into the driver task. A direct-mode host needs it: it binds
+    /// an ephemeral port and has to tell the client which one it got.
+    pub(super) local_addr: SocketAddr,
     pub(super) commands: mpsc::Sender<Command>,
     pub(super) inbound: Mutex<mpsc::Receiver<(NodeId, u64, Vec<u8>)>>,
     pub(super) status: watch::Receiver<LinkStatus>,
@@ -215,6 +256,14 @@ impl LinkHandle {
     /// `None` means the driver has stopped and no further message will arrive.
     pub async fn recv(&self) -> Option<(NodeId, u64, Vec<u8>)> {
         self.inbound.lock().await.recv().await
+    }
+
+    /// The local address this link's socket is bound to.
+    ///
+    /// With an ephemeral `bind` (the usual choice) this is the only way to learn
+    /// the port that was actually assigned.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.local_addr
     }
 
     /// Every peer this link opened a session with.

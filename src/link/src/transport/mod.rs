@@ -18,6 +18,13 @@
 //! Instruction twice is a no-op by construction (§4.3), so a duplicate is free
 //! rather than dangerous. Replay defence for *routing* is the forwarder's job
 //! (§5).
+//!
+//! It does, however, track the highest sequence it has accepted
+//! ([`Session::peer_seq_advanced`]). That is not replay defence for this layer —
+//! it changes nothing about how an Instruction is applied — but a link with no
+//! forwarder has no third party to relearn addresses, and telling a fresh
+//! datagram from a captured one is what lets it follow a roaming peer safely.
+//! See [`crate::link::direct`].
 
 mod channel;
 mod timing;
@@ -85,6 +92,17 @@ pub struct Session {
     local_epoch: u64,
     peer_epoch: Option<u64>,
     retired_peer_epochs: VecDeque<u64>,
+    /// The highest `seq` of any datagram this session has accepted, and whether
+    /// the most recent one advanced it.
+    ///
+    /// Only a direct link reads these (see [`crate::link::direct::learn`]), and
+    /// only to decide whether a datagram may move the peer's address. An accepted
+    /// datagram is authentic but not necessarily *fresh* — a captured one stays
+    /// valid forever — so the address follows the sequence, not the arrival.
+    highest_peer_seq: Option<u64>,
+    /// Whether the datagram accepted most recently carried the highest sequence
+    /// yet seen. Meaningless before the first accepted datagram.
+    peer_seq_advanced: bool,
 }
 
 impl Session {
@@ -107,6 +125,8 @@ impl Session {
             local_epoch: rand::thread_rng().next_u64(),
             peer_epoch: None,
             retired_peer_epochs: VecDeque::new(),
+            highest_peer_seq: None,
+            peer_seq_advanced: false,
         }
     }
 
@@ -120,9 +140,29 @@ impl Session {
         self.config.peer_node_id
     }
 
+    /// The end-to-end key this session is keyed with.
+    ///
+    /// Exposed for the direct link, which derives its outer-header key from the
+    /// same material ([`crate::link::direct::path_key`]). Nothing else should
+    /// need it: the pair key's whole job is to stay inside the session.
+    pub fn pair_key(&self) -> &crate::keys::PairKey {
+        &self.config.pair_key
+    }
+
     /// The current peer process epoch, once an authenticated datagram arrived.
     pub fn peer_epoch(&self) -> Option<u64> {
         self.peer_epoch
+    }
+
+    /// Whether the datagram accepted most recently carried the highest sequence
+    /// yet seen from the peer.
+    ///
+    /// The freshness half of a direct link's address-learning rule: an accepted
+    /// datagram proves who sent it, this proves it is not a replay. See
+    /// [`crate::link::direct::learn`], which is the only caller that should
+    /// need it — a forwarded link has the forwarder to relearn addresses for it.
+    pub fn peer_seq_advanced(&self) -> bool {
+        self.peer_seq_advanced
     }
 
     /// The round-trip estimator, for `status()` and for tests.
@@ -351,6 +391,15 @@ impl Session {
             self.ack_pending = [false; CHANNEL_COUNT];
         }
         self.peer_epoch = Some(header.epoch);
+
+        // Recorded here rather than at decode: a datagram from a retired epoch
+        // returns above without reaching this line, so a straggler from a
+        // previous incarnation of the peer cannot advance the watermark and
+        // cannot move a direct link's address.
+        self.peer_seq_advanced = self.highest_peer_seq.is_none_or(|seen| header.seq > seen);
+        if self.peer_seq_advanced {
+            self.highest_peer_seq = Some(header.seq);
+        }
 
         self.last_heard_ms = Some(now_ms);
         self.peer_timestamp = Some((packet.send_ts, now_ms));
