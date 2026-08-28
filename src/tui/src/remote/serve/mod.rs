@@ -79,6 +79,17 @@ pub struct RemoteServer {
     subscriptions: Subscriptions,
     /// This host's answer to `Hello`.
     capabilities: RemoteCapabilities,
+    /// Every peer that has said `Hello`, so a row change found outside a
+    /// request/response pair (a child exiting on its own, an attention cue
+    /// firing) still has somewhere to go. Not the same set as
+    /// [`Subscriptions`]: a client watching nothing is still owed session-list
+    /// updates.
+    peers: HashSet<String>,
+    /// The session list as last published, so [`publish_sessions_if_changed`]
+    /// can tell a real change from another identical tick.
+    ///
+    /// [`publish_sessions_if_changed`]: Self::publish_sessions_if_changed
+    last_rows: Vec<RemoteSessionRow>,
     log: Option<LogFn>,
 }
 
