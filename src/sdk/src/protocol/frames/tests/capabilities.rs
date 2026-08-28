@@ -1,6 +1,6 @@
 //! Compatibility tests for additive worker capability fields.
 
-use crate::protocol::{parse_agent_capabilities, AgentCapabilities, BudgetWindow};
+use crate::protocol::{parse_agent_capabilities, AgentCapabilities, BudgetWindow, HarnessProvider};
 
 #[test]
 fn budget_window_defaults_to_unknown() {
