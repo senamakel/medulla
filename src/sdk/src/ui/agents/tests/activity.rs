@@ -203,3 +203,41 @@ fn a_lane_shows_the_freshest_work_its_worker_reported() {
     );
     assert_eq!(lanes[0].tasks[0].work.as_ref(), Some(work));
 }
+
+#[test]
+fn a_settled_task_stops_producing_a_lane_row_once_it_has_aged_out() {
+    // The end of the chain the operator actually sees: the log is read, the fold
+    // turns what it holds into per-task rows, and the Sessions rail draws one row
+    // per row of that. A settled task the log has retired therefore has no row —
+    // which is the whole point of retiring it, rather than filtering it out at
+    // the display layer where the record would still be there.
+    let log = crate::hub::ActivityLog::new();
+    let now = crate::clock::now_millis();
+    log.dispatched_as("wire-1", "mcp:pty-1/t:mcp-1", "dev");
+    log.observed("wire-1", "status", "reading files", now - 600_000);
+    log.observed("wire-1", "error", "bash exited with 1", now - 590_000);
+
+    let mut lanes = vec![worker_lane("dev")];
+    merge_host_activity(&mut lanes, &log.snapshot());
+
+    assert!(
+        lanes[0].tasks.is_empty(),
+        "a dispatch that failed ten minutes ago leaves no row on the rail"
+    );
+    assert_eq!(lanes[0].active_tasks, 0);
+}
+
+#[test]
+fn a_task_still_running_keeps_its_lane_row() {
+    let log = crate::hub::ActivityLog::new();
+    let now = crate::clock::now_millis();
+    log.dispatched_as("wire-1", "mcp:pty-1/t:mcp-1", "dev");
+    log.observed("wire-1", "status", "reading files", now - 600_000);
+
+    let mut lanes = vec![worker_lane("dev")];
+    merge_host_activity(&mut lanes, &log.snapshot());
+
+    assert_eq!(lanes[0].tasks.len(), 1);
+    assert_eq!(lanes[0].tasks[0].status, TaskStatus::Running);
+    assert_eq!(lanes[0].active_tasks, 1);
+}
