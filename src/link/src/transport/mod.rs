@@ -140,6 +140,15 @@ impl Session {
         self.config.peer_node_id
     }
 
+    /// The end-to-end key this session is keyed with.
+    ///
+    /// Exposed for the direct link, which derives its outer-header key from the
+    /// same material ([`crate::link::direct::path_key`]). Nothing else should
+    /// need it: the pair key's whole job is to stay inside the session.
+    pub fn pair_key(&self) -> &crate::keys::PairKey {
+        &self.config.pair_key
+    }
+
     /// The current peer process epoch, once an authenticated datagram arrived.
     pub fn peer_epoch(&self) -> Option<u64> {
         self.peer_epoch
