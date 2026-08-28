@@ -162,8 +162,25 @@ impl DaemonRuntime {
         // withholds `workflow_run` and every editing verb. Withholding the
         // family under it would take away the notes and proposal verbs the
         // review turn exists to call.
+        //
+        // A frame that marked itself *authoring* is likewise left alone, and
+        // that exemption is not a hole: the workflow copilot travels this same
+        // bridge as an unscoped `workflowNode` frame — `LocalCopilotDispatch`
+        // and the TUI's copilot pane both dispatch through it, and an authoring
+        // turn deliberately sets no tool mode — so gating on the node marker
+        // alone took the copilot's `workflow_create` and every editing verb away
+        // from the one caller whose entire purpose is to call them, leaving its
+        // caller to read a store nothing had written. The marker is minted by
+        // [`crate::hub::TaskRunner::run_workflow_authoring`], which only the
+        // copilot's own dispatch handle reaches, so a graph step cannot claim it
+        // — and it is read here only from a device-local sender, for the same
+        // reason the node marker is: it widens the surface.
         #[cfg(feature = "workflows")]
-        if sender_device_local && frame.workflow_node && frame.tool_mode.is_none() {
+        if sender_device_local
+            && frame.workflow_node
+            && !frame.workflow_authoring
+            && frame.tool_mode.is_none()
+        {
             crate::harness_tools::withhold_workflows(&mut run_env);
         }
         let run_env = run_env;
