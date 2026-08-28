@@ -339,3 +339,102 @@ mod children {
         sessions.close(&id);
     }
 }
+
+    /// The interleaving codex flagged: an operator's takeover lands in the gap
+    /// between `finish_turn`'s `control()` snapshot and its `close_if_orchestrator`
+    /// call, so the close correctly refuses (this is `close_if_orchestrator`'s own
+    /// atomicity, already pinned above) — but `finish_turn` must not then just
+    /// drop that `false` on the floor. The session it leaves behind is the
+    /// operator's, running, and needs exactly the completion cleanup the
+    /// already-adopted case gets: `busy` cleared so a later `try_claim` can reuse
+    /// it after handback, and its mapper state left alone rather than torn down
+    /// for a close that never actually happened.
+    ///
+    /// Genuinely racy — `close_if_orchestrator` and `set_control` are serialized
+    /// on the same lock, so whichever call reaches it first wins — so this drives
+    /// real concurrent threads released together off a barrier, repeats until the
+    /// takeover is observed winning at least once, and asserts the invariant on
+    /// every trial rather than depending on one timing-sensitive assertion: the
+    /// session must never end up alive yet permanently `busy`.
+    #[test]
+    fn a_takeover_racing_the_close_never_leaves_the_session_stuck_busy() {
+        use std::sync::Barrier;
+
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let mut takeover_observed = false;
+
+        for attempt in 0..30 {
+            let marker = dir.path().join(format!("ticks-{attempt}"));
+            let sessions = PtyManager::new();
+            let id = sessions.open(ticker(&marker)).expect("a live child");
+            wait_for("the child to start writing", || ticks(&marker) > 0);
+
+            let exec = executor(sessions.clone());
+            exec.workspace_context
+                .lock()
+                .expect("workspace context lock poisoned")
+                .insert(id.clone(), (Some("cwd".to_string()), None, None));
+
+            let barrier = std::sync::Arc::new(Barrier::new(2));
+            let takeover_sessions = sessions.clone();
+            let takeover_id = id.clone();
+            let takeover_barrier = barrier.clone();
+            let takeover = std::thread::spawn(move || {
+                takeover_barrier.wait();
+                takeover_sessions.set_control(&takeover_id, SessionControl::User)
+            });
+
+            barrier.wait();
+            exec.finish_turn(&id, SessionClass::Bounded, true, RunTaskOrigin::Workflow);
+
+            let _ = takeover.join().expect("the takeover thread must not panic");
+
+            match sessions.row(&id) {
+                None => {
+                    // The close won the race outright: nothing left to check for
+                    // this trial, exactly like the plain unattended-close test.
+                }
+                Some(row) if row.state.is_running() => {
+                    // The takeover won: this is the interleaving under test.
+                    takeover_observed = true;
+                    assert_eq!(
+                        sessions.control(&id),
+                        Some(SessionControl::User),
+                        "a session still running after finish_turn is the operator's"
+                    );
+                    assert!(
+                        !row.busy,
+                        "must not be left permanently busy — that strands it from                          every future claim, the exact leak this PR exists to close"
+                    );
+                    assert!(
+                        exec.workspace_context
+                            .lock()
+                            .expect("workspace context lock poisoned")
+                            .contains_key(&id),
+                        "mapper state must survive a close that never happened"
+                    );
+
+                    // Hand back and confirm the session is genuinely reusable.
+                    sessions.set_control(&id, SessionControl::Orchestrator);
+                    assert!(
+                        sessions
+                            .claim_idle("test", HarnessProvider::Codex)
+                            .is_some(),
+                        "a handed-back session must be claimable, not stuck behind                          a busy flag nothing ever cleared"
+                    );
+                    sessions.release(&id);
+                    sessions.close(&id);
+                }
+                Some(_) => panic!(
+                    "a session that is neither closed nor running is the exact                      stuck-busy limbo this test exists to rule out"
+                ),
+            }
+        }
+
+        assert!(
+            takeover_observed,
+            "the race never landed on the takeover side across {} trials —              widen the trial count or the synchronization before trusting this test",
+            30
+        );
+    }
+}
