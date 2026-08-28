@@ -26,6 +26,7 @@ mod overlays;
 mod overlays_tests;
 mod rail;
 mod remote_hosts;
+mod remote_sessions;
 mod render;
 mod session_control;
 mod settings_edit;
