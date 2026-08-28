@@ -135,6 +135,30 @@ out=$(medulla remote buildbox --harness nosuchagent --exec '' 2>&1)
 check_error "an unavailable harness names what the host does offer" \
   "does not offer nosuchagent" "$out"
 
+# 13. The daemon outlives the SSH session that started it — the property the
+#     whole design rests on. Asserted three ways, because "it happened to still
+#     be there" is not the same as "it detached".
+out=$(ssh root@host 'ps -o sid=,ppid=,args= -C medulla 2>/dev/null | grep "[d]aemon --direct" | head -1' 2>&1)
+check "the daemon is reparented away from its ssh session" "1 " "$out"
+#     Its parent is init (ppid 1): sshd's child is gone, so nothing upstream can
+#     signal it when a session ends.
+if grep -qE '^\s*[0-9]+\s+1\s' <<<"$out"; then
+  echo "  PASS  the daemon's parent is init, not sshd"
+  pass=$((pass + 1))
+else
+  echo "  FAIL  the daemon still has an sshd parent: $out"
+  fail=$((fail + 1))
+fi
+#     And no ssh client is left behind on this side.
+left=$(pgrep -c -f "ssh .*root@host" 2>/dev/null || echo 0)
+if [ "$left" -eq 0 ]; then
+  echo "  PASS  no orphaned ssh process is left behind per bootstrap"
+  pass=$((pass + 1))
+else
+  echo "  FAIL  $left orphaned ssh process(es) left behind"
+  fail=$((fail + 1))
+fi
+
 echo
 printf 'passed %d, failed %d\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
