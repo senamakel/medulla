@@ -72,7 +72,10 @@ impl App {
             return;
         };
         let attached = self.harness_focus.is_attached_to(session_id);
-        let block = self.panel(self.harness_title(session_id, attached));
+        // Built before the block because the title samples, and sampling needs
+        // the same `&mut self` the panel builder borrows.
+        let title = self.harness_title(session_id, attached);
+        let block = self.panel(title);
         let inner = block.inner(area);
         // A border-styled block is the focus indicator: attached panes get a
         // bold border so the operator can see where their keys are going from
@@ -111,14 +114,14 @@ impl App {
         }
     }
 
-    /// The pane title for a harness screen: what it is, and how to get in or
-    /// out of it.
+    /// The pane title for a harness screen: what it is costing, and how to get
+    /// in or out of it.
     ///
     /// The chord is in the title rather than in a help screen because it is the
     /// one thing an operator needs at exactly the moment they are looking at
     /// this pane — and because an embedded terminal with no visible way out is
     /// the reason people avoid them.
-    fn harness_title(&self, session_id: &str, attached: bool) -> String {
+    fn harness_title(&mut self, session_id: &str, attached: bool) -> String {
         let row = self
             .local_sessions
             .as_ref()
@@ -131,21 +134,16 @@ impl App {
             (Some(row), false) if row.state.is_running() => row.attention.clone(),
             _ => None,
         };
-        let what = match &row {
-            // Who holds it goes in the title because it is the fact that
-            // decides whether a prompt typed here will be interleaved with the
-            // orchestrator's — and it is invisible everywhere else once the
-            // cursor is on a lane rather than on the harness's own rail row.
-            Some(row) => format!(
-                "{} · {} · {}",
-                row.provider.as_str(),
-                row.state.as_str(),
-                row.control.as_str()
-            ),
+        let what = self.harness_cost(session_id).unwrap_or_else(|| match &row {
+            // The fallback, and the only thing a session that is not running
+            // can honestly say about its resources: it has none. Provider and
+            // state rather than usage, so an exited pane is labelled by how it
+            // ended instead of by three zeroes.
+            Some(row) => format!("{} · {}", row.provider.as_str(), row.state.as_str()),
             // A session that vanished between resolving and drawing. Rare, and
             // naming it beats a title that claims a provider we no longer know.
             None => "session".to_string(),
-        };
+        });
         // The keys the pane offers while nobody is typing into it go in the
         // title beside the way in, because an unfocused terminal shows no hint
         // of its own and the operator is reading this line to find out what the
@@ -169,5 +167,26 @@ impl App {
         } else {
             format!("{what} · Enter or {FOCUS_CHORD_LABEL} to type · {keys}")
         }
+    }
+
+    /// What this session is costing the machine, as title text.
+    ///
+    /// The pane's own chrome is where this belongs: the rail already carries
+    /// the provider, the run-state glyph and who holds the session, so the
+    /// title repeating them spent the operator's most-read line on facts that
+    /// were already on screen — where the cost of the agent they are watching
+    /// was on screen nowhere.
+    ///
+    /// `None` for a session with no live child, and for one the platform will
+    /// not name a pid for; the caller then labels the pane by its state
+    /// instead.
+    fn harness_cost(&mut self, session_id: &str) -> Option<String> {
+        let pid = self
+            .local_sessions
+            .as_ref()?
+            .sessions
+            .pid(session_id)?;
+        let sample = self.session_monitor.sample(pid)?;
+        Some(crate::ui::resources::session_usage(sample))
     }
 }
