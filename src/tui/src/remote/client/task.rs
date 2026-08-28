@@ -112,7 +112,13 @@ pub async fn run(
 
     let mut announced = false;
     let mut last_rows: Vec<RemoteSessionRow> = Vec::new();
-    let mut last_screen: Option<ScreenSnapshot> = None;
+    // Keyed by session, not just the snapshot: two idle sessions commonly render
+    // an identical grid (two fresh shells at the same prompt), so comparing
+    // snapshots alone can suppress the first frame of a session just switched to
+    // — the pane has already cleared its cached screen, but this cache still
+    // holds the previous session's, and an equal grid looks like "nothing
+    // changed".
+    let mut last_screen: Option<(String, ScreenSnapshot)> = None;
 
     loop {
         // Requests first, so a keystroke is not held behind a tick.
@@ -147,8 +153,11 @@ pub async fn run(
         // which is the whole reason the screen is synchronised state rather than
         // a stream.
         if let (Some(session_id), Some(snapshot)) = (host.watching(), host.screen()) {
-            if last_screen.as_ref() != Some(&snapshot) {
-                last_screen = Some(snapshot.clone());
+            let unchanged = last_screen
+                .as_ref()
+                .is_some_and(|(id, cached)| id == session_id && cached == &snapshot);
+            if !unchanged {
+                last_screen = Some((session_id.to_string(), snapshot.clone()));
                 let _ = updates.send((
                     host_id.clone(),
                     RemoteUpdate::Screen {
@@ -157,6 +166,11 @@ pub async fn run(
                     },
                 ));
             }
+        } else {
+            // Nothing is being watched (or nothing has arrived yet): clear the
+            // cache so a `Watch` that lands moments later is compared against
+            // nothing rather than the last session's grid.
+            last_screen = None;
         }
 
         if requests.is_closed() && requests.is_empty() {
