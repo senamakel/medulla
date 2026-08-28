@@ -330,14 +330,12 @@ impl PtySessionExecutor {
         if retain {
             // A retained session can serve the operator a later turn, so its
             // mapper state outlives the task the same way a taken session's
-            // does. No close is attempted on this path, so the snapshot above
-            // is not racing anything and is safe to decide from directly.
-            if !retains_workspace_context(class, control, running) {
-                self.workspace_context
-                    .lock()
-                    .expect("workspace context lock poisoned")
-                    .remove(id);
-            }
+            // does — unconditionally: `retains_workspace_context` answers a
+            // different question (does an *unretained* bounded-or-unbound
+            // session still have a running reader), and evaluating it here too
+            // would tear the context down whenever a `Bounded`,
+            // not-yet-`User` retained session did not happen to satisfy it,
+            // which is every retained session there is.
             self.sessions.retain(id);
             // Freed as well as retained: the turn is over, and a session left
             // busy would read as working forever in every surface that asks.
