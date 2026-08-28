@@ -341,6 +341,20 @@ impl Hello {
     pub fn may_dispatch(&self) -> bool {
         self.families.fleet && self.depth < self.max_depth
     }
+
+    /// Whether this grant's holder may dispatch a *saved workflow* through the
+    /// fleet.
+    ///
+    /// Narrower than [`may_dispatch`](Self::may_dispatch): a grant withheld the
+    /// workflow family keeps the fleet verbs, but may not use one of them to
+    /// reach a saved graph. A workflow `agent` node's harness is exactly that
+    /// grant, and letting it name a `workflow` here would put back the
+    /// recursion the withholding removed. The shim uses this to omit the
+    /// argument from `fleet_dispatch`'s schema; the server refuses it either
+    /// way.
+    pub fn may_dispatch_workflow(&self) -> bool {
+        self.may_dispatch() && self.families.workflows
+    }
 }
 
 /// Environment variable naming the control socket a spawned harness may reach.
