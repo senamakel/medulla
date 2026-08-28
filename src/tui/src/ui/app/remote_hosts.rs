@@ -53,6 +53,19 @@ pub(in crate::ui::app) struct RemoteHostState {
     pub(in crate::ui::app) watching: Option<String>,
     /// The watched session's screen, folded from the frames received so far.
     pub(in crate::ui::app) screen: Option<(String, crate::worker::pty::ScreenSnapshot)>,
+    /// When each session's current attention cue was first *seen here*, by
+    /// session id, alongside the cue it belongs to.
+    ///
+    /// The sender's own `since` cannot cross: it is a reading from that
+    /// machine's clock, and the rail subtracts this from *ours* to say how long
+    /// a harness has been waiting. A skewed host would otherwise show a fresh
+    /// prompt as stuck for hours, or pinned at zero forever.
+    ///
+    /// The cue is stored with it so the stamp survives while the same cue holds
+    /// and resets when a different one replaces it — which is what makes "how
+    /// long has it been asking this" true rather than "how long since the last
+    /// frame".
+    pub(in crate::ui::app) attention_since: std::collections::HashMap<String, (String, i64)>,
     /// The size the pane last told this host about, so an unchanged geometry
     /// does not cost a datagram every frame.
     pub(in crate::ui::app) pane_size: Option<(u16, u16)>,
@@ -181,11 +194,29 @@ impl App {
     }
 
     /// Replace a host's session list.
-    pub fn remote_host_sessions(&mut self, host_id: &str, rows: Vec<RemoteSessionRow>) {
-        self.remote_hosts
-            .entry(host_id.to_string())
-            .or_default()
-            .rows = rows;
+        pub fn remote_host_sessions(&mut self, host_id: &str, rows: Vec<RemoteSessionRow>) {
+        let now = medulla::clock::now_millis();
+        let state = self.remote_hosts.entry(host_id.to_string()).or_default();
+        // Stamped on arrival, and kept while the same cue holds. A row whose cue
+        // is unchanged keeps the moment we first saw it; a new or cleared cue
+        // starts again.
+        state.attention_since.retain(|id, _| {
+            rows.iter()
+                .any(|row| &row.id == id && row.attention.is_some())
+        });
+        for row in &rows {
+            let Some(attention) = row.attention.as_ref() else {
+                continue;
+            };
+            let cue = format!("{}:{}", attention.kind, attention.summary);
+            match state.attention_since.get(&row.id) {
+                Some((seen, _)) if seen == &cue => {}
+                _ => {
+                    state.attention_since.insert(row.id.clone(), (cue, now));
+                }
+            }
+        }
+        state.rows = rows;
     }
 }
 
