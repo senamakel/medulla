@@ -134,6 +134,17 @@ impl RemoteServer {
         self.subscriptions.session_for(peer)
     }
 
+    /// Drain and handle whatever has arrived, without sampling or sleeping.
+    ///
+    /// The other half of one [`run`](Self::run) pass, exposed for the same
+    /// reason [`publish_screens_once`](Self::publish_screens_once) is: a caller
+    /// driving the server by hand needs to step it rather than start a loop.
+    pub async fn pump_once(&mut self) {
+        for message in self.bridge.drain_inbox(64).await {
+            self.handle(&message.from, &message.text).await;
+        }
+    }
+
     /// Sample subscribed screens once and send whatever changed.
     ///
     /// [`run`](Self::run) does this on every pass; exposed separately so a
