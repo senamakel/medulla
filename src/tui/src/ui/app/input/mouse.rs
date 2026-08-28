@@ -190,6 +190,7 @@ impl App {
                     return true;
                 };
                 match picker.step {
+                    super::super::types::SessionPickerStep::Host => picker.host_index = index,
                     super::super::types::SessionPickerStep::Harness => picker.index = index,
                     super::super::types::SessionPickerStep::Workspace => {
                         picker.workspace_index = index;
