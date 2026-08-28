@@ -181,11 +181,7 @@ impl App {
     /// not name a pid for; the caller then labels the pane by its state
     /// instead.
     fn harness_cost(&mut self, session_id: &str) -> Option<String> {
-        let pid = self
-            .local_sessions
-            .as_ref()?
-            .sessions
-            .pid(session_id)?;
+        let pid = self.local_sessions.as_ref()?.sessions.pid(session_id)?;
         let sample = self.session_monitor.sample(pid)?;
         Some(crate::ui::resources::session_usage(sample))
     }
