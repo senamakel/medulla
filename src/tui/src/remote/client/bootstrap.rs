@@ -236,7 +236,9 @@ pub async fn bootstrap(
                 value => value,
             };
             Ok(Bootstrapped {
-                endpoint: format!("{udp_host}:{}", connect.port),
+                // Bracketed when it is a bare IPv6 literal: `format!("{h}:{p}")`
+                // turns `::1` into `::1:9`, which parses as a different address.
+                endpoint: crate::remote::serve::join_endpoint(udp_host, connect.port),
                 connect,
                 child,
             })

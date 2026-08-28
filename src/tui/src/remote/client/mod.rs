@@ -99,6 +99,13 @@ impl RemoteHost {
         )?;
 
         let mut config = LinkConfig::new(state_dir);
+        // The local bind must share the endpoint's family, because the link
+        // resolves an endpoint against it: a default `0.0.0.0` bind refuses an
+        // AAAA-only host outright, so a machine reachable only over IPv6 would
+        // bootstrap over SSH and then have no usable link.
+        if let Some(bind) = bind_for(&started.endpoint) {
+            config.bind = bind;
+        }
         config.path = LinkPath::Direct {
             endpoint: started.endpoint.clone(),
         };
@@ -365,4 +372,24 @@ fn enroll_host(dir: &std::path::Path, host: NodeId, pair_key: &PairKey) -> Resul
     state.peer_node_id = host;
     state.pair_key = pair_key.clone();
     keys::write_node_state(&path, &state).map_err(|error| error.to_string())
+}
+
+/// An ephemeral local bind whose family matches `endpoint`.
+///
+/// `None` when the endpoint does not resolve — left to `Link::connect`, which
+/// reports the failure with the endpoint in it rather than a bind that says
+/// nothing about why.
+///
+/// IPv6 is preferred when a host resolves to both, matching what `ssh` and
+/// getaddrinfo already prefer, so the UDP path follows the one the bootstrap
+/// most likely took.
+fn bind_for(endpoint: &str) -> Option<std::net::SocketAddr> {
+    use std::net::ToSocketAddrs;
+    let mut resolved = endpoint.to_socket_addrs().ok()?.peekable();
+    let any_v6 = resolved.clone().any(|address| !address.is_ipv4());
+    resolved.peek()?;
+    Some(match any_v6 {
+        true => std::net::SocketAddr::from(([0u16; 8], 0)),
+        false => std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
+    })
 }
