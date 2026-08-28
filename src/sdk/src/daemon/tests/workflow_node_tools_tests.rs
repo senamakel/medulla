@@ -139,3 +139,61 @@ async fn a_scoped_review_turn_keeps_its_workflow_tools() {
         "the review's mode must still reach its tool server: {env:?}"
     );
 }
+
+/// A copilot authoring turn as `CopilotSession` and `LocalCopilotDispatch`
+/// build it: the same loopback bridge, the same `workflowNode` marker, and no
+/// tool mode — because an authoring turn is deliberately unscoped. Gating the
+/// withholding on the node marker alone therefore caught the copilot too, and
+/// took away `workflow_create` and every editing verb from the one caller whose
+/// entire purpose is to call them. Its caller reads the store back afterwards,
+/// so the failure is silent: the turn talks, and nothing was written.
+#[tokio::test]
+async fn a_copilot_authoring_turn_keeps_its_workflow_tools() {
+    let frame = TaskFrame {
+        workflow_authoring: true,
+        conversation: Some("workflows-pane-1".to_string()),
+        ..node_frame("copilot-turn")
+    };
+
+    let env = launch_env(frame, true).await;
+
+    assert!(
+        !crate::harness_tools::workflows_withheld(&env),
+        "an authoring turn must keep the workflow tools it exists to call: {env:?}"
+    );
+}
+
+/// And it keeps the managed workflow *skills* with them, which is the same
+/// question asked at the other seam: both the argv renderer and the skills
+/// attachment read this one marker, so an authoring turn that kept the tools
+/// but lost the skills would still be launched half-briefed.
+#[tokio::test]
+async fn a_copilot_authoring_turn_keeps_the_managed_workflow_skills() {
+    let frame = TaskFrame {
+        workflow_authoring: true,
+        ..node_frame("copilot-skills")
+    };
+
+    let env = launch_env(frame, true).await;
+
+    assert!(
+        !crate::harness_tools::withheld(&env) && !crate::harness_tools::workflows_withheld(&env),
+        "the skills renderer asks exactly this question: {env:?}"
+    );
+}
+
+/// The authoring marker widens a launch's tool surface, so it is read on the
+/// same terms as the node marker beside it: only from a peer this daemon
+/// serves. A graph step cannot set it either — it is minted by
+/// [`crate::hub::TaskRunner::run_workflow_authoring`], which only the copilot's
+/// own dispatch handle reaches — but the frame is JSON, and this pins that a
+/// node frame without the marker is still withheld.
+#[tokio::test]
+async fn a_node_frame_without_the_authoring_marker_is_still_withheld() {
+    let env = launch_env(node_frame("node"), true).await;
+
+    assert!(
+        crate::harness_tools::workflows_withheld(&env),
+        "a graph step must still lose the workflow family: {env:?}"
+    );
+}
