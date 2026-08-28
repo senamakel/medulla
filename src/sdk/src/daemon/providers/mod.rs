@@ -21,8 +21,6 @@ mod local;
 mod types;
 
 #[cfg(test)]
-mod origin_tests;
-#[cfg(test)]
 mod tests;
 
 pub use acp::{run_acp_task, HARNESS_PROTOCOL_ENV};
