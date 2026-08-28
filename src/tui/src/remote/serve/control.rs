@@ -102,11 +102,7 @@ pub async fn start(
 /// exist on this platform. The caller holds the result for its lifetime either
 /// way, so a unit is exactly the right shape for "nothing to hold".
 #[cfg(not(unix))]
-pub async fn start(
-    env: &HashMap<String, String>,
-    config: &TuiConfig,
-    log: impl Fn(String),
-) {
+pub async fn start(env: &HashMap<String, String>, config: &TuiConfig, log: impl Fn(String)) {
     let _ = (env, config);
     log("control socket: not bound (unix only), so sessions start without tools".to_string());
 }
