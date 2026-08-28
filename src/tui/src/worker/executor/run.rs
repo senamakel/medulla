@@ -128,6 +128,11 @@ impl PtySessionExecutor {
         // then shared a harness, each able to read the other's prompt and tool
         // context — the exact opposite of what the comment above promises.
         let class = options.session_class;
+        // Copied out with the class, and for the same reason: the decision at
+        // the end of the turn happens after `options` has been consumed. It says
+        // whether anybody asked for this run — see
+        // [`retains_finished_session`].
+        let origin = options.origin;
         // Built *before* the session is opened, and deliberately so. The tailer
         // snapshots the transcripts that already exist and ignores them, so that
         // the one new file is unambiguously this session's — which means the
@@ -225,7 +230,7 @@ impl PtySessionExecutor {
         if let Err(err) =
             super::super::pty::inject_prompt(&self.sessions, &id, &options.prompt).await
         {
-            self.finish_turn(&id, class, false, options.origin);
+            self.finish_turn(&id, class, false, origin);
             return Err(err);
         }
 
