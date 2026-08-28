@@ -81,6 +81,7 @@ impl SessionHandle {
             screen: Mutex::new(screen),
             modes: Mutex::new(TerminalModes::default()),
             io: Mutex::new(Some(SessionIo { master, writes })),
+            pid: child.process_id(),
             child: Mutex::new(Some(child)),
         }
     }

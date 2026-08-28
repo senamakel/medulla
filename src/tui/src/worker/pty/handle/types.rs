@@ -311,6 +311,17 @@ pub struct SessionHandle {
     pub(super) io: Mutex<Option<SessionIo>>,
     /// The child handle, for signalling and reaping. `None` once reaped.
     pub(super) child: Mutex<Option<Box<dyn Child + Send + Sync>>>,
+    /// The child's process id, captured at spawn.
+    ///
+    /// Copied out of the child rather than read back through it, because the
+    /// resource sampler asks for it on a timer and the child sits behind the
+    /// same mutex `kill` and `reap` take — a wedged harness being waited on
+    /// would otherwise stall the sampler, and through it the render frame. It
+    /// also survives reaping, which is what lets a just-exited session's title
+    /// stop reporting usage instead of reporting somebody else's.
+    ///
+    /// `None` when the platform will not name the child.
+    pub(super) pid: Option<u32>,
 }
 
 /// Terminal modes needed by the host but not exposed by [`vt100::Screen`].
