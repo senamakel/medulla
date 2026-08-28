@@ -131,12 +131,12 @@ pub fn attach_skills(
     cwd: &std::path::Path,
     extra_args: &mut Vec<String>,
 ) {
-    // Nothing to describe to a session that was served no tools: every one of
-    // these skills instructs the model to call `workflow_run`, and a workflow
-    // `agent` node is launched without it on purpose (see
+    // Nothing to describe to a session that was served no workflow tools: every
+    // one of these skills instructs the model to call `workflow_run`, and a
+    // workflow `agent` node is launched without it on purpose (see
     // [`medulla::harness_tools`]). Skills naming an absent tool are worse than
     // no skills — the session spends a turn discovering the gap.
-    if medulla::harness_tools::withheld(env) {
+    if medulla::harness_tools::workflows_withheld(env) {
         return;
     }
     extra_args.extend(medulla::workflows::skills::refresh_managed(
