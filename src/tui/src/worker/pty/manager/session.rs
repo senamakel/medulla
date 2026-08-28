@@ -250,9 +250,20 @@ impl PtyManager {
     /// Close a settled turn's session only if the operator has not taken it,
     /// atomically with control handoff so a concurrent takeover cannot race the
     /// close and lose.
-    pub fn close_if_orchestrator(&self, id: &str) -> bool {
-        self.handle(id)
-            .is_some_and(|session| session.close_if_orchestrator())
+    ///
+    /// Three outcomes, not two: the handle can be missing outright, which
+    /// [`SessionHandle::close_if_orchestrator`] cannot itself express (it
+    /// already has a live handle by construction) but a caller that only has
+    /// an id needs to tell apart from a real takeover — the two used to
+    /// collapse into the same `false` and get treated identically, which is
+    /// wrong for a caller that only wants to preserve state for the
+    /// `UserOwned` case.
+    pub fn close_if_orchestrator(&self, id: &str) -> CloseAttempt {
+        match self.handle(id) {
+            Some(session) if session.close_if_orchestrator() => CloseAttempt::Closed,
+            Some(_) => CloseAttempt::UserOwned,
+            None => CloseAttempt::Missing,
+        }
     }
 
     /// Drop an exited session's record and screen.
