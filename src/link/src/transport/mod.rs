@@ -85,6 +85,17 @@ pub struct Session {
     local_epoch: u64,
     peer_epoch: Option<u64>,
     retired_peer_epochs: VecDeque<u64>,
+    /// The highest `seq` of any datagram this session has accepted, and whether
+    /// the most recent one advanced it.
+    ///
+    /// Only a direct link reads these (see [`crate::link::direct::learn`]), and
+    /// only to decide whether a datagram may move the peer's address. An accepted
+    /// datagram is authentic but not necessarily *fresh* — a captured one stays
+    /// valid forever — so the address follows the sequence, not the arrival.
+    highest_peer_seq: Option<u64>,
+    /// Whether the datagram accepted most recently carried the highest sequence
+    /// yet seen. Meaningless before the first accepted datagram.
+    peer_seq_advanced: bool,
 }
 
 impl Session {
@@ -107,6 +118,8 @@ impl Session {
             local_epoch: rand::thread_rng().next_u64(),
             peer_epoch: None,
             retired_peer_epochs: VecDeque::new(),
+            highest_peer_seq: None,
+            peer_seq_advanced: false,
         }
     }
 
