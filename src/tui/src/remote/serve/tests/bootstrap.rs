@@ -10,15 +10,15 @@ fn an_ipv6_literal_is_bracketed_when_joined_to_a_port() {
     // `format!("{host}:{port}")` turns `::1` into `::1:9`, which parses as a
     // different address entirely — so an IPv6 host would be dialled somewhere
     // else rather than failing loudly.
-    assert_eq!(super::join_endpoint("::1", 9), "[::1]:9");
+    assert_eq!(crate::remote::serve::join_endpoint("::1", 9), "[::1]:9");
     assert_eq!(
-        super::join_endpoint("2001:db8::1", 60000),
+        crate::remote::serve::join_endpoint("2001:db8::1", 60000),
         "[2001:db8::1]:60000"
     );
     // Already bracketed, a hostname, and IPv4 are all left alone.
-    assert_eq!(super::join_endpoint("[::1]", 9), "[::1]:9");
-    assert_eq!(super::join_endpoint("tower.local", 22), "tower.local:22");
-    assert_eq!(super::join_endpoint("10.0.0.2", 22), "10.0.0.2:22");
+    assert_eq!(crate::remote::serve::join_endpoint("[::1]", 9), "[::1]:9");
+    assert_eq!(crate::remote::serve::join_endpoint("tower.local", 22), "tower.local:22");
+    assert_eq!(crate::remote::serve::join_endpoint("10.0.0.2", 22), "10.0.0.2:22");
 }
 
 #[test]
@@ -28,11 +28,11 @@ fn the_unrouted_placeholder_matches_the_binds_family() {
     // under a v6 bind would refuse to start rather than simply never be used.
     let v4 = std::net::SocketAddr::from(([0, 0, 0, 0], 0));
     let v6 = std::net::SocketAddr::from(([0u16; 8], 0));
-    assert!(super::unrouted_placeholder(v4)
+    assert!(crate::remote::serve::unrouted_placeholder(v4)
         .parse::<std::net::SocketAddr>()
         .unwrap()
         .is_ipv4());
-    assert!(!super::unrouted_placeholder(v6)
+    assert!(!crate::remote::serve::unrouted_placeholder(v6)
         .parse::<std::net::SocketAddr>()
         .unwrap()
         .is_ipv4());
@@ -45,11 +45,11 @@ fn a_second_bootstrap_waits_for_the_first_handoff() {
     // would write a fresh pair key over the one the first daemon is starting
     // with — leaving it running under a key `node.json` no longer records.
     let dir = tempfile::tempdir().expect("a scratch dir");
-    let held = super::hold_bootstrap(dir.path()).expect("the first hold");
+    let held = crate::remote::serve::hold_bootstrap(dir.path()).expect("the first hold");
 
     let path = dir.path().to_path_buf();
     let second = std::thread::spawn(move || {
-        let _lock = super::hold_bootstrap(&path).expect("the second hold");
+        let _lock = crate::remote::serve::hold_bootstrap(&path).expect("the second hold");
         std::time::Instant::now()
     });
 

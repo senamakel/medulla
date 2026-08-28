@@ -17,7 +17,7 @@ use medulla::protocol::{
     RemoteHarnessChoice, RemoteMessage, ScreenMessage,
 };
 
-use super::*;
+use crate::remote::serve::*;
 use crate::worker::pty::PtyManager;
 
 /// The client's address on the in-process bridge.

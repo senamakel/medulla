@@ -32,7 +32,7 @@ fn a_host_launches_agents_with_its_own_configuration() {
     config.router = Some(medulla::config::RouterConfig::default());
     let preset = host_preset();
 
-    let sessions = super::entry::local_sessions(
+    let sessions = crate::remote::serve::entry::local_sessions(
         &HashMap::new(),
         &config,
         std::slice::from_ref(&preset),
@@ -64,7 +64,7 @@ fn a_hosts_own_preset_is_advertised_to_clients() {
     let mut config = medulla::config::TuiConfig::default();
     let preset = host_preset();
     config.attribution.commit = true;
-    let sessions = super::entry::local_sessions(
+    let sessions = crate::remote::serve::entry::local_sessions(
         &HashMap::new(),
         &config,
         std::slice::from_ref(&preset),
