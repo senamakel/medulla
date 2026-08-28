@@ -7,7 +7,9 @@ use medulla::protocol::HarnessProvider;
 
 use crate::ui::harness_pane::HarnessChoice;
 
-use super::super::types::{tab_pos, App, Prompt, PromptKind, SessionPicker, SessionPickerStep};
+use super::super::types::{
+    tab_pos, App, PickerHost, Prompt, PromptKind, SessionPicker, SessionPickerStep,
+};
 use crate::ui::composer::Draft;
 
 impl App {
@@ -33,10 +35,23 @@ impl App {
                     self.set_status("No harness CLIs found on this device");
                     return;
                 }
+                let hosts = self.picker_hosts();
+                // The condition lives here, once, and decides the *starting
+                // step* rather than gating a branch inside each handler. With no
+                // `[[remoteHosts]]` the vec has one entry, the step is `Harness`,
+                // and every other field is built exactly as it was before — so
+                // the ordinary case gains two fields nothing reads and not a
+                // single keystroke.
+                let step = match hosts.len() > 1 {
+                    true => SessionPickerStep::Host,
+                    false => SessionPickerStep::Harness,
+                };
                 self.session_picker = Some(SessionPicker {
+                    hosts,
+                    host_index: 0,
                     choices,
                     index: 0,
-                    step: SessionPickerStep::Harness,
+                    step,
                     cwd: path
                         .map(str::to_string)
                         .unwrap_or_else(|| harnesses.workspace.clone()),
@@ -52,6 +67,104 @@ impl App {
     /// Open the picker from the keyboard shortcut.
     pub(crate) fn open_session_picker(&mut self) {
         self.start_session_command(None, None);
+    }
+
+    /// Every machine a session could start on, this device first.
+    ///
+    /// This device leads because it is where a session goes when nobody says
+    /// otherwise, and the picker's first row is what `Enter` takes. A disabled or
+    /// half-written `[[remoteHosts]]` entry is already dropped by
+    /// [`remote_hosts`](medulla::config::remote_hosts), so every row here names a
+    /// host that can actually be dialled.
+    pub(in crate::ui::app) fn picker_hosts(&self) -> Vec<PickerHost> {
+        let local = self.local_sessions.as_ref();
+        std::iter::once(PickerHost {
+            id: "this-device".to_string(),
+            label: "this device".to_string(),
+            workspace: local.map(|l| l.workspace.clone()).unwrap_or_default(),
+            remote: false,
+        })
+        .chain(
+            medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
+                .into_iter()
+                .map(|host| PickerHost {
+                    label: match host.name.trim() {
+                        "" => host.id.clone(),
+                        name => name.to_string(),
+                    },
+                    id: host.id,
+                    workspace: host.workspace,
+                    remote: true,
+                }),
+        )
+        .collect()
+    }
+
+    /// The host the picker is currently pointed at.
+    pub(in crate::ui::app) fn picker_host(&self) -> Option<&PickerHost> {
+        let picker = self.session_picker.as_ref()?;
+        picker.hosts.get(picker.host_index)
+    }
+
+    /// Route a key while the host step owns the keyboard.
+    fn handle_picker_host_key(&mut self, event: KeyEvent) {
+        match event.code {
+            KeyCode::Esc => {
+                self.session_picker = None;
+                self.set_status("Cancelled");
+            }
+            KeyCode::Up => {
+                if let Some(picker) = &mut self.session_picker {
+                    picker.host_index = picker.host_index.saturating_sub(1);
+                }
+            }
+            KeyCode::Down => {
+                if let Some(picker) = &mut self.session_picker {
+                    picker.host_index =
+                        (picker.host_index + 1).min(picker.hosts.len().saturating_sub(1));
+                }
+            }
+            KeyCode::Enter => self.confirm_picker_host(),
+            _ => {}
+        }
+    }
+
+    /// Move from the host step to the harness step.
+    ///
+    /// The chosen host decides both halves of what comes next: which harnesses
+    /// are on offer, and which directory the workspace step starts from. A
+    /// remote host's list comes from the host itself rather than from this
+    /// machine's — offering a `claude` row for a box that has none would break
+    /// the picker's standing promise that it never shows a row that cannot
+    /// start.
+    pub(in crate::ui::app) fn confirm_picker_host(&mut self) {
+        let Some(host) = self.picker_host().cloned() else {
+            return;
+        };
+        let choices = match host.remote {
+            false => self
+                .local_sessions
+                .as_ref()
+                .map(|local| local.choices())
+                .unwrap_or_default(),
+            true => self.remote_choices(&host.id),
+        };
+        if choices.is_empty() {
+            // Named, because "nothing happened" is the worst possible answer to
+            // pressing Enter on a machine.
+            self.set_status(format!("{} offers nothing to start", host.label));
+            return;
+        }
+        if let Some(picker) = &mut self.session_picker {
+            picker.choices = choices;
+            picker.index = 0;
+            picker.cwd = host.workspace.clone();
+            picker.workspace_query = String::new();
+            picker.workspace_choices = Vec::new();
+            picker.workspace_index = 0;
+            picker.workspace_picked = false;
+            picker.step = SessionPickerStep::Harness;
+        }
     }
 
     /// Start a session the operator owns and move the cursor onto it.
@@ -107,6 +220,10 @@ impl App {
             .as_ref()
             .map(|picker| picker.step)
             .unwrap_or(SessionPickerStep::Harness);
+        if step == SessionPickerStep::Host {
+            self.handle_picker_host_key(event);
+            return;
+        }
         if step == SessionPickerStep::Workspace {
             self.handle_harness_workspace_key(event);
             return;
