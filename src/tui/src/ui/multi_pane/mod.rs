@@ -54,9 +54,15 @@ pub(crate) fn sidebar_width(total: u16, widest_row: usize) -> u16 {
 
 /// Apply shared digit, arrow, Enter, and Escape navigation.
 ///
-/// When the menu has focus, character keys are consumed so an accidental page
-/// action cannot fire through the menu. When content has focus, page-specific
-/// keys (including arrows) are left to the caller.
+/// When the menu has focus, `↑↓` walk the pages, `⏎` and `→` step into the
+/// content pane, `←` is inert, and character keys are consumed so an accidental
+/// page action cannot fire through the menu. When content has focus,
+/// page-specific keys (including arrows) are left to the caller.
+///
+/// `→` and `←` are bound here rather than left to fall through because the
+/// pages beneath bind them to *cycle a value*: with the menu focused, `←`/`→`
+/// used to edit the setting under the cursor while `↑↓` still moved the menu,
+/// so half the arrows drove one pane and half the other.
 pub(crate) fn navigate(
     code: KeyCode,
     page_count: usize,
@@ -89,10 +95,13 @@ pub(crate) fn navigate(
                     NavAction::SelectionChanged
                 }
             }
-            KeyCode::Enter => {
+            KeyCode::Enter | KeyCode::Right => {
                 *focused = true;
                 NavAction::Entered
             }
+            // The menu is the leftmost pane, so there is nowhere to go — but the
+            // key must still be swallowed, or the page beside it acts on it.
+            KeyCode::Left => NavAction::Consumed,
             KeyCode::Char(_) => NavAction::Consumed,
             _ => NavAction::Unhandled,
         };

@@ -8,8 +8,8 @@
 //! says rather than how it is laid out across columns.
 
 use ratatui::layout::Rect;
-use ratatui::style::Style;
-use ratatui::text::{Line as TLine, Text};
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
@@ -45,6 +45,9 @@ pub(super) use workflow_run::workflow_run_elapsed;
 /// transcript into a gutter. Rows that do not fit within this wrap onto a second
 /// line instead of buying width nothing else needs.
 pub(in crate::ui::app) const RAIL_MAX_CONTENT: usize = 36;
+
+/// The rows the medulla wordmark occupies above the rail.
+pub(super) const LOGO_HEIGHT: u16 = crate::ui::LOGO.len() as u16;
 
 /// How far a wrapped row's continuation lines are indented, so a row that took
 /// two lines still reads as one row rather than as two entries.
@@ -114,6 +117,26 @@ impl App {
             }
             _ => self.rail_row_lines(row, lanes, false, RAIL_MAX_CONTENT, &waiting_sessions, now),
         }
+    }
+
+    /// Draw the medulla wordmark above the rail.
+    ///
+    /// Indented by one column so it starts where the rail's rows do rather than
+    /// where its border does, which is what makes the two read as one column.
+    pub(super) fn draw_sessions_logo(&self, f: &mut Frame, area: Rect) {
+        let style = Style::default()
+            .fg(self.theme.primary)
+            .add_modifier(Modifier::BOLD);
+        let lines: Vec<TLine> = crate::ui::LOGO
+            .iter()
+            .map(|row| TLine::from(Span::styled(*row, style)))
+            .collect();
+        let area = Rect {
+            x: area.x.saturating_add(1),
+            width: area.width.saturating_sub(1),
+            ..area
+        };
+        f.render_widget(Paragraph::new(Text::from(lines)), area);
     }
 
     /// Draw the rail list.

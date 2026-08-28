@@ -23,7 +23,7 @@ use super::super::super::types::App;
 impl App {
     /// Draw the meter rows, grouped by the subscription they read from.
     pub(super) fn draw_subscriptions(&mut self, f: &mut Frame, area: Rect) {
-        let block = self.panel("Subscriptions");
+        let block = self.content_panel("Subscriptions");
         let inner = block.inner(area);
         f.render_widget(block, area);
         let selected = self.subscriptions_index.min(SUBSCRIPTION_ROWS - 1);

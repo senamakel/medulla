@@ -102,7 +102,7 @@ impl App {
         f.render_widget(
             Paragraph::new(Text::from(lines))
                 .wrap(Wrap { trim: false })
-                .block(self.panel("Account")),
+                .block(self.content_panel("Account")),
             area,
         );
     }

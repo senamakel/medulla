@@ -64,6 +64,9 @@ impl Selection {
 
 /// Where each pane of the Sessions tab landed this draw.
 pub(super) struct SessionsPanes {
+    /// The wordmark above the rail; `None` when the terminal is too short to
+    /// spend three rows on it and still list the sessions.
+    pub(super) logo: Option<Rect>,
     /// The rail: the sessions and their runs.
     pub(super) rail: Rect,
     /// The transcript, or the watched worker screen when one is streaming.
