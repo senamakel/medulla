@@ -119,6 +119,48 @@ tokenEnv = "MEDULLA_TOKEN"
 # skipPermissions = true
 
 # ---------------------------------------------------------------------------
+# [[remoteHosts]] — other machines, reached over SSH (optional)
+# ---------------------------------------------------------------------------
+# The other axis from [[hosts]] above. Those are several hosts on *this*
+# machine, told apart by working directory; these are other machines entirely,
+# told apart by login. A local host has a bus address and no login, a remote
+# host has login details and no bus address — which is why they are separate
+# sections rather than one with half its fields blank.
+#
+# How a connection is made, and when: SSH is only the bootstrap. It starts a
+# medulla daemon on the far side and carries its key back inside the SSH
+# channel, after which datagrams go straight to the machine over UDP, mosh-style
+# — so the session survives a suspended laptop or a change of network with no
+# reconnect. One connection is shared by every session on that host, and it is
+# opened the first time you actually start a session there, not at startup.
+#
+# SECURITY: this whole section is ignored in a project-local config file
+# (./medulla.toml or ./.medulla/config.toml) and honoured only in your global
+# <medulla_home>/config.toml or an explicit --config. `sshOptions` accepts
+# `-o ProxyCommand=…`, which runs a command on *your* machine, so a checked-in
+# config could otherwise execute anything the moment you opened the session
+# picker. Same rule, and same reason, as [[hooks]].
+#
+# [[remoteHosts]]
+# host = "tower.local"          # required: hostname, IP, or a ~/.ssh/config alias
+# name = "Tower"                # display name; defaults to `host`
+# id = "tower"                  # stable id for sessions and the rail lane;
+#                               # defaults to a slug of `name`, then of `host`
+# user = "steven"               # omit to let ssh and ~/.ssh/config decide
+# port = 22                     # 0 or omitted leaves ssh's own default
+# identityFile = "~/.ssh/id_ed25519"
+# sshOptions = ["-o", "ProxyJump=bastion"]   # appended to the ssh argv verbatim
+# sshBinary = "ssh"             # the ssh client to run
+# remoteCommand = "medulla"     # how medulla is invoked on the far side
+# udpHost = ""                  # only when UDP cannot follow where SSH went,
+#                               # e.g. SSH goes via ProxyJump but UDP goes direct
+# workspace = "/home/steven/src/repo"        # default directory for sessions there
+# workspaces = ["/home/steven/src/other"]    # also offered on the workspace step;
+#                               # a remote directory cannot be completed from
+#                               # here, so this list is what the picker can show
+# enabled = true                # false keeps the entry but stops offering it
+
+# ---------------------------------------------------------------------------
 # harness — how harnesses the operator starts themselves behave (optional)
 # ---------------------------------------------------------------------------
 # Distinct from [host]/[[hosts]] above, which are about harnesses the
