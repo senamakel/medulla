@@ -229,9 +229,28 @@ impl App {
             return;
         }
         match event.code {
-            KeyCode::Esc => {
-                self.session_picker = None;
-                self.set_status("Cancelled");
+            // Back to the host step when one ran, and closed when none did.
+            // Somebody who picked the wrong machine should not have to reopen
+            // the modal to change it — and with a single host there is nothing
+            // behind this step to go back to, so Esc keeps meaning "cancel"
+            // exactly as it always has.
+            KeyCode::Esc | KeyCode::BackTab => {
+                let has_host_step = self
+                    .session_picker
+                    .as_ref()
+                    .is_some_and(|picker| picker.hosts.len() > 1);
+                match has_host_step {
+                    true => {
+                        if let Some(picker) = &mut self.session_picker {
+                            picker.step = SessionPickerStep::Host;
+                        }
+                        self.set_status("Pick a host · Enter agent · Esc cancel");
+                    }
+                    false => {
+                        self.session_picker = None;
+                        self.set_status("Cancelled");
+                    }
+                }
             }
             KeyCode::Up => {
                 if let Some(picker) = &mut self.session_picker {
