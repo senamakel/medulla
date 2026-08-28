@@ -39,6 +39,7 @@ pub fn parse_command(args: &[String]) -> Command {
         Some("init") => Command::Init,
         Some("workspace") | Some("workspaces") => Command::Workspace,
         Some("hub") => Command::Hub,
+        Some("remote") => Command::Remote,
         Some("workflow") | Some("workflows") => Command::Workflow,
         Some("skills") | Some("skill") => Command::Skills,
         Some("mcp") => Command::Mcp,

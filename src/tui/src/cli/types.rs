@@ -27,6 +27,9 @@ pub enum Command {
     /// on the spot, serves operator-opened sessions (a shell included), and
     /// speaks straight to one client over UDP.
     DaemonDirect,
+    /// `medulla remote <host> --exec <command>` — run one command on a remote
+    /// host and print what its screen showed.
+    Remote,
     Version,
     Help,
     Sessions,

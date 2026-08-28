@@ -12,6 +12,7 @@
 //! and keeps appearing in the session list, which rides the reliable channel.
 
 mod bootstrap;
+pub mod exec;
 
 #[cfg(test)]
 mod tests;
