@@ -204,10 +204,22 @@ impl App {
             self.set_status(format!("{} offers nothing to start", host.label));
             return;
         }
+        // The operator's `[[remoteHosts]] workspace` wins when they set one: it
+        // is an explicit choice about *this* host. Otherwise the host's own
+        // advertised default, because it knows where its sessions should start
+        // and this machine does not. Blank would be neither, and would start the
+        // workspace step with nothing in it.
+        let cwd = match host.workspace.trim() {
+            "" => self
+                .remote_host(&host.id)
+                .map(|state| state.capabilities.workspace.clone())
+                .unwrap_or_default(),
+            configured => configured.to_string(),
+        };
         if let Some(picker) = &mut self.session_picker {
             picker.choices = choices;
             picker.index = 0;
-            picker.cwd = host.workspace.clone();
+            picker.cwd = cwd;
             picker.workspace_query = String::new();
             picker.workspace_choices = Vec::new();
             picker.workspace_index = 0;
