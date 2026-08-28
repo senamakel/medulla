@@ -18,8 +18,8 @@ use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, Mutex, Notify};
 
 use crate::protocol::{
-    encode_task_frame, encode_workflow_node_task_frame, AgentCapabilities, EncodeFrameInput,
-    TaskFrameKind, WorkerSystemInfo,
+    encode_task_frame, encode_workflow_authoring_task_frame, encode_workflow_node_task_frame,
+    AgentCapabilities, EncodeFrameInput, TaskFrameKind, WorkerSystemInfo,
 };
 
 use crate::bridge::BridgeLiveness;
@@ -58,6 +58,22 @@ const ACK_WINDOW: Duration = Duration::from_secs(12);
 /// this window — brings back the failure this pairing exists to prevent: healthy
 /// dispatches reaped as `bridge task timed out`.
 const IDLE_WINDOW: Duration = Duration::from_secs(240);
+
+/// Which workflow-plane marker, if any, a dispatch's task frame carries.
+///
+/// One enum rather than two booleans so the impossible fourth combination
+/// — authoring but not workflow-plane — cannot be written down, and so the
+/// choice stays owned by [`TaskRunner`]'s three entry points rather than by a
+/// caller-supplied request field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkflowFrame {
+    /// An ordinary task: no marker at all.
+    None,
+    /// A step of a running graph, emitted by an `agent` node.
+    Node,
+    /// A copilot authoring turn, which keeps the workflow tools a node loses.
+    Authoring,
+}
 
 /// How many times to reset the transport session + resend before giving up.
 /// Covers a peer that has genuinely stopped listening in one extra round.
@@ -340,7 +356,8 @@ impl TaskRunner {
         req: TaskRequest,
         status: Option<mpsc::UnboundedSender<String>>,
     ) -> Result<TaskOutcome, RunError> {
-        self.run_inner(req, status, false, false, None, None).await
+        self.run_inner(req, status, false, WorkflowFrame::None, None, None)
+            .await
     }
 
     /// Run one instruction emitted by a workflow `agent` node.
@@ -353,7 +370,27 @@ impl TaskRunner {
         req: TaskRequest,
         status: Option<mpsc::UnboundedSender<String>>,
     ) -> Result<TaskOutcome, RunError> {
-        self.run_inner(req, status, false, true, None, None).await
+        self.run_inner(req, status, false, WorkflowFrame::Node, None, None)
+            .await
+    }
+
+    /// Run one instruction from the workflow *copilot*.
+    ///
+    /// Workflow-plane work like a node, and marked as such, but marked
+    /// *authoring* as well: the copilot's whole job is to call
+    /// `workflow_create` and the editing verbs, so unlike a graph step it must
+    /// keep the workflow tool family. Its own entry point for the same reason
+    /// [`run_workflow_node`](Self::run_workflow_node) has one — the marker that
+    /// widens a turn's tool surface stays owned by the dispatch adapter that is
+    /// entitled to it, rather than becoming a request field a graph step could
+    /// set for itself.
+    pub async fn run_workflow_authoring(
+        &self,
+        req: TaskRequest,
+        status: Option<mpsc::UnboundedSender<String>>,
+    ) -> Result<TaskOutcome, RunError> {
+        self.run_inner(req, status, false, WorkflowFrame::Authoring, None, None)
+            .await
     }
 
     /// Run a dispatch with the screen-control support negotiated specifically
@@ -366,8 +403,15 @@ impl TaskRunner {
         abort: Option<Arc<Notify>>,
         visible_task_id: Option<String>,
     ) -> Result<TaskOutcome, RunError> {
-        self.run_inner(req, status, screen_kill, false, abort, visible_task_id)
-            .await
+        self.run_inner(
+            req,
+            status,
+            screen_kill,
+            WorkflowFrame::None,
+            abort,
+            visible_task_id,
+        )
+        .await
     }
 
     async fn run_inner(
@@ -375,7 +419,7 @@ impl TaskRunner {
         req: TaskRequest,
         status: Option<mpsc::UnboundedSender<String>>,
         screen_kill: bool,
-        workflow_node: bool,
+        workflow_frame: WorkflowFrame,
         prepared_abort: Option<Arc<Notify>>,
         visible_task_id: Option<String>,
     ) -> Result<TaskOutcome, RunError> {
@@ -444,10 +488,10 @@ impl TaskRunner {
                 conversation: req.conversation.clone(),
                 fleet_depth: req.fleet_depth,
             };
-            let body = if workflow_node {
-                encode_workflow_node_task_frame(frame)
-            } else {
-                encode_task_frame(frame)
+            let body = match workflow_frame {
+                WorkflowFrame::None => encode_task_frame(frame),
+                WorkflowFrame::Node => encode_workflow_node_task_frame(frame),
+                WorkflowFrame::Authoring => encode_workflow_authoring_task_frame(frame),
             };
 
             tokio::select! {

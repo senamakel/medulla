@@ -88,6 +88,25 @@ fn build_request(
             "`inputs` may only be supplied when `workflow` names a saved workflow",
         ));
     }
+    // A session that may not call `workflow_*` may not reach a saved graph
+    // through the fleet either. `fleet_dispatch` is deliberately *kept* for a
+    // workflow `agent` node — the fleet verbs are bounded by the grant's own
+    // depth and in-flight limits, and taking them from a node that legitimately
+    // delegates would cost something for nothing — but the verb carries a
+    // `workflow` argument, and without this check a node could read the id and
+    // fingerprint out of `fleet_workers` and dispatch the very graph it is a
+    // step of through the fleet. That is the recursion the withholding exists to
+    // make structurally impossible, arriving by a second door; closing it here
+    // is what makes "structurally" true. Server-side because that is where the
+    // decision is enforceable: `fleet_dispatch`'s schema omits the argument for
+    // such a grant, but a schema is advice and a grant is authority.
+    if workflow.is_some() && !grant.families.workflows {
+        return Err(ControlFailure::new(
+            ErrorKind::Unauthenticated,
+            "this session was not granted the workflow tools, so it cannot run a saved workflow \
+             through the fleet; delegate the instruction itself instead",
+        ));
+    }
     if grant.tool_mode.is_some() && workflow.is_some() {
         return Err(ControlFailure::new(
             ErrorKind::BadRequest,

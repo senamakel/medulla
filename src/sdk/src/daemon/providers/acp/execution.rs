@@ -70,7 +70,17 @@ pub(super) async fn medulla_mcp_servers(
         {
             Some(local) => Some(local),
             None => match crate::control_socket::parent_grant_from_env(task_env) {
-                Some((socket, token)) => exchange_parent_grant(socket, token).await,
+                // The exchanged child would otherwise inherit the *parent's*
+                // families verbatim, which for a workflow `agent` node reached
+                // this way would put back the workflow tools the withholding
+                // above already resolved to withhold locally — the exact
+                // recursion this change closes, reopened through the one grant
+                // path that does not derive its families from this launch's own
+                // `workflows_enabled`. `!workflows_enabled` asks the exchange to
+                // narrow to match what this launch already decided.
+                Some((socket, token)) => {
+                    exchange_parent_grant(socket, token, !workflows_enabled).await
+                }
                 None => None,
             },
         };
@@ -94,15 +104,24 @@ pub(super) async fn medulla_mcp_servers(
 ///
 /// The control transport is currently Unix-only. Other targets fail closed and
 /// omit fleet tools instead of exposing an unverified capability path.
+///
+/// `withhold_workflows` asks the server's `grant.child` handler to narrow the
+/// child's families past whatever the parent grant carries, so a workflow
+/// `agent` node whose launch already resolved to withhold the workflow
+/// surface locally cannot get it back through this handoff instead.
 #[cfg(all(feature = "workflows", unix))]
-async fn exchange_parent_grant(socket: PathBuf, token: String) -> Option<(PathBuf, String)> {
+async fn exchange_parent_grant(
+    socket: PathBuf,
+    token: String,
+    withhold_workflows: bool,
+) -> Option<(PathBuf, String)> {
     let mut client = crate::control_socket::ControlClient::connect(&socket, &token)
         .await
         .ok()?;
     client
         .call_until(
             "grant.child",
-            serde_json::json!({}),
+            serde_json::json!({ "withholdWorkflows": withhold_workflows }),
             tokio::time::Instant::now() + Duration::from_secs(5),
         )
         .await
@@ -114,7 +133,11 @@ async fn exchange_parent_grant(socket: PathBuf, token: String) -> Option<(PathBu
 
 /// Refuse parent handoffs where no authenticated control transport exists.
 #[cfg(all(feature = "workflows", not(unix)))]
-async fn exchange_parent_grant(_socket: PathBuf, _token: String) -> Option<(PathBuf, String)> {
+async fn exchange_parent_grant(
+    _socket: PathBuf,
+    _token: String,
+    _withhold_workflows: bool,
+) -> Option<(PathBuf, String)> {
     None
 }
 

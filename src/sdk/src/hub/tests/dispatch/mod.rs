@@ -452,3 +452,34 @@ async fn a_settled_dispatch_carries_the_session_the_worker_ran_it_in() {
         Some(harness::FAKE_SESSION_ID)
     );
 }
+
+/// The three entry points put three different markers on the wire, and which
+/// one a caller gets is decided by the entry point rather than by the request —
+/// so a graph step cannot mark itself an authoring turn and buy back the
+/// workflow tools the worker withholds from it.
+#[tokio::test]
+async fn the_workflow_markers_are_owned_by_the_entry_point() {
+    for (label, marks) in [
+        ("plain", (false, false)),
+        ("node", (true, false)),
+        ("authoring", (true, true)),
+    ] {
+        let worker = FakeWorker::new(Mode::Reply("ok".to_string()));
+        let runner = TaskRunner::start(worker.clone(), Duration::from_millis(5));
+
+        let outcome = match label {
+            "plain" => runner.run(req("author"), None).await,
+            "node" => runner.run_workflow_node(req("author"), None).await,
+            _ => runner.run_workflow_authoring(req("author"), None).await,
+        };
+        outcome.expect("the fake worker replies");
+
+        let frames = worker.sent_tasks().await;
+        let frame = frames.first().expect("one task frame was dispatched");
+        assert_eq!(
+            (frame.workflow_node, frame.workflow_authoring),
+            marks,
+            "{label} dispatch put the wrong workflow markers on the wire"
+        );
+    }
+}

@@ -51,6 +51,10 @@ pub fn decode_task_frame(body: &str) -> Option<TaskFrame> {
         .get("workflowNode")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
+    let workflow_authoring = obj
+        .get("workflowAuthoring")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
 
     let usage = obj
         .get("usage")
@@ -162,6 +166,7 @@ pub fn decode_task_frame(body: &str) -> Option<TaskFrame> {
         model,
         tool_mode,
         workflow_node,
+        workflow_authoring,
         workflow,
         workflow_fingerprint,
         workflow_inputs,

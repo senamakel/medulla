@@ -108,7 +108,7 @@ pub async fn handle_control(
     }
 
     let result = match op {
-        "grant.child" => grant_child(grants, &grant),
+        "grant.child" => grant_child(grants, &grant, &params),
         "worker.list" => workers::worker_list(ops).await,
         "task.dispatch" => tasks::task_dispatch(ops, registry, &token, &grant, &params).await,
         "task.get" => tasks::task_get(registry, &token, &params).await,
@@ -134,13 +134,34 @@ pub async fn handle_control(
 }
 
 /// Mint a child capability whose authority can only narrow with depth.
-fn grant_child(grants: &GrantRegistry, parent: &Grant) -> Result<Value, ControlFailure> {
+///
+/// `params.withholdWorkflows` lets the requester — a nested ACP session
+/// exchanging a preserved parent handoff, the one path that does not already
+/// resolve the child's families from its own launch environment (see
+/// [`crate::daemon::providers::acp::execution::exchange_parent_grant`]) — say
+/// that *this* child must not carry the workflow family even though the parent
+/// does. It can only narrow, never widen: a caller cannot ask for a family the
+/// parent lacks, so a compromised or confused requester gains nothing by lying
+/// in the other direction.
+fn grant_child(
+    grants: &GrantRegistry,
+    parent: &Grant,
+    params: &Value,
+) -> Result<Value, ControlFailure> {
+    let withhold_workflows = params
+        .get("withholdWorkflows")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let mut families = parent.families;
+    if withhold_workflows {
+        families.workflows = false;
+    }
     let child = Grant::new(
         parent.session.clone(),
         parent.child_depth(),
         parent.max_depth,
     )
-    .with_families(parent.families)
+    .with_families(families)
     .with_max_in_flight(parent.max_in_flight)
     .with_tool_mode(parent.tool_mode.as_deref());
     let depth = child.depth;

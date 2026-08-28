@@ -10,7 +10,7 @@ use crate::mcp::backend::FleetBackend;
 use crate::mcp::{handle_request, McpSession, OfflineFleet, ToolMode};
 use crate::workflows::{FileWorkflowStore, WorkflowStore};
 
-use super::FLEET_TOOL_NAMES;
+use super::{definitions, FLEET_TOOL_NAMES};
 
 /// A fleet backend that records what it was asked and answers as told.
 struct FakeBackend {
@@ -446,4 +446,40 @@ async fn a_withheld_server_narrows_a_grant_that_carried_the_workflow_family() {
         names.iter().any(|name| name.starts_with("fleet_")),
         "and must take nothing else with it: {names:?}"
     );
+}
+
+/// A session withheld the workflow family is not shown the arguments that would
+/// reach a saved graph. The control plane refuses such a dispatch anyway; this
+/// is what stops a model planning around a door that is not there.
+#[test]
+fn a_fleet_only_session_is_not_offered_the_workflow_dispatch_arguments() {
+    let tools = definitions(crate::mcp::tools::schema, true, false);
+    let dispatch = tools
+        .iter()
+        .find(|tool| tool["name"] == "fleet_dispatch")
+        .expect("a session that may dispatch is served the verb");
+    let properties = &dispatch["inputSchema"]["properties"];
+
+    assert!(properties.get("instruction").is_some(), "{dispatch}");
+    for absent in ["workflow", "workflowFingerprint", "inputs"] {
+        assert!(
+            properties.get(absent).is_none(),
+            "`{absent}` must be absent for a fleet-only session: {dispatch}"
+        );
+    }
+}
+
+/// An ordinary session keeps them: the narrowing is the exception.
+#[test]
+fn a_full_session_keeps_the_workflow_dispatch_arguments() {
+    let tools = definitions(crate::mcp::tools::schema, true, true);
+    let dispatch = tools
+        .iter()
+        .find(|tool| tool["name"] == "fleet_dispatch")
+        .expect("served the verb");
+    let properties = &dispatch["inputSchema"]["properties"];
+
+    for present in ["workflow", "workflowFingerprint", "inputs"] {
+        assert!(properties.get(present).is_some(), "{dispatch}");
+    }
 }

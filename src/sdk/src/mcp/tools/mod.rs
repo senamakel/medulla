@@ -29,7 +29,11 @@ pub fn tool_definitions(session: &McpSession) -> Vec<Value> {
     // backend there is no later state change that justifies advertising even
     // `fleet_status` against thin air.
     if let Some(hello) = session.fleet.hello() {
-        tools.extend(fleet::definitions(schema, hello.may_dispatch()));
+        tools.extend(fleet::definitions(
+            schema,
+            hello.may_dispatch(),
+            hello.may_dispatch_workflow(),
+        ));
     }
     tools
         .into_iter()

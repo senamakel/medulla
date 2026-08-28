@@ -610,6 +610,30 @@ pub struct TaskFrame {
         default
     )]
     pub workflow_node: bool,
+    /// Whether this workflow-plane task is an *authoring* turn rather than a
+    /// step of a running graph.
+    ///
+    /// Both travel as [`workflow_node`](Self::workflow_node) frames over the
+    /// same loopback bridge, and both want the workflow approval origin — but
+    /// they want opposite tool surfaces. A graph step is withheld the workflow
+    /// family so it cannot re-run the graph it is a step of; the copilot exists
+    /// to call `workflow_create` and the editing verbs, and a copilot turn
+    /// without them cannot make the store changes its caller reads back.
+    ///
+    /// Set only by [`TaskRunner::run_workflow_authoring`], which the copilot's
+    /// own dispatch handle reaches and the flow engine's does not — so a graph
+    /// step cannot mark itself an authoring turn and buy its tools back.
+    ///
+    /// Trusted, like the node marker, only from a device-local sender: it widens
+    /// the surface, so a remote peer setting it must be ignored.
+    ///
+    /// Absent on older and ordinary frames.
+    #[serde(
+        rename = "workflowAuthoring",
+        skip_serializing_if = "std::ops::Not::not",
+        default
+    )]
+    pub workflow_authoring: bool,
     /// Inbound-only: the continuity group this task belongs to, when the sender
     /// wants successive tasks to share one harness session.
     ///

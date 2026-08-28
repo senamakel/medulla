@@ -93,6 +93,49 @@ async fn a_child_grant_round_trips_at_the_next_depth() {
 }
 
 #[tokio::test]
+async fn a_child_grant_can_be_narrowed_past_the_parent_but_never_widened() {
+    // A workflow `agent` node reached over a nested ACP session exchanges its
+    // preserved parent handoff for a child grant (see
+    // `crate::daemon::providers::acp::execution::exchange_parent_grant`). If
+    // that exchange always inherited the parent's families verbatim, a node
+    // whose launch had already resolved to withhold the workflow surface
+    // could get it back through this one door — reopening the recursive saved-
+    // graph dispatch the withholding exists to close. `withholdWorkflows` lets
+    // the requester say the child must not carry that family regardless of
+    // what the parent grants.
+    let (_dir, server, token) = serve(FakeFleet::new()).await;
+    let mut parent = ControlClient::connect(server.path(), &token).await.unwrap();
+    assert!(parent.hello().families.workflows);
+
+    let narrowed = parent
+        .call("grant.child", json!({ "withholdWorkflows": true }))
+        .await
+        .unwrap();
+    let narrowed_token = narrowed["token"].as_str().unwrap();
+    let narrowed_child = ControlClient::connect(server.path(), narrowed_token)
+        .await
+        .unwrap();
+    assert!(!narrowed_child.hello().families.workflows);
+    assert!(
+        narrowed_child.hello().families.fleet,
+        "narrowing workflows must leave fleet dispatch in place"
+    );
+
+    // A caller cannot ask for a family the parent lacks: the flag only ever
+    // narrows, so setting it `false` reproduces the ordinary inheritance the
+    // test above already covers, not a way to widen past the parent.
+    let unnarrowed = parent
+        .call("grant.child", json!({ "withholdWorkflows": false }))
+        .await
+        .unwrap();
+    let unnarrowed_token = unnarrowed["token"].as_str().unwrap();
+    let unnarrowed_child = ControlClient::connect(server.path(), unnarrowed_token)
+        .await
+        .unwrap();
+    assert!(unnarrowed_child.hello().families.workflows);
+}
+
+#[tokio::test]
 async fn a_hanging_task_can_be_aborted_over_the_wire() {
     let (_dir, server, token) = serve(FakeFleet::new().with_outcome(FakeOutcome::Hang)).await;
     let mut client = ControlClient::connect(server.path(), &token).await.unwrap();
