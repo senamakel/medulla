@@ -26,7 +26,7 @@ const CLIENT: &str = "client";
 const DAEMON: &str = "daemon";
 
 /// A `LocalSessions` that can start a real shell in a real directory.
-fn shell_sessions(workspace: &str) -> LocalSessions {
+pub(super) fn shell_sessions(workspace: &str) -> LocalSessions {
     let config = medulla::daemon::DaemonConfig {
         hooks: medulla::harness_hooks::HooksConfig::default(),
         providers: Vec::new(),
@@ -79,7 +79,7 @@ fn shell_sessions(workspace: &str) -> LocalSessions {
 }
 
 /// A server and the client's side of the bridge between them.
-fn fixture(workspace: &str) -> (RemoteServer, medulla::bridge::LocalBridge) {
+pub(super) fn fixture(workspace: &str) -> (RemoteServer, medulla::bridge::LocalBridge) {
     let network = LocalBridgeNetwork::new();
     let daemon_bridge = network.bind(DAEMON).expect("daemon binds");
     let client_bridge = network.bind(CLIENT).expect("client binds");
@@ -92,12 +92,12 @@ fn fixture(workspace: &str) -> (RemoteServer, medulla::bridge::LocalBridge) {
 }
 
 /// Deliver one client message to the server.
-async fn say(server: &mut RemoteServer, body: &str) {
+pub(super) async fn say(server: &mut RemoteServer, body: &str) {
     server.handle(CLIENT, body).await;
 }
 
 /// Every remote message the client has been sent so far.
-async fn remote_replies(client: &medulla::bridge::LocalBridge) -> Vec<RemoteMessage> {
+pub(super) async fn remote_replies(client: &medulla::bridge::LocalBridge) -> Vec<RemoteMessage> {
     client
         .drain_inbox(64)
         .await
@@ -110,7 +110,7 @@ async fn remote_replies(client: &medulla::bridge::LocalBridge) -> Vec<RemoteMess
 ///
 /// Real children on real ptys are at the mercy of machine load, so the budget is
 /// generous: a tight deadline turns "the box was busy" into a red test.
-async fn wait_for(
+pub(super) async fn wait_for(
     what: &str,
     server: &mut RemoteServer,
     mut check: impl FnMut(&mut RemoteServer) -> bool,
@@ -126,7 +126,7 @@ async fn wait_for(
 }
 
 /// The shell row this host offers.
-fn shell_choice(server: &RemoteServer) -> RemoteHarnessChoice {
+pub(super) fn shell_choice(server: &RemoteServer) -> RemoteHarnessChoice {
     match remote_capabilities(server)
         .harnesses
         .into_iter()
@@ -137,12 +137,12 @@ fn shell_choice(server: &RemoteServer) -> RemoteHarnessChoice {
     }
 }
 
-fn remote_capabilities(server: &RemoteServer) -> medulla::protocol::RemoteCapabilities {
+pub(super) fn remote_capabilities(server: &RemoteServer) -> medulla::protocol::RemoteCapabilities {
     server.capabilities().clone()
 }
 
 /// Open a shell and return its session id.
-async fn open_shell(server: &mut RemoteServer, client: &medulla::bridge::LocalBridge) -> String {
+pub(super) async fn open_shell(server: &mut RemoteServer, client: &medulla::bridge::LocalBridge) -> String {
     let choice = shell_choice(server);
     say(
         server,
@@ -168,7 +168,7 @@ async fn open_shell(server: &mut RemoteServer, client: &medulla::bridge::LocalBr
 }
 
 /// The whole of a session's screen, as text.
-fn screen_text(server: &RemoteServer, id: &str) -> String {
+pub(super) fn screen_text(server: &RemoteServer, id: &str) -> String {
     let mut out = String::new();
     server.pty().screen_text_into(id, &mut out);
     out
