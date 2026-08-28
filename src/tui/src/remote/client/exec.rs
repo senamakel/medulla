@@ -22,6 +22,12 @@ const OUTPUT_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long to wait for the host to answer a request.
 const REPLY_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// How long to stay connected waiting for a close to be acknowledged.
+///
+/// Shorter than the others on purpose: the command has already produced its
+/// output by this point, and the only thing still outstanding is tidying up.
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Run `command` on `host_id` and print the resulting screen.
 ///
 /// # Errors
@@ -163,7 +169,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     // inside it, and `close` runs unconditionally on the way out regardless of
     // what it returned.
     let outcome = run_in_watched_session(&mut host, &session_id, wanted.as_deref(), &command).await;
-    let _ = host.close(&session_id).await;
+    close_and_confirm(&mut host, &session_id).await;
     outcome?;
 
     println!("{}", screen_text(&host));
@@ -291,4 +297,31 @@ fn flag(args: &[String], name: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Close `session_id` and stay connected until the host stops listing it.
+///
+/// `LinkHandle::send` returns once a message is *queued*, not once it is
+/// delivered — the link owns retransmission. Returning straight after the call
+/// drops the link and stops it, so a single lost Close datagram would leave the
+/// session and whatever it was running alive on a daemon that outlives this
+/// process. That is the leak the caller is trying to prevent, reintroduced one
+/// layer down.
+///
+/// So this waits for the host's own session list to stop naming it, which is the
+/// only acknowledgement this protocol has. Bounded, and best-effort on timeout:
+/// a host that has gone quiet is not a reason to hang a command that has already
+/// produced its output.
+async fn close_and_confirm(host: &mut RemoteHost, session_id: &str) {
+    if host.close(session_id).await.is_err() {
+        return;
+    }
+    let deadline = Instant::now() + CLOSE_TIMEOUT;
+    while Instant::now() < deadline {
+        host.pump().await;
+        if !host.rows().iter().any(|row| row.id == session_id) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }
