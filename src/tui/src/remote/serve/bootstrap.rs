@@ -174,6 +174,48 @@ impl ConnectLine {
     }
 }
 
+/// A hold on the enroll-then-connect window for one client.
+///
+/// Exists because the identity lock cannot cover that window itself:
+/// [`enroll_client`] must *release* `node.lock` so `Link::connect` can acquire
+/// it, and between those two moments the identity is unlocked. A second
+/// bootstrap arriving in that gap would enroll a fresh pair key over the one the
+/// first daemon is about to start with — leaving that daemon running under a key
+/// `node.json` no longer records, so the next reconnect reads the wrong key and
+/// the daemon becomes unreachable without killing it by hand.
+///
+/// Held across both steps, the gap closes. A second bootstrapper waits, then
+/// finds `node.lock` held by the now-running daemon, and takes the reuse path —
+/// which writes no key, because [`enroll_client`] acquires before it writes.
+///
+/// Dropped by the OS if the holder dies, like every other lock here, so a
+/// crashed bootstrap cannot wedge the next one.
+pub struct BootstrapLock {
+    _file: std::fs::File,
+}
+
+/// Take the bootstrap hold for `dir`, waiting for any other bootstrap to finish.
+///
+/// Blocking rather than `try_lock`: the contended case is another bootstrap of
+/// this same client mid-handoff, which is short and worth waiting out. Failing
+/// instead would turn a race into an error the operator has to retry manually.
+///
+/// # Errors
+///
+/// When the directory or lock file cannot be created or locked.
+pub fn hold_bootstrap(dir: &Path) -> std::io::Result<BootstrapLock> {
+    use fs2::FileExt;
+    std::fs::create_dir_all(dir)?;
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(dir.join("bootstrap.lock"))?;
+    file.lock_exclusive()?;
+    Ok(BootstrapLock { _file: file })
+}
+
 /// Open or mint this host's direct-link identity and enroll `client` on it.
 ///
 /// The identity persists across bootstraps so a returning client talks to a host
