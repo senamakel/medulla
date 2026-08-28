@@ -41,6 +41,25 @@ const CAPACITY: usize = 512;
 /// and losing the attribution would orphan them onto no lane at all.
 const ATTRIBUTION_CAPACITY: usize = 512;
 
+/// How long a settled task's records stay in the log after its last frame.
+///
+/// Long enough that an operator who was looking elsewhere when a dispatch ended
+/// still finds the row and its outcome when they look back; short enough that a
+/// session driving dispatches all afternoon does not turn the rail into a
+/// scrollback of finished work. Deliberately far shorter than the control
+/// plane's `RESULT_TTL`, which is a *readable result* a poller may still ask
+/// for by id — this is a row on a screen, and a screen only owes the operator
+/// what is happening now.
+const SETTLED_RETENTION_MS: i64 = 2 * 60 * 1_000;
+
+/// Whether a frame kind ends a task.
+///
+/// The same rule the peer sees, and the only definition of settled in this
+/// module: `reply` and `error` are terminal, everything else is progress.
+fn is_terminal_kind(kind: &str) -> bool {
+    matches!(kind, "reply" | "error")
+}
+
 impl ActivityLog {
     /// An empty log.
     pub fn new() -> Self {
