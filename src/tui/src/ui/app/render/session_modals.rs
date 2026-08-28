@@ -172,7 +172,11 @@ impl App {
                 .enumerate()
                 .map(|(index, host)| {
                     row_hit(index, index, &mut hits);
-                    let marker = if index == picker.host_index { "❯ " } else { "  " };
+                    let marker = if index == picker.host_index {
+                        "❯ "
+                    } else {
+                        "  "
+                    };
                     let style = if index == picker.host_index {
                         self.theme.selection()
                     } else {

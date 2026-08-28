@@ -36,8 +36,8 @@ fn raise(app: &mut App, overlay: Overlay) {
         Overlay::Decisions => app.decision_open = true,
         Overlay::SessionPicker => {
             app.session_picker = Some(SessionPicker {
-        hosts: vec![local_picker_host()],
-        host_index: 0,
+                hosts: vec![crate::ui::app::types::PickerHost::this_device(String::new())],
+                host_index: 0,
                 choices: Vec::new(),
                 index: 0,
                 step: SessionPickerStep::Harness,
@@ -114,7 +114,7 @@ fn inline_prompt_swallows_clicks_that_would_reach_the_picker_behind_it() {
     // edit is still on screen.
     let mut app = app();
     app.session_picker = Some(SessionPicker {
-        hosts: vec![local_picker_host()],
+        hosts: vec![crate::ui::app::types::PickerHost::this_device(String::new())],
         host_index: 0,
         choices: Vec::new(),
         index: 0,

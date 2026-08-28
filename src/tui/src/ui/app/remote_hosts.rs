@@ -108,16 +108,14 @@ impl App {
 
     /// Record that a host is being dialled.
     pub(in crate::ui::app) fn remote_host_connecting(&mut self, host_id: &str) {
-        self.remote_hosts.entry(host_id.to_string()).or_default().status =
-            RemoteHostStatus::Connecting;
+        self.remote_hosts
+            .entry(host_id.to_string())
+            .or_default()
+            .status = RemoteHostStatus::Connecting;
     }
 
     /// Fold in what a host answered with.
-    pub fn remote_host_connected(
-        &mut self,
-        host_id: &str,
-        capabilities: RemoteCapabilities,
-    ) {
+    pub fn remote_host_connected(&mut self, host_id: &str, capabilities: RemoteCapabilities) {
         let state = self.remote_hosts.entry(host_id.to_string()).or_default();
         state.status = RemoteHostStatus::Live;
         state.capabilities = capabilities;
@@ -125,17 +123,18 @@ impl App {
 
     /// Record that a host could not be reached, and why.
     pub fn remote_host_failed(&mut self, host_id: &str, reason: String) {
-        self.remote_hosts.entry(host_id.to_string()).or_default().status =
-            RemoteHostStatus::Failed(reason);
+        self.remote_hosts
+            .entry(host_id.to_string())
+            .or_default()
+            .status = RemoteHostStatus::Failed(reason);
     }
 
     /// Replace a host's session list.
-    pub fn remote_host_sessions(
-        &mut self,
-        host_id: &str,
-        rows: Vec<RemoteSessionRow>,
-    ) {
-        self.remote_hosts.entry(host_id.to_string()).or_default().rows = rows;
+    pub fn remote_host_sessions(&mut self, host_id: &str, rows: Vec<RemoteSessionRow>) {
+        self.remote_hosts
+            .entry(host_id.to_string())
+            .or_default()
+            .rows = rows;
     }
 }
 

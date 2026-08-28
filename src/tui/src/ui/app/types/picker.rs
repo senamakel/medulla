@@ -124,6 +124,21 @@ pub(in crate::ui::app) struct PickerHost {
     pub(in crate::ui::app) remote: bool,
 }
 
+impl PickerHost {
+    /// The row for the machine the operator is sitting at.
+    ///
+    /// Always present and always first, because it is where a session goes when
+    /// nobody says otherwise — and the picker's first row is what `Enter` takes.
+    pub(in crate::ui::app) fn this_device(workspace: String) -> Self {
+        PickerHost {
+            id: "this-device".to_string(),
+            label: "this device".to_string(),
+            workspace,
+            remote: false,
+        }
+    }
+}
+
 /// One cached workspace completion and why it was suggested.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::ui::app) struct WorkspaceChoice {

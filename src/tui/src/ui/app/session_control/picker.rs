@@ -7,11 +7,11 @@ use medulla::protocol::HarnessProvider;
 
 use crate::ui::harness_pane::HarnessChoice;
 
+use super::super::types::Cmd;
 use super::super::types::{
     tab_pos, App, PickerHost, Prompt, PromptKind, SessionPicker, SessionPickerStep,
 };
 use crate::ui::composer::Draft;
-use super::super::types::Cmd;
 
 impl App {
     /// Open the "start a session" picker, or spawn directly when the command
@@ -79,12 +79,9 @@ impl App {
     /// host that can actually be dialled.
     pub(in crate::ui::app) fn picker_hosts(&self) -> Vec<PickerHost> {
         let local = self.local_sessions.as_ref();
-        std::iter::once(PickerHost {
-            id: "this-device".to_string(),
-            label: "this device".to_string(),
-            workspace: local.map(|l| l.workspace.clone()).unwrap_or_default(),
-            remote: false,
-        })
+        std::iter::once(PickerHost::this_device(
+            local.map(|l| l.workspace.clone()).unwrap_or_default(),
+        ))
         .chain(
             medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
                 .into_iter()
