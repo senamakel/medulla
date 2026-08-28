@@ -149,6 +149,9 @@ pub(crate) async fn run(
                         // would be asking for a decision they already made.
                         app.resume_picker_host(&host_id);
                     }
+                    AppMsg::RemoteHostDialling { host_id, requests } => {
+                        app.remote_host_dialling(&host_id, requests);
+                    }
                     AppMsg::RemoteHostSessions { host_id, rows } => {
                         app.remote_host_sessions(&host_id, rows);
                     }

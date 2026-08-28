@@ -193,3 +193,16 @@ impl App {
         self.pending_cmds.pop_front()
     }
 }
+
+impl App {
+    /// Record how to reach a host's freshly started connection task.
+    pub fn remote_host_dialling(
+        &mut self,
+        host_id: &str,
+        requests: tokio::sync::mpsc::UnboundedSender<crate::remote::client::RemoteRequest>,
+    ) {
+        let state = self.remote_hosts.entry(host_id.to_string()).or_default();
+        state.status = RemoteHostStatus::Connecting;
+        state.requests = Some(requests);
+    }
+}

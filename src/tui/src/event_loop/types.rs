@@ -74,6 +74,19 @@ pub(super) enum AppMsg {
         /// What it advertised.
         capabilities: Box<medulla::protocol::RemoteCapabilities>,
     },
+    /// A remote host's connection task has started; this is how to reach it.
+    ///
+    /// Carried through the same channel as everything else so the App is the
+    /// sole owner of the handle — a connection nothing can talk to is worse than
+    /// no connection, because it looks like one.
+    RemoteHostDialling {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// The task's request channel.
+        requests: tokio::sync::mpsc::UnboundedSender<
+            medulla_tui::remote::client::RemoteRequest,
+        >,
+    },
     /// A remote host's session list changed.
     RemoteHostSessions {
         /// Which `[[remoteHosts]]` entry.
