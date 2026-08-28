@@ -106,7 +106,7 @@ pub fn session_row(host_id: &str, remote: &RemoteSessionRow) -> SessionRow {
                 // we cannot name what for" cue. Dropping the whole cue instead
                 // would hide a harness that is genuinely stuck, which is the one
                 // thing the rail exists to surface.
-                kind: crate::worker::pty::AttentionKind::from_str(&attention.kind)
+                kind: crate::worker::pty::AttentionKind::from_wire(&attention.kind)
                     .unwrap_or(crate::worker::pty::AttentionKind::Choice),
                 what: attention.summary.clone(),
                 // The sender's `since` is a reading from its clock, so it never
