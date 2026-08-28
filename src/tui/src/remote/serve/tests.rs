@@ -138,7 +138,7 @@ fn shell_choice(server: &RemoteServer) -> RemoteHarnessChoice {
 }
 
 fn remote_capabilities(server: &RemoteServer) -> medulla::protocol::RemoteCapabilities {
-    server.capabilities_for_test().clone()
+    server.capabilities().clone()
 }
 
 /// Open a shell and return its session id.
@@ -289,7 +289,7 @@ async fn input_reaches_the_pty_and_the_screen_comes_back() {
     let mut seen = false;
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline && !seen {
-        server.publish_screens_for_test().await;
+        server.publish_screens_once().await;
         for message in client.drain_inbox(64).await {
             if let Some(ScreenMessage::Frame(frame)) =
                 medulla::protocol::parse_screen_message(&message.text)
@@ -351,7 +351,7 @@ async fn a_second_subscribe_replaces_the_first() {
         .await;
     }
     assert_eq!(server.watching(), 1, "one client watches one screen");
-    assert_eq!(server.watching_for_test(CLIENT), Some(second.as_str()));
+    assert_eq!(server.watching_session(CLIENT), Some(second.as_str()));
 }
 
 #[tokio::test]

@@ -121,6 +121,25 @@ impl RemoteServer {
         self.subscriptions.len()
     }
 
+    /// What this host advertises, for tests and for the bootstrap's banner.
+    pub fn capabilities(&self) -> &RemoteCapabilities {
+        &self.capabilities
+    }
+
+    /// Which session `peer` is watching, if any.
+    pub fn watching_session(&self, peer: &str) -> Option<&str> {
+        self.subscriptions.session_for(peer)
+    }
+
+    /// Sample subscribed screens once and send whatever changed.
+    ///
+    /// [`run`](Self::run) does this on every pass; exposed separately so a
+    /// caller driving the server by hand — a test, or an embedding that owns its
+    /// own timer — can step it without a loop.
+    pub async fn publish_screens_once(&mut self) {
+        self.publish_screens().await;
+    }
+
     /// Run until the bridge stops producing messages.
     ///
     /// Two things happen on every pass, and they are deliberately independent:
