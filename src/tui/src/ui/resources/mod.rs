@@ -11,14 +11,19 @@
 //! the chrome into a source of measurable load itself. The process monitor
 //! refreshes only the current PID and keeps a decaying disk-throughput peak for
 //! relative bars.
+//!
+//! The [`session`] submodule owns a third scale: one harness session's own
+//! process tree, shown in that session's pane title.
 
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
 pub use device::{device_lines, device_width_hint, DeviceMonitor};
+pub use session::{session_segments, session_usage, SessionMonitor, SessionSnapshot};
 pub use types::{DeviceSnapshot, ResourceMonitor, ResourceSnapshot};
 
 mod device;
 mod process_monitor;
+mod session;
 mod types;
 
 #[cfg(test)]
