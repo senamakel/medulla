@@ -388,46 +388,58 @@ mod children {
 
             let _ = takeover.join().expect("the takeover thread must not panic");
 
-            match sessions.row(&id) {
-                None => {
-                    // The close won the race outright: nothing left to check for
-                    // this trial, exactly like the plain unattended-close test.
-                }
-                Some(row) if row.state.is_running() => {
-                    // The takeover won: this is the interleaving under test.
-                    takeover_observed = true;
-                    assert_eq!(
-                        sessions.control(&id),
-                        Some(SessionControl::User),
-                        "a session still running after finish_turn is the operator's"
-                    );
-                    assert!(
-                        !row.busy,
-                        "must not be left permanently busy — that strands it from                          every future claim, the exact leak this PR exists to close"
-                    );
-                    assert!(
-                        exec.workspace_context
-                            .lock()
-                            .expect("workspace context lock poisoned")
-                            .contains_key(&id),
-                        "mapper state must survive a close that never happened"
-                    );
+            // Whether the takeover or the close won is not observable from
+            // `row.state.is_running()` alone right after `finish_turn` returns —
+            // a winning close's `kill()` has been issued but the reader thread
+            // that flips the row to not-running has not necessarily caught up
+            // yet, and a `None` row is never actually produced by this path
+            // (nothing here calls `forget`). The child process itself is the
+            // ground truth, exactly as the other tests in this module use it: a
+            // killed child stops appending to its marker file almost
+            // immediately, and a merely un-drawn one does not.
+            let before = ticks(&marker);
+            std::thread::sleep(Duration::from_millis(150));
+            let still_alive = ticks(&marker) > before;
 
-                    // Hand back and confirm the session is genuinely reusable.
-                    sessions.set_control(&id, SessionControl::Orchestrator);
-                    assert!(
-                        sessions
-                            .claim_idle("test", HarnessProvider::Codex)
-                            .is_some(),
-                        "a handed-back session must be claimable, not stuck behind                          a busy flag nothing ever cleared"
-                    );
-                    sessions.release(&id);
-                    sessions.close(&id);
-                }
-                Some(_) => panic!(
-                    "a session that is neither closed nor running is the exact                      stuck-busy limbo this test exists to rule out"
-                ),
+            if still_alive {
+                // The takeover won: this is the interleaving under test.
+                takeover_observed = true;
+                let row = sessions
+                    .row(&id)
+                    .expect("an operator-held, still-running session must still be listed");
+                assert!(row.state.is_running(), "the harness is still alive");
+                assert_eq!(
+                    sessions.control(&id),
+                    Some(SessionControl::User),
+                    "a session still running after finish_turn is the operator's"
+                );
+                assert!(
+                    !row.busy,
+                    "must not be left permanently busy: that strands it from every \
+                     future claim, the exact leak this PR exists to close"
+                );
+                assert!(
+                    exec.workspace_context
+                        .lock()
+                        .expect("workspace context lock poisoned")
+                        .contains_key(&id),
+                    "mapper state must survive a close that never happened"
+                );
+
+                // Hand back and confirm the session is genuinely reusable.
+                sessions.set_control(&id, SessionControl::Orchestrator);
+                assert!(
+                    sessions
+                        .claim_idle("test", HarnessProvider::Codex)
+                        .is_some(),
+                    "a handed-back session must be claimable, not stuck behind a \
+                     busy flag nothing ever cleared"
+                );
+                sessions.release(&id);
+                sessions.close(&id);
             }
+            // Otherwise the close won the race outright: nothing left to check
+            // for this trial, exactly like the plain unattended-close test.
         }
 
         assert!(
