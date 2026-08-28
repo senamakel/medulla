@@ -338,7 +338,6 @@ mod children {
 
         sessions.close(&id);
     }
-}
 
     /// The interleaving codex flagged: an operator's takeover lands in the gap
     /// between `finish_turn`'s `control()` snapshot and its `close_if_orchestrator`
