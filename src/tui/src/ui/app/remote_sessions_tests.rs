@@ -319,16 +319,17 @@ fn closing_a_remote_session_sends_a_close_request_to_its_host() {
     let mut app = app_with_host(vec![remote_row("w_1")]);
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     app.remote_host_dialling("tower", tx);
-    app.pane_session_for_test("tower/w_1");
+    app.pane_session = Some("tower/w_1".to_string());
 
-    app.close_pane_session_prompt_for_test();
-    assert!(
-        app.armed_close_for_test().as_deref() == Some("tower/w_1"),
+    app.close_pane_session_prompt();
+    assert_eq!(
+        app.harness_close_armed.as_deref(),
+        Some("tower/w_1"),
         "a running remote session must be closeable, not reported as already exited: {}",
         app.status()
     );
 
-    app.close_session_for_test("tower/w_1");
+    app.close_session("tower/w_1");
     assert_eq!(app.status(), "Closed the harness");
     let sent = rx.try_recv().expect("a Close request must reach the host");
     assert!(
@@ -342,7 +343,7 @@ fn closing_a_remote_session_on_a_disconnected_host_says_so() {
     // A host with rows but no live connection (bootstrap in flight, or the link
     // dropped) must not silently no-op and claim success.
     let mut app = app_with_host(vec![remote_row("w_1")]);
-    app.close_session_for_test("tower/w_1");
+    app.close_session("tower/w_1");
     assert!(
         app.status().contains("not connected"),
         "got: {}",
