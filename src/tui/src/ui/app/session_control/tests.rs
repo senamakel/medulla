@@ -354,3 +354,63 @@ fn capabilities_with_shell() -> medulla::protocol::RemoteCapabilities {
         host_name: "tower".to_string(),
     }
 }
+
+#[test]
+fn remote_hosts_are_reachable_from_a_client_that_hosts_nothing() {
+    // `MEDULLA_HOST=0` is a supported configuration, and it is the one where
+    // remote hosts are the *only* thing there is to reach. Returning early on a
+    // missing local surface made them unreachable — the picker never opened.
+    let mut app = app_with_remote_hosts(&["tower.local"]);
+    app.clear_local_sessions_for_test();
+
+    app.open_session_picker();
+    let picker = app
+        .session_picker
+        .as_ref()
+        .expect("a client with remote hosts must still get a picker");
+    assert_eq!(picker.hosts.len(), 1, "this device offers nothing here");
+    assert!(picker.hosts[0].remote);
+    assert_eq!(
+        picker.step,
+        SessionPickerStep::Host,
+        "a lone remote host still needs dialling, which happens on the host step"
+    );
+}
+
+#[test]
+fn this_device_is_not_offered_when_it_cannot_host() {
+    // A row that could only fail when chosen is worse than no row.
+    let mut app = app_with_remote_hosts(&["tower.local"]);
+    app.clear_local_sessions_for_test();
+    let hosts = app.picker_hosts();
+    assert!(
+        hosts.iter().all(|host| host.remote),
+        "a non-hosting device must not offer itself: {hosts:?}"
+    );
+}
+
+#[test]
+fn a_client_with_neither_local_nor_remote_hosts_says_so() {
+    let mut app = app_with_remote_hosts(&[]);
+    app.clear_local_sessions_for_test();
+    app.open_session_picker();
+    assert!(app.session_picker.is_none());
+    assert!(
+        app.status().contains("no [[remoteHosts]]"),
+        "the message should name both halves of why: {}",
+        app.status()
+    );
+}
+
+#[test]
+fn a_lone_local_host_still_opens_straight_onto_the_harness_step() {
+    // The regression guard for the ordinary case, restated against the new
+    // branch: adding remote support must not cost a keystroke to someone who
+    // has none configured.
+    let mut app = app_with_remote_hosts(&[]);
+    app.open_session_picker();
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.step),
+        Some(SessionPickerStep::Harness),
+    );
+}

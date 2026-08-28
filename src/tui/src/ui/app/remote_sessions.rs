@@ -371,6 +371,11 @@ impl App {
         self.attach_to_session(id);
     }
 
+    /// Drop this device's hosting surface, standing in for `MEDULLA_HOST=0`.
+    pub(in crate::ui::app) fn clear_local_sessions_for_test(&mut self) {
+        self.local_sessions = None;
+    }
+
     /// [`session_write`](Self::session_write) for tests.
     pub(in crate::ui::app) fn session_write_for_test(
         &mut self,
