@@ -200,7 +200,7 @@ async fn watching_a_second_session_moves_the_stream() {
                     .into_iter()
                     .filter_map(|event| match event {
                         PumpEvent::Opened(id) => Some(id),
-                        PumpEvent::OpenFailed(_) => None,
+                        PumpEvent::Connected | PumpEvent::OpenFailed(_) => None,
                     }),
             );
             tokio::time::sleep(Duration::from_millis(20)).await;
