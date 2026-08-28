@@ -10,7 +10,7 @@ use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
 use crate::worker::stream::convert::{snapshot_from_grid, wire_color, wire_grid, wire_style};
 
 /// A cell with text and no styling.
-fn cell(text: &str) -> ScreenCell {
+pub(super) fn cell(text: &str) -> ScreenCell {
     ScreenCell {
         text: text.into(),
         ..ScreenCell::default()
@@ -18,7 +18,7 @@ fn cell(text: &str) -> ScreenCell {
 }
 
 /// A snapshot from rows of text, one cell per character.
-fn snapshot(rows: &[&str]) -> ScreenSnapshot {
+pub(super) fn snapshot(rows: &[&str]) -> ScreenSnapshot {
     ScreenSnapshot {
         cells: rows
             .iter()
