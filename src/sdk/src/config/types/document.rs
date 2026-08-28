@@ -73,6 +73,19 @@ pub struct TuiConfig {
     /// behaves exactly as before.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hosts: Vec<HostSection>,
+    /// Machines reached over SSH, whose sessions run there and render here.
+    ///
+    /// The other axis from [`hosts`](Self::hosts): those are several hosts on
+    /// *this* machine, distinguished by working directory; these are other
+    /// machines entirely, distinguished by login. A remote host has no bus
+    /// address and a local one has no login, which is why they are separate
+    /// sections rather than one with half its fields blank.
+    ///
+    /// Additive in the same way: a config with no `[[remoteHosts]]` behaves
+    /// exactly as before, and in particular the session picker still opens
+    /// straight onto its harness step.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remote_hosts: Vec<RemoteHostSection>,
     /// How operator-started harnesses behave.
     #[serde(default)]
     pub harness: HarnessSection,
