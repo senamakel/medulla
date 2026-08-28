@@ -137,7 +137,7 @@ impl App {
 
     /// The scrollable board list.
     fn draw_feedback_list(&mut self, f: &mut Frame, area: Rect) {
-        let block = self.panel("Board");
+        let block = self.content_panel("Board");
         let inner = block.inner(area);
         f.render_widget(block, area);
 

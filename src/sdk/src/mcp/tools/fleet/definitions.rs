@@ -15,9 +15,18 @@ use serde_json::{json, Value};
 /// start or stop work are then left out of the list entirely rather than
 /// advertised and refused: a tool that is absent is a fact a model cannot argue
 /// with, where one that is present and always fails reads as a broken server.
+///
+/// `may_dispatch_workflow` applies the same rule one level down. A session
+/// withheld the `workflow_*` family — a workflow `agent` node's harness, which
+/// keeps the fleet verbs on purpose — is not shown `fleet_dispatch`'s
+/// `workflow` arguments at all, because reaching a saved graph through the
+/// fleet is the recursion that withholding exists to prevent. The control plane
+/// refuses such a dispatch regardless; this keeps a model from planning around
+/// a door that is not there.
 pub(crate) fn definitions(
     schema: impl Fn(Value, &[&str]) -> Value,
     may_dispatch: bool,
+    may_dispatch_workflow: bool,
 ) -> Vec<Value> {
     let mut tools = vec![
         json!({
@@ -58,6 +67,70 @@ pub(crate) fn definitions(
         return tools;
     }
 
+    let mut dispatch_properties = json!({
+        "instruction": {
+            "type": "string",
+            "description":
+                "The whole brief, written for an agent that knows nothing about this \
+                 conversation.",
+        },
+        "worker": {
+            "type": "string",
+            "description":
+                "Worker id from fleet_workers. Omit to use this host's default.",
+        },
+        "harness": {
+            "type": "string",
+            "enum": ["claude", "codex", "codex-server", "opencode"],
+            "description":
+                "Which coding harness runs it. Omit to let the worker use its own \
+                 default; a worker that does not have the one you name refuses rather \
+                 than substituting another. `codex-server` is Codex on a shared \
+                 long-lived process — much cheaper to start when several tasks run at \
+                 once, at the cost of the per-step detail a `codex` lane reports.",
+        },
+        "model": {
+            "type": "string",
+            "description":
+                "Model hint for that harness. Omit unless the operator named one.",
+        },
+    });
+    if may_dispatch_workflow {
+        let object = dispatch_properties
+            .as_object_mut()
+            .expect("a json object of dispatch properties");
+        object.insert(
+            "workflow".to_string(),
+            json!({
+                "type": "string",
+                "description":
+                    "Run a workflow advertised by the selected worker instead of handing the \
+                     instruction to a harness as a prompt; the instruction becomes its \
+                     trigger payload. Choose the id from that worker's workflows in \
+                     fleet_workers, never from the local workflow_list.",
+            }),
+        );
+        object.insert(
+            "workflowFingerprint".to_string(),
+            json!({
+                "type": "string",
+                "description":
+                    "Required with workflow. Copy the fingerprint from the selected worker's \
+                     workflow entry in fleet_workers. This prevents a same-named but different \
+                     graph on another machine from running silently.",
+            }),
+        );
+        object.insert(
+            "inputs".to_string(),
+            json!({
+                "type": "object",
+                "description":
+                    "Values for the selected worker workflow's declared inputs, keyed by name; \
+                     omit this unless workflow is set.",
+            }),
+        );
+    }
+
     tools.push(json!({
         "name": "fleet_dispatch",
         "description":
@@ -69,58 +142,7 @@ pub(crate) fn definitions(
              routinely runs for minutes. Read the outcome with fleet_result, and change your \
              mind with fleet_abort. Tasks live only as long as the Medulla instance that \
              accepted them.",
-        "inputSchema": schema(
-            json!({
-                "instruction": {
-                    "type": "string",
-                    "description":
-                        "The whole brief, written for an agent that knows nothing about this \
-                         conversation.",
-                },
-                "worker": {
-                    "type": "string",
-                    "description":
-                        "Worker id from fleet_workers. Omit to use this host's default.",
-                },
-                "harness": {
-                    "type": "string",
-                    "enum": ["claude", "codex", "codex-server", "opencode"],
-                    "description":
-                        "Which coding harness runs it. Omit to let the worker use its own \
-                         default; a worker that does not have the one you name refuses rather \
-                         than substituting another. `codex-server` is Codex on a shared \
-                         long-lived process — much cheaper to start when several tasks run at \
-                         once, at the cost of the per-step detail a `codex` lane reports.",
-                },
-                "model": {
-                    "type": "string",
-                    "description":
-                        "Model hint for that harness. Omit unless the operator named one.",
-                },
-                "workflow": {
-                    "type": "string",
-                    "description":
-                        "Run a workflow advertised by the selected worker instead of handing the \
-                         instruction to a harness as a prompt; the instruction becomes its \
-                         trigger payload. Choose the id from that worker's workflows in \
-                         fleet_workers, never from the local workflow_list.",
-                },
-                "workflowFingerprint": {
-                    "type": "string",
-                    "description":
-                        "Required with workflow. Copy the fingerprint from the selected worker's \
-                         workflow entry in fleet_workers. This prevents a same-named but different \
-                         graph on another machine from running silently.",
-                },
-                "inputs": {
-                    "type": "object",
-                    "description":
-                        "Values for the selected worker workflow's declared inputs, keyed by name; \
-                         omit this unless workflow is set.",
-                },
-            }),
-            &["instruction"],
-        ),
+        "inputSchema": schema(dispatch_properties, &["instruction"]),
     }));
 
     tools.push(json!({

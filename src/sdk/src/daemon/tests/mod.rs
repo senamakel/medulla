@@ -32,6 +32,8 @@ mod task_attribution_tests;
 mod task_continuity_tests;
 mod task_tests;
 #[cfg(feature = "workflows")]
+mod workflow_node_tools_tests;
+#[cfg(feature = "workflows")]
 mod workflow_tests;
 
 /// A [`SendFn`] that records every `(to, body)` it is handed, paired with the
@@ -102,6 +104,7 @@ pub(super) fn task_frame(task_id: &str, text: &str, correlation: Option<&str>) -
         model: None,
         tool_mode: None,
         workflow_node: false,
+        workflow_authoring: false,
         workflow: None,
         workflow_fingerprint: None,
         workflow_inputs: Default::default(),

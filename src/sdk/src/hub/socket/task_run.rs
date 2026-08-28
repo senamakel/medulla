@@ -317,6 +317,17 @@ pub(super) async fn handle_task_run(
         Err(e) => log(&format!("hub: task {task_id} FAILED: {e}")),
     }
 
+    // Settle the row this dispatch opened above, when nothing else has. A
+    // worker's own reply or error already reached the log through the hub pump
+    // and this is then a no-op — but an outcome generated on this side (the
+    // bridge dropped, the watchdog reaped a silent worker, an operator aborted)
+    // produces no frame at all, and the row it left `running` at dispatch would
+    // stay that way for the life of the process. The control-plane dispatch path
+    // has had this fallback since it was written; this one simply never did.
+    if let Some(activity) = &activity {
+        activity.record_outcome(&wire_task_id, &outcome);
+    }
+
     let _ = socket
         .emit("medulla:task_result", result_frame(&task_id, &outcome))
         .await;

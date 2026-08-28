@@ -140,8 +140,50 @@ impl DaemonRuntime {
         if let Some(harness) = &custom_harness {
             run_env.extend(harness.harness_env());
         }
-        let run_env =
+        let mut run_env =
             super::with_tool_mode_at_depth(run_env, frame.tool_mode.as_deref(), frame.fleet_depth);
+        // A trusted `agent`-node frame gets no workflow tools and no workflow
+        // skills. This is the loopback path — `LocalWorkflowHost` runs each
+        // node by sending a task frame to an embedded daemon in the same
+        // process — and it is the one launch door for a workflow node that was
+        // not already covered, so a `babysit` node was served `workflow_run`
+        // and the skill describing its own graph, and re-ran that graph on its
+        // own pull request. See [`crate::harness_tools`].
+        //
+        // Gated on the same `sender_device_local` the origin below is: the
+        // marker is only meaningful from a peer this daemon itself serves, and
+        // reading it from a remote one would let that peer choose its own tool
+        // surface — narrower here rather than wider, but still a decision that
+        // is not the sender's to make.
+        //
+        // A frame that named a tool mode is left alone. An evolution review
+        // comes down this same bridge carrying `propose:<id>`, which is a
+        // request for a deliberately scoped workflow surface — one that already
+        // withholds `workflow_run` and every editing verb. Withholding the
+        // family under it would take away the notes and proposal verbs the
+        // review turn exists to call.
+        //
+        // A frame that marked itself *authoring* is likewise left alone, and
+        // that exemption is not a hole: the workflow copilot travels this same
+        // bridge as an unscoped `workflowNode` frame — `LocalCopilotDispatch`
+        // and the TUI's copilot pane both dispatch through it, and an authoring
+        // turn deliberately sets no tool mode — so gating on the node marker
+        // alone took the copilot's `workflow_create` and every editing verb away
+        // from the one caller whose entire purpose is to call them, leaving its
+        // caller to read a store nothing had written. The marker is minted by
+        // [`crate::hub::TaskRunner::run_workflow_authoring`], which only the
+        // copilot's own dispatch handle reaches, so a graph step cannot claim it
+        // — and it is read here only from a device-local sender, for the same
+        // reason the node marker is: it widens the surface.
+        #[cfg(feature = "workflows")]
+        if sender_device_local
+            && frame.workflow_node
+            && !frame.workflow_authoring
+            && frame.tool_mode.is_none()
+        {
+            crate::harness_tools::withhold_workflows(&mut run_env);
+        }
+        let run_env = run_env;
         // Neither ACP nor the app-server has a follow-up-input operation today.
         // Record the effective transport before acknowledging the task so an
         // input frame racing the harness startup is rejected instead of buffered

@@ -19,7 +19,7 @@ impl App {
         self.hit_nav = multi_pane::draw_nav(
             f,
             area,
-            self.panel("Settings"),
+            self.nav_panel("Settings"),
             &self.theme,
             &SETTINGS_SUBPAGES,
             &SETTINGS_GROUPS,

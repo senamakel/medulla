@@ -10,7 +10,7 @@ use crate::mcp::backend::FleetBackend;
 use crate::mcp::{handle_request, McpSession, OfflineFleet, ToolMode};
 use crate::workflows::{FileWorkflowStore, WorkflowStore};
 
-use super::FLEET_TOOL_NAMES;
+use super::{definitions, FLEET_TOOL_NAMES};
 
 /// A fleet backend that records what it was asked and answers as told.
 struct FakeBackend {
@@ -391,5 +391,95 @@ async fn every_advertised_fleet_tool_is_one_the_dispatch_handles() {
             !message.contains("unknown fleet tool"),
             "{name} is advertised but the dispatch does not handle it"
         );
+    }
+}
+
+/// The tool surface a workflow `agent` node's harness is left with.
+///
+/// The launch resolves `workflows_enabled` to false for such a node, which
+/// mints a fleet-only grant — so this is what its MCP server then advertises.
+/// Asserted on the *listing* rather than on a refusal, because that is the
+/// whole requirement: a model that cannot see `workflow_run` never tries to
+/// re-run the graph it is a step of.
+#[tokio::test]
+async fn a_fleet_only_grant_advertises_no_workflow_tools() {
+    let mut backend = FakeBackend::connected();
+    if let Some(hello) = backend.hello.as_mut() {
+        hello.families = ToolFamilies::fleet_only();
+    }
+    let (_root, session) = session(Arc::new(backend));
+
+    let names = advertised(&session).await;
+
+    assert!(
+        !names.iter().any(|name| name.starts_with("workflow_")),
+        "no workflow tool may be advertised to a fleet-only session: {names:?}"
+    );
+    assert!(
+        names.iter().any(|name| name.starts_with("fleet_")),
+        "the fleet family the node legitimately keeps must still be there: {names:?}"
+    );
+}
+
+/// The narrowing that catches a grant the launch-side decision could not
+/// reach — one exchanged from a parent handoff, which inherits the parent's
+/// families rather than being minted against this launch's policy.
+#[tokio::test]
+async fn a_withheld_server_narrows_a_grant_that_carried_the_workflow_family() {
+    let (_root, session) = session(Arc::new(FakeBackend::connected()));
+    assert!(
+        advertised(&session)
+            .await
+            .iter()
+            .any(|name| name.starts_with("workflow_")),
+        "the grant under test must carry the family this narrows away"
+    );
+
+    let session = session.without_workflow_tools();
+
+    let names = advertised(&session).await;
+    assert!(
+        !names.iter().any(|name| name.starts_with("workflow_")),
+        "the narrowing must survive the grant's own authority: {names:?}"
+    );
+    assert!(
+        names.iter().any(|name| name.starts_with("fleet_")),
+        "and must take nothing else with it: {names:?}"
+    );
+}
+
+/// A session withheld the workflow family is not shown the arguments that would
+/// reach a saved graph. The control plane refuses such a dispatch anyway; this
+/// is what stops a model planning around a door that is not there.
+#[test]
+fn a_fleet_only_session_is_not_offered_the_workflow_dispatch_arguments() {
+    let tools = definitions(crate::mcp::tools::schema, true, false);
+    let dispatch = tools
+        .iter()
+        .find(|tool| tool["name"] == "fleet_dispatch")
+        .expect("a session that may dispatch is served the verb");
+    let properties = &dispatch["inputSchema"]["properties"];
+
+    assert!(properties.get("instruction").is_some(), "{dispatch}");
+    for absent in ["workflow", "workflowFingerprint", "inputs"] {
+        assert!(
+            properties.get(absent).is_none(),
+            "`{absent}` must be absent for a fleet-only session: {dispatch}"
+        );
+    }
+}
+
+/// An ordinary session keeps them: the narrowing is the exception.
+#[test]
+fn a_full_session_keeps_the_workflow_dispatch_arguments() {
+    let tools = definitions(crate::mcp::tools::schema, true, true);
+    let dispatch = tools
+        .iter()
+        .find(|tool| tool["name"] == "fleet_dispatch")
+        .expect("served the verb");
+    let properties = &dispatch["inputSchema"]["properties"];
+
+    for present in ["workflow", "workflowFingerprint", "inputs"] {
+        assert!(properties.get(present).is_some(), "{dispatch}");
     }
 }

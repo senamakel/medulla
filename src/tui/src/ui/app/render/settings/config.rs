@@ -85,7 +85,7 @@ impl App {
                 .wrap(Wrap { trim: false })
                 // Not "Settings" — the left nav already owns that title, and two
                 // adjacent panels with the same name read as a rendering bug.
-                .block(self.panel("Preferences")),
+                .block(self.content_panel("Preferences")),
             area,
         );
     }

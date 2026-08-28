@@ -222,3 +222,54 @@ fn appearance_k_moves_the_role_selection_back_up() {
     app.on_event(key(KeyCode::Char('k')));
     assert_eq!(render(&mut app), before, "k returns to the first role");
 }
+
+/// The foreground color of the top-left corner of the nav panel and of the
+/// content panel beside it, in that order.
+///
+/// The two panes are the whole of the Settings tab's content row, so their
+/// corners sit at column 0 and at the nav's width, on the first content row
+/// under the shortcut hints and the tab strip.
+fn border_colors(app: &mut App) -> (ratatui::style::Color, ratatui::style::Color) {
+    let mut terminal = Terminal::new(TestBackend::new(120, 16)).unwrap();
+    terminal.draw(|f| app.draw(f)).unwrap();
+    let buffer = terminal.backend().buffer().clone();
+    (buffer[(0, 2)].fg, buffer[(20, 2)].fg)
+}
+
+#[test]
+fn the_border_says_which_pane_holds_the_keyboard() {
+    use ratatui::style::Color;
+
+    let mut app = app_on("Config");
+    let (nav, content) = border_colors(&mut app);
+    assert_eq!(content, Color::Red, "the entered page is lit");
+    assert_eq!(nav, Color::DarkGray, "and the nav it came from is not");
+
+    app.on_event(key(KeyCode::Esc));
+    let (nav, content) = border_colors(&mut app);
+    assert_eq!(nav, Color::Red, "stepping back lights the nav");
+    assert_eq!(content, Color::DarkGray, "and dims the page");
+}
+
+#[test]
+fn the_nav_owns_both_arrows_until_the_page_is_entered() {
+    // `←`/`→` are bindings on most subpages — they cycle the value under the
+    // cursor. From the nav they must not reach the page at all: half the arrows
+    // driving the menu and half the page beside it is the confusing part.
+    let mut app = app_on("Appearance");
+    app.on_event(key(KeyCode::Esc));
+    assert!(!app.settings_focused(), "parked on the nav");
+    let before = render(&mut app);
+
+    app.on_event(key(KeyCode::Left));
+    assert!(!app.settings_focused(), "left stays on the nav");
+    assert_eq!(render(&mut app), before, "left must not edit the page");
+
+    app.on_event(key(KeyCode::Right));
+    assert!(app.settings_focused(), "right steps into the page");
+    assert_eq!(
+        app.settings_subpage(),
+        "Appearance",
+        "right enters the page rather than moving the nav"
+    );
+}

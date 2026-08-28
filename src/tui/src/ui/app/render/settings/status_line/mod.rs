@@ -60,7 +60,7 @@ impl App {
     /// Draw the Status line subpage: the switches beside (or behind) the
     /// preview, over the pinned detail footer for the selected row.
     pub(super) fn draw_status_line_settings(&mut self, f: &mut Frame, area: Rect) {
-        let block = self.panel("Status line");
+        let block = self.content_panel("Status line");
         let inner = block.inner(area);
         f.render_widget(block, area);
 

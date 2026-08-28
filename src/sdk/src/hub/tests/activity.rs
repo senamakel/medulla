@@ -43,7 +43,15 @@ fn a_frame_for_a_task_never_dispatched_here_is_left_unattributed() {
     // this hub never sent. It must be recorded, but attributed to no worker
     // rather than guessed onto an arbitrary lane.
     let log = ActivityLog::new();
-    log.observed("stranger-task", "reply", "done elsewhere", 5);
+    // Stamped now, not at an arbitrary epoch: `reply` is a terminal frame, and
+    // `snapshot` retires a task that settled longer than the retention window
+    // ago. This test is about attribution, so it keeps the frame fresh.
+    log.observed(
+        "stranger-task",
+        "reply",
+        "done elsewhere",
+        crate::clock::now_millis(),
+    );
 
     let snap = log.snapshot();
     assert_eq!(snap.len(), 1);

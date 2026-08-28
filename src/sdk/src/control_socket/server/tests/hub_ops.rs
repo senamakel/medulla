@@ -157,7 +157,15 @@ fn a_settled_dispatch_is_recorded_as_a_reply() {
 fn an_inbound_terminal_frame_is_not_recorded_again_by_the_fallback() {
     let activity = ActivityLog::new();
     activity.dispatched_as("mcp-wire-1", "mcp-visible-1", "alpha");
-    activity.observed("mcp-wire-1", "reply", "the work is done", 1);
+    // Stamped now: `reply` settles the task, and `snapshot` retires one that
+    // settled longer than its retention window ago. The point here is the
+    // fallback not doubling up, so the frame is kept fresh.
+    activity.observed(
+        "mcp-wire-1",
+        "reply",
+        "the work is done",
+        crate::clock::now_millis(),
+    );
 
     record_outcome(&activity, "mcp-wire-1", &done("the work is done"));
 

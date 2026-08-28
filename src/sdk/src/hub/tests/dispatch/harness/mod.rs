@@ -33,6 +33,11 @@ impl FakeWorker {
         self.sent.lock().await.clone()
     }
 
+    /// The `task` frames the runner has sent us, in order.
+    pub(in crate::hub::tests) async fn sent_tasks(&self) -> Vec<crate::protocol::TaskFrame> {
+        self.sent_tasks.lock().await.clone()
+    }
+
     pub(in crate::hub::tests) fn new(mode: Mode) -> Arc<Self> {
         Self::with(mode, false)
     }
@@ -41,6 +46,7 @@ impl FakeWorker {
     pub(in crate::hub::tests) fn with(mode: Mode, fail_send: bool) -> Arc<Self> {
         Arc::new(Self {
             sent: Mutex::new(Vec::new()),
+            sent_tasks: Mutex::new(Vec::new()),
             inbox: Mutex::new(VecDeque::new()),
             mode,
             resets: AtomicU32::new(0),
@@ -57,6 +63,9 @@ impl Relay for FakeWorker {
         }
         let frame = decode_task_frame(body).expect("runner sends a valid task frame");
         self.sent.lock().await.push(frame.kind.as_str().to_string());
+        if frame.kind == TaskFrameKind::Task {
+            self.sent_tasks.lock().await.push(frame.clone());
+        }
         if frame.kind == TaskFrameKind::SystemInfo {
             let text = match &self.mode {
                 Mode::SystemInfo(info) => serde_json::to_string(info).unwrap(),

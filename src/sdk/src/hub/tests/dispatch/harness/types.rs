@@ -52,6 +52,12 @@ pub(in crate::hub::tests) enum Mode {
 pub(in crate::hub::tests) struct FakeWorker {
     /// The kind of every frame the runner sent us, in order.
     pub(super) sent: Mutex<Vec<String>>,
+    /// The decoded `task` frames the runner sent us, in order.
+    ///
+    /// Kept beside the kinds because the markers a dispatch puts *on* the frame
+    /// — the workflow-plane ones especially — are decided by which runner entry
+    /// point was called, and are invisible from the reply.
+    pub(super) sent_tasks: Mutex<Vec<crate::protocol::TaskFrame>>,
     pub(super) inbox: Mutex<VecDeque<InboundMessage>>,
     pub(super) mode: Mode,
     /// How many times the sender has reset the session with us.

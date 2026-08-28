@@ -448,7 +448,9 @@ async fn copilot_turn(
 
     let session = medulla::workflows::CopilotSession {
         store,
-        dispatch: host.dispatch(),
+        // Authoring, not a graph step: the pane's turn is here to create and
+        // edit workflows, so it keeps the `workflow_*` tools a node is denied.
+        dispatch: host.authoring_dispatch(),
         worker_address: LOCAL_WORKER_ADDRESS.to_string(),
         provider: workflows_config.default_provider,
         model: (!workflows_config.default_model.is_empty())

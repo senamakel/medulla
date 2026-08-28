@@ -67,15 +67,51 @@ pub trait HarnessDispatch: Send + Sync {
     fn abort_in_flight(&self) {}
 }
 
+/// What a dispatch handle is running: a graph's steps, or the copilot.
+///
+/// The same loopback host serves both, and both are workflow-plane work — but
+/// they want opposite tool surfaces. A graph step is withheld the `workflow_*`
+/// family so it cannot start the graph it is a step of; the copilot exists to
+/// call `workflow_create` and the editing verbs and would be unable to do its
+/// job without them.
+///
+/// Carried on the *handle* rather than read off the request, so the widening
+/// choice belongs to whoever built the dispatch — the copilot's own
+/// construction site — and a node's request cannot ask for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DispatchRole {
+    /// A step of a running graph. The default, and the withheld one.
+    Node,
+    /// A copilot authoring turn, which keeps the workflow tools.
+    Authoring,
+}
+
 /// Dispatch over the real hub task runner.
 pub struct TaskRunnerDispatch {
     runner: Arc<TaskRunner>,
+    role: DispatchRole,
 }
 
 impl TaskRunnerDispatch {
-    /// Dispatch through `runner`.
+    /// Dispatch `agent`-node instructions through `runner`.
     pub fn new(runner: Arc<TaskRunner>) -> Self {
-        Self { runner }
+        Self {
+            runner,
+            role: DispatchRole::Node,
+        }
+    }
+
+    /// Dispatch *authoring* turns through `runner`.
+    ///
+    /// What the workflow copilot holds. Everything else about the dispatch is
+    /// identical; the difference is the marker on the frame, which is what
+    /// keeps the workflow tools with a turn whose whole purpose is to call
+    /// them.
+    pub fn authoring(runner: Arc<TaskRunner>) -> Self {
+        Self {
+            runner,
+            role: DispatchRole::Authoring,
+        }
     }
 }
 
@@ -85,7 +121,7 @@ impl HarnessDispatch for TaskRunnerDispatch {
         // No status channel: a workflow's progress is reported per *node* by the
         // run observer, and forwarding a harness's token-level chatter here as
         // well would double-report the same work.
-        self.runner.run_workflow_node(request, None).await
+        self.dispatch_with_status(request, None).await
     }
 
     async fn dispatch_with_status(
@@ -93,7 +129,10 @@ impl HarnessDispatch for TaskRunnerDispatch {
         request: TaskRequest,
         status: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     ) -> Result<TaskOutcome, RunError> {
-        self.runner.run_workflow_node(request, status).await
+        match self.role {
+            DispatchRole::Node => self.runner.run_workflow_node(request, status).await,
+            DispatchRole::Authoring => self.runner.run_workflow_authoring(request, status).await,
+        }
     }
 
     fn abort_in_flight(&self) {

@@ -33,6 +33,8 @@ mod work;
 #[cfg(test)]
 mod run_tests;
 #[cfg(test)]
+mod tests;
+#[cfg(test)]
 mod transcript_tests;
 #[cfg(test)]
 mod work_tests;
@@ -40,6 +42,10 @@ mod work_tests;
 use types::{Selection, SessionsPanes};
 
 pub(in crate::ui::app) use rail::RAIL_MAX_CONTENT;
+
+/// The rows the rail keeps for itself before the wordmark above it is worth
+/// drawing: its two borders, a title's worth of list, and the device footer.
+const MIN_RAIL_HEIGHT: u16 = 8;
 
 impl App {
     /// Draw the Sessions tab: rail, transcript, composer.
@@ -51,6 +57,9 @@ impl App {
             .flatten()
         {
             self.note_pane(pane);
+        }
+        if let Some(logo) = panes.logo {
+            self.draw_sessions_logo(f, logo);
         }
         self.draw_sessions_rail(f, &panes, &selection);
         self.draw_sessions_pane(f, panes.pane, &selection);
@@ -195,6 +204,20 @@ impl App {
                 Constraint::Min(0),
             ])
             .split(area);
+        // The wordmark rides at the top of the rail column, above the list's
+        // border — the one place on the surface that is a fixed-width column of
+        // chrome rather than content. It is given up before the rail is: on a
+        // short terminal the rows are the point, so the art only appears while
+        // enough of the list survives beside it.
+        let (logo, rail) = if columns[0].height >= rail::LOGO_HEIGHT + MIN_RAIL_HEIGHT {
+            let split = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(rail::LOGO_HEIGHT), Constraint::Min(0)])
+                .split(columns[0]);
+            (Some(split[0]), split[1])
+        } else {
+            (None, columns[0])
+        };
         // A harness owns the whole right column, and so does a workflow run: the
         // graph plus the live output of the step that is working both want the
         // width. The work panel goes for the same reason — the harness's own
@@ -217,7 +240,8 @@ impl App {
             (columns[1], None)
         };
         SessionsPanes {
-            rail: columns[0],
+            logo,
+            rail,
             pane,
             work: work_area,
         }

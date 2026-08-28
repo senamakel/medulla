@@ -31,6 +31,16 @@ impl SessionHandle {
         self.meta.provider
     }
 
+    /// The child's process id, as captured at spawn.
+    ///
+    /// Still answered after the child is reaped, so a caller that samples it
+    /// must pair this with [`state`](Self::state): the number is only a live
+    /// process for as long as the session is running, and the kernel is free to
+    /// hand it to something else afterwards.
+    pub fn pid(&self) -> Option<u32> {
+        self.pid
+    }
+
     /// Where the session is in its life.
     ///
     /// One relaxed load and, when it has ended, one more for the status — no
