@@ -32,7 +32,13 @@ pub mod entry;
 mod sessions;
 mod types;
 
-#[cfg(test)]
+// Unix only, and not for want of portability: these drive a **real pty running
+// a real POSIX shell**, which is the whole of their value — they prove the relay
+// against a live child rather than a stand-in. `/bin/sh` and `/tmp` do not exist
+// on Windows, so there is nothing there for them to be a test *of*. Making them
+// portable would mean replacing the shell with a fake, which is the one thing
+// that would stop them catching what they are here to catch.
+#[cfg(all(test, unix))]
 mod tests;
 
 use std::collections::HashSet;
