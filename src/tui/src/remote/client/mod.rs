@@ -39,6 +39,16 @@ use crate::worker::stream::snapshot_from_grid;
 /// The bridge address the daemon is known by on this side.
 const HOST_ADDRESS: &str = "medulla-host";
 
+/// One thing [`RemoteHost::pump`] learned about an `Open` request this pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PumpEvent {
+    /// A session started; carries its (unprefixed) id.
+    Opened(String),
+    /// The host refused to start one, and this is why — the directory did not
+    /// exist, the harness failed to launch, and so on.
+    OpenFailed(String),
+}
+
 /// One connected remote machine.
 pub struct RemoteHost {
     /// Stable id from `[[remoteHosts]]`, and the lane sessions are filed under.
