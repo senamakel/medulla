@@ -4,13 +4,21 @@ use super::super::remote_sessions::SessionRef;
 use super::super::types::App;
 
 impl App {
-    /// Ask before closing the harness the pane is showing.
+    /// Close the harness the pane is showing, or dismiss it once it has exited.
     ///
-    /// A question rather than a kill, for the same reason the task-kill chord
-    /// asks: the child is usually mid-turn, and what it loses is not recoverable
-    /// by pressing the key again. Refusing with a reason beats doing nothing —
-    /// an operator who pressed `k` and saw nothing cannot tell "wrong row" from
-    /// "broken".
+    /// Two gestures behind one key, split on whether the child is still alive.
+    ///
+    /// A running child is a question rather than a kill, for the same reason the
+    /// task-kill chord asks: it is usually mid-turn, and what it loses is not
+    /// recoverable by pressing the key again.
+    ///
+    /// An exited one is dismissed outright. The rail sweeps finished sessions on
+    /// its own, but deliberately pins a *failed* child so its exit cue stays
+    /// readable — see [`keeps_finished_session`](App::keeps_finished_session) —
+    /// and that pin has no expiry. Without this the row is permanent: the sweep
+    /// will not take it and the kill refused it for not running, which left the
+    /// operator holding a dead row and no gesture that removed it. There is
+    /// nothing to confirm, because there is no work left to lose.
     ///
     /// Routed by [`SessionRef`] like every other session action: a remote id
     /// (`host/w_1`) has no orchestrator control to check — a remote session is
@@ -22,6 +30,16 @@ impl App {
             self.set_status("No session on this row — select one to close it");
             return;
         };
+        let running = self
+            .session_row(&session)
+            .is_some_and(|row| matches!(row.state, crate::worker::pty::PtyState::Running));
+        // Before the control check, not after: that refusal speaks only of
+        // sessions that are still running, and applying it to a settled task
+        // would pin the exited row the same way the old refusal did.
+        if !running {
+            self.dismiss_exited_session(&session);
+            return;
+        }
         if let SessionRef::Local(id) = SessionRef::parse(&session) {
             if self
                 .local_sessions
@@ -33,14 +51,38 @@ impl App {
                 return;
             }
         }
-        let running = self
-            .session_row(&session)
-            .is_some_and(|row| matches!(row.state, crate::worker::pty::PtyState::Running));
-        if !running {
-            self.set_status("That session has already exited");
-            return;
-        }
         self.arm_harness_close(session);
+    }
+
+    /// Drop an exited session's row, releasing the screen it still holds.
+    ///
+    /// Only the local manager owns a record this can remove.
+    /// [`remote_session_rows`](App::remote_session_rows) is rebuilt from what
+    /// each host reports, so forgetting a remote row here would restore it on
+    /// the next update — the host's own sweep is what retires it.
+    fn dismiss_exited_session(&mut self, session: &str) {
+        match SessionRef::parse(session) {
+            SessionRef::Local(id) => {
+                let Some(harnesses) = self.local_sessions.clone() else {
+                    self.set_status("This device is not hosting, so it has no sessions");
+                    return;
+                };
+                // Released first: the pane is about to stop having a session to
+                // show, and an attachment outliving its row is what leaves the
+                // keyboard typing into nothing.
+                if self.harness_focus.is_attached_to(session) {
+                    self.release_session();
+                }
+                if !harnesses.sessions.forget(id) {
+                    self.set_status("That session is gone");
+                    return;
+                }
+                self.set_status("Dismissed the exited session");
+            }
+            SessionRef::Remote { .. } => {
+                self.set_status("That session has already exited — its host retires the row");
+            }
+        }
     }
 
     /// Close a harness: kill the child, and tidy up what held it.
