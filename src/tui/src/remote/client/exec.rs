@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use medulla::config::RemoteHostSection;
 
-use super::RemoteHost;
+use super::{task, RemoteHost};
 
 /// How long to wait for the command's output to appear on the screen.
 const OUTPUT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -74,10 +74,18 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     // One identity directory per host, because the link takes an advisory lock
     // on it for its lifetime: hosts sharing a directory would leave all but the
     // first unable to connect.
-    let state_dir = home
-        .join("remote")
-        .join("clients")
-        .join(medulla::config::remote_host_id(&section, 0));
+    // A distinct identity from the TUI's, and deliberately not a unique one.
+    //
+    // `RemoteHost::connect` holds the directory's `node.lock` for the link's
+    // life, so sharing the TUI's would make this command fail with a busy
+    // identity whenever the TUI had that host open — which is most of the time
+    // it is useful. A *fresh* directory per invocation would avoid that too, but
+    // each new client id enrolls a new daemon on the far side, so every `--exec`
+    // would strand another one; a single stable `-exec` identity reuses one.
+    let state_dir = task::client_state_dir(
+        &home,
+        &format!("{}-exec", medulla::config::remote_host_id(&section, 0)),
+    );
 
     let workspace = flag(args, "--workspace").unwrap_or_else(|| section.workspace.clone());
     eprintln!("connecting to {host_id}…");
