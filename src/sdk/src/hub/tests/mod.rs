@@ -7,6 +7,7 @@
 //! is holding.
 
 mod activity;
+mod activity_retirement;
 mod capabilities;
 mod dispatch;
 mod handoff_advert;
