@@ -126,6 +126,8 @@ impl Drop for RunLivenessGuard {
 /// endpoints and stops the daemon's drain loop.
 pub struct LocalWorkflowHost {
     dispatch: Arc<dyn HarnessDispatch>,
+    /// The same daemon, reached as an *authoring* turn rather than a graph step.
+    authoring: Arc<dyn HarnessDispatch>,
     /// Kept alive so the worker keeps draining; not otherwise read.
     _daemon: EmbeddedDaemon,
 }
@@ -149,14 +151,31 @@ impl LocalWorkflowHost {
         let runner = Arc::new(TaskRunner::start(Arc::new(orchestrator), LOCAL_POLL));
 
         Ok(Self {
-            dispatch: Arc::new(TaskRunnerDispatch::new(runner)),
+            dispatch: Arc::new(TaskRunnerDispatch::new(runner.clone())),
+            authoring: Arc::new(TaskRunnerDispatch::authoring(runner)),
             _daemon: daemon,
         })
     }
 
     /// The dispatch to hand to a run's capabilities.
+    ///
+    /// A graph step. Its harness is served no `workflow_*` tools and no managed
+    /// workflow skills, which is what stops a node re-running the graph it is a
+    /// step of — an authoring turn wants the opposite and uses
+    /// [`authoring_dispatch`](Self::authoring_dispatch).
     pub fn dispatch(&self) -> Arc<dyn HarnessDispatch> {
         self.dispatch.clone()
+    }
+
+    /// The dispatch to hand to the workflow *copilot*.
+    ///
+    /// Identical in every respect but the marker on the frame, which keeps the
+    /// workflow tool family and the managed skills with the turn. The copilot's
+    /// edits land through those tools and its caller reads the store back
+    /// afterwards, so a copilot dispatched as a graph step silently does
+    /// nothing at all.
+    pub fn authoring_dispatch(&self) -> Arc<dyn HarnessDispatch> {
+        self.authoring.clone()
     }
 
     /// Stop whatever this host currently has in flight.
@@ -623,7 +642,7 @@ pub async fn author_here(
 
     let session = CopilotSession {
         store,
-        dispatch: host.dispatch(),
+        dispatch: host.authoring_dispatch(),
         worker_address: LOCAL_WORKER_ADDRESS.to_string(),
         provider: config.default_provider,
         model: (!config.default_model.is_empty()).then(|| config.default_model.clone()),
@@ -767,7 +786,13 @@ impl HarnessDispatch for LocalCopilotDispatch {
         status: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     ) -> Result<TaskOutcome, RunError> {
         let host = LocalWorkflowHost::start(self.options.clone()).map_err(RunError::Transport)?;
-        host.dispatch().dispatch_with_status(request, status).await
+        // The authoring handle, not the node one: a create/edit request is a
+        // full-authority authoring turn, and dispatched as a graph step it
+        // would be served none of the tools it needs to make the store changes
+        // the caller then reads back.
+        host.authoring_dispatch()
+            .dispatch_with_status(request, status)
+            .await
     }
 }
 
