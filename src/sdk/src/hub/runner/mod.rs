@@ -19,8 +19,7 @@ use tokio::sync::{mpsc, oneshot, Mutex, Notify};
 
 use crate::protocol::{
     encode_task_frame, encode_workflow_authoring_task_frame, encode_workflow_node_task_frame,
-    AgentCapabilities, EncodeFrameInput,
-    TaskFrameKind, WorkerSystemInfo,
+    AgentCapabilities, EncodeFrameInput, TaskFrameKind, WorkerSystemInfo,
 };
 
 use crate::bridge::BridgeLiveness;
@@ -404,8 +403,15 @@ impl TaskRunner {
         abort: Option<Arc<Notify>>,
         visible_task_id: Option<String>,
     ) -> Result<TaskOutcome, RunError> {
-        self.run_inner(req, status, screen_kill, WorkflowFrame::None, abort, visible_task_id)
-            .await
+        self.run_inner(
+            req,
+            status,
+            screen_kill,
+            WorkflowFrame::None,
+            abort,
+            visible_task_id,
+        )
+        .await
     }
 
     async fn run_inner(

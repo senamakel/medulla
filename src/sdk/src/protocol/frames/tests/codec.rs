@@ -3,9 +3,9 @@
 
 use crate::protocol::{
     decode_task_frame, encode_task_frame, encode_workflow_authoring_task_frame,
-    encode_workflow_node_task_frame,
-    parse_agent_capabilities, BudgetSource, BudgetWindow, EncodeFrameInput, HarnessBudget,
-    HarnessProvider, HarnessReadiness, HarnessTransport, TaskFrameKind, MEDULLA_TASK_PROTO,
+    encode_workflow_node_task_frame, parse_agent_capabilities, BudgetSource, BudgetWindow,
+    EncodeFrameInput, HarnessBudget, HarnessProvider, HarnessReadiness, HarnessTransport,
+    TaskFrameKind, MEDULLA_TASK_PROTO,
 };
 use serde_json::json;
 
@@ -112,7 +112,11 @@ fn the_authoring_marker_round_trips_and_is_absent_from_a_node_frame() {
         value.get("workflowAuthoring").is_none(),
         "an agent node must not claim to be an authoring turn: {value}"
     );
-    assert!(!decode_task_frame(&node).expect("decodes").workflow_authoring);
+    assert!(
+        !decode_task_frame(&node)
+            .expect("decodes")
+            .workflow_authoring
+    );
 }
 
 #[test]
