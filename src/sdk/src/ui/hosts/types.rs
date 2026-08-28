@@ -11,13 +11,17 @@ pub enum HostKind {
     /// A host this machine runs: `[host]` or one of the `[[hosts]]` entries.
     /// Its agents are declared in this config, so they can be edited here.
     Local,
-    /// Another machine, reached by its tiny.place address. Its agents are
-    /// declared over there.
+    /// Another machine — a `[[remoteHosts]]` entry, reached over SSH and then the
+    /// host link. Its agents and sessions are declared and run over there.
     Remote,
 }
 
 impl HostKind {
     /// Whether an operator may declare or edit agents on this host from here.
+    ///
+    /// `false` for a remote host, and for a plain reason rather than a missing
+    /// feature: its agents are declared in *its* config, on its own machine, so
+    /// there is nothing here to edit.
     pub fn editable(self) -> bool {
         matches!(self, HostKind::Local)
     }
