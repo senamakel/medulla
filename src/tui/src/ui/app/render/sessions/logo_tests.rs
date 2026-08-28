@@ -66,3 +66,11 @@ fn a_short_terminal_keeps_the_list_and_drops_the_wordmark() {
         rows[0]
     );
 }
+
+#[test]
+#[ignore]
+fn dump() {
+    for row in rows(100, 16) {
+        println!("|{row}|");
+    }
+}
