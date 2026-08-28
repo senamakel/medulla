@@ -176,6 +176,13 @@ pub(crate) async fn run(
                         app.remote_host_failed(&host_id, reason.clone());
                         app.set_status(format!("{host_id}: {reason}"));
                     }
+                    AppMsg::RemoteOpenFailed { host_id, reason } => {
+                        // The connection itself is fine — only say why the
+                        // session did not start, rather than marking the host
+                        // as failed and dropping its live sessions from the
+                        // rail.
+                        app.set_status(format!("{host_id} could not start it: {reason}"));
+                    }
                     AppMsg::UsageLoaded(result) => {
                         let cmd = match result {
                             Ok(data) => app.set_account_usage(data),
