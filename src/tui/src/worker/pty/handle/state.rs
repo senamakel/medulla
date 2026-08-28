@@ -38,11 +38,6 @@ impl SessionHandle {
     /// process for as long as the session is running, and the kernel is free to
     /// hand it to something else afterwards.
     pub fn pid(&self) -> Option<u32> {
-        self.meta_pid()
-    }
-
-    /// The raw captured pid — see [`pid`](Self::pid).
-    fn meta_pid(&self) -> Option<u32> {
         self.pid
     }
 
