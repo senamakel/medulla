@@ -139,7 +139,7 @@ fn a_snapshot_survives_a_round_trip_through_the_wire_grid() {
     // held is what the client's renderer draws. If this drifts, a remote session
     // looks subtly wrong in a way no other test would notice.
     let original = styled_snapshot();
-    let restored = super::convert::snapshot_from_grid(&super::convert::wire_grid(&original));
+    let restored = snapshot_from_grid(&wire_grid(&original));
     assert_eq!(restored, original);
 }
 
@@ -149,7 +149,7 @@ fn dropped_trailing_blanks_come_back_as_a_full_rectangle() {
     // carries a row's content. The renderer wants a rectangle, so the inverse
     // has to put them back, or every remote row would be short.
     let original = styled_snapshot();
-    let grid = super::convert::wire_grid(&original);
+    let grid = wire_grid(&original);
     assert!(
         grid.lines[1]
             .iter()
@@ -158,7 +158,7 @@ fn dropped_trailing_blanks_come_back_as_a_full_rectangle() {
             < 4,
         "the fixture's second row must have trailing blanks for this to test anything"
     );
-    let restored = super::convert::snapshot_from_grid(&grid);
+    let restored = snapshot_from_grid(&grid);
     assert!(restored.cells.iter().all(|row| row.len() == 4));
 }
 
@@ -166,9 +166,9 @@ fn dropped_trailing_blanks_come_back_as_a_full_rectangle() {
 fn a_grid_declaring_more_rows_than_it_carries_is_padded() {
     // Reachable whenever a screen's last rows are empty. Shrinking the pane
     // instead would make it jump every time the harness cleared its output.
-    let mut grid = super::convert::wire_grid(&styled_snapshot());
+    let mut grid = wire_grid(&styled_snapshot());
     grid.rows = 5;
-    let restored = super::convert::snapshot_from_grid(&grid);
+    let restored = snapshot_from_grid(&grid);
     assert_eq!(restored.cells.len(), 5);
     assert!(restored.cells[4]
         .iter()
@@ -177,7 +177,7 @@ fn a_grid_declaring_more_rows_than_it_carries_is_padded() {
 
 #[test]
 fn an_empty_grid_yields_an_empty_snapshot_rather_than_panicking() {
-    let restored = super::convert::snapshot_from_grid(&medulla::protocol::ScreenGrid {
+    let restored = snapshot_from_grid(&medulla::protocol::ScreenGrid {
         cols: 0,
         rows: 0,
         lines: Vec::new(),
