@@ -64,3 +64,31 @@ async fn an_ipv4_bind_is_unaffected() {
         .expect("a bound socket has a local address")
         .is_ipv4());
 }
+
+#[test]
+fn a_dual_stack_bind_reaches_an_ipv4_peer_through_its_mapped_form() {
+    // A `[::]` socket with `IPV6_V6ONLY` off talks to IPv4 peers via
+    // `::ffff:a.b.c.d`. Without this the client had to guess a family from the
+    // host's DNS records, and guessed wrong whenever a host had an AAAA record
+    // but no usable IPv6 path — bootstrap succeeded over SSH's own fallback and
+    // the link then had nowhere to send.
+    let resolved = super::resolve("127.0.0.1:9", false).expect("a v4 peer is reachable");
+    assert!(!resolved.is_ipv4(), "expected the mapped form: {resolved}");
+    assert_eq!(resolved.port(), 9);
+    assert_eq!(resolved.to_string(), "[::ffff:127.0.0.1]:9");
+}
+
+#[test]
+fn a_native_match_is_preferred_over_the_mapped_fallback() {
+    // A host with both records should use its real IPv6 address, not a mapped
+    // v4 one — the fallback exists for hosts that have no v6 address at all.
+    let resolved = super::resolve("localhost:9", false).expect("localhost resolves");
+    assert!(!resolved.is_ipv4());
+}
+
+#[test]
+fn an_ipv4_bind_still_refuses_an_ipv6_only_endpoint() {
+    // The mapping goes one way only: a v4 socket cannot reach a v6 peer, and
+    // saying so is better than binding something that can never deliver.
+    assert!(super::resolve("[::1]:9", true).is_err());
+}
