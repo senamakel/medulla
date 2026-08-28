@@ -13,6 +13,7 @@
 
 mod bootstrap;
 pub mod exec;
+pub mod task;
 
 #[cfg(test)]
 mod tests;
@@ -30,6 +31,7 @@ use medulla_link::keys::{self, ForwarderKey, NodeId, NodeState, PairKey, Role};
 use medulla_link::{Link, LinkConfig, LinkPath, PeerConfig};
 
 pub use bootstrap::{bootstrap, remote_command, ssh_argv, BootstrapError, Bootstrapped};
+pub use task::{RemoteRequest, RemoteUpdate};
 
 use crate::worker::pty::ScreenSnapshot;
 use crate::worker::stream::snapshot_from_grid;
