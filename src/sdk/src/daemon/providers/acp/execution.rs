@@ -70,7 +70,17 @@ pub(super) async fn medulla_mcp_servers(
         {
             Some(local) => Some(local),
             None => match crate::control_socket::parent_grant_from_env(task_env) {
-                Some((socket, token)) => exchange_parent_grant(socket, token).await,
+                // The exchanged child would otherwise inherit the *parent's*
+                // families verbatim, which for a workflow `agent` node reached
+                // this way would put back the workflow tools the withholding
+                // above already resolved to withhold locally — the exact
+                // recursion this change closes, reopened through the one grant
+                // path that does not derive its families from this launch's own
+                // `workflows_enabled`. `!workflows_enabled` asks the exchange to
+                // narrow to match what this launch already decided.
+                Some((socket, token)) => {
+                    exchange_parent_grant(socket, token, !workflows_enabled).await
+                }
                 None => None,
             },
         };
