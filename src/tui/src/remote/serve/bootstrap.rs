@@ -320,8 +320,7 @@ pub fn unrouted_placeholder(bind: SocketAddr) -> String {
 /// brackets; a hostname or an already-bracketed literal is left alone.
 pub fn join_endpoint(host: &str, port: u16) -> String {
     let host = host.trim();
-    let needs_brackets =
-        host.parse::<std::net::Ipv6Addr>().is_ok() && !host.starts_with('[');
+    let needs_brackets = host.parse::<std::net::Ipv6Addr>().is_ok() && !host.starts_with('[');
     match needs_brackets {
         true => format!("[{host}]:{port}"),
         false => format!("{host}:{port}"),

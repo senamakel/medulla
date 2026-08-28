@@ -606,7 +606,10 @@ fn an_ipv6_literal_is_bracketed_when_joined_to_a_port() {
     // different address entirely — so an IPv6 host would be dialled somewhere
     // else rather than failing loudly.
     assert_eq!(super::join_endpoint("::1", 9), "[::1]:9");
-    assert_eq!(super::join_endpoint("2001:db8::1", 60000), "[2001:db8::1]:60000");
+    assert_eq!(
+        super::join_endpoint("2001:db8::1", 60000),
+        "[2001:db8::1]:60000"
+    );
     // Already bracketed, a hostname, and IPv4 are all left alone.
     assert_eq!(super::join_endpoint("[::1]", 9), "[::1]:9");
     assert_eq!(super::join_endpoint("tower.local", 22), "tower.local:22");
@@ -620,8 +623,14 @@ fn the_unrouted_placeholder_matches_the_binds_family() {
     // under a v6 bind would refuse to start rather than simply never be used.
     let v4 = std::net::SocketAddr::from(([0, 0, 0, 0], 0));
     let v6 = std::net::SocketAddr::from(([0u16; 8], 0));
-    assert!(super::unrouted_placeholder(v4).parse::<std::net::SocketAddr>().unwrap().is_ipv4());
-    assert!(!super::unrouted_placeholder(v6).parse::<std::net::SocketAddr>().unwrap().is_ipv4());
+    assert!(super::unrouted_placeholder(v4)
+        .parse::<std::net::SocketAddr>()
+        .unwrap()
+        .is_ipv4());
+    assert!(!super::unrouted_placeholder(v6)
+        .parse::<std::net::SocketAddr>()
+        .unwrap()
+        .is_ipv4());
 }
 
 #[test]
