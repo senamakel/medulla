@@ -129,14 +129,12 @@ impl RemoteHost {
         // instead of leaving one zombie per bootstrap. Bounded, because an `ssh`
         // that has *not* exited means the far side did not detach, and the
         // session should still come up rather than hang here.
+        // Both outcomes are fine, which is why nothing is matched on: either
+        // `ssh` exited and this collected it, or the far side did not detach and
+        // it is still running — and killing it then would take the daemon with
+        // it. The wait exists to reap, not to gate.
         let mut child = started.child;
-        match tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await {
-            Ok(_) => {}
-            // Left running: the daemon is up either way, and killing the SSH
-            // session of a host that could not detach would take the daemon
-            // with it.
-            Err(_) => {}
-        }
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await;
         let bridge = Arc::new(LinkBridge::new(
             Arc::new(link),
             LinkBridgeConfig {
