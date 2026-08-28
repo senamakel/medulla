@@ -166,22 +166,22 @@ fn the_pane_title_reports_the_session_s_own_cpu_memory_and_io() {
 }
 
 #[test]
-fn a_session_that_has_exited_is_labelled_by_its_state_not_by_zeroes() {
+fn a_session_that_has_ended_names_no_process_to_sample() {
+    // What keeps a dead pane from reporting somebody else's usage. The pid a
+    // reaped child left behind is a number the kernel is free to hand to the
+    // next process that asks, so the sampler must never be pointed at one — and
+    // the title falls back to the session's state instead.
     let sessions = PtyManager::new();
-    let mut app = app_with_harnesses(sessions.clone());
     let id = idle_session(&sessions);
     wait_for("the child to start", || {
         sessions.row(&id).is_some_and(|row| row.state.is_running())
     });
+    assert!(sessions.pid(&id).is_some(), "a live session names its child");
+
     sessions.close(&id);
     wait_for("the child to go", || {
         sessions.row(&id).is_some_and(|row| !row.state.is_running())
     });
 
-    let title = title(&select_first_harness(&mut app));
-
-    // Nothing is running, so there is no usage to report — and reporting `CPU
-    // 0%` for a dead harness would read as a live session doing nothing.
-    assert!(!title.contains("CPU "), "{title}");
-    assert!(title.contains("codex"), "{title}");
+    assert_eq!(sessions.pid(&id), None);
 }
