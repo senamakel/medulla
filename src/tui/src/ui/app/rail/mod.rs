@@ -399,8 +399,15 @@ impl App {
     /// session into the task row already standing for it, which is what gives
     /// that row the grant it was missing.
     pub(super) fn own_session_rows(&self) -> Vec<SessionRow> {
+        // Remote sessions are listed whatever this device is doing, including
+        // when it hosts nothing at all: they run somewhere else, so the local
+        // host's absence says nothing about them. This is why they are collected
+        // before the early return rather than after it.
+        let remote = self.remote_session_rows();
         let Some(harnesses) = self.local_sessions.as_ref() else {
-            return Vec::new();
+            let mut rows = remote;
+            rows.sort_by_key(|row| row.started_at);
+            return rows;
         };
         let mut rows: Vec<SessionRow> = harnesses
             .sessions
@@ -427,6 +434,12 @@ impl App {
             })
             .filter(|row| row.state.is_running() || self.keeps_finished_session(row))
             .collect();
+        // Appended unfiltered: every filter above asks a question only the local
+        // pty manager can answer — who holds the session, whether a run it
+        // started is still going, whether the frame sweep retained it. A remote
+        // host has already decided what to list, and second-guessing it from
+        // here would hide sessions it is still reporting.
+        rows.extend(remote);
         rows.sort_by_key(|row| row.started_at);
         rows
     }
