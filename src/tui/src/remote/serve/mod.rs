@@ -222,6 +222,11 @@ impl RemoteServer {
     /// declines the other's bodies, so the order of these two attempts does not
     /// matter and an unrecognised body is dropped rather than guessed at.
     pub async fn handle(&mut self, from: &str, body: &str) {
+        // Recorded on every message rather than only on `Hello`: `Hello` is the
+        // handshake, but a peer that reconnects with a fresh transport and skips
+        // straight to `Subscribe` is still a peer this daemon must keep the
+        // session list current for.
+        self.peers.insert(from.to_string());
         if let Some(message) = parse_remote_message(body) {
             self.handle_remote(from, message).await;
             return;
