@@ -326,4 +326,3 @@ fn decode_rejects_non_frames() {
     )
     .is_none());
 }
-
