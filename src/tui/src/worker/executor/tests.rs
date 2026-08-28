@@ -201,6 +201,28 @@ mod children {
         }
     }
 
+    /// A spec whose child exits immediately on its own, leaving nothing to
+    /// interrupt or kill — the shape of a harness that finished naturally,
+    /// before anyone got around to processing its completion.
+    fn short_lived() -> LaunchSpec {
+        LaunchSpec {
+            provider: HarnessProvider::Codex,
+            preset: None,
+            bin: "/bin/true".to_string(),
+            cwd: "/".to_string(),
+            env: HashMap::new(),
+            extra_args: Vec::new(),
+            skip_permissions: false,
+            label: "test".to_string(),
+            session_id: None,
+            model: None,
+            control: SessionControl::Orchestrator,
+            origin: SessionOrigin::Orchestrator,
+            name: None,
+            mcp_grant_session: None,
+        }
+    }
+
     fn ticks(marker: &std::path::Path) -> usize {
         std::fs::read_to_string(marker)
             .map(|s| s.lines().count())
