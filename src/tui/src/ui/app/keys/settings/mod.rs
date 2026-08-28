@@ -1,8 +1,8 @@
 //! Keyboard handling for the Settings tab and every subpage it hosts.
 //!
 //! Settings has two levels of focus, and the split is by *mode*: the left-hand
-//! nav owns the keyboard until you step into the content pane with `Enter` (or
-//! `→`), and `Esc` steps back out. While the nav has focus `↑↓` walk the subpage
+//! nav owns the keyboard until you step into the content pane with `Enter` or
+//! `→`, and `Esc` steps back out. While the nav has focus `↑↓` walk the subpage
 //! list; once the pane has focus they browse its contents instead.
 //!
 //! An earlier design split by key rather than by mode — `↑↓` always drove the
@@ -56,6 +56,14 @@ impl App {
             }
             NavAction::Consumed => return SettingsKey::handled(None),
             NavAction::Unhandled => {}
+        }
+
+        // Nothing below this point runs while the nav holds the keyboard: the
+        // subpage bindings are the *content* pane's, and firing them from the
+        // menu is how `←`/`→` came to change a setting the operator had not
+        // stepped into yet. Structural keys fall through to the global ones.
+        if !self.settings_focused {
+            return SettingsKey::Unhandled;
         }
 
         // Content focus: arrows browse, everything else is the subpage's binding.
