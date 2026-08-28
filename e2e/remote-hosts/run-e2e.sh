@@ -159,7 +159,10 @@ else
   fail=$((fail + 1))
 fi
 #     And no ssh client is left behind on this side.
-left=$(pgrep -c -f "ssh .*root@host" 2>/dev/null || echo 0)
+# `pgrep -c` prints its count *and* exits nonzero when that count is zero, so a
+# `|| echo 0` fallback appends a second line and the comparison breaks.
+left=$(pgrep -c -f "ssh .*root@host" 2>/dev/null)
+left=${left:-0}
 if [ "$left" -eq 0 ]; then
   echo "  PASS  no orphaned ssh process is left behind per bootstrap"
   pass=$((pass + 1))
