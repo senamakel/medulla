@@ -108,6 +108,8 @@ impl RemoteServer {
             bridge,
             subscriptions: Subscriptions::default(),
             capabilities,
+            peers: HashSet::new(),
+            last_rows: Vec::new(),
             log: None,
         }
     }
