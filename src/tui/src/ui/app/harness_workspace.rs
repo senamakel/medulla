@@ -526,10 +526,10 @@ impl App {
         let capabilities = self.remote_host(&host.id).map(|state| &state.capabilities);
         let mut seen: Vec<String> = Vec::new();
         let mut out: Vec<WorkspaceChoice> = Vec::new();
-        let mut push = |path: &str,
-                        source: &'static str,
-                        seen: &mut Vec<String>,
-                        out: &mut Vec<WorkspaceChoice>| {
+        let push = |path: &str,
+                    source: &'static str,
+                    seen: &mut Vec<String>,
+                    out: &mut Vec<WorkspaceChoice>| {
             let path = path.trim();
             if path.is_empty() || seen.iter().any(|kept| kept == path) {
                 return;
