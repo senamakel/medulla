@@ -124,6 +124,19 @@ impl RemoteHost {
             pair_key: started.connect.pair_key.clone(),
         }];
         let link = Link::connect(config).await.map_err(|e| e.to_string())?;
+        // Reaped rather than held. The daemon has detached and closed its stdio,
+        // so `ssh` has already finished or is about to — waiting collects it
+        // instead of leaving one zombie per bootstrap. Bounded, because an `ssh`
+        // that has *not* exited means the far side did not detach, and the
+        // session should still come up rather than hang here.
+        let mut child = started.child;
+        match tokio::time::timeout(std::time::Duration::from_secs(5), child.wait()).await {
+            Ok(_) => {}
+            // Left running: the daemon is up either way, and killing the SSH
+            // session of a host that could not detach would take the daemon
+            // with it.
+            Err(_) => {}
+        }
         let bridge = Arc::new(LinkBridge::new(
             Arc::new(link),
             LinkBridgeConfig {
@@ -140,7 +153,7 @@ impl RemoteHost {
             capabilities: RemoteCapabilities::default(),
             rows: Vec::new(),
             watching: None,
-            _ssh: Some(started.child),
+            _ssh: None,
         })
     }
 

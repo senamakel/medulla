@@ -175,9 +175,11 @@ pub struct Bootstrapped {
     pub connect: ConnectLine,
     /// `host:port` for the direct link.
     pub endpoint: String,
-    /// The `ssh` process. Held so the caller decides when the session ends;
-    /// dropping it does not stop the remote daemon, which is the point — the
-    /// session outlives the bootstrap.
+    /// The `ssh` process, for the caller to reap.
+    ///
+    /// It exits on its own now: the daemon closes its stdio when it detaches, so
+    /// `ssh` sees EOF and returns. Held rather than detached so the caller can
+    /// wait for it and not leave one behind per bootstrap.
     pub child: tokio::process::Child,
 }
 

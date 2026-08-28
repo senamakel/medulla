@@ -200,8 +200,10 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     // Reported and continued on failure — a daemon tied to its SSH session still
     // serves, and refusing to start would be strictly worse.
     if let Err(error) = super::detach_from_ssh() {
-        eprintln!("remote: could not detach from the SSH session ({error}); \
-                   sessions will end when it does");
+        eprintln!(
+            "remote: could not detach from the SSH session ({error}); \
+                   sessions will end when it does"
+        );
     }
 
     let mut server = RemoteServer::new(sessions, bridge, host_name).with_workspaces(workspaces);
