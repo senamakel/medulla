@@ -365,6 +365,15 @@ impl Session {
         }
         self.peer_epoch = Some(header.epoch);
 
+        // Recorded here rather than at decode: a datagram from a retired epoch
+        // returns above without reaching this line, so a straggler from a
+        // previous incarnation of the peer cannot advance the watermark and
+        // cannot move a direct link's address.
+        self.peer_seq_advanced = self.highest_peer_seq.is_none_or(|seen| header.seq > seen);
+        if self.peer_seq_advanced {
+            self.highest_peer_seq = Some(header.seq);
+        }
+
         self.last_heard_ms = Some(now_ms);
         self.peer_timestamp = Some((packet.send_ts, now_ms));
         if packet.reply_ts != 0 {
