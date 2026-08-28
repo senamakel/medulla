@@ -37,7 +37,7 @@ impl App {
         // sessions that are still running, and applying it to a settled task
         // would pin the exited row the same way the old refusal did.
         if !running {
-            self.set_status("That session has already exited");
+            self.dismiss_exited_session(&session);
             return;
         }
         if let SessionRef::Local(id) = SessionRef::parse(&session) {
@@ -60,7 +60,6 @@ impl App {
     /// [`remote_session_rows`](App::remote_session_rows) is rebuilt from what
     /// each host reports, so forgetting a remote row here would restore it on
     /// the next update — the host's own sweep is what retires it.
-    #[allow(dead_code)]
     fn dismiss_exited_session(&mut self, session: &str) {
         match SessionRef::parse(session) {
             SessionRef::Local(id) => {
