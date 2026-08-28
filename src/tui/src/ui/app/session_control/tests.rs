@@ -14,7 +14,12 @@ use medulla::runtime::Runtime;
 
 use super::super::types::{App, SessionPickerStep};
 
-/// An app with `hosts` configured as remote machines.
+/// An app with `hosts` configured as remote machines, and a device that hosts.
+///
+/// `set_local_sessions` is not optional scaffolding: without it
+/// `start_session_command` bails with "this device is not hosting" and the
+/// picker never opens, so every assertion about it would pass by never running.
+/// A shell is offered, which is enough for the picker to have a row.
 fn app_with_remote_hosts(hosts: &[&str]) -> App {
     let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
@@ -27,7 +32,58 @@ fn app_with_remote_hosts(hosts: &[&str]) -> App {
             ..RemoteHostSection::default()
         })
         .collect();
-    App::new(rt, loaded)
+    let mut app = App::new(rt, loaded);
+    app.set_local_sessions(local_sessions());
+    app
+}
+
+/// A `LocalSessions` offering `/bin/sh` and nothing else.
+fn local_sessions() -> crate::ui::harness_pane::LocalSessions {
+    use std::collections::HashMap;
+    let config = medulla::daemon::DaemonConfig {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        providers: Vec::new(),
+        default_provider: medulla::protocol::HarnessProvider::Shell,
+        workspace: "/tmp".to_string(),
+        accessible_dirs: Vec::new(),
+        env: HashMap::new(),
+        task_timeout_ms: 1_000,
+        capability_timeout_ms: None,
+        concurrency: 1,
+        status_throttle_ms: 1_000,
+        max_pending: 1,
+        model: None,
+        agent: None,
+        extra_args: Vec::new(),
+        skip_permissions: false,
+        router: None,
+        custom_harnesses: Vec::new(),
+        budget: None,
+        attribution: true,
+    };
+    let run_task: medulla::daemon::providers::RunTaskFn =
+        Arc::new(|_| Box::pin(async { Err("unused".to_string()) }));
+    let send: medulla::daemon::SendFn = Arc::new(|_, _| Box::pin(async {}));
+    let mut env: HashMap<String, String> = HashMap::new();
+    if let Ok(path) = std::env::var("PATH") {
+        env.insert("PATH".to_string(), path);
+    }
+    env.insert("MEDULLA_SHELL_BIN".to_string(), "/bin/sh".to_string());
+    crate::ui::harness_pane::LocalSessions {
+        hooks: medulla::harness_hooks::HooksConfig::default(),
+        log: None,
+        sessions: crate::worker::pty::PtyManager::new(),
+        runtimes: Arc::new(std::sync::Mutex::new(vec![
+            medulla::daemon::DaemonRuntime::new(config, run_task, send),
+        ])),
+        hub_address: "medulla-orchestrator".to_string(),
+        env,
+        workspace: "/tmp".to_string(),
+        providers: Vec::new(),
+        custom_harnesses: Vec::new(),
+        router: None,
+        attribution: true,
+    }
 }
 
 fn key(code: KeyCode) -> KeyEvent {
@@ -78,11 +134,7 @@ fn escape_on_the_harness_step_cancels_when_there_is_one_host() {
     // over: with nothing behind the harness step, Escape still means cancel.
     let mut app = app_with_remote_hosts(&[]);
     app.open_session_picker();
-    if app.session_picker.is_none() {
-        // No harness CLI on this machine, so the picker never opened. The
-        // behaviour under test needs a picker; nothing here is worth faking.
-        return;
-    }
+    assert!(app.session_picker.is_some(), "the picker must open");
     assert_eq!(
         app.session_picker.as_ref().map(|p| p.step),
         Some(SessionPickerStep::Harness),
@@ -96,9 +148,10 @@ fn escape_on_the_harness_step_cancels_when_there_is_one_host() {
 fn escape_on_the_harness_step_goes_back_when_a_host_step_ran() {
     let mut app = app_with_remote_hosts(&["tower.local"]);
     app.open_session_picker();
-    let Some(picker) = app.session_picker.as_ref() else {
-        return;
-    };
+    let picker = app
+        .session_picker
+        .as_ref()
+        .expect("the picker must open");
     assert_eq!(
         picker.step,
         SessionPickerStep::Host,
@@ -106,9 +159,11 @@ fn escape_on_the_harness_step_goes_back_when_a_host_step_ran() {
     );
     // Walk forward onto the harness step, then back.
     app.handle_session_picker_key(key(KeyCode::Enter));
-    if app.session_picker.as_ref().map(|p| p.step) != Some(SessionPickerStep::Harness) {
-        return;
-    }
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.step),
+        Some(SessionPickerStep::Harness),
+        "choosing this device should reach the harness step"
+    );
     app.handle_session_picker_key(key(KeyCode::Esc));
     assert_eq!(
         app.session_picker.as_ref().map(|p| p.step),
@@ -121,9 +176,10 @@ fn escape_on_the_harness_step_goes_back_when_a_host_step_ran() {
 fn the_host_step_moves_with_the_arrows_and_cancels_on_escape() {
     let mut app = app_with_remote_hosts(&["a.local", "b.local"]);
     app.open_session_picker();
-    let Some(picker) = app.session_picker.as_ref() else {
-        return;
-    };
+    let picker = app
+        .session_picker
+        .as_ref()
+        .expect("the picker must open");
     assert_eq!(picker.step, SessionPickerStep::Host);
     assert_eq!(picker.host_index, 0);
 
@@ -150,9 +206,7 @@ fn choosing_a_disconnected_remote_host_dials_it_rather_than_guessing() {
     // picker's promise that everything it shows can start.
     let mut app = app_with_remote_hosts(&["tower.local"]);
     app.open_session_picker();
-    if app.session_picker.is_none() {
-        return;
-    }
+    assert!(app.session_picker.is_some(), "the picker must open");
     app.handle_session_picker_key(key(KeyCode::Down));
     app.handle_session_picker_key(key(KeyCode::Enter));
 
@@ -176,9 +230,7 @@ fn a_connected_host_advances_the_picker_it_left_waiting() {
     // so making them press it again would ask for a decision already made.
     let mut app = app_with_remote_hosts(&["tower.local"]);
     app.open_session_picker();
-    if app.session_picker.is_none() {
-        return;
-    }
+    assert!(app.session_picker.is_some(), "the picker must open");
     app.handle_session_picker_key(key(KeyCode::Down));
     app.handle_session_picker_key(key(KeyCode::Enter));
     let _ = app.take_queued_cmd();
@@ -218,9 +270,7 @@ fn a_host_that_answered_for_a_different_row_does_not_move_the_picker() {
     // than leaving it where they put it.
     let mut app = app_with_remote_hosts(&["a.local", "b.local"]);
     app.open_session_picker();
-    if app.session_picker.is_none() {
-        return;
-    }
+    assert!(app.session_picker.is_some(), "the picker must open");
     app.handle_session_picker_key(key(KeyCode::Down));
     app.resume_picker_host("b-local");
     assert_eq!(
