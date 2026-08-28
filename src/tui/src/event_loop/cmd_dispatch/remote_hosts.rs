@@ -47,7 +47,7 @@ pub(super) fn spawn_connect(
         let state_dir = home.join("remote").join("clients").join(&host_id);
         let workspace = section.workspace.clone();
 
-        let mut host = match crate::remote::client::RemoteHost::connect(
+        let mut host = match medulla_tui::remote::client::RemoteHost::connect(
             &host_id, &section, &state_dir, &workspace,
         )
         .await

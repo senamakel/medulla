@@ -113,7 +113,7 @@ impl App {
     }
 
     /// Fold in what a host answered with.
-    pub(in crate::ui::app) fn remote_host_connected(
+    pub fn remote_host_connected(
         &mut self,
         host_id: &str,
         capabilities: RemoteCapabilities,
@@ -124,13 +124,13 @@ impl App {
     }
 
     /// Record that a host could not be reached, and why.
-    pub(in crate::ui::app) fn remote_host_failed(&mut self, host_id: &str, reason: String) {
+    pub fn remote_host_failed(&mut self, host_id: &str, reason: String) {
         self.remote_hosts.entry(host_id.to_string()).or_default().status =
             RemoteHostStatus::Failed(reason);
     }
 
     /// Replace a host's session list.
-    pub(in crate::ui::app) fn remote_host_sessions(
+    pub fn remote_host_sessions(
         &mut self,
         host_id: &str,
         rows: Vec<RemoteSessionRow>,

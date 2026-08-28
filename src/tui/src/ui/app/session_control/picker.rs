@@ -107,6 +107,30 @@ impl App {
         picker.hosts.get(picker.host_index)
     }
 
+    /// Advance the picker now that `host_id` has answered.
+    ///
+    /// Called when a connection completes. The operator pressed Enter on this
+    /// host and has been waiting on exactly this answer, so the picker moves
+    /// itself along — making them press Enter a second time would be asking for
+    /// a decision they already made.
+    ///
+    /// Does nothing unless the picker is still open, still on the host step, and
+    /// still pointed at the host that answered: any of those changing means the
+    /// operator has moved on, and moving the picker under them would be worse
+    /// than leaving it.
+    pub fn resume_picker_host(&mut self, host_id: &str) {
+        let still_waiting = self.session_picker.as_ref().is_some_and(|picker| {
+            picker.step == SessionPickerStep::Host
+                && picker
+                    .hosts
+                    .get(picker.host_index)
+                    .is_some_and(|host| host.id == host_id)
+        });
+        if still_waiting {
+            self.confirm_picker_host();
+        }
+    }
+
     /// Route a key while the host step owns the keyboard.
     fn handle_picker_host_key(&mut self, event: KeyEvent) {
         match event.code {
