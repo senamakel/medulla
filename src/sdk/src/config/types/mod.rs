@@ -73,6 +73,7 @@ mod mcp;
 mod mcp_tests;
 mod orchestration;
 mod presentation;
+mod remote_hosts;
 mod status_line;
 #[cfg(test)]
 mod tests;
@@ -83,4 +84,5 @@ pub use fleet::*;
 pub use mcp::*;
 pub use orchestration::*;
 pub use presentation::*;
+pub use remote_hosts::*;
 pub use status_line::*;
