@@ -358,6 +358,11 @@ impl App {
         self.remote_choices(host_id)
     }
 
+    /// [`attach_to_session`](crate::ui::app::App::attach_to_session) for tests.
+    pub(in crate::ui::app) fn attach_to_session_for_test(&mut self, id: &str) {
+        self.attach_to_session(id);
+    }
+
     /// [`session_write`](Self::session_write) for tests.
     pub(in crate::ui::app) fn session_write_for_test(
         &mut self,

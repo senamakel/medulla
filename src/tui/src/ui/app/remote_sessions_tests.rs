@@ -282,3 +282,28 @@ fn a_remote_harness_keeps_the_name_and_id_its_host_gave_it() {
         "the id sent back must be the one the host offered"
     );
 }
+
+#[test]
+fn a_running_remote_session_can_be_attached_to() {
+    // `is_running` asked only the local pty manager, which has never heard of a
+    // remote session — so attaching to one reported "that session has exited"
+    // and silently did nothing, while the session ran perfectly well.
+    let mut app = app_with_host(vec![remote_row("w_1")]);
+    app.attach_to_session_for_test("tower/w_1");
+    assert_eq!(
+        app.attached_session(),
+        Some("tower/w_1"),
+        "a running remote session must be typeable: {}",
+        app.status()
+    );
+}
+
+#[test]
+fn an_exited_remote_session_cannot_be_attached_to() {
+    let mut exited = remote_row("w_1");
+    exited.state = RemoteSessionState::Exited { code: Some(0) };
+    let mut app = app_with_host(vec![exited]);
+    app.attach_to_session_for_test("tower/w_1");
+    assert_eq!(app.attached_session(), None);
+    assert!(app.status().contains("exited"), "got: {}", app.status());
+}
