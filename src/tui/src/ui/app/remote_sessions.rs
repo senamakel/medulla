@@ -350,6 +350,14 @@ impl App {
         self.session_screen(id)
     }
 
+    /// [`remote_choices`](crate::ui::app::App::remote_choices) for tests.
+    pub(in crate::ui::app) fn remote_choices_for_test(
+        &self,
+        host_id: &str,
+    ) -> Vec<crate::ui::harness_pane::HarnessChoice> {
+        self.remote_choices(host_id)
+    }
+
     /// [`session_write`](Self::session_write) for tests.
     pub(in crate::ui::app) fn session_write_for_test(
         &mut self,

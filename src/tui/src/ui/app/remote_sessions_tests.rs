@@ -231,3 +231,54 @@ fn blank_snapshot() -> crate::worker::pty::ScreenSnapshot {
         hide_cursor: false,
     }
 }
+
+#[test]
+fn a_remote_harness_keeps_the_name_and_id_its_host_gave_it() {
+    // Two shells on the far side are two different rows there, and must be two
+    // different rows here. Deriving the label from the provider instead collapsed
+    // both to "Shell", and sent back an id the host could not resolve — which is
+    // how a picker ends up offering the same thing twice and starting neither.
+    let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
+        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.remote_hosts = vec![medulla::config::RemoteHostSection {
+        id: "tower".to_string(),
+        host: "tower.local".to_string(),
+        enabled: true,
+        ..medulla::config::RemoteHostSection::default()
+    }];
+    let mut app = crate::ui::app::App::new(rt, loaded);
+    app.remote_host_connected(
+        "tower",
+        medulla::protocol::RemoteCapabilities {
+            version: "0.12.0".to_string(),
+            harnesses: vec![
+                medulla::protocol::RemoteHarnessChoice {
+                    id: "bash".to_string(),
+                    provider: "shell".to_string(),
+                    preset: None,
+                    display_name: "bash".to_string(),
+                },
+                medulla::protocol::RemoteHarnessChoice {
+                    id: "sh".to_string(),
+                    provider: "shell".to_string(),
+                    preset: None,
+                    display_name: "sh".to_string(),
+                },
+            ],
+            workspace: "/work".to_string(),
+            workspaces: Vec::new(),
+            host_name: "tower".to_string(),
+        },
+    );
+
+    let choices = app.remote_choices_for_test("tower");
+    let labels: Vec<&str> = choices.iter().map(|c| c.display_name()).collect();
+    assert_eq!(labels, ["bash", "sh"], "each shell keeps its own name");
+    let ids: Vec<&str> = choices.iter().map(|c| c.id()).collect();
+    assert_eq!(
+        ids,
+        ["bash", "sh"],
+        "the id sent back must be the one the host offered"
+    );
+}
