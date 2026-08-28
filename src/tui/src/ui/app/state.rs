@@ -88,6 +88,7 @@ impl App {
             status_line_split: false,
             resource_monitor: Default::default(),
             device_monitor: Default::default(),
+            session_monitor: Default::default(),
             status_line_index: 0,
             status_line_promotion_pending,
             config_index: 0,
