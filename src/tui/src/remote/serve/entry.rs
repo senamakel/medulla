@@ -25,7 +25,7 @@ use medulla_link::keys::NodeId;
 use medulla_link::{Link, LinkConfig, LinkPath, PeerConfig};
 
 use super::{
-    bind_address, client_dir, enroll_client, link_dir, running_instance, write_instance,
+    bind_address, client_dir, control, enroll_client, link_dir, running_instance, write_instance,
     ConnectLine, Instance, RemoteServer,
 };
 use crate::ui::harness_pane::LocalSessions;
@@ -57,6 +57,15 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
 
     let env: HashMap<String, String> = std::env::vars().collect();
     let home = medulla::home::medulla_home(&env);
+    // The far side's own config, not the client's. A remote host's `[router]`,
+    // `[[hooks]]`, `[attribution]` and `[[customHarnesses]]` describe *that*
+    // machine — its API keys, its hook commands, its presets — and shipping the
+    // client's over would be both wrong and a way to make one machine run
+    // another's commands.
+    let explicit_config = flag(args, "--config");
+    if let Some(path) = explicit_config.as_deref() {
+        std::env::set_var(medulla::config::CONFIG_PATH_ENV, path);
+    }
     let cwd = std::env::current_dir()
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_else(|_| ".".to_string());
@@ -71,6 +80,12 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
                 .unwrap_or(dir)
         })
         .unwrap_or(cwd);
+
+    let loaded = medulla::config::load_config(
+        explicit_config.as_deref(),
+        &env,
+        std::path::Path::new(&cwd),
+    )?;
 
     let dir = link_dir(&client_dir(&home, peer));
     let (node_id, pair_key) = match enroll_client(&dir, peer) {
@@ -121,7 +136,14 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         },
     ));
 
-    let sessions = local_sessions(&env, &workspace);
+    // Bound before the first session can be opened: `attach_mcp` reads the
+    // process-wide plane at launch, so a session started before this exists
+    // would silently get no tools and nothing later would give it any. Held for
+    // the life of the daemon — dropping it unbinds the socket and makes every
+    // grant minted against it unredeemable.
+    let _control = control::start(&env, &loaded.config, |line| eprintln!("{line}")).await;
+
+    let sessions = local_sessions(&env, &loaded.config, &workspace);
     let host_name = flag(args, "--host-name")
         .unwrap_or_else(|| hostname_of(&env).unwrap_or_else(|| "remote host".to_string()));
     let workspaces = flag(args, "--workspaces")
