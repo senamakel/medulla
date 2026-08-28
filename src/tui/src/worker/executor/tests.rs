@@ -376,8 +376,9 @@ mod children {
         wait_for("the child to start writing", || ticks(&marker) > 0);
 
         assert!(sessions.set_control(&id, SessionControl::User));
-        assert!(
-            !sessions.close_if_orchestrator(&id),
+        assert_eq!(
+            sessions.close_if_orchestrator(&id),
+            CloseAttempt::UserOwned,
             "must refuse to close a session the operator holds"
         );
 
@@ -401,8 +402,9 @@ mod children {
         let id = sessions.open(ticker(&marker)).expect("a live child");
         wait_for("the child to start writing", || ticks(&marker) > 0);
 
-        assert!(
+        assert_eq!(
             sessions.close_if_orchestrator(&id),
+            CloseAttempt::Closed,
             "must close a session nobody has taken"
         );
 
