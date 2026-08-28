@@ -32,3 +32,13 @@ fn a_workflow_node_and_a_capability_probe_have_nobody_in_the_loop() {
     assert!(!RunTaskOrigin::Workflow.has_operator_in_the_loop());
     assert!(!RunTaskOrigin::CapabilityProbe.has_operator_in_the_loop());
 }
+
+#[test]
+fn a_detached_evolution_review_has_nobody_in_the_loop_either() {
+    // Spawned after a workflow run fails, restricted to proposal tools like an
+    // ordinary `DelegatedTask` — but detached: nobody awaits it, and what it
+    // produces lands in the evolution store for an operator to find later, not
+    // in front of one now. Conflating the two would retain its session forever,
+    // the same leak `Workflow` and `CapabilityProbe` were narrowed to close.
+    assert!(!RunTaskOrigin::UnattendedReview.has_operator_in_the_loop());
+}
