@@ -298,10 +298,12 @@ mod children {
 
     /// Same finished, operator-less turn as above, except the operator adopts
     /// the session first. `finish_turn` snapshots `control()` well before its
-    /// non-retention branch calls `close_if_orchestrator`, so this pins that
-    /// the two are still effectively atomic: an adoption that lands anywhere up
-    /// to the close must win, not lose the race silently and have its new
-    /// session killed out from under it.
+    /// non-retention branch would call `close_if_orchestrator`, so with control
+    /// already `User` at that snapshot the close is never attempted at all —
+    /// this exercises the same `settle_or_hand_back` cleanup the close-loses
+    /// path (below) shares, deterministically: `busy` clears so a later
+    /// `try_claim` can reuse the session after handback, and its mapper state
+    /// is left alone rather than torn down for a close that never happened.
     #[test]
     fn an_operator_who_adopts_first_keeps_the_session_alive_through_finish_turn() {
         let dir = tempfile::tempdir().expect("a scratch directory");
@@ -312,12 +314,13 @@ mod children {
 
         assert!(sessions.set_control(&id, SessionControl::User));
 
-        executor(sessions.clone()).finish_turn(
-            &id,
-            SessionClass::Bounded,
-            true,
-            RunTaskOrigin::Workflow,
-        );
+        let exec = executor(sessions.clone());
+        exec.workspace_context
+            .lock()
+            .expect("workspace context lock poisoned")
+            .insert(id.clone(), (Some("cwd".to_string()), None, None));
+
+        exec.finish_turn(&id, SessionClass::Bounded, true, RunTaskOrigin::Workflow);
 
         let row = sessions
             .row(&id)
@@ -328,6 +331,18 @@ mod children {
             "adoption, not retention — it is the operator's session on its own \
              terms, not a leftover flagged for read-and-release"
         );
+        assert!(
+            !row.busy,
+            "must not be left permanently busy — that strands it from every \
+             future claim, the exact leak this PR exists to close"
+        );
+        assert!(
+            exec.workspace_context
+                .lock()
+                .expect("workspace context lock poisoned")
+                .contains_key(&id),
+            "mapper state must survive a close that was never attempted"
+        );
 
         let before = ticks(&marker);
         std::thread::sleep(Duration::from_millis(300));
@@ -336,116 +351,105 @@ mod children {
             "its child is genuinely still alive, not merely un-drawn"
         );
 
+        // Hand back and confirm the session is genuinely reusable, not stuck
+        // behind a busy flag nothing ever cleared.
+        sessions.set_control(&id, SessionControl::Orchestrator);
+        assert!(
+            sessions.claim_idle("test", HarnessProvider::Codex).is_some(),
+            "a handed-back session must be claimable"
+        );
+        sessions.release(&id);
         sessions.close(&id);
     }
 
-    /// The interleaving codex flagged: an operator's takeover lands in the gap
-    /// between `finish_turn`'s `control()` snapshot and its `close_if_orchestrator`
-    /// call, so the close correctly refuses (this is `close_if_orchestrator`'s own
-    /// atomicity, already pinned above) — but `finish_turn` must not then just
-    /// drop that `false` on the floor. The session it leaves behind is the
-    /// operator's, running, and needs exactly the completion cleanup the
-    /// already-adopted case gets: `busy` cleared so a later `try_claim` can reuse
-    /// it after handback, and its mapper state left alone rather than torn down
-    /// for a close that never actually happened.
-    ///
-    /// Genuinely racy — `close_if_orchestrator` and `set_control` are serialized
-    /// on the same lock, so whichever call reaches it first wins — so this drives
-    /// real concurrent threads released together off a barrier, repeats until the
-    /// takeover is observed winning at least once, and asserts the invariant on
-    /// every trial rather than depending on one timing-sensitive assertion: the
-    /// session must never end up alive yet permanently `busy`.
+    /// `close_if_orchestrator`'s own ownership recheck, pinned directly and
+    /// deterministically rather than via a live race: a session the operator
+    /// already holds refuses the close and stays alive.
     #[test]
-    fn a_takeover_racing_the_close_never_leaves_the_session_stuck_busy() {
-        use std::sync::Barrier;
-
+    fn close_if_orchestrator_refuses_a_session_the_operator_already_holds() {
         let dir = tempfile::tempdir().expect("a scratch directory");
-        let mut takeover_observed = false;
+        let marker = dir.path().join("ticks");
+        let sessions = PtyManager::new();
+        let id = sessions.open(ticker(&marker)).expect("a live child");
+        wait_for("the child to start writing", || ticks(&marker) > 0);
 
-        for attempt in 0..30 {
-            let marker = dir.path().join(format!("ticks-{attempt}"));
-            let sessions = PtyManager::new();
-            let id = sessions.open(ticker(&marker)).expect("a live child");
-            wait_for("the child to start writing", || ticks(&marker) > 0);
+        assert!(sessions.set_control(&id, SessionControl::User));
+        assert!(
+            !sessions.close_if_orchestrator(&id),
+            "must refuse to close a session the operator holds"
+        );
 
-            let exec = executor(sessions.clone());
+        let before = ticks(&marker);
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(
+            ticks(&marker) > before,
+            "the child must still be genuinely alive, not merely un-drawn"
+        );
+
+        sessions.close(&id);
+    }
+
+    /// The other half of the same recheck: a session still orchestrator-owned
+    /// closes exactly as a plain `close` would.
+    #[test]
+    fn close_if_orchestrator_closes_a_session_still_orchestrator_owned() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let marker = dir.path().join("ticks");
+        let sessions = PtyManager::new();
+        let id = sessions.open(ticker(&marker)).expect("a live child");
+        wait_for("the child to start writing", || ticks(&marker) > 0);
+
+        assert!(
+            sessions.close_if_orchestrator(&id),
+            "must close a session nobody has taken"
+        );
+
+        wait_for("the session to stop running", || {
+            sessions.row(&id).is_some_and(|row| !row.state.is_running())
+        });
+        let before = ticks(&marker);
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(
+            ticks(&marker),
+            before,
+            "the harness process must actually be dead"
+        );
+    }
+
+    /// The other bug this PR's own race fix surfaced: a retained session's
+    /// mapper state must survive `finish_turn` unconditionally. It used to —
+    /// removal was gated on `!retain`. A refactor briefly added a second,
+    /// independent `retains_workspace_context` check inside the `retain`
+    /// branch, which tore the context down for every retained session anyway,
+    /// because that function answers a different question (does an
+    /// *unretained* session still have a running reader) that a `Bounded`,
+    /// not-yet-`User` retained session never satisfies.
+    #[test]
+    fn a_retained_sessions_mapper_context_survives_finish_turn() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let marker = dir.path().join("ticks");
+        let sessions = PtyManager::new();
+        let id = sessions.open(ticker(&marker)).expect("a live child");
+        wait_for("the child to start writing", || ticks(&marker) > 0);
+
+        let exec = executor(sessions.clone());
+        exec.workspace_context
+            .lock()
+            .expect("workspace context lock poisoned")
+            .insert(id.clone(), (Some("cwd".to_string()), None, None));
+
+        exec.finish_turn(&id, SessionClass::Bounded, true, RunTaskOrigin::DelegatedTask);
+
+        let row = sessions.row(&id).expect("a retained session is still listed");
+        assert!(row.retained, "the turn's origin has an operator in the loop");
+        assert!(
             exec.workspace_context
                 .lock()
                 .expect("workspace context lock poisoned")
-                .insert(id.clone(), (Some("cwd".to_string()), None, None));
-
-            let barrier = std::sync::Arc::new(Barrier::new(2));
-            let takeover_sessions = sessions.clone();
-            let takeover_id = id.clone();
-            let takeover_barrier = barrier.clone();
-            let takeover = std::thread::spawn(move || {
-                takeover_barrier.wait();
-                takeover_sessions.set_control(&takeover_id, SessionControl::User)
-            });
-
-            barrier.wait();
-            exec.finish_turn(&id, SessionClass::Bounded, true, RunTaskOrigin::Workflow);
-
-            let _ = takeover.join().expect("the takeover thread must not panic");
-
-            // Whether the takeover or the close won is not observable from
-            // `row.state.is_running()` alone right after `finish_turn` returns —
-            // a winning close's `kill()` has been issued but the reader thread
-            // that flips the row to not-running has not necessarily caught up
-            // yet, and a `None` row is never actually produced by this path
-            // (nothing here calls `forget`). The child process itself is the
-            // ground truth, exactly as the other tests in this module use it: a
-            // killed child stops appending to its marker file almost
-            // immediately, and a merely un-drawn one does not.
-            let before = ticks(&marker);
-            std::thread::sleep(Duration::from_millis(150));
-            let still_alive = ticks(&marker) > before;
-
-            if still_alive {
-                // The takeover won: this is the interleaving under test.
-                takeover_observed = true;
-                let row = sessions
-                    .row(&id)
-                    .expect("an operator-held, still-running session must still be listed");
-                assert!(row.state.is_running(), "the harness is still alive");
-                assert_eq!(
-                    sessions.control(&id),
-                    Some(SessionControl::User),
-                    "a session still running after finish_turn is the operator's"
-                );
-                assert!(
-                    !row.busy,
-                    "must not be left permanently busy: that strands it from every \
-                     future claim, the exact leak this PR exists to close"
-                );
-                assert!(
-                    exec.workspace_context
-                        .lock()
-                        .expect("workspace context lock poisoned")
-                        .contains_key(&id),
-                    "mapper state must survive a close that never happened"
-                );
-
-                // Hand back and confirm the session is genuinely reusable.
-                sessions.set_control(&id, SessionControl::Orchestrator);
-                assert!(
-                    sessions
-                        .claim_idle("test", HarnessProvider::Codex)
-                        .is_some(),
-                    "a handed-back session must be claimable, not stuck behind a \
-                     busy flag nothing ever cleared"
-                );
-                sessions.release(&id);
-                sessions.close(&id);
-            }
-            // Otherwise the close won the race outright: nothing left to check
-            // for this trial, exactly like the plain unattended-close test.
-        }
-
-        assert!(
-            takeover_observed,
-            "the race never landed on the takeover side across {} trials —              widen the trial count or the synchronization before trusting this test",
-            30
+                .contains_key(&id),
+            "a retained session's mapper state must survive finish_turn"
         );
+
+        sessions.close(&id);
     }
 }
