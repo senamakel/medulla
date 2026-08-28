@@ -1,15 +1,19 @@
 //! Unit tests for [`RunTaskOrigin::has_operator_in_the_loop`].
 //!
-//! In its own file rather than in `tests.rs`, which is already over this
-//! repository's 500-line ceiling and covers a different surface (detection,
-//! argv, the run helpers).
+//! `types.rs` is a single-file leaf module, so its tests live in this sibling
+//! `types_tests.rs` per this repository's test-layout convention, declared
+//! from `types.rs` itself rather than from the directory's `mod.rs` — the
+//! same pattern `local/router.rs` uses for `router_tests.rs`. Kept out of the
+//! directory-level `tests.rs`, which is already over this repository's
+//! 500-line ceiling and covers a different surface (detection, argv, the run
+//! helpers).
 //!
 //! The answer decides whether a surface holds a finished harness session open
 //! for somebody to read — see the worker executor's `retains_finished_session`.
 //! Getting it wrong in one direction strands a live process nobody will ever
 //! look at; in the other it destroys the pane an operator went looking for.
 
-use super::types::RunTaskOrigin;
+use super::RunTaskOrigin;
 
 #[test]
 fn work_somebody_asked_for_has_an_operator_in_the_loop() {
