@@ -191,7 +191,11 @@ impl App {
                     return;
                 }
                 state.pane_size = Some((cols, rows));
-                state.request(crate::remote::client::RemoteRequest::Resize { cols, rows });
+                // Dropped deliberately: this runs on the render pass, where a
+                // disconnected host is already visible on its rail row and there
+                // is nothing a failed resize would add. The size is recorded
+                // either way, so a reconnect sends the current geometry.
+                let _ = state.request(crate::remote::client::RemoteRequest::Resize { cols, rows });
             }
         }
     }
@@ -245,6 +249,30 @@ impl App {
         // stopped watching, and drawing it under the new session's title would be
         // a lie the operator has no way to notice.
         state.screen = None;
-        state.request(crate::remote::client::RemoteRequest::Watch(session));
+        // Also dropped on the render pass, and for the same reason. The
+        // subscription is re-sent on the next frame that draws this pane, so a
+        // host that comes back starts streaming without another gesture.
+        let _ = state.request(crate::remote::client::RemoteRequest::Watch(session));
+    }
+}
+
+impl App {
+    /// The row for `id`, wherever the session runs.
+    ///
+    /// The pane's title, the close confirmation and the attention cue all read
+    /// this, so routing it here is what keeps them working on a remote session
+    /// without any of them learning a second vocabulary.
+    pub(in crate::ui::app) fn session_row(&self, id: &str) -> Option<SessionRow> {
+        match SessionRef::parse(id) {
+            SessionRef::Local(id) => self.local_sessions.as_ref()?.sessions.row(id),
+            SessionRef::Remote { host, session } => {
+                let state = self.remote_hosts.get(host)?;
+                state
+                    .rows
+                    .iter()
+                    .find(|row| row.id == session)
+                    .map(|row| session_row(host, row))
+            }
+        }
     }
 }

@@ -123,10 +123,7 @@ impl App {
     /// this pane — and because an embedded terminal with no visible way out is
     /// the reason people avoid them.
     fn harness_title(&self, session_id: &str, attached: bool) -> String {
-        let row = self
-            .local_sessions
-            .as_ref()
-            .and_then(|harnesses| harnesses.sessions.row(session_id));
+        let row = self.session_row(session_id);
         // What it is waiting for, before what it is: an operator who opened this
         // pane because a row was blinking should not have to read the screen to
         // find out why. Dropped once attached — they are in it now, and the
