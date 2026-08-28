@@ -74,6 +74,7 @@ pub(super) fn spawn_connect(
                     host_id,
                     session_id,
                 },
+                RemoteUpdate::OpenFailed(reason) => AppMsg::RemoteOpenFailed { host_id, reason },
                 RemoteUpdate::Screen {
                     session_id,
                     snapshot,
