@@ -98,14 +98,13 @@ pub async fn run(
     mut requests: tokio::sync::mpsc::UnboundedReceiver<RemoteRequest>,
     updates: tokio::sync::mpsc::UnboundedSender<(String, RemoteUpdate)>,
 ) {
-    let mut host =
-        match RemoteHost::connect(&host_id, &section, &state_dir, &workspace).await {
-            Ok(host) => host,
-            Err(reason) => {
-                let _ = updates.send((host_id, RemoteUpdate::Failed(reason)));
-                return;
-            }
-        };
+    let mut host = match RemoteHost::connect(&host_id, &section, &state_dir, &workspace).await {
+        Ok(host) => host,
+        Err(reason) => {
+            let _ = updates.send((host_id, RemoteUpdate::Failed(reason)));
+            return;
+        }
+    };
     if let Err(reason) = host.hello().await {
         let _ = updates.send((host_id, RemoteUpdate::Failed(reason)));
         return;

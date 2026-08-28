@@ -199,23 +199,7 @@ impl App {
     /// that case for the same reason [`encode`] maps Enter to it: the child's
     /// line discipline is raw and reads carriage return as the end of a line.
     pub(in crate::ui::app) fn paste_into_harness(&mut self, session: &str, text: &str) {
-        // The mode belongs to the emulator the child is talking to, so for a
-        // remote session it is the far side's answer — reported on its session
-        // row precisely because this client is the one encoding the paste.
-        let bracketed = self
-            .session_row(session)
-            .and_then(|_| match crate::ui::app::remote_sessions::SessionRef::parse(session) {
-                crate::ui::app::remote_sessions::SessionRef::Local(id) => self
-                    .local_sessions
-                    .as_ref()
-                    .and_then(|harnesses| harnesses.sessions.bracketed_paste(id)),
-                crate::ui::app::remote_sessions::SessionRef::Remote { host, session } => self
-                    .remote_hosts
-                    .get(host)
-                    .and_then(|state| state.rows.iter().find(|row| row.id == session))
-                    .map(|row| row.bracketed_paste),
-            })
-            .unwrap_or(false);
+        let bracketed = self.session_bracketed_paste(session);
         let bytes = if bracketed {
             bracket_paste(text)
         } else {

@@ -57,14 +57,6 @@ impl<'a> SessionRef<'a> {
             _ => SessionRef::Local(id),
         }
     }
-
-    /// The host id, when this names a remote session.
-    pub fn host(&self) -> Option<&'a str> {
-        match self {
-            SessionRef::Local(_) => None,
-            SessionRef::Remote { host, .. } => Some(host),
-        }
-    }
 }
 
 /// The prefixed id a remote session is filed under on this side.
@@ -273,6 +265,29 @@ impl App {
                     .find(|row| row.id == session)
                     .map(|row| session_row(host, row))
             }
+        }
+    }
+}
+
+impl App {
+    /// Whether `id`'s emulator has bracketed paste on.
+    ///
+    /// The mode belongs to the emulator the child is talking to, so for a remote
+    /// session it is the far side's answer — carried on its session row
+    /// precisely because *this* client is the one encoding the paste, and a
+    /// paste bracketed wrongly is something harnesses notice.
+    pub(in crate::ui::app) fn session_bracketed_paste(&self, id: &str) -> bool {
+        match SessionRef::parse(id) {
+            SessionRef::Local(id) => self
+                .local_sessions
+                .as_ref()
+                .and_then(|local| local.sessions.bracketed_paste(id))
+                .unwrap_or(false),
+            SessionRef::Remote { host, session } => self
+                .remote_hosts
+                .get(host)
+                .and_then(|state| state.rows.iter().find(|row| row.id == session))
+                .is_some_and(|row| row.bracketed_paste),
         }
     }
 }
