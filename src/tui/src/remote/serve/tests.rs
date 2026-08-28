@@ -467,12 +467,7 @@ fn a_host_launches_agents_with_its_own_configuration() {
     let mut config = medulla::config::TuiConfig::default();
     config.attribution.commit = false;
     config.router = Some(medulla::config::RouterConfig::default());
-    let preset = medulla::config::CustomHarnessConfig {
-        id: "host-only".to_string(),
-        name: "Host Only".to_string(),
-        base_harness: HarnessProvider::Claude,
-        ..medulla::config::CustomHarnessConfig::default()
-    };
+    let preset = host_preset();
 
     let sessions = super::entry::local_sessions(
         &HashMap::new(),
@@ -504,12 +499,7 @@ fn a_hosts_own_preset_is_advertised_to_clients() {
     // the host defines has to appear in the capabilities it sends back, or a
     // client could never select it.
     let mut config = medulla::config::TuiConfig::default();
-    let preset = medulla::config::CustomHarnessConfig {
-        id: "host-only".to_string(),
-        name: "Host Only".to_string(),
-        base_harness: HarnessProvider::Claude,
-        ..medulla::config::CustomHarnessConfig::default()
-    };
+    let preset = host_preset();
     config.attribution.commit = true;
     let sessions = super::entry::local_sessions(
         &HashMap::new(),
@@ -532,4 +522,16 @@ fn a_hosts_own_preset_is_advertised_to_clients() {
         "the host's own preset should be on offer: {:?}",
         server.capabilities().harnesses
     );
+}
+
+/// A preset as an operator would have written it on the host's own machine.
+///
+/// Built through the editor-line parser rather than a struct literal, because
+/// that is the only constructor `CustomHarnessConfig` offers — and using it
+/// keeps this test honest about what a real config produces.
+fn host_preset() -> medulla::config::CustomHarnessConfig {
+    medulla::config::CustomHarnessConfig::from_editor_line(
+        "host-only | Host Only | claude | some-model |  | ",
+    )
+    .expect("a well-formed preset line")
 }
