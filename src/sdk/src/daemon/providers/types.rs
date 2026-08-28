@@ -204,6 +204,32 @@ pub enum RunTaskOrigin {
     CapabilityProbe,
 }
 
+impl RunTaskOrigin {
+    /// Whether a person asked for this run and may come looking at what it did.
+    ///
+    /// Not "did a human type it" — an orchestrator relaying a delegated task is
+    /// acting for somebody, and that somebody can attach to the session it runs
+    /// in. The question is whether *anyone* is in the loop at all, because a
+    /// surface that holds a finished session open for a reader is holding it for
+    /// nobody when the answer is no.
+    ///
+    /// [`Workflow`](Self::Workflow) is the case that matters: a graph node runs
+    /// unattended by construction. [`CapabilityProbe`](Self::CapabilityProbe) is
+    /// Medulla asking this machine about itself, on no peer's behalf — the same
+    /// reasoning that already denies it the operator's hooks.
+    ///
+    /// No catch-all arm, deliberately: a new origin should fail this build and
+    /// be made to state its answer, rather than inheriting one.
+    pub fn has_operator_in_the_loop(self) -> bool {
+        match self {
+            RunTaskOrigin::Workflow | RunTaskOrigin::CapabilityProbe => false,
+            RunTaskOrigin::DelegatedTask
+            | RunTaskOrigin::Conversation
+            | RunTaskOrigin::Interactive => true,
+        }
+    }
+}
+
 /// The outcome of a headless run.
 #[derive(Debug, Clone)]
 pub struct RunTaskResult {
