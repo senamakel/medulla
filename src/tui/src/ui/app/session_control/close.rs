@@ -12,11 +12,14 @@ impl App {
     /// task-kill chord asks: it is usually mid-turn, and what it loses is not
     /// recoverable by pressing the key again.
     ///
-    /// An exited one is dismissed outright. The rail sweeps finished sessions on
-    /// its own, but deliberately pins a *failed* child so its exit cue stays
-    /// readable — see [`keeps_finished_session`](App::keeps_finished_session) —
-    /// and that pin has no expiry. Without this the row is permanent: the sweep
-    /// will not take it and the kill refused it for not running, which left the
+    /// An exited one is dismissed, unless a detached run it started is still
+    /// executing — the rail sweeps finished sessions on its own, but
+    /// deliberately pins a *failed* child so its exit cue stays readable, and
+    /// pins any child whose MCP grant still has an active run under it, since
+    /// that run's rows are drawn under this session — see
+    /// [`keeps_finished_session`](App::keeps_finished_session) — and that pin
+    /// has no expiry. Without this the row is permanent: the sweep will not
+    /// take it and the kill refused it for not running, which left the
     /// operator holding a dead row and no gesture that removed it. There is
     /// nothing to confirm, because there is no work left to lose.
     ///
