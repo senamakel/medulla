@@ -62,8 +62,7 @@ impl App {
                 // Control may have changed while the confirmation was open.
                 // Re-check at the destructive boundary so a stale prompt cannot
                 // kill active work.
-                if harnesses.control(id) == Some(crate::worker::pty::SessionControl::Orchestrator)
-                {
+                if harnesses.control(id) == Some(crate::worker::pty::SessionControl::Orchestrator) {
                     self.set_status("Task sessions are view-only while they are running");
                     return;
                 }

@@ -101,7 +101,6 @@ fn an_empty_snapshot_converts_without_panicking() {
     assert_eq!(grid.cols, 0);
 }
 
-
 /// A snapshot with one styled run and one plain one, for round-trip tests.
 fn styled_snapshot() -> ScreenSnapshot {
     let cell = |ch: &str, bold: bool, fg: vt100::Color| ScreenCell {

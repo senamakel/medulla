@@ -193,10 +193,16 @@ async fn watching_a_second_session_moves_the_stream() {
         let deadline = Instant::now() + Duration::from_secs(30);
         while Instant::now() < deadline && ids.len() < wanted {
             server.pump_once().await;
-            ids.extend(client.pump().await.into_iter().filter_map(|event| match event {
-                PumpEvent::Opened(id) => Some(id),
-                PumpEvent::OpenFailed(_) => None,
-            }));
+            ids.extend(
+                client
+                    .pump()
+                    .await
+                    .into_iter()
+                    .filter_map(|event| match event {
+                        PumpEvent::Opened(id) => Some(id),
+                        PumpEvent::OpenFailed(_) => None,
+                    }),
+            );
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }

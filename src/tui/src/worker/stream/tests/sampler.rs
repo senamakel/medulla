@@ -5,9 +5,7 @@
 //! ends up holding the emulator's screen — is asserted here too, since it is
 //! the only check that covers the conversion and the diff *together*.
 
-use medulla::protocol::{
-    apply_frame, ApplyOutcome, Color, ScreenView, ATTR_BOLD, ATTR_INVERSE,
-};
+use medulla::protocol::{apply_frame, ApplyOutcome, Color, ScreenView, ATTR_BOLD, ATTR_INVERSE};
 
 use crate::worker::pty::ScreenCell;
 use crate::worker::stream::convert::wire_grid;
@@ -184,4 +182,3 @@ fn styling_survives_the_whole_round_trip() {
     assert_eq!(grid.lines[0][1].style.bg, Color::Rgb(9, 9, 9));
     assert!(grid.lines[0][1].style.has(ATTR_INVERSE));
 }
-
