@@ -19,7 +19,9 @@ use crate::{Leg, POLL};
 /// shortly after its handle is).
 pub async fn connect(state_dir: &Path, forwarder: Option<&str>) -> Result<LinkBridge, String> {
     let mut config = LinkConfig::new(state_dir);
-    config.forwarder_endpoint = forwarder.map(str::to_string);
+    config.path = medulla_link::LinkPath::Forwarder {
+        endpoint: forwarder.map(str::to_string),
+    };
     let mut last = String::new();
     for _ in 0..25 {
         match Link::connect(config.clone()).await {

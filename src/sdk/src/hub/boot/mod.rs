@@ -144,7 +144,9 @@ async fn connect_link(
         Some(handle) => handle.clone(),
         None => {
             let mut link_config = LinkConfig::new(config.state_dir.clone());
-            link_config.forwarder_endpoint = config.forwarder_endpoint.clone();
+            link_config.path = medulla_link::LinkPath::Forwarder {
+                endpoint: config.forwarder_endpoint.clone(),
+            };
             link_config.peers = config
                 .peers
                 .iter()
