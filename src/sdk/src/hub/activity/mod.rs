@@ -160,12 +160,7 @@ impl ActivityLog {
             Ok(result) => ("reply", result.reply.clone()),
             Err(error) => ("error", error.to_string()),
         };
-        self.observed(
-            observed_task_id,
-            kind,
-            &content,
-            crate::clock::now_millis(),
-        );
+        self.observed(observed_task_id, kind, &content, crate::clock::now_millis());
     }
 
     /// Drop every record of a task that settled more than
