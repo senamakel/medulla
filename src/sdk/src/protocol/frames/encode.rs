@@ -21,6 +21,21 @@ pub fn encode_workflow_node_task_frame(input: EncodeFrameInput) -> String {
     frame.encode()
 }
 
+/// Serialize a workflow *authoring* turn: the copilot's own dispatch.
+///
+/// Carries the node marker too, because an authoring turn is workflow-plane
+/// work and wants the same approval origin — plus the authoring marker, which
+/// is what tells the worker this is not a graph step and must keep the workflow
+/// tools it exists to call. See [`TaskFrame::workflow_authoring`].
+///
+/// [`TaskFrame::workflow_authoring`]: super::types::TaskFrame::workflow_authoring
+pub fn encode_workflow_authoring_task_frame(input: EncodeFrameInput) -> String {
+    let mut frame = build(input, FrameAttachments::default());
+    frame.workflow_node = true;
+    frame.workflow_authoring = true;
+    frame.encode()
+}
+
 /// [`encode_task_frame`] with reported token usage (reply frames).
 pub fn encode_task_frame_with_usage(input: EncodeFrameInput, usage: Option<TokenUsage>) -> String {
     build(
@@ -84,6 +99,7 @@ fn build(input: EncodeFrameInput, attachments: FrameAttachments) -> TaskFrame {
         model: input.model,
         tool_mode: input.tool_mode,
         workflow_node: false,
+        workflow_authoring: false,
         workflow: input.workflow,
         workflow_fingerprint: input.workflow_fingerprint,
         workflow_inputs: input.workflow_inputs,
