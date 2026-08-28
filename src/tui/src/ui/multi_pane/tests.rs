@@ -217,3 +217,20 @@ fn a_sidebar_with_no_room_returns_no_hits_rather_than_panicking() {
         .expect("draw");
     assert!(hits.rows.is_empty());
 }
+
+#[test]
+fn the_menu_claims_both_horizontal_arrows() {
+    let mut selected = 1;
+    let mut focused = false;
+    assert_eq!(
+        navigate(KeyCode::Left, 4, &mut selected, &mut focused, true),
+        NavAction::Consumed
+    );
+    assert!(!focused, "there is nothing to the left of the menu");
+    assert_eq!(
+        navigate(KeyCode::Right, 4, &mut selected, &mut focused, true),
+        NavAction::Entered
+    );
+    assert!(focused, "right steps into the content pane");
+    assert_eq!(selected, 1, "and does not move the selection");
+}
