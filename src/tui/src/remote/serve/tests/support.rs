@@ -7,18 +7,18 @@
 //! here, and what the Docker suite adds on top is the SSH bootstrap, the UDP
 //! link, and two machines.
 
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+pub(super) use std::collections::HashMap;
+pub(super) use std::sync::Arc;
+pub(super) use std::time::{Duration, Instant};
 
-use medulla::bridge::{Bridge, LocalBridgeNetwork};
+pub(super) use medulla::bridge::{Bridge, LocalBridgeNetwork};
 use medulla::protocol::{
     encode_remote_message, encode_screen_message, parse_remote_message, HarnessProvider,
     RemoteHarnessChoice, RemoteMessage, ScreenMessage,
 };
 
 use crate::remote::serve::*;
-use crate::worker::pty::PtyManager;
+pub(super) use crate::worker::pty::PtyManager;
 
 /// The client's address on the in-process bridge.
 const CLIENT: &str = "client";
