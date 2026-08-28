@@ -126,10 +126,6 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     }];
     let link = Link::connect(config).await?;
     let bound = link.local_addr();
-    // Released the moment the link holds `node.lock`: the window this guards is
-    // closed, and holding it longer would make the *next* bootstrap wait for
-    // this daemon to exit instead of taking the reuse path it is meant to.
-    drop(bootstrap_hold);
 
     let bridge = Arc::new(LinkBridge::new(
         Arc::new(link),
@@ -178,6 +174,16 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
             node_id,
         },
     )?;
+    // Released here rather than as soon as the link was up. A second bootstrap
+    // freed in that gap sees `node.lock` busy — this daemon holds it — but finds
+    // no instance file yet, or a stale one from an earlier daemon, so it fails
+    // spuriously or hands its client the wrong port. The window the lock has to
+    // cover is enroll → connect → *publish*, because publication is what makes
+    // the reuse path answerable.
+    //
+    // Still released before serving: holding it for the daemon's life would make
+    // the next bootstrap wait for this one to exit rather than reuse it.
+    drop(bootstrap_hold);
 
     // Printed and flushed before serving: the client is blocked on this line, and
     // SSH may close the moment it has it.

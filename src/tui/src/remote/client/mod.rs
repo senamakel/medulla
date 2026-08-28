@@ -88,6 +88,16 @@ impl RemoteHost {
         state_dir: &std::path::Path,
         workspace: &str,
     ) -> Result<Self, String> {
+        // Held across minting, enrollment and link startup — the same window the
+        // daemon guards, for the same reason. `enroll_host` below reads and
+        // rewrites `node.json`, and two client processes reaching it together
+        // can rewind `seq_reservation`: one reads the old value, the other's
+        // link persists a higher one, and the first writes the stale value back.
+        // A later connection then reuses sequences under one pair key, which is
+        // AEAD nonce reuse — the hazard the persisted reservation exists to
+        // prevent.
+        let _bootstrap = crate::remote::serve::hold_bootstrap(state_dir)
+            .map_err(|error| format!("could not take the bootstrap lock: {error}"))?;
         let client = mint_identity(state_dir)?;
         let started = bootstrap(host, client, workspace)
             .await
