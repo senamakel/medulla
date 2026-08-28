@@ -23,12 +23,12 @@ pub(super) fn spawn_connect(
     config: &TuiConfig,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) -> Option<tokio::sync::mpsc::UnboundedSender<RemoteRequest>> {
-    let Some(section) = config
-        .remote_hosts
-        .iter()
-        .enumerate()
-        .find(|(index, section)| medulla::config::remote_host_id(section, *index) == host_id)
-        .map(|(_, section)| section.clone())
+    // Resolved through the same filter the picker offered from. A raw scan would
+    // ignore `enabled` and the id dedupe, so a disabled entry above an enabled
+    // one with the same slug would win here — dialling a machine the operator
+    // was never shown.
+    let Some(section) =
+        medulla::config::remote_host_section(&config.remote_hosts, &host_id).cloned()
     else {
         let _ = msg_tx.send(AppMsg::RemoteHostFailed {
             host_id: host_id.clone(),

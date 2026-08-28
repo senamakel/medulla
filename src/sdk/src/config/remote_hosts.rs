@@ -39,25 +39,55 @@ pub struct RemoteHostRef {
 /// A [`disabled`](RemoteHostSection::enabled) entry is also skipped, but that is
 /// the operator's own instruction rather than a collision.
 pub fn remote_hosts(sections: &[RemoteHostSection]) -> Vec<RemoteHostRef> {
+    offered(sections)
+        .map(|(_, section, id)| RemoteHostRef {
+            name: remote_host_name(section),
+            host: section.host.trim().to_string(),
+            workspace: section.workspace.trim().to_string(),
+            id,
+        })
+        .collect()
+}
+
+/// The section behind a host id, resolved exactly as [`remote_hosts`] resolves
+/// it.
+///
+/// **Use this rather than searching `sections` directly.** A raw scan does not
+/// apply the `enabled` filter or the first-claim dedupe, so a disabled entry
+/// sitting above an enabled one with the same slug would win — and the caller
+/// would dial the machine the picker never offered. The two must agree on which
+/// section an id names, and this is how they do.
+pub fn remote_host_section<'a>(
+    sections: &'a [RemoteHostSection],
+    id: &str,
+) -> Option<&'a RemoteHostSection> {
+    offered(sections)
+        .find(|(_, _, resolved)| resolved == id)
+        .map(|(_, section, _)| section)
+}
+
+/// Every offerable entry, with the id it resolves to.
+///
+/// The single pass both public readers are built on: filter to entries that can
+/// actually be dialled, resolve each id, then let the first claim on an id keep
+/// it. Two implementations of this would eventually disagree, and a session
+/// filed under an id nobody else uses is a session that cannot be found again.
+fn offered(
+    sections: &[RemoteHostSection],
+) -> impl Iterator<Item = (usize, &RemoteHostSection, String)> {
     let mut taken: Vec<String> = Vec::new();
     sections
         .iter()
         .enumerate()
         .filter(|(_, section)| section.enabled && !section.host.trim().is_empty())
-        .map(|(index, section)| RemoteHostRef {
-            id: remote_host_id(section, index),
-            name: remote_host_name(section),
-            host: section.host.trim().to_string(),
-            workspace: section.workspace.trim().to_string(),
-        })
-        .filter(|host| {
-            let fresh = !taken.contains(&host.id);
+        .filter_map(move |(index, section)| {
+            let id = remote_host_id(section, index);
+            let fresh = !taken.contains(&id);
             if fresh {
-                taken.push(host.id.clone());
+                taken.push(id.clone());
             }
-            fresh
+            fresh.then_some((index, section, id))
         })
-        .collect()
 }
 
 /// The id for one entry, derived from what it declared.
