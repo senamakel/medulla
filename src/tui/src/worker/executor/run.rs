@@ -366,20 +366,37 @@ impl PtySessionExecutor {
             //
             // Its return says which one happened, and the two outcomes are not
             // interchangeable. A `true` really did close the session, so its
-            // mapper state is gone with it. A `false` means an operator took
-            // control in the gap between the snapshot above and this call — the
-            // session is theirs now, running, exactly the case the `else` branch
-            // below exists for, and it must get that branch's cleanup: settled
-            // or released so `busy` clears and `try_claim` can reuse it after
-            // handback, with its mapper state left alone rather than torn down
-            // for a close that never happened.
+            // mapper state is gone with it. A `false` is not, by itself,
+            // "an operator took it": the same `false` comes back when the
+            // session's handle is simply gone, which happens whenever the
+            // child exited on its own and the rail's per-frame sweep
+            // (`sweep_finished_sessions`) forgot the row before this call ran
+            // — `forget` only waits on `is_running()`, not on `finish_turn`
+            // having settled the turn first. That case is not a takeover and
+            // must not be treated as one: there is no session left to settle
+            // or hand back, and its mapper state should go with it rather than
+            // linger for an id nothing will ever revisit.
+            //
+            // A genuine takeover is the case the `row` lookup still finds
+            // something: an operator took control in the gap between the
+            // snapshot above and this call, and the session is theirs now,
+            // running, exactly the case the `else` branch below exists for —
+            // it must get that branch's cleanup: settled or released so
+            // `busy` clears and `try_claim` can reuse it after handback, with
+            // its mapper state left alone rather than torn down for a close
+            // that never happened.
             if self.sessions.close_if_orchestrator(id) {
                 self.workspace_context
                     .lock()
                     .expect("workspace context lock poisoned")
                     .remove(id);
-            } else {
+            } else if self.sessions.row(id).is_some() {
                 self.settle_or_hand_back(id, settled);
+            } else {
+                self.workspace_context
+                    .lock()
+                    .expect("workspace context lock poisoned")
+                    .remove(id);
             }
         } else {
             // Snapshot decided this without a race: either the session was
