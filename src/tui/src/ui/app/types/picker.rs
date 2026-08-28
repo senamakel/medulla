@@ -52,6 +52,15 @@ pub(in crate::ui::app) enum Overlay {
 /// of the flow depended on which door had opened it; the declaration flow is
 /// gone, and with one ending there is nothing left to carry.
 pub(in crate::ui::app) struct SessionPicker {
+    /// Every machine a session could start on, this one first.
+    ///
+    /// Never empty while the picker is open, so the harness and workspace steps
+    /// can always name the chosen host without a special case for "no host step
+    /// ran". With one entry the host step is skipped entirely — see
+    /// [`App::start_session_command`](crate::ui::app::App::start_session_command).
+    pub(in crate::ui::app) hosts: Vec<PickerHost>,
+    /// The highlighted host.
+    pub(in crate::ui::app) host_index: usize,
     /// Installed providers and registered presets, in offer order.
     pub(in crate::ui::app) choices: Vec<crate::ui::harness_pane::HarnessChoice>,
     /// The highlighted row.
@@ -88,10 +97,31 @@ pub(in crate::ui::app) struct SessionPicker {
 /// operator then had to take back from the orchestrator before typing into it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::ui::app) enum SessionPickerStep {
+    /// Choose which machine the session runs on.
+    ///
+    /// Skipped entirely when there is only one host, which is the ordinary case
+    /// — an operator with no `[[remoteHosts]]` must not gain a keystroke.
+    Host,
     /// Choose an installed CLI or registered preset.
     Harness,
     /// Choose or complete the working directory.
     Workspace,
+}
+
+/// One machine offered on the picker's first step.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::ui::app) struct PickerHost {
+    /// This device's bus address, or a `[[remoteHosts]]` id.
+    pub(in crate::ui::app) id: String,
+    /// What to show in the row.
+    pub(in crate::ui::app) label: String,
+    /// The directory a session there starts in when the operator names none.
+    pub(in crate::ui::app) workspace: String,
+    /// Whether this is another machine, reached over SSH.
+    ///
+    /// Drives more than a label: a remote host's workspace step cannot complete
+    /// against the filesystem, because there is no filesystem here to walk.
+    pub(in crate::ui::app) remote: bool,
 }
 
 /// One cached workspace completion and why it was suggested.
