@@ -28,7 +28,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use medulla::daemon::providers::{RunTaskFn, RunTaskOptions, RunTaskResult};
+use medulla::daemon::providers::{RunTaskFn, RunTaskOptions, RunTaskOrigin, RunTaskResult};
 use medulla::protocol::HarnessProvider;
 use medulla::session_history::SessionAgentKind;
 use medulla::sessions::SessionClass;
@@ -225,7 +225,7 @@ impl PtySessionExecutor {
         if let Err(err) =
             super::super::pty::inject_prompt(&self.sessions, &id, &options.prompt).await
         {
-            self.finish_turn(&id, class, false);
+            self.finish_turn(&id, class, false, options.origin);
             return Err(err);
         }
 
@@ -281,7 +281,7 @@ impl PtySessionExecutor {
                 on_event,
             )
             .await;
-        self.finish_turn(&id, class, outcome.is_ok());
+        self.finish_turn(&id, class, outcome.is_ok(), origin);
         outcome
     }
 
@@ -302,19 +302,24 @@ impl PtySessionExecutor {
     ///
     /// Operator takeover keeps its own path: a session someone took is theirs,
     /// and was never a candidate for closing.
-    fn finish_turn(&self, id: &str, class: SessionClass, settled: bool) {
+    ///
+    /// Retention is for a *reader*, and a turn nobody asked for has none.
+    /// [`retains_finished_session`] is where that is decided; the origins with
+    /// no operator in the loop take the close below instead, which is what the
+    /// bounded path did before retention existed.
+    pub(super) fn finish_turn(
+        &self,
+        id: &str,
+        class: SessionClass,
+        settled: bool,
+        origin: RunTaskOrigin,
+    ) {
         let control = self.sessions.control(id);
         let running = self
             .sessions
             .row(id)
             .is_some_and(|row| row.state.is_running());
-        // Only a turn that actually answered is worth keeping. A bounded turn
-        // that failed never got its prompt in — the harness is wedged on a modal
-        // the injection could not clear — so retaining it would leave a stuck
-        // process standing with nothing on its screen worth reading, which is
-        // the leak the close was there to prevent.
-        let retain =
-            settled && class == SessionClass::Bounded && control != Some(SessionControl::User);
+        let retain = retains_finished_session(class, control, settled, origin);
         // A retained session can serve the operator a later turn, so its mapper
         // state outlives the task the same way a taken session's does.
         if !retain && !retains_workspace_context(class, control, running) {
@@ -331,12 +336,23 @@ impl PtySessionExecutor {
             // busy would read as working forever in every surface that asks.
             self.sessions.release(id);
         } else if bounded_for_the_orchestrator {
-            // A bounded turn that never answered. There is nothing to keep, and
-            // the harness is most likely still sitting on whatever stopped the
-            // injection — so this stays a close, exactly as it was before
-            // retention existed. Handing it over instead would strand a wedged
-            // process *and* make it hold the checkout against the tasks behind
-            // it, which is the failure retention is careful to avoid.
+            // A bounded turn with nothing to keep standing: it never answered,
+            // or it answered for nobody. Either way this is a close, exactly as
+            // the bounded path was before retention existed.
+            //
+            // A turn that failed never got its prompt in — the harness is wedged
+            // on a modal the injection could not clear — so keeping it would
+            // leave a stuck process standing with nothing on its screen worth
+            // reading. Handing it over instead would strand that process *and*
+            // make it hold the checkout against the tasks behind it, which is
+            // the failure retention is careful to avoid.
+            //
+            // A turn that answered but had no operator behind it is the other
+            // half, and the reason this branch is no longer only about failures:
+            // its screen is worth reading in principle, and there is provably
+            // nobody to read it. Leaving it standing costs a live harness
+            // process and a rail row for the life of the daemon, since nothing
+            // ends retention but a person taking or closing the session.
             self.sessions.close(id);
         } else {
             // Free it for the operator or this peer's next turn. Released on
@@ -382,6 +398,34 @@ impl PtySessionExecutor {
             stopped,
         );
     }
+}
+
+/// Whether a settled turn's session should be kept standing for someone to read.
+///
+/// Four conditions, and each rules out a different way retention goes wrong:
+///
+/// - `settled` — a turn that never answered has nothing worth reading, and its
+///   harness is most likely still wedged on whatever stopped the injection;
+/// - [`Bounded`](SessionClass::Bounded) — an unbound session is the peer's
+///   conversation and is not this turn's to keep or close;
+/// - not [`User`](SessionControl::User) — a session an operator took is already
+///   theirs, and retention would be claiming something that is not ours to
+///   claim (and `set_control` clears the flag anyway);
+/// - [`has_operator_in_the_loop`](RunTaskOrigin::has_operator_in_the_loop) — the
+///   one this narrows. Retention exists so a person who might look at the pane
+///   still can; a workflow node or a capability probe has no such person by
+///   construction, so keeping its session buys nothing and costs a live harness
+///   process plus a permanent rail row.
+pub(super) fn retains_finished_session(
+    class: SessionClass,
+    control: Option<SessionControl>,
+    settled: bool,
+    origin: RunTaskOrigin,
+) -> bool {
+    settled
+        && class == SessionClass::Bounded
+        && control != Some(SessionControl::User)
+        && origin.has_operator_in_the_loop()
 }
 
 pub(super) fn retains_workspace_context(
