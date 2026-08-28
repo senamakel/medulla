@@ -139,3 +139,19 @@ async fn a_scoped_review_turn_keeps_its_workflow_tools() {
         "the review's mode must still reach its tool server: {env:?}"
     );
 }
+
+/// TEMPORARY confirmation of the reported regression: a copilot authoring turn
+/// as `CopilotSession` builds it (workflow_node marker, no tool mode, a named
+/// conversation) loses the very tools it exists to call.
+#[tokio::test]
+async fn temp_confirm_copilot_authoring_turn_loses_its_workflow_tools() {
+    let frame = TaskFrame {
+        conversation: Some("workflows-pane-1".to_string()),
+        ..node_frame("copilot-turn")
+    };
+    let env = launch_env(frame, true).await;
+    assert!(
+        !crate::harness_tools::workflows_withheld(&env),
+        "a copilot authoring turn must keep its workflow tools: {env:?}"
+    );
+}
