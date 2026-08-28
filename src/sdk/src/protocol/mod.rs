@@ -18,6 +18,7 @@ pub mod control;
 pub mod env;
 pub mod envelope;
 pub mod frames;
+pub mod remote;
 pub mod screen;
 pub mod service;
 pub mod status;
