@@ -202,6 +202,45 @@ pub enum RunTaskOrigin {
     Interactive,
     /// Medulla's own provider-capability probe.
     CapabilityProbe,
+    /// A workflow-evolution review the daemon spawned after a run failed.
+    ///
+    /// Restricted to proposal tools rather than granted workflow authority —
+    /// it is not an authored workflow node — which is why it is not
+    /// [`Workflow`](Self::Workflow). But nothing awaits it either: it is
+    /// spawned detached, and what it produces lands in the evolution store for
+    /// an operator to find later, not on a pane anyone is watching live. That
+    /// makes it distinct from [`DelegatedTask`](Self::DelegatedTask) too, which
+    /// otherwise means exactly "detached but somebody can still attach to it" —
+    /// see [`has_operator_in_the_loop`](Self::has_operator_in_the_loop).
+    UnattendedReview,
+}
+
+impl RunTaskOrigin {
+    /// Whether a person asked for this run and may come looking at what it did.
+    ///
+    /// Not "did a human type it" — an orchestrator relaying a delegated task is
+    /// acting for somebody, and that somebody can attach to the session it runs
+    /// in. The question is whether *anyone* is in the loop at all, because a
+    /// surface that holds a finished session open for a reader is holding it for
+    /// nobody when the answer is no.
+    ///
+    /// [`Workflow`](Self::Workflow) is the case that matters: a graph node runs
+    /// unattended by construction. [`CapabilityProbe`](Self::CapabilityProbe) is
+    /// Medulla asking this machine about itself, on no peer's behalf — the same
+    /// reasoning that already denies it the operator's hooks.
+    ///
+    /// No catch-all arm, deliberately: a new origin should fail this build and
+    /// be made to state its answer, rather than inheriting one.
+    pub fn has_operator_in_the_loop(self) -> bool {
+        match self {
+            RunTaskOrigin::Workflow
+            | RunTaskOrigin::CapabilityProbe
+            | RunTaskOrigin::UnattendedReview => false,
+            RunTaskOrigin::DelegatedTask
+            | RunTaskOrigin::Conversation
+            | RunTaskOrigin::Interactive => true,
+        }
+    }
 }
 
 /// The outcome of a headless run.
@@ -272,3 +311,7 @@ pub(super) enum LineRead {
     /// The stream ended with nothing buffered.
     Eof,
 }
+
+#[cfg(test)]
+#[path = "types_tests.rs"]
+mod tests;

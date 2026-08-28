@@ -74,6 +74,25 @@ impl SessionHandle {
         true
     }
 
+    /// Close a settled turn's session only while orchestration still owns it.
+    ///
+    /// The settled counterpart to [`stop_if_orchestrator`](Self::stop_if_orchestrator):
+    /// no interrupt byte, because the turn is already over rather than running,
+    /// but the same lock-serialized ownership recheck. A plain [`kill`](Self::kill)
+    /// call has no such recheck, so a caller that snapshots `control()` and then
+    /// kills unconditionally has a window between the two where a takeover can
+    /// land — and lose the race silently, ending the session an operator just
+    /// adopted.
+    pub(in super::super) fn close_if_orchestrator(&self) -> bool {
+        let _cold = lock(&self.cold);
+        if self.operator_held.load(Ordering::Acquire) {
+            return false;
+        }
+        self.kill();
+        self.mark_closed();
+        true
+    }
+
     /// Whether this session may serve `label`'s next turn.
     ///
     /// Its own label, or the synthetic `you:<harness>` one of a handed-back
