@@ -51,7 +51,7 @@ impl Link {
     /// not resolve; [`LinkError::Io`] when the socket cannot be bound.
     pub async fn connect(config: LinkConfig) -> Result<LinkHandle, LinkError> {
         let node = keys::acquire(&config.state_dir)?;
-        let socket = UdpSocket::bind(config.bind).await?;
+        let socket = UdpSocket::from_std(bind_dual_stack(config.bind)?)?;
         let route = match &config.path {
             LinkPath::Forwarder { endpoint } => {
                 let endpoint = endpoint
