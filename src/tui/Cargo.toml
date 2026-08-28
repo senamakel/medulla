@@ -51,5 +51,10 @@ unicode-segmentation = "1"
 fs2 = { workspace = true }
 unicode-width = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+# `setsid` and `dup2`, for detaching a remote daemon from the SSH session that
+# started it. Unix only, like the daemon itself.
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -326,3 +326,62 @@ pub fn join_endpoint(host: &str, port: u16) -> String {
         false => format!("{host}:{port}"),
     }
 }
+
+/// Leave the SSH session that started this daemon.
+///
+/// Called after the connect line is printed and flushed, and it is what makes a
+/// remote session outlive the client that opened it — the property the whole
+/// design rests on.
+///
+/// Two things happen, and both are needed:
+///
+/// - **`setsid`** puts the daemon in its own session with no controlling
+///   terminal. Without it the daemon is still the foreground command of an SSH
+///   session, and when that session ends the daemon is signalled with it — so
+///   every "persistent" session dies the moment the bootstrapping client goes
+///   away, which is precisely what it must not do.
+/// - **stdio to `/dev/null`** lets `ssh` see EOF and exit. Without it the client
+///   holds an `ssh` process open forever per bootstrap, and those accumulate.
+///
+/// This is mosh's arrangement, reached without a `fork`: forking a process with
+/// a running tokio runtime is not safe, and `setsid` alone achieves the
+/// detachment because a command `sshd` runs is not already a session leader.
+///
+/// Failures are reported, never fatal. A daemon that could not detach still
+/// serves; it is merely tied to the SSH session's lifetime, which is strictly
+/// better than refusing to start.
+#[cfg(unix)]
+pub fn detach_from_ssh() -> Result<(), String> {
+    // SAFETY: `setsid` and `dup2` are async-signal-safe libc calls with no
+    // preconditions beyond valid descriptors, and nothing else in this process
+    // is touching fds 0-2 at this point — the connect line is already flushed.
+    unsafe {
+        if libc::setsid() == -1 {
+            // Already a session leader is harmless and means there is nothing to
+            // leave; anything else is worth reporting.
+            let error = std::io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::EPERM) {
+                return Err(format!("setsid: {error}"));
+            }
+        }
+        let null = libc::open(c"/dev/null".as_ptr(), libc::O_RDWR);
+        if null == -1 {
+            return Err(format!("/dev/null: {}", std::io::Error::last_os_error()));
+        }
+        for fd in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
+            if libc::dup2(null, fd) == -1 {
+                return Err(format!("dup2: {}", std::io::Error::last_os_error()));
+            }
+        }
+        if null > libc::STDERR_FILENO {
+            libc::close(null);
+        }
+    }
+    Ok(())
+}
+
+/// No detach off unix: there is no `setsid`, and no SSH-started daemon either.
+#[cfg(not(unix))]
+pub fn detach_from_ssh() -> Result<(), String> {
+    Ok(())
+}
