@@ -542,3 +542,83 @@ async fn a_dispatch_watcher_may_not_type_into_the_session_it_watches() {
         "neither message may start or touch a stream"
     );
 }
+
+/// A snapshot with one styled run and one plain one, for round-trip tests.
+fn styled_snapshot() -> super::super::pty::ScreenSnapshot {
+    use super::super::pty::{CellText, ScreenCell, ScreenSnapshot};
+    let cell = |ch: &str, bold: bool, fg: vt100::Color| ScreenCell {
+        text: CellText::from(ch),
+        fg,
+        bg: vt100::Color::Default,
+        bold,
+        italic: false,
+        underline: false,
+        inverse: false,
+    };
+    ScreenSnapshot {
+        cells: vec![
+            vec![
+                cell("h", true, vt100::Color::Idx(4)),
+                cell("i", true, vt100::Color::Idx(4)),
+                cell(" ", false, vt100::Color::Default),
+                cell("x", false, vt100::Color::Rgb(1, 2, 3)),
+            ],
+            vec![
+                cell("o", false, vt100::Color::Default),
+                cell("k", false, vt100::Color::Default),
+                cell(" ", false, vt100::Color::Default),
+                cell(" ", false, vt100::Color::Default),
+            ],
+        ],
+        cursor: (1, 2),
+        hide_cursor: false,
+    }
+}
+
+#[test]
+fn a_snapshot_survives_a_round_trip_through_the_wire_grid() {
+    // The property the whole remote pane rests on: what the daemon's emulator
+    // held is what the client's renderer draws. If this drifts, a remote session
+    // looks subtly wrong in a way no other test would notice.
+    let original = styled_snapshot();
+    let restored = super::convert::snapshot_from_grid(&super::convert::wire_grid(&original));
+    assert_eq!(restored, original);
+}
+
+#[test]
+fn dropped_trailing_blanks_come_back_as_a_full_rectangle() {
+    // `coalesce_runs` deliberately drops unstyled trailing blanks — the wire
+    // carries a row's content. The renderer wants a rectangle, so the inverse
+    // has to put them back, or every remote row would be short.
+    let original = styled_snapshot();
+    let grid = super::convert::wire_grid(&original);
+    assert!(
+        grid.lines[1].iter().map(|run| run.text.chars().count()).sum::<usize>() < 4,
+        "the fixture's second row must have trailing blanks for this to test anything"
+    );
+    let restored = super::convert::snapshot_from_grid(&grid);
+    assert!(restored.cells.iter().all(|row| row.len() == 4));
+}
+
+#[test]
+fn a_grid_declaring_more_rows_than_it_carries_is_padded() {
+    // Reachable whenever a screen's last rows are empty. Shrinking the pane
+    // instead would make it jump every time the harness cleared its output.
+    let mut grid = super::convert::wire_grid(&styled_snapshot());
+    grid.rows = 5;
+    let restored = super::convert::snapshot_from_grid(&grid);
+    assert_eq!(restored.cells.len(), 5);
+    assert!(restored.cells[4].iter().all(|cell| cell.text.as_str() == " "));
+}
+
+#[test]
+fn an_empty_grid_yields_an_empty_snapshot_rather_than_panicking() {
+    let restored = super::convert::snapshot_from_grid(&medulla::protocol::ScreenGrid {
+        cols: 0,
+        rows: 0,
+        lines: Vec::new(),
+        cursor: (0, 0),
+        hide_cursor: false,
+    });
+    assert!(restored.cells.is_empty());
+}
