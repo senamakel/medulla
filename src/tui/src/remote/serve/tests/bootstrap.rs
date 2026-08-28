@@ -17,8 +17,14 @@ fn an_ipv6_literal_is_bracketed_when_joined_to_a_port() {
     );
     // Already bracketed, a hostname, and IPv4 are all left alone.
     assert_eq!(crate::remote::serve::join_endpoint("[::1]", 9), "[::1]:9");
-    assert_eq!(crate::remote::serve::join_endpoint("tower.local", 22), "tower.local:22");
-    assert_eq!(crate::remote::serve::join_endpoint("10.0.0.2", 22), "10.0.0.2:22");
+    assert_eq!(
+        crate::remote::serve::join_endpoint("tower.local", 22),
+        "tower.local:22"
+    );
+    assert_eq!(
+        crate::remote::serve::join_endpoint("10.0.0.2", 22),
+        "10.0.0.2:22"
+    );
 }
 
 #[test]

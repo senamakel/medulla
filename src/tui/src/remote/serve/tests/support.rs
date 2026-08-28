@@ -11,8 +11,8 @@ pub(super) use std::collections::HashMap;
 pub(super) use std::sync::Arc;
 pub(super) use std::time::{Duration, Instant};
 
-pub(super) use medulla::bridge::{Bridge, LocalBridgeNetwork};
 pub(super) use crate::remote::serve::RemoteServer;
+pub(super) use medulla::bridge::{Bridge, LocalBridgeNetwork};
 pub(super) use medulla::protocol::{
     encode_remote_message, encode_screen_message, parse_remote_message, HarnessProvider,
     RemoteHarnessChoice, RemoteMessage, ScreenMessage,
@@ -22,9 +22,9 @@ use crate::remote::serve::*;
 pub(super) use crate::worker::pty::PtyManager;
 
 /// The client's address on the in-process bridge.
-const CLIENT: &str = "client";
+pub(super) const CLIENT: &str = "client";
 /// The daemon's.
-const DAEMON: &str = "daemon";
+pub(super) const DAEMON: &str = "daemon";
 
 /// A `LocalSessions` that can start a real shell in a real directory.
 pub(super) fn shell_sessions(workspace: &str) -> LocalSessions {
@@ -143,7 +143,10 @@ pub(super) fn remote_capabilities(server: &RemoteServer) -> medulla::protocol::R
 }
 
 /// Open a shell and return its session id.
-pub(super) async fn open_shell(server: &mut RemoteServer, client: &medulla::bridge::LocalBridge) -> String {
+pub(super) async fn open_shell(
+    server: &mut RemoteServer,
+    client: &medulla::bridge::LocalBridge,
+) -> String {
     let choice = shell_choice(server);
     say(
         server,

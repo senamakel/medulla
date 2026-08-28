@@ -18,7 +18,6 @@ fn host_preset() -> medulla::config::CustomHarnessConfig {
     .expect("a well-formed preset line")
 }
 
-
 #[test]
 fn a_host_launches_agents_with_its_own_configuration() {
     // The point of stage 7, and the part the Docker suite cannot see: a coding
