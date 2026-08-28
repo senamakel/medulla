@@ -316,6 +316,12 @@ impl Bridge for LinkBridge {
         let peer = self
             .node_id(to)
             .ok_or_else(|| format!("no link peer is enrolled for address: {to}"))?;
+        // Only a `Frame` takes channel 1. That channel is latest-wins, which is
+        // exactly right for a screen — a newer frame supersedes anything missed
+        // — and exactly wrong for everything else on this protocol. In
+        // particular `Input` must fall through to the reliable, ordered channel
+        // below: keystrokes are not idempotent, and a latest-wins keystroke is a
+        // character the operator typed and never sees.
         if matches!(
             crate::protocol::parse_screen_message(body),
             Some(crate::protocol::ScreenMessage::Frame(_))
