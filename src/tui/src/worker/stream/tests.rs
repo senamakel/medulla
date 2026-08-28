@@ -515,3 +515,39 @@ async fn the_router_ignores_messages_it_is_not_the_receiver_for() {
     );
     assert_eq!(router.active(), 0);
 }
+
+#[test]
+fn a_dispatch_watcher_may_not_type_into_the_session_it_watches() {
+    // The authorization boundary between the two kinds of viewer. This router's
+    // subscribers are machines that dispatched work; the task-ownership check
+    // that lets them *watch* was never meant to also let them drive. An operator
+    // attached to their own remote session goes through the host-serve relay
+    // instead.
+    let mut refusals: Vec<String> = Vec::new();
+    let logged = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = logged.clone();
+    let mut router = router_with_log(std::sync::Arc::new(move |line: &str| {
+        sink.lock().unwrap().push(line.to_string());
+    }));
+
+    router.handle(
+        "peer-1",
+        medulla::protocol::ScreenMessage::input("task-1", b"rm -rf /\r"),
+    );
+    router.handle(
+        "peer-1",
+        medulla::protocol::ScreenMessage::Resize {
+            task_id: "task-1".to_string(),
+            cols: 80,
+            rows: 24,
+        },
+    );
+
+    refusals.extend(logged.lock().unwrap().iter().cloned());
+    assert_eq!(refusals.len(), 2, "both messages should be refused aloud");
+    assert!(
+        refusals.iter().all(|line| line.contains("refused input/resize")),
+        "expected refusals, got {refusals:?}"
+    );
+    assert_eq!(router.active(), 0, "a refusal must not start a stream");
+}
