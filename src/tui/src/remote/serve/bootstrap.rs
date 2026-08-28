@@ -31,16 +31,93 @@ use medulla_link::keys::{self, EnrolledPeer, ForwarderKey, NodeId, NodeState, Pa
 /// noise — and none of that is an error.
 pub const CONNECT_SENTINEL: &str = "MEDULLA-CONNECT v1";
 
-/// Where a direct-link identity lives, given a medulla home.
+/// Where one client's daemon keeps its state, given a medulla home.
 ///
-/// Deliberately *not* `<home>/link`, which the enrolled forwarder identity uses:
+/// Two things are deliberate about this path.
+///
+/// It is not `<home>/link`, which the enrolled forwarder identity uses:
 /// `keys::acquire` takes an advisory lock for the life of the process, so a
 /// machine running both a normal `medulla` and this would deadlock on one
-/// directory. They are also different identities — one is enrolled with the
-/// backend, one is minted here — and sharing a file would let a re-bootstrap
+/// directory. They are also different identities — one enrolled with the
+/// backend, one minted here — and sharing a file would let a re-bootstrap
 /// clobber an enrollment.
-pub fn remote_link_dir(home: &Path) -> PathBuf {
-    home.join("remote").join("link")
+///
+/// And it is keyed by the *client*, which is what makes reconnecting work. A
+/// daemon outlives the client that started it, on purpose — that is how a remote
+/// session survives closing the laptop. So the next bootstrap finds one already
+/// running, and the two must agree on which one: same client, same directory,
+/// same daemon, same sessions ([`running_instance`]). A different client gets its
+/// own directory and its own daemon, and cannot see the first one's sessions.
+pub fn client_dir(home: &Path, client: NodeId) -> PathBuf {
+    home.join("remote").join("hosts").join(client.to_string())
+}
+
+/// Where a client's daemon records how to reach it.
+pub fn instance_path(home: &Path, client: NodeId) -> PathBuf {
+    client_dir(home, client).join("instance.json")
+}
+
+/// The link identity inside a client's directory.
+pub fn link_dir(dir: &Path) -> PathBuf {
+    dir.join("link")
+}
+
+/// What a running daemon leaves behind so the next bootstrap can find it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Instance {
+    /// The UDP port it is listening on.
+    pub port: u16,
+    /// Its node id.
+    pub node_id: NodeId,
+}
+
+/// The connect line for a daemon already serving `client`, if one is running.
+///
+/// Called when the identity lock is held, which means a daemon for this client
+/// already has it. Rather than fail — or, worse, start a second daemon that the
+/// client could reach but that owns none of its sessions — this reads back what
+/// the running one published and hands the client the same door it used before.
+///
+/// The pair key is the *existing* one rather than a fresh one, and that is safe
+/// for the reason the persisted sequence reservation exists (§3.1): sequences
+/// never rewind across restarts, so reusing a key cannot reuse a nonce.
+///
+/// `None` when there is no instance file, or it does not parse, or it names no
+/// key for this client — all of which mean "no usable instance", so the caller
+/// should report the lock rather than pretend.
+pub fn running_instance(home: &Path, client: NodeId) -> Option<ConnectLine> {
+    let dir = client_dir(home, client);
+    let instance: Instance =
+        serde_json::from_str(&std::fs::read_to_string(instance_path(home, client)).ok()?).ok()?;
+    let state = keys::read_node_state(&keys::node_path(&link_dir(&dir))).ok()?;
+    let pair_key = state
+        .peers
+        .iter()
+        .find(|peer| peer.node_id == client)
+        .map(|peer| peer.pair_key.clone())?;
+    Some(ConnectLine {
+        port: instance.port,
+        node_id: instance.node_id,
+        pair_key,
+    })
+}
+
+/// Record how to reach the daemon now serving `client`.
+///
+/// # Errors
+///
+/// When the file cannot be written — which is fatal at startup, because a daemon
+/// nobody can find again is one whose sessions are stranded.
+pub fn write_instance(home: &Path, client: NodeId, instance: &Instance) -> std::io::Result<()> {
+    let path = instance_path(home, client);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(
+        path,
+        serde_json::to_string_pretty(instance)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?,
+    )
 }
 
 /// What a bootstrapped host tells its client.
