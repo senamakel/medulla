@@ -143,3 +143,108 @@ impl App {
             .collect()
     }
 }
+
+impl App {
+    /// The screen for `id`, wherever the session runs.
+    ///
+    /// The one lookup that makes a remote pane possible: a local id reaches the
+    /// emulator directly, a remote one reads the grid the client has been
+    /// folding frames into. Both answer a [`ScreenSnapshot`], so every renderer
+    /// downstream — `screen_lines`, the cursor, the hit map — is shared verbatim
+    /// and there is no second drawing path to keep in step.
+    pub(in crate::ui::app) fn session_screen(
+        &self,
+        id: &str,
+    ) -> Option<crate::worker::pty::ScreenSnapshot> {
+        match SessionRef::parse(id) {
+            SessionRef::Local(id) => self.local_sessions.as_ref()?.screen(id),
+            SessionRef::Remote { host, session } => {
+                let state = self.remote_hosts.get(host)?;
+                match state.screen.as_ref() {
+                    Some((watching, snapshot)) if watching == session => Some(snapshot.clone()),
+                    // Watching something else, or nothing yet. The pane draws
+                    // its frame and waits rather than showing another session's
+                    // screen under this one's title.
+                    _ => None,
+                }
+            }
+        }
+    }
+
+    /// Match the pane's geometry onto the session, wherever it runs.
+    ///
+    /// Called every frame. The local path short-circuits when the size already
+    /// matches; the remote path is deduplicated here for the same reason, since
+    /// a resize per frame would be a datagram per frame on an idle session.
+    pub(in crate::ui::app) fn session_fit(&mut self, id: &str, cols: u16, rows: u16) {
+        match SessionRef::parse(id) {
+            SessionRef::Local(id) => {
+                if let Some(local) = self.local_sessions.as_ref() {
+                    local.fit(id, cols, rows);
+                }
+            }
+            SessionRef::Remote { host, .. } => {
+                let Some(state) = self.remote_hosts.get_mut(host) else {
+                    return;
+                };
+                if state.pane_size == Some((cols, rows)) {
+                    return;
+                }
+                state.pane_size = Some((cols, rows));
+                state.request(crate::remote::client::RemoteRequest::Resize { cols, rows });
+            }
+        }
+    }
+
+    /// Send already-encoded bytes to a session, wherever it runs.
+    ///
+    /// # Errors
+    ///
+    /// When the session is unknown, has exited, or — for a remote one — its host
+    /// is no longer connected. Surfaced rather than swallowed: an attached pane
+    /// whose keystrokes vanish is worse than one that says why.
+    pub(in crate::ui::app) fn session_write(
+        &mut self,
+        id: &str,
+        bytes: &[u8],
+    ) -> Result<(), String> {
+        match SessionRef::parse(id) {
+            SessionRef::Local(id) => self
+                .local_sessions
+                .as_ref()
+                .ok_or_else(|| "this device is not hosting".to_string())?
+                .write(id, bytes),
+            SessionRef::Remote { host, .. } => {
+                let state = self
+                    .remote_hosts
+                    .get_mut(host)
+                    .ok_or_else(|| format!("{host} is not connected"))?;
+                state.request(crate::remote::client::RemoteRequest::Input(bytes.to_vec()))
+            }
+        }
+    }
+
+    /// Stream a remote session's screen, so the pane has something to draw.
+    ///
+    /// A no-op for a local session, which needs no subscription — its emulator
+    /// is right here. Called when the pane's selection changes, and cheap to
+    /// repeat: the host ignores a subscribe for what it is already sending.
+    pub(in crate::ui::app) fn session_watch(&mut self, id: &str) {
+        let SessionRef::Remote { host, session } = SessionRef::parse(id) else {
+            return;
+        };
+        let session = session.to_string();
+        let Some(state) = self.remote_hosts.get_mut(host) else {
+            return;
+        };
+        if state.watching.as_deref() == Some(session.as_str()) {
+            return;
+        }
+        state.watching = Some(session.clone());
+        // Cleared rather than kept: the held grid belongs to the session we just
+        // stopped watching, and drawing it under the new session's title would be
+        // a lie the operator has no way to notice.
+        state.screen = None;
+        state.request(crate::remote::client::RemoteRequest::Watch(session));
+    }
+}

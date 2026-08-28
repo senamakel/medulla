@@ -43,6 +43,47 @@ pub(in crate::ui::app) struct RemoteHostState {
     pub(in crate::ui::app) capabilities: RemoteCapabilities,
     /// Its sessions, as last reported.
     pub(in crate::ui::app) rows: Vec<RemoteSessionRow>,
+    /// The session whose screen is streaming, and the screen itself.
+    ///
+    /// One at a time, and that is the transport speaking rather than a
+    /// simplification: channel 1 carries a single synchronised grid per peer, so
+    /// two streams to one host would overwrite each other every frame. Every
+    /// other session stays live and keeps appearing in [`rows`](Self::rows),
+    /// which rides the reliable channel.
+    pub(in crate::ui::app) watching: Option<String>,
+    /// The watched session's screen, folded from the frames received so far.
+    pub(in crate::ui::app) screen: Option<(String, crate::worker::pty::ScreenSnapshot)>,
+    /// The size the pane last told this host about, so an unchanged geometry
+    /// does not cost a datagram every frame.
+    pub(in crate::ui::app) pane_size: Option<(u16, u16)>,
+    /// How to reach the task that owns this host's connection.
+    ///
+    /// `None` before the first dial. The task outlives every session on the
+    /// machine, which is what makes one bootstrap serve all of them.
+    pub(in crate::ui::app) requests:
+        Option<tokio::sync::mpsc::UnboundedSender<crate::remote::client::RemoteRequest>>,
+}
+
+impl RemoteHostState {
+    /// Ask this host's connection to do something.
+    ///
+    /// # Errors
+    ///
+    /// When the host has never been dialled, or its task has stopped — both of
+    /// which mean the request cannot be carried out and the caller should say so
+    /// rather than appear to have done it.
+    pub(in crate::ui::app) fn request(
+        &mut self,
+        request: crate::remote::client::RemoteRequest,
+    ) -> Result<(), String> {
+        let sender = self
+            .requests
+            .as_ref()
+            .ok_or_else(|| "not connected".to_string())?;
+        sender
+            .send(request)
+            .map_err(|_| "the connection has stopped".to_string())
+    }
 }
 
 impl RemoteHostState {
