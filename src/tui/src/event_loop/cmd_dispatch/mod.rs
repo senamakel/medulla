@@ -15,6 +15,7 @@ use super::AppMsg;
 #[cfg(feature = "workflows")]
 mod copilot_hosts;
 mod feedback;
+mod remote_hosts;
 #[cfg(feature = "workflows")]
 mod workflow_evolution;
 #[cfg(feature = "workflows")]
@@ -145,6 +146,9 @@ pub(super) fn run_cmd(
                     }
                 }
             });
+        }
+        Cmd::ConnectRemoteHost { host_id } => {
+            remote_hosts::spawn_connect(host_id, _config, msg_tx);
         }
         Cmd::InspectContext => {
             let rt = runtime.clone();

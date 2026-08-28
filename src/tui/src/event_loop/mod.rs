@@ -138,6 +138,21 @@ pub(crate) async fn run(
                 match msg {
                     AppMsg::Status(s) => { app.set_status(s); app.refresh_snapshot(); }
                     AppMsg::Contexts(c) => app.set_contexts(c),
+                    AppMsg::RemoteHostConnected {
+                        host_id,
+                        capabilities,
+                    } => {
+                        app.remote_host_connected(&host_id, *capabilities);
+                        // Advance the picker if it is still sitting on this
+                        // host: the operator pressed Enter and has been waiting
+                        // on exactly this answer, so making them press it again
+                        // would be asking for a decision they already made.
+                        app.resume_picker_host(&host_id);
+                    }
+                    AppMsg::RemoteHostFailed { host_id, reason } => {
+                        app.remote_host_failed(&host_id, reason.clone());
+                        app.set_status(format!("{host_id}: {reason}"));
+                    }
                     AppMsg::UsageLoaded(result) => {
                         let cmd = match result {
                             Ok(data) => app.set_account_usage(data),
