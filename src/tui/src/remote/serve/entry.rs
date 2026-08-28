@@ -85,6 +85,11 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         medulla::config::load_config(explicit_config.as_deref(), &env, std::path::Path::new(&cwd))?;
 
     let dir = link_dir(&client_dir(&home, peer));
+    // Held across enrollment *and* link startup. `enroll_client` releases
+    // `node.lock` so `Link::connect` can take it, and a second bootstrap
+    // arriving in that gap would overwrite the key this daemon is about to run
+    // with. See `BootstrapLock`.
+    let _bootstrap = super::hold_bootstrap(&client_dir(&home, peer))?;
     let (node_id, pair_key) = match enroll_client(&dir, peer) {
         Ok(pair) => pair,
         // The lock is held, so a daemon for this client is already running — and

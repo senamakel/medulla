@@ -42,6 +42,9 @@ rustls = { workspace = true }
 toml = { workspace = true }
 dirs = { workspace = true }
 sysinfo = { workspace = true }
+# The advisory lock that closes the enroll-then-connect window on a remote
+# host; the link crate uses the same one for its identity lock.
+fs2 = { workspace = true }
 unicode-width = { workspace = true }
 
 [dev-dependencies]
