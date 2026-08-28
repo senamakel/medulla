@@ -135,7 +135,34 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         anyhow::bail!("{host_id} never confirmed the session");
     }
 
-    host.watch(&session_id)
+    // From here on the far side has a live session that must be closed on
+    // *every* return path, including a timeout or a write failure — otherwise
+    // `medulla remote buildbox --exec 'sleep 1000'` times out after 30s here
+    // and leaves the shell (and whatever it was running) alive in the daemon
+    // forever. So the rest of the work happens in a helper whose `?`s all stay
+    // inside it, and `close` runs unconditionally on the way out regardless of
+    // what it returned.
+    let outcome = run_in_watched_session(&mut host, &session_id, wanted.as_deref(), &command).await;
+    let _ = host.close(&session_id).await;
+    outcome?;
+
+    println!("{}", screen_text(&host));
+    Ok(())
+}
+
+/// Watch `session_id`, run `command` in it (or just wait for a harness to
+/// settle), and leave the screen ready for [`screen_text`].
+///
+/// Split out of [`run`] so every error path here — a timeout, a failed
+/// `input`/`watch` — still lets the caller close the session; see the comment
+/// at the call site.
+async fn run_in_watched_session(
+    host: &mut RemoteHost,
+    session_id: &str,
+    wanted: Option<&str>,
+    command: &str,
+) -> anyhow::Result<()> {
+    host.watch(session_id)
         .await
         .map_err(|e| anyhow::anyhow!(e))?;
     // A beat for the subscription to land before typing, so the first frame is
@@ -152,7 +179,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
             host.input(format!("{command}; echo {marker}\n").as_bytes())
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?;
-            await_for("the command to finish", OUTPUT_TIMEOUT, &mut host, |host| {
+            await_for("the command to finish", OUTPUT_TIMEOUT, host, |host| {
                 // Twice: once in the echoed command line, once as the output.
                 screen_text(host).matches(&marker).count() >= 2
             })
@@ -162,7 +189,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         // typed at it and the screen is read once it has settled. `--exec` is
         // the prompt here rather than a shell command.
         Some(_) => {
-            await_for("the harness to start", OUTPUT_TIMEOUT, &mut host, |host| {
+            await_for("the harness to start", OUTPUT_TIMEOUT, host, |host| {
                 !screen_text(host).trim().is_empty()
             })
             .await?;
@@ -177,9 +204,6 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
             }
         }
     }
-
-    println!("{}", screen_text(&host));
-    let _ = host.close(&session_id).await;
     Ok(())
 }
 
