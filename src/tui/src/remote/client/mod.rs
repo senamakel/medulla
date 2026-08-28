@@ -48,6 +48,14 @@ const HOST_ADDRESS: &str = "medulla-host";
 /// One thing [`RemoteHost::pump`] learned about an `Open` request this pass.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PumpEvent {
+    /// The host answered `Hello` and its capabilities are now held.
+    ///
+    /// Reported as an event rather than inferred from a non-empty harness list:
+    /// a reachable host with no coding CLI and no shell legitimately answers
+    /// with an empty one, and treating emptiness as "no answer yet" left it
+    /// `Connecting` forever instead of reaching the picker's "offers nothing to
+    /// start".
+    Connected,
     /// A session started; carries its (unprefixed) id.
     Opened(String),
     /// The host refused to start one, and this is why — the directory did not
@@ -302,7 +310,10 @@ impl RemoteHost {
         for message in self.bridge.drain_inbox(64).await {
             if let Some(remote) = parse_remote_message(&message.text) {
                 match remote {
-                    RemoteMessage::Capabilities(capabilities) => self.capabilities = capabilities,
+                    RemoteMessage::Capabilities(capabilities) => {
+                        self.capabilities = capabilities;
+                        events.push(PumpEvent::Connected);
+                    }
                     RemoteMessage::Sessions { rows } => self.rows = rows,
                     RemoteMessage::Opened { session_id, .. } => {
                         events.push(PumpEvent::Opened(session_id));
