@@ -31,6 +31,8 @@ mod types;
 mod work;
 
 #[cfg(test)]
+mod tests;
+#[cfg(test)]
 mod run_tests;
 #[cfg(test)]
 mod transcript_tests;
