@@ -159,6 +159,15 @@ tokenEnv = "MEDULLA_TOKEN"
 #                               # a remote directory cannot be completed from
 #                               # here, so this list is what the picker can show
 # enabled = true                # false keeps the entry but stops offering it
+#
+# What a session on a remote host gets: whatever *that machine* is configured
+# for. Its [router], its [[hooks]], its [attribution], its [[customHarnesses]],
+# and the coding CLIs actually installed there — resolved from its own config
+# file, never shipped from here. So a preset defined only on the build box is
+# offerable to a laptop that has never heard of it, and a laptop cannot make the
+# build box run a hook command it never agreed to. The remote daemon binds its
+# own control socket, so an agent it starts gets its tools, its managed skills
+# and somewhere to report, exactly as a local one does.
 
 # ---------------------------------------------------------------------------
 # harness — how harnesses the operator starts themselves behave (optional)

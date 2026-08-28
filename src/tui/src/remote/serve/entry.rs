@@ -81,11 +81,8 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         })
         .unwrap_or_else(|| cwd.clone());
 
-    let loaded = medulla::config::load_config(
-        explicit_config.as_deref(),
-        &env,
-        std::path::Path::new(&cwd),
-    )?;
+    let loaded =
+        medulla::config::load_config(explicit_config.as_deref(), &env, std::path::Path::new(&cwd))?;
 
     let dir = link_dir(&client_dir(&home, peer));
     let (node_id, pair_key) = match enroll_client(&dir, peer) {
