@@ -111,6 +111,10 @@ impl App {
             return;
         };
         let (rows, title) = match picker.step {
+            SessionPickerStep::Host => (
+                picker.hosts.len(),
+                "Choose a host — Enter agent · Esc cancel",
+            ),
             SessionPickerStep::Harness => (
                 picker.choices.len(),
                 "Choose a session type — Enter workspace · Esc cancel",
@@ -162,6 +166,38 @@ impl App {
             }
         };
         let mut lines = match picker.step {
+            SessionPickerStep::Host => picker
+                .hosts
+                .iter()
+                .enumerate()
+                .map(|(index, host)| {
+                    row_hit(index, index, &mut hits);
+                    let marker = if index == picker.host_index { "❯ " } else { "  " };
+                    let style = if index == picker.host_index {
+                        self.theme.selection()
+                    } else {
+                        Style::default()
+                    };
+                    // Remote rows carry their connection state, because the
+                    // difference between "this device" and a machine that is not
+                    // answering is the whole of what the operator is choosing
+                    // between — and a row that just says its name would let them
+                    // pick a host that cannot start anything.
+                    let suffix = match host.remote {
+                        false => String::new(),
+                        true => format!(
+                            " · {}",
+                            self.remote_host(&host.id)
+                                .map(|state| state.summary())
+                                .unwrap_or_else(|| "not connected".to_string())
+                        ),
+                    };
+                    TLine::from(Span::styled(
+                        format!("{marker}{}{suffix}", host.label),
+                        style,
+                    ))
+                })
+                .collect(),
             SessionPickerStep::Harness => {
                 let capacity = (inner.height as usize).saturating_sub(HARNESS_TRAILER_LINES);
                 let range = harness_choice_window(picker.choices.len(), picker.index, capacity);
