@@ -118,7 +118,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     // about that — nothing is ever sent there, because nothing is sent until the
     // client has been heard from.
     config.path = LinkPath::Direct {
-        endpoint: "127.0.0.1:9".to_string(),
+        endpoint: super::unrouted_placeholder(config.bind),
     };
     config.peers = vec![PeerConfig {
         node_id: peer,

@@ -56,8 +56,9 @@ use crate::ui::harness_pane::LocalSessions;
 use crate::worker::pty::PtyManager;
 
 pub use bootstrap::{
-    bind_address, client_dir, enroll_client, hold_bootstrap, instance_path, link_dir,
-    running_instance, write_instance, BootstrapLock, ConnectLine, Instance, CONNECT_SENTINEL,
+    bind_address, client_dir, enroll_client, hold_bootstrap, instance_path, join_endpoint,
+    link_dir, running_instance, unrouted_placeholder, write_instance, BootstrapLock, ConnectLine,
+    Instance, CONNECT_SENTINEL,
 };
 pub use sessions::{resolve_choice, wire_choice, wire_row};
 pub use types::Subscriptions;

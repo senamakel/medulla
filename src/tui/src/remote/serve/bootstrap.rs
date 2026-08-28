@@ -283,6 +283,47 @@ pub fn enroll_client(
 /// `0` lets the OS choose, which is the ordinary case: the port is reported back
 /// on the connect line, so nothing depends on it being predictable. A fixed port
 /// exists for the case where a firewall rule has to name one in advance.
+///
+/// Prefers `[::]`, which on a dual-stack host also accepts IPv4-mapped clients —
+/// so one socket serves both, and a host reachable only over IPv6 works at all.
+/// A hard-coded `0.0.0.0` made such a host bootstrap successfully over SSH and
+/// then be unreachable over UDP, which is the worst shape a failure can take.
+///
+/// Probed rather than assumed: `bindv6only` is not universally off, and a host
+/// with IPv6 disabled cannot bind `[::]` whatever the default says. Falling back
+/// to `0.0.0.0` keeps those working exactly as before.
 pub fn bind_address(port: u16) -> SocketAddr {
-    SocketAddr::from(([0, 0, 0, 0], port))
+    match std::net::UdpSocket::bind("[::]:0") {
+        Ok(_probe) => SocketAddr::from(([0u16; 8], port)),
+        Err(_) => SocketAddr::from(([0, 0, 0, 0], port)),
+    }
+}
+
+/// An address the daemon can point a not-yet-known peer at.
+///
+/// A direct link needs *an* endpoint at construction, but the daemon has not
+/// heard from its client yet and learns the real address from the first datagram
+/// that authenticates. Nothing is ever sent here — but it must share the socket's
+/// family, because the link resolves an endpoint against the bind's family and
+/// would otherwise refuse to start.
+pub fn unrouted_placeholder(bind: SocketAddr) -> String {
+    match bind.is_ipv4() {
+        true => "127.0.0.1:9".to_string(),
+        false => "[::1]:9".to_string(),
+    }
+}
+
+/// Join a host and port into an endpoint, bracketing an IPv6 literal.
+///
+/// `format!("{host}:{port}")` is wrong for `::1` — it produces `::1:9`, which
+/// parses as a different address entirely. Only a bare literal needs the
+/// brackets; a hostname or an already-bracketed literal is left alone.
+pub fn join_endpoint(host: &str, port: u16) -> String {
+    let host = host.trim();
+    let needs_brackets =
+        host.parse::<std::net::Ipv6Addr>().is_ok() && !host.starts_with('[');
+    match needs_brackets {
+        true => format!("[{host}]:{port}"),
+        false => format!("{host}:{port}"),
+    }
 }
