@@ -201,13 +201,21 @@ async fn run_in_watched_session(
         // "the output has arrived" is distinguishable from "the screen has not
         // caught up" without guessing at a delay.
         None => {
+            // Split across a quote so the *echoed command line* never contains
+            // the literal the predicate looks for — only the shell's output
+            // does. Counting two occurrences instead (command line + output)
+            // fails whenever the command line scrolls off the 40-row screen,
+            // which any long output does, and also whenever the command clears
+            // the screen. One occurrence of a marker that can only come from
+            // the output has neither problem.
             let marker = format!("__medulla_done_{}", std::process::id());
-            host.input(format!("{command}; echo {marker}\n").as_bytes())
+            let (head, tail) = marker.split_at("__medulla".len());
+            host.input(format!("{command}; echo {head}''{tail}\n").as_bytes())
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?;
             await_for("the command to finish", OUTPUT_TIMEOUT, host, |host| {
                 // Twice: once in the echoed command line, once as the output.
-                screen_text(host).matches(&marker).count() >= 2
+                screen_text(host).contains(&marker)
             })
             .await?;
         }
