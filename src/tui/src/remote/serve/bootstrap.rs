@@ -124,8 +124,8 @@ pub fn enroll_client(
         role: Role::Host,
         pair_key: pair_key.clone(),
         // Never used on this path — the direct link derives its outer key from
-        // the pair key instead — but the file's schema has the field, and
-        // leaving it zeroed would be indistinguishable from a corrupt read.
+        // the pair key instead — but the file's schema has the field, and a
+        // zeroed one would be indistinguishable from a corrupt read.
         forwarder_key: ForwarderKey::generate(),
         forwarder_endpoint: String::new(),
         peer_node_id: client,
@@ -133,9 +133,18 @@ pub fn enroll_client(
         seq_reservation: 1,
     })?;
     let node_id = node.state.node_id;
-    let mut state = node.state.clone();
+
+    // Re-read rather than editing `node.state`, and this is load-bearing.
+    // `acquire_or_create` builds a `ReservedSeq`, which *always* reserves a
+    // fresh block and writes a higher `seq_reservation` to disk — while
+    // `node.state` still holds the value from before that write. Writing the
+    // in-memory copy back would rewind the reservation, handing out sequences a
+    // previous run may already have used, which is nonce reuse under one AEAD
+    // key (§3.1). Reading the file back picks up the reservation the source just
+    // persisted. The lock is still held, so nothing else can be writing.
+    let mut state = keys::read_node_state(&node.path)?;
     // Replace this client's entry rather than appending, so a client that
-    // re-bootstraps gets one key rather than accumulating stale ones.
+    // re-bootstraps ends up with one key rather than accumulating stale ones.
     state.peers.retain(|peer| peer.node_id != client);
     state.peers.push(EnrolledPeer {
         node_id: client,
@@ -143,7 +152,10 @@ pub fn enroll_client(
     });
     state.peer_node_id = client;
     state.pair_key = pair_key.clone();
-    keys::write_node_state(dir, &state)?;
+    keys::write_node_state(&node.path, &state)?;
+    // Released here on purpose: `Link::connect` acquires the same directory, and
+    // it must find the peer this just wrote.
+    drop(node);
     Ok((node_id, pair_key))
 }
 

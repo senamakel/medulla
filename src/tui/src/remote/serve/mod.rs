@@ -26,6 +26,7 @@
 //! [`LocalSessions::open_unmanaged_named`]: crate::ui::harness_pane::LocalSessions::open_unmanaged_named
 //! [`SessionStream`]: crate::worker::stream::SessionStream
 
+mod bootstrap;
 mod sessions;
 mod types;
 
@@ -45,6 +46,7 @@ use medulla::protocol::{
 use crate::ui::harness_pane::LocalSessions;
 use crate::worker::pty::PtyManager;
 
+pub use bootstrap::{bind_address, enroll_client, remote_link_dir, ConnectLine, CONNECT_SENTINEL};
 pub use sessions::{resolve_choice, wire_choice, wire_row};
 pub use types::Subscriptions;
 
