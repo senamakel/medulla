@@ -65,7 +65,9 @@ pub fn qualify(host_id: &str, session_id: &str) -> String {
 }
 
 /// Translate one remote session into the row every surface already reads.
-pub fn session_row(host_id: &str, remote: &RemoteSessionRow) -> SessionRow {
+/// `since` is when this client first saw the row's current cue — never the
+/// sender's own timestamp, which is a reading from another machine's clock.
+pub fn session_row(host_id: &str, remote: &RemoteSessionRow, since: i64) -> SessionRow {
     SessionRow {
         id: qualify(host_id, &remote.id),
         label: remote.label.clone(),
@@ -109,11 +111,11 @@ pub fn session_row(host_id: &str, remote: &RemoteSessionRow) -> SessionRow {
                 kind: crate::worker::pty::AttentionKind::from_wire(&attention.kind)
                     .unwrap_or(crate::worker::pty::AttentionKind::Choice),
                 what: attention.summary.clone(),
-                // The sender's `since` is a reading from its clock, so it never
-                // crosses. This is the honest local answer: the rail uses it only
-                // to say how long the cue has held, and we have known since we
-                // last heard from the session.
-                since: remote.last_output_at,
+                // Stamped by this client when the cue was first seen, not taken
+                // from the sender: the rail subtracts this from *our* clock to
+                // say how long a harness has been waiting, so a skewed host
+                // would otherwise report a fresh prompt as stuck for hours.
+                since,
             }
         }),
         working: remote.working,
@@ -127,10 +129,14 @@ impl App {
         self.remote_hosts
             .iter()
             .flat_map(|(host_id, state)| {
-                state
-                    .rows
-                    .iter()
-                    .map(move |remote| session_row(host_id, remote))
+                state.rows.iter().map(move |remote| {
+                    let since = state
+                        .attention_since
+                        .get(&remote.id)
+                        .map(|(_, at)| *at)
+                        .unwrap_or(remote.last_output_at);
+                    session_row(host_id, remote, since)
+                })
             })
             .collect()
     }
@@ -271,7 +277,14 @@ impl App {
                     .rows
                     .iter()
                     .find(|row| row.id == session)
-                    .map(|row| session_row(host, row))
+                    .map(|row| {
+                        let since = state
+                            .attention_since
+                            .get(&row.id)
+                            .map(|(_, at)| *at)
+                            .unwrap_or(row.last_output_at);
+                        session_row(host, row, since)
+                    })
             }
         }
     }
