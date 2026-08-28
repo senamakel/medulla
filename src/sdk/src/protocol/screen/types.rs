@@ -178,9 +178,19 @@ pub struct ScreenFrame {
 
 /// Everything that can cross this protocol, in both directions.
 ///
-/// There is no `input` and no `resize`: the viewer cannot steer the session,
-/// and the sender's geometry is authoritative. The one control operation is an
-/// explicit, task-scoped kill used by an operator to recover a hung harness.
+/// Two kinds of viewer live here, and they differ in exactly one way. A
+/// *watcher* — an orchestrator peeking at a fan-out of running tasks — only
+/// looks: it holds no keyboard and must not resize a harness under whoever is
+/// actually using it. An *attached* viewer is a remote session's terminal, and
+/// its pane genuinely is that session's terminal.
+///
+/// So [`Input`](Self::Input) and [`Resize`](Self::Resize) exist, and the rule
+/// about geometry becomes narrower rather than absent: the sender's geometry is
+/// still authoritative, and only an attached viewer may ask it to change. A
+/// watcher simply never sends either.
+///
+/// The one other control operation is an explicit, task-scoped kill used by an
+/// operator to recover a hung harness.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ScreenMessage {
@@ -215,8 +225,71 @@ pub enum ScreenMessage {
         /// The sequence the viewer now holds.
         seq: i64,
     },
+    /// Viewer → sender: bytes to write to the session's pty.
+    ///
+    /// Already encoded as the terminal would send them, rather than as key
+    /// events, because that encoding is the *viewer's* terminal's business: it
+    /// knows its own modes — bracketed paste, the mouse protocol in force,
+    /// whether the application cursor keys are on. Re-deriving it on the far
+    /// side would mean two answers to one question, and they would drift.
+    ///
+    /// Rides channel 0, and that is not an implementation detail: keystrokes are
+    /// not idempotent and must be delivered exactly once and in order. Channel 1
+    /// is latest-wins, which is right for a screen and would silently eat
+    /// characters here.
+    Input {
+        /// The session receiving the keystrokes.
+        task_id: String,
+        /// Raw bytes, base64-encoded — JSON strings cannot carry arbitrary
+        /// control bytes, and every byte here is one.
+        #[serde(rename = "b")]
+        bytes: String,
+    },
+    /// Viewer → sender: the attached pane's geometry, for the sender to resize
+    /// its pty to.
+    ///
+    /// Sent only by an attached viewer. A harness reflows to what the person
+    /// can actually see, which is the whole reason this direction exists.
+    Resize {
+        /// The session to resize.
+        task_id: String,
+        /// The pane's width in cells.
+        cols: u16,
+        /// The pane's height in cells.
+        rows: u16,
+    },
     /// Sender → viewer: new screen state.
     Frame(ScreenFrame),
+}
+
+impl ScreenMessage {
+    /// Build an [`Input`](Self::Input) from raw bytes, encoding them for the
+    /// wire.
+    ///
+    /// The counterpart of [`input_bytes`](Self::input_bytes); the two exist as a
+    /// pair so no caller has to know which base64 alphabet this uses.
+    pub fn input(task_id: impl Into<String>, bytes: &[u8]) -> Self {
+        use base64::Engine as _;
+        ScreenMessage::Input {
+            task_id: task_id.into(),
+            bytes: base64::engine::general_purpose::STANDARD.encode(bytes),
+        }
+    }
+
+    /// Decode an [`Input`](Self::Input)'s payload back to raw bytes.
+    ///
+    /// `None` when this is not an `Input`, or when its payload is not valid
+    /// base64 — a peer sending malformed input should have that keystroke
+    /// dropped, not the session torn down.
+    pub fn input_bytes(&self) -> Option<Vec<u8>> {
+        use base64::Engine as _;
+        match self {
+            ScreenMessage::Input { bytes, .. } => {
+                base64::engine::general_purpose::STANDARD.decode(bytes).ok()
+            }
+            _ => None,
+        }
+    }
 }
 
 /// A screen message with its version tag, as it appears on the wire.
