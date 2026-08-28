@@ -415,6 +415,70 @@ async fn closing_a_session_ends_it() {
 }
 
 #[tokio::test]
+async fn an_exit_nobody_asked_for_still_updates_the_session_list() {
+    // A row can go stale without any `Close`/`Kill` behind it at all: the child
+    // just exits on its own, exactly as it would if the operator typed `exit`.
+    // `publish_sessions_if_changed` is what a real `run()` tick calls, and this
+    // is the case it exists for — the periodic tick is the only thing that will
+    // ever notice this exit, since nothing else asks.
+    let (mut server, client) = fixture("/tmp");
+    let session_id = open_shell(&mut server, &client).await;
+    say(
+        &mut server,
+        &encode_screen_message(&ScreenMessage::Subscribe {
+            task_id: session_id.clone(),
+            max_fps: 10,
+            resync: true,
+        }),
+    )
+    .await;
+    // Drain the replies from opening and subscribing before asserting on what
+    // the tick alone produces.
+    remote_replies(&client).await;
+
+    say(
+        &mut server,
+        &encode_screen_message(&ScreenMessage::input(&session_id, b"exit\n")),
+    )
+    .await;
+
+    let id = session_id.clone();
+    wait_for("the shell to exit on its own", &mut server, |server| {
+        !matches!(
+            server.pty().row(&id).map(|row| row.state),
+            Some(crate::worker::pty::PtyState::Running)
+        )
+    })
+    .await;
+
+    server.publish_sessions_if_changed().await;
+    let rows = remote_replies(&client)
+        .await
+        .into_iter()
+        .find_map(|message| match message {
+            RemoteMessage::Sessions { rows } => Some(rows),
+            _ => None,
+        })
+        .expect("the exit must be published without any Close/Kill request");
+    let row = rows
+        .iter()
+        .find(|row| row.id == session_id)
+        .expect("the exited session stays listed");
+    assert!(
+        !matches!(row.state, medulla::protocol::RemoteSessionState::Running),
+        "the published row must reflect that the shell exited, not stay Running forever"
+    );
+
+    // And a second call with nothing new to say publishes nothing — the whole
+    // point of diffing against `last_rows`.
+    server.publish_sessions_if_changed().await;
+    assert!(
+        remote_replies(&client).await.is_empty(),
+        "an unchanged session list must not be resent"
+    );
+}
+
+#[tokio::test]
 async fn a_resize_reaches_the_emulator() {
     let (mut server, client) = fixture("/tmp");
     let session_id = open_shell(&mut server, &client).await;
