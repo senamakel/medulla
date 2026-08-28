@@ -355,7 +355,9 @@ mod children {
         // behind a busy flag nothing ever cleared.
         sessions.set_control(&id, SessionControl::Orchestrator);
         assert!(
-            sessions.claim_idle("test", HarnessProvider::Codex).is_some(),
+            sessions
+                .claim_idle("test", HarnessProvider::Codex)
+                .is_some(),
             "a handed-back session must be claimable"
         );
         sessions.release(&id);
@@ -438,10 +440,20 @@ mod children {
             .expect("workspace context lock poisoned")
             .insert(id.clone(), (Some("cwd".to_string()), None, None));
 
-        exec.finish_turn(&id, SessionClass::Bounded, true, RunTaskOrigin::DelegatedTask);
+        exec.finish_turn(
+            &id,
+            SessionClass::Bounded,
+            true,
+            RunTaskOrigin::DelegatedTask,
+        );
 
-        let row = sessions.row(&id).expect("a retained session is still listed");
-        assert!(row.retained, "the turn's origin has an operator in the loop");
+        let row = sessions
+            .row(&id)
+            .expect("a retained session is still listed");
+        assert!(
+            row.retained,
+            "the turn's origin has an operator in the loop"
+        );
         assert!(
             exec.workspace_context
                 .lock()
