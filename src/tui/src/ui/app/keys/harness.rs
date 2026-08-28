@@ -140,19 +140,19 @@ impl App {
     /// callers that already know which rail row was clicked do not have to
     /// round-trip through the cursor to say so.
     pub(in crate::ui::app) fn attach_to_session(&mut self, session: &str) {
-        let running = self
-            .local_sessions
-            .as_ref()
-            .is_some_and(|harnesses| harnesses.is_running(session));
-        if !running {
+        // Routed by id, or a remote session reads as exited: the local manager
+        // has never heard of it, and `is_running` answering "no" for a session
+        // that is running perfectly well on another machine is how attaching to
+        // one silently did nothing.
+        let Some(row) = self.session_row(session) else {
+            self.set_status("That session has exited — its last screen is all that is left");
+            return;
+        };
+        if !row.state.is_running() {
             self.set_status("That session has exited — its last screen is all that is left");
             return;
         }
-        let control = self
-            .local_sessions
-            .as_ref()
-            .and_then(|harnesses| harnesses.control(session));
-        if control == Some(SessionControl::Orchestrator) {
+        if row.control == SessionControl::Orchestrator {
             self.set_status("Task sessions are view-only while they are running");
             return;
         }
