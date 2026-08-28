@@ -37,4 +37,11 @@ RUN printf 'StrictHostKeyChecking no\nUserKnownHostsFile /dev/null\nLogLevel ERR
 # compose mounts it, which is fine — a symlink resolves when it is used.
 ENV PATH="/opt/medulla:${PATH}"
 RUN ln -s /opt/medulla/medulla /usr/local/bin/medulla
+
+# A stand-in coding agent, so the suite can prove a *remote* one is launched
+# with the same environment a local one gets. Installed under the name medulla
+# detects, since detection is a PATH probe.
+COPY bin/fake-claude /usr/local/bin/claude
+RUN chmod +x /usr/local/bin/claude
+
 WORKDIR /work
