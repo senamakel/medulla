@@ -18,6 +18,15 @@ pub enum Command {
     Daemon,
     /// `medulla daemon --tui` — the worker daemon with its operator screen.
     DaemonTui,
+    /// `medulla daemon --direct` — a remote host serving sessions to a client
+    /// that bootstrapped it over SSH.
+    ///
+    /// A different program from [`Daemon`](Self::Daemon) despite the shared
+    /// word. That one enrolls with the backend, requires a coding CLI on `PATH`,
+    /// and serves dispatched tasks through a forwarder. This one is minted
+    /// on the spot, serves operator-opened sessions (a shell included), and
+    /// speaks straight to one client over UDP.
+    DaemonDirect,
     Version,
     Help,
     Sessions,

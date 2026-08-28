@@ -24,6 +24,10 @@ pub fn parse_command(args: &[String]) -> Command {
         // daemon. It is one process either way: the TUI *is* the daemon, so the
         // flag chooses a face, not a second program. Must precede the bare
         // `daemon` arm, which would otherwise match first and swallow the flag.
+        // Must precede the `--tui` arm and the bare one: `--direct` selects an
+        // entirely different serving path, and falling through to either would
+        // silently start the wrong program.
+        Some("daemon") if args.iter().any(|a| a == "--direct") => Command::DaemonDirect,
         Some("daemon") if args.iter().any(|a| a == "--tui") => Command::DaemonTui,
         Some("daemon") => Command::Daemon,
         Some("version") | Some("--version") | Some("-v") => Command::Version,
