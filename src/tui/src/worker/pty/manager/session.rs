@@ -247,6 +247,14 @@ impl PtyManager {
             .is_some_and(|session| session.stop_if_orchestrator())
     }
 
+    /// Close a settled turn's session only if the operator has not taken it,
+    /// atomically with control handoff so a concurrent takeover cannot race the
+    /// close and lose.
+    pub fn close_if_orchestrator(&self, id: &str) -> bool {
+        self.handle(id)
+            .is_some_and(|session| session.close_if_orchestrator())
+    }
+
     /// Drop an exited session's record and screen.
     ///
     /// Refuses while the child is alive, so a forgotten session can never leave
