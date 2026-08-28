@@ -47,12 +47,20 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     let env: HashMap<String, String> = std::env::vars().collect();
     let cwd = std::env::current_dir()?;
     let loaded = medulla::config::load_config(flag(args, "--config").as_deref(), &env, &cwd)?;
-    let section = loaded
-        .config
-        .remote_hosts
-        .iter()
-        .find(|section| {
-            medulla::config::remote_host_id(section, 0) == host_id || section.host.trim() == host_id
+    // Through the shared resolver, which applies the same `enabled` filter and
+    // id dedupe the picker offers from. Searching the raw list would also have
+    // passed a fixed index to `remote_host_id`, so every entry needing the
+    // positional fallback would have resolved to the same id.
+    let section = medulla::config::remote_host_section(&loaded.config.remote_hosts, &host_id)
+        .or_else(|| {
+            // Also accept the bare SSH destination, so `medulla remote
+            // tower.local` works without looking up what it was named.
+            medulla::config::remote_hosts(&loaded.config.remote_hosts)
+                .iter()
+                .find(|host| host.host == host_id)
+                .and_then(|host| {
+                    medulla::config::remote_host_section(&loaded.config.remote_hosts, &host.id)
+                })
         })
         .cloned()
         .ok_or_else(|| {

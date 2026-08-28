@@ -573,14 +573,10 @@ impl App {
                 push(path, "registered", &mut seen, &mut out);
             }
         }
-        for path in &self
-            .loaded
-            .config
-            .remote_hosts
-            .iter()
-            .find(|section| medulla::config::remote_host_id(section, 0) == host.id)
-            .map(|section| section.workspaces.clone())
-            .unwrap_or_default()
+        for path in
+            &medulla::config::remote_host_section(&self.loaded.config.remote_hosts, &host.id)
+                .map(|section| section.workspaces.clone())
+                .unwrap_or_default()
         {
             push(path, "registered", &mut seen, &mut out);
         }
