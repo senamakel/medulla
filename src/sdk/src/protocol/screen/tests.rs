@@ -416,3 +416,54 @@ fn default_colours_and_attributes_stay_off_the_wire() {
     assert!(!body.contains("\"attrs\""), "got: {body}");
     assert!(body.contains("\"t\":\"bare\""), "got: {body}");
 }
+
+#[test]
+fn input_round_trips_arbitrary_control_bytes() {
+    // The reason input is base64 and not a JSON string: every byte a terminal
+    // sends is a control byte, and several are not valid UTF-8 on their own.
+    let raw = vec![0x00, 0x1b, b'[', b'A', 0x7f, 0xff, b'\r', b'\n'];
+    let message = ScreenMessage::input("w_7", &raw);
+    let parsed = parse_screen_message(&encode_screen_message(&message))
+        .expect("an input message is one of ours");
+    assert_eq!(parsed, message);
+    assert_eq!(parsed.input_bytes().as_deref(), Some(raw.as_slice()));
+}
+
+#[test]
+fn input_bytes_returns_none_for_a_malformed_payload() {
+    // A peer sending junk should lose that keystroke, not the session.
+    let message = ScreenMessage::Input {
+        task_id: "w_7".to_string(),
+        bytes: "not base64!!".to_string(),
+    };
+    assert!(message.input_bytes().is_none());
+}
+
+#[test]
+fn input_bytes_is_none_for_other_messages() {
+    let message = ScreenMessage::Unsubscribe {
+        task_id: "w_7".to_string(),
+    };
+    assert!(message.input_bytes().is_none());
+}
+
+#[test]
+fn resize_round_trips() {
+    let message = ScreenMessage::Resize {
+        task_id: "w_7".to_string(),
+        cols: 120,
+        rows: 30,
+    };
+    let parsed = parse_screen_message(&encode_screen_message(&message))
+        .expect("a resize message is one of ours");
+    assert_eq!(parsed, message);
+}
+
+#[test]
+fn an_empty_input_round_trips() {
+    // Degenerate but reachable: a paste of nothing, or a key that encodes to no
+    // bytes. It must not decode as a failure.
+    let message = ScreenMessage::input("w_7", b"");
+    let parsed = parse_screen_message(&encode_screen_message(&message)).unwrap();
+    assert_eq!(parsed.input_bytes(), Some(Vec::new()));
+}
