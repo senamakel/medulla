@@ -111,19 +111,19 @@ impl App {
             .map(|local| PickerHost::this_device(local.workspace.clone()))
             .into_iter()
             .chain(
-            medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
-                .into_iter()
-                .map(|host| PickerHost {
-                    label: match host.name.trim() {
-                        "" => host.id.clone(),
-                        name => name.to_string(),
-                    },
-                    id: host.id,
-                    workspace: host.workspace,
-                    remote: true,
-                }),
-        )
-        .collect()
+                medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
+                    .into_iter()
+                    .map(|host| PickerHost {
+                        label: match host.name.trim() {
+                            "" => host.id.clone(),
+                            name => name.to_string(),
+                        },
+                        id: host.id,
+                        workspace: host.workspace,
+                        remote: true,
+                    }),
+            )
+            .collect()
     }
 
     /// The host the picker is currently pointed at.
