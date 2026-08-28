@@ -241,6 +241,14 @@ impl App {
         // stopped watching, and drawing it under the new session's title would be
         // a lie the operator has no way to notice.
         state.screen = None;
+        // Also cleared: `pane_size` dedups `session_fit`'s resize against the
+        // *host*, not the session it was last sent for, so without this a
+        // switch to a session that happens to need the same geometry the
+        // previous one already had would never be resized — it stays at
+        // whatever size it was opened with even though the pane wants
+        // something else. Clearing it makes the very next `session_fit` call
+        // resend the resize unconditionally for the newly watched session.
+        state.pane_size = None;
         // Also dropped on the render pass, and for the same reason. The
         // subscription is re-sent on the next frame that draws this pane, so a
         // host that comes back starts streaming without another gesture.
