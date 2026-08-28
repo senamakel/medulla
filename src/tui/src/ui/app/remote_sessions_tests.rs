@@ -142,3 +142,92 @@ fn an_unknown_attention_kind_still_raises_a_cue() {
         "an unrecognized kind must not silence the cue"
     );
 }
+
+/// An app with one connected remote host holding `rows`.
+fn app_with_host(rows: Vec<RemoteSessionRow>) -> crate::ui::app::App {
+    let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
+        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.remote_hosts = vec![medulla::config::RemoteHostSection {
+        id: "tower".to_string(),
+        host: "tower.local".to_string(),
+        enabled: true,
+        ..medulla::config::RemoteHostSection::default()
+    }];
+    let mut app = crate::ui::app::App::new(rt, loaded);
+    app.remote_host_sessions("tower", rows);
+    app
+}
+
+#[test]
+fn remote_sessions_reach_the_rail_even_when_this_device_hosts_nothing() {
+    // A remote session runs somewhere else, so the local host's absence says
+    // nothing about it. Before this, `own_session_rows` returned early on a
+    // device that was not hosting and every remote session vanished with it.
+    let app = app_with_host(vec![remote_row("w_1"), remote_row("w_2")]);
+    assert!(
+        app.local_sessions_for_test().is_none(),
+        "this fixture deliberately has no local host"
+    );
+    let ids: Vec<String> = app
+        .own_session_rows_for_test()
+        .into_iter()
+        .map(|row| row.id)
+        .collect();
+    assert!(ids.contains(&"tower/w_1".to_string()));
+    assert!(ids.contains(&"tower/w_2".to_string()));
+}
+
+#[test]
+fn a_remote_screen_is_only_shown_for_the_session_being_watched() {
+    // The host may already have had a frame in flight when the pane moved.
+    // Drawing it under the new session's title would be a lie the operator has
+    // no way to notice.
+    let mut app = app_with_host(vec![remote_row("w_1"), remote_row("w_2")]);
+    app.session_watch_for_test("tower/w_1");
+    app.remote_host_screen("tower", "w_2", blank_snapshot());
+    assert!(
+        app.session_screen_for_test("tower/w_1").is_none(),
+        "a frame for another session must not fill this pane"
+    );
+    app.remote_host_screen("tower", "w_1", blank_snapshot());
+    assert!(app.session_screen_for_test("tower/w_1").is_some());
+}
+
+#[test]
+fn watching_a_second_session_clears_the_first_ones_screen() {
+    let mut app = app_with_host(vec![remote_row("w_1"), remote_row("w_2")]);
+    app.session_watch_for_test("tower/w_1");
+    app.remote_host_screen("tower", "w_1", blank_snapshot());
+    app.session_watch_for_test("tower/w_2");
+    assert!(
+        app.session_screen_for_test("tower/w_2").is_none(),
+        "the held grid belongs to the session we stopped watching"
+    );
+}
+
+#[test]
+fn writing_to_a_disconnected_host_says_so_rather_than_appearing_to_work() {
+    let mut app = app_with_host(vec![remote_row("w_1")]);
+    let error = app
+        .session_write_for_test("tower/w_1", b"ls\r")
+        .expect_err("a host with no connection cannot accept input");
+    assert!(error.contains("not connected"), "unhelpful error: {error}");
+}
+
+/// A 1×1 blank screen, enough to stand in for a frame.
+fn blank_snapshot() -> crate::worker::pty::ScreenSnapshot {
+    crate::worker::pty::ScreenSnapshot {
+        cells: vec![vec![crate::worker::pty::ScreenCell {
+            text: crate::worker::pty::CellText::from(" "),
+            fg: vt100::Color::Default,
+            bg: vt100::Color::Default,
+            bold: false,
+            italic: false,
+            underline: false,
+            inverse: false,
+        }]],
+        cursor: (0, 0),
+        hide_cursor: false,
+    }
+}

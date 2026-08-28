@@ -321,3 +321,41 @@ impl App {
         self.select_session_row(&id);
     }
 }
+
+#[cfg(test)]
+impl App {
+    /// Whether this device is hosting, for tests that assert the remote path
+    /// works without it.
+    pub(in crate::ui::app) fn local_sessions_for_test(
+        &self,
+    ) -> Option<&crate::ui::harness_pane::LocalSessions> {
+        self.local_sessions.as_ref()
+    }
+
+    /// [`own_session_rows`](crate::ui::app::App::own_session_rows) for tests.
+    pub(in crate::ui::app) fn own_session_rows_for_test(&self) -> Vec<SessionRow> {
+        self.own_session_rows()
+    }
+
+    /// [`session_watch`](Self::session_watch) for tests.
+    pub(in crate::ui::app) fn session_watch_for_test(&mut self, id: &str) {
+        self.session_watch(id);
+    }
+
+    /// [`session_screen`](Self::session_screen) for tests.
+    pub(in crate::ui::app) fn session_screen_for_test(
+        &self,
+        id: &str,
+    ) -> Option<crate::worker::pty::ScreenSnapshot> {
+        self.session_screen(id)
+    }
+
+    /// [`session_write`](Self::session_write) for tests.
+    pub(in crate::ui::app) fn session_write_for_test(
+        &mut self,
+        id: &str,
+        bytes: &[u8],
+    ) -> Result<(), String> {
+        self.session_write(id, bytes)
+    }
+}
