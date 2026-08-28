@@ -2,7 +2,8 @@
 //! round-trips, optional-field handling, and tolerant capabilities parsing.
 
 use crate::protocol::{
-    decode_task_frame, encode_task_frame, encode_workflow_node_task_frame,
+    decode_task_frame, encode_task_frame, encode_workflow_authoring_task_frame,
+    encode_workflow_node_task_frame,
     parse_agent_capabilities, BudgetSource, BudgetWindow, EncodeFrameInput, HarnessBudget,
     HarnessProvider, HarnessReadiness, HarnessTransport, TaskFrameKind, MEDULLA_TASK_PROTO,
 };
@@ -71,6 +72,47 @@ fn workflow_node_marker_round_trips() {
             .expect("workflow-node frame decodes")
             .workflow_node
     );
+}
+
+/// The copilot's authoring turn is workflow-plane work like a node, and says so
+/// — but it carries the extra marker that keeps the workflow tools with it. A
+/// node frame must not carry it, or the withholding it enables goes away.
+#[test]
+fn the_authoring_marker_round_trips_and_is_absent_from_a_node_frame() {
+    let input = || EncodeFrameInput {
+        transport: None,
+        kind: TaskFrameKind::Task,
+        task_id: "copilot-1".to_string(),
+        text: "add a lint step".to_string(),
+        ts: "2026-08-28T00:00:00.000Z".to_string(),
+        correlation_id: None,
+        harness: None,
+        provider: Some(HarnessProvider::Openhuman),
+        custom_harness: None,
+        model: None,
+        tool_mode: None,
+        workflow: None,
+        workflow_fingerprint: None,
+        workflow_inputs: Default::default(),
+        conversation: Some("workflows-pane".to_string()),
+        fleet_depth: 0,
+    };
+
+    let body = encode_workflow_authoring_task_frame(input());
+    let value: serde_json::Value = serde_json::from_str(&body).expect("frame JSON");
+    assert_eq!(value["workflowNode"], true, "still workflow-plane work");
+    assert_eq!(value["workflowAuthoring"], true);
+    let decoded = decode_task_frame(&body).expect("authoring frame decodes");
+    assert!(decoded.workflow_node && decoded.workflow_authoring);
+
+    // A graph step says nothing of the sort, on the wire or after decoding.
+    let node = encode_workflow_node_task_frame(input());
+    let value: serde_json::Value = serde_json::from_str(&node).expect("frame JSON");
+    assert!(
+        value.get("workflowAuthoring").is_none(),
+        "an agent node must not claim to be an authoring turn: {value}"
+    );
+    assert!(!decode_task_frame(&node).expect("decodes").workflow_authoring);
 }
 
 #[test]
