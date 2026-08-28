@@ -106,6 +106,22 @@ impl App {
     /// rather than in the directory that was asked for.
     pub(super) fn selected_picker_workspace(&self) -> Option<String> {
         let picker = self.session_picker.as_ref()?;
+        // A remote directory cannot be `stat`ed from here, so every check below
+        // would be asking this filesystem about another one's paths — and
+        // answering "no". What the operator typed is taken on trust; the daemon
+        // reports a bad directory by name when the launch fails, which is the
+        // right place for it because it is the only side that can tell.
+        if self.picker_host().is_some_and(|host| host.remote) {
+            let typed = picker.workspace_query.trim();
+            if !picker.workspace_picked && !typed.is_empty() {
+                return Some(typed.to_string());
+            }
+            return picker
+                .workspace_choices
+                .get(picker.workspace_index)
+                .map(|choice| choice.path.clone())
+                .or_else(|| (!typed.is_empty()).then(|| typed.to_string()));
+        }
         let resolved = self
             .local_sessions
             .as_ref()

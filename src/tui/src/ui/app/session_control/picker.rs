@@ -241,13 +241,6 @@ impl App {
     /// appears somewhere below the fold, with the pane still showing whatever
     /// was selected before, reads as "nothing happened".
     pub(crate) fn spawn_session(&mut self, choice: HarnessChoice, cwd: &str) {
-        // A remote host runs its own launch, on its own machine, through the
-        // same `open_unmanaged_named` this calls locally — so the two differ in
-        // where the pty ends up and nowhere else.
-        if let Some(host) = self.picker_host().filter(|host| host.remote).cloned() {
-            self.spawn_remote_session(&host.id, &host.label, &choice, cwd);
-            return;
-        }
         let Some(harnesses) = self.local_sessions.clone() else {
             self.set_status("This device is not hosting, so it has no sessions to start");
             return;
@@ -402,8 +395,18 @@ impl App {
                     self.set_status("Choose a session type first");
                     return;
                 };
+                // Read *before* the picker is cleared: `spawn_session` asks it
+                // which machine the session is for, and a cleared picker answers
+                // "this device" — which is how a remote launch silently became a
+                // local one.
+                let host = self.picker_host().cloned();
                 self.session_picker = None;
-                self.spawn_session(choice, &workspace);
+                match host.filter(|host| host.remote) {
+                    Some(host) => {
+                        self.spawn_remote_session(&host.id, &host.label, &choice, &workspace)
+                    }
+                    None => self.spawn_session(choice, &workspace),
+                }
             }
             _ => {}
         }
@@ -424,7 +427,7 @@ impl App {
     /// host replies with the id it minted — so there is nothing to select yet.
     /// The status line says what was asked for; `select_remote_session` moves
     /// the cursor when it lands.
-    fn spawn_remote_session(
+    pub(in crate::ui::app) fn spawn_remote_session(
         &mut self,
         host_id: &str,
         host_label: &str,
