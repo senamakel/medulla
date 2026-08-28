@@ -74,7 +74,11 @@ impl RemoteHost {
         let started = bootstrap(host, client, workspace)
             .await
             .map_err(|error| error.to_string())?;
-        enroll_host(state_dir, started.connect.node_id, &started.connect.pair_key)?;
+        enroll_host(
+            state_dir,
+            started.connect.node_id,
+            &started.connect.pair_key,
+        )?;
 
         let mut config = LinkConfig::new(state_dir);
         config.path = LinkPath::Direct {
@@ -320,11 +324,7 @@ fn mint_identity(dir: &std::path::Path) -> Result<NodeId, String> {
 }
 
 /// Record the key the host minted for us, so the link can be brought up on it.
-fn enroll_host(
-    dir: &std::path::Path,
-    host: NodeId,
-    pair_key: &PairKey,
-) -> Result<(), String> {
+fn enroll_host(dir: &std::path::Path, host: NodeId, pair_key: &PairKey) -> Result<(), String> {
     let path = keys::node_path(dir);
     // Read from disk rather than from a held handle, for the same reason the
     // daemon's enrollment does: the sequence reservation on disk is ahead of any

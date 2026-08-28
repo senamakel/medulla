@@ -86,7 +86,10 @@ fn an_exited_session_carries_its_code() {
     let RemoteMessage::Sessions { rows } = parsed else {
         panic!("expected a session list");
     };
-    assert_eq!(rows[0].state, RemoteSessionState::Exited { code: Some(130) });
+    assert_eq!(
+        rows[0].state,
+        RemoteSessionState::Exited { code: Some(130) }
+    );
 }
 
 #[test]

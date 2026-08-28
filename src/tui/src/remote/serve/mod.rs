@@ -193,10 +193,13 @@ impl RemoteServer {
     async fn handle_remote(&mut self, from: &str, message: RemoteMessage) {
         match message {
             RemoteMessage::Hello { client_version } => {
-                self.log(&format!("remote: {from} connected (client {client_version})"));
-                self.send(from, &encode_remote_message(&RemoteMessage::Capabilities(
-                    self.capabilities.clone(),
-                )))
+                self.log(&format!(
+                    "remote: {from} connected (client {client_version})"
+                ));
+                self.send(
+                    from,
+                    &encode_remote_message(&RemoteMessage::Capabilities(self.capabilities.clone())),
+                )
                 .await;
                 self.publish_sessions(from).await;
             }
@@ -218,14 +221,12 @@ impl RemoteServer {
                     },
                     Some(choice) => {
                         match self.sessions.open_unmanaged_named(
-                            &choice,
-                            &workspace,
+                            &choice, &workspace,
                             // A remote session is attended: somebody is sitting
                             // in the pane it renders into. So it keeps its
                             // harness's own guardrails, exactly as a local
                             // operator-started session does.
-                            false,
-                            name,
+                            false, name,
                         ) {
                             Ok(session_id) => {
                                 // Sized before the first frame, so the harness
@@ -265,7 +266,9 @@ impl RemoteServer {
             | RemoteMessage::Opened { .. }
             | RemoteMessage::OpenFailed { .. }
             | RemoteMessage::Sessions { .. } => {
-                self.log(&format!("remote: ignored a daemon-to-client message from {from}"));
+                self.log(&format!(
+                    "remote: ignored a daemon-to-client message from {from}"
+                ));
             }
         }
     }
@@ -273,13 +276,19 @@ impl RemoteServer {
     /// The screen half: subscribe, input, resize.
     async fn handle_screen(&mut self, from: &str, message: ScreenMessage) {
         match message {
-            ScreenMessage::Subscribe { task_id, resync, .. } => {
+            ScreenMessage::Subscribe {
+                task_id, resync, ..
+            } => {
                 if self.sessions.sessions.row(&task_id).is_none() {
-                    self.log(&format!("remote: {from} asked for unknown session {task_id}"));
+                    self.log(&format!(
+                        "remote: {from} asked for unknown session {task_id}"
+                    ));
                     return;
                 }
                 if let Some(previous) = self.subscriptions.subscribe(from, &task_id) {
-                    self.log(&format!("remote: {from} moved from {previous} to {task_id}"));
+                    self.log(&format!(
+                        "remote: {from} moved from {previous} to {task_id}"
+                    ));
                 }
                 if resync {
                     self.subscriptions.request_resync(from);
@@ -339,7 +348,10 @@ impl RemoteServer {
                 continue;
             };
             if let Some(frame) = stream.tick(&snapshot) {
-                frames.push((peer.clone(), encode_screen_message(&ScreenMessage::Frame(frame))));
+                frames.push((
+                    peer.clone(),
+                    encode_screen_message(&ScreenMessage::Frame(frame)),
+                ));
             }
         }
         for (peer, body) in frames {
@@ -363,8 +375,11 @@ impl RemoteServer {
                 wire_row(row, bracketed)
             })
             .collect();
-        self.send(peer, &encode_remote_message(&RemoteMessage::Sessions { rows }))
-            .await;
+        self.send(
+            peer,
+            &encode_remote_message(&RemoteMessage::Sessions { rows }),
+        )
+        .await;
     }
 
     async fn send(&self, to: &str, body: &str) {

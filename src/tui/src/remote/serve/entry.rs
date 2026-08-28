@@ -122,9 +122,8 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     ));
 
     let sessions = local_sessions(&env, &workspace);
-    let host_name = flag(args, "--host-name").unwrap_or_else(|| {
-        hostname_of(&env).unwrap_or_else(|| "remote host".to_string())
-    });
+    let host_name = flag(args, "--host-name")
+        .unwrap_or_else(|| hostname_of(&env).unwrap_or_else(|| "remote host".to_string()));
     let workspaces = flag(args, "--workspaces")
         .map(|list| {
             list.split(',')

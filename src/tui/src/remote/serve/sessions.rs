@@ -29,7 +29,10 @@ pub fn wire_choice(choice: &HarnessChoice) -> RemoteHarnessChoice {
 /// a client cannot name an arbitrary binary, an unlisted preset, or a provider
 /// this machine deliberately does not serve. A request for something not on the
 /// list is simply not found.
-pub fn resolve_choice(sessions: &LocalSessions, wanted: &RemoteHarnessChoice) -> Option<HarnessChoice> {
+pub fn resolve_choice(
+    sessions: &LocalSessions,
+    wanted: &RemoteHarnessChoice,
+) -> Option<HarnessChoice> {
     sessions
         .choices()
         .into_iter()

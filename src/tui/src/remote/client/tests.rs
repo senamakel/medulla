@@ -153,7 +153,10 @@ async fn a_client_opens_a_shell_types_into_it_and_sees_the_output() {
     assert!(!session_id.is_empty(), "the host never confirmed the open");
 
     client.watch(&session_id).await.unwrap();
-    settle("the subscription to land", &mut client, &mut server, |_| true).await;
+    settle("the subscription to land", &mut client, &mut server, |_| {
+        true
+    })
+    .await;
     client.input(b"echo docker-e2e-marker\n").await.unwrap();
 
     settle(
@@ -180,7 +183,10 @@ async fn watching_a_second_session_moves_the_stream() {
 
     let mut ids: Vec<String> = Vec::new();
     for (index, request) in ["r1", "r2"].into_iter().enumerate() {
-        client.open(request, &shell, "", 80, 24, None).await.unwrap();
+        client
+            .open(request, &shell, "", 80, 24, None)
+            .await
+            .unwrap();
         let wanted = index + 1;
         let deadline = Instant::now() + Duration::from_secs(30);
         while Instant::now() < deadline && ids.len() < wanted {
@@ -194,10 +200,17 @@ async fn watching_a_second_session_moves_the_stream() {
     client.watch(&ids[0]).await.unwrap();
     settle("the first subscription", &mut client, &mut server, |_| true).await;
     client.watch(&ids[1]).await.unwrap();
-    settle("the second subscription", &mut client, &mut server, |_| true).await;
+    settle("the second subscription", &mut client, &mut server, |_| {
+        true
+    })
+    .await;
 
     assert_eq!(client.watching(), Some(ids[1].as_str()));
-    assert_eq!(server.watching(), 1, "the host streams one screen per client");
+    assert_eq!(
+        server.watching(),
+        1,
+        "the host streams one screen per client"
+    );
 }
 
 /// The watched screen as text.

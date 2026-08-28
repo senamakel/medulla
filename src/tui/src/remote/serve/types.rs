@@ -40,10 +40,7 @@ impl Subscriptions {
 
     /// Stop `peer` watching `session_id`; `false` when it was not watching it.
     pub fn unsubscribe(&mut self, peer: &str, session_id: &str) -> bool {
-        let matches = self
-            .inner
-            .get(peer)
-            .is_some_and(|(id, _)| id == session_id);
+        let matches = self.inner.get(peer).is_some_and(|(id, _)| id == session_id);
         if matches {
             self.inner.remove(peer);
         }

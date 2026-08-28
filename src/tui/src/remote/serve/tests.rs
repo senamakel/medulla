@@ -306,7 +306,10 @@ async fn input_reaches_the_pty_and_the_screen_comes_back() {
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    assert!(seen, "the client was never sent a frame carrying the output");
+    assert!(
+        seen,
+        "the client was never sent a frame carrying the output"
+    );
 }
 
 #[tokio::test]
@@ -381,7 +384,10 @@ async fn an_unwatched_session_still_appears_in_the_session_list() {
             _ => None,
         })
         .expect("a session list");
-    assert!(listed.contains(&first), "the unwatched session is still listed");
+    assert!(
+        listed.contains(&first),
+        "the unwatched session is still listed"
+    );
     assert!(listed.contains(&second));
 }
 

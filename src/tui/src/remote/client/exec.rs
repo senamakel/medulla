@@ -35,8 +35,8 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         .find(|arg| !arg.starts_with("--"))
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("usage: medulla remote <host> --exec <command>"))?;
-    let command = flag(args, "--exec")
-        .ok_or_else(|| anyhow::anyhow!("--exec <command> is required"))?;
+    let command =
+        flag(args, "--exec").ok_or_else(|| anyhow::anyhow!("--exec <command> is required"))?;
 
     let env: HashMap<String, String> = std::env::vars().collect();
     let cwd = std::env::current_dir()?;
@@ -46,8 +46,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         .remote_hosts
         .iter()
         .find(|section| {
-            medulla::config::remote_host_id(section, 0) == host_id
-                || section.host.trim() == host_id
+            medulla::config::remote_host_id(section, 0) == host_id || section.host.trim() == host_id
         })
         .cloned()
         .ok_or_else(|| {
@@ -102,7 +101,9 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         anyhow::bail!("{host_id} never confirmed the session");
     }
 
-    host.watch(&session_id).await.map_err(|e| anyhow::anyhow!(e))?;
+    host.watch(&session_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
     // A beat for the subscription to land before typing, so the first frame is
     // the shell's prompt rather than a blank screen.
     tokio::time::sleep(Duration::from_millis(200)).await;
