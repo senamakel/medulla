@@ -179,10 +179,11 @@ async fn watching_a_second_session_moves_the_stream() {
     let shell = client.capabilities().harnesses[0].id.clone();
 
     let mut ids: Vec<String> = Vec::new();
-    for request in ["r1", "r2"] {
+    for (index, request) in ["r1", "r2"].into_iter().enumerate() {
         client.open(request, &shell, "", 80, 24, None).await.unwrap();
+        let wanted = index + 1;
         let deadline = Instant::now() + Duration::from_secs(30);
-        while Instant::now() < deadline && ids.len() < request.len() {
+        while Instant::now() < deadline && ids.len() < wanted {
             server.pump_once().await;
             ids.extend(client.pump().await);
             tokio::time::sleep(Duration::from_millis(20)).await;
