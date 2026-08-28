@@ -98,8 +98,8 @@ fn build_request(
     // step of through the fleet. That is the recursion the withholding exists to
     // make structurally impossible, arriving by a second door; closing it here
     // is what makes "structurally" true. Server-side because that is where the
-    // decision is enforceable: the tool schema below omits the argument for such
-    // a grant, but a schema is advice and a grant is authority.
+    // decision is enforceable: `fleet_dispatch`'s schema omits the argument for
+    // such a grant, but a schema is advice and a grant is authority.
     if workflow.is_some() && !grant.families.workflows {
         return Err(ControlFailure::new(
             ErrorKind::Unauthenticated,
