@@ -31,6 +31,16 @@ fn host(app: &mut super::App) -> PtyManager {
 
 /// Open a deterministic shell session with the requested control owner.
 fn open_session(sessions: &PtyManager, control: SessionControl) -> String {
+    open_session_with_grant(sessions, control, None)
+}
+
+/// Open a deterministic shell session that also carries `grant` as its MCP
+/// grant session, the same key a workflow run reports progress under.
+fn open_session_with_grant(
+    sessions: &PtyManager,
+    control: SessionControl,
+    grant: Option<&str>,
+) -> String {
     let mut env = HashMap::new();
     if let Ok(path) = std::env::var("PATH") {
         env.insert("PATH".to_string(), path);
@@ -51,7 +61,7 @@ fn open_session(sessions: &PtyManager, control: SessionControl) -> String {
             control,
             origin: SessionOrigin::User,
             name: None,
-            mcp_grant_session: None,
+            mcp_grant_session: grant.map(str::to_string),
         })
         .expect("open test session")
 }
