@@ -246,18 +246,27 @@ impl RemoteHost {
 
     /// Drain whatever has arrived and fold it in.
     ///
-    /// Returns the session ids that were opened in this pass, so a caller
-    /// awaiting an `Open` can tell when it landed without inspecting the rows.
-    pub async fn pump(&mut self) -> Vec<String> {
-        let mut opened = Vec::new();
+    /// Returns what happened to any `Open` request answered in this pass — a
+    /// session that started, or one the host refused and said why. Before
+    /// `OpenFailed` had a variant here, its `reason` was parsed off the wire and
+    /// dropped: the daemon told the caller exactly why the harness could not
+    /// start (an invalid directory, a missing binary) and nothing ever repeated
+    /// it, so the operator saw only a generic "never confirmed the session"
+    /// after a 30s wait.
+    pub async fn pump(&mut self) -> Vec<PumpEvent> {
+        let mut events = Vec::new();
         for message in self.bridge.drain_inbox(64).await {
             if let Some(remote) = parse_remote_message(&message.text) {
                 match remote {
                     RemoteMessage::Capabilities(capabilities) => self.capabilities = capabilities,
                     RemoteMessage::Sessions { rows } => self.rows = rows,
-                    RemoteMessage::Opened { session_id, .. } => opened.push(session_id),
-                    RemoteMessage::OpenFailed { .. }
-                    | RemoteMessage::Hello { .. }
+                    RemoteMessage::Opened { session_id, .. } => {
+                        events.push(PumpEvent::Opened(session_id));
+                    }
+                    RemoteMessage::OpenFailed { reason, .. } => {
+                        events.push(PumpEvent::OpenFailed(reason));
+                    }
+                    RemoteMessage::Hello { .. }
                     | RemoteMessage::Open { .. }
                     | RemoteMessage::Close { .. } => {}
                 }
@@ -267,7 +276,7 @@ impl RemoteHost {
                 self.apply(frame).await;
             }
         }
-        opened
+        events
     }
 
     /// Fold one frame into the watched view.
