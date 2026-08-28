@@ -430,7 +430,7 @@ pub(super) fn retains_finished_session(
     settled
         && class == SessionClass::Bounded
         && control != Some(SessionControl::User)
-        && { let _ = origin; true }
+        && origin.has_operator_in_the_loop()
 }
 
 pub(super) fn retains_workspace_context(
