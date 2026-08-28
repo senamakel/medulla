@@ -35,22 +35,19 @@ pub(super) fn tee_status(
 }
 
 /// Record how a dispatch ended, in the frame kinds the Agents view renders.
+///
+/// Normal worker replies and errors are recorded by the hub pump before the
+/// runner settles. This is only the fallback for locally generated outcomes such
+/// as transport failures, aborts, and timeouts that produced no frame — which is
+/// [`ActivityLog::record_outcome`]'s whole job, so this is a name for the call
+/// rather than a second implementation of it. The inbound `task_run` path needs
+/// the same fallback and reaches the method directly.
 pub(super) fn record_outcome(
     activity: &ActivityLog,
     task_id: &str,
     outcome: &Result<TaskOutcome, RunError>,
 ) {
-    // Normal worker replies and errors are recorded by the hub pump before the
-    // runner settles. This is only the fallback for locally generated outcomes
-    // such as transport failures, aborts, and timeouts that produced no frame.
-    if activity.has_terminal(task_id) {
-        return;
-    }
-    let (kind, content) = match outcome {
-        Ok(result) => ("reply", result.reply.clone()),
-        Err(error) => ("error", error.to_string()),
-    };
-    activity.observed(task_id, kind, &content, crate::clock::now_millis());
+    activity.record_outcome(task_id, outcome);
 }
 
 /// The Agents-view key for a task dispatched through the control plane.
