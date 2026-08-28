@@ -172,19 +172,46 @@ impl RemoteServer {
         self.publish_screens().await;
     }
 
+    /// Publish the session list to every peer, but only when it actually
+    /// changed since the last publish.
+    ///
+    /// [`handle_remote`](Self::handle_remote) already republishes on `Hello`,
+    /// `Open`, `Close` and `Kill`, because those are exactly the requests that
+    /// change a row. But a row also changes with no request behind it at all: a
+    /// child exits on its own, or its busy/working/attention/title/bracketed-
+    /// paste state flips mid-run. Without this, a client that is not the one
+    /// who caused the change never hears about it — an exited shell keeps
+    /// showing as running, and a permission prompt never surfaces. Called every
+    /// tick from [`run`](Self::run), so a state change is never more than one
+    /// tick old.
+    pub async fn publish_sessions_if_changed(&mut self) {
+        let rows = self.current_rows();
+        if rows == self.last_rows {
+            return;
+        }
+        self.last_rows = rows;
+        let peers: Vec<String> = self.peers.iter().cloned().collect();
+        for peer in peers {
+            self.send_sessions(&peer).await;
+        }
+    }
+
     /// Run until the bridge stops producing messages.
     ///
-    /// Two things happen on every pass, and they are deliberately independent:
-    /// inbound control and input are drained, then every subscribed screen is
-    /// sampled. Input goes up the reliable channel and frames come down the
-    /// latest-wins one, so neither waits on the other — which is mosh's model
-    /// and the reason a burst of output cannot delay a keystroke.
+    /// Three things happen on every pass, and the first two are deliberately
+    /// independent: inbound control and input are drained, then every
+    /// subscribed screen is sampled. Input goes up the reliable channel and
+    /// frames come down the latest-wins one, so neither waits on the other —
+    /// which is mosh's model and the reason a burst of output cannot delay a
+    /// keystroke. The session list is checked last, once whatever this pass did
+    /// has had its effect.
     pub async fn run(&mut self) {
         loop {
             for message in self.bridge.drain_inbox(64).await {
                 self.handle(&message.from, &message.text).await;
             }
             self.publish_screens().await;
+            self.publish_sessions_if_changed().await;
             tokio::time::sleep(TICK).await;
         }
     }
