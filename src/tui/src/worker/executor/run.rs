@@ -385,18 +385,16 @@ impl PtySessionExecutor {
             // `busy` clears and `try_claim` can reuse it after handback, with
             // its mapper state left alone rather than torn down for a close
             // that never happened.
-            if self.sessions.close_if_orchestrator(id) {
+            if self.sessions.close_if_orchestrator(id) || self.sessions.row(id).is_none() {
+                // Either this call really did close it, or the handle was
+                // already gone — a genuinely closed or vanished session has no
+                // reader, so its mapper state goes with it either way.
                 self.workspace_context
                     .lock()
                     .expect("workspace context lock poisoned")
                     .remove(id);
-            } else if self.sessions.row(id).is_some() {
-                self.settle_or_hand_back(id, settled);
             } else {
-                self.workspace_context
-                    .lock()
-                    .expect("workspace context lock poisoned")
-                    .remove(id);
+                self.settle_or_hand_back(id, settled);
             }
         } else {
             // Snapshot decided this without a race: either the session was
