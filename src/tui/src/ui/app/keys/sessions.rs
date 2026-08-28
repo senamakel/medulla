@@ -134,7 +134,9 @@ impl App {
             }
             // `k` closes the harness the pane is showing — the other half of the
             // two things an operator wants from a session they are looking at
-            // but not typing into. It asks first; see `close_pane_session_prompt`.
+            // but not typing into. It asks first while the child is alive, and
+            // dismisses the row once it has exited; see
+            // `close_pane_session_prompt`.
             KeyCode::Char('k') if !ctrl && !alt && self.pane_session.is_some() => {
                 self.close_pane_session_prompt();
                 SessionsKey::Handled(None)
@@ -145,6 +147,9 @@ impl App {
             // for sessions the operator started in the app. Dispatched tasks
             // still use the task-termination protocol; the local process is
             // closed only when there is no task to send that request to.
+            // `kill_target` answers `None` for a settled task, so an exited
+            // row reaches the same dismissal the pane's `k` does rather than
+            // being unreachable from either key.
             KeyCode::Char('K') => {
                 if let Some(target) = self.kill_target() {
                     self.arm_kill(target);
