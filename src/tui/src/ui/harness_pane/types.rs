@@ -24,6 +24,26 @@ pub struct HarnessChoice {
     /// the operator is picking between them. Carried here so the picker row and
     /// the spawn agree on which one was picked.
     pub shell: Option<super::shells::ShellChoice>,
+    /// The identity this choice has on the machine that offered it.
+    ///
+    /// `None` for anything on this device. Set for a row a remote host
+    /// advertised, and it takes precedence in [`id`](Self::id) and
+    /// [`display_name`](Self::display_name) — because those two are exactly what
+    /// travel back when the session is opened, and the far side resolves the id
+    /// against its *own* list. Deriving them locally instead would be guessing
+    /// at another machine's vocabulary: two shells there both come back as
+    /// `Shell` here, and a preset's id cannot be reconstructed from its provider
+    /// at all.
+    pub remote: Option<RemoteChoice>,
+}
+
+/// What a remote host called one of its own launchable harnesses.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteChoice {
+    /// The id to send back, resolved against the host's own offer list.
+    pub id: String,
+    /// What the host called it, for the picker row.
+    pub display_name: String,
 }
 
 impl HarnessChoice {
@@ -33,6 +53,7 @@ impl HarnessChoice {
             provider,
             preset: None,
             shell: None,
+            remote: None,
         }
     }
 
@@ -42,6 +63,7 @@ impl HarnessChoice {
             provider: preset.base_harness,
             preset: Some(preset),
             shell: None,
+            remote: None,
         }
     }
 
@@ -51,6 +73,21 @@ impl HarnessChoice {
             provider: medulla::protocol::HarnessProvider::Shell,
             preset: None,
             shell: Some(shell),
+            remote: None,
+        }
+    }
+
+    /// Build a choice for a harness another machine advertised.
+    ///
+    /// `provider` is only a hint here — it decides the row's glyph and nothing
+    /// else, because the launch happens over there and is resolved by
+    /// [`id`](Self::id).
+    pub fn remote(provider: medulla::protocol::HarnessProvider, remote: RemoteChoice) -> Self {
+        Self {
+            provider,
+            preset: None,
+            shell: None,
+            remote: Some(remote),
         }
     }
 
@@ -76,6 +113,9 @@ impl HarnessChoice {
 
     /// Human-readable picker label.
     pub fn display_name(&self) -> &str {
+        if let Some(remote) = &self.remote {
+            return remote.display_name.as_str();
+        }
         if let Some(shell) = &self.shell {
             return shell.name.as_str();
         }
@@ -87,6 +127,9 @@ impl HarnessChoice {
 
     /// Stable identifier used in session labels and status messages.
     pub fn id(&self) -> &str {
+        if let Some(remote) = &self.remote {
+            return remote.id.as_str();
+        }
         if let Some(shell) = &self.shell {
             return shell.name.as_str();
         }

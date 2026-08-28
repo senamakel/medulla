@@ -135,9 +135,19 @@ impl App {
             .capabilities
             .harnesses
             .iter()
-            .filter_map(|choice| {
-                medulla::protocol::HarnessProvider::from_wire(&choice.provider)
-                    .map(HarnessChoice::native)
+            .map(|choice| {
+                HarnessChoice::remote(
+                    // Unrecognized providers are still offered, as a shell's
+                    // glyph: the host says it can start the thing, and this
+                    // build not knowing the name is a reason to draw it plainly,
+                    // not a reason to hide a row that would work.
+                    medulla::protocol::HarnessProvider::from_wire(&choice.provider)
+                        .unwrap_or(medulla::protocol::HarnessProvider::Shell),
+                    crate::ui::harness_pane::RemoteChoice {
+                        id: choice.id.clone(),
+                        display_name: choice.display_name.clone(),
+                    },
+                )
             })
             .collect()
     }
