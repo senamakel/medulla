@@ -138,6 +138,17 @@ impl Session {
         self.peer_epoch
     }
 
+    /// Whether the datagram accepted most recently carried the highest sequence
+    /// yet seen from the peer.
+    ///
+    /// The freshness half of a direct link's address-learning rule: an accepted
+    /// datagram proves who sent it, this proves it is not a replay. See
+    /// [`crate::link::direct::learn`], which is the only caller that should
+    /// need it — a forwarded link has the forwarder to relearn addresses for it.
+    pub fn peer_seq_advanced(&self) -> bool {
+        self.peer_seq_advanced
+    }
+
     /// The round-trip estimator, for `status()` and for tests.
     pub fn rtt(&self) -> &RttEstimator {
         &self.rtt
