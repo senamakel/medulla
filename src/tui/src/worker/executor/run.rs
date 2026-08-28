@@ -364,37 +364,36 @@ impl PtySessionExecutor {
             // concurrent takeover, and the whole point of the `User` guard is
             // that adoption must win that race, not lose it silently.
             //
-            // Its return says which one happened, and the two outcomes are not
-            // interchangeable. A `true` really did close the session, so its
-            // mapper state is gone with it. A `false` is not, by itself,
-            // "an operator took it": the same `false` comes back when the
-            // session's handle is simply gone, which happens whenever the
-            // child exited on its own and the rail's per-frame sweep
+            // Its three-way [`CloseAttempt`] says which of three things
+            // happened, and none of them are interchangeable.
+            // [`Closed`](CloseAttempt::Closed) really did end the session, so
+            // its mapper state is gone with it.
+            // [`Missing`](CloseAttempt::Missing) is not a takeover either,
+            // though a plain `bool` return used to make it look like one: the
+            // handle can be simply gone because the rail's per-frame sweep
             // (`sweep_finished_sessions`) forgot the row before this call ran
             // — `forget` only waits on `is_running()`, not on `finish_turn`
-            // having settled the turn first. That case is not a takeover and
-            // must not be treated as one: there is no session left to settle
-            // or hand back, and its mapper state should go with it rather than
-            // linger for an id nothing will ever revisit.
-            //
-            // A genuine takeover is the case the `row` lookup still finds
-            // something: an operator took control in the gap between the
+            // having settled the turn first. There is no session left to
+            // settle or hand back, so its mapper state goes with it too,
+            // rather than lingering for an id nothing will ever revisit.
+            // Only [`UserOwned`](CloseAttempt::UserOwned) is a genuine
+            // takeover: an operator took control in the gap between the
             // snapshot above and this call, and the session is theirs now,
             // running, exactly the case the `else` branch below exists for —
             // it must get that branch's cleanup: settled or released so
             // `busy` clears and `try_claim` can reuse it after handback, with
             // its mapper state left alone rather than torn down for a close
             // that never happened.
-            if self.sessions.close_if_orchestrator(id) || self.sessions.row(id).is_none() {
-                // Either this call really did close it, or the handle was
-                // already gone — a genuinely closed or vanished session has no
-                // reader, so its mapper state goes with it either way.
-                self.workspace_context
-                    .lock()
-                    .expect("workspace context lock poisoned")
-                    .remove(id);
-            } else {
-                self.settle_or_hand_back(id, settled);
+            match self.sessions.close_if_orchestrator(id) {
+                CloseAttempt::Closed | CloseAttempt::Missing => {
+                    self.workspace_context
+                        .lock()
+                        .expect("workspace context lock poisoned")
+                        .remove(id);
+                }
+                CloseAttempt::UserOwned => {
+                    self.settle_or_hand_back(id, settled);
+                }
             }
         } else {
             // Snapshot decided this without a race: either the session was
