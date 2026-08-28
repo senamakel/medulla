@@ -151,6 +151,7 @@ fn the_pane_title_reports_the_session_s_own_cpu_memory_and_io() {
 
     let title = title(&select_first_harness(&mut app));
 
+    eprintln!("TITLE>>{}", title.trim());
     assert!(title.contains("CPU "), "{title}");
     assert!(title.contains("RAM "), "{title}");
     assert!(title.contains("IO "), "{title}");
