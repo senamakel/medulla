@@ -125,17 +125,19 @@ pub async fn run(
         while let Ok(request) = requests.try_recv() {
             let _ = serve(&mut host, request, &host_id, &updates).await;
         }
-        for session_id in host.pump().await {
-            // `pump` returns the sessions opened in this pass. The request they
-            // answer is not carried on the wire past the host, so the id is
-            // reported and the App matches it to whatever it was waiting for.
-            let _ = updates.send((
-                host_id.clone(),
-                RemoteUpdate::Opened {
+        for event in host.pump().await {
+            // The request an event answers is not carried on the wire past the
+            // host — only one `Open` is ever outstanding per host at a time on
+            // this side, so the id is reported and the App matches it to
+            // whatever it was waiting for.
+            let update = match event {
+                super::PumpEvent::Opened(session_id) => RemoteUpdate::Opened {
                     request_id: String::new(),
                     session_id,
                 },
-            ));
+                super::PumpEvent::OpenFailed(reason) => RemoteUpdate::OpenFailed(reason),
+            };
+            let _ = updates.send((host_id.clone(), update));
         }
 
         if !announced && !host.capabilities().harnesses.is_empty() {
