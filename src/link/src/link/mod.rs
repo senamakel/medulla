@@ -8,6 +8,8 @@
 //! resumes by sending, with no reconnect, no handshake and no re-enrollment.
 
 pub mod direct;
+#[cfg(test)]
+mod tests;
 mod types;
 
 use std::collections::{HashMap, VecDeque};
