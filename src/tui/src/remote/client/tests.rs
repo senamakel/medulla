@@ -219,7 +219,7 @@ async fn watching_a_second_session_moves_the_stream() {
 }
 
 #[tokio::test]
-async fn an_unadvertised_open_reports_why_it_failed() {
+async fn a_refused_open_reports_why_it_failed() {
     // Before `PumpEvent::OpenFailed` existed, `pump` parsed `OpenFailed`'s
     // `reason` off the wire and threw it away — a caller waiting for
     // `PumpEvent::Opened` had nothing to distinguish "still starting" from
