@@ -531,7 +531,7 @@ fn a_hosts_own_preset_is_advertised_to_clients() {
 /// keeps this test honest about what a real config produces.
 fn host_preset() -> medulla::config::CustomHarnessConfig {
     medulla::config::CustomHarnessConfig::from_editor_line(
-        "host-only | Host Only | claude | some-model |  | ",
+        "host-only | Host Only | claude | some-model |  | this-device",
     )
     .expect("a well-formed preset line")
 }
