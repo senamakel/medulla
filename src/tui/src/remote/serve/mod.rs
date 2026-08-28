@@ -47,7 +47,10 @@ use medulla::protocol::{
 use crate::ui::harness_pane::LocalSessions;
 use crate::worker::pty::PtyManager;
 
-pub use bootstrap::{bind_address, enroll_client, remote_link_dir, ConnectLine, CONNECT_SENTINEL};
+pub use bootstrap::{
+    bind_address, client_dir, enroll_client, instance_path, link_dir, running_instance,
+    write_instance, ConnectLine, Instance, CONNECT_SENTINEL,
+};
 pub use sessions::{resolve_choice, wire_choice, wire_row};
 pub use types::Subscriptions;
 

@@ -24,7 +24,10 @@ use medulla::bridge::{LinkBridge, LinkBridgeConfig, LinkPeer};
 use medulla_link::keys::NodeId;
 use medulla_link::{Link, LinkConfig, LinkPath, PeerConfig};
 
-use super::{bind_address, enroll_client, remote_link_dir, ConnectLine, RemoteServer};
+use super::{
+    bind_address, client_dir, enroll_client, link_dir, running_instance, write_instance,
+    ConnectLine, Instance, RemoteServer,
+};
 use crate::ui::harness_pane::LocalSessions;
 use crate::worker::pty::PtyManager;
 
@@ -69,8 +72,26 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         })
         .unwrap_or(cwd);
 
-    let dir = remote_link_dir(&home);
-    let (node_id, pair_key) = enroll_client(&dir, peer)?;
+    let dir = link_dir(&client_dir(&home, peer));
+    let (node_id, pair_key) = match enroll_client(&dir, peer) {
+        Ok(pair) => pair,
+        // The lock is held, so a daemon for this client is already running — and
+        // it owns that client's sessions. Hand back its door rather than
+        // starting a second daemon the client could reach but that has none of
+        // its sessions in it.
+        Err(medulla_link::keys::KeyError::Busy(path)) => match running_instance(&home, peer) {
+            Some(line) => {
+                println!("{}", line.render());
+                std::io::stdout().flush()?;
+                return Ok(());
+            }
+            None => anyhow::bail!(
+                "a daemon holds {} but published no usable instance;                  stop it and try again",
+                path.display()
+            ),
+        },
+        Err(error) => return Err(error.into()),
+    };
 
     let mut config = LinkConfig::new(&dir);
     config.bind = bind_address(port);
@@ -113,6 +134,17 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
                 .collect()
         })
         .unwrap_or_default();
+
+    // Published before the line goes out, so a bootstrap racing this one finds a
+    // complete instance rather than a half-written one.
+    write_instance(
+        &home,
+        peer,
+        &Instance {
+            port: bound.port(),
+            node_id,
+        },
+    )?;
 
     // Printed and flushed before serving: the client is blocked on this line, and
     // SSH may close the moment it has it.
