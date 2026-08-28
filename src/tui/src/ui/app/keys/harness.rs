@@ -199,10 +199,22 @@ impl App {
     /// that case for the same reason [`encode`] maps Enter to it: the child's
     /// line discipline is raw and reads carriage return as the end of a line.
     pub(in crate::ui::app) fn paste_into_harness(&mut self, session: &str, text: &str) {
+        // The mode belongs to the emulator the child is talking to, so for a
+        // remote session it is the far side's answer — reported on its session
+        // row precisely because this client is the one encoding the paste.
         let bracketed = self
-            .local_sessions
-            .as_ref()
-            .and_then(|harnesses| harnesses.sessions.bracketed_paste(session))
+            .session_row(session)
+            .and_then(|_| match crate::ui::app::remote_sessions::SessionRef::parse(session) {
+                crate::ui::app::remote_sessions::SessionRef::Local(id) => self
+                    .local_sessions
+                    .as_ref()
+                    .and_then(|harnesses| harnesses.sessions.bracketed_paste(id)),
+                crate::ui::app::remote_sessions::SessionRef::Remote { host, session } => self
+                    .remote_hosts
+                    .get(host)
+                    .and_then(|state| state.rows.iter().find(|row| row.id == session))
+                    .map(|row| row.bracketed_paste),
+            })
             .unwrap_or(false);
         let bytes = if bracketed {
             bracket_paste(text)
@@ -215,18 +227,21 @@ impl App {
     /// Write already-encoded bytes to the attached harness, detaching if the
     /// child has stopped listening.
     fn write_to_harness(&mut self, session: &str, bytes: &[u8]) {
-        let Some(harnesses) = self.local_sessions.clone() else {
-            self.release_session();
-            return;
-        };
-        if let Err(err) = harnesses.write(session, bytes) {
+        // Routed by id: a remote session's keystrokes go up its host's link
+        // instead of into a local pty, and the failure handling is the same
+        // either way — a pane whose keys go nowhere must detach and say so
+        // rather than silently swallow them.
+        if let Err(err) = self.session_write(session, bytes) {
             self.release_session();
             self.set_status(format!("Session stopped listening ({err})"));
             return;
         }
         // Typing means "I am here now". A pane left scrolled back would keep
         // showing history while the harness answered below it, unseen. No-op
-        // for a harness that owns its own scrollback.
-        harnesses.scroll_to_live(session);
+        // for a harness that owns its own scrollback, and for a remote session,
+        // whose scrollback lives on the machine running it.
+        if let Some(harnesses) = self.local_sessions.as_ref() {
+            harnesses.scroll_to_live(session);
+        }
     }
 }
