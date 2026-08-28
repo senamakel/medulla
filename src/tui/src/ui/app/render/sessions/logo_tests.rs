@@ -50,7 +50,8 @@ fn the_wordmark_sits_above_the_rail_border() {
     // The rail's own border opens on the row right after the art, so the two
     // read as one column rather than as a banner over the whole tab.
     assert!(
-        rows[crate::ui::LOGO.len()].starts_with('┌') || rows[crate::ui::LOGO.len()].starts_with('╭'),
+        rows[crate::ui::LOGO.len()].starts_with('┌')
+            || rows[crate::ui::LOGO.len()].starts_with('╭'),
         "row after the wordmark is {:?}, wanted the rail border",
         rows[crate::ui::LOGO.len()]
     );
@@ -65,12 +66,4 @@ fn a_short_terminal_keeps_the_list_and_drops_the_wordmark() {
         "row 0 is {:?}, wanted the rail rather than the wordmark",
         rows[0]
     );
-}
-
-#[test]
-#[ignore]
-fn dump() {
-    for row in rows(100, 16) {
-        println!("|{row}|");
-    }
 }
