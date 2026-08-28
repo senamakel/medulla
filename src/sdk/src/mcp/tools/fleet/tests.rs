@@ -10,7 +10,7 @@ use crate::mcp::backend::FleetBackend;
 use crate::mcp::{handle_request, McpSession, OfflineFleet, ToolMode};
 use crate::workflows::{FileWorkflowStore, WorkflowStore};
 
-use super::FLEET_TOOL_NAMES;
+use super::{definitions, FLEET_TOOL_NAMES};
 
 /// A fleet backend that records what it was asked and answers as told.
 struct FakeBackend {
