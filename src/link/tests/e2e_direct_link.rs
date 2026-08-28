@@ -69,12 +69,23 @@ async fn free_port() -> SocketAddr {
 async fn direct_pair(
     client_dir: &Path,
     daemon_dir: &Path,
-) -> (medulla_link::LinkHandle, NodeId, medulla_link::LinkHandle, NodeId) {
+) -> (
+    medulla_link::LinkHandle,
+    NodeId,
+    medulla_link::LinkHandle,
+    NodeId,
+) {
     let client_id = NodeId([0x11; 16]);
     let daemon_id = NodeId([0x22; 16]);
     let pair_key = PairKey::generate();
 
-    enroll(client_dir, client_id, daemon_id, Role::Orchestrator, pair_key.clone());
+    enroll(
+        client_dir,
+        client_id,
+        daemon_id,
+        Role::Orchestrator,
+        pair_key.clone(),
+    );
     enroll(daemon_dir, daemon_id, client_id, Role::Host, pair_key);
 
     let client_addr = free_port().await;
@@ -136,10 +147,7 @@ async fn a_screen_frame_crosses_a_direct_link() {
     let _ = tokio::time::timeout(PATIENCE, daemon.recv()).await;
 
     let frame = b"the screen, as bytes".to_vec();
-    daemon
-        .send_screen_frame(client_id, &frame)
-        .await
-        .unwrap();
+    daemon.send_screen_frame(client_id, &frame).await.unwrap();
     let (_from, _epoch, body) = tokio::time::timeout(PATIENCE, client.recv())
         .await
         .expect("no screen frame arrived")
@@ -154,7 +162,13 @@ async fn a_direct_link_refuses_more_than_one_peer() {
     // to be subtly wrong at runtime.
     let dir = tempfile::tempdir().unwrap();
     let node_id = NodeId([0x11; 16]);
-    enroll(dir.path(), node_id, NodeId([0x22; 16]), Role::Orchestrator, PairKey::generate());
+    enroll(
+        dir.path(),
+        node_id,
+        NodeId([0x22; 16]),
+        Role::Orchestrator,
+        PairKey::generate(),
+    );
 
     let mut config = LinkConfig::new(dir.path());
     config.path = LinkPath::Direct {
@@ -170,7 +184,9 @@ async fn a_direct_link_refuses_more_than_one_peer() {
             pair_key: PairKey::generate(),
         },
     ];
-    let error = Link::connect(config).await.expect_err("two peers must be refused");
+    let error = Link::connect(config)
+        .await
+        .expect_err("two peers must be refused");
     assert!(
         matches!(error, medulla_link::LinkError::DirectPeerCount(2)),
         "expected a peer-count refusal, got {error:?}"

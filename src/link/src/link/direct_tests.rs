@@ -8,8 +8,8 @@
 
 use super::*;
 use crate::keys::{MemorySeq, NodeId, PairKey, Role};
-use crate::transport::SessionConfig;
 use crate::state::QueueLimits;
+use crate::transport::SessionConfig;
 use crate::transport::MAX_SENT_STATES;
 
 /// A loopback address that differs from [`elsewhere`], for the roaming tests.

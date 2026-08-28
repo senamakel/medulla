@@ -48,6 +48,28 @@
 //! - [`transport`] — the per-peer state machine: sent-state history, acks,
 //!   RTO, heartbeat and liveness (§4.3, §6). Clock-free and socket-free.
 //! - [`Link`] — the tokio driver that gives that state machine a UDP socket.
+//! - [`link::direct`] — the same transport with no forwarder in the path, for a
+//!   host reached by an SSH bootstrap rather than by enrollment.
+//!
+//! # The two paths
+//!
+//! [`LinkPath`] selects which. `Forwarder` is the enrolled default described
+//! above. `Direct` points one socket straight at one peer, which is what an
+//! SSH-bootstrapped remote host needs: it was never enrolled with the backend
+//! and there is no relay to reach it through.
+//!
+//! Losing the forwarder means losing three things it was doing, and each is
+//! replaced rather than dropped — see [`link::direct`] for the reasoning:
+//!
+//! | Forwarder job | Direct-mode answer |
+//! |---|---|
+//! | Routing on the cleartext header | One socket, one peer: nothing to route. |
+//! | Authenticating that header | A path key derived from the pair key, which — unlike a forwarder key — **both** ends hold, so the tag is finally verifiable by an endpoint. |
+//! | Relearning addresses, which is what makes roaming free (§5) | The peer's address is adopted from any datagram that both authenticates *and* advances the highest sequence seen. Mosh's rule; the freshness half is what stops a captured datagram redirecting the flow. |
+//!
+//! The payload layer is untouched. Both paths use the same AEAD under the same
+//! pair key with the same header as AAD, so confidentiality and integrity do not
+//! depend on which path a datagram took.
 //!
 //! # Where the protocol document leaves room, and what this chose
 //!
@@ -72,6 +94,13 @@
 //!   be sent at all. It is rejected at enqueue
 //!   ([`transport::MAX_MESSAGE_BYTES`]) rather than silently wedging the
 //!   channel.
+//! - **The direct path.** The document assumes a forwarder throughout. The
+//!   outer-header key for a direct link is
+//!   `SHA-256("medulla-link/1 direct-path" ‖ pair_key)`, and the tag is verified
+//!   by the receiving endpoint — which §3 says endpoints do not do, and which is
+//!   only possible because there is no per-node forwarder key involved. Roaming
+//!   follows mosh: highest accepted sequence wins, client→server only. A server
+//!   that changes address is not followed; the client re-bootstraps over SSH.
 
 pub mod crypto;
 pub mod header;

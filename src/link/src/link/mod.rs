@@ -269,9 +269,7 @@ impl Driver {
         // path key from the pair key, so junk is rejected in constant time
         // before it reaches ChaCha20-Poly1305 — the one job the forwarder used
         // to do for us.
-        if direct
-            && !crate::header::verify_tag(datagram, &direct::path_key(session.pair_key()))
-        {
+        if direct && !crate::header::verify_tag(datagram, &direct::path_key(session.pair_key())) {
             return;
         }
         let pending = self.pending_inbound.entry(header.src).or_default();
