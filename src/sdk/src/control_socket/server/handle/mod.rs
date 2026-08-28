@@ -108,7 +108,7 @@ pub async fn handle_control(
     }
 
     let result = match op {
-        "grant.child" => grant_child(grants, &grant),
+        "grant.child" => grant_child(grants, &grant, &params),
         "worker.list" => workers::worker_list(ops).await,
         "task.dispatch" => tasks::task_dispatch(ops, registry, &token, &grant, &params).await,
         "task.get" => tasks::task_get(registry, &token, &params).await,
