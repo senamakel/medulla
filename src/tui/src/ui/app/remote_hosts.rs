@@ -214,5 +214,20 @@ impl App {
         let state = self.remote_hosts.entry(host_id.to_string()).or_default();
         state.status = RemoteHostStatus::Connecting;
         state.requests = Some(requests);
+        // `watching` names a session on the connection that just failed — the
+        // replacement task above knows nothing about it, and
+        // `session_watch` only re-sends `Watch` when the id *changes*. Left
+        // alone, a pane that was already selected on this host would stay
+        // selected but never actually resubscribe: the operator sees the same
+        // pane, permanently stale, because nothing ever asks the new
+        // connection to stream it again. Clearing it (rather than the
+        // selection App holds elsewhere) makes the very next render's
+        // `session_watch` call for the still-selected session look like a
+        // fresh watch and resend it — over the new connection this time. The
+        // held screen and cached pane size are stale for the same reason and
+        // cleared alongside it.
+        state.watching = None;
+        state.screen = None;
+        state.pane_size = None;
     }
 }
