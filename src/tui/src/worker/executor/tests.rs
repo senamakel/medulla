@@ -295,4 +295,47 @@ mod children {
 
         sessions.close(&id);
     }
+
+    /// Same finished, operator-less turn as above, except the operator adopts
+    /// the session first. `finish_turn` snapshots `control()` well before its
+    /// non-retention branch calls `close_if_orchestrator`, so this pins that
+    /// the two are still effectively atomic: an adoption that lands anywhere up
+    /// to the close must win, not lose the race silently and have its new
+    /// session killed out from under it.
+    #[test]
+    fn an_operator_who_adopts_first_keeps_the_session_alive_through_finish_turn() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let marker = dir.path().join("ticks");
+        let sessions = PtyManager::new();
+        let id = sessions.open(ticker(&marker)).expect("a live child");
+        wait_for("the child to start writing", || ticks(&marker) > 0);
+
+        assert!(sessions.set_control(&id, SessionControl::User));
+
+        executor(sessions.clone()).finish_turn(
+            &id,
+            SessionClass::Bounded,
+            true,
+            RunTaskOrigin::Workflow,
+        );
+
+        let row = sessions
+            .row(&id)
+            .expect("an operator-held session is never closed out from under them");
+        assert!(row.state.is_running(), "the harness is still alive");
+        assert!(
+            !row.retained,
+            "adoption, not retention — it is the operator's session on its own \
+             terms, not a leftover flagged for read-and-release"
+        );
+
+        let before = ticks(&marker);
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(
+            ticks(&marker) > before,
+            "its child is genuinely still alive, not merely un-drawn"
+        );
+
+        sessions.close(&id);
+    }
 }
