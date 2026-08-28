@@ -104,6 +104,37 @@ ssh root@host 'ls /root/.medulla/local/remote/hosts' >/dev/null 2>&1
 out=$(medulla remote buildbox --exec 'echo second-connection-works' 2>&1)
 check "a later connection reaches the same daemon" "second-connection-works" "$out"
 
+# ── Coding agents on remote hosts ───────────────────────────────────────────
+#
+# A shell proves the transport. These prove the thing a shell deliberately does
+# *not* exercise: everything `open_unmanaged_named` does for a coding agent and
+# skips for a shell. All of it has to happen on the far side, because that is
+# where the process runs.
+
+# 8. The host offers what it actually has, not what the client has.
+out=$(medulla remote buildbox --harness claude --exec '' 2>&1)
+check "a coding agent on the remote host starts at all" "AGENT-READY" "$out"
+
+# 9. It runs over there, in the configured workspace.
+check "the agent runs on the remote machine" "AGENT-HOST: buildbox" "$out"
+check "the agent starts in the remote workspace" "AGENT-CWD: /work" "$out"
+
+# 10. The grant. This is the one that would silently not work: `attach_mcp`
+#     mints against the control socket of the process that launches the harness,
+#     so without the daemon binding one, a remote agent would start with no way
+#     to report and no tools — while a local one got both.
+check "the agent is given a hook socket to report through" "AGENT-HOOK-SOCKET: /" "$out"
+check "the agent is given a grant for it" "AGENT-HOOK-GRANT: <set>" "$out"
+
+# 11. It is a live session, not a one-shot: input reaches it and it answers.
+out=$(medulla remote buildbox --harness claude --exec 'hello agent' 2>&1)
+check "the agent receives what is typed at it" "AGENT-ECHO: hello agent" "$out"
+
+# 12. Naming a harness the host does not have fails by listing what it does.
+out=$(medulla remote buildbox --harness nosuchagent --exec '' 2>&1)
+check_error "an unavailable harness names what the host does offer" \
+  "does not offer nosuchagent" "$out"
+
 echo
 printf 'passed %d, failed %d\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
