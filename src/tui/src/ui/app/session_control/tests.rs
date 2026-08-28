@@ -1,0 +1,230 @@
+//! Tests for the session picker's host step.
+//!
+//! The assertion that matters most is the *absence* of a change: an operator
+//! with no `[[remoteHosts]]` must not gain a keystroke, a row, or a different
+//! Escape. That is asserted rather than eyeballed, because it is exactly the
+//! kind of regression a feature like this introduces quietly.
+
+use std::sync::Arc;
+
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use medulla::config::{LoadedConfig, RemoteHostSection};
+use medulla::runtime::{MockRuntime, Runtime};
+
+use super::super::types::{App, SessionPickerStep};
+
+/// An app with `hosts` configured as remote machines.
+fn app_with_remote_hosts(hosts: &[&str]) -> App {
+    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.link = Some(medulla::config::LinkConfig::default());
+    loaded.config.remote_hosts = hosts
+        .iter()
+        .map(|host| RemoteHostSection {
+            host: host.to_string(),
+            enabled: true,
+            ..RemoteHostSection::default()
+        })
+        .collect();
+    App::new(rt, loaded)
+}
+
+fn key(code: KeyCode) -> KeyEvent {
+    KeyEvent::new(code, KeyModifiers::NONE)
+}
+
+#[test]
+fn with_no_remote_hosts_there_is_exactly_one_host_and_no_host_step() {
+    // The ordinary case, and the one that must not change. One host means the
+    // picker opens on the harness step exactly as it always has.
+    let app = app_with_remote_hosts(&[]);
+    let hosts = app.picker_hosts();
+    assert_eq!(hosts.len(), 1);
+    assert!(!hosts[0].remote);
+    assert_eq!(hosts[0].label, "this device");
+}
+
+#[test]
+fn a_configured_remote_host_is_offered_after_this_device() {
+    // This device leads because it is where a session goes when nobody says
+    // otherwise, and the first row is what Enter takes.
+    let app = app_with_remote_hosts(&["tower.local"]);
+    let hosts = app.picker_hosts();
+    assert_eq!(hosts.len(), 2);
+    assert!(!hosts[0].remote);
+    assert!(hosts[1].remote);
+    assert_eq!(hosts[1].id, "tower-local");
+}
+
+#[test]
+fn a_half_written_remote_host_is_not_offered() {
+    // An entry with no `host` cannot be dialled, so a row for it could only
+    // fail when clicked.
+    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.remote_hosts = vec![RemoteHostSection {
+        name: "half".to_string(),
+        enabled: true,
+        ..RemoteHostSection::default()
+    }];
+    let app = App::new(rt, loaded);
+    assert_eq!(app.picker_hosts().len(), 1, "only this device is offerable");
+}
+
+#[test]
+fn escape_on_the_harness_step_cancels_when_there_is_one_host() {
+    // Unchanged behaviour, asserted so the host step cannot quietly take it
+    // over: with nothing behind the harness step, Escape still means cancel.
+    let mut app = app_with_remote_hosts(&[]);
+    app.open_session_picker();
+    if app.session_picker.is_none() {
+        // No harness CLI on this machine, so the picker never opened. The
+        // behaviour under test needs a picker; nothing here is worth faking.
+        return;
+    }
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.step),
+        Some(SessionPickerStep::Harness),
+        "one host must not produce a host step"
+    );
+    app.handle_session_picker_key(key(KeyCode::Esc));
+    assert!(app.session_picker.is_none(), "Escape should close the picker");
+}
+
+#[test]
+fn escape_on_the_harness_step_goes_back_when_a_host_step_ran() {
+    let mut app = app_with_remote_hosts(&["tower.local"]);
+    app.open_session_picker();
+    let Some(picker) = app.session_picker.as_ref() else {
+        return;
+    };
+    assert_eq!(
+        picker.step,
+        SessionPickerStep::Host,
+        "two hosts must open on the host step"
+    );
+    // Walk forward onto the harness step, then back.
+    app.handle_session_picker_key(key(KeyCode::Enter));
+    if app.session_picker.as_ref().map(|p| p.step) != Some(SessionPickerStep::Harness) {
+        return;
+    }
+    app.handle_session_picker_key(key(KeyCode::Esc));
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.step),
+        Some(SessionPickerStep::Host),
+        "Escape should return to the host step, not close the picker"
+    );
+}
+
+#[test]
+fn the_host_step_moves_with_the_arrows_and_cancels_on_escape() {
+    let mut app = app_with_remote_hosts(&["a.local", "b.local"]);
+    app.open_session_picker();
+    let Some(picker) = app.session_picker.as_ref() else {
+        return;
+    };
+    assert_eq!(picker.step, SessionPickerStep::Host);
+    assert_eq!(picker.host_index, 0);
+
+    app.handle_session_picker_key(key(KeyCode::Down));
+    assert_eq!(app.session_picker.as_ref().unwrap().host_index, 1);
+    app.handle_session_picker_key(key(KeyCode::Down));
+    app.handle_session_picker_key(key(KeyCode::Down));
+    assert_eq!(
+        app.session_picker.as_ref().unwrap().host_index,
+        2,
+        "the cursor must stop at the last host rather than running off it"
+    );
+    app.handle_session_picker_key(key(KeyCode::Up));
+    assert_eq!(app.session_picker.as_ref().unwrap().host_index, 1);
+
+    app.handle_session_picker_key(key(KeyCode::Esc));
+    assert!(app.session_picker.is_none());
+}
+
+#[test]
+fn choosing_a_disconnected_remote_host_dials_it_rather_than_guessing() {
+    // A remote host's harness list has to come from the host: this machine has
+    // no idea what is installed over there, and inventing rows would break the
+    // picker's promise that everything it shows can start.
+    let mut app = app_with_remote_hosts(&["tower.local"]);
+    app.open_session_picker();
+    if app.session_picker.is_none() {
+        return;
+    }
+    app.handle_session_picker_key(key(KeyCode::Down));
+    app.handle_session_picker_key(key(KeyCode::Enter));
+
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.step),
+        Some(SessionPickerStep::Host),
+        "the picker waits on the host rather than showing an empty harness list"
+    );
+    assert!(
+        matches!(
+            app.take_queued_cmd(),
+            Some(crate::ui::app::types::Cmd::ConnectRemoteHost { host_id }) if host_id == "tower-local"
+        ),
+        "picking a remote host should dial it"
+    );
+}
+
+#[test]
+fn a_connected_host_advances_the_picker_it_left_waiting() {
+    // The operator pressed Enter and has been waiting on exactly this answer,
+    // so making them press it again would ask for a decision already made.
+    let mut app = app_with_remote_hosts(&["tower.local"]);
+    app.open_session_picker();
+    if app.session_picker.is_none() {
+        return;
+    }
+    app.handle_session_picker_key(key(KeyCode::Down));
+    app.handle_session_picker_key(key(KeyCode::Enter));
+    let _ = app.take_queued_cmd();
+
+    app.remote_host_connected(
+        "tower-local",
+        medulla::protocol::RemoteCapabilities {
+            version: "0.12.0".to_string(),
+            harnesses: vec![medulla::protocol::RemoteHarnessChoice {
+                id: "shell:zsh".to_string(),
+                provider: "shell".to_string(),
+                preset: None,
+                display_name: "zsh".to_string(),
+            }],
+            workspace: "/work".to_string(),
+            workspaces: Vec::new(),
+            host_name: "tower".to_string(),
+        },
+    );
+    app.resume_picker_host("tower-local");
+
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.step),
+        Some(SessionPickerStep::Harness),
+        "the picker should have moved on by itself"
+    );
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.cwd.as_str()),
+        Some("/work"),
+        "the workspace step should start from the remote host's directory"
+    );
+}
+
+#[test]
+fn a_host_that_answered_for_a_different_row_does_not_move_the_picker() {
+    // The operator has moved on. Advancing the picker under them would be worse
+    // than leaving it where they put it.
+    let mut app = app_with_remote_hosts(&["a.local", "b.local"]);
+    app.open_session_picker();
+    if app.session_picker.is_none() {
+        return;
+    }
+    app.handle_session_picker_key(key(KeyCode::Down));
+    app.resume_picker_host("b-local");
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.step),
+        Some(SessionPickerStep::Host),
+        "an answer from a host the cursor is not on must change nothing"
+    );
+}
