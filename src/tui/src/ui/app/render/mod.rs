@@ -293,8 +293,42 @@ impl App {
     }
 
     /// A rounded, titled panel [`Block`] styled from the active theme.
+    ///
+    /// Never lit: this is the block for panels that cannot hold the keyboard —
+    /// a read-only dump beside the list that can. A pane the operator steps
+    /// into wants [`App::content_panel`] instead, so its border says so.
     pub(super) fn panel<'a>(&self, title: impl Into<String>) -> Block<'a> {
         crate::ui::widgets::panel(&self.theme, title, false)
+    }
+
+    /// Whether the content pane beside a sidebar currently owns the keyboard.
+    ///
+    /// The two-pane tabs (Settings, TokenMaxxxing) start with the keyboard on
+    /// the nav and hand it to the pane on `Enter`/`→`. Every other tab has no
+    /// such split, so its content always holds the keys.
+    pub(super) fn content_focused(&self) -> bool {
+        match self.tab() {
+            "Settings" => self.settings_focused,
+            "TokenMaxxxing" => self.tokenmaxxing_focused,
+            _ => true,
+        }
+    }
+
+    /// The panel for the pane a sidebar opens into: lit while that pane holds
+    /// the keyboard.
+    ///
+    /// Use it for the one block on a subpage the keys actually drive. Without
+    /// it a page drawn entirely from [`App::panel`] looks identical whether the
+    /// operator is still on the nav or already inside it, which is the whole
+    /// signal `Enter` is supposed to give.
+    pub(super) fn content_panel<'a>(&self, title: impl Into<String>) -> Block<'a> {
+        crate::ui::widgets::panel(&self.theme, title, self.content_focused())
+    }
+
+    /// The panel for a sidebar itself: lit while the nav holds the keyboard,
+    /// which is exactly when the content pane does not.
+    pub(super) fn nav_panel<'a>(&self, title: impl Into<String>) -> Block<'a> {
+        crate::ui::widgets::panel(&self.theme, title, !self.content_focused())
     }
 
     /// Dispatch content rendering to the active tab's draw method.
