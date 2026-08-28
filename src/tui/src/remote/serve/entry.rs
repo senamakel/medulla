@@ -89,7 +89,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     // `node.lock` so `Link::connect` can take it, and a second bootstrap
     // arriving in that gap would overwrite the key this daemon is about to run
     // with. See `BootstrapLock`.
-    let _bootstrap = super::hold_bootstrap(&client_dir(&home, peer))?;
+    let bootstrap_hold = super::hold_bootstrap(&client_dir(&home, peer))?;
     let (node_id, pair_key) = match enroll_client(&dir, peer) {
         Ok(pair) => pair,
         // The lock is held, so a daemon for this client is already running — and
@@ -126,6 +126,10 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     }];
     let link = Link::connect(config).await?;
     let bound = link.local_addr();
+    // Released the moment the link holds `node.lock`: the window this guards is
+    // closed, and holding it longer would make the *next* bootstrap wait for
+    // this daemon to exit instead of taking the reuse path it is meant to.
+    drop(bootstrap_hold);
 
     let bridge = Arc::new(LinkBridge::new(
         Arc::new(link),
