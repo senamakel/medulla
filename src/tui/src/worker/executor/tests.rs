@@ -202,7 +202,9 @@ mod children {
     }
 
     fn ticks(marker: &std::path::Path) -> usize {
-        std::fs::read_to_string(marker).map(|s| s.lines().count()).unwrap_or(0)
+        std::fs::read_to_string(marker)
+            .map(|s| s.lines().count())
+            .unwrap_or(0)
     }
 
     fn wait_for(what: &str, mut check: impl FnMut() -> bool) {
@@ -279,7 +281,10 @@ mod children {
             row.state.is_running(),
             "a delegated task's finished session keeps its harness for the operator"
         );
-        assert!(row.retained, "and is flagged for the `read and release` cue");
+        assert!(
+            row.retained,
+            "and is flagged for the `read and release` cue"
+        );
 
         let before = ticks(&marker);
         std::thread::sleep(Duration::from_millis(300));
