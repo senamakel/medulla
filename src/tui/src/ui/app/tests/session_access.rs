@@ -107,3 +107,64 @@ fn stale_close_prompt_cannot_kill_an_orchestrator_session() {
         .is_some_and(|row| row.state.is_running()));
     sessions.close(&session);
 }
+
+#[test]
+fn k_on_an_exited_hosted_harness_drops_its_row() {
+    // The gesture this pins: an exited session used to answer `k` with "that
+    // session has already exited" and stay on the rail. For a *failed* child
+    // that is a permanent row — `keeps_finished_session` pins the failure cue,
+    // so the frame sweep will not take it either — leaving the operator a dead
+    // entry and nothing that removes it.
+    let mut app = app();
+    app.tab_index = tab("Sessions");
+    let sessions = host(&mut app);
+    let session = open_session(&sessions, SessionControl::User);
+    assert!(sessions.close(&session));
+    app.pane_session = Some(session.clone());
+
+    let cmd = app.on_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+
+    assert!(cmd.is_none());
+    assert!(
+        app.harness_close_armed.is_none(),
+        "a settled child has no work to lose, so there is nothing to confirm"
+    );
+    assert!(sessions.row(&session).is_none(), "the record is released");
+    assert!(app.status().contains("Dismissed"), "{}", app.status());
+}
+
+#[test]
+fn dismissing_the_attached_session_hands_the_keyboard_back() {
+    // Forgetting the row the keyboard is in would leave the attachment pointing
+    // at a session the manager no longer has, and every keystroke after it
+    // typing into nothing.
+    let mut app = app();
+    app.tab_index = tab("Sessions");
+    let sessions = host(&mut app);
+    let session = open_session(&sessions, SessionControl::User);
+    assert!(sessions.close(&session));
+    app.harness_focus = crate::ui::harness_pane::HarnessFocus::Attached(session.clone());
+    app.pane_session = Some(session.clone());
+
+    app.close_pane_session_prompt();
+
+    assert_eq!(app.attached_session(), None);
+    assert!(sessions.row(&session).is_none());
+}
+
+#[test]
+fn a_settled_task_session_is_dismissable_despite_orchestrator_control() {
+    // The view-only refusal speaks of task sessions that are *running*. Applied
+    // to one that has exited it pinned the row exactly as the old
+    // already-exited refusal did, from the branch above it.
+    let mut app = app();
+    app.tab_index = tab("Sessions");
+    let sessions = host(&mut app);
+    let session = open_session(&sessions, SessionControl::Orchestrator);
+    assert!(sessions.close(&session));
+    app.pane_session = Some(session.clone());
+
+    app.close_pane_session_prompt();
+
+    assert!(sessions.row(&session).is_none(), "{}", app.status());
+}
