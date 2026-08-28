@@ -105,11 +105,10 @@ pub(super) async fn medulla_mcp_servers(
 /// The control transport is currently Unix-only. Other targets fail closed and
 /// omit fleet tools instead of exposing an unverified capability path.
 ///
-/// `withhold_workflows` asks the server to narrow the child's families past
-/// whatever the parent grant carries — see [`grant_child`'s handler
-/// docs](crate::control_socket::server::handle) — so a workflow `agent` node
-/// whose launch already resolved to withhold the workflow surface locally
-/// cannot get it back through this handoff instead.
+/// `withhold_workflows` asks the server's `grant.child` handler to narrow the
+/// child's families past whatever the parent grant carries, so a workflow
+/// `agent` node whose launch already resolved to withhold the workflow
+/// surface locally cannot get it back through this handoff instead.
 #[cfg(all(feature = "workflows", unix))]
 async fn exchange_parent_grant(
     socket: PathBuf,
