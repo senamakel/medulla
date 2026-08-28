@@ -153,6 +153,41 @@ fn dismissing_the_attached_session_hands_the_keyboard_back() {
 }
 
 #[test]
+fn dismissing_an_exited_session_with_an_active_run_is_refused() {
+    // `keeps_finished_session` pins a settled child whose MCP grant still has
+    // a run executing under it — a detached run outlives its parent harness by
+    // design, and its rows are drawn under this session. `PtyManager::forget`
+    // revokes that grant unconditionally, so dismissing the row here would pull
+    // the run's reporting channel out from under it. The row must stay, and the
+    // grant must not be forgotten, until the run settles.
+    let mut app = app();
+    app.tab_index = tab("Sessions");
+    let sessions = host(&mut app);
+    let session = open_session(&sessions, SessionControl::User);
+    assert!(sessions.set_grant_session_for_test(&session, "grant-1"));
+    assert!(sessions.close(&session));
+    app.pane_session = Some(session.clone());
+    app.harness_runs.report(
+        "grant-1",
+        medulla::control_socket::RunReport {
+            run_id: "run-1".into(),
+            workflow_id: "workflow".into(),
+            status: medulla::control_socket::HarnessRunStatus::Running,
+            detail: None,
+            node: None,
+        },
+    );
+
+    app.close_pane_session_prompt();
+
+    assert!(
+        sessions.row(&session).is_some(),
+        "the row must stay while its run is still executing"
+    );
+    assert!(app.status().contains("still executing"), "{}", app.status());
+}
+
+#[test]
 fn a_settled_task_session_is_dismissable_despite_orchestrator_control() {
     // The view-only refusal speaks of task sessions that are *running*. Applied
     // to one that has exited it pinned the row exactly as the old
