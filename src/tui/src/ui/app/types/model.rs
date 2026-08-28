@@ -314,6 +314,15 @@ pub enum Cmd {
     Resume(String),
     /// Fetch the list of resumable chats for the resume picker.
     ListChats,
+    /// Bootstrap a `[[remoteHosts]]` machine and learn what it can do.
+    ///
+    /// Runs `ssh`, so it must never be on the render path. Issued the first time
+    /// an operator picks the host, not at startup — a configured machine that is
+    /// switched off should cost nothing until somebody asks for it.
+    ConnectRemoteHost {
+        /// The `[[remoteHosts]]` id to dial.
+        host_id: String,
+    },
     /// Re-inspect the runtime's context chunks for the Context tab.
     InspectContext,
     /// Clear the session this host is signed in with.

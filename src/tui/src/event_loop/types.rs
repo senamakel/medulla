@@ -67,6 +67,25 @@ pub(super) enum AppMsg {
     Status(String),
     /// Fresh context-inspection rows.
     Contexts(Vec<ContextItem>),
+    /// A remote host answered, and this is what it can do.
+    RemoteHostConnected {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// What it advertised.
+        capabilities: Box<medulla::protocol::RemoteCapabilities>,
+    },
+    /// A remote host could not be reached, and this is why.
+    ///
+    /// The reason is carried rather than reduced to a flag because the useful
+    /// cases — an unknown host key, a missing binary, a refused login — have
+    /// different fixes, and "could not connect" is not one an operator can act
+    /// on.
+    RemoteHostFailed {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// What went wrong, in the operator's terms.
+        reason: String,
+    },
     /// Chats to display in the resume picker.
     OpenResume(Vec<medulla::ui::chat_store::MainChatSummary>),
     /// Confirmation that a chat was resumed.
