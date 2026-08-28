@@ -113,6 +113,9 @@ pub async fn run(
     }
 
     let mut announced = false;
+    // Set by `PumpEvent::Connected`, which is the host's answer arriving —
+    // independent of whether that answer listed anything.
+    let mut answered = false;
     let mut last_rows: Vec<RemoteSessionRow> = Vec::new();
     // Keyed by session, not just the snapshot: two idle sessions commonly render
     // an identical grid (two fresh shells at the same prompt), so comparing
@@ -133,6 +136,15 @@ pub async fn run(
             // this side, so the id is reported and the App matches it to
             // whatever it was waiting for.
             let update = match event {
+                // The answer to `Hello`, and the *only* proof it arrived. A
+                // reachable host with no coding CLI and no shell answers with an
+                // empty harness list, so inferring arrival from a non-empty one
+                // left such a host `Connecting` forever rather than reaching the
+                // picker's "offers nothing to start".
+                super::PumpEvent::Connected => {
+                    answered = true;
+                    continue;
+                }
                 super::PumpEvent::Opened(session_id) => RemoteUpdate::Opened {
                     request_id: String::new(),
                     session_id,
@@ -142,7 +154,7 @@ pub async fn run(
             let _ = updates.send((host_id.clone(), update));
         }
 
-        if !announced && !host.capabilities().harnesses.is_empty() {
+        if answered && !announced {
             announced = true;
             let _ = updates.send((
                 host_id.clone(),
