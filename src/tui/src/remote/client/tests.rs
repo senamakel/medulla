@@ -231,8 +231,11 @@ async fn an_unadvertised_open_reports_why_it_failed() {
     })
     .await;
 
+    let shell = client.capabilities().harnesses[0].id.clone();
     client
-        .open("r1", "shell:/usr/bin/evil", "", 80, 24, None)
+        // Advertised, so the client's own local check does not refuse it — the
+        // point is what happens after the request actually reaches the host.
+        .open("r1", &shell, "/no/such/directory", 80, 24, None)
         .await
         .unwrap();
 
