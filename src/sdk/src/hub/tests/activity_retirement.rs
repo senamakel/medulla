@@ -23,7 +23,8 @@
 //! own frame with the real clock and a fixed base would drift past it.
 
 use super::super::activity::ActivityLog;
-use super::super::{RunError, TaskOutcome, TokenUsage};
+use super::super::{RunError, TaskOutcome};
+use crate::protocol::TokenUsage;
 
 /// The retention window, mirroring the private `SETTLED_RETENTION_MS`.
 const SETTLED_RETENTION_MS: i64 = 2 * 60 * 1_000;
