@@ -325,7 +325,7 @@ fn starting_on_a_remote_host_does_not_fall_back_to_this_device() {
     // The host is not actually connected, so the request cannot be delivered —
     // and that specific complaint is the proof it took the remote path at all.
     // A local launch would have complained about a directory instead.
-    let status = app.status_for_test();
+    let status = app.status().to_string();
     assert!(
         status.contains("tower.local") || status.contains("not connected"),
         "expected a remote-launch outcome, got: {status}"
