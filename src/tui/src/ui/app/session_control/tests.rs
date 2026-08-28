@@ -276,3 +276,78 @@ fn a_host_that_answered_for_a_different_row_does_not_move_the_picker() {
         "an answer from a host the cursor is not on must change nothing"
     );
 }
+
+#[test]
+fn a_remote_workspace_is_taken_on_trust_rather_than_checked_locally() {
+    // A remote directory cannot be `stat`ed from here. Checking it against this
+    // filesystem answered "no" for every valid remote path, which is how
+    // `/work` — a real directory on the host — was refused as "not a directory".
+    let mut app = app_with_remote_hosts(&["tower.local"]);
+    app.remote_host_connected("tower-local", capabilities_with_shell());
+    app.open_session_picker();
+    assert!(app.session_picker.is_some(), "the picker must open");
+
+    // Onto the remote host, through to its workspace step.
+    app.handle_session_picker_key(key(KeyCode::Down));
+    app.handle_session_picker_key(key(KeyCode::Enter));
+    app.handle_session_picker_key(key(KeyCode::Enter));
+    assert_eq!(
+        app.session_picker.as_ref().map(|p| p.step),
+        Some(SessionPickerStep::Workspace)
+    );
+
+    // A path that certainly does not exist on this machine.
+    for ch in "/does/not/exist/here".chars() {
+        app.handle_session_picker_key(key(KeyCode::Char(ch)));
+    }
+    assert_eq!(
+        app.selected_picker_workspace_for_test().as_deref(),
+        Some("/does/not/exist/here"),
+        "a remote path must be accepted without a local existence check"
+    );
+}
+
+#[test]
+fn starting_on_a_remote_host_does_not_fall_back_to_this_device() {
+    // The picker was cleared before the launch dispatched, so the question
+    // "which machine is this for?" was asked of a picker that no longer existed
+    // — and answered "this device". A remote launch became a local one, silently.
+    let mut app = app_with_remote_hosts(&["tower.local"]);
+    app.remote_host_connected("tower-local", capabilities_with_shell());
+    app.open_session_picker();
+    app.handle_session_picker_key(key(KeyCode::Down));
+    app.handle_session_picker_key(key(KeyCode::Enter));
+    app.handle_session_picker_key(key(KeyCode::Enter));
+    // Enter on the workspace step launches.
+    app.handle_session_picker_key(key(KeyCode::Enter));
+
+    assert!(app.session_picker.is_none(), "the picker should have closed");
+    // The host is not actually connected, so the request cannot be delivered —
+    // and that specific complaint is the proof it took the remote path at all.
+    // A local launch would have complained about a directory instead.
+    let status = app.status_for_test();
+    assert!(
+        status.contains("tower.local") || status.contains("not connected"),
+        "expected a remote-launch outcome, got: {status}"
+    );
+    assert!(
+        !status.contains("is not a directory"),
+        "that is the local launch path's complaint: {status}"
+    );
+}
+
+/// Capabilities advertising a single shell, enough to reach the workspace step.
+fn capabilities_with_shell() -> medulla::protocol::RemoteCapabilities {
+    medulla::protocol::RemoteCapabilities {
+        version: "0.12.0".to_string(),
+        harnesses: vec![medulla::protocol::RemoteHarnessChoice {
+            id: "bash".to_string(),
+            provider: "shell".to_string(),
+            preset: None,
+            display_name: "bash".to_string(),
+        }],
+        workspace: "/work".to_string(),
+        workspaces: Vec::new(),
+        host_name: "tower".to_string(),
+    }
+}

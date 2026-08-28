@@ -592,3 +592,11 @@ impl App {
         out
     }
 }
+
+#[cfg(test)]
+impl App {
+    /// [`selected_picker_workspace`](Self::selected_picker_workspace) for tests.
+    pub(in crate::ui::app) fn selected_picker_workspace_for_test(&self) -> Option<String> {
+        self.selected_picker_workspace()
+    }
+}
