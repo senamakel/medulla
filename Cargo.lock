@@ -1876,6 +1876,7 @@ dependencies = [
  "dirs",
  "fs2",
  "futures",
+ "libc",
  "medulla",
  "medulla-link",
  "portable-pty",

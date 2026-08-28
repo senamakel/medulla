@@ -56,7 +56,8 @@ use crate::ui::harness_pane::LocalSessions;
 use crate::worker::pty::PtyManager;
 
 pub use bootstrap::{
-    bind_address, client_dir, enroll_client, hold_bootstrap, instance_path, join_endpoint,
+    bind_address, client_dir, detach_from_ssh, enroll_client, hold_bootstrap, instance_path,
+    join_endpoint,
     link_dir, running_instance, unrouted_placeholder, write_instance, BootstrapLock, ConnectLine,
     Instance, CONNECT_SENTINEL,
 };
