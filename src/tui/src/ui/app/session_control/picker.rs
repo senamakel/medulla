@@ -21,29 +21,54 @@ impl App {
     /// starting the wrong CLI in the operator's workspace is not something they
     /// find out about until it has already done something.
     pub(crate) fn start_session_command(&mut self, provider: Option<&str>, path: Option<&str>) {
-        let Some(harnesses) = self.local_sessions.clone() else {
-            self.set_status("This device is not hosting, so it has no sessions to start");
-            return;
-        };
         match provider.and_then(HarnessProvider::from_wire) {
+            // Naming a provider names one on *this* device: `/session claude`
+            // says which CLI, not which machine. A remote session is chosen in
+            // the picker, where there is a host step to choose it on.
             Some(provider) => {
+                if self.local_sessions.is_none() {
+                    self.set_status("This device is not hosting, so it has no sessions to start");
+                    return;
+                }
                 let cwd = path.unwrap_or("").to_string();
                 self.spawn_session(HarnessChoice::native(provider), &cwd);
             }
             None => {
-                let choices = harnesses.choices();
-                if choices.is_empty() {
+                // Built from whatever hosts exist, local or not. A client run
+                // with `MEDULLA_HOST=0` hosts nothing and still has every
+                // configured `[[remoteHosts]]` machine available — returning
+                // early on a missing local surface made those unreachable, which
+                // is the one configuration where they are the *only* thing there
+                // is to reach.
+                let hosts = self.picker_hosts();
+                let Some(first) = hosts.first().cloned() else {
+                    self.set_status(
+                        "This device is not hosting and no [[remoteHosts]] are configured",
+                    );
+                    return;
+                };
+                let choices = match first.remote {
+                    false => self
+                        .local_sessions
+                        .as_ref()
+                        .map(|local| local.choices())
+                        .unwrap_or_default(),
+                    // Empty until the host answers; the host step is where it is
+                    // dialled, which is why a lone remote host still starts there.
+                    true => self.remote_choices(&first.id),
+                };
+                if !first.remote && choices.is_empty() {
                     self.set_status("No harness CLIs found on this device");
                     return;
                 }
-                let hosts = self.picker_hosts();
-                // The condition lives here, once, and decides the *starting
-                // step* rather than gating a branch inside each handler. With no
-                // `[[remoteHosts]]` the vec has one entry, the step is `Harness`,
-                // and every other field is built exactly as it was before — so
-                // the ordinary case gains two fields nothing reads and not a
-                // single keystroke.
-                let step = match hosts.len() > 1 {
+                // Decides the *starting step* rather than gating a branch inside
+                // each handler. The harness step is reachable directly only when
+                // the single host is this device — with no `[[remoteHosts]]` the
+                // vec has one local entry, the step is `Harness`, and the
+                // ordinary case gains not a single keystroke. A remote host has
+                // to be dialled before its harnesses are known, and dialling
+                // happens on the host step, so a lone remote host starts there.
+                let step = match hosts.len() > 1 || first.remote {
                     true => SessionPickerStep::Host,
                     false => SessionPickerStep::Harness,
                 };
@@ -55,7 +80,7 @@ impl App {
                     step,
                     cwd: path
                         .map(str::to_string)
-                        .unwrap_or_else(|| harnesses.workspace.clone()),
+                        .unwrap_or_else(|| first.workspace.clone()),
                     workspace_query: String::new(),
                     workspace_choices: Vec::new(),
                     workspace_index: 0,
@@ -78,11 +103,14 @@ impl App {
     /// [`remote_hosts`](medulla::config::remote_hosts), so every row here names a
     /// host that can actually be dialled.
     pub(in crate::ui::app) fn picker_hosts(&self) -> Vec<PickerHost> {
+        // Offered only when this device can actually start something. A client
+        // run with `MEDULLA_HOST=0` hosts nothing, and a row that could only
+        // fail when chosen is worse than no row.
         let local = self.local_sessions.as_ref();
-        std::iter::once(PickerHost::this_device(
-            local.map(|l| l.workspace.clone()).unwrap_or_default(),
-        ))
-        .chain(
+        local
+            .map(|local| PickerHost::this_device(local.workspace.clone()))
+            .into_iter()
+            .chain(
             medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
                 .into_iter()
                 .map(|host| PickerHost {
