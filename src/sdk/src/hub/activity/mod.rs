@@ -134,8 +134,90 @@ impl ActivityLog {
         }
     }
 
+    /// Record how a dispatch ended, when nothing else already has.
+    ///
+    /// A worker's own `reply`/`error` frame settles a task through the hub pump,
+    /// and that is the ordinary path. Outcomes generated on *this* side never
+    /// reach it: a transport failure, an abort, a dispatch the watchdog reaped
+    /// for going silent, or a worker that was never reachable all produce a
+    /// `Result` here and no frame anywhere. Without this the task's last recorded
+    /// frame is whatever progress it managed, so it reads as `running` — on the
+    /// screen and to [`running_by_agent`](Self::running_by_agent) — for as long
+    /// as the process lives.
+    ///
+    /// Takes the worker-facing id and resolves it through the attribution map,
+    /// exactly as [`observed`](Self::observed) does, so this cannot append a
+    /// second terminal frame under an operator-visible alias.
+    pub fn record_outcome(&self, observed_task_id: &str, outcome: &Result<TaskOutcome, RunError>) {
+        if self.has_terminal(observed_task_id) {
+            return;
+        }
+        let (kind, content) = match outcome {
+            Ok(result) => ("reply", result.reply.clone()),
+            Err(error) => ("error", error.to_string()),
+        };
+        self.observed(
+            observed_task_id,
+            kind,
+            &content,
+            crate::clock::now_millis(),
+        );
+    }
+
+    /// Drop every record of a task that settled more than
+    /// [`SETTLED_RETENTION_MS`] ago, and its attribution with it.
+    ///
+    /// `now` is passed in rather than read here so the rule can be exercised
+    /// against a fixed clock.
+    ///
+    /// A task with no terminal frame is never retired however old it is, for the
+    /// reason the control plane's registry never evicts a `Running` entry: it may
+    /// still be executing, and taking it off the screen would hide live work
+    /// (and, here, the row the operator cancels it from).
+    pub fn retire_settled(&self, now: i64) {
+        let retired: Vec<String> = {
+            let mut entries = self.entries.lock().expect("activity lock");
+            let mut last_at: HashMap<&str, i64> = HashMap::new();
+            let mut settled: HashMap<&str, ()> = HashMap::new();
+            for entry in entries.iter() {
+                let seen = last_at.entry(entry.task_id.as_str()).or_insert(entry.at);
+                *seen = (*seen).max(entry.at);
+                if is_terminal_kind(&entry.kind) {
+                    settled.insert(entry.task_id.as_str(), ());
+                }
+            }
+            let retired: Vec<String> = settled
+                .keys()
+                .filter(|task_id| {
+                    last_at
+                        .get(*task_id)
+                        .is_some_and(|last| now.saturating_sub(*last) >= SETTLED_RETENTION_MS)
+                })
+                .map(|task_id| (*task_id).to_string())
+                .collect();
+            if retired.is_empty() {
+                return;
+            }
+            entries.retain(|entry| !retired.contains(&entry.task_id));
+            retired
+        };
+        // Taken after the entries lock is released, never with it held: the
+        // inbound path locks attribution first and then entries, and holding
+        // both here in the opposite order is the whole recipe for a deadlock.
+        self.attribution
+            .lock()
+            .expect("attribution lock")
+            .retain(|entry| !retired.contains(&entry.activity_task_id));
+    }
+
     /// Everything retained, oldest first.
+    ///
+    /// Retires what has aged out first, so a reader never sees a task the log
+    /// has stopped keeping. This is the hook that makes retirement happen at all
+    /// on an idle host: the rail reads this every frame, and a log nobody writes
+    /// to has nothing else to drive it.
     pub fn snapshot(&self) -> Vec<WorkerActivity> {
+        self.retire_settled(crate::clock::now_millis());
         self.entries
             .lock()
             .expect("activity lock")
