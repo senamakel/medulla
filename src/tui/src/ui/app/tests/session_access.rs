@@ -173,8 +173,7 @@ fn dismissing_an_exited_session_with_an_active_run_is_refused() {
     let mut app = app();
     app.tab_index = tab("Sessions");
     let sessions = host(&mut app);
-    let session = open_session(&sessions, SessionControl::User);
-    assert!(sessions.set_grant_session_for_test(&session, "grant-1"));
+    let session = open_session_with_grant(&sessions, SessionControl::User, Some("grant-1"));
     assert!(sessions.close(&session));
     app.pane_session = Some(session.clone());
     app.harness_runs.report(
