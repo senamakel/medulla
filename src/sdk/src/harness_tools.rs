@@ -14,6 +14,26 @@
 //! node was given an instruction and a workspace; orchestration is the graph's
 //! job, not its steps'.
 //!
+//! # Two withholdings, because a node is launched two ways
+//!
+//! A node dispatched to a worker daemon is handed its whole environment by
+//! [`crate::daemon::task_loop::workflow::dispatch`], which withholds every
+//! Medulla tool ([`withhold`]). A node run by the *local* host — the common
+//! case, and the one an operator's `workflow_run` takes — is sent to an
+//! embedded daemon in the same process as an ordinary task frame carrying the
+//! `workflowNode` marker, and that path withholds the workflow family alone
+//! ([`withhold_workflows`]), leaving `fleet_*` in place.
+//!
+//! The narrower withholding is what closed the recursion actually observed: a
+//! `pr-babysitter` `babysit` node saw `workflow_run` and the
+//! `medulla-pr-babysitter` skill describing its own graph, and started that
+//! graph again on its own pull request — twenty-three times over fifty minutes,
+//! at a rising rate, with one child getting far enough to become a second live
+//! babysitter pushing to the same branch. The fleet verbs were no part of that:
+//! they are bounded by the grant's own depth and in-flight limits, and taking
+//! them away from a node that legitimately delegates would cost something for
+//! nothing.
+//!
 //! # How the decision travels
 //!
 //! Through the child's environment, because that is the one carrier every
