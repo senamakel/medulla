@@ -133,6 +133,23 @@ pub fn ssh_argv(host: &RemoteHostSection, client: NodeId, workspace: &str) -> Ve
         argv.push("--workspace".to_string());
         argv.push(posix_quote(workspace.trim()));
     }
+    // Backgrounded, deliberately unquoted so the remote shell reads it as an
+    // operator rather than an argument. This is what lets `ssh` return.
+    //
+    // `sshd` waits for the command *process* to exit, so a daemon that merely
+    // closed its stdio would still hold the session open forever — the client
+    // would leave one `ssh` behind per bootstrap, and the daemon would die
+    // whenever that connection eventually dropped, taking every "persistent"
+    // session with it. Backgrounding makes the shell exit immediately; the
+    // daemon then closes stdio itself (`serve::detach_from_ssh`), which is what
+    // lets the channel close and `ssh` finish.
+    //
+    // The connect line still arrives: `ssh` drains the pipe until every writer
+    // closes it, and the daemon prints and flushes *before* detaching.
+    //
+    // `&` rather than `setsid --fork`, which is util-linux and absent on macOS —
+    // a remote host this must work on.
+    argv.push("&".to_string());
     argv
 }
 

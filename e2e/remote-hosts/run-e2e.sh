@@ -138,15 +138,24 @@ check_error "an unavailable harness names what the host does offer" \
 # 13. The daemon outlives the SSH session that started it — the property the
 #     whole design rests on. Asserted three ways, because "it happened to still
 #     be there" is not the same as "it detached".
-out=$(ssh root@host 'ps -o sid=,ppid=,args= -C medulla 2>/dev/null | grep "[d]aemon --direct" | head -1' 2>&1)
-check "the daemon is reparented away from its ssh session" "1 " "$out"
-#     Its parent is init (ppid 1): sshd's child is gone, so nothing upstream can
-#     signal it when a session ends.
-if grep -qE '^\s*[0-9]+\s+1\s' <<<"$out"; then
+out=$(ssh root@host 'ps -eo pid=,ppid=,sid=,args= | grep "[d]aemon --direct" | head -1' 2>&1)
+read -r dpid dppid dsid _rest <<<"$out"
+#     Reparented to init: sshd's child is gone, so nothing upstream can signal
+#     it when a session ends.
+if [ "${dppid:-0}" = "1" ]; then
   echo "  PASS  the daemon's parent is init, not sshd"
   pass=$((pass + 1))
 else
-  echo "  FAIL  the daemon still has an sshd parent: $out"
+  echo "  FAIL  the daemon still has an sshd parent (ppid=${dppid:-?}): $out"
+  fail=$((fail + 1))
+fi
+#     And its own session leader, so it has no controlling terminal to be
+#     hung up on.
+if [ -n "${dpid:-}" ] && [ "${dsid:-}" = "${dpid:-}" ]; then
+  echo "  PASS  the daemon leads its own session"
+  pass=$((pass + 1))
+else
+  echo "  FAIL  the daemon is still in the ssh session (pid=${dpid:-?} sid=${dsid:-?})"
   fail=$((fail + 1))
 fi
 #     And no ssh client is left behind on this side.
