@@ -81,7 +81,7 @@ pub mod packet;
 pub mod state;
 pub mod transport;
 
-pub use link::{Link, LinkConfig, LinkError, LinkHandle, LinkStatus, PeerConfig};
+pub use link::{Link, LinkConfig, LinkError, LinkHandle, LinkPath, LinkStatus, PeerConfig};
 pub use transport::{
     Liveness, Session, SessionConfig, SessionStatus, TransportError, MAX_MESSAGE_BYTES,
 };
