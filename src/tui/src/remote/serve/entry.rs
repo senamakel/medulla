@@ -189,12 +189,16 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
 /// launches one opened here — MCP registration, managed skills, router injection
 /// and attribution included for a coding agent, and deliberately none of them
 /// for a shell.
-fn local_sessions(env: &HashMap<String, String>, workspace: &str) -> LocalSessions {
+fn local_sessions(
+    env: &HashMap<String, String>,
+    config: &medulla::config::TuiConfig,
+    workspace: &str,
+) -> LocalSessions {
     // `None` for the filter: a remote host offers whatever it actually has,
     // rather than a list configured on the client's machine.
     let providers = medulla::daemon::providers::detect_providers(env, None, None);
-    let config = medulla::daemon::DaemonConfig {
-        hooks: medulla::harness_hooks::HooksConfig::default(),
+    let daemon = medulla::daemon::DaemonConfig {
+        hooks: config.hooks.clone(),
         providers: providers.clone(),
         default_provider: providers
             .first()
@@ -212,10 +216,10 @@ fn local_sessions(env: &HashMap<String, String>, workspace: &str) -> LocalSessio
         agent: None,
         extra_args: Vec::new(),
         skip_permissions: false,
-        router: None,
-        custom_harnesses: Vec::new(),
+        router: config.router.clone(),
+        custom_harnesses: config.custom_harnesses.clone(),
         budget: None,
-        attribution: true,
+        attribution: config.attribution.commit,
     };
     let run_task: medulla::daemon::providers::RunTaskFn = Arc::new(|_| {
         Box::pin(async {
@@ -224,19 +228,24 @@ fn local_sessions(env: &HashMap<String, String>, workspace: &str) -> LocalSessio
     });
     let send: medulla::daemon::SendFn = Arc::new(|_, _| Box::pin(async {}));
     LocalSessions {
-        hooks: medulla::harness_hooks::HooksConfig::default(),
+        // The host's own `[[hooks]]`, `[router]`, presets and attribution — so a
+        // coding agent started from across the network is launched by exactly
+        // the configuration that machine would use for one started on it. This
+        // is the whole of what makes a remote agent a real agent rather than a
+        // pty with a CLI in it.
+        hooks: config.hooks.clone(),
         log: None,
         sessions: PtyManager::new(),
         runtimes: Arc::new(std::sync::Mutex::new(vec![
-            medulla::daemon::DaemonRuntime::new(config, run_task, send),
+            medulla::daemon::DaemonRuntime::new(daemon, run_task, send),
         ])),
         hub_address: "medulla-orchestrator".to_string(),
         env: env.clone(),
         workspace: workspace.to_string(),
         providers,
-        custom_harnesses: Vec::new(),
-        router: None,
-        attribution: true,
+        custom_harnesses: config.custom_harnesses.clone(),
+        router: config.router.clone(),
+        attribution: config.attribution.commit,
     }
 }
 
