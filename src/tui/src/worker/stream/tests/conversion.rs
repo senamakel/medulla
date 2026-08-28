@@ -209,7 +209,9 @@ fn a_combining_sequence_stays_one_cell_across_the_wire() {
         hide_cursor: false,
     };
 
-    let restored = crate::worker::stream::convert::snapshot_from_grid(&crate::worker::stream::convert::wire_grid(&original));
+    let restored = crate::worker::stream::convert::snapshot_from_grid(
+        &crate::worker::stream::convert::wire_grid(&original),
+    );
     assert_eq!(
         restored.cells[0].len(),
         3,
@@ -243,7 +245,9 @@ fn a_wide_glyph_keeps_its_continuation_cell() {
         cursor: (0, 0),
         hide_cursor: false,
     };
-    let restored = crate::worker::stream::convert::snapshot_from_grid(&crate::worker::stream::convert::wire_grid(&original));
+    let restored = crate::worker::stream::convert::snapshot_from_grid(
+        &crate::worker::stream::convert::wire_grid(&original),
+    );
     assert_eq!(restored.cells[0].len(), 3);
     assert_eq!(restored.cells[0][0].text.as_str(), "私");
     assert_eq!(restored.cells[0][2].text.as_str(), "x");
