@@ -195,7 +195,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
 /// launches one opened here — MCP registration, managed skills, router injection
 /// and attribution included for a coding agent, and deliberately none of them
 /// for a shell.
-fn local_sessions(
+pub(super) fn local_sessions(
     env: &HashMap<String, String>,
     config: &medulla::config::TuiConfig,
     presets: &[medulla::config::CustomHarnessConfig],
