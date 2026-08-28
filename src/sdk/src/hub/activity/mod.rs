@@ -13,9 +13,21 @@
 //! deliberately a *ring*, not a history: this exists to answer "what is
 //! happening now", and a worker left running for a week must not accumulate its
 //! entire past in memory because nobody was looking at the screen.
+//!
+//! "What is happening now" is also why a *settled* task leaves. The ring's
+//! capacity alone is not retirement: a task that replied an hour ago stays in it
+//! until 512 later frames happen to push it out, and until they do the Sessions
+//! rail draws a row for it — which is how an operator ends up reading a list of
+//! a dozen finished dispatches to find the one still running. So a task with a
+//! terminal frame is dropped outright once [`SETTLED_RETENTION_MS`] has passed
+//! since its last frame, taking its attribution with it. The control plane's own
+//! task registry has had exactly this rule (a settled entry ages out; a running
+//! one never does) since it was written; this log simply never grew one.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+
+use super::{RunError, TaskOutcome};
 
 /// How many activity records to retain before dropping the oldest.
 ///
