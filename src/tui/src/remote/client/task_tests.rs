@@ -4,8 +4,6 @@
 //! module, and this repo puts such a module's unit tests in a dedicated
 //! `_tests.rs` beside it (`AGENTS.md`).
 
-use super::*;
-
 use super::next_screen_update;
 use crate::worker::pty::ScreenSnapshot;
 
