@@ -268,6 +268,13 @@ impl App {
 
     /// Rank recent, configured, and filesystem-derived workspace suggestions.
     fn workspace_choices(&self, query: &str) -> Vec<WorkspaceChoice> {
+        // A remote host's directories are on its filesystem, and none of the
+        // sources below can see it: favorites, recents and the folder walk all
+        // describe *this* machine. Offering them would suggest paths that do not
+        // exist over there, which is worse than offering fewer.
+        if self.picker_host().is_some_and(|host| host.remote) {
+            return self.remote_workspace_choices(query);
+        }
         let Some(harnesses) = &self.local_sessions else {
             return Vec::new();
         };
@@ -498,4 +505,71 @@ pub(super) fn fuzzy_subsequence_score(candidate: &str, query: &str) -> Option<us
         position += relative + needle.len_utf8();
     }
     Some(score + candidate.len().saturating_sub(query.len()))
+}
+
+impl App {
+    /// Workspace suggestions for a session on another machine.
+    ///
+    /// Only what the host itself named — its default workspace and the
+    /// `workspaces` list from its `[[remoteHosts]]` entry — plus whatever the
+    /// operator types, which is taken on trust: a remote path cannot be
+    /// `stat`ed from here, and the daemon reports a bad directory by name when
+    /// the launch fails. That is the right place for it anyway.
+    ///
+    /// Live completion against the remote filesystem would need a round trip per
+    /// keystroke; it is a reasonable thing to add later and deliberately not
+    /// here.
+    fn remote_workspace_choices(&self, query: &str) -> Vec<WorkspaceChoice> {
+        let Some(host) = self.picker_host() else {
+            return Vec::new();
+        };
+        let capabilities = self.remote_host(&host.id).map(|state| &state.capabilities);
+        let mut seen: Vec<String> = Vec::new();
+        let mut out: Vec<WorkspaceChoice> = Vec::new();
+        let mut push = |path: &str, source: &'static str, seen: &mut Vec<String>, out: &mut Vec<WorkspaceChoice>| {
+            let path = path.trim();
+            if path.is_empty() || seen.iter().any(|kept| kept == path) {
+                return;
+            }
+            seen.push(path.to_string());
+            out.push(WorkspaceChoice {
+                path: path.to_string(),
+                source,
+                label: None,
+            });
+        };
+        // What the operator typed leads when they have typed anything: it is the
+        // most recent statement of intent, and it is the only way to reach a
+        // directory neither side has named.
+        let typed = query.trim();
+        if !typed.is_empty() {
+            push(typed, "typed", &mut seen, &mut out);
+        }
+        if !host.workspace.trim().is_empty() {
+            push(&host.workspace, "configured", &mut seen, &mut out);
+        }
+        if let Some(capabilities) = capabilities {
+            push(&capabilities.workspace, "default", &mut seen, &mut out);
+            for path in &capabilities.workspaces {
+                push(path, "registered", &mut seen, &mut out);
+            }
+        }
+        for path in &self
+            .loaded
+            .config
+            .remote_hosts
+            .iter()
+            .find(|section| medulla::config::remote_host_id(section, 0) == host.id)
+            .map(|section| section.workspaces.clone())
+            .unwrap_or_default()
+        {
+            push(path, "registered", &mut seen, &mut out);
+        }
+        // Filtered by what was typed, in the same substring way the local list
+        // is, so typing narrows rather than only adding.
+        if !typed.is_empty() {
+            out.retain(|choice| choice.source == "typed" || choice.path.contains(typed));
+        }
+        out
+    }
 }
