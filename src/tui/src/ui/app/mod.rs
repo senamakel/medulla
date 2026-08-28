@@ -24,6 +24,7 @@ mod keys;
 mod overlays;
 #[cfg(test)]
 mod overlays_tests;
+mod remote_hosts;
 mod rail;
 mod render;
 mod session_control;
