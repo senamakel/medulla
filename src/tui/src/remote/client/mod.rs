@@ -46,7 +46,7 @@ pub struct RemoteHost {
     /// Every session over there, as last reported.
     rows: Vec<RemoteSessionRow>,
     /// The session whose screen is streaming, and the view being folded.
-    watching: Option<(String, ScreenView)>,
+    watching: Option<(String, Option<ScreenView>)>,
     /// Held so the SSH session is not reaped while the host is in use.
     _ssh: Option<tokio::process::Child>,
 }
@@ -140,7 +140,8 @@ impl RemoteHost {
     pub fn screen(&self) -> Option<ScreenSnapshot> {
         self.watching
             .as_ref()
-            .map(|(_, view)| snapshot_from_grid(&view.grid))
+            .and_then(|(_, view)| view.as_ref())
+            .map(|view| snapshot_from_grid(&view.grid))
     }
 
     /// Announce ourselves and ask what this host can do.
@@ -189,7 +190,10 @@ impl RemoteHost {
                 self.send(&body).await?;
             }
         }
-        self.watching = Some((session_id.to_string(), ScreenView::default()));
+        // `None` rather than an empty view: `apply_frame` owns the
+        // "nothing held yet" case, and it is what makes the first frame
+        // required to be a full one.
+        self.watching = Some((session_id.to_string(), None));
         self.send(&encode_screen_message(&ScreenMessage::Subscribe {
             task_id: session_id.to_string(),
             max_fps: 10,
