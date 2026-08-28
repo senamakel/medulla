@@ -32,7 +32,6 @@ mod load_tests;
 #[cfg(test)]
 mod local_hosts_tests;
 #[cfg(test)]
-#[path = "remote_hosts_tests.rs"]
 mod remote_hosts_tests;
 #[cfg(test)]
 mod persist_tests;
