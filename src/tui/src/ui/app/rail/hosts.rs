@@ -96,11 +96,16 @@ impl App {
         medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
             .into_iter()
             .map(|host| HostRow {
+                // Sanitized: this is the label the rail renders, and
+                // `host.name`/`host.id` are untrusted configuration — see
+                // `sanitize_for_rail`. `id` itself stays raw: it is a routing
+                // key compared against worker addresses and agent
+                // declarations elsewhere, never rendered on its own.
                 label: sanitize_for_rail(match host.name.trim() {
                     "" => &host.id,
                     name => name,
                 }),
-                id: sanitize_for_rail(&host.id),
+                id: host.id,
                 kind: medulla::ui::hosts::HostKind::Remote,
                 // Empty rather than guessed: a remote host's agents are declared
                 // in its own config, on its own machine. Its live sessions ride
