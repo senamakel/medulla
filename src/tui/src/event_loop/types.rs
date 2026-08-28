@@ -120,6 +120,18 @@ pub(super) enum AppMsg {
         /// What went wrong, in the operator's terms.
         reason: String,
     },
+    /// A remote host refused to start a session, and this is why.
+    ///
+    /// Distinct from `RemoteHostFailed`: the *connection* is fine, only the
+    /// `Open` was refused (an invalid workspace, a harness that failed to
+    /// launch), so this must not touch the host's connection status — only say
+    /// why, where the operator was waiting for an answer.
+    RemoteOpenFailed {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// What the host said went wrong.
+        reason: String,
+    },
     /// Chats to display in the resume picker.
     OpenResume(Vec<medulla::ui::chat_store::MainChatSummary>),
     /// Confirmation that a chat was resumed.
