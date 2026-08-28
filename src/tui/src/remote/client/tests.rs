@@ -145,8 +145,10 @@ async fn a_client_opens_a_shell_types_into_it_and_sees_the_output() {
     let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline && session_id.is_empty() {
         server.pump_once().await;
-        if let Some(id) = client.pump().await.first() {
-            session_id = id.clone();
+        for event in client.pump().await {
+            if let PumpEvent::Opened(id) = event {
+                session_id = id;
+            }
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
@@ -191,7 +193,10 @@ async fn watching_a_second_session_moves_the_stream() {
         let deadline = Instant::now() + Duration::from_secs(30);
         while Instant::now() < deadline && ids.len() < wanted {
             server.pump_once().await;
-            ids.extend(client.pump().await);
+            ids.extend(client.pump().await.into_iter().filter_map(|event| match event {
+                PumpEvent::Opened(id) => Some(id),
+                PumpEvent::OpenFailed(_) => None,
+            }));
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }
