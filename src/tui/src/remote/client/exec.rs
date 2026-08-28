@@ -117,8 +117,17 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     let mut session_id = String::new();
     let deadline = Instant::now() + REPLY_TIMEOUT;
     while Instant::now() < deadline && session_id.is_empty() {
-        if let Some(id) = host.pump().await.first() {
-            session_id = id.clone();
+        for event in host.pump().await {
+            match event {
+                super::PumpEvent::Opened(id) => session_id = id,
+                // Reported immediately rather than left to time out: the host
+                // already said exactly why, and waiting out REPLY_TIMEOUT to
+                // report only "never confirmed the session" would throw that
+                // reason away.
+                super::PumpEvent::OpenFailed(reason) => {
+                    anyhow::bail!("{host_id} could not start it: {reason}");
+                }
+            }
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
