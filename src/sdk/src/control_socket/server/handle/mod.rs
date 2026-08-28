@@ -143,7 +143,11 @@ pub async fn handle_control(
 /// does. It can only narrow, never widen: a caller cannot ask for a family the
 /// parent lacks, so a compromised or confused requester gains nothing by lying
 /// in the other direction.
-fn grant_child(grants: &GrantRegistry, parent: &Grant, params: &Value) -> Result<Value, ControlFailure> {
+fn grant_child(
+    grants: &GrantRegistry,
+    parent: &Grant,
+    params: &Value,
+) -> Result<Value, ControlFailure> {
     let withhold_workflows = params
         .get("withholdWorkflows")
         .and_then(Value::as_bool)
