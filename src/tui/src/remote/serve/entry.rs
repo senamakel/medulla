@@ -79,7 +79,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
                 .map(|path| path.to_string_lossy().into_owned())
                 .unwrap_or(dir)
         })
-        .unwrap_or(cwd);
+        .unwrap_or_else(|| cwd.clone());
 
     let loaded = medulla::config::load_config(
         explicit_config.as_deref(),
@@ -143,7 +143,13 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     // grant minted against it unredeemable.
     let _control = control::start(&env, &loaded.config, |line| eprintln!("{line}")).await;
 
-    let sessions = local_sessions(&env, &loaded.config, &workspace);
+    // Presets live in their own layered files rather than on the document, so
+    // they are resolved from the same sources the config came from — which is
+    // what makes a `[[customHarnesses]]` entry defined on the *host* offerable
+    // to a client that has never heard of it.
+    let presets =
+        medulla::config::load_layered_custom_harnesses(&loaded.sources).unwrap_or_default();
+    let sessions = local_sessions(&env, &loaded.config, &presets, &workspace);
     let host_name = flag(args, "--host-name")
         .unwrap_or_else(|| hostname_of(&env).unwrap_or_else(|| "remote host".to_string()));
     let workspaces = flag(args, "--workspaces")
@@ -192,6 +198,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
 fn local_sessions(
     env: &HashMap<String, String>,
     config: &medulla::config::TuiConfig,
+    presets: &[medulla::config::CustomHarnessConfig],
     workspace: &str,
 ) -> LocalSessions {
     // `None` for the filter: a remote host offers whatever it actually has,
@@ -217,7 +224,7 @@ fn local_sessions(
         extra_args: Vec::new(),
         skip_permissions: false,
         router: config.router.clone(),
-        custom_harnesses: config.custom_harnesses.clone(),
+        custom_harnesses: presets.to_vec(),
         budget: None,
         attribution: config.attribution.commit,
     };
@@ -243,7 +250,7 @@ fn local_sessions(
         env: env.clone(),
         workspace: workspace.to_string(),
         providers,
-        custom_harnesses: config.custom_harnesses.clone(),
+        custom_harnesses: presets.to_vec(),
         router: config.router.clone(),
         attribution: config.attribution.commit,
     }
