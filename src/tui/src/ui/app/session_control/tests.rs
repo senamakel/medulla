@@ -124,8 +124,13 @@ fn a_half_written_remote_host_is_not_offered() {
         enabled: true,
         ..RemoteHostSection::default()
     }];
-    let app = App::new(rt, loaded);
-    assert_eq!(app.picker_hosts().len(), 1, "only this device is offerable");
+    let mut app = App::new(rt, loaded);
+    // Hosting, so this device is a row — otherwise the assertion below would
+    // pass for the wrong reason, with nothing offered at all.
+    app.set_local_sessions(local_sessions());
+    let hosts = app.picker_hosts();
+    assert_eq!(hosts.len(), 1, "only this device is offerable");
+    assert!(!hosts[0].remote);
 }
 
 #[test]
