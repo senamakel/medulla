@@ -253,3 +253,71 @@ fn a_wide_glyph_keeps_its_continuation_cell() {
     assert_eq!(restored.cells[0][2].text.as_str(), "x");
     assert_eq!(restored, original);
 }
+
+#[test]
+fn a_joined_emoji_stays_one_cell() {
+    // `cell_text.rs` states the contract: a terminal cell holds one grapheme
+    // cluster. A ZWJ sequence is several scalars in one cell, so splitting by
+    // scalar — even width-aware — started a new cell at every positive-width
+    // scalar after the joiner, shifting the rest of the row.
+    use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
+    let cell = |text: &str| ScreenCell {
+        text: CellText::from(text),
+        fg: vt100::Color::Default,
+        bg: vt100::Color::Default,
+        bold: false,
+        italic: false,
+        underline: false,
+        inverse: false,
+    };
+    // A family emoji: four scalars joined by ZWJ, one cell. Then vt100's
+    // continuation blank, then an ordinary cell.
+    let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F466}";
+    let original = ScreenSnapshot {
+        cells: vec![vec![cell(family), cell(" "), cell("x")]],
+        cursor: (0, 0),
+        hide_cursor: false,
+    };
+    let restored = crate::worker::stream::convert::snapshot_from_grid(
+        &crate::worker::stream::convert::wire_grid(&original),
+    );
+    assert_eq!(
+        restored.cells[0].len(),
+        3,
+        "the joined emoji must not become several cells: {:?}",
+        restored.cells[0]
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(restored.cells[0][0].text.as_str(), family);
+    assert_eq!(restored, original);
+}
+
+#[test]
+fn a_flag_stays_one_cell() {
+    // Two regional indicators, each of positive width, forming one cell. Width
+    // alone cannot tell this from two separate characters — only clustering can.
+    use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
+    let cell = |text: &str| ScreenCell {
+        text: CellText::from(text),
+        fg: vt100::Color::Default,
+        bg: vt100::Color::Default,
+        bold: false,
+        italic: false,
+        underline: false,
+        inverse: false,
+    };
+    let flag = "\u{1F1EC}\u{1F1E7}";
+    let original = ScreenSnapshot {
+        cells: vec![vec![cell(flag), cell(" "), cell("y")]],
+        cursor: (0, 0),
+        hide_cursor: false,
+    };
+    let restored = crate::worker::stream::convert::snapshot_from_grid(
+        &crate::worker::stream::convert::wire_grid(&original),
+    );
+    assert_eq!(restored.cells[0].len(), 3);
+    assert_eq!(restored.cells[0][0].text.as_str(), flag);
+    assert_eq!(restored, original);
+}
