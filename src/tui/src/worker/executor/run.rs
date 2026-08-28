@@ -34,7 +34,7 @@ use medulla::session_history::SessionAgentKind;
 use medulla::sessions::SessionClass;
 use medulla::wrapper::tail::SessionTailer;
 
-use super::super::pty::{PtyManager, SessionControl};
+use super::super::pty::{CloseAttempt, PtyManager, SessionControl};
 use super::types::{PtySessionExecutor, SessionPlan, TurnSpec, WorkspaceContext};
 
 /// How often the transcript is polled while a turn runs.
