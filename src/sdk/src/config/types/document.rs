@@ -135,6 +135,7 @@ impl Default for TuiConfig {
             hub: HubSection::default(),
             host: HostSection::default(),
             hosts: Vec::new(),
+            remote_hosts: Vec::new(),
             harness: HarnessSection::default(),
             attribution: AttributionConfig::default(),
             hooks: HooksConfig::default(),
