@@ -30,8 +30,8 @@ impl HostKind {
 /// One host in the `Host → Agent` projection, with the agents known to be on it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostRow {
-    /// The `hostId`: the bus address a local host binds, or the tiny.place
-    /// address a remote one is reached at.
+    /// The `hostId`: the bus address a local host binds, or the
+    /// `[[remoteHosts]]` id a remote one is filed under.
     pub id: String,
     /// What to call it on screen.
     pub label: String,

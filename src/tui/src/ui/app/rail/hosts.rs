@@ -65,11 +65,44 @@ impl App {
     }
 
     /// The `Host → Agents` tree the rail places its folded lanes onto.
+    ///
+    /// Local hosts first, then the configured remote machines. The order is the
+    /// same one the picker offers: this device is where a session goes when
+    /// nobody says otherwise, so it leads.
     pub(in crate::ui::app) fn host_tree(&self) -> Vec<HostRow> {
-        host_rows(
+        let mut rows = host_rows(
             &self.runtime.workers(),
             &self.loaded.config.fleet.agent_declarations,
             &self.local_host_refs(),
-        )
+        );
+        rows.extend(self.remote_host_rows());
+        rows
+    }
+}
+
+impl App {
+    /// The remote machines the rail places lanes on.
+    ///
+    /// Config is the source, exactly as it is for local hosts: a host that is
+    /// configured but not connected is still a lane, because that is where its
+    /// sessions will appear and where the operator looks for it. What connection
+    /// state adds is the row's subtitle, not its existence.
+    pub(in crate::ui::app) fn remote_host_rows(&self) -> Vec<HostRow> {
+        medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
+            .into_iter()
+            .map(|host| HostRow {
+                label: match host.name.trim() {
+                    "" => host.id.clone(),
+                    name => name.to_string(),
+                },
+                id: host.id,
+                kind: medulla::ui::hosts::HostKind::Remote,
+                // Empty rather than guessed: a remote host's agents are declared
+                // in its own config, on its own machine. Its live sessions ride
+                // the session list instead.
+                agents: Vec::new(),
+                detail_worker: None,
+            })
+            .collect()
     }
 }
