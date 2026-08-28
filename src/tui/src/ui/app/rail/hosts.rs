@@ -81,12 +81,17 @@ impl App {
 }
 
 impl App {
-    /// The remote machines the rail places lanes on.
+    /// The remote machines in the `Host → Agent` projection.
     ///
-    /// Config is the source, exactly as it is for local hosts: a host that is
-    /// configured but not connected is still a lane, because that is where its
-    /// sessions will appear and where the operator looks for it. What connection
-    /// state adds is the row's subtitle, not its existence.
+    /// Config is the source, exactly as it is for local hosts, so a host appears
+    /// here whether or not it has been connected to.
+    ///
+    /// Note that being *in the projection* is not the same as being drawn: the
+    /// rail drops any section with no sessions in it
+    /// ([`rail_rows_in`](super::App::rail_rows_in)), which is the same
+    /// progressive-disclosure rule that keeps an idle local host from claiming a
+    /// header. So a configured-but-idle remote machine is reached through the
+    /// session picker, and earns a lane once it has something running on it.
     pub(in crate::ui::app) fn remote_host_rows(&self) -> Vec<HostRow> {
         medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
             .into_iter()

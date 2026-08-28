@@ -410,11 +410,11 @@ fn only_the_rows_that_name_something_take_the_cursor() {
 }
 
 #[test]
-fn a_configured_remote_host_gets_a_rail_lane_before_it_connects() {
-    // Config is the source, exactly as it is for local hosts. A lane that
-    // appeared only once connected would mean the operator had nowhere to look
-    // for a machine that is simply switched off — and nowhere for its sessions
-    // to appear when it comes back.
+fn a_configured_remote_host_is_in_the_host_projection() {
+    // Config is the source, exactly as it is for local hosts, so the machine is
+    // known before it is ever dialled. Whether it is *drawn* is a separate
+    // question, answered by the rail's own progressive-disclosure rule: a
+    // section with no sessions in it gets no header, remote or local.
     let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
         std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
     let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
@@ -430,7 +430,7 @@ fn a_configured_remote_host_gets_a_rail_lane_before_it_connects() {
     let remote = tree
         .iter()
         .find(|row| row.kind == medulla::ui::hosts::HostKind::Remote)
-        .expect("the configured remote host should have a lane");
+        .expect("the configured remote host should be in the projection");
     assert_eq!(remote.id, "tower");
     assert_eq!(remote.label, "Tower");
     assert!(
@@ -448,7 +448,7 @@ fn a_configured_remote_host_gets_a_rail_lane_before_it_connects() {
 }
 
 #[test]
-fn no_remote_hosts_means_no_remote_lanes() {
+fn no_remote_hosts_means_no_remote_rows() {
     let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
         std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
     let loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
