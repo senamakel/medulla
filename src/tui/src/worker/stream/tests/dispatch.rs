@@ -275,4 +275,3 @@ async fn a_dispatch_watcher_may_not_type_into_the_session_it_watches() {
     );
 }
 
-/// A snapshot with one styled run and one plain one, for round-trip tests.
