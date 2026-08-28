@@ -163,7 +163,7 @@ mod children {
     use medulla::sessions::SessionClass;
 
     use crate::worker::executor::types::PtySessionExecutor;
-    use crate::worker::pty::{LaunchSpec, PtyManager, SessionControl, SessionOrigin};
+    use crate::worker::pty::{CloseAttempt, LaunchSpec, PtyManager, SessionControl, SessionOrigin};
 
     /// A spec whose child appends a line to `marker` twice a second forever.
     ///
