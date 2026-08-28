@@ -156,8 +156,7 @@ pub async fn run(
         // Only when it moved: a watched-but-idle session should cost nothing,
         // which is the whole reason the screen is synchronised state rather than
         // a stream.
-        if let Some(update) = next_screen_update(&mut last_screen, host.watching(), host.screen())
-        {
+        if let Some(update) = next_screen_update(&mut last_screen, host.watching(), host.screen()) {
             let _ = updates.send((
                 host_id.clone(),
                 RemoteUpdate::Screen {
