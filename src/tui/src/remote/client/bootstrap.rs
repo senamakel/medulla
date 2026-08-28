@@ -251,6 +251,13 @@ async fn diagnose(
     mut child: tokio::process::Child,
     output: String,
 ) -> BootstrapError {
+    // On the EOF path stdout closing already means ssh has exited, so `wait`
+    // returns promptly. On the timeout path it did not: `kill_on_drop(false)`
+    // means nothing has asked ssh (or whatever it started but never printed a
+    // connect line for) to stop, and `wait` below would hang until the remote
+    // process happens to exit on its own — which, for a daemon, may be never.
+    // `start_kill` is harmless if the process already exited.
+    let _ = child.start_kill();
     let status = child.wait().await.ok().and_then(|status| status.code());
     let mut stderr = String::new();
     if let Some(mut pipe) = child.stderr.take() {
