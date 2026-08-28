@@ -116,3 +116,15 @@ impl App {
             .collect()
     }
 }
+
+/// Strip control characters from configuration before it reaches a rail span.
+///
+/// `[[remoteHosts]]` name and id come from `medulla.toml`, which the operator
+/// wrote but which the render path must treat as untrusted the same way it
+/// treats a harness's own stdout: ratatui does not neutralize an ESC or OSC
+/// sequence in a rendered string, so a crafted host name reaches the terminal
+/// and is interpreted there, not on screen. See
+/// `render::workflows::node_preview::live::inline_text` for the same trim.
+fn sanitize_for_rail(value: &str) -> String {
+    value.trim().chars().filter(|ch| !ch.is_control()).collect()
+}
