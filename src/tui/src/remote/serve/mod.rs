@@ -35,6 +35,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -42,7 +43,7 @@ use medulla::bridge::Bridge;
 use medulla::daemon::LogFn;
 use medulla::protocol::{
     encode_remote_message, encode_screen_message, parse_remote_message, parse_screen_message,
-    RemoteCapabilities, RemoteMessage, ScreenMessage,
+    RemoteCapabilities, RemoteMessage, RemoteSessionRow, ScreenMessage,
 };
 
 use crate::ui::harness_pane::LocalSessions;
