@@ -7,7 +7,7 @@
 
 use medulla::protocol::HarnessProvider;
 
-use super::super::types::{SessionControl, SessionRow};
+use super::super::types::{CloseAttempt, SessionControl, SessionRow};
 use super::{read, write, PtyManager};
 
 /// Advance the consumed-bell watermark without allowing a stale screen sample
