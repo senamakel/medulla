@@ -273,18 +273,14 @@ impl App {
             SessionRef::Local(id) => self.local_sessions.as_ref()?.sessions.row(id),
             SessionRef::Remote { host, session } => {
                 let state = self.remote_hosts.get(host)?;
-                state
-                    .rows
-                    .iter()
-                    .find(|row| row.id == session)
-                    .map(|row| {
-                        let since = state
-                            .attention_since
-                            .get(&row.id)
-                            .map(|(_, at)| *at)
-                            .unwrap_or(row.last_output_at);
-                        session_row(host, row, since)
-                    })
+                state.rows.iter().find(|row| row.id == session).map(|row| {
+                    let since = state
+                        .attention_since
+                        .get(&row.id)
+                        .map(|(_, at)| *at)
+                        .unwrap_or(row.last_output_at);
+                    session_row(host, row, since)
+                })
             }
         }
     }

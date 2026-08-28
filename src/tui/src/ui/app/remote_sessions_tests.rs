@@ -351,7 +351,6 @@ fn closing_a_remote_session_on_a_disconnected_host_says_so() {
     );
 }
 
-
 #[test]
 fn an_attention_cue_is_timestamped_by_this_client_not_the_sender() {
     // `HarnessAttention::label` subtracts `since` from *our* clock, so carrying
@@ -388,7 +387,10 @@ fn an_attention_cue_is_timestamped_by_this_client_not_the_sender() {
         .attention
         .expect("still asking")
         .since;
-    assert_eq!(since, again, "an unchanged cue must keep its first-seen moment");
+    assert_eq!(
+        since, again,
+        "an unchanged cue must keep its first-seen moment"
+    );
 
     // A different cue starts again.
     let mut changed = waiting.clone();

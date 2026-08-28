@@ -194,7 +194,7 @@ impl App {
     }
 
     /// Replace a host's session list.
-        pub fn remote_host_sessions(&mut self, host_id: &str, rows: Vec<RemoteSessionRow>) {
+    pub fn remote_host_sessions(&mut self, host_id: &str, rows: Vec<RemoteSessionRow>) {
         let now = medulla::clock::now_millis();
         let state = self.remote_hosts.entry(host_id.to_string()).or_default();
         // Stamped on arrival, and kept while the same cue holds. A row whose cue
