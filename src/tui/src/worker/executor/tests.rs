@@ -474,6 +474,58 @@ mod children {
         );
     }
 
+    /// The interleaving codex actually described: not an id that was never
+    /// opened, but a real child that exited on its own and whose row the
+    /// rail's per-frame sweep (`sweep_finished_sessions`) has already
+    /// forgotten by the time `finish_turn` gets around to processing that
+    /// turn's completion. `forget` only waits on `is_running()`, not on
+    /// `finish_turn` having run first, so this ordering is a real one, not a
+    /// synthetic one — and its `close_if_orchestrator` outcome must read as
+    /// [`CloseAttempt::Missing`], not as an operator takeover.
+    #[test]
+    fn a_forgotten_but_finished_sessions_mapper_context_does_not_linger() {
+        let sessions = PtyManager::new();
+        let id = sessions
+            .open(short_lived())
+            .expect("a child that exits immediately");
+
+        wait_for("the session to stop running", || {
+            sessions.row(&id).is_some_and(|row| !row.state.is_running())
+        });
+        assert!(
+            sessions.forget(&id),
+            "the sweep must be able to forget an exited, unheld session"
+        );
+        assert!(
+            sessions.row(&id).is_none(),
+            "and the handle is genuinely gone, not merely marked idle"
+        );
+
+        let exec = executor(sessions.clone());
+        exec.workspace_context
+            .lock()
+            .expect("workspace context lock poisoned")
+            .insert(id.clone(), (Some("cwd".to_string()), None, None));
+
+        assert_eq!(
+            sessions.close_if_orchestrator(&id),
+            CloseAttempt::Missing,
+            "a forgotten handle must read as missing, not as a takeover"
+        );
+
+        exec.finish_turn(&id, SessionClass::Bounded, true, RunTaskOrigin::Workflow);
+
+        assert!(
+            !exec
+                .workspace_context
+                .lock()
+                .expect("workspace context lock poisoned")
+                .contains_key(&id),
+            "a forgotten-but-finished session's mapper state must not linger \
+             for an id nothing will ever revisit"
+        );
+    }
+
     /// The other bug this PR's own race fix surfaced: a retained session's
     /// mapper state must survive `finish_turn` unconditionally. It used to —
     /// removal was gated on `!retain`. A refactor briefly added a second,
