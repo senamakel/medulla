@@ -160,6 +160,24 @@ impl HarnessProvider {
         }
     }
 
+    /// The provider's wire name — the exact inverse of [`from_wire`].
+    ///
+    /// Distinct from [`as_str`](Self::as_str), which is the *display* name
+    /// (`OpenCode`, capitalised for a rail row). This is the lowercase token
+    /// that crosses a wire, and the two must not be confused: a frame carrying
+    /// `"OpenCode"` does not parse back.
+    ///
+    /// [`from_wire`]: Self::from_wire
+    pub fn as_wire(self) -> &'static str {
+        match self {
+            HarnessProvider::Claude => "claude",
+            HarnessProvider::Codex => "codex",
+            HarnessProvider::Opencode => "opencode",
+            HarnessProvider::Openhuman => "openhuman",
+            HarnessProvider::Shell => "shell",
+        }
+    }
+
     /// Parse a provider name, returning `None` for anything unrecognized.
     pub fn from_wire(value: &str) -> Option<Self> {
         match value {
