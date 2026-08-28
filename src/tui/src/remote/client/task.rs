@@ -170,6 +170,39 @@ pub async fn run(
     }
 }
 
+/// Whether the watched screen changed since the last publish, and if so, what
+/// to publish.
+///
+/// Kept separate from [`run`] so the one property that matters — a session
+/// switch is never mistaken for "nothing changed" just because the new
+/// session's grid happens to equal the old one's — is a plain unit test rather
+/// than something only a full SSH-backed integration test could exercise.
+///
+/// `watching`/`screen` being `None` (nothing watched yet, or no frame has
+/// arrived) clears the cache: a `Watch` that lands moments later must be
+/// compared against nothing, not the previous session's grid.
+fn next_screen_update(
+    last_screen: &mut Option<(String, ScreenSnapshot)>,
+    watching: Option<&str>,
+    screen: Option<ScreenSnapshot>,
+) -> Option<(String, ScreenSnapshot)> {
+    let (session_id, snapshot) = match (watching, screen) {
+        (Some(session_id), Some(snapshot)) => (session_id, snapshot),
+        _ => {
+            *last_screen = None;
+            return None;
+        }
+    };
+    let unchanged = last_screen
+        .as_ref()
+        .is_some_and(|(id, cached)| id == session_id && cached == &snapshot);
+    if unchanged {
+        return None;
+    }
+    *last_screen = Some((session_id.to_string(), snapshot.clone()));
+    Some((session_id.to_string(), snapshot))
+}
+
 /// Carry out one request.
 async fn serve(
     host: &mut RemoteHost,
