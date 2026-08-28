@@ -7,7 +7,7 @@
 use medulla::protocol::{Color, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
 
 use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
-use crate::worker::stream::convert::{snapshot_from_grid, wire_grid};
+use crate::worker::stream::convert::{snapshot_from_grid, wire_color, wire_grid, wire_style};
 
 /// A cell with text and no styling.
 fn cell(text: &str) -> ScreenCell {
