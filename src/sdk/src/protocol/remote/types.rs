@@ -39,6 +39,15 @@ pub enum RemoteSessionState {
 pub struct RemoteAttention {
     /// Short description of what is being asked, for the row's cue.
     pub summary: String,
+    /// Why it is waiting, as the sender's own cue name.
+    ///
+    /// Carried rather than inferred from [`summary`](Self::summary): the rail
+    /// styles a permission prompt differently from a rung bell, and a viewer
+    /// guessing from prose would get it wrong in exactly the cases that matter.
+    /// An unrecognized value means "asking, reason unknown" — which is still a
+    /// harness waiting on somebody, and must not be dropped.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub kind: String,
 }
 
 /// One session on a remote host, as the client's rail draws it.

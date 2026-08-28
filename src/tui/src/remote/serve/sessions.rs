@@ -59,11 +59,11 @@ pub fn wire_row(row: &SessionRow, bracketed_paste: bool) -> RemoteSessionRow {
         busy: row.busy,
         working: row.working,
         attention: row.attention.as_ref().map(|attention| RemoteAttention {
-            // Only `what` crosses. `kind` drives local-only behaviour (which
-            // dialog to answer, which key to send) that a client cannot act on
-            // from here, and `since` is a clock reading from another machine —
-            // sending it would invite the client to subtract it from its own.
             summary: attention.what.clone(),
+            kind: attention.kind.as_str().to_string(),
+            // `since` deliberately does not cross: it is a reading from *this*
+            // machine's clock, and sending it would invite the client to
+            // subtract it from its own. The client stamps its own.
         }),
         bracketed_paste,
         last_error: row.last_error.clone(),

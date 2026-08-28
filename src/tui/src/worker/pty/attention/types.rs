@@ -61,6 +61,25 @@ impl AttentionKind {
         }
     }
 
+    /// Parse a cue name, the exact inverse of [`as_str`](Self::as_str).
+    ///
+    /// `None` for anything unrecognized, which a caller should treat as "it is
+    /// asking, and we do not know what for" rather than as no cue at all — a
+    /// newer peer naming a kind this build has never heard of is still a harness
+    /// waiting on somebody.
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "failed" => Some(AttentionKind::Failed),
+            "dialog" => Some(AttentionKind::Dialog),
+            "approval" => Some(AttentionKind::Approval),
+            "error" => Some(AttentionKind::Error),
+            "choice" => Some(AttentionKind::Choice),
+            "completed" => Some(AttentionKind::Completed),
+            "bell" => Some(AttentionKind::Bell),
+            _ => None,
+        }
+    }
+
     /// Whether this cue reports something that went *wrong*.
     ///
     /// Drives colour rather than precedence: a failure and a permission prompt

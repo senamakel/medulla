@@ -110,11 +110,17 @@ pub fn session_row(host_id: &str, remote: &RemoteSessionRow) -> SessionRow {
         name: remote.name.clone(),
         attention: remote.attention.as_ref().map(|attention| {
             crate::worker::pty::HarnessAttention {
-                kind: crate::worker::pty::AttentionKind::Question,
+                // An unrecognized kind becomes `Choice` — the "it is asking, and
+                // we cannot name what for" cue. Dropping the whole cue instead
+                // would hide a harness that is genuinely stuck, which is the one
+                // thing the rail exists to surface.
+                kind: crate::worker::pty::AttentionKind::from_str(&attention.kind)
+                    .unwrap_or(crate::worker::pty::AttentionKind::Choice),
                 what: attention.summary.clone(),
-                // The far side's clock, so it is not comparable with ours.
-                // Stamped now: the rail uses this only to say how long a cue has
-                // held, and "since we heard about it" is the honest local answer.
+                // The sender's `since` is a reading from its clock, so it never
+                // crosses. This is the honest local answer: the rail uses it only
+                // to say how long the cue has held, and we have known since we
+                // last heard from the session.
                 since: remote.last_output_at,
             }
         }),
