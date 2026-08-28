@@ -67,6 +67,23 @@ impl App {
                     self.set_status("This device is not hosting, so it has no sessions");
                     return;
                 };
+                // The same protection `keeps_finished_session` gives the frame
+                // sweep: `PtyManager::forget` revokes the row's MCP grant
+                // unconditionally, and a detached workflow run outlives its
+                // parent harness by design. Dismissing here first would pull
+                // that grant out from under a run still reporting through it,
+                // so this is refused exactly like a still-running child is.
+                let has_active_run = self
+                    .session_row(session)
+                    .and_then(|row| row.mcp_grant_session)
+                    .is_some_and(|grant| self.harness_runs.any_active_for_session(&grant));
+                if has_active_run {
+                    self.set_status(
+                        "This session started a run that is still executing — \
+                         it stays until the run settles",
+                    );
+                    return;
+                }
                 // Released first: the pane is about to stop having a session to
                 // show, and an attachment outliving its row is what leaves the
                 // keyboard typing into nothing.
