@@ -24,7 +24,7 @@
 //! task registry has had exactly this rule (a settled entry ages out; a running
 //! one never does) since it was written; this log simply never grew one.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use super::{RunError, TaskOutcome};
@@ -174,19 +174,23 @@ impl ActivityLog {
     /// still be executing, and taking it off the screen would hide live work
     /// (and, here, the row the operator cancels it from).
     pub fn retire_settled(&self, now: i64) {
-        let retired: Vec<String> = {
+        let retired: HashSet<String> = {
             let mut entries = self.entries.lock().expect("activity lock");
             let mut last_at: HashMap<&str, i64> = HashMap::new();
-            let mut settled: HashMap<&str, ()> = HashMap::new();
+            let mut settled: HashSet<&str> = HashSet::new();
             for entry in entries.iter() {
                 let seen = last_at.entry(entry.task_id.as_str()).or_insert(entry.at);
                 *seen = (*seen).max(entry.at);
                 if is_terminal_kind(&entry.kind) {
-                    settled.insert(entry.task_id.as_str(), ());
+                    settled.insert(entry.task_id.as_str());
                 }
             }
-            let retired: Vec<String> = settled
-                .keys()
+            // Aged from the task's *last* frame, not from the terminal one: a
+            // late-arriving frame is still the task saying something, and
+            // retiring it out from under a reader mid-conversation would be the
+            // one way this rule could remove something worth seeing.
+            let retired: HashSet<String> = settled
+                .iter()
                 .filter(|task_id| {
                     last_at
                         .get(*task_id)
@@ -252,9 +256,7 @@ impl ActivityLog {
             .lock()
             .expect("activity lock")
             .iter()
-            .any(|entry| {
-                entry.task_id == task_id && matches!(entry.kind.as_str(), "reply" | "error")
-            })
+            .any(|entry| entry.task_id == task_id && is_terminal_kind(&entry.kind))
     }
 
     /// How many distinct tasks are still running per worker.
@@ -267,7 +269,7 @@ impl ActivityLog {
         let mut agent_of: HashMap<String, String> = HashMap::new();
         for entry in self.entries.lock().expect("activity lock").iter() {
             agent_of.insert(entry.task_id.clone(), entry.agent_id.clone());
-            let done = entry.kind == "reply" || entry.kind == "error";
+            let done = is_terminal_kind(&entry.kind);
             let slot = terminal.entry(entry.task_id.clone()).or_insert(false);
             *slot = *slot || done;
         }
