@@ -176,7 +176,10 @@ fn a_session_that_has_ended_names_no_process_to_sample() {
     wait_for("the child to start", || {
         sessions.row(&id).is_some_and(|row| row.state.is_running())
     });
-    assert!(sessions.pid(&id).is_some(), "a live session names its child");
+    assert!(
+        sessions.pid(&id).is_some(),
+        "a live session names its child"
+    );
 
     sessions.close(&id);
     wait_for("the child to go", || {
