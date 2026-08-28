@@ -138,3 +138,18 @@ impl App {
         self.remote_hosts.entry(host_id.to_string()).or_default().rows = rows;
     }
 }
+
+impl App {
+    /// Leave `cmd` for [`on_event`](App::on_event) to collect.
+    ///
+    /// For handlers with no way to return one — see
+    /// [`pending_cmds`](crate::ui::app::types::App::pending_cmds).
+    pub(in crate::ui::app) fn queue_cmd(&mut self, cmd: crate::ui::app::types::Cmd) {
+        self.pending_cmds.push_back(cmd);
+    }
+
+    /// Take the next queued command, if any.
+    pub(in crate::ui::app) fn take_queued_cmd(&mut self) -> Option<crate::ui::app::types::Cmd> {
+        self.pending_cmds.pop_front()
+    }
+}

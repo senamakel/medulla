@@ -830,6 +830,13 @@ pub struct App {
     /// [`remote_hosts`](crate::ui::app::remote_hosts).
     pub(in crate::ui::app) remote_hosts:
         std::collections::HashMap<String, crate::ui::app::remote_hosts::RemoteHostState>,
+    /// Commands left by a handler that had no way to return one.
+    ///
+    /// The mouse path answers `bool` and the picker's key path answers nothing,
+    /// so neither can hand a [`Cmd`] back up. Drained by
+    /// [`App::on_event`](crate::ui::app::App::on_event), which every event passes
+    /// through.
+    pub(in crate::ui::app) pending_cmds: std::collections::VecDeque<Cmd>,
     // Workflow runs the harnesses on this device started over MCP, keyed by the
     // grant session the launcher recorded on each PTY row. Read at render so a
     // run reported a moment ago is on screen at the next frame, and empty on a
