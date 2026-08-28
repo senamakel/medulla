@@ -302,10 +302,16 @@ impl DaemonRuntime {
         let session = EvolveSession {
             store,
             // An evolution pass is restricted to proposal tools. It is not an
-            // authored workflow node and must not inherit workflow authority.
+            // authored workflow node and must not inherit workflow authority,
+            // and — unlike an ordinary `DelegatedTask` — nobody awaits this
+            // turn or can attach to its pane while it runs; what it produces
+            // lands in the evolution store for an operator to find later, not
+            // in front of one now. `UnattendedReview` says both: proposal-tool
+            // authority, no operator in the loop, so a settled turn's session
+            // does not sit retained forever with nobody who will ever read it.
             dispatch: Arc::new(
                 RuntimeDispatch::new(self.clone(), from.to_string())
-                    .with_origin(crate::daemon::providers::RunTaskOrigin::DelegatedTask),
+                    .with_origin(crate::daemon::providers::RunTaskOrigin::UnattendedReview),
             ),
             worker_address: self.inner.config.default_provider.as_str().to_string(),
             provider: Some(self.inner.config.default_provider),
