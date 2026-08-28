@@ -141,17 +141,17 @@ fn escape_on_the_harness_step_cancels_when_there_is_one_host() {
         "one host must not produce a host step"
     );
     app.handle_session_picker_key(key(KeyCode::Esc));
-    assert!(app.session_picker.is_none(), "Escape should close the picker");
+    assert!(
+        app.session_picker.is_none(),
+        "Escape should close the picker"
+    );
 }
 
 #[test]
 fn escape_on_the_harness_step_goes_back_when_a_host_step_ran() {
     let mut app = app_with_remote_hosts(&["tower.local"]);
     app.open_session_picker();
-    let picker = app
-        .session_picker
-        .as_ref()
-        .expect("the picker must open");
+    let picker = app.session_picker.as_ref().expect("the picker must open");
     assert_eq!(
         picker.step,
         SessionPickerStep::Host,
@@ -176,10 +176,7 @@ fn escape_on_the_harness_step_goes_back_when_a_host_step_ran() {
 fn the_host_step_moves_with_the_arrows_and_cancels_on_escape() {
     let mut app = app_with_remote_hosts(&["a.local", "b.local"]);
     app.open_session_picker();
-    let picker = app
-        .session_picker
-        .as_ref()
-        .expect("the picker must open");
+    let picker = app.session_picker.as_ref().expect("the picker must open");
     assert_eq!(picker.step, SessionPickerStep::Host);
     assert_eq!(picker.host_index, 0);
 

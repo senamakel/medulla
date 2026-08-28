@@ -438,8 +438,8 @@ fn a_configured_remote_host_gets_a_rail_lane_before_it_connects() {
         "a remote host's agents are declared on its own machine, not here"
     );
     assert!(
-        tree.iter().position(|row| row.kind
-            == medulla::ui::hosts::HostKind::Remote)
+        tree.iter()
+            .position(|row| row.kind == medulla::ui::hosts::HostKind::Remote)
             > tree
                 .iter()
                 .position(|row| row.kind == medulla::ui::hosts::HostKind::Local),
