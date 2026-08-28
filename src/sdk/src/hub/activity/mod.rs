@@ -221,7 +221,15 @@ impl ActivityLog {
     /// on an idle host: the rail reads this every frame, and a log nobody writes
     /// to has nothing else to drive it.
     pub fn snapshot(&self) -> Vec<WorkerActivity> {
-        self.retire_settled(crate::clock::now_millis());
+        self.snapshot_at(crate::clock::now_millis())
+    }
+
+    /// [`snapshot`](Self::snapshot) against a caller-supplied clock.
+    ///
+    /// Splitting the clock out is what lets the retirement rule be exercised
+    /// without waiting two minutes of wall time for it.
+    pub fn snapshot_at(&self, now: i64) -> Vec<WorkerActivity> {
+        self.retire_settled(now);
         self.entries
             .lock()
             .expect("activity lock")
