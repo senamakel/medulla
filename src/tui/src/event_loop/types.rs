@@ -74,6 +74,29 @@ pub(super) enum AppMsg {
         /// What it advertised.
         capabilities: Box<medulla::protocol::RemoteCapabilities>,
     },
+    /// A remote host's session list changed.
+    RemoteHostSessions {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// Every session on it.
+        rows: Vec<medulla::protocol::RemoteSessionRow>,
+    },
+    /// A session started on a remote host.
+    RemoteSessionOpened {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// The new session's id, as that host knows it.
+        session_id: String,
+    },
+    /// The watched remote session's screen moved.
+    RemoteScreen {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// Which session, as that host knows it.
+        session_id: String,
+        /// The screen, ready for the ordinary renderer.
+        snapshot: Box<crate::worker::pty::ScreenSnapshot>,
+    },
     /// A remote host could not be reached, and this is why.
     ///
     /// The reason is carried rather than reduced to a flag because the useful
