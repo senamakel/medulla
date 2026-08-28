@@ -47,17 +47,31 @@ use medulla::control_socket::{
 pub async fn start(
     env: &HashMap<String, String>,
     config: &TuiConfig,
+    client_dir: &std::path::Path,
     log: impl Fn(String),
 ) -> Option<ControlServer> {
     if !config.mcp.fleet_tools {
         return None;
     }
-    let path = match control_socket_path(env, config.mcp.socket_path.as_deref()) {
-        Ok(path) => path,
-        Err(error) => {
-            log(format!("control socket: {error}"));
-            return None;
-        }
+    // Per client, not per account. Direct daemons are deliberately one per
+    // client, and the account-scoped default is already taken by whatever else
+    // is running under this user — an ordinary `medulla`, or another client's
+    // daemon. `ControlServer::bind` refuses a live listener, so every daemon
+    // after the first would return `None` here and launch its coding sessions
+    // with no tools, no managed skills and nowhere to report — silently, and
+    // only on a host that happens to be in use.
+    //
+    // An explicit `mcp.socketPath` still wins: an operator who named a path
+    // meant it, and a host serving one client is the case where it works.
+    let path = match config.mcp.socket_path.as_deref() {
+        Some(_) => match control_socket_path(env, config.mcp.socket_path.as_deref()) {
+            Ok(path) => path,
+            Err(error) => {
+                log(format!("control socket: {error}"));
+                return None;
+            }
+        },
+        None => client_dir.join("control.sock"),
     };
     // An empty hub slot, permanently. See the module doc: a remote host has no
     // orchestrator, so fleet ops are declined while hook reporting — which

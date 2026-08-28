@@ -143,7 +143,10 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     // would silently get no tools and nothing later would give it any. Held for
     // the life of the daemon — dropping it unbinds the socket and makes every
     // grant minted against it unredeemable.
-    let _control = control::start(&env, &loaded.config, |line| eprintln!("{line}")).await;
+    let _control = control::start(&env, &loaded.config, &client_dir(&home, peer), |line| {
+        eprintln!("{line}")
+    })
+    .await;
 
     // Presets live in their own layered files rather than on the document, so
     // they are resolved from the same sources the config came from — which is
