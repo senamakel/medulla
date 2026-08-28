@@ -118,6 +118,7 @@ impl App {
             link_obs: None,
             host_obs: None,
             local_sessions: None,
+            remote_hosts: std::collections::HashMap::new(),
             harness_runs: Default::default(),
             #[cfg(feature = "workflows")]
             live_runs: Default::default(),
