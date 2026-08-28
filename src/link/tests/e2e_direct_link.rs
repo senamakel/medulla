@@ -127,7 +127,7 @@ async fn a_screen_frame_crosses_a_direct_link() {
     // over the direct path, not just channel 0.
     let client_dir = tempfile::tempdir().unwrap();
     let daemon_dir = tempfile::tempdir().unwrap();
-    let (client, _client_id, daemon, daemon_id) =
+    let (client, client_id, daemon, daemon_id) =
         direct_pair(client_dir.path(), daemon_dir.path()).await;
 
     // Wake the link from the client side first, so the daemon has somewhere to
@@ -137,7 +137,7 @@ async fn a_screen_frame_crosses_a_direct_link() {
 
     let frame = b"the screen, as bytes".to_vec();
     daemon
-        .send_screen_frame(client.peers()[0], &frame)
+        .send_screen_frame(client_id, &frame)
         .await
         .unwrap();
     let (_from, _epoch, body) = tokio::time::timeout(PATIENCE, client.recv())
