@@ -4,7 +4,7 @@
 //! other side of [`convert`](crate::worker::stream::convert), with no pty and no
 //! runtime.
 
-use medulla::protocol::{Color, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
+use medulla::protocol::{Color, ScreenRun, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
 
 use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
 use crate::worker::stream::convert::{snapshot_from_grid, wire_color, wire_grid, wire_style};
