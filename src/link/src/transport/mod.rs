@@ -18,6 +18,13 @@
 //! Instruction twice is a no-op by construction (§4.3), so a duplicate is free
 //! rather than dangerous. Replay defence for *routing* is the forwarder's job
 //! (§5).
+//!
+//! It does, however, track the highest sequence it has accepted
+//! ([`Session::peer_seq_advanced`]). That is not replay defence for this layer —
+//! it changes nothing about how an Instruction is applied — but a link with no
+//! forwarder has no third party to relearn addresses, and telling a fresh
+//! datagram from a captured one is what lets it follow a roaming peer safely.
+//! See [`crate::link::direct`].
 
 mod channel;
 mod timing;
