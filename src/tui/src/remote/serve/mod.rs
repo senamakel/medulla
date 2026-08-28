@@ -252,15 +252,9 @@ impl RemoteServer {
             ScreenMessage::Unsubscribe { task_id } => {
                 self.subscriptions.unsubscribe(from, &task_id);
             }
-            ScreenMessage::Input { task_id, .. } => {
-                let Some(bytes) = ScreenMessage::Input {
-                    task_id: task_id.clone(),
-                    bytes: match &message {
-                        ScreenMessage::Input { bytes, .. } => bytes.clone(),
-                        _ => unreachable!("matched Input above"),
-                    },
-                }
-                .input_bytes() else {
+            ScreenMessage::Input { ref task_id, .. } => {
+                let task_id = task_id.clone();
+                let Some(bytes) = message.input_bytes() else {
                     // A malformed payload costs that keystroke and nothing more.
                     self.log(&format!("remote: dropped malformed input from {from}"));
                     return;

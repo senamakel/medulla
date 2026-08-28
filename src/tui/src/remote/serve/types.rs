@@ -15,7 +15,7 @@ use crate::worker::stream::SessionStream;
 ///
 /// Sessions the client is *not* watching stay fully alive and keep appearing in
 /// the session list, which rides channel 0. Only the pixels are exclusive.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Subscriptions {
     /// The session each client peer is watching, and its frame chain.
     inner: HashMap<String, (String, SessionStream)>,
