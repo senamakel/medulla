@@ -291,3 +291,33 @@ impl App {
         }
     }
 }
+
+impl App {
+    /// Fold a freshly received screen into the host that sent it.
+    ///
+    /// Ignored when it names a session the client is no longer watching: the
+    /// host may already have had a frame in flight when the pane moved, and
+    /// drawing it under the new session's title would be a lie the operator has
+    /// no way to notice.
+    pub fn remote_host_screen(
+        &mut self,
+        host_id: &str,
+        session_id: &str,
+        snapshot: crate::worker::pty::ScreenSnapshot,
+    ) {
+        let Some(state) = self.remote_hosts.get_mut(host_id) else {
+            return;
+        };
+        if state.watching.as_deref() != Some(session_id) {
+            return;
+        }
+        state.screen = Some((session_id.to_string(), snapshot));
+    }
+
+    /// Move the cursor onto a session that just started on a remote host.
+    pub fn select_remote_session(&mut self, host_id: &str, session_id: &str) {
+        let id = qualify(host_id, session_id);
+        self.tab_index = super::types::tab_pos("Sessions");
+        self.select_session_row(&id);
+    }
+}

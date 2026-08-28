@@ -149,6 +149,26 @@ pub(crate) async fn run(
                         // would be asking for a decision they already made.
                         app.resume_picker_host(&host_id);
                     }
+                    AppMsg::RemoteHostSessions { host_id, rows } => {
+                        app.remote_host_sessions(&host_id, rows);
+                    }
+                    AppMsg::RemoteSessionOpened {
+                        host_id,
+                        session_id,
+                    } => {
+                        // Select it, for the same reason a local spawn does: a
+                        // session that appears below the fold while the pane
+                        // still shows what was there before reads as "nothing
+                        // happened".
+                        app.select_remote_session(&host_id, &session_id);
+                    }
+                    AppMsg::RemoteScreen {
+                        host_id,
+                        session_id,
+                        snapshot,
+                    } => {
+                        app.remote_host_screen(&host_id, &session_id, *snapshot);
+                    }
                     AppMsg::RemoteHostFailed { host_id, reason } => {
                         app.remote_host_failed(&host_id, reason.clone());
                         app.set_status(format!("{host_id}: {reason}"));

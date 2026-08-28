@@ -95,7 +95,7 @@ pub(super) enum AppMsg {
         /// Which session, as that host knows it.
         session_id: String,
         /// The screen, ready for the ordinary renderer.
-        snapshot: Box<crate::worker::pty::ScreenSnapshot>,
+        snapshot: Box<medulla_tui::worker::pty::ScreenSnapshot>,
     },
     /// A remote host could not be reached, and this is why.
     ///
