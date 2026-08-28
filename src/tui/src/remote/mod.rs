@@ -4,7 +4,8 @@
 //!
 //! - [`serve`] is the daemon side — it owns the real ptys and relays their
 //!   screens. Reached by `medulla daemon --direct`.
-//! - the client side, which dials a host and renders what comes back, lives with
-//!   the rest of the UI.
+//! - [`client`] is the other end — it bootstraps a host over SSH, dials it, and
+//!   folds what comes back into a screen the ordinary renderer can draw.
 
+pub mod client;
 pub mod serve;
