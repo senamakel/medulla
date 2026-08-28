@@ -27,6 +27,7 @@
 //! [`SessionStream`]: crate::worker::stream::SessionStream
 
 mod bootstrap;
+pub mod entry;
 mod sessions;
 mod types;
 
