@@ -418,6 +418,38 @@ mod children {
         );
     }
 
+    /// The other ambiguity in `close_if_orchestrator`'s `false`: it also comes
+    /// back when the session's handle is simply gone (the rail's per-frame
+    /// sweep forgets any row whose child has exited, independent of whether
+    /// `finish_turn` has run for it yet), not only when an operator holds it.
+    /// Treating that as a takeover would be harmless for `settle_turn`/
+    /// `release` — both are silent no-ops on an unknown id — but would leave
+    /// its mapper state in `workspace_context` forever, for an id nothing will
+    /// ever revisit.
+    #[test]
+    fn a_vanished_sessions_mapper_context_does_not_linger() {
+        let sessions = PtyManager::new();
+        let id = "never-opened".to_string();
+
+        let exec = executor(sessions.clone());
+        exec.workspace_context
+            .lock()
+            .expect("workspace context lock poisoned")
+            .insert(id.clone(), (Some("cwd".to_string()), None, None));
+
+        exec.finish_turn(&id, SessionClass::Bounded, true, RunTaskOrigin::Workflow);
+
+        assert!(
+            !exec
+                .workspace_context
+                .lock()
+                .expect("workspace context lock poisoned")
+                .contains_key(&id),
+            "a vanished session's mapper state must not linger for an id \
+             nothing will ever revisit"
+        );
+    }
+
     /// The other bug this PR's own race fix surfaced: a retained session's
     /// mapper state must survive `finish_turn` unconditionally. It used to —
     /// removal was gated on `!retain`. A refactor briefly added a second,
