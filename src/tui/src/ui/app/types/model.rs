@@ -822,6 +822,14 @@ pub struct App {
     // does not host, in which case the Sessions tab has no local screen to show
     // and falls back to a remote worker's streamed one, or to the transcript.
     pub(in crate::ui::app) local_sessions: Option<crate::ui::harness_pane::LocalSessions>,
+    /// What each `[[remoteHosts]]` machine last said about itself, by host id.
+    ///
+    /// A cache rather than a connection: bootstrapping one runs `ssh` and waits,
+    /// which the render pass must never do. Populated lazily — a configured host
+    /// costs nothing until somebody picks it. See
+    /// [`remote_hosts`](crate::ui::app::remote_hosts).
+    pub(in crate::ui::app) remote_hosts:
+        std::collections::HashMap<String, crate::ui::app::remote_hosts::RemoteHostState>,
     // Workflow runs the harnesses on this device started over MCP, keyed by the
     // grant session the launcher recorded on each PTY row. Read at render so a
     // run reported a moment ago is on screen at the next frame, and empty on a
