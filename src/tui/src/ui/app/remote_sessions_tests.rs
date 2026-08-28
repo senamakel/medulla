@@ -307,3 +307,45 @@ fn an_exited_remote_session_cannot_be_attached_to() {
     assert_eq!(app.attached_session(), None);
     assert!(app.status().contains("exited"), "got: {}", app.status());
 }
+
+#[test]
+fn closing_a_remote_session_sends_a_close_request_to_its_host() {
+    // Before this, `close_session` only ever closed
+    // `self.local_sessions` — a qualified remote id such as `tower/w_1`
+    // reached `harnesses.sessions.close(session)`, which is the *local* pty
+    // manager, with the qualified id itself as the key. It has never heard of
+    // that id, so nothing closed and the child kept running until something
+    // else killed it.
+    let mut app = app_with_host(vec![remote_row("w_1")]);
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    app.remote_host_dialling("tower", tx);
+    app.pane_session_for_test("tower/w_1");
+
+    app.close_pane_session_prompt_for_test();
+    assert!(
+        app.armed_close_for_test().as_deref() == Some("tower/w_1"),
+        "a running remote session must be closeable, not reported as already exited: {}",
+        app.status()
+    );
+
+    app.close_session_for_test("tower/w_1");
+    assert_eq!(app.status(), "Closed the harness");
+    let sent = rx.try_recv().expect("a Close request must reach the host");
+    assert!(
+        matches!(sent, crate::remote::client::RemoteRequest::Close(id) if id == "w_1"),
+        "the request must carry the host's own (unprefixed) session id"
+    );
+}
+
+#[test]
+fn closing_a_remote_session_on_a_disconnected_host_says_so() {
+    // A host with rows but no live connection (bootstrap in flight, or the link
+    // dropped) must not silently no-op and claim success.
+    let mut app = app_with_host(vec![remote_row("w_1")]);
+    app.close_session_for_test("tower/w_1");
+    assert!(
+        app.status().contains("not connected"),
+        "got: {}",
+        app.status()
+    );
+}
