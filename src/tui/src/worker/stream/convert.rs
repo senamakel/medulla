@@ -95,24 +95,48 @@ pub fn cell_color(color: &Color) -> vt100::Color {
     }
 }
 
-/// Expand one wire run into the cells it stands for.
+/// Expand one wire run into the terminal cells it stands for.
 ///
-/// A run's text is the concatenation of its cells, so it is split by *character*
-/// rather than by byte. Wide glyphs (CJK, emoji) occupy one entry here and are
-/// measured by the renderer, exactly as they are when they come from the local
-/// emulator.
+/// A run's text is its cells concatenated, and the split back into cells is by
+/// **display width, not by `char`** — those differ in exactly the case that
+/// corrupts a row.
+///
+/// A cell's contents can be several scalars: `e` followed by a combining acute
+/// is one cell that `chars()` yields twice. Splitting naively emitted two cells
+/// where the emulator had one, shifting every column after it and letting the
+/// row's `resize` truncate real content off the end.
+///
+/// A zero-width scalar therefore joins the cell before it rather than starting
+/// one. Wide glyphs need no special handling here: vt100 already represents one
+/// as a leading cell plus an empty continuation cell, so the continuation
+/// crosses the wire as its own blank and comes back as its own cell —
+/// synthesising another would double it.
 fn cells_of_run(run: &ScreenRun, into: &mut Vec<ScreenCell>) {
+    use unicode_width::UnicodeWidthChar;
     let style = &run.style;
+    let cell_for = |text: String| ScreenCell {
+        text: CellText::from(text),
+        fg: cell_color(&style.fg),
+        bg: cell_color(&style.bg),
+        bold: style.attrs & medulla::protocol::ATTR_BOLD != 0,
+        italic: style.attrs & medulla::protocol::ATTR_ITALIC != 0,
+        underline: style.attrs & medulla::protocol::ATTR_UNDERLINE != 0,
+        inverse: style.attrs & medulla::protocol::ATTR_INVERSE != 0,
+    };
+    // Tracked so a combining mark can extend the cell this run just pushed,
+    // without reaching back into cells an earlier run owns.
+    let first = into.len();
     for ch in run.text.chars() {
-        into.push(ScreenCell {
-            text: CellText::from(ch.to_string()),
-            fg: cell_color(&style.fg),
-            bg: cell_color(&style.bg),
-            bold: style.attrs & medulla::protocol::ATTR_BOLD != 0,
-            italic: style.attrs & medulla::protocol::ATTR_ITALIC != 0,
-            underline: style.attrs & medulla::protocol::ATTR_UNDERLINE != 0,
-            inverse: style.attrs & medulla::protocol::ATTR_INVERSE != 0,
-        });
+        let combining = ch.width().unwrap_or(0) == 0;
+        match into.len() > first && combining {
+            true => {
+                let last = into.last_mut().expect("checked non-empty above");
+                let mut text = last.text.as_str().to_string();
+                text.push(ch);
+                last.text = CellText::from(text);
+            }
+            false => into.push(cell_for(ch.to_string())),
+        }
     }
 }
 
