@@ -82,6 +82,10 @@ impl ActivityLog {
     /// abort handle. Recording the mapping here keeps ACKs and structured work
     /// on the visible, cancellable row without changing the wire protocol.
     pub fn dispatched_as(&self, observed_task_id: &str, activity_task_id: &str, agent_id: &str) {
+        // Retirement is driven by whoever reads the log, and a headless daemon
+        // has no reader. Doing it here as well bounds the log on a host where
+        // nothing is watching, at the cost of one pass per dispatch.
+        self.retire_settled(crate::clock::now_millis());
         let mut map = self.attribution.lock().expect("attribution lock");
         map.retain(|entry| entry.observed_task_id != observed_task_id);
         map.push_back(ActivityAttribution {
