@@ -23,7 +23,10 @@ async fn a_dual_stack_bind_accepts_an_ipv4_mapped_datagram() {
         .set_nonblocking(true)
         .expect("the socket accepts nonblocking mode");
     let socket = UdpSocket::from_std(std_socket).expect("tokio adopts the bound socket");
-    let local_port = socket.local_addr().expect("a bound socket has a local address").port();
+    let local_port = socket
+        .local_addr()
+        .expect("a bound socket has a local address")
+        .port();
 
     let sender = UdpSocket::bind("0.0.0.0:0")
         .await
@@ -35,7 +38,11 @@ async fn a_dual_stack_bind_accepts_an_ipv4_mapped_datagram() {
         .expect("sending to the mapped address succeeds");
 
     let mut buf = [0u8; 5];
-    let result = tokio::time::timeout(std::time::Duration::from_secs(2), socket.recv_from(&mut buf)).await;
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        socket.recv_from(&mut buf),
+    )
+    .await;
     match result {
         Ok(Ok((n, _))) => assert_eq!(&buf[..n], b"probe"),
         // A runner with IPv6 fully disabled, or one whose kernel refuses

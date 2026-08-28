@@ -134,7 +134,11 @@ fn resolve(endpoint: &str, ipv4: bool) -> Result<SocketAddr, LinkError> {
 fn bind_dual_stack(addr: SocketAddr) -> std::io::Result<std::net::UdpSocket> {
     use socket2::{Domain, Protocol, Socket, Type};
 
-    let domain = if addr.is_ipv6() { Domain::IPV6 } else { Domain::IPV4 };
+    let domain = if addr.is_ipv6() {
+        Domain::IPV6
+    } else {
+        Domain::IPV4
+    };
     let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
     if addr.is_ipv6() {
         let _ = socket.set_only_v6(false);
