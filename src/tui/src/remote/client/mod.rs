@@ -406,22 +406,21 @@ fn enroll_host(dir: &std::path::Path, host: NodeId, pair_key: &PairKey) -> Resul
     keys::write_node_state(&path, &state).map_err(|error| error.to_string())
 }
 
-/// An ephemeral local bind whose family matches `endpoint`.
+/// An ephemeral local bind that can reach `endpoint` whichever family it is.
 ///
-/// `None` when the endpoint does not resolve — left to `Link::connect`, which
-/// reports the failure with the endpoint in it rather than a bind that says
-/// nothing about why.
+/// Dual-stack when the host allows it, so a name with both A and AAAA records
+/// works regardless of which one is actually routable. Guessing from the records
+/// alone was wrong in a way that failed silently: a host with an AAAA record but
+/// no IPv6 route (or with UDP blocked over it) let `ssh` fall back to IPv4 while
+/// this forced an IPv6 bind, so the bootstrap succeeded and `Hello` was never
+/// answered.
 ///
-/// IPv6 is preferred when a host resolves to both, matching what `ssh` and
-/// getaddrinfo already prefer, so the UDP path follows the one the bootstrap
-/// most likely took.
-fn bind_for(endpoint: &str) -> Option<std::net::SocketAddr> {
-    use std::net::ToSocketAddrs;
-    let mut resolved = endpoint.to_socket_addrs().ok()?.peekable();
-    let any_v6 = resolved.clone().any(|address| !address.is_ipv4());
-    resolved.peek()?;
-    Some(match any_v6 {
-        true => std::net::SocketAddr::from(([0u16; 8], 0)),
-        false => std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
-    })
+/// `Link::connect` disables `IPV6_V6ONLY` on a `[::]` bind and `resolve` reaches
+/// an IPv4 peer through its v4-mapped form, so one socket covers both. Falls
+/// back to IPv4 where `[::]` cannot be bound at all.
+fn bind_for(_endpoint: &str) -> Option<std::net::SocketAddr> {
+    match std::net::UdpSocket::bind("[::]:0") {
+        Ok(_probe) => Some(std::net::SocketAddr::from(([0u16; 8], 0))),
+        Err(_) => Some(std::net::SocketAddr::from(([0, 0, 0, 0], 0))),
+    }
 }

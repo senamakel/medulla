@@ -111,11 +111,27 @@ impl Link {
 
 /// Resolve a `host:port` forwarder endpoint to one address.
 fn resolve(endpoint: &str, ipv4: bool) -> Result<SocketAddr, LinkError> {
-    endpoint
+    let mut candidates = endpoint
         .to_socket_addrs()
         .map_err(|_| LinkError::Endpoint(endpoint.to_string()))?
-        .find(|address| address.is_ipv4() == ipv4)
-        .ok_or_else(|| LinkError::Endpoint(endpoint.to_string()))
+        .peekable();
+    let mut mapped: Option<SocketAddr> = None;
+    for address in &mut candidates {
+        if address.is_ipv4() == ipv4 {
+            return Ok(address);
+        }
+        // A dual-stack socket (`[::]` with `IPV6_V6ONLY` off — see
+        // `bind_dual_stack`) reaches an IPv4 peer through its v4-mapped form.
+        // Kept as a fallback rather than returned immediately, so a host with
+        // both records still prefers its native match.
+        if let (false, SocketAddr::V4(v4)) = (ipv4, address) {
+            mapped.get_or_insert(SocketAddr::new(
+                std::net::Ipv4Addr::to_ipv6_mapped(v4.ip()).into(),
+                v4.port(),
+            ));
+        }
+    }
+    mapped.ok_or_else(|| LinkError::Endpoint(endpoint.to_string()))
 }
 
 /// Bind a UDP socket, explicitly requesting dual-stack when `addr` is IPv6.
