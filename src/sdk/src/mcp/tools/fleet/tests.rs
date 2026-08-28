@@ -393,3 +393,57 @@ async fn every_advertised_fleet_tool_is_one_the_dispatch_handles() {
         );
     }
 }
+
+/// The tool surface a workflow `agent` node's harness is left with.
+///
+/// The launch resolves `workflows_enabled` to false for such a node, which
+/// mints a fleet-only grant — so this is what its MCP server then advertises.
+/// Asserted on the *listing* rather than on a refusal, because that is the
+/// whole requirement: a model that cannot see `workflow_run` never tries to
+/// re-run the graph it is a step of.
+#[tokio::test]
+async fn a_fleet_only_grant_advertises_no_workflow_tools() {
+    let mut backend = FakeBackend::connected();
+    if let Some(hello) = backend.hello.as_mut() {
+        hello.families = ToolFamilies::fleet_only();
+    }
+    let (_root, session) = session(Arc::new(backend));
+
+    let names = advertised(&session).await;
+
+    assert!(
+        !names.iter().any(|name| name.starts_with("workflow_")),
+        "no workflow tool may be advertised to a fleet-only session: {names:?}"
+    );
+    assert!(
+        names.iter().any(|name| name.starts_with("fleet_")),
+        "the fleet family the node legitimately keeps must still be there: {names:?}"
+    );
+}
+
+/// The narrowing that catches a grant the launch-side decision could not
+/// reach — one exchanged from a parent handoff, which inherits the parent's
+/// families rather than being minted against this launch's policy.
+#[tokio::test]
+async fn a_withheld_server_narrows_a_grant_that_carried_the_workflow_family() {
+    let (_root, session) = session(Arc::new(FakeBackend::connected()));
+    assert!(
+        advertised(&session)
+            .await
+            .iter()
+            .any(|name| name.starts_with("workflow_")),
+        "the grant under test must carry the family this narrows away"
+    );
+
+    let session = session.without_workflow_tools();
+
+    let names = advertised(&session).await;
+    assert!(
+        !names.iter().any(|name| name.starts_with("workflow_")),
+        "the narrowing must survive the grant's own authority: {names:?}"
+    );
+    assert!(
+        names.iter().any(|name| name.starts_with("fleet_")),
+        "and must take nothing else with it: {names:?}"
+    );
+}
