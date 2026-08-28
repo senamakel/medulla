@@ -1,7 +1,13 @@
 # One image, two roles. The client and the host run the same binary — a remote
 # host *is* a medulla — so building twice would only create somewhere for the
 # two to drift.
-FROM debian:bookworm-slim
+#
+# The base must match the machine the binary was built on, because compose mounts
+# `target/debug` straight in rather than rebuilding: a dynamically linked medulla
+# wants that host's glibc and OpenSSL, and an older base fails at the loader with
+# a wall of `version not found`. Bump this when the dev box moves.
+ARG BASE=ubuntu:26.04
+FROM ${BASE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       openssh-server openssh-client ca-certificates \
