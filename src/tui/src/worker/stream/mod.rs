@@ -5,7 +5,8 @@
 //! part that cannot be: the emulator lives in this crate, so both the
 //! translation out of `vt100` and the timer that samples it do too.
 //!
-//! - [`convert`] — emulator cells to the wire's grid, the one place the two
+//! - [`convert`] — emulator cells to the wire's grid and back, the one place
+//!   the two
 //!   vocabularies meet.
 //! - [`sampler`] — [`SessionStream`], the pure frame decision, plus the task and
 //!   registry that drive it.
@@ -25,7 +26,7 @@ pub mod sampler;
 #[cfg(test)]
 mod tests;
 
-pub use convert::{wire_color, wire_grid, wire_style};
+pub use convert::{cell_color, snapshot_from_grid, wire_color, wire_grid, wire_style};
 pub use router::ScreenRouter;
 pub use sampler::{
     sample_interval, send_fn, spawn_session_stream, LiveCheck, SessionStream, StreamRegistry,
