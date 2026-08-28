@@ -75,6 +75,8 @@ pub enum RemoteUpdate {
         /// The new session's id, unprefixed.
         session_id: String,
     },
+    /// The host refused to start a session, and this is why.
+    OpenFailed(String),
     /// The watched session's screen moved.
     Screen {
         /// Which session, unprefixed.
