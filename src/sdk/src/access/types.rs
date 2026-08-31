@@ -96,8 +96,8 @@ impl Entitlement {
     ///
     /// Preferring the server's clock is the point of sending it: the age of an
     /// account is the difference between two instants the *backend* owns, and
-    /// subtracting one of them from a local clock that is wrong by a week hands
-    /// out either an extra week of trial or none at all. A `serverTime` the
+    /// subtracting one of them from a local clock that is wrong by a month
+    /// hands out either an extra month of trial or none at all. A `serverTime` the
     /// backend sent but this binary could not parse is never treated as if it
     /// were absent — see [`ServerClock`] — so it returns `None` here rather
     /// than quietly falling back to `local_now_ms`.
@@ -130,12 +130,15 @@ pub enum Grant {
 /// Why access was refused.
 ///
 /// Two variants because they are not the same news. One is about the operator's
-/// account; the other is about us failing to answer, and saying "your free week
-/// is up" to somebody whose week is not up would be a lie the screen tells on
-/// our behalf.
+/// account; the other is about us failing to answer, and saying "your free
+/// trial is over" to somebody whose trial is not over would be a lie the screen
+/// tells on our behalf.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Denial {
     /// Registered, on no paid tier, and past the free window.
+    ///
+    /// The remedy is a Basic (or Pro) subscription; there is nothing else the
+    /// operator can do from the terminal.
     TrialExpired,
     /// The backend did not report enough to decide — no entitlement block, an
     /// unresolvable plan, or no registration instant.

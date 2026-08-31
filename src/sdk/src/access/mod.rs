@@ -1,11 +1,11 @@
 //! Who may use Medulla, and why.
 //!
 //! The product is open to any registered account that either pays for at least
-//! the Basic tier or is still inside its first 30 days. That rule lives here,
-//! in the binary, rather than on
-//! the backend: [`crate::client::MedullaClient::me`] reports *facts* — the plan,
-//! the registration instant, the server's clock — and [`decide`] turns them into
-//! a verdict.
+//! the Basic tier or is still inside its first 30 days. That rule lives here, in
+//! the binary, rather than on the backend:
+//! [`crate::client::MedullaClient::me`] reports *facts* — the plan, the
+//! registration instant, the server's clock — and [`decide`] turns them into a
+//! verdict.
 //!
 //! # The rule
 //!
