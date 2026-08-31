@@ -272,3 +272,18 @@ fn the_opened_flash_appears_after_subscribing_and_points_at_the_re_check() {
     assert!(out.contains("Opened"));
     assert!(out.contains("Check again"));
 }
+
+#[test]
+#[ignore]
+fn tmp_preview() {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    let mut s = screen();
+    let mut t = Terminal::new(TestBackend::new(100, 40)).unwrap();
+    t.draw(|f| s.draw(f)).unwrap();
+    let b = t.backend().buffer();
+    for y in 0..b.area.height {
+        let row: String = (0..b.area.width).map(|x| b[(x, y)].symbol()).collect();
+        println!("{}", row.trim_end());
+    }
+}
