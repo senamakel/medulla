@@ -268,49 +268,53 @@ impl UpgradeScreen {
     /// Render the centered panel.
     pub fn draw(&mut self, f: &mut Frame) {
         let theme = Theme::default();
-        let mut lines: Vec<Line> = Vec::new();
+        let mut head: Vec<Line> = Vec::new();
         for row in super::LOGO {
-            lines.push(Line::from(Span::styled(
+            head.push(Line::from(Span::styled(
                 row,
                 Style::default()
                     .fg(theme.primary)
                     .add_modifier(Modifier::BOLD),
             )));
         }
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
+        head.push(Line::from(""));
+        head.push(Line::from(Span::styled(
             self.who.clone(),
             Style::default().add_modifier(Modifier::DIM),
         )));
-        lines.push(Line::from(""));
+        head.push(Line::from(""));
         let (headline, detail) = self.message();
-        lines.push(Line::from(Span::styled(
+        head.push(Line::from(Span::styled(
             headline,
             Style::default().add_modifier(Modifier::BOLD),
         )));
-        lines.push(Line::from(detail));
-        lines.push(Line::from(""));
+        head.push(Line::from(detail));
+        head.push(Line::from(""));
         // The rule itself, so the operator is told what access needs rather than
         // left to work it out from a refusal.
         for rule in requirement_lines() {
-            lines.push(Line::from(rule));
+            head.push(Line::from(rule));
         }
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
+        head.push(Line::from(""));
+        head.push(Line::from(Span::styled(
             format!("  {PRICING_URL}"),
             Style::default().fg(Color::Blue),
         )));
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "Already subscribed? Choose \"Check again\" — no restart needed.",
-            Style::default().add_modifier(Modifier::DIM),
-        )));
-        lines.push(Line::from(Span::styled(
-            "On the wrong account? Choose \"Sign out\" and start Medulla again.",
-            Style::default().add_modifier(Modifier::DIM),
-        )));
-        lines.push(Line::from(""));
 
+        // Restates what the menu rows already offer, so on a tight terminal it
+        // is the first thing dropped — see below.
+        let hints: Vec<Line> = vec![
+            Line::from(Span::styled(
+                "Already subscribed? Choose \"Check again\" — no restart needed.",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
+            Line::from(Span::styled(
+                "On the wrong account? Choose \"Sign out\" and start Medulla again.",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
+        ];
+
+        let mut tail: Vec<Line> = Vec::new();
         for (i, item) in MENU.iter().enumerate() {
             let selected = i == self.menu_index;
             let style = if selected {
@@ -321,20 +325,21 @@ impl UpgradeScreen {
             } else {
                 Style::default()
             };
-            lines.push(Line::from(Span::styled(
+            tail.push(Line::from(Span::styled(
                 format!("{} {:<32}", if selected { "▸" } else { " " }, item.label()),
                 style,
             )));
         }
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
+        tail.push(Line::from(""));
+        tail.push(Line::from(Span::styled(
             "↑↓ choose · Enter select · r check again · Esc quit",
             Style::default().add_modifier(Modifier::DIM),
         )));
 
+        let mut flash_lines: Vec<Line> = Vec::new();
         if let Some(flash) = &self.flash {
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
+            flash_lines.push(Line::from(""));
+            flash_lines.push(Line::from(Span::styled(
                 flash.text.clone(),
                 Style::default().fg(if flash.good {
                     Color::Green
@@ -345,7 +350,40 @@ impl UpgradeScreen {
         }
 
         let screen = f.area();
-        let width = super::layout::panel_width(&lines, screen.width);
+
+        // Whether the hint lines fit depends on the terminal, not on their own
+        // content, so width is sized from the full candidate set — including
+        // them — regardless of whether they end up drawn: the panel must not
+        // visibly resize depending on how tall the terminal happens to be.
+        let assemble = |include_hints: bool| -> Vec<Line<'static>> {
+            let mut all = head.clone();
+            all.push(Line::from(""));
+            if include_hints {
+                all.extend(hints.clone());
+                all.push(Line::from(""));
+            }
+            all.extend(tail.clone());
+            all.extend(flash_lines.clone());
+            all
+        };
+        let full = assemble(true);
+        let width = super::layout::panel_width(&full, screen.width);
+
+        // On a short terminal, the flash line — the entire point of a
+        // re-check — is the thing that must stay visible: `panel_height`
+        // clamps to the screen and the paragraph never scrolls, so whatever
+        // does not fit is simply cut off the bottom. The two "Already
+        // subscribed?" / "On the wrong account?" lines restate the menu rows
+        // right below them, so they are the first content dropped when
+        // everything does not fit — never the flash.
+        let available = screen.height.saturating_sub(2).max(1);
+        let needed = super::layout::panel_height(&full, width, u16::MAX).saturating_sub(2);
+        let lines = if needed <= available {
+            full
+        } else {
+            assemble(false)
+        };
+
         let height = super::layout::panel_height(&lines, width, screen.height);
         let area = super::layout::centered_fixed(width, height, screen);
         let block = Block::default()
