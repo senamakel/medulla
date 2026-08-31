@@ -38,17 +38,21 @@ use super::theme::Theme;
 /// Where the operator is sent to subscribe.
 pub const PRICING_URL: &str = "https://tinyhumans.ai/pricing";
 
-/// The rule, in one sentence, for an operator who has never been told it.
+/// The rule, for an operator who has never been told it.
 ///
 /// Shown on every refusal regardless of the reason: somebody who has just been
 /// refused should not have to infer what would fix it. Built from
 /// [`medulla::access::TRIAL`] rather than written out, so the sentence cannot
 /// promise a window the policy does not grant.
-pub fn requirement_line() -> String {
-    format!(
-        "Medulla requires a Basic subscription or higher. New accounts can use \
-         it free for their first {TRIAL_DAYS} days."
-    )
+///
+/// Two short lines rather than one long one because the panel sizes itself to
+/// its longest line: a single sentence would either widen the panel past the
+/// logo or wrap mid-rule on a narrow terminal.
+pub fn requirement_lines() -> [String; 2] {
+    [
+        "Medulla requires a Basic subscription or higher.".to_string(),
+        format!("New accounts can use it free for their first {TRIAL_DAYS} days."),
+    ]
 }
 
 /// What the screen resolved to.
@@ -286,7 +290,9 @@ impl UpgradeScreen {
         lines.push(Line::from(""));
         // The rule itself, so the operator is told what access needs rather than
         // left to work it out from a refusal.
-        lines.push(Line::from(requirement_line()));
+        for rule in requirement_lines() {
+            lines.push(Line::from(rule));
+        }
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             format!("  {PRICING_URL}"),

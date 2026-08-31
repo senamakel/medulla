@@ -228,8 +228,8 @@ fn the_panel_states_what_access_requires() {
 /// The sentence is built from the policy constant, so it cannot promise a
 /// window the gate does not grant.
 #[test]
-fn the_requirement_line_names_the_real_free_window() {
-    assert!(requirement_line().contains("first 30 days"));
+fn the_requirement_lines_name_the_real_free_window() {
+    assert!(requirement_lines()[1].contains("first 30 days"));
 }
 
 /// The operator may be a paying customer whose plan we failed to look up.
