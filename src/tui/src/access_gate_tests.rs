@@ -3,7 +3,6 @@
 //! offers.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 
 use medulla::access::{Grant, Plan};
 
@@ -80,10 +79,25 @@ fn the_countdown_names_the_subscription_it_ends_in() {
 
 // --- signing out from the gate -------------------------------------------
 
-/// An env pointing every Medulla path at a scratch root, so a test never reads
-/// or removes the developer's own session.
+/// An env pointing every Medulla path — including the OS config directory
+/// `adopt_legacy_credentials` sweeps for a legacy credential — at scratch
+/// roots, so a test never reads or removes anything the developer or CI
+/// runner actually has.
+///
+/// `XDG_CONFIG_HOME` is injected through this same map rather than the real
+/// process environment: `medulla::auth::adopt_legacy_credentials` checks it
+/// there directly, on every platform, precisely so a caller (this test suite)
+/// never has to fight `dirs::config_dir()` reading the process's real
+/// environment — or, on macOS and Windows, not reading an environment
+/// variable for this at all. See `src/sdk/src/auth/migrate.rs`.
 fn scratch_env(root: &std::path::Path) -> HashMap<String, String> {
-    HashMap::from([("MEDULLA_HOME".to_string(), root.display().to_string())])
+    HashMap::from([
+        ("MEDULLA_HOME".to_string(), root.display().to_string()),
+        (
+            "XDG_CONFIG_HOME".to_string(),
+            root.join("xdg-config").display().to_string(),
+        ),
+    ])
 }
 
 /// Write a session file where `medulla::auth::clear` will look for it.
@@ -95,67 +109,27 @@ fn seed_session(env: &HashMap<String, String>) -> std::path::PathBuf {
     path
 }
 
-/// Serializes the tests below: `sign_out` sweeps legacy credentials through
-/// `adopt_legacy_credentials`, whose OS-config-directory location comes from
-/// `dirs::config_dir()` — the *process's* real environment, not the `env` map
-/// `sign_out` otherwise takes every path from. Without redirecting
-/// `XDG_CONFIG_HOME` too, a developer's own `~/.config/medulla/credentials.json`
-/// would be read, and deleted, by an ordinary test run. Two tests racing on
-/// that same mutation would each think it owned the value.
-///
-/// Every test that uses this guard is `#[cfg(target_os = "linux")]`: `dirs`
-/// only reads `XDG_CONFIG_HOME` there. On macOS it resolves to `~/Library/
-/// Application Support` and on Windows to the roaming `AppData` known folder,
-/// neither of which an environment variable can redirect — so on those
-/// platforms this guard would not isolate anything, and `sign_out` would sweep
-/// (and delete) the developer's real legacy credential file instead of a
-/// scratch one. Restricting to Linux only drops local coverage on other
-/// platforms; every CI job that actually runs these tests (`Rust SDK` and
-/// `Coverage`) runs on `ubuntu-latest`, and `Rust SDK (Windows)` runs
-/// `--lib` only, which never compiles this binary-crate test module at all.
-static CONFIG_DIR_LOCK: Mutex<()> = Mutex::new(());
-
-/// Points the OS config directory at a scratch root for the life of one test,
-/// alongside `MEDULLA_HOME`, so `sign_out`'s legacy-credential sweep only ever
-/// sees files this test wrote. Restores whatever was there before on drop.
-#[cfg(target_os = "linux")]
-struct ScratchConfigDir {
-    _guard: std::sync::MutexGuard<'static, ()>,
-    _dir: tempfile::TempDir,
-    previous: Option<String>,
+/// Where `scratch_env`'s `XDG_CONFIG_HOME` puts the legacy credential file,
+/// matching `config_dir_location`'s `<base>/medulla/credentials.json` layout.
+fn legacy_credential_path(root: &std::path::Path) -> std::path::PathBuf {
+    root.join("xdg-config").join("medulla").join("credentials.json")
 }
 
-#[cfg(target_os = "linux")]
-impl ScratchConfigDir {
-    fn install() -> Self {
-        let guard = CONFIG_DIR_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let dir = tempfile::tempdir().expect("a scratch config directory");
-        let previous = std::env::var("XDG_CONFIG_HOME").ok();
-        std::env::set_var("XDG_CONFIG_HOME", dir.path());
-        Self {
-            _guard: guard,
-            _dir: dir,
-            previous,
-        }
-    }
+/// Write a legacy credential at the scratch OS-config-directory location
+/// `scratch_env` points `XDG_CONFIG_HOME` at.
+fn seed_legacy_credential(root: &std::path::Path) -> std::path::PathBuf {
+    let path = legacy_credential_path(root);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(
+        &path,
+        r#"{"baseUrl":"https://example.test","jwt":"legacy-token","userId":"u1"}"#,
+    )
+    .unwrap();
+    path
 }
 
-#[cfg(target_os = "linux")]
-impl Drop for ScratchConfigDir {
-    fn drop(&mut self) {
-        match &self.previous {
-            Some(value) => std::env::set_var("XDG_CONFIG_HOME", value),
-            None => std::env::remove_var("XDG_CONFIG_HOME"),
-        }
-    }
-}
-
-#[cfg(target_os = "linux")]
 #[test]
 fn signing_out_removes_the_stored_session() {
-    let _config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
     let env = scratch_env(root.path());
     let path = seed_session(&env);
@@ -168,10 +142,8 @@ fn signing_out_removes_the_stored_session() {
 
 /// Idempotent, the same way `medulla logout` is: nothing stored is not a
 /// failure to report.
-#[cfg(target_os = "linux")]
 #[test]
 fn signing_out_with_nothing_stored_still_reports_a_clean_sign_out() {
-    let _config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
 
     let msg = sign_out(
@@ -185,10 +157,8 @@ fn signing_out_with_nothing_stored_still_reports_a_clean_sign_out() {
 /// A token from the environment outranks the store, so clearing the store
 /// leaves the next launch signed in as the same account — and landing back on
 /// this screen would look like the sign-out silently failed.
-#[cfg(target_os = "linux")]
 #[test]
 fn an_environment_token_is_reported_because_it_survives_the_sign_out() {
-    let _config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
     let mut env = scratch_env(root.path());
     let backend = medulla::config::BackendConfig::default();
@@ -203,10 +173,8 @@ fn an_environment_token_is_reported_because_it_survives_the_sign_out() {
     assert!(msg.contains("still authenticated"), "{msg}");
 }
 
-#[cfg(target_os = "linux")]
 #[test]
 fn an_inline_config_token_is_named_as_the_config_rather_than_the_environment() {
-    let _config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
     let backend = medulla::config::BackendConfig {
         token: Some("inline".to_string()),
@@ -222,20 +190,10 @@ fn an_inline_config_token_is_named_as_the_config_rather_than_the_environment() {
 /// the two locations `adopt_legacy_credentials` sweeps) is removed by signing
 /// out, exactly as `medulla logout` removes it — so a re-launch cannot adopt
 /// it and sign the operator straight back in.
-#[cfg(target_os = "linux")]
 #[test]
 fn signing_out_removes_a_legacy_credential_from_the_config_directory() {
-    let config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
-
-    let legacy_dir = config._dir.path().join("medulla");
-    std::fs::create_dir_all(&legacy_dir).unwrap();
-    let legacy_path = legacy_dir.join("credentials.json");
-    std::fs::write(
-        &legacy_path,
-        r#"{"baseUrl":"https://example.test","jwt":"legacy-token","userId":"u1"}"#,
-    )
-    .unwrap();
+    let legacy_path = seed_legacy_credential(root.path());
 
     let msg = sign_out(
         &scratch_env(root.path()),
@@ -249,30 +207,41 @@ fn signing_out_removes_a_legacy_credential_from_the_config_directory() {
     assert_eq!(msg, "Signed out. Run `medulla` to sign in again.");
 }
 
+/// Whether this process can bypass a directory's write permission (root, or
+/// an equivalent capability inside some containers). The permission-based
+/// removal-failure simulation below only proves anything when it cannot.
+#[cfg(unix)]
+fn can_bypass_directory_permissions() -> bool {
+    // SAFETY: `geteuid` takes no arguments and has no safety preconditions.
+    unsafe { libc::geteuid() == 0 }
+}
+
 /// A legacy credential that cannot be removed — a read-only mount, a
 /// permissions problem — must not be reported as a clean sign-out: that file
 /// is exactly the bearer a re-launch would adopt, signing the operator back in
 /// to the account they just left. Simulated here by making its directory
-/// non-writable, which is Unix-only.
-#[cfg(target_os = "linux")]
+/// non-writable, which is Unix-only, and only meaningful when this process
+/// cannot bypass that permission the way root (common inside containers) can.
+#[cfg(unix)]
 #[test]
 fn a_legacy_credential_that_cannot_be_removed_is_named_in_the_parting_message() {
     use std::os::unix::fs::PermissionsExt;
 
-    let config = ScratchConfigDir::install();
-    let root = tempfile::tempdir().unwrap();
+    if can_bypass_directory_permissions() {
+        eprintln!(
+            "skipping a_legacy_credential_that_cannot_be_removed_is_named_in_the_parting_message: \
+             running as a user that can unlink through a read-only directory (e.g. root), so the \
+             permission-based failure this test simulates cannot occur"
+        );
+        return;
+    }
 
-    let legacy_dir = config._dir.path().join("medulla");
-    std::fs::create_dir_all(&legacy_dir).unwrap();
-    let legacy_path = legacy_dir.join("credentials.json");
-    std::fs::write(
-        &legacy_path,
-        r#"{"baseUrl":"https://example.test","jwt":"legacy-token","userId":"u1"}"#,
-    )
-    .unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let legacy_path = seed_legacy_credential(root.path());
+    let legacy_dir = legacy_path.parent().unwrap();
     // Deny write on the directory: the file itself stays readable (so it is
     // still adopted as a candidate), but `remove_file` cannot unlink it.
-    std::fs::set_permissions(&legacy_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    std::fs::set_permissions(legacy_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
 
     let msg = sign_out(
         &scratch_env(root.path()),
@@ -280,7 +249,7 @@ fn a_legacy_credential_that_cannot_be_removed_is_named_in_the_parting_message() 
     );
 
     // Restore write access so the temp directory can be cleaned up.
-    std::fs::set_permissions(&legacy_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::set_permissions(legacy_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
 
     assert!(legacy_path.exists(), "the legacy credential should survive");
     assert!(
@@ -294,30 +263,32 @@ fn a_legacy_credential_that_cannot_be_removed_is_named_in_the_parting_message() 
 /// surviving authentication sources — either one alone would sign the operator
 /// back in. Fixing only the one named in the message would still leave them
 /// signed back in by the other, so both have to be named together.
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 #[test]
 fn both_a_surviving_token_and_an_undeletable_legacy_credential_are_reported() {
     use std::os::unix::fs::PermissionsExt;
 
-    let config = ScratchConfigDir::install();
+    if can_bypass_directory_permissions() {
+        eprintln!(
+            "skipping both_a_surviving_token_and_an_undeletable_legacy_credential_are_reported: \
+             running as a user that can unlink through a read-only directory (e.g. root), so the \
+             permission-based failure this test simulates cannot occur"
+        );
+        return;
+    }
+
     let root = tempfile::tempdir().unwrap();
     let backend = medulla::config::BackendConfig::default();
     let mut env = scratch_env(root.path());
     env.insert(backend.token_env.clone(), "still-here".to_string());
 
-    let legacy_dir = config._dir.path().join("medulla");
-    std::fs::create_dir_all(&legacy_dir).unwrap();
-    let legacy_path = legacy_dir.join("credentials.json");
-    std::fs::write(
-        &legacy_path,
-        r#"{"baseUrl":"https://example.test","jwt":"legacy-token","userId":"u1"}"#,
-    )
-    .unwrap();
-    std::fs::set_permissions(&legacy_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let legacy_path = seed_legacy_credential(root.path());
+    let legacy_dir = legacy_path.parent().unwrap();
+    std::fs::set_permissions(legacy_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
 
     let msg = sign_out(&env, &backend);
 
-    std::fs::set_permissions(&legacy_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::set_permissions(legacy_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
 
     assert!(msg.contains(&backend.token_env), "{msg}");
     assert!(msg.contains("still authenticated"), "{msg}");
