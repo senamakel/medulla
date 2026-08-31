@@ -26,7 +26,10 @@ fn without_an_override_the_real_os_config_directory_is_still_a_candidate() {
 /// a genuine install could plausibly have set for unrelated reasons.
 #[test]
 fn an_injected_override_replaces_the_real_os_config_directory() {
-    let env = HashMap::from([(LEGACY_CONFIG_DIR_OVERRIDE.to_string(), "/scratch/config".to_string())]);
+    let env = HashMap::from([(
+        LEGACY_CONFIG_DIR_OVERRIDE.to_string(),
+        "/scratch/config".to_string(),
+    )]);
 
     assert_eq!(
         config_dir_location(&env),
