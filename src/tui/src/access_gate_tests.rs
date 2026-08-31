@@ -84,18 +84,21 @@ fn the_countdown_names_the_subscription_it_ends_in() {
 /// roots, so a test never reads or removes anything the developer or CI
 /// runner actually has.
 ///
-/// `XDG_CONFIG_HOME` is injected through this same map rather than the real
-/// process environment: `medulla::auth::adopt_legacy_credentials` checks it
-/// there directly, on every platform, precisely so a caller (this test suite)
-/// never has to fight `dirs::config_dir()` reading the process's real
-/// environment — or, on macOS and Windows, not reading an environment
-/// variable for this at all. See `src/sdk/src/auth/migrate.rs`.
+/// `medulla::auth::LEGACY_CONFIG_DIR_OVERRIDE` is injected through this same
+/// map rather than the real process environment. It is a dedicated key, not
+/// `XDG_CONFIG_HOME`: a real install can have that set for reasons that have
+/// nothing to do with Medulla, and repurposing it as the override would make
+/// production sign-out miss the real legacy file such an install has at
+/// `dirs::config_dir()`'s native location. Because nothing but a caller that
+/// means to redirect this specific lookup would ever set the dedicated key,
+/// setting it here isolates every sign-out test on every platform without
+/// touching production resolution at all. See `src/sdk/src/auth/migrate.rs`.
 fn scratch_env(root: &std::path::Path) -> HashMap<String, String> {
     HashMap::from([
         ("MEDULLA_HOME".to_string(), root.display().to_string()),
         (
-            "XDG_CONFIG_HOME".to_string(),
-            root.join("xdg-config").display().to_string(),
+            medulla::auth::LEGACY_CONFIG_DIR_OVERRIDE.to_string(),
+            root.join("legacy-config").display().to_string(),
         ),
     ])
 }
@@ -109,16 +112,16 @@ fn seed_session(env: &HashMap<String, String>) -> std::path::PathBuf {
     path
 }
 
-/// Where `scratch_env`'s `XDG_CONFIG_HOME` puts the legacy credential file,
-/// matching `config_dir_location`'s `<base>/medulla/credentials.json` layout.
+/// Where `scratch_env`'s override puts the legacy credential file, matching
+/// `config_dir_location`'s `<base>/medulla/credentials.json` layout.
 fn legacy_credential_path(root: &std::path::Path) -> std::path::PathBuf {
-    root.join("xdg-config")
+    root.join("legacy-config")
         .join("medulla")
         .join("credentials.json")
 }
 
 /// Write a legacy credential at the scratch OS-config-directory location
-/// `scratch_env` points `XDG_CONFIG_HOME` at.
+/// `scratch_env` points the override at.
 fn seed_legacy_credential(root: &std::path::Path) -> std::path::PathBuf {
     let path = legacy_credential_path(root);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
