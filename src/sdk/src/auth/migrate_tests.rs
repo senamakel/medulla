@@ -1,7 +1,8 @@
 //! Unit tests for the legacy-credential sweep: both candidate locations, the
-//! Medulla-owned test override that makes the OS-config-directory one
-//! testable on every platform without touching a real environment variable
-//! (see [`LEGACY_CONFIG_DIR_OVERRIDE`]), and best-effort read/remove behavior.
+//! dedicated [`LEGACY_CONFIG_DIR_OVERRIDE`] that makes the OS-config-directory
+//! one testable on every platform without repurposing `XDG_CONFIG_HOME` (a
+//! variable a real install can have set) or touching the real process
+//! environment, and best-effort read/remove behavior.
 
 use std::collections::HashMap;
 
