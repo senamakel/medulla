@@ -1,7 +1,7 @@
 //! Unit tests for the legacy-credential sweep: both candidate locations, the
 //! Medulla-owned test override that makes the OS-config-directory one
 //! testable on every platform without touching a real environment variable
-//! (see [`TEST_CONFIG_DIR_OVERRIDE`]), and best-effort read/remove behavior.
+//! (see [`LEGACY_CONFIG_DIR_OVERRIDE`]), and best-effort read/remove behavior.
 
 use std::collections::HashMap;
 
@@ -25,7 +25,7 @@ fn without_an_override_the_real_os_config_directory_is_still_a_candidate() {
 /// a genuine install could plausibly have set for unrelated reasons.
 #[test]
 fn an_injected_override_replaces_the_real_os_config_directory() {
-    let env = HashMap::from([(TEST_CONFIG_DIR_OVERRIDE.to_string(), "/scratch/config".to_string())]);
+    let env = HashMap::from([(LEGACY_CONFIG_DIR_OVERRIDE.to_string(), "/scratch/config".to_string())]);
 
     assert_eq!(
         config_dir_location(&env),
@@ -39,7 +39,7 @@ fn an_injected_override_replaces_the_real_os_config_directory() {
 /// the same way `home_base` treats a blank `HOME` as absent.
 #[test]
 fn a_blank_override_is_ignored() {
-    let env = HashMap::from([(TEST_CONFIG_DIR_OVERRIDE.to_string(), String::new())]);
+    let env = HashMap::from([(LEGACY_CONFIG_DIR_OVERRIDE.to_string(), String::new())]);
     let expected = dirs::config_dir().map(|d| d.join("medulla").join("credentials.json"));
 
     assert_eq!(config_dir_location(&env), expected);
@@ -52,7 +52,7 @@ fn a_blank_override_is_ignored() {
 fn a_home_with_no_legacy_file_yields_nothing() {
     let root = tempfile::tempdir().unwrap();
     let env = HashMap::from([(
-        TEST_CONFIG_DIR_OVERRIDE.to_string(),
+        LEGACY_CONFIG_DIR_OVERRIDE.to_string(),
         root.path().join("no-such-config").display().to_string(),
     )]);
 
@@ -71,7 +71,7 @@ fn a_legacy_credential_in_the_home_location_is_adopted() {
     )
     .unwrap();
     let env = HashMap::from([(
-        TEST_CONFIG_DIR_OVERRIDE.to_string(),
+        LEGACY_CONFIG_DIR_OVERRIDE.to_string(),
         root.path().join("no-such-config").display().to_string(),
     )]);
 
@@ -94,7 +94,7 @@ fn a_blank_jwt_is_not_adopted() {
     )
     .unwrap();
     let env = HashMap::from([(
-        TEST_CONFIG_DIR_OVERRIDE.to_string(),
+        LEGACY_CONFIG_DIR_OVERRIDE.to_string(),
         root.path().join("no-such-config").display().to_string(),
     )]);
 
@@ -108,7 +108,7 @@ fn unparseable_json_is_skipped() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(home_location(root.path()), "not json").unwrap();
     let env = HashMap::from([(
-        TEST_CONFIG_DIR_OVERRIDE.to_string(),
+        LEGACY_CONFIG_DIR_OVERRIDE.to_string(),
         root.path().join("no-such-config").display().to_string(),
     )]);
 
@@ -127,7 +127,7 @@ fn both_locations_are_reported_when_both_hold_a_credential() {
     )
     .unwrap();
     let env = HashMap::from([(
-        TEST_CONFIG_DIR_OVERRIDE.to_string(),
+        LEGACY_CONFIG_DIR_OVERRIDE.to_string(),
         config_root.display().to_string(),
     )]);
     let config_path = config_dir_location(&env).unwrap();
