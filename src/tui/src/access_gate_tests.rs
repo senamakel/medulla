@@ -226,3 +226,44 @@ fn signing_out_removes_a_legacy_credential_from_the_config_directory() {
     assert!(!legacy_path.exists(), "the legacy credential is still on disk");
     assert_eq!(msg, "Signed out. Run `medulla` to sign in again.");
 }
+
+/// A legacy credential that cannot be removed — a read-only mount, a
+/// permissions problem — must not be reported as a clean sign-out: that file
+/// is exactly the bearer a re-launch would adopt, signing the operator back in
+/// to the account they just left. Simulated here by making its directory
+/// non-writable, which is Unix-only.
+#[cfg(unix)]
+#[test]
+fn a_legacy_credential_that_cannot_be_removed_is_named_in_the_parting_message() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let config = ScratchConfigDir::install();
+    let root = tempfile::tempdir().unwrap();
+
+    let legacy_dir = config._dir.path().join("medulla");
+    std::fs::create_dir_all(&legacy_dir).unwrap();
+    let legacy_path = legacy_dir.join("credentials.json");
+    std::fs::write(
+        &legacy_path,
+        r#"{"baseUrl":"https://example.test","jwt":"legacy-token","userId":"u1"}"#,
+    )
+    .unwrap();
+    // Deny write on the directory: the file itself stays readable (so it is
+    // still adopted as a candidate), but `remove_file` cannot unlink it.
+    std::fs::set_permissions(&legacy_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+    let msg = sign_out(
+        &scratch_env(root.path()),
+        &medulla::config::BackendConfig::default(),
+    );
+
+    // Restore write access so the temp directory can be cleaned up.
+    std::fs::set_permissions(&legacy_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(legacy_path.exists(), "the legacy credential should survive");
+    assert!(
+        msg.contains("could not be removed"),
+        "the parting message must say the removal failed: {msg}"
+    );
+    assert!(msg.contains("credentials.json"), "{msg}");
+}
