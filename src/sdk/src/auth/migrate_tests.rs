@@ -1,14 +1,15 @@
 //! Unit tests for the legacy-credential sweep: both candidate locations, the
-//! `XDG_CONFIG_HOME` override that makes the OS-config-directory one testable
-//! on every platform, and best-effort read/remove behavior.
+//! Medulla-owned test override that makes the OS-config-directory one
+//! testable on every platform without touching a real environment variable
+//! (see [`TEST_CONFIG_DIR_OVERRIDE`]), and best-effort read/remove behavior.
 
 use std::collections::HashMap;
 
 use super::*;
 
-/// No `XDG_CONFIG_HOME` in the injected map falls back to
-/// [`dirs::config_dir`] rather than silently dropping the OS-config-directory
-/// candidate — a caller that never sets the override still gets the second
+/// No override in the injected map falls back to [`dirs::config_dir`] rather
+/// than silently dropping the OS-config-directory candidate — a caller that
+/// never sets it (every real production caller) still gets the second
 /// location a real install can have a legacy credential in.
 #[test]
 fn without_an_override_the_real_os_config_directory_is_still_a_candidate() {
@@ -20,11 +21,11 @@ fn without_an_override_the_real_os_config_directory_is_still_a_candidate() {
 
 /// The whole point of the override: a caller — in practice, a test — can
 /// redirect the OS-config-directory candidate to a scratch path without
-/// touching the real process environment, on every platform, since
-/// `dirs::config_dir` only reads `XDG_CONFIG_HOME` on Linux.
+/// touching the real process environment or a variable (`XDG_CONFIG_HOME`)
+/// a genuine install could plausibly have set for unrelated reasons.
 #[test]
-fn an_injected_xdg_config_home_overrides_the_real_os_config_directory() {
-    let env = HashMap::from([("XDG_CONFIG_HOME".to_string(), "/scratch/config".to_string())]);
+fn an_injected_override_replaces_the_real_os_config_directory() {
+    let env = HashMap::from([(TEST_CONFIG_DIR_OVERRIDE.to_string(), "/scratch/config".to_string())]);
 
     assert_eq!(
         config_dir_location(&env),
@@ -38,7 +39,7 @@ fn an_injected_xdg_config_home_overrides_the_real_os_config_directory() {
 /// the same way `home_base` treats a blank `HOME` as absent.
 #[test]
 fn a_blank_override_is_ignored() {
-    let env = HashMap::from([("XDG_CONFIG_HOME".to_string(), String::new())]);
+    let env = HashMap::from([(TEST_CONFIG_DIR_OVERRIDE.to_string(), String::new())]);
     let expected = dirs::config_dir().map(|d| d.join("medulla").join("credentials.json"));
 
     assert_eq!(config_dir_location(&env), expected);
@@ -51,7 +52,7 @@ fn a_blank_override_is_ignored() {
 fn a_home_with_no_legacy_file_yields_nothing() {
     let root = tempfile::tempdir().unwrap();
     let env = HashMap::from([(
-        "XDG_CONFIG_HOME".to_string(),
+        TEST_CONFIG_DIR_OVERRIDE.to_string(),
         root.path().join("no-such-config").display().to_string(),
     )]);
 
@@ -70,7 +71,7 @@ fn a_legacy_credential_in_the_home_location_is_adopted() {
     )
     .unwrap();
     let env = HashMap::from([(
-        "XDG_CONFIG_HOME".to_string(),
+        TEST_CONFIG_DIR_OVERRIDE.to_string(),
         root.path().join("no-such-config").display().to_string(),
     )]);
 
@@ -93,7 +94,7 @@ fn a_blank_jwt_is_not_adopted() {
     )
     .unwrap();
     let env = HashMap::from([(
-        "XDG_CONFIG_HOME".to_string(),
+        TEST_CONFIG_DIR_OVERRIDE.to_string(),
         root.path().join("no-such-config").display().to_string(),
     )]);
 
@@ -107,7 +108,7 @@ fn unparseable_json_is_skipped() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(home_location(root.path()), "not json").unwrap();
     let env = HashMap::from([(
-        "XDG_CONFIG_HOME".to_string(),
+        TEST_CONFIG_DIR_OVERRIDE.to_string(),
         root.path().join("no-such-config").display().to_string(),
     )]);
 
@@ -126,7 +127,7 @@ fn both_locations_are_reported_when_both_hold_a_credential() {
     )
     .unwrap();
     let env = HashMap::from([(
-        "XDG_CONFIG_HOME".to_string(),
+        TEST_CONFIG_DIR_OVERRIDE.to_string(),
         config_root.display().to_string(),
     )]);
     let config_path = config_dir_location(&env).unwrap();
