@@ -272,4 +272,3 @@ fn the_opened_flash_appears_after_subscribing_and_points_at_the_re_check() {
     assert!(out.contains("Opened"));
     assert!(out.contains("Check again"));
 }
-
