@@ -270,3 +270,38 @@ fn a_legacy_credential_that_cannot_be_removed_is_named_in_the_parting_message() 
     );
     assert!(msg.contains("credentials.json"), "{msg}");
 }
+
+/// An external token and an undeletable legacy credential are two independent
+/// surviving authentication sources — either one alone would sign the operator
+/// back in. Fixing only the one named in the message would still leave them
+/// signed back in by the other, so both have to be named together.
+#[cfg(unix)]
+#[test]
+fn both_a_surviving_token_and_an_undeletable_legacy_credential_are_reported() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let config = ScratchConfigDir::install();
+    let root = tempfile::tempdir().unwrap();
+    let backend = medulla::config::BackendConfig::default();
+    let mut env = scratch_env(root.path());
+    env.insert(backend.token_env.clone(), "still-here".to_string());
+
+    let legacy_dir = config._dir.path().join("medulla");
+    std::fs::create_dir_all(&legacy_dir).unwrap();
+    let legacy_path = legacy_dir.join("credentials.json");
+    std::fs::write(
+        &legacy_path,
+        r#"{"baseUrl":"https://example.test","jwt":"legacy-token","userId":"u1"}"#,
+    )
+    .unwrap();
+    std::fs::set_permissions(&legacy_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+    let msg = sign_out(&env, &backend);
+
+    std::fs::set_permissions(&legacy_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(msg.contains(&backend.token_env), "{msg}");
+    assert!(msg.contains("still authenticated"), "{msg}");
+    assert!(msg.contains("could not be removed"), "{msg}");
+    assert!(msg.contains("credentials.json"), "{msg}");
+}
