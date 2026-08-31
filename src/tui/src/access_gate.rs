@@ -205,7 +205,7 @@ fn sign_out(env: &HashMap<String, String>, backend: &medulla::config::BackendCon
     // mount, permissions) is exactly the bearer that would do that, so it is
     // named in the parting message rather than silently left behind.
     let home = medulla::home::medulla_home(env);
-    let undeleted: Vec<_> = medulla::auth::adopt_legacy_credentials(&home)
+    let undeleted: Vec<_> = medulla::auth::adopt_legacy_credentials(env, &home)
         .into_iter()
         .filter(|legacy| !medulla::auth::discard_legacy_credential(&legacy.path))
         .map(|legacy| legacy.path)
