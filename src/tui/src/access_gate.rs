@@ -201,11 +201,15 @@ fn sign_out(env: &HashMap<String, String>, backend: &medulla::config::BackendCon
     }
     // Retired credential files go too, for the reason `medulla logout` gives:
     // the next launch would adopt one and sign the operator straight back in to
-    // the account they just left.
+    // the account they just left. A file that survives the removal (read-only
+    // mount, permissions) is exactly the bearer that would do that, so it is
+    // named in the parting message rather than silently left behind.
     let home = medulla::home::medulla_home(env);
-    for legacy in medulla::auth::adopt_legacy_credentials(&home) {
-        medulla::auth::discard_legacy_credential(&legacy.path);
-    }
+    let undeleted: Vec<_> = medulla::auth::adopt_legacy_credentials(&home)
+        .into_iter()
+        .filter(|legacy| !medulla::auth::discard_legacy_credential(&legacy.path))
+        .map(|legacy| legacy.path)
+        .collect();
     // An inline `backend.token` or a `backend.tokenEnv` variable outranks the
     // store, so clearing it leaves the next process authenticated as the same
     // account — and landing back on this same screen would look like the sign
@@ -219,6 +223,17 @@ fn sign_out(env: &HashMap<String, String>, backend: &medulla::config::BackendCon
         return format!(
             "Signed out, but this shell is still authenticated from {source} — remove it, then \
              run `medulla` to sign in as another account."
+        );
+    }
+    if !undeleted.is_empty() {
+        let paths = undeleted
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return format!(
+            "Signed out, but a legacy credential file could not be removed: {paths} — delete it \
+             by hand, or a future launch may sign back in from it."
         );
     }
     "Signed out. Run `medulla` to sign in again.".to_string()
