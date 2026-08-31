@@ -223,7 +223,10 @@ fn signing_out_removes_a_legacy_credential_from_the_config_directory() {
         &medulla::config::BackendConfig::default(),
     );
 
-    assert!(!legacy_path.exists(), "the legacy credential is still on disk");
+    assert!(
+        !legacy_path.exists(),
+        "the legacy credential is still on disk"
+    );
     assert_eq!(msg, "Signed out. Run `medulla` to sign in again.");
 }
 
