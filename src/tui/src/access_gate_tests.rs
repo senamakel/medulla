@@ -102,17 +102,30 @@ fn seed_session(env: &HashMap<String, String>) -> std::path::PathBuf {
 /// `XDG_CONFIG_HOME` too, a developer's own `~/.config/medulla/credentials.json`
 /// would be read, and deleted, by an ordinary test run. Two tests racing on
 /// that same mutation would each think it owned the value.
+///
+/// Every test that uses this guard is `#[cfg(target_os = "linux")]`: `dirs`
+/// only reads `XDG_CONFIG_HOME` there. On macOS it resolves to `~/Library/
+/// Application Support` and on Windows to the roaming `AppData` known folder,
+/// neither of which an environment variable can redirect — so on those
+/// platforms this guard would not isolate anything, and `sign_out` would sweep
+/// (and delete) the developer's real legacy credential file instead of a
+/// scratch one. Restricting to Linux only drops local coverage on other
+/// platforms; every CI job that actually runs these tests (`Rust SDK` and
+/// `Coverage`) runs on `ubuntu-latest`, and `Rust SDK (Windows)` runs
+/// `--lib` only, which never compiles this binary-crate test module at all.
 static CONFIG_DIR_LOCK: Mutex<()> = Mutex::new(());
 
 /// Points the OS config directory at a scratch root for the life of one test,
 /// alongside `MEDULLA_HOME`, so `sign_out`'s legacy-credential sweep only ever
 /// sees files this test wrote. Restores whatever was there before on drop.
+#[cfg(target_os = "linux")]
 struct ScratchConfigDir {
     _guard: std::sync::MutexGuard<'static, ()>,
     _dir: tempfile::TempDir,
     previous: Option<String>,
 }
 
+#[cfg(target_os = "linux")]
 impl ScratchConfigDir {
     fn install() -> Self {
         let guard = CONFIG_DIR_LOCK
@@ -129,6 +142,7 @@ impl ScratchConfigDir {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl Drop for ScratchConfigDir {
     fn drop(&mut self) {
         match &self.previous {
