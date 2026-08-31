@@ -152,6 +152,7 @@ impl Drop for ScratchConfigDir {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn signing_out_removes_the_stored_session() {
     let _config = ScratchConfigDir::install();
@@ -167,6 +168,7 @@ fn signing_out_removes_the_stored_session() {
 
 /// Idempotent, the same way `medulla logout` is: nothing stored is not a
 /// failure to report.
+#[cfg(target_os = "linux")]
 #[test]
 fn signing_out_with_nothing_stored_still_reports_a_clean_sign_out() {
     let _config = ScratchConfigDir::install();
@@ -183,6 +185,7 @@ fn signing_out_with_nothing_stored_still_reports_a_clean_sign_out() {
 /// A token from the environment outranks the store, so clearing the store
 /// leaves the next launch signed in as the same account — and landing back on
 /// this screen would look like the sign-out silently failed.
+#[cfg(target_os = "linux")]
 #[test]
 fn an_environment_token_is_reported_because_it_survives_the_sign_out() {
     let _config = ScratchConfigDir::install();
@@ -200,6 +203,7 @@ fn an_environment_token_is_reported_because_it_survives_the_sign_out() {
     assert!(msg.contains("still authenticated"), "{msg}");
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn an_inline_config_token_is_named_as_the_config_rather_than_the_environment() {
     let _config = ScratchConfigDir::install();
@@ -218,6 +222,7 @@ fn an_inline_config_token_is_named_as_the_config_rather_than_the_environment() {
 /// the two locations `adopt_legacy_credentials` sweeps) is removed by signing
 /// out, exactly as `medulla logout` removes it — so a re-launch cannot adopt
 /// it and sign the operator straight back in.
+#[cfg(target_os = "linux")]
 #[test]
 fn signing_out_removes_a_legacy_credential_from_the_config_directory() {
     let config = ScratchConfigDir::install();
@@ -249,7 +254,7 @@ fn signing_out_removes_a_legacy_credential_from_the_config_directory() {
 /// is exactly the bearer a re-launch would adopt, signing the operator back in
 /// to the account they just left. Simulated here by making its directory
 /// non-writable, which is Unix-only.
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 #[test]
 fn a_legacy_credential_that_cannot_be_removed_is_named_in_the_parting_message() {
     use std::os::unix::fs::PermissionsExt;
@@ -289,7 +294,7 @@ fn a_legacy_credential_that_cannot_be_removed_is_named_in_the_parting_message() 
 /// surviving authentication sources — either one alone would sign the operator
 /// back in. Fixing only the one named in the message would still leave them
 /// signed back in by the other, so both have to be named together.
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 #[test]
 fn both_a_surviving_token_and_an_undeletable_legacy_credential_are_reported() {
     use std::os::unix::fs::PermissionsExt;
