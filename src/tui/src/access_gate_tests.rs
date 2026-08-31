@@ -3,6 +3,7 @@
 //! offers.
 
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use medulla::access::{Grant, Plan};
 
