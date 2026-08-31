@@ -24,22 +24,30 @@ fn home_location(home: &Path) -> PathBuf {
     home.join("credentials.json")
 }
 
+/// A test-only override for [`config_dir_location`], deliberately not a real
+/// variable like `XDG_CONFIG_HOME`: a genuine install may have that set for
+/// unrelated reasons (some tools honor it even off Linux), and treating it as
+/// an override would make production adoption and sign-out miss the real
+/// legacy file such an install actually has, at `dirs::config_dir()`'s native
+/// location — silently, until the variable is later unset and the old bearer
+/// authenticates the operator again. `env` here is the same injected map
+/// every other resolution in this crate takes, but this key only ever comes
+/// from a caller that means to redirect this specific lookup — a test, in
+/// practice — never from a real process's inherited environment.
+const TEST_CONFIG_DIR_OVERRIDE: &str = "MEDULLA_TEST_CONFIG_DIR";
+
 /// The older retired store under the OS config directory.
 ///
-/// `env`'s `XDG_CONFIG_HOME` is checked directly, ahead of asking
-/// [`dirs::config_dir`], for the same reason `home_base` in
-/// `src/sdk/src/home/resolve.rs` checks `HOME`/`USERPROFILE` before falling
-/// back to [`dirs::home_dir`]: `dirs` only ever consults *this process's* real
-/// environment, never the injected map every other resolution in this crate
-/// takes — and even then, only on Linux, since macOS and Windows compute this
-/// location from the OS user profile, which no environment variable can
-/// redirect. Checking it ourselves first, the same way on every platform, is
-/// what lets a caller — a test, in practice — point this at a scratch
-/// directory anywhere, instead of the sweep silently reading (and later
-/// removing) whatever legacy credential the real developer or CI runner
-/// happens to have.
+/// Always [`dirs::config_dir`] in production — see
+/// [`TEST_CONFIG_DIR_OVERRIDE`] for why that is never swapped for an
+/// environment variable a real install could plausibly have set. Tests get
+/// isolation from the override instead, which stays a no-op unless a caller
+/// deliberately sets it.
 fn config_dir_location(env: &HashMap<String, String>) -> Option<PathBuf> {
-    let base = match env.get("XDG_CONFIG_HOME").filter(|s| !s.is_empty()) {
+    let base = match env
+        .get(TEST_CONFIG_DIR_OVERRIDE)
+        .filter(|s| !s.is_empty())
+    {
         Some(dir) => PathBuf::from(dir),
         None => dirs::config_dir()?,
     };
