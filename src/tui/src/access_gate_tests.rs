@@ -1,8 +1,12 @@
-//! Unit tests for the launch-time access gate's pure parts.
+//! Unit tests for the launch-time access gate's parts that need no terminal:
+//! the startup note a grant is announced with, and the sign-out the gate screen
+//! offers.
+
+use std::collections::HashMap;
 
 use medulla::access::{Grant, Plan};
 
-use super::startup_note;
+use super::{sign_out, startup_note};
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1_000;
 
@@ -74,10 +78,6 @@ fn the_countdown_names_the_subscription_it_ends_in() {
 }
 
 // --- signing out from the gate -------------------------------------------
-
-use std::collections::HashMap;
-
-use super::sign_out;
 
 /// An env pointing every Medulla path at a scratch root, so a test never reads
 /// or removes the developer's own session.
