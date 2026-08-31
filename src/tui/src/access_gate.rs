@@ -213,17 +213,21 @@ fn sign_out(env: &HashMap<String, String>, backend: &medulla::config::BackendCon
     // An inline `backend.token` or a `backend.tokenEnv` variable outranks the
     // store, so clearing it leaves the next process authenticated as the same
     // account — and landing back on this same screen would look like the sign
-    // out silently failed.
+    // out silently failed. Both this and an undeleted legacy file are surviving
+    // authentication sources, and either one alone would sign the operator
+    // straight back in — so when both apply, both have to be named, or fixing
+    // the one the operator sees still leaves them signed back in by the other.
+    let mut warnings = Vec::new();
     if medulla::auth::resolve_backend_token(env, backend, None).is_some() {
         let source = if backend.token.is_some() {
             "`backend.token` in the config".to_string()
         } else {
             format!("the `{}` environment variable", backend.token_env)
         };
-        return format!(
-            "Signed out, but this shell is still authenticated from {source} — remove it, then \
-             run `medulla` to sign in as another account."
-        );
+        warnings.push(format!(
+            "this shell is still authenticated from {source} — remove it, then run `medulla` \
+             to sign in as another account"
+        ));
     }
     if !undeleted.is_empty() {
         let paths = undeleted
@@ -231,12 +235,15 @@ fn sign_out(env: &HashMap<String, String>, backend: &medulla::config::BackendCon
             .map(|path| path.display().to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        return format!(
-            "Signed out, but a legacy credential file could not be removed: {paths} — delete it \
-             by hand, or a future launch may sign back in from it."
-        );
+        warnings.push(format!(
+            "a legacy credential file could not be removed: {paths} — delete it by hand, or a \
+             future launch may sign back in from it"
+        ));
     }
-    "Signed out. Run `medulla` to sign in again.".to_string()
+    if warnings.is_empty() {
+        return "Signed out. Run `medulla` to sign in again.".to_string();
+    }
+    format!("Signed out, but {}.", warnings.join("; and "))
 }
 
 /// Draw the gate screen until the operator leaves it or is admitted.
