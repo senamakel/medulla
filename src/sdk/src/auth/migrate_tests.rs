@@ -121,7 +121,7 @@ fn unparseable_json_is_skipped() {
 #[test]
 fn both_locations_are_reported_when_both_hold_a_credential() {
     let root = tempfile::tempdir().unwrap();
-    let config_root = root.path().join("xdg-config");
+    let config_root = root.path().join("legacy-config");
     std::fs::write(
         home_location(root.path()),
         r#"{"baseUrl":"https://a.test","jwt":"home-token"}"#,

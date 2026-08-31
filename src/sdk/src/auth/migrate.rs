@@ -79,8 +79,9 @@ pub struct LegacyCredential {
 /// the sweep rides along with would block exactly that. Returns every candidate
 /// so a caller that finds the first token rejected can try the next.
 ///
-/// `env` is consulted for `XDG_CONFIG_HOME` only — see [`config_dir_location`]
-/// — every other input is `home`, already resolved by the caller.
+/// `env` is consulted only for [`LEGACY_CONFIG_DIR_OVERRIDE`] — see
+/// [`config_dir_location`] — every other input is `home`, already resolved by
+/// the caller.
 pub fn adopt_legacy_credentials(
     env: &HashMap<String, String>,
     home: &Path,
