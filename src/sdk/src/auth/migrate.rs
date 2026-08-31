@@ -67,7 +67,10 @@ pub struct LegacyCredential {
 ///
 /// `env` is consulted for `XDG_CONFIG_HOME` only — see [`config_dir_location`]
 /// — every other input is `home`, already resolved by the caller.
-pub fn adopt_legacy_credentials(env: &HashMap<String, String>, home: &Path) -> Vec<LegacyCredential> {
+pub fn adopt_legacy_credentials(
+    env: &HashMap<String, String>,
+    home: &Path,
+) -> Vec<LegacyCredential> {
     let mut found = Vec::new();
     for path in [Some(home_location(home)), config_dir_location(env)]
         .into_iter()

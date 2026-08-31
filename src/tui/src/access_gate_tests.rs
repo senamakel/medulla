@@ -112,7 +112,9 @@ fn seed_session(env: &HashMap<String, String>) -> std::path::PathBuf {
 /// Where `scratch_env`'s `XDG_CONFIG_HOME` puts the legacy credential file,
 /// matching `config_dir_location`'s `<base>/medulla/credentials.json` layout.
 fn legacy_credential_path(root: &std::path::Path) -> std::path::PathBuf {
-    root.join("xdg-config").join("medulla").join("credentials.json")
+    root.join("xdg-config")
+        .join("medulla")
+        .join("credentials.json")
 }
 
 /// Write a legacy credential at the scratch OS-config-directory location
