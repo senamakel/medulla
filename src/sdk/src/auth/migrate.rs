@@ -27,8 +27,8 @@ fn home_location(home: &Path) -> PathBuf {
 /// The older retired store under the OS config directory.
 ///
 /// `env`'s `XDG_CONFIG_HOME` is checked directly, ahead of asking
-/// [`dirs::config_dir`], for the same reason [`super::home::home_base`] (see
-/// `src/sdk/src/home/resolve.rs`) checks `HOME`/`USERPROFILE` before falling
+/// [`dirs::config_dir`], for the same reason `home_base` in
+/// `src/sdk/src/home/resolve.rs` checks `HOME`/`USERPROFILE` before falling
 /// back to [`dirs::home_dir`]: `dirs` only ever consults *this process's* real
 /// environment, never the injected map every other resolution in this crate
 /// takes — and even then, only on Linux, since macOS and Windows compute this
