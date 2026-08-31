@@ -140,6 +140,7 @@ impl Drop for ScratchConfigDir {
 
 #[test]
 fn signing_out_removes_the_stored_session() {
+    let _config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
     let env = scratch_env(root.path());
     let path = seed_session(&env);
@@ -154,6 +155,7 @@ fn signing_out_removes_the_stored_session() {
 /// failure to report.
 #[test]
 fn signing_out_with_nothing_stored_still_reports_a_clean_sign_out() {
+    let _config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
 
     let msg = sign_out(
@@ -169,6 +171,7 @@ fn signing_out_with_nothing_stored_still_reports_a_clean_sign_out() {
 /// this screen would look like the sign-out silently failed.
 #[test]
 fn an_environment_token_is_reported_because_it_survives_the_sign_out() {
+    let _config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
     let mut env = scratch_env(root.path());
     let backend = medulla::config::BackendConfig::default();
@@ -185,6 +188,7 @@ fn an_environment_token_is_reported_because_it_survives_the_sign_out() {
 
 #[test]
 fn an_inline_config_token_is_named_as_the_config_rather_than_the_environment() {
+    let _config = ScratchConfigDir::install();
     let root = tempfile::tempdir().unwrap();
     let backend = medulla::config::BackendConfig {
         token: Some("inline".to_string()),
@@ -194,4 +198,31 @@ fn an_inline_config_token_is_named_as_the_config_rather_than_the_environment() {
     let msg = sign_out(&scratch_env(root.path()), &backend);
 
     assert!(msg.contains("`backend.token` in the config"), "{msg}");
+}
+
+/// A legacy `credentials.json` still in the OS config directory (the older of
+/// the two locations `adopt_legacy_credentials` sweeps) is removed by signing
+/// out, exactly as `medulla logout` removes it — so a re-launch cannot adopt
+/// it and sign the operator straight back in.
+#[test]
+fn signing_out_removes_a_legacy_credential_from_the_config_directory() {
+    let config = ScratchConfigDir::install();
+    let root = tempfile::tempdir().unwrap();
+
+    let legacy_dir = config._dir.path().join("medulla");
+    std::fs::create_dir_all(&legacy_dir).unwrap();
+    let legacy_path = legacy_dir.join("credentials.json");
+    std::fs::write(
+        &legacy_path,
+        r#"{"baseUrl":"https://example.test","jwt":"legacy-token","userId":"u1"}"#,
+    )
+    .unwrap();
+
+    let msg = sign_out(
+        &scratch_env(root.path()),
+        &medulla::config::BackendConfig::default(),
+    );
+
+    assert!(!legacy_path.exists(), "the legacy credential is still on disk");
+    assert_eq!(msg, "Signed out. Run `medulla` to sign in again.");
 }
