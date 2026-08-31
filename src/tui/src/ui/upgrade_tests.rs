@@ -180,12 +180,13 @@ fn no_keystroke_dismisses_the_screen_into_the_app() {
     }
 }
 
-/// Render the panel and return its cells as one string.
-fn render(s: &mut UpgradeScreen) -> String {
+/// Render the panel at a given terminal size and return its cells as one
+/// string.
+fn render_at(s: &mut UpgradeScreen, width: u16, height: u16) -> String {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
-    let mut terminal = Terminal::new(TestBackend::new(100, 32)).unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal.draw(|frame| s.draw(frame)).unwrap();
     terminal
         .backend()
@@ -194,6 +195,11 @@ fn render(s: &mut UpgradeScreen) -> String {
         .iter()
         .map(|cell| cell.symbol())
         .collect()
+}
+
+/// Render the panel and return its cells as one string.
+fn render(s: &mut UpgradeScreen) -> String {
+    render_at(s, 100, 32)
 }
 
 #[test]
