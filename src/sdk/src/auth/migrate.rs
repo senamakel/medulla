@@ -14,6 +14,7 @@
 //! [`super::session::store`] like any other, and remove the old file only once
 //! the new one is written.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::types::Credentials;
@@ -24,8 +25,25 @@ fn home_location(home: &Path) -> PathBuf {
 }
 
 /// The older retired store under the OS config directory.
-fn config_dir_location() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("medulla").join("credentials.json"))
+///
+/// `env`'s `XDG_CONFIG_HOME` is checked directly, ahead of asking
+/// [`dirs::config_dir`], for the same reason [`super::home::home_base`] (see
+/// `src/sdk/src/home/resolve.rs`) checks `HOME`/`USERPROFILE` before falling
+/// back to [`dirs::home_dir`]: `dirs` only ever consults *this process's* real
+/// environment, never the injected map every other resolution in this crate
+/// takes — and even then, only on Linux, since macOS and Windows compute this
+/// location from the OS user profile, which no environment variable can
+/// redirect. Checking it ourselves first, the same way on every platform, is
+/// what lets a caller — a test, in practice — point this at a scratch
+/// directory anywhere, instead of the sweep silently reading (and later
+/// removing) whatever legacy credential the real developer or CI runner
+/// happens to have.
+fn config_dir_location(env: &HashMap<String, String>) -> Option<PathBuf> {
+    let base = match env.get("XDG_CONFIG_HOME").filter(|s| !s.is_empty()) {
+        Some(dir) => PathBuf::from(dir),
+        None => dirs::config_dir()?,
+    };
+    Some(base.join("medulla").join("credentials.json"))
 }
 
 /// A legacy credential that is worth trying, with the file it came from.
@@ -46,9 +64,12 @@ pub struct LegacyCredential {
 /// because the only recovery is to sign in again and failing the command that
 /// the sweep rides along with would block exactly that. Returns every candidate
 /// so a caller that finds the first token rejected can try the next.
-pub fn adopt_legacy_credentials(home: &Path) -> Vec<LegacyCredential> {
+///
+/// `env` is consulted for `XDG_CONFIG_HOME` only — see [`config_dir_location`]
+/// — every other input is `home`, already resolved by the caller.
+pub fn adopt_legacy_credentials(env: &HashMap<String, String>, home: &Path) -> Vec<LegacyCredential> {
     let mut found = Vec::new();
-    for path in [Some(home_location(home)), config_dir_location()]
+    for path in [Some(home_location(home)), config_dir_location(env)]
         .into_iter()
         .flatten()
     {
