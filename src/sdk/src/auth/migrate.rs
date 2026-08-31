@@ -24,28 +24,34 @@ fn home_location(home: &Path) -> PathBuf {
     home.join("credentials.json")
 }
 
-/// A test-only override for [`config_dir_location`], deliberately not a real
-/// variable like `XDG_CONFIG_HOME`: a genuine install may have that set for
-/// unrelated reasons (some tools honor it even off Linux), and treating it as
-/// an override would make production adoption and sign-out miss the real
-/// legacy file such an install actually has, at `dirs::config_dir()`'s native
-/// location — silently, until the variable is later unset and the old bearer
-/// authenticates the operator again. `env` here is the same injected map
-/// every other resolution in this crate takes, but this key only ever comes
-/// from a caller that means to redirect this specific lookup — a test, in
-/// practice — never from a real process's inherited environment.
-const TEST_CONFIG_DIR_OVERRIDE: &str = "MEDULLA_TEST_CONFIG_DIR";
+/// A dedicated override for [`config_dir_location`] — deliberately not
+/// `XDG_CONFIG_HOME`, which a real install can have set for reasons that have
+/// nothing to do with Medulla (cross-platform dotfiles commonly export it even
+/// on macOS and Windows, where the OS itself ignores it). Repurposing that
+/// variable as the override would mean production adoption and sign-out only
+/// ever look under it and never at `dirs::config_dir()`'s native location —
+/// missing the real legacy file such an install actually has, silently, until
+/// the variable is unset and the old bearer authenticates the operator again.
+///
+/// This key does not have that problem because nothing but a caller that
+/// means to redirect this specific lookup would ever set it — in practice,
+/// only a test, pointing the sweep at a scratch directory instead of the
+/// developer's or CI runner's real one. `env` is the same injected map every
+/// other resolution in this crate takes; the override is read from it, never
+/// from the real process environment.
+pub const LEGACY_CONFIG_DIR_OVERRIDE: &str = "MEDULLA_LEGACY_CONFIG_DIR";
 
 /// The older retired store under the OS config directory.
 ///
-/// Always [`dirs::config_dir`] in production — see
-/// [`TEST_CONFIG_DIR_OVERRIDE`] for why that is never swapped for an
-/// environment variable a real install could plausibly have set. Tests get
-/// isolation from the override instead, which stays a no-op unless a caller
-/// deliberately sets it.
+/// [`dirs::config_dir`] on every platform, in production — untouched by this
+/// PR's fix for the OS-config-directory sweep not being test-isolable, which
+/// lives entirely in [`LEGACY_CONFIG_DIR_OVERRIDE`] instead: absent (every
+/// real caller), this resolves exactly as it always did; present (a test),
+/// it replaces `dirs::config_dir()` outright rather than adding to it, so a
+/// test sees only the scratch location it set, never the real one too.
 fn config_dir_location(env: &HashMap<String, String>) -> Option<PathBuf> {
     let base = match env
-        .get(TEST_CONFIG_DIR_OVERRIDE)
+        .get(LEGACY_CONFIG_DIR_OVERRIDE)
         .filter(|s| !s.is_empty())
     {
         Some(dir) => PathBuf::from(dir),
