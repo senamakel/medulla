@@ -278,3 +278,31 @@ fn the_opened_flash_appears_after_subscribing_and_points_at_the_re_check() {
     assert!(out.contains("Opened"));
     assert!(out.contains("Check again"));
 }
+
+/// On a standard 80x24 terminal the fixed content (logo, headline, rule,
+/// hints, menu, shortcuts) already very nearly fills the panel, so the flash
+/// a re-check sets is the row most at risk of falling off the bottom — and
+/// since the panel never scrolls, "at risk" means "silently missing," which
+/// makes a refused re-check look like it did nothing at all. It must stay
+/// visible, even if that means the panel drops the two "Already subscribed?"
+/// / "On the wrong account?" hint lines, which only restate the menu rows
+/// directly below them.
+#[test]
+fn the_recheck_flash_stays_visible_on_an_80_by_24_terminal() {
+    let mut s = screen();
+    s.handle_key(key(KeyCode::Char('r')));
+
+    let out = render_at(&mut s, 80, 24);
+
+    assert!(
+        out.contains("Checking your subscription"),
+        "the re-check flash was clipped off an 80x24 terminal: {out:?}"
+    );
+
+    s.rechecked("Logged in as a@b.c (u1)", Denial::TrialExpired);
+    let out = render_at(&mut s, 80, 24);
+    assert!(
+        out.contains("still has no subscription"),
+        "the re-check result was clipped off an 80x24 terminal: {out:?}"
+    );
+}
