@@ -103,3 +103,7 @@ pub fn adopt_legacy_credentials(
 pub fn discard_legacy_credential(path: &Path) -> bool {
     path.exists() && std::fs::remove_file(path).is_ok()
 }
+
+#[cfg(test)]
+#[path = "migrate_tests.rs"]
+mod tests;
