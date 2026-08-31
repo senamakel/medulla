@@ -72,3 +72,82 @@ fn the_countdown_names_the_subscription_it_ends_in() {
     assert!(note.contains("Basic subscription"), "{note}");
     assert!(note.contains("https://tinyhumans.ai/pricing"), "{note}");
 }
+
+// --- signing out from the gate -------------------------------------------
+
+use std::collections::HashMap;
+
+use super::sign_out;
+
+/// An env pointing every Medulla path at a scratch root, so a test never reads
+/// or removes the developer's own session.
+fn scratch_env(root: &std::path::Path) -> HashMap<String, String> {
+    HashMap::from([("MEDULLA_HOME".to_string(), root.display().to_string())])
+}
+
+/// Write a session file where `medulla::auth::clear` will look for it.
+fn seed_session(env: &HashMap<String, String>) -> std::path::PathBuf {
+    let home = medulla::home::medulla_home(env);
+    std::fs::create_dir_all(&home).unwrap();
+    let path = home.join("session.json");
+    std::fs::write(&path, r#"{"token":"t","userId":"u1"}"#).unwrap();
+    path
+}
+
+#[test]
+fn signing_out_removes_the_stored_session() {
+    let root = tempfile::tempdir().unwrap();
+    let env = scratch_env(root.path());
+    let path = seed_session(&env);
+
+    let msg = sign_out(&env, &medulla::config::BackendConfig::default());
+
+    assert!(!path.exists(), "the bearer is still on disk");
+    assert_eq!(msg, "Signed out. Run `medulla` to sign in again.");
+}
+
+/// Idempotent, the same way `medulla logout` is: nothing stored is not a
+/// failure to report.
+#[test]
+fn signing_out_with_nothing_stored_still_reports_a_clean_sign_out() {
+    let root = tempfile::tempdir().unwrap();
+
+    let msg = sign_out(
+        &scratch_env(root.path()),
+        &medulla::config::BackendConfig::default(),
+    );
+
+    assert_eq!(msg, "Signed out. Run `medulla` to sign in again.");
+}
+
+/// A token from the environment outranks the store, so clearing the store
+/// leaves the next launch signed in as the same account — and landing back on
+/// this screen would look like the sign-out silently failed.
+#[test]
+fn an_environment_token_is_reported_because_it_survives_the_sign_out() {
+    let root = tempfile::tempdir().unwrap();
+    let mut env = scratch_env(root.path());
+    let backend = medulla::config::BackendConfig::default();
+    env.insert(backend.token_env.clone(), "still-here".to_string());
+    let path = seed_session(&env);
+
+    let msg = sign_out(&env, &backend);
+
+    // The removal still happens: what remains is a source this cannot reach.
+    assert!(!path.exists(), "the stored session was left behind");
+    assert!(msg.contains(&backend.token_env), "{msg}");
+    assert!(msg.contains("still authenticated"), "{msg}");
+}
+
+#[test]
+fn an_inline_config_token_is_named_as_the_config_rather_than_the_environment() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = medulla::config::BackendConfig {
+        token: Some("inline".to_string()),
+        ..Default::default()
+    };
+
+    let msg = sign_out(&scratch_env(root.path()), &backend);
+
+    assert!(msg.contains("`backend.token` in the config"), "{msg}");
+}
