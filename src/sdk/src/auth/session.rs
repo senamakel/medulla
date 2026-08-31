@@ -384,7 +384,7 @@ pub async fn adopt_legacy(
     let mut removed = Vec::new();
 
     let mut adopted = already_signed_in;
-    for legacy in crate::auth::adopt_legacy_credentials(&home) {
+    for legacy in crate::auth::adopt_legacy_credentials(env, &home) {
         // Only the first credential that verifies is adopted. Both historical
         // locations can hold a valid token, and continuing would store the
         // second over the first — silently preferring the OS config directory's

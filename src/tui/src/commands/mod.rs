@@ -334,7 +334,7 @@ pub(crate) async fn run_logout() -> anyhow::Result<()> {
     // would verify the retired bearer and sign the operator straight back in,
     // having just been told they were logged out. Logging out is the one moment
     // those files must not survive.
-    for legacy in medulla::auth::adopt_legacy_credentials(&home) {
+    for legacy in medulla::auth::adopt_legacy_credentials(&env, &home) {
         if medulla::auth::discard_legacy_credential(&legacy.path) {
             println!(
                 "Removed a retired credential file at {}.",

@@ -342,8 +342,25 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // so the check runs on *every* launch rather than only after a login. `None`
     // means the refusal screen already ran; `guard` restores the terminal the
     // same way as every other early return here, by going out of scope.
-    let Some(note) = crate::access_gate::run(&mut terminal, session.as_ref()).await? else {
-        return Ok(());
+    let note = match crate::access_gate::run(
+        &mut terminal,
+        &env,
+        &loaded.config.backend,
+        session.as_ref(),
+    )
+    .await?
+    {
+        crate::access_gate::Gate::Allowed(note) => note,
+        // Refused. The parting line — a sign-out's confirmation — is printed
+        // once the guard has handed the screen back, never over the alt screen
+        // that is about to be torn down.
+        crate::access_gate::Gate::Refused(parting) => {
+            drop(guard);
+            if let Some(parting) = parting {
+                println!("{parting}");
+            }
+            return Ok(());
+        }
     };
     startup_status = startup_status.or(note);
     // Set when a relogin lands on a different account than this process runs as.

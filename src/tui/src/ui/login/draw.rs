@@ -73,6 +73,17 @@ impl LoginScreen {
                     "↑↓ choose · Enter select",
                     Style::default().add_modifier(Modifier::DIM),
                 )));
+                // What signing in gets them, before they do it. An operator who
+                // only meets the subscription rule *after* authenticating has
+                // been told the price of the thing after buying it — and this is
+                // the one screen every new install passes through.
+                lines.push(Line::from(""));
+                for rule in crate::ui::upgrade::requirement_lines() {
+                    lines.push(Line::from(Span::styled(
+                        rule,
+                        Style::default().add_modifier(Modifier::DIM),
+                    )));
+                }
             }
             Phase::ProviderPick => {
                 lines.push(Line::from(Span::styled(
