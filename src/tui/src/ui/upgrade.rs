@@ -179,7 +179,9 @@ impl UpgradeScreen {
         self.flash = Some(Flash {
             text: match denial {
                 Denial::TrialExpired => "Checked — this account still has no subscription.".into(),
-                Denial::Undetermined => "Checked — your subscription still could not be read.".into(),
+                Denial::Undetermined => {
+                    "Checked — your subscription still could not be read.".into()
+                }
             },
             good: false,
         });

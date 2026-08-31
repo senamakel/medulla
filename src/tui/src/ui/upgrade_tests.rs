@@ -73,7 +73,10 @@ fn a_re_check_adopts_the_reason_the_backend_now_gives() {
 
     let out = render(&mut s);
     assert!(out.contains("Your free trial has ended."));
-    assert!(out.contains("a@b.c"), "the freshly read account is not named");
+    assert!(
+        out.contains("a@b.c"),
+        "the freshly read account is not named"
+    );
 }
 
 /// A re-check that never reached the backend learned nothing about the account,
