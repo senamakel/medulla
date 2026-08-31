@@ -109,4 +109,61 @@ fn a_blank_jwt_is_not_adopted() {
 fn unparseable_json_is_skipped() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(home_location(root.path()), "not json").unwrap();
-    let env = HashMap:
+    let env = HashMap::from([(
+        "XDG_CONFIG_HOME".to_string(),
+        root.path().join("no-such-config").display().to_string(),
+    )]);
+
+    assert!(adopt_legacy_credentials(&env, root.path()).is_empty());
+}
+
+/// Both candidate locations can hold a legacy credential at once, and both
+/// come back, newest (home) location first.
+#[test]
+fn both_locations_are_reported_when_both_hold_a_credential() {
+    let root = tempfile::tempdir().unwrap();
+    let config_root = root.path().join("xdg-config");
+    std::fs::write(
+        home_location(root.path()),
+        r#"{"baseUrl":"https://a.test","jwt":"home-token"}"#,
+    )
+    .unwrap();
+    let env = HashMap::from([(
+        "XDG_CONFIG_HOME".to_string(),
+        config_root.display().to_string(),
+    )]);
+    let config_path = config_dir_location(&env).unwrap();
+    std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+    std::fs::write(
+        &config_path,
+        r#"{"baseUrl":"https://b.test","jwt":"config-token"}"#,
+    )
+    .unwrap();
+
+    let found = adopt_legacy_credentials(&env, root.path());
+
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert_eq!(found[0].jwt, "home-token");
+    assert_eq!(found[1].jwt, "config-token");
+}
+
+/// Removing a file that exists succeeds and reports so.
+#[test]
+fn discarding_an_existing_file_removes_it() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("credentials.json");
+    std::fs::write(&path, "{}").unwrap();
+
+    assert!(discard_legacy_credential(&path));
+    assert!(!path.exists());
+}
+
+/// Idempotent: discarding a file that was never there is not a failure —
+/// there is nothing left to sign the operator back in with either way.
+#[test]
+fn discarding_a_missing_file_reports_success() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("never-existed.json");
+
+    assert!(discard_legacy_credential(&path));
+}
