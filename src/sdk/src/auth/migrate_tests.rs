@@ -24,10 +24,7 @@ fn without_an_override_the_real_os_config_directory_is_still_a_candidate() {
 /// `dirs::config_dir` only reads `XDG_CONFIG_HOME` on Linux.
 #[test]
 fn an_injected_xdg_config_home_overrides_the_real_os_config_directory() {
-    let env = HashMap::from([(
-        "XDG_CONFIG_HOME".to_string(),
-        "/scratch/config".to_string(),
-    )]);
+    let env = HashMap::from([("XDG_CONFIG_HOME".to_string(), "/scratch/config".to_string())]);
 
     assert_eq!(
         config_dir_location(&env),
