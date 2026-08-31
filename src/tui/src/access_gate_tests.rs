@@ -95,6 +95,49 @@ fn seed_session(env: &HashMap<String, String>) -> std::path::PathBuf {
     path
 }
 
+/// Serializes the tests below: `sign_out` sweeps legacy credentials through
+/// `adopt_legacy_credentials`, whose OS-config-directory location comes from
+/// `dirs::config_dir()` — the *process's* real environment, not the `env` map
+/// `sign_out` otherwise takes every path from. Without redirecting
+/// `XDG_CONFIG_HOME` too, a developer's own `~/.config/medulla/credentials.json`
+/// would be read, and deleted, by an ordinary test run. Two tests racing on
+/// that same mutation would each think it owned the value.
+static CONFIG_DIR_LOCK: Mutex<()> = Mutex::new(());
+
+/// Points the OS config directory at a scratch root for the life of one test,
+/// alongside `MEDULLA_HOME`, so `sign_out`'s legacy-credential sweep only ever
+/// sees files this test wrote. Restores whatever was there before on drop.
+struct ScratchConfigDir {
+    _guard: std::sync::MutexGuard<'static, ()>,
+    _dir: tempfile::TempDir,
+    previous: Option<String>,
+}
+
+impl ScratchConfigDir {
+    fn install() -> Self {
+        let guard = CONFIG_DIR_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let dir = tempfile::tempdir().expect("a scratch config directory");
+        let previous = std::env::var("XDG_CONFIG_HOME").ok();
+        std::env::set_var("XDG_CONFIG_HOME", dir.path());
+        Self {
+            _guard: guard,
+            _dir: dir,
+            previous,
+        }
+    }
+}
+
+impl Drop for ScratchConfigDir {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(value) => std::env::set_var("XDG_CONFIG_HOME", value),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+    }
+}
+
 #[test]
 fn signing_out_removes_the_stored_session() {
     let root = tempfile::tempdir().unwrap();
