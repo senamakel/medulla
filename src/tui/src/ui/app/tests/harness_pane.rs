@@ -21,7 +21,11 @@ fn tab(name: &str) -> usize {
 }
 
 #[test]
-fn k_on_a_selected_harness_asks_before_closing_it() {
+fn k_on_a_harness_this_device_does_not_host_arms_nothing() {
+    // The fixture names a pane session but hosts no sessions at all, so the row
+    // resolves to nothing: not running, and no local record to release either.
+    // Both halves of `k` decline, and the key stays a command rather than
+    // falling through to the composer.
     let mut app = app();
     app.tab_index = tab("Sessions");
     app.pane_session = Some("selected-harness".to_owned());
@@ -30,7 +34,7 @@ fn k_on_a_selected_harness_asks_before_closing_it() {
 
     assert!(cmd.is_none());
     assert!(app.harness_close_armed.is_none());
-    assert!(app.status().contains("already exited"), "{}", app.status());
+    assert!(app.status().contains("not hosting"), "{}", app.status());
     assert_eq!(app.draft.text, "", "the shortcut must not type into chat");
 }
 

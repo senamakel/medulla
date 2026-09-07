@@ -1,10 +1,11 @@
 //! Who may use Medulla, and why.
 //!
-//! The product is open to any registered account that either pays or is still
-//! inside its first week. That rule lives here, in the binary, rather than on
-//! the backend: [`crate::client::MedullaClient::me`] reports *facts* — the plan,
-//! the registration instant, the server's clock — and [`decide`] turns them into
-//! a verdict.
+//! The product is open to any registered account that either pays for at least
+//! the Basic tier or is still inside its first 30 days. That rule lives here, in
+//! the binary, rather than on the backend:
+//! [`crate::client::MedullaClient::me`] reports *facts* — the plan, the
+//! registration instant, the server's clock — and [`decide`] turns them into a
+//! verdict.
 //!
 //! # The rule
 //!
@@ -17,7 +18,7 @@
 //!    stopped at it because somebody forgot to set the allowlist flag.
 //! 3. The plan is [`Plan::Basic`] or [`Plan::Pro`] → in.
 //! 4. The account is younger than [`TRIAL`] → in, for the remainder of it.
-//! 5. Past the week on no paid tier → out, with [`Denial::TrialExpired`].
+//! 5. Past those 30 days on no paid tier → out, with [`Denial::TrialExpired`].
 //! 6. Anything else could not be determined → out, with
 //!    [`Denial::Undetermined`].
 //!
@@ -54,10 +55,16 @@ pub use types::{Access, Denial, Entitlement, Grant, Plan, ServerClock};
 
 /// How long a newly registered account may use Medulla without paying.
 ///
-/// The free week. Encoded here, in the binary, because this is where the
+/// The first 30 days. Encoded here, in the binary, because this is where the
 /// decision is made — the backend reports when an account was created and says
 /// nothing about what that entitles it to.
-pub const TRIAL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+pub const TRIAL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+
+/// The number of whole days in [`TRIAL`], for the copy that has to name it.
+///
+/// Derived from the constant rather than written out again, so the screen and
+/// the startup note cannot drift from the rule they describe.
+pub const TRIAL_DAYS: u64 = TRIAL.as_secs() / (24 * 60 * 60);
 
 /// The email domain whose accounts are ours, and are never shown the paywall.
 ///
@@ -105,7 +112,7 @@ pub fn decide(entitlement: &Entitlement, local_now_ms: i64) -> Access {
         }),
         Some(_) => Access::Denied(Denial::TrialExpired),
         // Confirmed unpaid, but the backend did not say when the account was
-        // made — so the free week can neither be granted nor declared spent.
+        // made — so the free window can neither be granted nor declared spent.
         None => Access::Denied(Denial::Undetermined),
     }
 }

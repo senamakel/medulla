@@ -24,6 +24,13 @@ fn aged(age_days: i64) -> Entitlement {
 
 // --- the rule ------------------------------------------------------------
 
+/// The free window is 30 days, and the copy that names it reads it from here.
+#[test]
+fn the_free_window_is_thirty_days() {
+    assert_eq!(TRIAL.as_millis() as i64, 30 * DAY_MS);
+    assert_eq!(TRIAL_DAYS, 30);
+}
+
 #[test]
 fn a_paid_plan_is_let_in() {
     for plan in [Plan::Basic, Plan::Pro] {
@@ -41,23 +48,23 @@ fn a_fresh_account_is_let_in_on_the_trial() {
     let e = aged(2);
     match decide(&e, NOW_MS) {
         Access::Granted(Grant::Trial { remaining_ms }) => {
-            assert_eq!(remaining_ms, 5 * DAY_MS);
+            assert_eq!(remaining_ms, 28 * DAY_MS);
         }
         other => panic!("expected a trial grant, got {other:?}"),
     }
 }
 
 #[test]
-fn an_unpaid_account_past_the_week_is_refused() {
+fn an_unpaid_account_past_the_free_window_is_refused() {
     assert_eq!(
-        decide(&aged(8), NOW_MS),
+        decide(&aged(31), NOW_MS),
         Access::Denied(Denial::TrialExpired)
     );
 }
 
-/// The boundary is exclusive: at exactly seven days the week is spent.
+/// The boundary is exclusive: at exactly 30 days the free window is spent.
 #[test]
-fn the_trial_ends_the_instant_the_week_is_up() {
+fn the_trial_ends_the_instant_the_free_window_is_up() {
     let a_moment_short = Entitlement {
         registered_at_ms: Some(NOW_MS - TRIAL.as_millis() as i64 + 1),
         ..aged(0)
@@ -177,7 +184,7 @@ fn an_unresolvable_plan_is_refused_as_unconfirmed_not_as_an_expired_trial() {
 
 #[test]
 fn an_account_with_no_known_registration_date_is_refused() {
-    // Confirmed unpaid, but the free week can be neither granted nor declared
+    // Confirmed unpaid, but the free window can be neither granted nor declared
     // spent without knowing when it started.
     let e = Entitlement {
         registered_at_ms: None,

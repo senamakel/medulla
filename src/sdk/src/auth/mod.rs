@@ -46,7 +46,10 @@ mod url;
 mod tests;
 
 pub use loopback::{open_browser, run_login_flow, start_loopback, LoopbackListener};
-pub use migrate::{adopt_legacy_credentials, discard_legacy_credential, LegacyCredential};
+pub use migrate::{
+    adopt_legacy_credentials, discard_legacy_credential, LegacyCredential,
+    LEGACY_CONFIG_DIR_OVERRIDE,
+};
 pub use session::{
     adopt_legacy, clear, read, state, store, token as session_token, AuthState, StoredSession,
 };

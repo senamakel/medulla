@@ -407,3 +407,37 @@ fn an_attention_cue_is_timestamped_by_this_client_not_the_sender() {
         .since;
     assert!(restamped >= since, "a new cue should restamp, not inherit");
 }
+
+#[test]
+fn an_exited_remote_session_reports_that_it_cannot_be_dismissed_here() {
+    // The local half of `k` forgets an exited row. A remote one cannot be:
+    // `remote_session_rows` is rebuilt from what the host reports, so a local
+    // forget would be undone by the next update. Nothing pretends otherwise —
+    // an earlier version of this branch claimed the host would retire the row,
+    // which is false for a headless host (`sweep_finished_sessions` runs only
+    // from the interactive frame loop, and `Serve::current_rows` publishes
+    // `PtyManager::rows()` verbatim). See #307.
+    let mut exited = remote_row("w_1");
+    exited.state = RemoteSessionState::Exited { code: Some(1) };
+    let mut app = app_with_host(vec![exited]);
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    app.remote_host_dialling("tower", tx);
+    app.pane_session = Some("tower/w_1".to_string());
+
+    app.close_pane_session_prompt();
+
+    assert!(
+        app.harness_close_armed.is_none(),
+        "a settled child has nothing to confirm: {}",
+        app.status()
+    );
+    assert!(
+        app.status().contains("cannot be dismissed"),
+        "got: {}",
+        app.status()
+    );
+    assert!(
+        rx.try_recv().is_err(),
+        "nothing is sent to the host: it has no request that forgets a row"
+    );
+}
