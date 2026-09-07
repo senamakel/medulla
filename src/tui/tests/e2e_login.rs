@@ -315,6 +315,14 @@ async fn run_medulla_with_stdin(
 /// the seam a library-level test replaces: the stub used to invent an `id` field
 /// no deployment sends, so every layer agreed with itself and none agreed with
 /// the backend.
+// Spawns the real binary against the loopback stub, which the pinned endpoint
+// forbids: only a build carrying the `test-endpoint-override` hatch can be
+// aimed at it. Run these with
+// `cargo test -p medulla-tui --features test-endpoint-override --test e2e_login`.
+#[cfg_attr(
+    not(feature = "test-endpoint-override"),
+    ignore = "needs --features test-endpoint-override to reach the stub backend"
+)]
 #[tokio::test]
 async fn login_scopes_the_home_to_the_backends_underscore_id() {
     let (base_url, handle) = start_auth_stub(LIVE_ME).await;
@@ -364,6 +372,14 @@ async fn login_scopes_the_home_to_the_backends_underscore_id() {
 
 /// The guard itself still holds: a response that genuinely carries no id has
 /// nowhere correct to go, and must refuse before a session is stored.
+// Spawns the real binary against the loopback stub, which the pinned endpoint
+// forbids: only a build carrying the `test-endpoint-override` hatch can be
+// aimed at it. Run these with
+// `cargo test -p medulla-tui --features test-endpoint-override --test e2e_login`.
+#[cfg_attr(
+    not(feature = "test-endpoint-override"),
+    ignore = "needs --features test-endpoint-override to reach the stub backend"
+)]
 #[tokio::test]
 async fn login_still_refuses_a_response_with_no_account_id() {
     let (base_url, handle) = start_auth_stub(r#"{"email":"dev@example.com"}"#).await;
@@ -401,6 +417,14 @@ async fn login_still_refuses_a_response_with_no_account_id() {
 /// Driven through the real binary because the value of this path is precisely
 /// that it binds nothing: a library-level test could not tell the difference
 /// between "no listener needed" and "listener quietly failed".
+// Spawns the real binary against the loopback stub, which the pinned endpoint
+// forbids: only a build carrying the `test-endpoint-override` hatch can be
+// aimed at it. Run these with
+// `cargo test -p medulla-tui --features test-endpoint-override --test e2e_login`.
+#[cfg_attr(
+    not(feature = "test-endpoint-override"),
+    ignore = "needs --features test-endpoint-override to reach the stub backend"
+)]
 #[tokio::test]
 async fn code_path_prints_a_url_and_redeems_what_is_pasted_back() {
     let (base_url, handle) = start_auth_stub(LIVE_ME).await;

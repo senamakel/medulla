@@ -1,57 +1,13 @@
 //! Unit tests for endpoint base-URL resolution and display-host formatting.
 
 use super::*;
-use std::collections::HashMap;
 
-fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-    pairs
-        .iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect()
-}
-
+/// The endpoint is a constant, and the only function that reports it takes no
+/// inputs — so there is nothing to override and nothing to get wrong.
 #[test]
-fn backend_url_precedence() {
-    // Nothing set → prod default.
-    assert_eq!(
-        resolve_backend_base_url(&env(&[]), None),
-        "https://api.tinyhumans.ai"
-    );
-    // Staging switch flips the default.
-    assert_eq!(
-        resolve_backend_base_url(&env(&[("MEDULLA_STAGING", "1")]), None),
-        "https://staging-api.tinyhumans.ai"
-    );
-    assert_eq!(
-        resolve_backend_base_url(&env(&[("MEDULLA_STAGING", "TRUE")]), None),
-        "https://staging-api.tinyhumans.ai"
-    );
-    // A non-truthy value keeps prod.
-    assert_eq!(
-        resolve_backend_base_url(&env(&[("MEDULLA_STAGING", "no")]), None),
-        "https://api.tinyhumans.ai"
-    );
-    // Explicit config beats the (staging) default.
-    assert_eq!(
-        resolve_backend_base_url(&env(&[("MEDULLA_STAGING", "1")]), Some("http://x:1")),
-        "http://x:1"
-    );
-    // MEDULLA_API_URL beats both config and default.
-    assert_eq!(
-        resolve_backend_base_url(
-            &env(&[
-                ("MEDULLA_STAGING", "1"),
-                ("MEDULLA_API_URL", "http://env:2")
-            ]),
-            Some("http://x:1")
-        ),
-        "http://env:2"
-    );
-    // An empty MEDULLA_API_URL is ignored; config wins.
-    assert_eq!(
-        resolve_backend_base_url(&env(&[("MEDULLA_API_URL", "")]), Some("http://x:1")),
-        "http://x:1"
-    );
+fn the_backend_url_is_pinned_to_prod() {
+    assert_eq!(backend_base_url(), "https://api.tinyhumans.ai");
+    assert_eq!(backend_base_url(), PROD_BACKEND_BASE_URL);
 }
 
 #[test]

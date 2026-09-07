@@ -1,54 +1,52 @@
-//! Endpoint base-URL constants and their environment-aware resolvers.
+//! Endpoint base-URL constants and the resolvers built on them.
 //!
-//! Base-URL precedence cannot be expressed with serde defaults (which never see
-//! the process environment), so it is resolved here as pure functions over an
-//! injected `&HashMap<String, String>` and applied by
-//! [`load_config`](super::load_config).
+//! # The backend URL is pinned
+//!
+//! There is exactly one backend this binary talks to, and it is named here as a
+//! constant. Nothing at run time can move it: not the environment, not the
+//! config file, not a flag. [`backend_base_url`] takes no arguments precisely so
+//! that it *cannot* be steered — a caller has nothing to hand it.
+//!
+//! This is deliberate, and it is a change from how the endpoint used to work:
+//! `MEDULLA_API_URL` and `MEDULLA_STAGING` were both honoured, as was a
+//! `backend.baseUrl` key in the config file. All three are gone. An operator who
+//! sets them now gets production anyway, silently — there is no error to raise,
+//! because there is no longer a setting to be wrong about.
+//!
+//! Reaching any other deployment means editing [`PROD_BACKEND_BASE_URL`] and
+//! rebuilding.
+//!
+//! # The one hatch, and why it cannot ship
+//!
+//! The `test-endpoint-override` cargo feature restores `MEDULLA_API_URL`. It
+//! exists because the end-to-end suites spawn the real binary against a stub
+//! backend on loopback, and a binary that can only reach production cannot be
+//! tested offline at all. It is off by default, so no build a user ever runs
+//! has it: the hatch is a build-time capability, not a run-time setting.
 
-use std::collections::HashMap;
-
-/// Production backend API base URL (the default).
+/// The Medulla backend API. The only endpoint this binary will talk to.
 pub const PROD_BACKEND_BASE_URL: &str = "https://api.tinyhumans.ai";
-/// Staging backend API base URL (selected by `MEDULLA_STAGING`).
-pub const STAGING_BACKEND_BASE_URL: &str = "https://staging-api.tinyhumans.ai";
-// The link forwarder has no constants of its own: it is served by the same
-// backend as everything else, so its default *follows* the resolved backend
-// base URL rather than naming a second host. See
-// [`resolve_forwarder_base_url`].
 
-/// Whether `MEDULLA_STAGING` selects the staging defaults. Truthy is `"1"` or
-/// `"true"` (case-insensitive, trimmed).
-pub fn is_staging(env: &HashMap<String, String>) -> bool {
-    env.get("MEDULLA_STAGING")
-        .map(|v| crate::home::is_truthy(v))
-        .unwrap_or(false)
+/// The backend base URL. Always [`PROD_BACKEND_BASE_URL`].
+///
+/// It takes no environment and no configured value because it consults neither;
+/// see the module docs for why the pin is absolute.
+pub fn backend_base_url() -> &'static str {
+    PROD_BACKEND_BASE_URL
 }
 
-/// The default backend base URL for this environment (staging vs prod).
-pub fn default_backend_base_url(env: &HashMap<String, String>) -> String {
-    if is_staging(env) {
-        STAGING_BACKEND_BASE_URL.to_string()
-    } else {
-        PROD_BACKEND_BASE_URL.to_string()
-    }
-}
-
-/// Resolve the backend base URL. Order: `MEDULLA_API_URL` env override >
-/// explicitly-configured `backend.baseUrl` > staging/prod default. `config_url`
-/// is the value present in the config file (`None` when the key was absent), so
-/// an explicit config value is never clobbered by the default.
-pub fn resolve_backend_base_url(env: &HashMap<String, String>, config_url: Option<&str>) -> String {
-    if let Some(value) = env
-        .get("MEDULLA_API_URL")
+/// The test-only `MEDULLA_API_URL` hatch, compiled in only under the
+/// `test-endpoint-override` feature.
+///
+/// Returns the trimmed value when it is set and non-empty. Absent the feature
+/// this function does not exist, so nothing can call it and the pin holds; see
+/// the module docs.
+#[cfg(feature = "test-endpoint-override")]
+pub fn endpoint_override(env: &std::collections::HashMap<String, String>) -> Option<String> {
+    env.get("MEDULLA_API_URL")
         .map(|v| v.trim())
         .filter(|v| !v.is_empty())
-    {
-        return value.to_string();
-    }
-    if let Some(value) = config_url.map(str::trim).filter(|v| !v.is_empty()) {
-        return value.to_string();
-    }
-    default_backend_base_url(env)
+        .map(str::to_string)
 }
 
 /// The bare host of a base URL, for compact display in UI chrome.
@@ -87,18 +85,18 @@ pub fn display_host(base_url: &str) -> String {
 }
 
 /// Resolve the link forwarder base URL for the `[link]` section. Order:
-/// explicitly-configured `link.forwarderUrl` > the resolved backend base URL.
+/// explicitly-configured `link.forwarderUrl` > the backend base URL.
 ///
 /// The forwarder is not a separate service on a separate host: the backend that
-/// serves the API is the one that blindly forwards link datagrams, so pointing
-/// `backend.baseUrl` (or `MEDULLA_API_URL`, or `MEDULLA_STAGING`) at a
-/// deployment moves the forwarder with it. Deriving it rather than defaulting it
-/// to a constant is what stops an operator who switched backends from being left
-/// on the old deployment's forwarder — two endpoints on different forwarders both
-/// start cleanly, report healthy, and never hear from each other.
+/// serves the API is the one that blindly forwards link datagrams. Now that the
+/// backend is pinned, the derived case is always production too; the
+/// `forwarderUrl` key survives because a deployment may put the forwarder
+/// somewhere else, and because two endpoints on different forwarders both start
+/// cleanly, report healthy, and never hear from each other — a mistake worth
+/// keeping the ability to correct.
 ///
-/// `backend_url` is the already-resolved value from
-/// [`resolve_backend_base_url`], so the two cannot drift.
+/// `backend_url` is the caller's backend base URL, threaded through rather than
+/// read from the constant here so the two cannot drift.
 pub fn resolve_forwarder_base_url(backend_url: &str, config_url: Option<&str>) -> String {
     if let Some(value) = config_url.map(str::trim).filter(|v| !v.is_empty()) {
         return value.to_string();

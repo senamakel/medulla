@@ -53,7 +53,13 @@ pub struct CoreConfig {
 #[serde(default, rename_all = "camelCase")]
 pub struct BackendConfig {
     /// Base URL of the Medulla backend HTTP API.
-    #[serde(default = "d_backend_base")]
+    ///
+    /// Not deserialized: the endpoint is pinned (see
+    /// [`backend_base_url`](crate::config::backend_base_url)), so a `baseUrl`
+    /// key in a config file parses without complaint and is then ignored. It is
+    /// still serialized, so a written-out config shows where the binary
+    /// actually points.
+    #[serde(skip_deserializing, default = "d_backend_base")]
     pub base_url: String,
     /// Environment-variable name from which to resolve a bearer token.
     #[serde(default = "d_token_env")]

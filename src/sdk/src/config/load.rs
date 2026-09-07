@@ -14,16 +14,16 @@ use serde_json::Value;
 use crate::home::medulla_home;
 
 use super::types::{LinkConfig, LoadedConfig, TuiConfig};
-use super::urls::{resolve_backend_base_url, resolve_forwarder_base_url};
+use super::urls::{backend_base_url, resolve_forwarder_base_url};
 
 /// The `[link]` section to use when the config file has none.
 ///
 /// [`load_config`] resolves `forwarder_url` and the state dir only for a section
-/// that is actually *present*. A caller that synthesizes its own with
-/// [`LinkConfig::default`] therefore gets the **prod** backend whatever
-/// `backend.baseUrl` / `MEDULLA_API_URL` / `MEDULLA_STAGING` said, because that
-/// field's serde default is a constant and constants read neither the
-/// environment nor the rest of the document.
+/// that is actually *present*, so a caller that synthesizes its own with
+/// [`LinkConfig::default`] gets that field's serde default — a constant, which
+/// reads nothing from the rest of the document. With the backend pinned that
+/// constant now agrees with the resolved value, but an explicit
+/// `link.forwarderUrl` can still move the forwarder off it.
 ///
 /// That divergence is not cosmetic: a host pointed at one forwarder and an
 /// orchestrator pointed at another both start cleanly and report healthy — they
@@ -131,9 +131,11 @@ fn config_file_layers(explicit_config: Option<&str>, home: &Path, cwd: &Path) ->
 /// `<home>/config.toml` > built-in defaults. An explicit `--config` path bypasses
 /// file discovery (JSON or TOML by extension) but env still overrides on top.
 ///
-/// Base-URL precedence is applied here rather than via serde defaults (which
-/// cannot see the environment): backend `MEDULLA_API_URL` > config `baseUrl` >
-/// staging/prod default; link config `forwarderUrl` > staging/prod default.
+/// The backend base URL is not resolved at all: it is pinned to
+/// [`PROD_BACKEND_BASE_URL`](super::PROD_BACKEND_BASE_URL) and overwritten here,
+/// so a `backend.baseUrl` in the document (and every endpoint environment
+/// variable) is ignored. The link forwarder still honours an explicit
+/// `link.forwarderUrl`, defaulting to that pinned backend.
 /// `stateDir` and `link.stateDir` default to `<home>/state` and `<home>/link`
 /// when not explicitly configured; `MEDULLA_STATE_DIR` overrides `stateDir`.
 ///
@@ -180,11 +182,14 @@ pub fn load_config(
         TuiConfig::default()
     };
 
-    let backend_url = merged
-        .get("backend")
-        .and_then(|b| b.get("baseUrl"))
-        .and_then(|v| v.as_str());
-    config.backend.base_url = resolve_backend_base_url(env, backend_url);
+    // Pinned, not resolved: a `backend.baseUrl` in the merged document is read
+    // past deliberately, the same way the environment is. See `super::urls`.
+    config.backend.base_url = backend_base_url().to_string();
+    // The offline test hatch, compiled out of every shipped build.
+    #[cfg(feature = "test-endpoint-override")]
+    if let Some(url) = super::urls::endpoint_override(env) {
+        config.backend.base_url = url;
+    }
     // Cloned before the `link` borrow below: the forwarder derives from this,
     // and `config.link.as_mut()` holds `config` mutably for that whole block.
     let resolved_backend_url = config.backend.base_url.clone();

@@ -16,6 +16,12 @@ default = ["workflows"]
 # slim build can drop the engine and its jq expression stack; on by default
 # because the shipped TUI exposes workflows.
 workflows = ["dep:tinyflows"]
+# Test-only. Restores a single escape hatch — `MEDULLA_API_URL` — so the offline
+# end-to-end suites can point a spawned `medulla` binary at a local stub backend.
+# Off by default and never enabled for a shipped build, so the endpoint stays
+# pinned (see `config::urls`) everywhere it matters. Enabling this in a real
+# build re-opens the redirect the pin exists to close.
+test-endpoint-override = []
 
 [dependencies]
 # The host-link transport (docs/host-link-protocol.md) — how this SDK reaches a
