@@ -58,6 +58,12 @@ pub struct Entitlement {
     pub has_active_subscription: bool,
     /// The admin-set `hasMedullaAccess` allowlist flag.
     pub admin_granted: bool,
+    /// The account's email address, when `/auth/me` reported one.
+    ///
+    /// Carried here only so the staff-domain rule can read it — see
+    /// [`Entitlement::is_staff`]. It is not otherwise part of the billing
+    /// picture.
+    pub email: Option<String>,
     /// When the account was created, in milliseconds since the Unix epoch.
     pub registered_at_ms: Option<i64>,
     /// The backend's own clock at the moment it answered.
@@ -118,6 +124,7 @@ impl Entitlement {
 /// Why access was granted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Grant {
+    /// The account signs in with an address on [`STAFF_DOMAIN`](super::STAFF_DOMAIN).
     /// The account is on a paid tier.
     Paid(Plan),
     /// Inside the free window every new account gets. Carries the whole
