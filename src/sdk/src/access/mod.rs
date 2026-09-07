@@ -13,10 +13,13 @@
 //!
 //! 1. The admin allowlist flag (`hasMedullaAccess`) is on → in. This predates
 //!    the plan gate and keeps staff, partners, and comped accounts working.
-//! 2. The plan is [`Plan::Basic`] or [`Plan::Pro`] → in.
-//! 3. The account is younger than [`TRIAL`] → in, for the remainder of it.
-//! 4. Past those 30 days on no paid tier → out, with [`Denial::TrialExpired`].
-//! 5. Anything else could not be determined → out, with
+//! 2. The account's address is on [`STAFF_DOMAIN`] → in. We are not the
+//!    audience for our own paywall, and an internal account should not be
+//!    stopped at it because somebody forgot to set the allowlist flag.
+//! 3. The plan is [`Plan::Basic`] or [`Plan::Pro`] → in.
+//! 4. The account is younger than [`TRIAL`] → in, for the remainder of it.
+//! 5. Past those 30 days on no paid tier → out, with [`Denial::TrialExpired`].
+//! 6. Anything else could not be determined → out, with
 //!    [`Denial::Undetermined`].
 //!
 //! # The undetermined case fails closed
@@ -63,6 +66,13 @@ pub const TRIAL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 /// the startup note cannot drift from the rule they describe.
 pub const TRIAL_DAYS: u64 = TRIAL.as_secs() / (24 * 60 * 60);
 
+/// The email domain whose accounts are ours, and are never shown the paywall.
+///
+/// Held in lowercase with no leading `@`; [`Entitlement::is_staff`] matches it
+/// and any subdomain of it. Like [`TRIAL`], it is a client-side courtesy rather
+/// than an entitlement — the backend still meters what these accounts spend.
+pub const STAFF_DOMAIN: &str = "tinyhumans.ai";
+
 /// Decide whether `entitlement` may use Medulla, as of `local_now_ms`.
 ///
 /// `local_now_ms` is this machine's clock in milliseconds since the Unix epoch;
@@ -79,6 +89,12 @@ pub fn decide(entitlement: &Entitlement, local_now_ms: i64) -> Access {
     // as `BASIC` while `hasActiveSubscription` is false is a billing state we
     // should not resolve against the operator mid-session — the backend's spend
     // limits are what actually meter them.
+    // Our own people, ahead of the plan check: an internal account on `Free`
+    // whose allowlist flag was never set should still open the app. This is a
+    // display decision only — the backend meters their spend like anyone's.
+    if entitlement.is_staff() {
+        return Access::Granted(Grant::StaffDomain);
+    }
     if entitlement.plan.is_paid() {
         return Access::Granted(Grant::Paid(entitlement.plan));
     }
@@ -126,6 +142,12 @@ pub fn entitlement_from_me(me: &serde_json::Value) -> Entitlement {
         admin_granted: field("adminGranted")
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false),
+        // Read from the user object, not the entitlement block: the address is
+        // an identity fact, and `/auth/me` reports it alongside the id.
+        email: obj
+            .get("email")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
         registered_at_ms: field("registeredAt")
             .and_then(serde_json::Value::as_str)
             .and_then(crate::clock::epoch_millis_from_iso),

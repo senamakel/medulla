@@ -58,6 +58,12 @@ pub struct Entitlement {
     pub has_active_subscription: bool,
     /// The admin-set `hasMedullaAccess` allowlist flag.
     pub admin_granted: bool,
+    /// The account's email address, when `/auth/me` reported one.
+    ///
+    /// Carried here only so the staff-domain rule can read it — see
+    /// [`Entitlement::is_staff`]. It is not otherwise part of the billing
+    /// picture.
+    pub email: Option<String>,
     /// When the account was created, in milliseconds since the Unix epoch.
     pub registered_at_ms: Option<i64>,
     /// The backend's own clock at the moment it answered.
@@ -91,6 +97,26 @@ pub enum ServerClock {
 }
 
 impl Entitlement {
+    /// Whether this account's address sits on [`STAFF_DOMAIN`](super::STAFF_DOMAIN).
+    ///
+    /// Matches the domain itself and any subdomain of it, case-insensitively,
+    /// and only ever on the part after the *last* `@` — so an address like
+    /// `someone@evil.example` cannot smuggle the domain in via its local part,
+    /// and `tinyhumans.ai.evil.example` does not match either.
+    ///
+    /// An account with no address reported is not staff; there is nothing to
+    /// check against.
+    pub fn is_staff(&self) -> bool {
+        let Some(email) = self.email.as_deref() else {
+            return false;
+        };
+        let Some((_, domain)) = email.trim().rsplit_once('@') else {
+            return false;
+        };
+        let domain = domain.trim().trim_end_matches('.').to_ascii_lowercase();
+        domain == super::STAFF_DOMAIN || domain.ends_with(&format!(".{}", super::STAFF_DOMAIN))
+    }
+
     /// How old the account is in milliseconds, measured against the backend's
     /// clock when it sent one and this machine's otherwise.
     ///
@@ -125,6 +151,9 @@ pub enum Grant {
     Trial { remaining_ms: i64 },
     /// The admin-set allowlist flag is on.
     AdminGranted,
+    /// The account signs in on [`STAFF_DOMAIN`](super::STAFF_DOMAIN) — our own
+    /// people, who are not the audience the paywall is for.
+    StaffDomain,
 }
 
 /// Why access was refused.

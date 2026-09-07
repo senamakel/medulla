@@ -16,6 +16,7 @@ fn aged(age_days: i64) -> Entitlement {
         plan: Plan::Free,
         has_active_subscription: false,
         admin_granted: false,
+        email: None,
         registered_at_ms: Some(NOW_MS - age_days * DAY_MS),
         server_time: ServerClock::Present(NOW_MS),
     }
@@ -78,6 +79,85 @@ fn the_trial_ends_the_instant_the_free_window_is_up() {
         decide(&exactly, NOW_MS),
         Access::Denied(Denial::TrialExpired)
     );
+}
+
+/// An address on our own domain is in, whatever the plan and however old the
+/// account: we are not the audience for our own paywall.
+#[test]
+fn a_staff_address_outranks_an_expired_trial() {
+    let e = Entitlement {
+        email: Some("someone@tinyhumans.ai".to_string()),
+        ..aged(400)
+    };
+    assert_eq!(decide(&e, NOW_MS), Access::Granted(Grant::StaffDomain));
+}
+
+#[test]
+fn a_staff_address_is_matched_case_insensitively_and_on_subdomains() {
+    for address in [
+        "Someone@TinyHumans.ai",
+        "someone@mail.tinyhumans.ai",
+        " someone@tinyhumans.ai ",
+        // A trailing root dot is the same domain.
+        "someone@tinyhumans.ai.",
+    ] {
+        let e = Entitlement {
+            email: Some(address.to_string()),
+            ..aged(400)
+        };
+        assert_eq!(
+            decide(&e, NOW_MS),
+            Access::Granted(Grant::StaffDomain),
+            "{address} should be staff"
+        );
+    }
+}
+
+/// Only the part after the last `@` counts, so a lookalike domain cannot borrow
+/// the name.
+#[test]
+fn a_lookalike_address_is_not_staff() {
+    for address in [
+        "tinyhumans.ai@evil.example",
+        "someone@tinyhumans.ai.evil.example",
+        "someone@nottinyhumans.ai",
+        "someone@tinyhumans.aim",
+        "no-at-sign",
+    ] {
+        let e = Entitlement {
+            email: Some(address.to_string()),
+            ..aged(400)
+        };
+        assert_eq!(
+            decide(&e, NOW_MS),
+            Access::Denied(Denial::TrialExpired),
+            "{address} should not be staff"
+        );
+    }
+}
+
+/// The staff rule reads an address, and an unresolvable plan still has none to
+/// read — so it stays refused as undetermined rather than waved through.
+#[test]
+fn an_unknown_plan_without_an_address_is_still_undetermined() {
+    let e = Entitlement {
+        plan: Plan::Unknown,
+        email: None,
+        ..aged(1)
+    };
+    assert_eq!(decide(&e, NOW_MS), Access::Denied(Denial::Undetermined));
+}
+
+/// ...but a staff address is enough on its own, even when the billing lookup
+/// failed: the backend still meters what they spend.
+#[test]
+fn a_staff_address_survives_an_unresolvable_plan() {
+    let e = Entitlement {
+        plan: Plan::Unknown,
+        email: Some("someone@tinyhumans.ai".to_string()),
+        ..aged(400)
+    };
+    assert_eq!(decide(&e, NOW_MS), Access::Granted(Grant::StaffDomain));
 }
 
 #[test]
@@ -243,8 +323,10 @@ fn a_null_plan_reads_as_unknown() {
     assert_eq!(entitlement_from_me(&me).plan, Plan::Unknown);
 }
 
-/// Only the `entitlement` block is read. Top-level `createdAt` and
-/// `hasMedullaAccess` are the pre-gate response shape and carry no weight.
+/// Only the `entitlement` block is read for billing facts (the address is the
+/// one exception — see `the_address_is_read_from_the_user_object`). Top-level
+/// `createdAt` and `hasMedullaAccess` are the pre-gate response shape and carry
+/// no weight.
 #[test]
 fn facts_outside_the_entitlement_block_are_ignored() {
     let me = json!({
@@ -258,6 +340,24 @@ fn facts_outside_the_entitlement_block_are_ignored() {
     assert!(!e.admin_granted);
     assert_eq!(e.registered_at_ms, None);
     assert_eq!(decide(&e, NOW_MS), Access::Denied(Denial::Undetermined));
+}
+
+/// The address sits beside the id, not inside the entitlement block, and is
+/// read through both response shapes.
+#[test]
+fn the_address_is_read_from_the_user_object() {
+    let flat = json!({ "email": "someone@tinyhumans.ai", "entitlement": { "plan": "FREE" } });
+    let e = entitlement_from_me(&flat);
+    assert_eq!(e.email.as_deref(), Some("someone@tinyhumans.ai"));
+    assert_eq!(decide(&e, NOW_MS), Access::Granted(Grant::StaffDomain));
+
+    let nested = json!({ "user": { "email": "someone@tinyhumans.ai" } });
+    assert_eq!(
+        entitlement_from_me(&nested).email.as_deref(),
+        Some("someone@tinyhumans.ai")
+    );
+
+    assert_eq!(entitlement_from_me(&json!({ "id": "u1" })).email, None);
 }
 
 #[test]
