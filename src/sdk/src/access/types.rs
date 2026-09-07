@@ -114,8 +114,7 @@ impl Entitlement {
             return false;
         };
         let domain = domain.trim().trim_end_matches('.').to_ascii_lowercase();
-        domain == super::STAFF_DOMAIN
-            || domain.ends_with(&format!(".{}", super::STAFF_DOMAIN))
+        domain == super::STAFF_DOMAIN || domain.ends_with(&format!(".{}", super::STAFF_DOMAIN))
     }
 
     /// How old the account is in milliseconds, measured against the backend's

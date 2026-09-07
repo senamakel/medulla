@@ -316,8 +316,10 @@ fn a_null_plan_reads_as_unknown() {
     assert_eq!(entitlement_from_me(&me).plan, Plan::Unknown);
 }
 
-/// Only the `entitlement` block is read. Top-level `createdAt` and
-/// `hasMedullaAccess` are the pre-gate response shape and carry no weight.
+/// Only the `entitlement` block is read for billing facts (the address is the
+/// one exception — see `the_address_is_read_from_the_user_object`). Top-level
+/// `createdAt` and `hasMedullaAccess` are the pre-gate response shape and carry
+/// no weight.
 #[test]
 fn facts_outside_the_entitlement_block_are_ignored() {
     let me = json!({
@@ -331,6 +333,24 @@ fn facts_outside_the_entitlement_block_are_ignored() {
     assert!(!e.admin_granted);
     assert_eq!(e.registered_at_ms, None);
     assert_eq!(decide(&e, NOW_MS), Access::Denied(Denial::Undetermined));
+}
+
+/// The address sits beside the id, not inside the entitlement block, and is
+/// read through both response shapes.
+#[test]
+fn the_address_is_read_from_the_user_object() {
+    let flat = json!({ "email": "someone@tinyhumans.ai", "entitlement": { "plan": "FREE" } });
+    let e = entitlement_from_me(&flat);
+    assert_eq!(e.email.as_deref(), Some("someone@tinyhumans.ai"));
+    assert_eq!(decide(&e, NOW_MS), Access::Granted(Grant::StaffDomain));
+
+    let nested = json!({ "user": { "email": "someone@tinyhumans.ai" } });
+    assert_eq!(
+        entitlement_from_me(&nested).email.as_deref(),
+        Some("someone@tinyhumans.ai")
+    );
+
+    assert_eq!(entitlement_from_me(&json!({ "id": "u1" })).email, None);
 }
 
 #[test]
