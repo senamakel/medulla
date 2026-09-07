@@ -201,13 +201,14 @@ pub(crate) async fn sign_in_first_account(
 ///
 /// # Why a differing value is reported rather than overwritten
 ///
-/// `backend.baseUrl` decides which deployment the operator's agent talks to, and
-/// the URL a login used can come from a deliberately transient source — an
-/// `MEDULLA_API_URL` in one shell, a `--config` passed for one command. Silently
-/// rewriting a configured endpoint from one of those repeats the mistake
-/// `MEDULLA_USER` taught: a process-scoped choice must not quietly become the
-/// persistent one. The mismatch does break the next launch, so it is named
-/// loudly, with the file to edit, rather than either hidden or acted on.
+/// The recorded deployment decides which account directory a session belongs to,
+/// and the URL a login used can come from a deliberately transient source — a
+/// `--config` passed for one command, or an older build whose endpoint was still
+/// configurable. Silently rewriting a recorded endpoint from one of those
+/// repeats the mistake `MEDULLA_USER` taught: a process-scoped choice must not
+/// quietly become the persistent one. The mismatch does break the next launch,
+/// so it is named loudly, with the file to edit, rather than either hidden or
+/// acted on.
 ///
 /// Returns the mismatch notice for the caller to print, when the account names
 /// a different deployment — rather than printing it here, because one caller

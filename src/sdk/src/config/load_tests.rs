@@ -30,40 +30,67 @@ fn temp_dir(tag: &str) -> PathBuf {
     dir
 }
 
+/// The endpoint is pinned, so the environment variables that used to move it
+/// are read by nobody. `MEDULLA_STAGING` and `MEDULLA_API_URL` are set here
+/// precisely to prove they do nothing.
+///
+/// Skipped under `test-endpoint-override`, the test-only hatch that puts
+/// `MEDULLA_API_URL` back — see [`super::urls`]. That configuration is not what
+/// ships, and `load_config_honours_the_test_endpoint_hatch` covers it instead.
+#[cfg(not(feature = "test-endpoint-override"))]
 #[test]
-fn load_config_applies_staging_switch_to_both_urls() {
+fn load_config_ignores_the_endpoint_environment_variables() {
     let home = temp_dir("staging-home");
     let cwd = temp_dir("staging-cwd");
     let base_env = &[
         ("MEDULLA_HOME", home.to_str().unwrap()),
         ("MEDULLA_STAGING", "1"),
+        ("MEDULLA_API_URL", "http://env:9"),
     ];
-    // No config file + staging env → staging defaults for backend.
     let loaded = load_config(None, &env(base_env), &cwd).unwrap();
-    assert_eq!(
-        loaded.config.backend.base_url,
-        "https://staging-api.tinyhumans.ai"
-    );
+    assert_eq!(loaded.config.backend.base_url, "https://api.tinyhumans.ai");
 
     let cfg = cwd.join("medulla.tui.json");
     std::fs::write(&cfg, r#"{"link":{"peers":[]}}"#).unwrap();
     let loaded = load_config(Some(cfg.to_str().unwrap()), &env(base_env), &cwd).unwrap();
-    assert_eq!(
-        loaded.config.backend.base_url,
-        "https://staging-api.tinyhumans.ai"
-    );
-    // The forwarder follows the resolved backend rather than naming a second
-    // host, so the staging switch moves both together.
+    assert_eq!(loaded.config.backend.base_url, "https://api.tinyhumans.ai");
+    // The forwarder still derives from the backend when unconfigured, so it is
+    // pinned along with it.
     assert_eq!(
         loaded.config.link.unwrap().forwarder_url,
-        "https://staging-api.tinyhumans.ai"
+        "https://api.tinyhumans.ai"
     );
     let _ = std::fs::remove_dir_all(&home);
     let _ = std::fs::remove_dir_all(&cwd);
 }
 
+/// The test-only hatch is the one thing that can still move the endpoint, and
+/// only in a build that opted into it. Without this the feature could rot
+/// unnoticed and the e2e suites would start silently reaching production.
+#[cfg(feature = "test-endpoint-override")]
 #[test]
-fn load_config_explicit_urls_win_over_env() {
+fn load_config_honours_the_test_endpoint_hatch() {
+    let home = temp_dir("hatch-home");
+    let cwd = temp_dir("hatch-cwd");
+    let loaded = load_config(
+        None,
+        &env(&[
+            ("MEDULLA_HOME", home.to_str().unwrap()),
+            ("MEDULLA_API_URL", "http://stub:7"),
+        ]),
+        &cwd,
+    )
+    .unwrap();
+    assert_eq!(loaded.config.backend.base_url, "http://stub:7");
+    let _ = std::fs::remove_dir_all(&home);
+    let _ = std::fs::remove_dir_all(&cwd);
+}
+
+/// `backend.baseUrl` is accepted by the parser and then ignored; the forwarder
+/// key beside it is still honoured, so this also pins down which of the two
+/// still does something.
+#[test]
+fn load_config_ignores_a_configured_backend_url_but_honours_the_forwarder() {
     let home = temp_dir("explicit-home");
     let cwd = temp_dir("explicit-cwd");
     let cfg = cwd.join("medulla.tui.json");
@@ -73,23 +100,14 @@ fn load_config_explicit_urls_win_over_env() {
     )
     .unwrap();
     let home_env = ("MEDULLA_HOME", home.to_str().unwrap());
-    // Staging set, but explicit config baseUrls win.
     let loaded = load_config(
         Some(cfg.to_str().unwrap()),
         &env(&[home_env, ("MEDULLA_STAGING", "1")]),
         &cwd,
     )
     .unwrap();
-    assert_eq!(loaded.config.backend.base_url, "http://be:1");
+    assert_eq!(loaded.config.backend.base_url, "https://api.tinyhumans.ai");
     assert_eq!(loaded.config.link.unwrap().forwarder_url, "http://tp:2");
-    // But MEDULLA_API_URL still beats an explicit backend baseUrl.
-    let loaded = load_config(
-        Some(cfg.to_str().unwrap()),
-        &env(&[home_env, ("MEDULLA_API_URL", "http://env:9")]),
-        &cwd,
-    )
-    .unwrap();
-    assert_eq!(loaded.config.backend.base_url, "http://env:9");
     let _ = std::fs::remove_dir_all(&home);
     let _ = std::fs::remove_dir_all(&cwd);
 }
@@ -191,30 +209,33 @@ fn load_config_state_dir_env_override_wins() {
 fn load_config_layers_global_project_env_flag() {
     let home = temp_dir("layer-home");
     let cwd = temp_dir("layer-cwd");
-    // Global config sets a base URL and a token env name.
+    // Global config sets an inline token, a token env name, and a base URL the
+    // loader is expected to ignore.
     std::fs::create_dir_all(home_of(&home)).unwrap();
     std::fs::write(
         home_of(&home).join("config.toml"),
-        "[backend]\nbaseUrl = \"http://global:1\"\ntokenEnv = \"GLOBAL_TOK\"\n",
+        "[backend]\nbaseUrl = \"http://global:1\"\ntokenEnv = \"GLOBAL_TOK\"\ntoken = \"global-token\"\n",
     )
     .unwrap();
-    // Project-local overrides just backend.baseUrl (field-level merge).
+    // Project-local overrides just backend.tokenEnv (field-level merge).
     std::fs::create_dir_all(cwd.join(".medulla")).unwrap();
     std::fs::write(
         cwd.join(".medulla").join("config.toml"),
-        "[backend]\nbaseUrl = \"http://project:2\"\n",
+        "[backend]\nbaseUrl = \"http://project:2\"\ntokenEnv = \"PROJECT_TOK\"\n",
     )
     .unwrap();
 
-    // Global < project: project wins on baseUrl, global's tokenEnv survives.
+    // Global < project: project wins on tokenEnv, global's token survives, and
+    // neither layer's baseUrl is honoured — the endpoint is pinned.
     let loaded = load_config(
         None,
         &env(&[("MEDULLA_HOME", home.to_str().unwrap())]),
         &cwd,
     )
     .unwrap();
-    assert_eq!(loaded.config.backend.base_url, "http://project:2");
-    assert_eq!(loaded.config.backend.token_env, "GLOBAL_TOK");
+    assert_eq!(loaded.config.backend.base_url, "https://api.tinyhumans.ai");
+    assert_eq!(loaded.config.backend.token_env, "PROJECT_TOK");
+    assert_eq!(loaded.config.backend.token.as_deref(), Some("global-token"));
     assert_eq!(loaded.sources.len(), 2);
     // `sources` is ordered low → high precedence: global first, project-local
     // last. Write-backs (routing strategy, onboarding) target `sources.last()`,
@@ -230,7 +251,10 @@ fn load_config_layers_global_project_env_flag() {
         loaded.sources
     );
 
-    // Env beats both files.
+    // Env used to beat both files for the endpoint. It no longer beats
+    // anything: the pin is above every layer. (Under the test-only hatch it
+    // does still win, which is that feature's whole purpose, so the assertion
+    // is compiled out there.)
     let loaded = load_config(
         None,
         &env(&[
@@ -240,6 +264,9 @@ fn load_config_layers_global_project_env_flag() {
         &cwd,
     )
     .unwrap();
+    #[cfg(not(feature = "test-endpoint-override"))]
+    assert_eq!(loaded.config.backend.base_url, "https://api.tinyhumans.ai");
+    #[cfg(feature = "test-endpoint-override")]
     assert_eq!(loaded.config.backend.base_url, "http://env:3");
     let _ = std::fs::remove_dir_all(&home);
     let _ = std::fs::remove_dir_all(&cwd);
@@ -320,8 +347,15 @@ fn load_config_toml_and_json_parity() {
     let from_json = load_config(Some(json.to_str().unwrap()), &env(&[home_env]), &cwd).unwrap();
     let from_toml =
         load_config(Some(toml_path.to_str().unwrap()), &env(&[home_env]), &cwd).unwrap();
-    assert_eq!(from_json.config.backend.base_url, "http://x:1");
-    assert_eq!(from_toml.config.backend.base_url, "http://x:1");
+    // Parity means the two parsers agree, including on ignoring `baseUrl`.
+    assert_eq!(
+        from_json.config.backend.base_url,
+        "https://api.tinyhumans.ai"
+    );
+    assert_eq!(
+        from_toml.config.backend.base_url,
+        "https://api.tinyhumans.ai"
+    );
     assert_eq!(from_json.config.medulla.max_passes, Some(3));
     assert_eq!(from_toml.config.medulla.max_passes, Some(3));
     let _ = std::fs::remove_dir_all(&home);

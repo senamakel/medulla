@@ -165,7 +165,10 @@ fn registering_preserves_unrelated_config_and_other_workspaces() {
 
     let written = reload(&config_path);
     assert_eq!(written.state_dir, "/tmp/keep-me");
-    assert_eq!(written.backend.base_url, "https://example.test");
+    // `baseUrl` is not preserved and is not meant to be: the endpoint is pinned,
+    // so the key in the fixture is ignored on load and the write-back reports
+    // the endpoint the binary actually uses.
+    assert_eq!(written.backend.base_url, "https://api.tinyhumans.ai");
     assert_eq!(written.fleet.workspaces.len(), 2);
     // The pre-existing entry survives intact, hand-tuned fields included.
     let other = written

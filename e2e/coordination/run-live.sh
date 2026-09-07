@@ -40,8 +40,10 @@
 #                                  daemon (alpha, beta) holding link/node.json
 #   MEDULLA_LINK_OWNER_DIR_<name>  required; the matching orchestrator identity
 #                                  directory (its own node.json)
-#   MEDULLA_STAGING=1              default; set MEDULLA_STAGING=0 to target prod,
-#                                  which additionally requires E2E_ALLOW_PROD=1
+#   E2E_ALLOW_PROD=1               required; the binary's endpoint is pinned to
+#                                  production, so this suite can only ever run
+#                                  against production (MEDULLA_STAGING no longer
+#                                  does anything)
 #
 # Optional:
 #   LIVE_MODEL=<slug>          OpenRouter model (default: a cheap small model)
@@ -114,12 +116,15 @@ preflight() {
   [ -n "${OPENROUTER_API_KEY:-}" ] \
     || die "OPENROUTER_API_KEY is unset — the live suite has no model to call"
 
-  # Default to staging. Prod needs a second, separate opt-in.
-  : "${MEDULLA_STAGING:=1}"
-  export MEDULLA_STAGING
-  if [ "$MEDULLA_STAGING" != "1" ] && [ "${E2E_ALLOW_PROD:-0}" != "1" ]; then
-    die "MEDULLA_STAGING=$MEDULLA_STAGING targets production; set E2E_ALLOW_PROD=1 to confirm"
+  # The endpoint is pinned into the binary (see src/sdk/src/config/urls.rs), so
+  # there is no staging to fall back to: this suite now talks to production or
+  # not at all. MEDULLA_STAGING is read by nobody and refusing on it is kinder
+  # than letting a stale invocation believe it is safely on staging.
+  if [ -n "${MEDULLA_STAGING:-}" ]; then
+    die "MEDULLA_STAGING is set but no longer does anything — the endpoint is pinned to production; unset it and confirm with E2E_ALLOW_PROD=1"
   fi
+  [ "${E2E_ALLOW_PROD:-0}" = "1" ] \
+    || die "this suite now runs against production (the endpoint is pinned); set E2E_ALLOW_PROD=1 to confirm"
 
   [ -n "${MEDULLA_LINK_FORWARDER:-}" ] \
     || unavailable "MEDULLA_LINK_FORWARDER is unset."

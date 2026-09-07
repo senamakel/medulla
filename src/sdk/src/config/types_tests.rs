@@ -121,7 +121,10 @@ fn backend_and_link_parse() {
         r#"{"backend":{"baseUrl":"http://x:1","token":"t"},"link":{"peers":[{"id":"p1","handle":"@a"}]}}"#,
     )
     .unwrap();
-    assert_eq!(cfg.backend.base_url, "http://x:1");
+    // `baseUrl` deserializes to the pinned constant, not the document's value:
+    // the field is `skip_deserializing`, so a config that names an endpoint
+    // parses cleanly and is quietly ignored. The token beside it is honoured.
+    assert_eq!(cfg.backend.base_url, "https://api.tinyhumans.ai");
     assert_eq!(cfg.backend.token.as_deref(), Some("t"));
     let link = cfg.link.unwrap();
     assert_eq!(link.peers.len(), 1);

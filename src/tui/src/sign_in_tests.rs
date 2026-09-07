@@ -18,27 +18,33 @@ fn home_of(root: &std::path::Path, id: &str) -> std::path::PathBuf {
     root.join(id)
 }
 
+/// The seed still writes the deployment into the account's own config — that is
+/// what lets a later launch *notice* an account minted against a different one —
+/// but it no longer steers anything: the endpoint is pinned, so what loads back
+/// is production whatever the file says.
 #[test]
-fn a_new_account_records_the_deployment_it_signed_in_to() {
-    // Without this the account home is empty, the layered load falls back to the
-    // production default, and the core is bound to a deployment that never
-    // issued the session just stored.
+fn a_new_account_records_the_deployment_but_cannot_move_the_endpoint() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let env = env_at(tmp.path());
     medulla::home::user::write_active_user_id(tmp.path(), "acct-1").expect("adopt");
 
-    seed_account_backend(
-        &home_of(tmp.path(), "acct-1"),
-        "https://staging-api.tinyhumans.ai",
-    )
-    .expect("seeds");
+    let home = home_of(tmp.path(), "acct-1");
+    seed_account_backend(&home, "https://staging-api.tinyhumans.ai").expect("seeds");
 
+    // Recorded on disk…
+    let written = std::fs::read_to_string(home.join("config.toml")).expect("reads back");
+    assert!(
+        written.contains("staging-api.tinyhumans.ai"),
+        "the account's own config names the deployment it signed in to: {written}"
+    );
+
+    // …and read past on load.
     let cwd = tmp.path().join("elsewhere");
     std::fs::create_dir_all(&cwd).expect("cwd");
     let loaded = medulla::config::load_config(None, &env, &cwd).expect("load");
     assert_eq!(
-        loaded.config.backend.base_url, "https://staging-api.tinyhumans.ai",
-        "the account's own config names the deployment it belongs to"
+        loaded.config.backend.base_url, "https://api.tinyhumans.ai",
+        "the endpoint is pinned, whatever the account config records"
     );
 }
 

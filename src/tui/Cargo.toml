@@ -20,6 +20,10 @@ default = ["workflows"]
 # and out with the engine behind them. Without this the `cfg` blocks here would
 # silently evaluate false, since a crate only sees its *own* features.
 workflows = ["medulla/workflows"]
+# Mirrors the SDK's test-only endpoint hatch; see its note there. The e2e login
+# suite is `#[ignore]`d unless this is on, because it cannot reach its stub
+# backend without it.
+test-endpoint-override = ["medulla/test-endpoint-override"]
 
 [dependencies]
 medulla = { workspace = true, default-features = false }

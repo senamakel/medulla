@@ -282,9 +282,10 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
     // forwarder by editing config — only by enrolling again — and the transport
     // is right to keep using `node.json`. What was wrong is reporting
     // `link.forwarderUrl` as though it were the live forwarder: an operator who
-    // moved `backend.baseUrl` (or set `MEDULLA_STAGING` / `MEDULLA_API_URL`)
-    // then read the new deployment back off a screen whose datagrams were still
-    // going to the old one. Reporting the enrolled endpoint makes that drift
+    // moved `link.forwarderUrl` then read the new deployment back off a screen
+    // whose datagrams were still going to the old one. (The backend endpoint
+    // itself is pinned now and cannot drift, but the forwarder key can still be
+    // configured off it.) Reporting the enrolled endpoint makes that drift
     // visible as the mismatch it is. Only an unenrolled host — which has no
     // endpoint to report — falls back to the configured URL.
     let reported_endpoint = enrolled
