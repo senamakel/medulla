@@ -1,6 +1,6 @@
 //! The stored transcript's data model.
 
-use tinyagents::harness::message::Message;
+use tinyinference::message::Message;
 
 /// One thread's stored transcript.
 #[derive(serde::Serialize, serde::Deserialize)]

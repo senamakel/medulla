@@ -110,25 +110,23 @@ fn the_grant_never_reaches_the_non_secret_environment() {
 #[test]
 fn the_tool_mode_and_its_scope_are_split_apart() {
     let spec = server_spec(Some("propose:nightly-sweep"), None, true).expect("a server is served");
-    assert_eq!(
-        spec.env,
-        vec![
-            (
-                super::super::TOOL_MODE_ENV.to_string(),
-                "propose".to_string()
-            ),
-            (
-                super::super::TOOL_SCOPE_ENV.to_string(),
-                "nightly-sweep".to_string()
-            ),
-        ]
-    );
+    assert!(spec
+        .env
+        .iter()
+        .any(|(key, value)| key == super::super::TOOL_MODE_ENV && value == "propose"));
+    assert!(spec
+        .env
+        .iter()
+        .any(|(key, value)| key == super::super::TOOL_SCOPE_ENV && value == "nightly-sweep"));
 }
 
 #[test]
 fn an_unset_tool_mode_leaves_the_server_its_own_default() {
     assert!(
-        spec_without_fleet().env.is_empty(),
+        !spec_without_fleet()
+            .env
+            .iter()
+            .any(|(key, _)| key == super::super::TOOL_MODE_ENV),
         "nothing to say about the mode is not the same as saying `full`"
     );
 }
@@ -141,8 +139,10 @@ fn the_claude_registration_names_this_binary_and_the_mcp_verb() {
     assert_eq!(entry["command"], spec.command.display().to_string());
     assert_eq!(entry["args"][0], "mcp");
     assert!(
-        entry.get("env").is_none(),
-        "an empty env block is noise in a registration"
+        entry["env"][super::ATTACHED_ENV]
+            .as_str()
+            .is_some_and(|value| !value.is_empty()),
+        "the per-launch registration carries its provenance marker"
     );
 }
 
@@ -161,8 +161,8 @@ fn only_a_provider_with_a_verified_flag_is_attached_on_its_argv() {
     assert!(supports_cli_attach(
         crate::protocol::HarnessProvider::Claude
     ));
+    assert!(supports_cli_attach(crate::protocol::HarnessProvider::Codex));
     for provider in [
-        crate::protocol::HarnessProvider::Codex,
         crate::protocol::HarnessProvider::Opencode,
         crate::protocol::HarnessProvider::Openhuman,
     ] {
@@ -196,7 +196,7 @@ fn attaching_a_cli_registers_the_server_on_the_argv() {
 }
 
 #[test]
-fn attaching_a_cli_leaves_an_unsupported_provider_untouched() {
+fn attaching_codex_uses_per_invocation_config_and_a_launch_marker() {
     let mut env = HashMap::new();
     let mut args = Vec::new();
     let attached = attach_cli(
@@ -207,12 +207,21 @@ fn attaching_a_cli_leaves_an_unsupported_provider_untouched() {
         &mut args,
         None,
     );
-    assert_eq!(attached, None);
+    assert_eq!(attached, None, "Codex receives no fleet grant");
     assert!(
-        args.is_empty(),
-        "no flag we have not verified is guessed at"
+        args.windows(2)
+            .any(|pair| pair[0] == "-c" && pair[1].starts_with("mcp_servers.medulla.command=")),
+        "the server is attached through Codex's documented config override: {args:?}"
     );
-    assert!(env.is_empty(), "and no environment is written either");
+    assert!(
+        env.get(super::ATTACHED_ENV)
+            .is_some_and(|value| !value.is_empty()),
+        "the forwarded launch marker is present only on a Medulla spawn"
+    );
+    assert!(args.windows(2).any(|pair| {
+        pair[0] == "-c"
+            && pair[1] == format!("mcp_servers.medulla.env_vars=[\"{}\"]", super::ATTACHED_ENV)
+    }));
 }
 
 #[test]

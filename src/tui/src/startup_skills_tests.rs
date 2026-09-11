@@ -1,4 +1,4 @@
-//! Tests for startup reconciliation of user skills and MCP registrations.
+//! Tests for startup retirement of legacy ambient workflow skills.
 
 use std::collections::HashMap;
 use std::fs;
@@ -30,7 +30,7 @@ fn workflow() -> String {
 
 #[test]
 #[cfg(unix)]
-fn startup_syncs_both_harnesses_and_registers_their_mcp_server() {
+fn startup_retires_generated_user_skills_instead_of_exposing_them_globally() {
     let fixture = tempfile::tempdir().unwrap();
     let home = fixture.path().join("home");
     let cwd = fixture.path().join("project");
@@ -43,16 +43,13 @@ fn startup_syncs_both_harnesses_and_registers_their_mcp_server() {
     )
     .unwrap();
 
-    let claude_state = fixture.path().join("claude-registered");
     let claude_args = fixture.path().join("claude-args");
     let claude = fixture.path().join("claude");
     fs::write(
         &claude,
         format!(
-            "#!/bin/sh\nif [ -f '{}' ]; then echo 'MCP server medulla already exists in user config' >&2; exit 1; fi\nprintf '%s\\n' \"$*\" > '{}'\ntouch '{}'\n",
-            claude_state.display(),
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" > '{}'\n",
             claude_args.display(),
-            claude_state.display(),
         ),
     )
     .unwrap();
@@ -70,26 +67,48 @@ fn startup_syncs_both_harnesses_and_registers_their_mcp_server() {
         ),
     ]);
 
-    let report = reconcile_for_test(&env, &cwd, &medulla, &claude);
-
-    assert!(report.warnings.is_empty(), "{report:?}");
-    assert!(report.notice.is_some(), "{report:?}");
+    let loaded = medulla::workflows::store::discover(&env, &cwd).load();
+    let workflows: Vec<_> = loaded
+        .workflows
+        .iter()
+        .map(medulla::workflows::WorkflowRecord::summary)
+        .collect();
+    medulla::workflows::skills::sync(
+        &workflows,
+        &medulla::workflows::skills::InstallOptions {
+            targets: vec![
+                medulla::workflows::skills::SkillTarget::Claude,
+                medulla::workflows::skills::SkillTarget::Codex,
+            ],
+            scope: medulla::workflows::skills::SkillScope::User,
+            root: home.clone(),
+            with_commands: false,
+            dry_run: false,
+        },
+        true,
+    )
+    .unwrap();
     assert!(home
         .join(".claude/skills/medulla-startup-check/SKILL.md")
         .is_file());
     assert!(home
         .join(".agents/skills/medulla-startup-check/SKILL.md")
         .is_file());
-    let codex = fs::read_to_string(home.join(".codex/config.toml")).unwrap();
-    assert!(codex.contains("[mcp_servers.medulla]"), "{codex}");
-    assert!(codex.contains(&medulla.display().to_string()), "{codex}");
-    let args = fs::read_to_string(claude_args).unwrap();
-    assert_eq!(
-        args.trim(),
-        format!(
-            "mcp add --scope user medulla --env MEDULLA_WORKFLOW_TOOLS=run -- {} mcp",
-            medulla.display()
-        )
+
+    let report = reconcile_for_test(&env, &cwd, &medulla, &claude);
+
+    assert!(report.warnings.is_empty(), "{report:?}");
+    assert!(report.notice.is_some(), "{report:?}");
+    assert!(!home
+        .join(".claude/skills/medulla-startup-check/SKILL.md")
+        .is_file());
+    assert!(!home
+        .join(".agents/skills/medulla-startup-check/SKILL.md")
+        .is_file());
+    assert!(!home.join(".codex/config.toml").exists());
+    assert!(
+        !claude_args.exists(),
+        "startup no longer edits Claude's registry"
     );
 
     let again = reconcile_for_test(&env, &cwd, &medulla, &claude);

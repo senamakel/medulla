@@ -116,7 +116,7 @@ pub async fn run_local_task(options: RunTaskOptions) -> Result<RunTaskResult, St
     sink.emit("user_prompt", json!({ "text": prompt }));
 
     let (progress_tx, mut progress_rx) =
-        tokio::sync::mpsc::channel::<tinyagents::harness::events::AgentEvent>(PROGRESS_CAPACITY);
+        tokio::sync::mpsc::channel::<tinyagents::events::AgentEvent>(PROGRESS_CAPACITY);
     let workspace = Workspace {
         root: std::path::PathBuf::from(&cwd),
     };

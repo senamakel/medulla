@@ -12,7 +12,7 @@ use crate::protocol::HarnessEvent;
 
 use super::super::super::types::OnEvent;
 use super::types::EventSink;
-use tinyagents::harness::events::AgentEvent;
+use tinyagents::events::AgentEvent;
 
 impl EventSink {
     /// A sink feeding `on_event`, or counting silently when it is `None`.

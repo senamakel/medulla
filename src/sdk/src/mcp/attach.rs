@@ -621,6 +621,16 @@ pub const SERVER_COMMAND_ENV: &str = "MEDULLA_MCP_COMMAND";
 /// wrong session in a list.
 pub const ORIGIN_SESSION_ENV: &str = "MEDULLA_ORIGIN_SESSION";
 
+/// Proof that this MCP subprocess was attached by a Medulla launch seam.
+///
+/// User- and project-level MCP registrations do not carry this value. The
+/// stdio server refuses to start without it, so merely discovering an old
+/// `medulla mcp` registration cannot give an ordinary harness the workflow
+/// surface. This is a provenance guard against accidental ambient discovery,
+/// not a privilege boundary against another process running as the same OS
+/// user: such a process can inspect and reproduce any child environment.
+pub const ATTACHED_ENV: &str = "MEDULLA_MCP_ATTACHED";
+
 /// The binary a spawned tool server runs.
 ///
 /// `None` when neither the override nor this process's own path resolves, which
@@ -660,7 +670,9 @@ pub fn server_spec(
         name: super::SERVER_NAME,
         command,
         args: vec!["mcp".to_string()],
-        env: Vec::new(),
+        // A persistent registration has no marker. Only the per-launch spec
+        // gets one, which is what leaves ambient registrations inert.
+        env: vec![(ATTACHED_ENV.to_string(), uuid::Uuid::new_v4().to_string())],
         secret_env: Vec::new(),
     };
     if let Some((socket, token)) = fleet {
@@ -757,7 +769,7 @@ pub fn attach_cli(
     // an operator on such a host that their override "withheld" a fleet grant
     // would blame the wrong setting for a tool surface nothing here ever had.
     let would_serve_fleet = crate::control_socket::active().is_some();
-    let fleet = if overridden {
+    let fleet = if overridden || provider == HarnessProvider::Codex {
         None
     } else {
         local_fleet_grant(session, env, tool_mode.as_deref(), workflows_on)
@@ -793,6 +805,22 @@ pub fn attach_cli(
         }
         return None;
     };
+    if provider == HarnessProvider::Codex {
+        // Codex accepts the same `-c key=value` overrides in interactive and
+        // `exec` modes. The launch marker is forwarded by name so its random
+        // value does not land in `/proc/<pid>/cmdline`; fleet credentials stay
+        // withheld because Codex has no verified server-only secret carrier.
+        let attached = spec
+            .env
+            .iter()
+            .find(|(key, _)| key == ATTACHED_ENV)
+            .map(|(_, value)| value.clone())
+            .expect("every server spec carries its attachment marker");
+        env.insert(ATTACHED_ENV.to_string(), attached);
+        args.extend(codex_config_args(&spec));
+        return None;
+    }
+
     args.push("--mcp-config".to_string());
     if spec.secret_env.is_empty() {
         // Nothing secret to keep off argv or out of the harness's own
@@ -823,15 +851,44 @@ pub fn attach_cli(
 
 /// Whether a provider's CLI can be handed an MCP registration on its argv.
 ///
-/// Only Claude Code today: `--mcp-config` takes a JSON document and *merges*
-/// with the harness's own configured servers, which is exactly the shape this
-/// needs. Codex configures its servers through `~/.codex/config.toml`, where the
-/// equivalent is a per-launch `-c` override this has not verified against a real
-/// CLI — and a registration that silently does not take is worse than an
-/// honest absence, so it is not guessed at. `medulla skills --with-mcp` remains
-/// the supported way to register Codex.
+/// Claude Code takes a JSON document through `--mcp-config`; Codex takes
+/// repeated `-c mcp_servers.medulla.*=...` overrides in both interactive and
+/// exec modes. Both are verified per-launch channels. Other providers remain
+/// unsupported until they have an equivalent invocation-scoped mechanism.
 pub fn supports_cli_attach(provider: HarnessProvider) -> bool {
-    matches!(provider, HarnessProvider::Claude)
+    matches!(provider, HarnessProvider::Claude | HarnessProvider::Codex)
+}
+
+/// Per-invocation Codex configuration for one explicitly attached server.
+fn codex_config_args(spec: &ServerSpec) -> Vec<String> {
+    let string = |value: &str| toml_edit::Value::from(value).to_string();
+    let env = spec
+        .env
+        .iter()
+        .filter(|(key, _)| key != ATTACHED_ENV)
+        .map(|(key, value)| format!("{key}={}", string(value)))
+        .collect::<Vec<_>>()
+        .join(",");
+    vec![
+        "-c".to_string(),
+        format!(
+            "mcp_servers.{}.command={}",
+            spec.name,
+            string(&spec.command.display().to_string())
+        ),
+        "-c".to_string(),
+        format!("mcp_servers.{}.args=[\"mcp\"]", spec.name),
+        "-c".to_string(),
+        format!("mcp_servers.{}.env={{{env}}}", spec.name),
+        "-c".to_string(),
+        format!(
+            "mcp_servers.{}.env_vars=[{}]",
+            spec.name,
+            string(ATTACHED_ENV)
+        ),
+        "-c".to_string(),
+        format!("mcp_servers.{}.enabled=true", spec.name),
+    ]
 }
 
 #[cfg(test)]

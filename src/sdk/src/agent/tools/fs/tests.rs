@@ -2,7 +2,8 @@
 //! answer — a model can point either tool at a generated tree.
 
 use serde_json::json;
-use tinyagents::harness::tool::{Tool, ToolCall};
+use tinyagents::tool::Tool;
+use tinyinference::tool::ToolCall;
 
 use super::{ListDirTool, ReadFileTool, Workspace, MAX_ENTRIES, MAX_READ_BYTES};
 

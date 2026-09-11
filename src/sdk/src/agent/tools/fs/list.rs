@@ -2,7 +2,8 @@
 
 use serde_json::{json, Value};
 use tinyagents::error::{Result as TaResult, TinyAgentsError};
-use tinyagents::harness::tool::{Tool, ToolCall, ToolResult, ToolSchema};
+use tinyagents::tool::{Tool, ToolResult};
+use tinyinference::tool::{ToolCall, ToolFormat, ToolSchema};
 
 use super::types::Workspace;
 use crate::agent::tools::guard;
@@ -45,7 +46,7 @@ impl Tool<()> for ListDirTool {
                     },
                 },
             }),
-            format: tinyagents::harness::tool::ToolFormat::default(),
+            format: ToolFormat::default(),
         }
     }
 

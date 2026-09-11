@@ -21,7 +21,7 @@
 
 use serde_json::{json, Value};
 
-use tinyagents::harness::events::AgentEvent;
+use tinyagents::events::AgentEvent;
 
 use super::types::ProgressFold;
 use crate::protocol::{HarnessEventKind, StatusPayload, ToolCallPayload, ToolResultPayload};

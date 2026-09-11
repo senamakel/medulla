@@ -3,7 +3,7 @@
 
 use serde_json::Value;
 use tinyagents::error::{Result as TaResult, TinyAgentsError};
-use tinyagents::harness::tool::ToolCall;
+use tinyinference::tool::ToolCall;
 
 use std::path::PathBuf;
 

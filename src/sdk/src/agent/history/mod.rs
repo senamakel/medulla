@@ -33,7 +33,7 @@ mod types;
 
 pub use store::{load, save};
 
-use tinyagents::harness::message::Message;
+use tinyinference::message::Message;
 
 /// Most messages replayed into a resumed turn.
 ///

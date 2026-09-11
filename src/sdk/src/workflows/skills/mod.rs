@@ -1,8 +1,7 @@
 //! Harness-native skills that trigger saved workflows over MCP.
 //!
-//! `medulla mcp` already serves `workflow_run` to any MCP client, so an
-//! operator's own Claude Code or Codex session is one tool call away from
-//! starting a saved workflow. What is missing is discovery and phrasing:
+//! A Medulla-attached harness is served `workflow_run`, so it is one tool call
+//! away from starting a saved workflow. What is missing is discovery and phrasing:
 //! nothing in that session knows a `babysit` workflow exists, what it takes, or
 //! that the way to start it is a tool call with a particular argument shape.
 //! This module closes that gap by generating, per workflow, a skill whose body

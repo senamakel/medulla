@@ -3,8 +3,8 @@
 //! Not a command a person runs. Medulla spawns this itself when it starts a
 //! harness over ACP, handing the child the control socket path and a grant
 //! token in its environment; that grant is what decides which tool families the
-//! session is served. Run by hand, with no grant in the environment, it serves
-//! the workflow tools off the local store and advertises no fleet.
+//! session is served. Run by hand, or through an ambient user/project MCP
+//! registration, it is rejected before serving any protocol requests.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
