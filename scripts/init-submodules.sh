@@ -20,11 +20,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# The workflow engine, the agent harness, and the backend client. All three are
-# self-contained: none declares a path or git dependency of its own.
+# Initialize the direct vendored dependencies first. Keep this explicit rather
+# than using --recursive: tinyagents also carries a wiki submodule that is not
+# needed to build medulla.
 git submodule update --init --depth 1 \
   vendor/tinyagents \
   vendor/tinyflows \
   vendor/tinyhumans-sdk
 
-echo "Submodules initialized (tinyagents, tinyflows, tinyhumans-sdk)."
+# tinyagents' buildable crates are nested submodules, so initialize those while
+# deliberately leaving its unrelated wiki checkout untouched.
+git -C vendor/tinyagents submodule update --init --depth 1 \
+  vendor/tinyinference \
+  vendor/tinytools
+
+echo "Submodules initialized (tinyagents, tinyinference, tinytools, tinyflows, tinyhumans-sdk)."
