@@ -222,7 +222,11 @@ jobs:
             echo "Duplicate packages that must be unified:"; echo "$dupes"; exit 1
           fi
           for crate in tinyagents-harness tinyflows; do
-            if ! cargo tree -i "$crate" | head -1 | grep -q "vendor/$crate"; then
+            case "$crate" in
+              tinyagents-harness) vendor_root=vendor/tinyagents ;;
+              tinyflows) vendor_root=vendor/tinyflows ;;
+            esac
+            if ! cargo tree -i "$crate" | head -1 | grep -q "$vendor_root"; then
               echo "$crate did not resolve to the vendored tree:"
               cargo tree -i "$crate" | head -1
               exit 1
