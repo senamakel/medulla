@@ -70,6 +70,7 @@ async fn run(options: RunTaskOptions) -> Result<RunTaskResult, AppServerError> {
         options.model.clone(),
         options.skip_permissions,
     );
+    thread.config = medulla_thread_config(&options);
     thread.resume_thread_id = options
         .resume_session_id
         .clone()
@@ -131,6 +132,8 @@ pub(super) fn child_env(options: &RunTaskOptions) -> HashMap<String, String> {
     env.remove(crate::control_socket::MCP_GRANT_ENV);
     env.remove(crate::control_socket::MCP_PARENT_SOCKET_ENV);
     env.remove(crate::control_socket::MCP_PARENT_GRANT_ENV);
+    #[cfg(feature = "workflows")]
+    env.remove(crate::mcp::ATTACHED_ENV);
     let attribution_env = crate::attribution::attribution_env(options.attribution, &env);
     env.extend(attribution_env);
     if let Some(router) = &options.router {
@@ -183,7 +186,55 @@ fn thread_params(thread: &ThreadOptions) -> Value {
         "sandbox": thread.sandbox,
         "approvalPolicy": thread.approval_policy,
         "model": thread.model,
+        "config": thread.config,
     })
+}
+
+/// Attach Medulla's MCP server to this thread, never to the pooled process.
+///
+/// A workflow node gets an explicit disable override so an ambient user config
+/// cannot leak a server created for another lane into it. Other Medulla lanes
+/// receive a complete per-thread registration carrying the launch marker that
+/// `medulla mcp` requires.
+pub(super) fn medulla_thread_config(options: &RunTaskOptions) -> Value {
+    #[cfg(not(feature = "workflows"))]
+    {
+        let _ = options;
+        json!({ "mcp_servers": { "medulla": { "enabled": false } } })
+    }
+    #[cfg(feature = "workflows")]
+    {
+        if crate::harness_tools::workflows_withheld(&options.env) {
+            return json!({ "mcp_servers": { "medulla": { "enabled": false } } });
+        }
+        let Some(spec) = crate::mcp::attach::server_spec(
+            options
+                .env
+                .get(crate::mcp::TOOL_MODE_ENV)
+                .map(String::as_str),
+            None,
+            crate::mcp::attach::workflows_enabled(&options.env),
+        )
+        .map(|spec| spec.for_session(&format!("codex-{}", uuid::Uuid::new_v4()))) else {
+            return json!({ "mcp_servers": { "medulla": { "enabled": false } } });
+        };
+        let env = spec
+            .env
+            .into_iter()
+            .chain(spec.secret_env)
+            .map(|(key, value)| (key, Value::String(value)))
+            .collect::<serde_json::Map<String, Value>>();
+        json!({
+            "mcp_servers": {
+                spec.name: {
+                    "command": spec.command,
+                    "args": spec.args,
+                    "env": env,
+                    "enabled": true,
+                }
+            }
+        })
+    }
 }
 
 /// Pull the thread id out of a `thread/start` or `thread/resume` result.

@@ -58,7 +58,7 @@ mod tests;
 
 pub use attach::{
     attach_cli, config_dir_for_socket, forget_session_runs, local_hook_grant, revoke_session,
-    server_command, sweep_stale_config_files, ServerSpec, SERVER_COMMAND_ENV,
+    server_command, sweep_stale_config_files, ServerSpec, ATTACHED_ENV, SERVER_COMMAND_ENV,
 };
 pub use backend::{FleetBackend, OfflineFleet};
 pub use tools::{
@@ -183,6 +183,7 @@ fn serves_workflow_tools(command: &Path) -> Result<(), String> {
 
     let mut child = std::process::Command::new(command)
         .arg("mcp")
+        .env(attach::ATTACHED_ENV, "preflight")
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
@@ -322,6 +323,16 @@ fn origin_from_env(
 /// sent one bad frame is still a client.
 pub async fn serve_stdio(env: &HashMap<String, String>, cwd: &Path) -> Result<(), std::io::Error> {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    if env
+        .get(attach::ATTACHED_ENV)
+        .is_none_or(|value| value.trim().is_empty())
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "Medulla MCP is available only to harnesses explicitly attached by Medulla",
+        ));
+    }
 
     let store = crate::workflows::ops::discover_store(env, cwd);
     // Loaded once, not per call: this process serves one harness session, and

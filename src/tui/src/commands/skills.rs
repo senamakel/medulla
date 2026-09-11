@@ -1,10 +1,9 @@
 //! `medulla skills` — put harness-native skills for saved workflows on disk.
 //!
-//! A saved workflow is invisible to the operator's everyday Claude Code or
-//! Codex session: nothing there knows it exists or that `workflow_run` is how
-//! to start it. This command closes that gap by writing a skill per workflow
-//! into the harness's own layout, and — with `--with-mcp` — registering the
-//! server whose tool the skill tells the model to call.
+//! This command manages explicit, marker-owned skill files, including legacy
+//! installs an operator may want to remove. It never registers the workflow MCP
+//! server into ambient user or project configuration; eligible harnesses get
+//! that server only through a Medulla-owned launch.
 //!
 //! Every decision that touches the filesystem lives in
 //! [`medulla::workflows::skills`], so the future MCP verb and the TUI action
@@ -20,9 +19,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use medulla::workflows::skills::{
-    self, InstallOptions, InstallReport, RegistrationOptions, RegistrationOutcome, SkillTarget,
-};
+use medulla::workflows::skills::{self, InstallOptions, InstallReport, SkillTarget};
 use medulla::workflows::{ops, WorkflowSummary};
 use medulla_tui::cli::{parse_skills_args, SkillsAction, SkillsArgs};
 use serde_json::{json, Value};
@@ -79,22 +76,14 @@ pub(crate) fn run_skills_cmd(args: &[String]) -> anyhow::Result<()> {
         return refuse_blanket_uninstall(&parsed, &root, &targets, &opts);
     }
 
-    // `list` reports what is on disk and writes nothing; honouring --with-mcp
-    // there would make a read-only verb create two config files, which is the
-    // last thing an operator running `list` to find out what is installed
-    // expects. Refused rather than ignored, so the flag is never a silent no-op.
-    if parsed.with_mcp && parsed.action == SkillsAction::List {
-        anyhow::bail!(
-            "--with-mcp has nothing to do on `skills list`, which only reports what is already \
-             installed. Register the server with `medulla skills install --with-mcp`."
-        );
-    }
-
-    // Asked for before anything is written: a registration that cannot serve
-    // tools makes every skill we are about to install inert, and half-doing it
-    // is worse than refusing.
+    // Persistent registrations are exactly the ambient capability this command
+    // must no longer create. Keep parsing the old flag so callers get an
+    // actionable migration error instead of an unknown-option failure.
     if parsed.with_mcp {
-        medulla::mcp::preflight(&env, &cwd).map_err(|msg| anyhow::anyhow!("--with-mcp: {msg}"))?;
+        anyhow::bail!(
+            "--with-mcp is no longer supported: workflow MCP is attached only to eligible \
+             harnesses launched by Medulla, never registered in ambient user or project config"
+        );
     }
 
     let output = match parsed.action {
@@ -123,13 +112,7 @@ pub(crate) fn run_skills_cmd(args: &[String]) -> anyhow::Result<()> {
         }
     };
 
-    let registrations = if parsed.with_mcp {
-        register(&parsed, &targets, &root, &project_dir(&parsed, &root, &cwd))?
-    } else {
-        Vec::new()
-    };
-
-    print(&parsed, &root, &targets, &output, &registrations);
+    print(&parsed, &root, &targets, &output);
 
     // Last, so the report is on stdout either way: a collision means a workflow
     // the operator asked for is *not* installed, and an exit status is the only
@@ -155,7 +138,7 @@ fn refuse_blanket_uninstall(
     opts: &InstallOptions,
 ) -> anyhow::Result<()> {
     let found = list(opts)?;
-    print(parsed, root, targets, &found, &[]);
+    print(parsed, root, targets, &found);
     let count = found
         .get("skills")
         .and_then(Value::as_array)
@@ -183,24 +166,6 @@ fn resolve_root(parsed: &SkillsArgs, env: &HashMap<String, String>, cwd: &Path) 
             }
         }
         None => skills::scope_root(parsed.scope, env, cwd),
-    }
-}
-
-/// The checkout that owns `.mcp.json`.
-///
-/// `--dir` overrides `--scope`, and it has to override this too: an operator who
-/// says `--scope project --dir /srv/checkout` is telling us *that* directory is
-/// the project. Reading the working directory instead would drop an unrequested
-/// `.mcp.json` into whichever repository they happened to be standing in, which
-/// is both a surprise and a file they may well commit. Without `--dir` the
-/// working directory is still the answer: it is what `--scope project` resolved
-/// the root from, and Claude's project config is a property of the checkout
-/// rather than of the scope.
-fn project_dir(parsed: &SkillsArgs, root: &Path, cwd: &Path) -> PathBuf {
-    if parsed.dir.is_some() {
-        root.to_path_buf()
-    } else {
-        cwd.to_path_buf()
     }
 }
 
@@ -269,40 +234,8 @@ fn report_value(report: &InstallReport) -> Value {
     })
 }
 
-/// Register `medulla mcp` with each target.
-///
-/// `project_dir` is where `.mcp.json` goes — [`project_dir`] decides it, and it
-/// is not always the working directory. The command is the *resolved* path of
-/// this binary, never the bare name: a user-scope registration is read by a
-/// process whose `PATH` we do not control.
-fn register(
-    parsed: &SkillsArgs,
-    targets: &[SkillTarget],
-    root: &Path,
-    project_dir: &Path,
-) -> anyhow::Result<Vec<RegistrationOutcome>> {
-    let exe = std::env::current_exe()
-        .map_err(|err| anyhow::anyhow!("--with-mcp: cannot resolve this binary's path: {err}"))?;
-    let opts = RegistrationOptions {
-        targets: targets.to_vec(),
-        scope: parsed.scope,
-        root: root.to_path_buf(),
-        project_dir: project_dir.to_path_buf(),
-        exe,
-        tools_mode: parsed.tools.clone(),
-        dry_run: parsed.dry_run,
-    };
-    Ok(skills::register(&opts)?)
-}
-
 /// Emit the result: one JSON document, or the human summary.
-fn print(
-    parsed: &SkillsArgs,
-    root: &Path,
-    targets: &[SkillTarget],
-    output: &Value,
-    registrations: &[RegistrationOutcome],
-) {
+fn print(parsed: &SkillsArgs, root: &Path, targets: &[SkillTarget], output: &Value) {
     let names: Vec<&str> = targets.iter().map(|target| target.as_str()).collect();
 
     if parsed.json {
@@ -315,9 +248,6 @@ fn print(
         if let (Some(map), Some(extra)) = (document.as_object_mut(), output.as_object()) {
             for (key, value) in extra {
                 map.insert(key.clone(), value.clone());
-            }
-            if !registrations.is_empty() {
-                map.insert("registrations".to_string(), json!(registrations));
             }
         }
         println!(
@@ -364,25 +294,6 @@ fn print(
                  Medulla did not write, or two workflows wanting one skill directory. Those \
                  workflows are NOT installed."
             );
-        }
-    }
-
-    for outcome in registrations {
-        match &outcome.manual_command {
-            Some(command) => println!(
-                "  mcp {} {}: run this yourself: {command}",
-                outcome.target, outcome.action
-            ),
-            None => println!(
-                "  mcp {} {} {}",
-                outcome.target,
-                outcome.action,
-                outcome
-                    .path
-                    .as_ref()
-                    .map(|path| path.display().to_string())
-                    .unwrap_or_default()
-            ),
         }
     }
 }

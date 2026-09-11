@@ -146,6 +146,8 @@ pub struct ThreadOptions {
     pub sandbox: SandboxMode,
     /// Approval policy.
     pub approval_policy: ApprovalPolicy,
+    /// Per-thread Codex configuration layered over the shared process.
+    pub config: serde_json::Value,
     /// A previously captured thread id to resume instead of starting fresh.
     pub resume_thread_id: Option<String>,
 }
@@ -174,6 +176,7 @@ impl ThreadOptions {
             model,
             sandbox,
             approval_policy,
+            config: serde_json::Value::Null,
             resume_thread_id: None,
         }
     }

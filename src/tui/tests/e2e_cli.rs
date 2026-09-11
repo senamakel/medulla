@@ -69,6 +69,7 @@ fn run_with_env(
         .args(args)
         .current_dir(cwd)
         .env("MEDULLA_HOME", home)
+        .env("MEDULLA_MCP_ATTACHED", "test-launch")
         .env("MEDULLA_CLAUDE_SESSIONS_DIR", home.join("claude-sessions"))
         .env("MEDULLA_CODEX_SESSIONS_DIR", home.join("codex-sessions"))
         .env_remove("MEDULLA_TOKEN")
@@ -408,6 +409,7 @@ fn run_mcp(
     let mut child = Command::new(env!("CARGO_BIN_EXE_medulla"))
         .arg("mcp")
         .env("MEDULLA_HOME", home)
+        .env("MEDULLA_MCP_ATTACHED", "test-launch")
         .env_remove("MEDULLA_TOKEN")
         .env_remove("MEDULLA_MCP_SOCKET")
         .env_remove("MEDULLA_MCP_GRANT")
@@ -471,6 +473,26 @@ fn mcp_serves_the_workflow_tools_and_exits_when_stdin_closes() {
 }
 
 #[test]
+fn mcp_rejects_an_ambient_registration_not_attached_by_medulla() {
+    let home = TempDir::new().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_medulla"))
+        .arg("mcp")
+        .env("MEDULLA_HOME", home.path())
+        .env_remove("MEDULLA_MCP_ATTACHED")
+        .stdin(Stdio::null())
+        .output()
+        .expect("the medulla binary should run");
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("only to harnesses explicitly attached by Medulla"),
+        "the refusal should identify the missing provenance: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn mcp_answers_a_notification_with_nothing() {
     // A JSON-RPC notification has no id and by definition gets no reply. A
     // server that answered one would desynchronise the client's correlation.
@@ -499,6 +521,7 @@ fn mcp_answers_a_malformed_frame_and_keeps_going() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_medulla"))
         .arg("mcp")
         .env("MEDULLA_HOME", home.path())
+        .env("MEDULLA_MCP_ATTACHED", "test-launch")
         .env_remove("MEDULLA_TOKEN")
         .env_remove("MEDULLA_MCP_SOCKET")
         .env_remove("MEDULLA_MCP_GRANT")

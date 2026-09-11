@@ -91,9 +91,13 @@ async fn the_configured_model_reaches_the_spawned_harnesss_argv() {
         .expect("must succeed");
 
     let argv = read_captured(&dir.path().join("argv.txt"));
-    assert_eq!(
-        argv, "-m claude-opus-test",
-        "the model must reach the interactive argv, matching the headless spelling"
+    assert!(
+        argv.starts_with("-m claude-opus-test "),
+        "the model must reach the interactive argv before Medulla's scoped config: {argv}"
+    );
+    assert!(
+        argv.contains("mcp_servers.medulla.enabled=true"),
+        "a Medulla-launched Codex session receives its MCP server explicitly: {argv}"
     );
     executor.sessions_for_test().shutdown();
 }
