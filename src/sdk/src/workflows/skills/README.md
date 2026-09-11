@@ -2,9 +2,9 @@
 
 Harness-native skills that trigger saved workflows over MCP.
 
-`medulla mcp` already serves `workflow_run` to any MCP client, so an operator's
-own Claude Code or Codex session is one tool call away from starting a saved
-workflow. Nothing in that session knows it. The missing piece was never
+Medulla explicitly attaches `workflow_run` to an eligible Claude Code or Codex
+session, so that session is one tool call away from starting a saved workflow.
+Nothing in that session knows it. The missing piece was never
 transport — it is discovery and phrasing: which workflows exist, what each one
 takes, and that the way to start one is a tool call with a particular argument
 shape. That is what a skill file is for, and this module generates one per
@@ -246,20 +246,18 @@ directory needs the harness to have a flag for it, and `--add-dir` is the only
 one; rewriting a directory no spawned process reads would be writing files for
 nobody.
 
-## Why registration never shells out
+## Why ambient registration is retired
 
-A skill without the MCP server attached is inert, so `--with-mcp` registers
-`medulla mcp` with the same harnesses the skills went to. That registration is a
-config-file merge we perform ourselves, never a `claude mcp add` subprocess.
-This describes the `medulla skills` command specifically. Interactive app
-startup also reconciles the user scope; because Claude exposes no stable
-user-registry file, that separate app-side path uses Claude's supported
-`claude mcp add` command while Codex still uses this module's preserving merge.
+A persistent MCP registration is ambient to every harness that reads that
+scope, including workflow nodes. `medulla skills --with-mcp` is therefore
+refused. Eligible harnesses receive the server only through their Medulla-owned
+launch request; workflow nodes receive an explicit disable override and no
+managed skill directory.
 
-Shelling out makes the result depend on which CLI version happens to be on
-`PATH`, cannot be tested offline, and cannot honour `--dry-run` — a dry run that
-spawns a process that writes a file is not a dry run. Merging JSON and TOML
-ourselves is inspectable, deterministic, and identical in both modes.
+The preserving registration writer remains in the SDK for compatibility and
+migration tooling, but the command no longer invokes it. Its merge behavior is
+intentionally documented here while those legacy entries still exist in
+released installations.
 
 The merge is read-modify-write: other servers, other top-level keys, and
 unrelated tables all survive, and when the desired entry is already present the

@@ -251,11 +251,7 @@ fn a_dry_run_reports_the_same_outcome_and_writes_nothing() {
 }
 
 #[test]
-fn project_scope_with_an_explicit_dir_keeps_the_mcp_file_out_of_the_working_directory() {
-    // Finding 3: `--dir` overrides `--scope`, so the registration has to follow
-    // the root. It used to follow the *working directory*, which meant an
-    // install aimed at /tmp dropped an unrequested `.mcp.json` into whichever
-    // repository the operator happened to be standing in.
+fn with_mcp_refuses_to_create_an_ambient_project_registration() {
     let workspace = Workspace::new(&["babysit"]);
 
     let output = workspace.skills_in_root(&[
@@ -267,24 +263,21 @@ fn project_scope_with_an_explicit_dir_keeps_the_mcp_file_out_of_the_working_dire
         "--with-mcp",
     ]);
 
-    assert!(output.status.success(), "{}", stderr(&output));
-    let registered = workspace.root().join(".mcp.json");
     assert!(
-        registered.is_file(),
-        "the registration belongs under --dir: {}",
-        stdout(&output)
+        !output.status.success(),
+        "ambient registration must be refused: {}",
+        stdout(&output),
     );
+    assert!(
+        stderr(&output).contains("attached only to eligible harnesses launched by Medulla"),
+        "{}",
+        stderr(&output),
+    );
+    assert!(!workspace.root().join(".mcp.json").exists());
     assert!(
         !workspace.cwd().join(".mcp.json").exists(),
-        "an unrequested .mcp.json landed in the working directory: {:?}",
+        "an ambient .mcp.json landed in the working directory: {:?}",
         tree(&workspace.cwd()),
-    );
-    let document: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&registered).unwrap()).unwrap();
-    assert_eq!(document["mcpServers"]["medulla"]["args"][0], "mcp");
-    assert_eq!(
-        document["mcpServers"]["medulla"]["env"]["MEDULLA_WORKFLOW_TOOLS"],
-        "run",
     );
 }
 

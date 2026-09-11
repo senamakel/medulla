@@ -35,6 +35,7 @@ async fn nested_harness_env(
     // token would attribute their lifecycle reports to the MCP parent.
     nested.remove(crate::control_socket::HOOK_SOCKET_ENV);
     nested.remove(crate::control_socket::HOOK_GRANT_ENV);
+    nested.remove(crate::mcp::ATTACHED_ENV);
     let Some((socket, token)) = crate::control_socket::grant_from_env(env) else {
         return Ok((nested, 0));
     };

@@ -12,7 +12,7 @@ use crate::protocol::{HarnessProvider, HarnessTransport};
 use crate::sessions::{SessionClass, WorkspaceContext};
 
 use super::super::types::{Abort, RunTaskOptions};
-use super::execution::{child_env, uses_app_server, HARNESS_TRANSPORT_ENV};
+use super::execution::{child_env, medulla_thread_config, uses_app_server, HARNESS_TRANSPORT_ENV};
 use super::fold::FoldState;
 
 /// Test fold plus its recorded workspace callbacks and semantic events.
@@ -158,6 +158,33 @@ fn app_server_child_env_strips_the_embedded_core_workspace() {
     ));
 
     assert!(!env.contains_key("OPENHUMAN_WORKSPACE"));
+}
+
+#[test]
+fn ordinary_app_server_threads_receive_an_explicit_medulla_server() {
+    let config = medulla_thread_config(&options(HarnessTransport::AppServer, &[]));
+    let server = &config["mcp_servers"]["medulla"];
+
+    assert_eq!(server["enabled"], true);
+    assert_eq!(server["args"][0], "mcp");
+    assert!(server["env"][crate::mcp::ATTACHED_ENV]
+        .as_str()
+        .is_some_and(|value| !value.is_empty()));
+}
+
+#[test]
+fn workflow_app_server_threads_disable_any_ambient_medulla_server() {
+    let mut options = options(HarnessTransport::AppServer, &[]);
+    crate::harness_tools::withhold_workflows(&mut options.env);
+
+    let config = medulla_thread_config(&options);
+
+    assert_eq!(
+        config,
+        json!({
+            "mcp_servers": { "medulla": { "enabled": false } }
+        })
+    );
 }
 
 #[tokio::test]

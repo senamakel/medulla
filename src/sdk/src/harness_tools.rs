@@ -102,6 +102,8 @@ pub fn withhold(env: &mut HashMap<String, String>) {
     env.remove(crate::control_socket::MCP_GRANT_ENV);
     env.remove(crate::control_socket::MCP_PARENT_SOCKET_ENV);
     env.remove(crate::control_socket::MCP_PARENT_GRANT_ENV);
+    #[cfg(feature = "workflows")]
+    env.remove(crate::mcp::ATTACHED_ENV);
 }
 
 /// Mark `env` so the launch it describes receives no *workflow* tools.
@@ -125,6 +127,8 @@ pub fn withhold_workflows(env: &mut HashMap<String, String>) {
     );
     #[cfg(feature = "workflows")]
     env.remove(crate::mcp::TOOL_MODE_ENV);
+    #[cfg(feature = "workflows")]
+    env.remove(crate::mcp::ATTACHED_ENV);
 }
 
 /// Whether the launch this environment describes receives no Medulla tools.
