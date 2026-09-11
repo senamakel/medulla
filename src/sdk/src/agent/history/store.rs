@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use tinyagents::harness::message::Message;
+use tinyinference::message::Message;
 
 use super::types::Stored;
 use super::MAX_REPLAYED;

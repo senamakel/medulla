@@ -15,8 +15,9 @@
 
 use std::sync::Arc;
 
-use tinyagents::harness::events::{AgentEvent, EventListener, EventRecord, EventSink};
-use tinyagents::harness::message::{AssistantMessage, Message};
+use tinyagents::context::{RunConfig, RunContext};
+use tinyagents::events::{AgentEvent, EventListener, EventRecord, EventSink};
+use tinyinference::message::{AssistantMessage, Message};
 
 use super::harness::{self, Limits, Route};
 use super::tools::Workspace;
@@ -97,11 +98,11 @@ pub async fn run(
     let sink = EventSink::with_stream_id(thread_id);
     sink.subscribe(Arc::new(Forwarder { sink: on_event }));
 
-    let config = tinyagents::harness::context::RunConfig::new(thread_id)
+    let config = RunConfig::new(thread_id)
         .with_thread(thread_id)
         .with_max_model_calls(limits.max_model_calls)
         .with_max_tool_calls(limits.max_tool_calls);
-    let ctx = tinyagents::harness::context::RunContext::new(config, ()).with_events(sink);
+    let ctx = RunContext::new(config, ()).with_events(sink);
 
     // Prior turns first, so a resumed conversation can refer to what was said.
     // The system prompt leads regardless — it describes the checkout this turn

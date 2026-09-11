@@ -4,7 +4,8 @@
 use std::time::Duration;
 
 use serde_json::json;
-use tinyagents::harness::tool::{Tool, ToolCall};
+use tinyagents::tool::Tool;
+use tinyinference::tool::ToolCall;
 
 use super::{BoundedTail, ShellTool, MAX_OUTPUT_BYTES};
 use crate::agent::tools::fs::Workspace;

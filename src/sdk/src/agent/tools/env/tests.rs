@@ -77,7 +77,7 @@ fn scrubbing_keeps_values_intact_for_what_it_retains() {
 /// it.
 #[tokio::test]
 async fn a_turns_shell_cannot_read_a_credential_from_the_task_environment() {
-    use tinyagents::harness::tool::ToolCall;
+    use tinyinference::tool::ToolCall;
 
     let dir = tempfile::tempdir().unwrap();
     // The shape a daemon hands down: the ambient environment, credentials and all.

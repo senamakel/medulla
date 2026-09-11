@@ -13,9 +13,9 @@ use serde_json::json;
 use tokio::sync::mpsc;
 
 use super::super::super::types::Abort;
-use tinyagents::harness::events::AgentEvent;
-use tinyagents::harness::ids::{CallId, RunId};
-use tinyagents::harness::message::MessageDelta;
+use tinyagents::events::AgentEvent;
+use tinyagents::ids::{CallId, RunId};
+use tinyinference::message::MessageDelta;
 
 use super::types::ProgressFold;
 use super::watchdog::drive;

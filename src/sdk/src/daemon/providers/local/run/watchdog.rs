@@ -26,7 +26,7 @@ use tokio::time::Instant;
 
 use super::super::super::types::Abort;
 use super::EventSink;
-use tinyagents::harness::events::AgentEvent;
+use tinyagents::events::AgentEvent;
 
 /// Drive `call` to completion under an idle watchdog.
 ///

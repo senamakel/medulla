@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use tinyagents::harness::tool::Tool;
+use tinyagents::tool::Tool;
 
 mod list;
 mod read;

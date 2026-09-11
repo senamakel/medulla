@@ -24,26 +24,26 @@ medulla = { path = "src/sdk", default-features = false }
 # The host-link transport (docs/host-link-protocol.md). A plain path dep: it is
 # ours, has no registry coordinate, and is not vendored.
 medulla-link = { path = "src/link" }
-# The agent harness. A direct submodule at `vendor/tinyagents`, declared as a
-# registry coordinate and redirected by `[patch.crates-io]` below so the crate
-# has exactly ONE declaration style: mixing a path dep with a registry one
-# yields two PackageIds for a single crate and an E0308 where the types look
-# identical.
+# The agent harness lives in the split `tinyagents-harness` package inside the
+# direct `tinyagents` submodule. Keep the dependency key as `tinyagents` so the
+# host code can migrate independently of the upstream package rename.
 #
 # `sqlite` brings the durable session store (`tinyagents::session`) that backs
 # Medulla's session surface; `tools` brings the builtin tool family the agent
 # loop dispatches. Neither is on by default in the crate.
-tinyagents = { version = "2.1", features = ["sqlite", "tools"] }
+tinyagents = { package = "tinyagents-harness", path = "vendor/tinyagents/crates/tinyagents-harness", features = ["sqlite", "tools"] }
+# TinyAgents exposes provider messages and tool wire types through its
+# companion inference package; Medulla uses those types at its tool boundary.
+tinyinference = { path = "vendor/tinyagents/vendor/tinyinference/crates/tinyinference" }
 # The shared TinyHumans backend client. A direct submodule at
 # `vendor/tinyhumans-sdk`; it has no registry coordinate, so unlike the tiny*
 # crates around it, it is a plain path dep rather than declared-then-patched.
 tinyhumans-sdk = { path = "vendor/tinyhumans-sdk" }
-# The workflow engine, a direct submodule at `vendor/tinyflows`. Declared as a
-# registry dependency and redirected by `[patch.crates-io]` below, for the same
-# one-declaration-style reason as `tinyagents`.
+# The workflow engine is the package nested inside the direct `tinyflows`
+# submodule; the repository root is now its workspace manifest.
 # `mock` is a normal (not dev-only) feature: dry-run authoring uses the engine's
 # deterministic capability stand-ins in ordinary builds.
-tinyflows = { version = "0.8", features = ["mock", "host-caps", "store"] }
+tinyflows = { path = "vendor/tinyflows/crates/tinyflows", features = ["mock", "host-caps", "store"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
@@ -104,26 +104,11 @@ tempfile = "3"
 # row containing wide glyphs.
 unicode-width = "0.2"
 
-# `[patch.crates-io]` applies ONLY from the workspace root, so every vendored
-# crate that also has a registry coordinate must be redirected here.
-#
-# The table is two entries because the two vendored engines are self-contained:
-# neither `tinyflows` nor `tinyagents` declares a path or git dependency, and
-# neither carries code submodules of its own. When the embedded OpenHuman core
-# was the runtime this table had to reproduce *its* patch table rebased onto
-# `vendor/openhuman/vendor/*` — ten entries, each load-bearing, because dropping
-# one made Cargo silently resolve the published crate instead of the vendored
-# tree, and eight of them pinning a crate nothing in this workspace linked
-# directly. That whole class of failure left with the core.
-#
-# Keep this list in lockstep with scripts/init-submodules.sh.
-#
-# Vendored code stays out of `members` via `exclude`, so it keeps its own lints
-# and tests instead of joining this workspace's CI gates.
-[patch.crates-io]
-tinyagents = { path = "vendor/tinyagents" }
-tinyflows = { path = "vendor/tinyflows" }
-
+# The vendored engines are nested workspaces, so depend on their concrete
+# packages above rather than attempting to patch their virtual roots.
+# Vendored code stays out of `members` via `exclude`, so each nested workspace
+# keeps its own lints and tests instead of joining this workspace's CI gates.
+# Keep these package paths in lockstep with scripts/init-submodules.sh.
 # Dependency DWARF dominates target/ size and link time, so third-party crates
 # compile without it while this workspace's own crates keep full debuginfo.
 [profile.dev.package."*"]

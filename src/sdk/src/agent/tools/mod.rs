@@ -23,7 +23,7 @@ pub mod shell;
 
 use std::sync::Arc;
 
-use tinyagents::harness::tool::Tool;
+use tinyagents::tool::Tool;
 
 pub use fs::Workspace;
 

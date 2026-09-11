@@ -1,6 +1,6 @@
 //! Transcript round-tripping, the replay bound, and the collision guard.
 
-use tinyagents::harness::message::Message;
+use tinyinference::message::Message;
 
 use super::{load, save, trim, MAX_REPLAYED};
 

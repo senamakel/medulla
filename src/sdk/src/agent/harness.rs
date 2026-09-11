@@ -12,8 +12,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tinyagents::harness::providers::openai::OpenAiModel;
-use tinyagents::harness::runtime::{AgentHarness, PayloadCapture, RunPolicy};
+use tinyagents::runtime::{AgentHarness, PayloadCapture, RunPolicy};
+use tinyinference::providers::openai::OpenAiModel;
 
 use super::tools::{self, Workspace};
 
