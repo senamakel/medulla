@@ -156,7 +156,7 @@ fn the_status_line_shows_stream_health_beside_the_backend_host() {
     let mut app = fleet_app();
     // A dot rather than the spelled-out label it replaced: that cost a third of
     // the line to say what a glyph says.
-    tab(&mut app, "Subconscious");
+    tab(&mut app, "Feedback");
     let out = render(&mut app, 120, 40);
     assert!(
         out.contains("● api.tinyhumans.ai"),
