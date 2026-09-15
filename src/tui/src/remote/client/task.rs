@@ -26,6 +26,17 @@ use crate::worker::pty::ScreenSnapshot;
 /// frame that has arrived is folded on the next tick.
 const TICK: Duration = Duration::from_millis(50);
 
+/// How often the task says `Hello` again.
+///
+/// The link survives the daemon restarting — the transport rebases and keeps
+/// going — but a restarted daemon has a fresh, empty session list and no idea
+/// this client exists until it hears from it. A periodic `Hello` is answered
+/// with the host's capabilities and its current sessions, so a restart on the
+/// far side is noticed and the rail corrected within one interval, and a
+/// paired host that was down when the TUI started is picked up when it comes
+/// back. Cheap: two small messages on the reliable channel.
+const HELLO_EVERY: Duration = Duration::from_secs(5);
+
 /// What the App asks of a connected host.
 #[derive(Debug)]
 pub enum RemoteRequest {
@@ -153,8 +164,15 @@ pub async fn run(
     // changed".
     let mut last_screen: Option<(String, ScreenSnapshot)> = None;
     let mut last_liveness: Option<medulla::bridge::BridgeLiveness> = None;
+    let mut last_hello = std::time::Instant::now();
 
     loop {
+        if last_hello.elapsed() >= HELLO_EVERY {
+            last_hello = std::time::Instant::now();
+            // A failed send here is the link's queue being full, which the
+            // next request will report properly; a missed hello is not news.
+            let _ = host.hello().await;
+        }
         // Requests first, so a keystroke is not held behind a tick.
         while let Ok(request) = requests.try_recv() {
             let _ = serve(&mut host, request, &host_id, &updates).await;
