@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use medulla::bridge::{LinkBridge, LinkBridgeConfig, LinkPeer};
-use medulla_link::keys::{self, ForwarderKey, HostKey, NodeId, NodeState, PairKey, Role};
+use medulla_link::keys::{self, ForwarderKey, HostKey, NodeId, NodeState, Role};
 use medulla_link::{Link, LinkConfig, LinkPath, PeerConfig};
 
 use super::entry::{flag, hostname_of, local_sessions, CLIENT_ADDRESS};
@@ -291,8 +291,3 @@ fn workflow_host(
 ) -> Option<WorkflowHost> {
     Some(WorkflowHost)
 }
-
-/// Keep the unused-import lint honest on the slim build.
-#[cfg(not(feature = "workflows"))]
-#[allow(dead_code)]
-fn _slim(_: PairKey) {}

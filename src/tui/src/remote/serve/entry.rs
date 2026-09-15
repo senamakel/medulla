@@ -210,6 +210,14 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     }
 
     let mut server = RemoteServer::new(sessions, bridge, host_name).with_workspaces(workspaces);
+    #[cfg(feature = "workflows")]
+    {
+        server = server.with_workflows(super::WorkflowHost::from_config(
+            &env,
+            loaded.clone(),
+            std::path::Path::new(&cwd),
+        ));
+    }
     server.run().await;
     Ok(())
 }
