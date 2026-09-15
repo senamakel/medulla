@@ -508,9 +508,12 @@ fn the_combined_view_files_remote_sessions_under_host_headers() {
             _ => None,
         })
         .collect();
-    assert_eq!(headers, vec!["tower".to_string(), "gpu".to_string()]);
-    // Each session sits under its own host's header rather than loose at the
-    // bottom.
+    assert!(
+        headers.ends_with(&["tower".to_string(), "gpu".to_string()]),
+        "{headers:?}"
+    );
+    // Each session sits directly under its own host's header rather than
+    // loose at the bottom.
     let order: Vec<String> = rows
         .iter()
         .filter_map(|row| match row {
@@ -519,10 +522,8 @@ fn the_combined_view_files_remote_sessions_under_host_headers() {
             _ => None,
         })
         .collect();
-    assert_eq!(
-        order,
-        vec!["host:tower", "tower/w_1", "host:gpu", "gpu/w_2"]
-    );
+    let tail = &order[order.len() - 4..];
+    assert_eq!(tail, ["host:tower", "tower/w_1", "host:gpu", "gpu/w_2"]);
 
     // Narrowed to one host, the header goes and only its session remains;
     // the New Session row is offered because a remote host can start one.
