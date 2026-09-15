@@ -183,19 +183,20 @@ impl App {
                     self.open_workflow_input_prompt(workflow_id, dry_run, remaining, collected);
                     return None;
                 }
-                if dry_run {
+                let cmd = if dry_run {
                     self.set_status("Simulating…");
-                    Some(Cmd::DryRunWorkflow {
+                    Cmd::DryRunWorkflow {
                         id: workflow_id,
                         inputs: collected,
-                    })
+                    }
                 } else {
                     self.set_status("Running…");
-                    Some(Cmd::RunWorkflow {
+                    Cmd::RunWorkflow {
                         id: workflow_id,
                         inputs: collected,
-                    })
-                }
+                    }
+                };
+                self.scope_workflow_cmd(Some(cmd))
             }
         }
     }

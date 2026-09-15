@@ -111,6 +111,13 @@ impl App {
     /// Called when the selection or the catalogue changes, never from a render
     /// pass: drawing a frame must not touch the disk.
     pub(in crate::ui::app) fn reload_workflow_runs(&mut self) {
+        // A remote store answers from its cache; ask the host for anything
+        // the cache lacks, and the answer re-enters here when it lands.
+        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
+            if let Some(id) = self.selected_workflow().map(|w| w.id.clone()) {
+                self.ensure_remote_workflow_loaded(&host_id, &id);
+            }
+        }
         let Some(workflow) = self.selected_workflow().map(|w| w.id.clone()) else {
             self.workflow_runs.clear();
             self.workflow_runs_error = None;
@@ -193,6 +200,15 @@ impl App {
     /// failing: the usual way a workflow changes is the operator's own editor,
     /// and a half-written file should cost a refresh, not the app.
     pub fn reload_workflows(&mut self) {
+        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
+            let listed = self
+                .remote_workflows
+                .get(&host_id)
+                .is_some_and(|cache| cache.lock().expect("remote workflow cache").listed);
+            if !listed {
+                self.refresh_remote_workflows(&host_id);
+            }
+        }
         match self.workflow_store().list() {
             Ok(workflows) => {
                 let count = workflows.len();
@@ -227,6 +243,9 @@ impl App {
 
     /// A short label naming where workflows are read from, for the status line.
     fn workflow_dir_label(&self) -> String {
+        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
+            return format!("{host_id} (remote)");
+        }
         match &self.medulla_home {
             Some(home) => home.join("workflows").display().to_string(),
             None => ".medulla/workflows".to_string(),

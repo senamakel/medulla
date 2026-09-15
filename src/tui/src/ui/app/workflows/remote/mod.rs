@@ -29,7 +29,7 @@ use std::sync::{Arc, Mutex};
 use medulla::workflows::WorkflowStore;
 
 use super::super::hosts::HostSelection;
-use super::super::types::App;
+use super::super::types::{App, Cmd};
 use crate::remote::client::RemoteRequest;
 pub(in crate::ui::app) use store::RemoteWorkflowStore;
 
@@ -251,6 +251,64 @@ impl App {
                 }
                 self.refresh_remote_workflows(host_id);
             }
+        }
+    }
+}
+
+impl App {
+    /// Route a workflow command to the current host.
+    ///
+    /// On this device the command goes to the event loop untouched. On a
+    /// remote host, running, cancelling and deleting become forwarded MCP
+    /// calls, and everything that authors — the copilot, a dry run, undo,
+    /// evolution — is refused with a status line, because the store over there
+    /// is read-only from here by design.
+    pub(in crate::ui::app) fn scope_workflow_cmd(&mut self, cmd: Option<Cmd>) -> Option<Cmd> {
+        let WorkflowSource::Remote { host_id } = self.workflow_source() else {
+            return cmd;
+        };
+        let refused = |what: &str| format!("{what} is not available on {host_id}; press H to switch to this device");
+        match cmd? {
+            Cmd::RunWorkflow { id, inputs } => {
+                self.set_status(format!("Running {id} on {host_id}…"));
+                self.remote_workflow_request(
+                    &host_id,
+                    RemoteWorkflowIntent::Run(id.clone()),
+                    "workflow_run",
+                    serde_json::json!({ "id": id, "input": inputs, "wait": "no" }),
+                );
+                None
+            }
+            Cmd::DeleteWorkflow { id } => {
+                self.remote_workflow_request(
+                    &host_id,
+                    RemoteWorkflowIntent::Delete(id.clone()),
+                    "workflow_delete",
+                    serde_json::json!({ "id": id }),
+                );
+                None
+            }
+            Cmd::DryRunWorkflow { .. } => {
+                self.set_status(refused("A dry run"));
+                None
+            }
+            Cmd::UndoWorkflow { .. } => {
+                self.set_status(refused("Undo"));
+                None
+            }
+            Cmd::CopilotTurn { .. } | Cmd::CreateWorkflow { .. } | Cmd::AbortCopilot { .. } => {
+                self.set_status(refused("The copilot"));
+                None
+            }
+            Cmd::RepairWorkflow { .. } | Cmd::EvolveWorkflow { .. } => {
+                self.set_status(refused("Evolution"));
+                None
+            }
+            Cmd::AcceptProposal { .. } | Cmd::RejectProposal { .. } => {
+                self.set_status(refused("Deciding a proposal"));
+                None
+            }
+            other => Some(other),
         }
     }
 }

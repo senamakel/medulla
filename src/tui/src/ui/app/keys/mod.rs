@@ -46,7 +46,7 @@ impl App {
         if let Some((id, name)) = self.workflow_delete_armed.take() {
             if k.code == KeyCode::Delete && k.modifiers.is_empty() {
                 self.set_status(format!("Deleting {name}…"));
-                return Some(Cmd::DeleteWorkflow { id });
+                return self.scope_workflow_cmd(Some(Cmd::DeleteWorkflow { id }));
             }
             self.set_status("Workflow deletion cancelled");
             return None;
@@ -238,7 +238,7 @@ impl App {
         #[cfg(feature = "workflows")]
         if tab == "Workflows" {
             if let WorkflowsKey::Handled(cmd) = self.on_workflows_key(k.code, shift, alt) {
-                return cmd;
+                return self.scope_workflow_cmd(cmd);
             }
         }
 
