@@ -30,8 +30,6 @@ pub(in crate::ui::app) struct ResumePicker {
 /// see [`super::super::overlays`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(in crate::ui::app) enum Overlay {
-    /// The prepared-decision board.
-    Decisions,
     /// The "start a session" picker.
     SessionPicker,
     /// The destructive confirmation before ending a local harness or remote task.
@@ -201,15 +199,6 @@ pub(in crate::ui::app) enum PromptKind {
         /// The cycle the question belongs to.
         cycle_id: String,
         /// The pending question's id.
-        question_id: String,
-    },
-    /// Answer a prepared decision and dismiss it locally once routed.
-    DecisionAnswer {
-        /// Stable decision id.
-        decision_id: String,
-        /// Cycle that owns the question.
-        cycle_id: String,
-        /// Harness question id.
         question_id: String,
     },
     /// Comment on the given feedback board item.

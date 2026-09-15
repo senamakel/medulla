@@ -24,7 +24,6 @@ impl App {
     /// prompt wins, so the picker is only on screen when no prompt is.
     pub(super) fn visible_overlays(&self) -> Vec<Overlay> {
         [
-            (Overlay::Decisions, self.decision_open),
             (Overlay::SessionPicker, self.session_picker.is_some()),
             (
                 Overlay::SessionKill,

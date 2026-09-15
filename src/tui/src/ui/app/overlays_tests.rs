@@ -33,7 +33,6 @@ fn app() -> App {
 /// Put `overlay` on screen by the shortest honest route.
 fn raise(app: &mut App, overlay: Overlay) {
     match overlay {
-        Overlay::Decisions => app.decision_open = true,
         Overlay::SessionPicker => {
             app.session_picker = Some(SessionPicker {
                 hosts: vec![crate::ui::app::types::PickerHost::this_device(String::new())],
@@ -66,8 +65,7 @@ fn raise(app: &mut App, overlay: Overlay) {
 }
 
 /// Every variant, so a new one cannot be added without appearing here.
-const EVERY_OVERLAY: [Overlay; 6] = [
-    Overlay::Decisions,
+const EVERY_OVERLAY: [Overlay; 5] = [
     Overlay::SessionPicker,
     Overlay::SessionKill,
     Overlay::WorkflowDelete,
