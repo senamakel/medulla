@@ -76,7 +76,7 @@ impl App {
             &self.local_host_refs(),
         );
         rows.extend(self.remote_host_rows());
-        rows
+        self.scope_host_tree(rows)
     }
 }
 

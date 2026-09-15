@@ -53,6 +53,7 @@ mod cursor_tests;
 mod hosts;
 mod organize;
 mod paging;
+mod scope;
 pub(in crate::ui::app) mod resolve;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
@@ -133,7 +134,8 @@ impl App {
     pub(super) fn rail_rows_in(&self, lanes: &[AgentLane]) -> Vec<RailRow> {
         let folded = self.split_fold(lanes);
         let mut hosts = place_agents(&self.host_tree(), folded);
-        let mut orphans = self.attach_sessions(&mut hosts);
+        let orphans = self.attach_sessions(&mut hosts);
+        let mut orphans = self.fold_orphans_by_host(&mut hosts, orphans);
         let appearance = &self.loaded.config.appearance;
         let sections = organize::organize(
             hosts,
@@ -293,8 +295,9 @@ impl App {
     ) -> Vec<RailRow> {
         let mut rows: Vec<RailRow> = Vec::new();
         // A device that hosts nothing has nowhere to start a session, so the
-        // action is absent there rather than present and refusing.
-        if self.local_sessions.is_some() {
+        // action is absent there rather than present and refusing. A remote
+        // host in scope is somewhere to start one, whatever this device does.
+        if self.local_sessions.is_some() || self.current_host.host_id().is_some() {
             rows.push(RailRow::NewSession);
         }
         // Progressive disclosure: one host is the common case, and a permanent
@@ -403,12 +406,21 @@ impl App {
         // when it hosts nothing at all: they run somewhere else, so the local
         // host's absence says nothing about them. This is why they are collected
         // before the early return rather than after it.
-        let remote = self.remote_session_rows();
+        let remote: Vec<SessionRow> = self
+            .remote_session_rows()
+            .into_iter()
+            .filter(|row| self.session_in_scope(row))
+            .collect();
         let Some(harnesses) = self.local_sessions.as_ref() else {
             let mut rows = remote;
             rows.sort_by_key(|row| row.started_at);
             return rows;
         };
+        if !self.current_host.includes("") {
+            let mut rows = remote;
+            rows.sort_by_key(|row| row.started_at);
+            return rows;
+        }
         let mut rows: Vec<SessionRow> = harnesses
             .sessions
             .rows()
