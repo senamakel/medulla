@@ -142,8 +142,14 @@ async fn a_pasted_key_pairs_a_host_the_client_can_dial_and_use() {
     client.watch(&session_id).await.unwrap();
     client.input(b"echo paired-ok\n").await.unwrap();
     pump_until(&mut client, "the shell's output", |_, host| {
-        host.screen()
-            .is_some_and(|screen| screen.lines.iter().any(|line| line.contains("paired-ok")))
+        host.screen().is_some_and(|screen| {
+            screen.cells.iter().any(|row| {
+                row.iter()
+                    .map(|cell| cell.text.as_str())
+                    .collect::<String>()
+                    .contains("paired-ok")
+            })
+        })
     })
     .await;
 
