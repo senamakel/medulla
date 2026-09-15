@@ -28,6 +28,16 @@ pub fn parse_command(args: &[String]) -> Command {
         // entirely different serving path, and falling through to either would
         // silently start the wrong program.
         Some("daemon") if args.iter().any(|a| a == "--direct") => Command::DaemonDirect,
+        // A pasted host key, or `--host` to re-run a pairing already on disk.
+        // Before the `--tui` arm for the same reason `--direct` is: a paired
+        // host has no operator screen to open.
+        Some("daemon")
+            if args.iter().skip(1).any(|a| {
+                a == "--host" || medulla_link::keys::HostKey::looks_like(a)
+            }) =>
+        {
+            Command::DaemonHost
+        }
         Some("daemon") if args.iter().any(|a| a == "--tui") => Command::DaemonTui,
         Some("daemon") => Command::Daemon,
         Some("version") | Some("--version") | Some("-v") => Command::Version,
@@ -529,6 +539,10 @@ medulla                 Start the interactive chat TUI (default)\n  \
 medulla run <text>      Submit one instruction to the embedded core and stream the cycle's events (JSON lines)\n  \
 medulla daemon [flags]  Run the daemon TUI (agents, master, workspaces, requests)\n  \
 medulla daemon --headless  Run without the operator screen (automatic when piped)\n  \
+medulla daemon <key>    Pair this machine as a remote host (the key comes from the Hosts tab)\n  \
+                        --workspace <dir>      where its sessions start\n  \
+                        --workspaces <a,b>     other directories to offer\n  \
+medulla daemon --host   Serve again with the pairing already on disk\n  \
                         --workspace <dir>      where peer tasks run\n  \
                         --no-trust-workspace   don't pre-trust it with claude\n  \
 medulla sessions        List recent claude/codex sessions as JSON\n  \
