@@ -58,6 +58,11 @@ fn enrolled_peers_keep_their_distinct_pair_keys() {
     assert_eq!(legacy.len(), 1);
     assert_eq!(legacy[0].node_id, node.peer_node_id);
     assert_eq!(legacy[0].pair_key, node.pair_key);
+
+    // A version-2 file with no peers has no peers: the legacy fields are a
+    // placeholder there, not a host to dial.
+    node.version = 2;
+    assert!(node.enrolled_peers().is_empty());
 }
 
 #[test]
