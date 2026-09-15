@@ -23,8 +23,10 @@ mod live;
 mod outline;
 pub use copilot::thread_of as copilot_thread_of;
 mod rail;
+mod remote;
 
 pub(in crate::ui::app) use live::LiveRun;
+pub(in crate::ui::app) use remote::{RemoteWorkflowCache, RemoteWorkflowIntent, WorkflowSource};
 pub(in crate::ui::app) use outline::{OutlineRow, SinkGroup};
 pub(in crate::ui::app) use rail::{WorkflowRailRow, NEW_LABEL};
 
@@ -50,6 +52,12 @@ impl App {
     /// project defaults first, then the user-global directory where authored
     /// workflows are saved.
     pub(in crate::ui::app) fn workflow_store(&self) -> Arc<dyn WorkflowStore> {
+        // A remote host outranks the test override: the override stands in
+        // for this device's files, and a tab pointed at another machine is
+        // not reading this device's files.
+        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
+            return self.remote_workflow_store(&host_id);
+        }
         if let Some(store) = &self.workflow_store_override {
             return store.clone();
         }
