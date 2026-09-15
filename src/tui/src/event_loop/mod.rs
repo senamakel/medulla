@@ -192,7 +192,6 @@ pub(crate) async fn run(
                     }
                     AppMsg::RemoteHostLiveness { host_id, liveness } => {
                         app.remote_host_liveness(&host_id, liveness);
-                        app.rebuild_host_entries();
                     }
                     AppMsg::HostPairingRun { host_id, result } => {
                         match result {
