@@ -17,7 +17,7 @@ use super::{HostFormField, HostLiveness, HostSelection};
 fn app_with_hosts(hosts: &[(&str, u16)]) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
-    let mut loaded = LoadedConfig::defaults(dir.path().join("config.toml"));
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = hosts
         .iter()
         .map(|(host, udp_port)| RemoteHostSection {
@@ -43,7 +43,7 @@ fn submit(app: &mut App, text: &str) -> Option<Cmd> {
     let prompt = app.prompt.take().expect("a prompt is open");
     match prompt.kind {
         PromptKind::HostField { form, field } => app.submit_host_field(*form, field, text.into()),
-        other => panic!("unexpected prompt {other:?}"),
+        _ => panic!("unexpected prompt kind"),
     }
 }
 
