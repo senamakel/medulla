@@ -80,9 +80,9 @@ impl App {
         let changed = self.current_host != selection;
         self.current_host = selection.clone();
         if changed {
-            self.selected = 0;
+            self.rail_index = 0;
             self.agent_anchor = None;
-            self.pane_view = PaneView::Chrome;
+            self.pane_view = PaneView::Harness;
             self.release_harness_focus();
             #[cfg(feature = "workflows")]
             if self.tab() == "Workflows" {
