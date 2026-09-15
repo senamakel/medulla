@@ -19,6 +19,7 @@ use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery, FeedbackType
 use medulla::config::LoadedConfig;
 use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
 
+use super::cmd::Cmd;
 use super::picker::*;
 use super::rail_hit::RailHit;
 

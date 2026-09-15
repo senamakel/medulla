@@ -3,6 +3,7 @@
 //! Split from [`model`](super::model) so the App struct and the commands it
 //! emits each fit under the file ceiling; nothing here is more than data.
 
+use medulla::client::{FeedbackQuery, FeedbackType};
 use medulla::runtime::WorkerOp;
 
 /// An async action the event loop must run on the app's behalf.
