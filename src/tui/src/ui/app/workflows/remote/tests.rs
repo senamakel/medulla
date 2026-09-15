@@ -136,7 +136,10 @@ fn a_bad_answer_is_reported_rather_than_folded() {
     app.remote_workflow_result("gpu-example-com", &list_id, Ok(json!({ "not": "a list" })));
     let cache = app.remote_workflow_cache("gpu-example-com");
     let error = cache.lock().unwrap().error.clone();
-    assert!(error.is_some_and(|e| e.contains("catalogue")), "{error:?}");
+    assert!(
+        error.as_deref().is_some_and(|e| e.contains("catalogue")),
+        "{error:?}"
+    );
     // And an answer nobody asked for is ignored.
     app.remote_workflow_result("gpu-example-com", "wf-bogus-9", Ok(json!([])));
 }
