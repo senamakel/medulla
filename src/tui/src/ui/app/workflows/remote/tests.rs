@@ -6,7 +6,6 @@ use std::sync::Arc;
 use medulla::config::{LoadedConfig, RemoteHostSection};
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
-use medulla::workflows::WorkflowStore;
 use serde_json::json;
 
 use super::super::super::hosts::HostSelection;
@@ -147,6 +146,8 @@ fn a_bad_answer_is_reported_rather_than_folded() {
 #[test]
 fn running_goes_over_the_link_and_authoring_is_refused() {
     let (mut app, mut rx) = app_on_remote();
+    // Selecting the host already asked for the catalogue.
+    assert_eq!(drain(&mut rx)[0].1, "store_list");
     let cmd = app.scope_workflow_cmd(Some(Cmd::RunWorkflow {
         id: "sweep".to_string(),
         inputs: Default::default(),
