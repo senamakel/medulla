@@ -183,6 +183,16 @@ pub(crate) async fn run(
                         // rail.
                         app.set_status(format!("{host_id} could not start it: {reason}"));
                     }
+                    AppMsg::RemoteWorkflowResult {
+                        host_id,
+                        request_id,
+                        result,
+                    } => {
+                        app.remote_workflow_result(&host_id, &request_id, result);
+                    }
+                    AppMsg::RemoteHostLiveness { host_id, liveness } => {
+                        app.remote_host_liveness(&host_id, liveness);
+                    }
                     AppMsg::UsageLoaded(result) => {
                         let cmd = match result {
                             Ok(data) => app.set_account_usage(data),

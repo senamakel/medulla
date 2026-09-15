@@ -132,6 +132,22 @@ pub(super) enum AppMsg {
         /// What the host said went wrong.
         reason: String,
     },
+    /// A remote host answered a workflow call.
+    RemoteWorkflowResult {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// Echoes the request the App issued.
+        request_id: String,
+        /// The tool's JSON, or the host's reason.
+        result: Result<serde_json::Value, String>,
+    },
+    /// How recently a remote host was heard from changed.
+    RemoteHostLiveness {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// The link's advisory verdict.
+        liveness: medulla::bridge::BridgeLiveness,
+    },
     /// Chats to display in the resume picker.
     OpenResume(Vec<medulla::ui::chat_store::MainChatSummary>),
     /// Confirmation that a chat was resumed.

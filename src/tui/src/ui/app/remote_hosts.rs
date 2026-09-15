@@ -27,6 +27,12 @@ pub(in crate::ui::app) enum RemoteHostStatus {
     Connecting,
     /// Answered, and its capabilities are known.
     Live,
+    /// Answered once, but not heard from for a while. The link is still
+    /// retransmitting; nothing has been given up on.
+    Degraded,
+    /// Answered once, and silent for a long while. Still advisory (protocol
+    /// §6.2): a host that comes back resumes with no reconnect.
+    Offline,
     /// The bootstrap failed. Terminal until the operator asks again, and it
     /// carries the reason because "could not connect" on its own is never enough
     /// to act on — the useful cases are an unknown host key, a missing binary
@@ -122,6 +128,8 @@ impl RemoteHostState {
                 1 => "1 session".to_string(),
                 n => format!("{n} sessions"),
             },
+            RemoteHostStatus::Degraded => "not responding".to_string(),
+            RemoteHostStatus::Offline => "offline".to_string(),
             RemoteHostStatus::Failed(reason) => reason.clone(),
         }
     }
@@ -183,6 +191,42 @@ impl App {
         let state = self.remote_hosts.entry(host_id.to_string()).or_default();
         state.status = RemoteHostStatus::Live;
         state.capabilities = capabilities;
+    }
+
+    /// Fold in the link's verdict on how recently the host was heard from.
+    ///
+    /// Only moves between the answered states: a host that never answered is
+    /// still `Connecting`, and one that failed stays failed until re-dialled.
+    pub fn remote_host_liveness(&mut self, host_id: &str, liveness: medulla::bridge::BridgeLiveness) {
+        let Some(state) = self.remote_hosts.get_mut(host_id) else {
+            return;
+        };
+        if matches!(
+            state.status,
+            RemoteHostStatus::Live | RemoteHostStatus::Degraded | RemoteHostStatus::Offline
+        ) {
+            state.status = match liveness {
+                medulla::bridge::BridgeLiveness::Live => RemoteHostStatus::Live,
+                medulla::bridge::BridgeLiveness::Degraded => RemoteHostStatus::Degraded,
+                medulla::bridge::BridgeLiveness::Offline => RemoteHostStatus::Offline,
+            };
+        }
+    }
+
+    /// Fold in a host's answer to a workflow call.
+    ///
+    /// Routed to the Workflows tab's remote store; a host with no cache for
+    /// it (the tab was never opened on that host) is ignored.
+    pub fn remote_workflow_result(
+        &mut self,
+        host_id: &str,
+        request_id: &str,
+        result: Result<serde_json::Value, String>,
+    ) {
+        #[cfg(feature = "workflows")]
+        self.fold_remote_workflow_result(host_id, request_id, result);
+        #[cfg(not(feature = "workflows"))]
+        let _ = (host_id, request_id, result);
     }
 
     /// Record that a host could not be reached, and why.

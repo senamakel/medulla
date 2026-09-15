@@ -83,6 +83,16 @@ pub(super) fn spawn_connect(
                     session_id,
                     snapshot,
                 },
+                RemoteUpdate::WorkflowResult { request_id, result } => {
+                    AppMsg::RemoteWorkflowResult {
+                        host_id,
+                        request_id,
+                        result,
+                    }
+                }
+                RemoteUpdate::Liveness(liveness) => {
+                    AppMsg::RemoteHostLiveness { host_id, liveness }
+                }
             };
             if tx.send(message).is_err() {
                 return;
