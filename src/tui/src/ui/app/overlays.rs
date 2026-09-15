@@ -22,6 +22,21 @@ impl App {
     /// One subtlety is encoded here rather than at the call sites: the resume
     /// picker and the inline prompt share the row below the content, and the
     /// prompt wins, so the picker is only on screen when no prompt is.
+    /// Whether a bare letter would land in a text field right now.
+    ///
+    /// The prompt and an attached harness are routed before any global
+    /// letter binding; this covers the one composer that is not — the
+    /// Workflows copilot — so `H` typed into it stays a letter.
+    pub(super) fn text_input_focused(&self) -> bool {
+        #[cfg(feature = "workflows")]
+        if self.tab() == "Workflows"
+            && self.wf.focus == super::types::WorkflowFocus::Copilot
+        {
+            return true;
+        }
+        false
+    }
+
     pub(super) fn visible_overlays(&self) -> Vec<Overlay> {
         [
             (Overlay::HostSwitcher, self.host_switcher.is_some()),

@@ -52,6 +52,11 @@ impl App {
             return None;
         }
 
+        // Removing a host forgets its pairing; the same one-keypress contract.
+        if self.consume_host_delete(k) {
+            return None;
+        }
+
         // Killing a harness can lose in-progress work. Once armed, the prompt
         // owns exactly one keypress: only a deliberate `y` proceeds.
         if let Some((worker, task_id)) = self.kill_armed.take() {
@@ -113,6 +118,15 @@ impl App {
                 self.handle_session_picker_key(k);
             }
             return None;
+        }
+
+        // The host switcher owns navigation while open.
+        if self.host_switcher.is_some() {
+            if ctrl && k.code == KeyCode::Char('c') {
+                self.should_quit = true;
+                return None;
+            }
+            return self.on_host_switcher_key(k.code);
         }
 
         // Resume picker owns navigation while open.
@@ -208,6 +222,20 @@ impl App {
                     return None;
                 }
                 _ => {}
+            }
+        }
+
+        // `H` switches the current host from anywhere a bare letter is not
+        // text. Before the per-tab handlers: the Sessions diff pane swallows
+        // printables, and Hosts binds lowercase letters of its own.
+        if k.code == KeyCode::Char('H') && !ctrl && !alt && !self.text_input_focused() {
+            self.open_host_switcher();
+            return None;
+        }
+
+        if tab == "Hosts" {
+            if let HostsKey::Handled(cmd) = self.on_hosts_key(k) {
+                return cmd;
             }
         }
 
