@@ -14,7 +14,6 @@ mod account;
 mod appearance;
 mod changes;
 mod commands;
-mod decisions;
 mod feedback;
 mod harness_workspace;
 #[cfg(test)]
