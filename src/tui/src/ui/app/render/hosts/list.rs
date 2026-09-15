@@ -53,7 +53,7 @@ impl App {
                 Span::styled(entry.name.clone(), style.add_modifier(Modifier::BOLD)),
                 Span::styled(
                     format!("  {}{sessions}", entry.liveness.word()),
-                    style.fg(self.theme.muted),
+                    style.fg(ratatui::style::Color::DarkGray),
                 ),
             ]));
         }

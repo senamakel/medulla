@@ -54,7 +54,7 @@ impl App {
                         }
                         _ => String::new(),
                     },
-                    style.fg(self.theme.muted),
+                    style.fg(ratatui::style::Color::DarkGray),
                 ),
             ]));
         }

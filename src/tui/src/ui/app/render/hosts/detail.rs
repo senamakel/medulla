@@ -34,7 +34,7 @@ impl App {
         let inner = block.inner(area);
         f.render_widget(block, area);
 
-        let dim = Style::default().fg(self.theme.muted);
+        let dim = Style::default().fg(ratatui::style::Color::DarkGray);
         let field = |label: &str, value: String| -> Line<'static> {
             Line::from(vec![
                 Span::styled(format!("{label:<11}"), dim),
