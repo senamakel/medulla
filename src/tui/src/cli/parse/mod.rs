@@ -32,9 +32,10 @@ pub fn parse_command(args: &[String]) -> Command {
         // Before the `--tui` arm for the same reason `--direct` is: a paired
         // host has no operator screen to open.
         Some("daemon")
-            if args.iter().skip(1).any(|a| {
-                a == "--host" || medulla_link::keys::HostKey::looks_like(a)
-            }) =>
+            if args
+                .iter()
+                .skip(1)
+                .any(|a| a == "--host" || medulla_link::keys::HostKey::looks_like(a)) =>
         {
             Command::DaemonHost
         }

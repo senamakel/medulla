@@ -242,7 +242,10 @@ impl App {
         if !host_label.is_empty() && host_label.chars().count() + 2 <= room {
             let pad = room - host_label.chars().count();
             spans.push(Span::raw(" ".repeat(pad)));
-            spans.push(Span::styled(host_label, Style::default().fg(ratatui::style::Color::DarkGray)));
+            spans.push(Span::styled(
+                host_label,
+                Style::default().fg(ratatui::style::Color::DarkGray),
+            ));
         }
         f.render_widget(Paragraph::new(TLine::from(spans)), area);
     }

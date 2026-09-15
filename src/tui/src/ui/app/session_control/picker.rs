@@ -234,7 +234,10 @@ impl App {
             // Degraded and offline still count as answered: the host's
             // capabilities are known and the link is retransmitting, so an
             // `Open` sent now is delivered when it comes back.
-            if !self.remote_host(&host.id).is_some_and(|state| state.answered()) {
+            if !self
+                .remote_host(&host.id)
+                .is_some_and(|state| state.answered())
+            {
                 self.set_status(format!("{} is still connecting…", host.label));
                 return;
             }

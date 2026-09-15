@@ -77,8 +77,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
                 .unwrap_or(dir)
         })
         .unwrap_or_else(|| cwd.clone());
-    let loaded =
-        medulla::config::load_config(explicit_config.as_deref(), &env, Path::new(&cwd))?;
+    let loaded = medulla::config::load_config(explicit_config.as_deref(), &env, Path::new(&cwd))?;
 
     // Pair first, so the key's pairing is on disk before anything is served
     // and a `--host` re-run finds it.

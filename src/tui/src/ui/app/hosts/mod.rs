@@ -20,11 +20,11 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+pub(in crate::ui::app) use keys::HostsKey;
 pub use types::{
     HostEntry, HostForm, HostFormField, HostLiveness, HostSelection, HostSwitcher, HostsState,
     PendingKey,
 };
-pub(in crate::ui::app) use keys::HostsKey;
 
 use super::remote_hosts::RemoteHostStatus;
 use super::types::{App, Cmd};
@@ -40,24 +40,25 @@ impl App {
     /// Cheap — config times a map lookup — so it runs on every change that
     /// could move a row rather than on a schedule, and never touches the disk.
     pub(in crate::ui::app) fn rebuild_host_entries(&mut self) {
-        let entries: Vec<HostEntry> = medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
-            .into_iter()
-            .filter_map(|host| {
-                let section = medulla::config::remote_host_section(
-                    &self.loaded.config.remote_hosts,
-                    &host.id,
-                )?
-                .clone();
-                let (liveness, sessions) = self.host_liveness_of(&host.id, &section);
-                Some(HostEntry {
-                    id: host.id,
-                    name: host.name,
-                    section,
-                    liveness,
-                    sessions,
+        let entries: Vec<HostEntry> =
+            medulla::config::remote_hosts(&self.loaded.config.remote_hosts)
+                .into_iter()
+                .filter_map(|host| {
+                    let section = medulla::config::remote_host_section(
+                        &self.loaded.config.remote_hosts,
+                        &host.id,
+                    )?
+                    .clone();
+                    let (liveness, sessions) = self.host_liveness_of(&host.id, &section);
+                    Some(HostEntry {
+                        id: host.id,
+                        name: host.name,
+                        section,
+                        liveness,
+                        sessions,
+                    })
                 })
-            })
-            .collect();
+                .collect();
         self.hosts.index = self.hosts.index.min(entries.len().saturating_sub(1));
         self.hosts.entries = entries;
     }
@@ -104,7 +105,9 @@ impl App {
         let section =
             medulla::config::remote_host_section(&self.loaded.config.remote_hosts, host_id)?;
         if !section.paired() {
-            self.set_status(format!("{host_id} is not paired yet — press i to issue its key"));
+            self.set_status(format!(
+                "{host_id} is not paired yet — press i to issue its key"
+            ));
             return None;
         }
         let should_dial = self
@@ -156,16 +159,10 @@ impl App {
         match crate::remote::client::pairing::mint_pairing(&state_dir, port) {
             Ok(key) => {
                 let command = crate::remote::client::pairing::pairing_command(&key);
-                if let Some(entry) = self
-                    .loaded
-                    .config
-                    .remote_hosts
-                    .iter_mut()
-                    .find(|entry| {
-                        medulla::config::remote_host_section(std::slice::from_ref(entry), host_id)
-                            .is_some()
-                    })
-                {
+                if let Some(entry) = self.loaded.config.remote_hosts.iter_mut().find(|entry| {
+                    medulla::config::remote_host_section(std::slice::from_ref(entry), host_id)
+                        .is_some()
+                }) {
                     entry.udp_port = port;
                 }
                 if let Err(error) = self.persist_remote_hosts() {
@@ -182,9 +179,7 @@ impl App {
                     .filter(|entry| entry.id == host_id)
                     .map(|entry| entry.name.clone())
                     .unwrap_or_else(|| host_id.to_string());
-                self.set_status(format!(
-                    "Run this once on {name} (copied): {command}"
-                ));
+                self.set_status(format!("Run this once on {name} (copied): {command}"));
             }
             Err(error) => self.set_status(format!("could not issue a key: {error}")),
         }

@@ -18,8 +18,14 @@ fn the_argv_is_batch_mode_quoted_and_backgrounded() {
     let argv = pairing_argv(&host, "medulla daemon HK1-AAAA-BBBB", "/srv/work space");
     assert_eq!(&argv[..2], ["-o", "BatchMode=yes"]);
     assert!(argv.windows(2).any(|w| w == ["-p", "2222"]), "{argv:?}");
-    assert!(argv.windows(2).any(|w| w == ["-i", "~/.ssh/gpu"]), "{argv:?}");
-    assert!(argv.contains(&"ops@gpu.example.com".to_string()), "{argv:?}");
+    assert!(
+        argv.windows(2).any(|w| w == ["-i", "~/.ssh/gpu"]),
+        "{argv:?}"
+    );
+    assert!(
+        argv.contains(&"ops@gpu.example.com".to_string()),
+        "{argv:?}"
+    );
     let dash = argv.iter().position(|a| a == "--").unwrap();
     assert_eq!(argv[dash + 1], "medulla");
     assert_eq!(argv[dash + 2], "daemon");

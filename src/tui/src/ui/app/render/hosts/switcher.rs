@@ -42,7 +42,11 @@ impl App {
             if index == switcher.index {
                 style = style.add_modifier(Modifier::REVERSED);
             }
-            let current = if *selection == self.current_host { "▸" } else { " " };
+            let current = if *selection == self.current_host {
+                "▸"
+            } else {
+                " "
+            };
             lines.push(Line::from(vec![
                 Span::styled(format!("{current} "), style),
                 Span::styled("● ", style.fg(color(liveness.color()))),

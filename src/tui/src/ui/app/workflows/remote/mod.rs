@@ -60,7 +60,10 @@ impl App {
     }
 
     /// A store over the cache for `host_id`.
-    pub(in crate::ui::app) fn remote_workflow_store(&self, host_id: &str) -> Arc<dyn WorkflowStore> {
+    pub(in crate::ui::app) fn remote_workflow_store(
+        &self,
+        host_id: &str,
+    ) -> Arc<dyn WorkflowStore> {
         let cache = self
             .remote_workflows
             .get(host_id)
@@ -128,10 +131,7 @@ impl App {
         let (has_record, has_runs) = {
             let cache = self.remote_workflow_cache(host_id);
             let cache = cache.lock().expect("remote workflow cache");
-            (
-                cache.records.contains_key(id),
-                cache.runs.contains_key(id),
-            )
+            (cache.records.contains_key(id), cache.runs.contains_key(id))
         };
         let by_id = serde_json::json!({ "id": id });
         if !has_record {
@@ -291,7 +291,9 @@ impl App {
         let WorkflowSource::Remote { host_id } = self.workflow_source() else {
             return cmd;
         };
-        let refused = |what: &str| format!("{what} is not available on {host_id}; press H to switch to this device");
+        let refused = |what: &str| {
+            format!("{what} is not available on {host_id}; press H to switch to this device")
+        };
         match cmd? {
             Cmd::RunWorkflow { id, inputs } => {
                 self.set_status(format!("Running {id} on {host_id}…"));

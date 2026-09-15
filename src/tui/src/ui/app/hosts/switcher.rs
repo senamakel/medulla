@@ -17,7 +17,11 @@ impl App {
                 HostLiveness::Live,
             ));
         }
-        rows.push((HostSelection::All, "All hosts".to_string(), HostLiveness::Live));
+        rows.push((
+            HostSelection::All,
+            "All hosts".to_string(),
+            HostLiveness::Live,
+        ));
         for host in medulla::config::remote_hosts(&self.loaded.config.remote_hosts) {
             let section =
                 medulla::config::remote_host_section(&self.loaded.config.remote_hosts, &host.id);
@@ -99,12 +103,11 @@ impl App {
         match &self.current_host {
             HostSelection::ThisDevice => "this device".to_string(),
             HostSelection::All => "all hosts".to_string(),
-            HostSelection::Host(id) => medulla::config::remote_host_section(
-                &self.loaded.config.remote_hosts,
-                id,
-            )
-            .map(medulla::config::remote_host_name)
-            .unwrap_or_else(|| id.clone()),
+            HostSelection::Host(id) => {
+                medulla::config::remote_host_section(&self.loaded.config.remote_hosts, id)
+                    .map(medulla::config::remote_host_name)
+                    .unwrap_or_else(|| id.clone())
+            }
         }
     }
 }

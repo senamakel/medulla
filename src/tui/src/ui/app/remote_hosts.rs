@@ -205,7 +205,11 @@ impl App {
     ///
     /// Only moves between the answered states: a host that never answered is
     /// still `Connecting`, and one that failed stays failed until re-dialled.
-    pub fn remote_host_liveness(&mut self, host_id: &str, liveness: medulla::bridge::BridgeLiveness) {
+    pub fn remote_host_liveness(
+        &mut self,
+        host_id: &str,
+        liveness: medulla::bridge::BridgeLiveness,
+    ) {
         let Some(state) = self.remote_hosts.get_mut(host_id) else {
             return;
         };

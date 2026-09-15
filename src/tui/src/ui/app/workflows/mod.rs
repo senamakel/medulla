@@ -26,9 +26,9 @@ mod rail;
 mod remote;
 
 pub(in crate::ui::app) use live::LiveRun;
-pub(in crate::ui::app) use remote::{RemoteWorkflowCache, WorkflowSource};
 pub(in crate::ui::app) use outline::{OutlineRow, SinkGroup};
 pub(in crate::ui::app) use rail::{WorkflowRailRow, NEW_LABEL};
+pub(in crate::ui::app) use remote::{RemoteWorkflowCache, WorkflowSource};
 
 #[cfg(test)]
 mod copilot_overlap_tests;

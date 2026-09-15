@@ -50,11 +50,20 @@ async fn store_reads_answer_with_the_records_themselves() {
     // The whole record, graph included — not the MCP projection.
     assert_eq!(record["graph"]["nodes"].as_array().unwrap().len(), 2);
 
-    let runs = serve_workflow_call(&store, &session, "store_list_runs", json!({ "id": "sweep" }))
-        .await
-        .unwrap();
+    let runs = serve_workflow_call(
+        &store,
+        &session,
+        "store_list_runs",
+        json!({ "id": "sweep" }),
+    )
+    .await
+    .unwrap();
     assert_eq!(runs, json!([]));
-    for tool in ["store_list_revisions", "store_list_notes", "store_list_proposals"] {
+    for tool in [
+        "store_list_revisions",
+        "store_list_notes",
+        "store_list_proposals",
+    ] {
         let value = serve_workflow_call(&store, &session, tool, json!({ "id": "sweep" }))
             .await
             .unwrap();

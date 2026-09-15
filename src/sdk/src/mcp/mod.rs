@@ -61,10 +61,10 @@ pub use attach::{
     server_command, sweep_stale_config_files, ServerSpec, ATTACHED_ENV, SERVER_COMMAND_ENV,
 };
 pub use backend::{FleetBackend, OfflineFleet};
+pub use policy::policy_from_loaded;
 pub use tools::{
     tool_definitions, ToolMode, FLEET_TOOL_NAMES, TOOL_MODE_ENV, TOOL_NAMES, TOOL_SCOPE_ENV,
 };
-pub use policy::policy_from_loaded;
 pub use types::McpSession;
 pub(crate) use types::RpcError;
 
@@ -279,8 +279,13 @@ fn unwrap_content(envelope: &Value) -> Result<Value, String> {
         .and_then(|item| item.get("text"))
         .and_then(Value::as_str)
         .unwrap_or("");
-    let value: Value = serde_json::from_str(text).unwrap_or_else(|_| Value::String(text.to_string()));
-    if envelope.get("isError").and_then(Value::as_bool).unwrap_or(false) {
+    let value: Value =
+        serde_json::from_str(text).unwrap_or_else(|_| Value::String(text.to_string()));
+    if envelope
+        .get("isError")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
         let message = value
             .get("error")
             .and_then(Value::as_str)

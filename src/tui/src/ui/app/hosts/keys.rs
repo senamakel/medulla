@@ -46,7 +46,9 @@ impl App {
                     Some(entry) => {
                         let (id, name) = (entry.id.clone(), entry.name.clone());
                         self.hosts.delete_armed = Some(id);
-                        self.set_status(format!("Remove {name}? y confirms, anything else cancels"));
+                        self.set_status(format!(
+                            "Remove {name}? y confirms, anything else cancels"
+                        ));
                     }
                     None => self.set_status("No host to remove"),
                 }
@@ -111,7 +113,10 @@ impl App {
     fn run_pairing_over_ssh(&mut self) -> Option<Cmd> {
         let entry = self.selected_host()?.clone();
         if entry.section.host.trim().is_empty() {
-            self.set_status(format!("{} has no address — press e to add one", entry.name));
+            self.set_status(format!(
+                "{} has no address — press e to add one",
+                entry.name
+            ));
             return None;
         }
         let command = match &self.hosts.pending_key {
@@ -121,7 +126,10 @@ impl App {
                 return None;
             }
         };
-        self.set_status(format!("Running the pairing command on {} over ssh…", entry.name));
+        self.set_status(format!(
+            "Running the pairing command on {} over ssh…",
+            entry.name
+        ));
         Some(Cmd::RunPairingOverSsh {
             host_id: entry.id,
             section: Box::new(entry.section),

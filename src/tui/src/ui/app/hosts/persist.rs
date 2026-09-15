@@ -36,7 +36,12 @@ impl App {
                     .is_none()
             })
             .collect();
-        if self.hosts.pending_key.as_ref().is_some_and(|key| key.host_id == host_id) {
+        if self
+            .hosts
+            .pending_key
+            .as_ref()
+            .is_some_and(|key| key.host_id == host_id)
+        {
             self.hosts.pending_key = None;
         }
         if self.current_host.host_id() == Some(host_id) {

@@ -80,7 +80,8 @@ impl RemoteWorkflowCache {
         let decode = |what: &str, error: serde_json::Error| format!("{what}: {error}");
         match intent {
             RemoteWorkflowIntent::List => {
-                self.summaries = serde_json::from_value(value).map_err(|e| decode("catalogue", e))?;
+                self.summaries =
+                    serde_json::from_value(value).map_err(|e| decode("catalogue", e))?;
                 self.listed = true;
                 // A workflow that vanished from the catalogue takes its cached
                 // detail with it, so a stale record cannot be selected.
@@ -118,8 +119,7 @@ impl RemoteWorkflowCache {
                 );
             }
             // Status answers; nothing to keep.
-            RemoteWorkflowIntent::Run(_)
-            | RemoteWorkflowIntent::Delete(_) => {}
+            RemoteWorkflowIntent::Run(_) | RemoteWorkflowIntent::Delete(_) => {}
         }
         Ok(())
     }

@@ -53,8 +53,8 @@ mod cursor_tests;
 mod hosts;
 mod organize;
 mod paging;
-mod scope;
 pub(in crate::ui::app) mod resolve;
+mod scope;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
 // both had already grown past this repository's line ceiling.

@@ -82,15 +82,9 @@ impl App {
         }
         let id = match &editing {
             Some(id) => {
-                let index = self
-                    .loaded
-                    .config
-                    .remote_hosts
-                    .iter()
-                    .position(|entry| {
-                        medulla::config::remote_host_section(std::slice::from_ref(entry), id)
-                            .is_some()
-                    });
+                let index = self.loaded.config.remote_hosts.iter().position(|entry| {
+                    medulla::config::remote_host_section(std::slice::from_ref(entry), id).is_some()
+                });
                 match index {
                     Some(index) => self.loaded.config.remote_hosts[index] = section,
                     None => self.loaded.config.remote_hosts.push(section),

@@ -105,7 +105,10 @@ impl App {
             dim,
         )));
         let text_height = lines.len() as u16;
-        f.render_widget(Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }), inner);
+        f.render_widget(
+            Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+            inner,
+        );
 
         let Some(pending) = self.hosts.pending_key.clone() else {
             return;

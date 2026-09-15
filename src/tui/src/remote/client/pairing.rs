@@ -29,7 +29,9 @@ use medulla_link::keys::{self, EnrolledPeer, ForwarderKey, HostKey, NodeId, Node
 pub fn mint_pairing(state_dir: &Path, port: u16) -> Result<HostKey, String> {
     std::fs::create_dir_all(state_dir).map_err(|error| error.to_string())?;
     let _lock = keys::lock_node_dir(state_dir).map_err(|error| match error {
-        keys::KeyError::Busy(_) => "this host is still connected; try again in a moment".to_string(),
+        keys::KeyError::Busy(_) => {
+            "this host is still connected; try again in a moment".to_string()
+        }
         other => other.to_string(),
     })?;
     let path = keys::node_path(state_dir);

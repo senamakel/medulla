@@ -29,9 +29,7 @@ impl App {
     /// Workflows copilot — so `H` typed into it stays a letter.
     pub(super) fn text_input_focused(&self) -> bool {
         #[cfg(feature = "workflows")]
-        if self.tab() == "Workflows"
-            && self.wf.focus == super::types::WorkflowFocus::Copilot
-        {
+        if self.tab() == "Workflows" && self.wf.focus == super::types::WorkflowFocus::Copilot {
             return true;
         }
         false

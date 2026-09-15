@@ -96,7 +96,9 @@ impl RemoteServer {
             };
             if let Err(reason) = &outcome {
                 if let Some(log) = &log {
-                    log(&format!("remote: workflow call {tool} from {to} failed: {reason}"));
+                    log(&format!(
+                        "remote: workflow call {tool} from {to} failed: {reason}"
+                    ));
                 }
             }
             let answer = match outcome {
