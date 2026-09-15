@@ -84,6 +84,16 @@ impl App {
         tool: &str,
         args: serde_json::Value,
     ) {
+        // Nothing to send on until the host has been dialled: the request is
+        // not recorded either, so it is asked again once the host answers
+        // rather than sitting in `pending` and deduplicating the real ask.
+        if self
+            .remote_hosts
+            .get(host_id)
+            .is_none_or(|state| state.requests.is_none())
+        {
+            return;
+        }
         let cache = self.remote_workflow_cache(host_id);
         let request_id = {
             let mut cache = cache.lock().expect("remote workflow cache");

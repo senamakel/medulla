@@ -195,10 +195,18 @@ impl App {
     }
 
     /// Fold in what a host answered with.
+    ///
+    /// A Workflows tab already pointed at this host has been waiting on
+    /// exactly this: its catalogue could not be asked for before there was a
+    /// connection to ask on, so it is asked for now.
     pub fn remote_host_connected(&mut self, host_id: &str, capabilities: RemoteCapabilities) {
         let state = self.remote_hosts.entry(host_id.to_string()).or_default();
         state.status = RemoteHostStatus::Live;
         state.capabilities = capabilities;
+        #[cfg(feature = "workflows")]
+        if self.current_host.host_id() == Some(host_id) && self.tab() == "Workflows" {
+            self.reload_workflows();
+        }
     }
 
     /// Fold in the link's verdict on how recently the host was heard from.
