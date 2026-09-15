@@ -98,7 +98,7 @@ fn adding_a_host_walks_the_form_persists_it_and_issues_a_key() {
     let written = std::fs::read_to_string(dir.path().join("config.toml")).unwrap();
     assert!(written.contains("[[remoteHosts]]"), "{written}");
     assert!(written.contains("id = \"gpu-box\""), "{written}");
-    assert!(written.contains("udpPort = 60001"), "{written}");
+    assert!(written.contains("udpPort = 62001"), "{written}");
 
     // And the key was minted, shown, and copied.
     let pending = app.hosts.pending_key.clone().expect("a key is pending");

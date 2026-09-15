@@ -29,6 +29,12 @@ pub use types::{
 use super::remote_hosts::RemoteHostStatus;
 use super::types::{App, Cmd};
 
+/// Where the port picker starts. Above mosh's own 60000–61000: a machine that
+/// already runs mosh — likely, for anyone reaching for this — has ports taken
+/// there, and a pairing that collides with one fails only when the daemon
+/// starts, on the other machine.
+pub const FIRST_UDP_PORT: u16 = 62001;
+
 impl App {
     /// Which machine Sessions and Workflows are scoped to.
     pub fn current_host(&self) -> &HostSelection {
@@ -185,7 +191,7 @@ impl App {
         }
     }
 
-    /// The lowest port from 60001 no configured host already uses.
+    /// The lowest port from [`FIRST_UDP_PORT`] no configured host already uses.
     fn next_free_udp_port(&self) -> u16 {
         let taken: Vec<u16> = self
             .loaded
@@ -194,8 +200,8 @@ impl App {
             .iter()
             .map(|host| host.udp_port)
             .collect();
-        (60001..u16::MAX)
+        (FIRST_UDP_PORT..u16::MAX)
             .find(|port| !taken.contains(port))
-            .unwrap_or(60001)
+            .unwrap_or(FIRST_UDP_PORT)
     }
 }
