@@ -210,10 +210,10 @@ impl App {
                 self.set_status(format!("Connecting to {}…", host.label));
                 return;
             }
-            if !matches!(
-                self.remote_host(&host.id).map(|state| state.status.clone()),
-                Some(crate::ui::app::remote_hosts::RemoteHostStatus::Live)
-            ) {
+            // Degraded and offline still count as answered: the host's
+            // capabilities are known and the link is retransmitting, so an
+            // `Open` sent now is delivered when it comes back.
+            if !self.remote_host(&host.id).is_some_and(|state| state.answered()) {
                 self.set_status(format!("{} is still connecting…", host.label));
                 return;
             }

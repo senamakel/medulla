@@ -118,6 +118,14 @@ impl RemoteHostState {
         )
     }
 
+    /// Whether the host has answered `Hello`, whatever the link has heard since.
+    pub(in crate::ui::app) fn answered(&self) -> bool {
+        matches!(
+            self.status,
+            RemoteHostStatus::Live | RemoteHostStatus::Degraded | RemoteHostStatus::Offline
+        )
+    }
+
     /// A short phrase for the rail and the picker.
     pub(in crate::ui::app) fn summary(&self) -> String {
         match &self.status {
