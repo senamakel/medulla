@@ -41,9 +41,7 @@ impl App {
 
     /// A key while the overlay owns the keyboard.
     pub(in crate::ui::app) fn on_host_switcher_key(&mut self, code: KeyCode) -> Option<Cmd> {
-        let Some(switcher) = self.host_switcher.as_mut() else {
-            return None;
-        };
+        let switcher = self.host_switcher.as_mut()?;
         let count = switcher.rows.len();
         match code {
             KeyCode::Up | KeyCode::Char('k') => {
