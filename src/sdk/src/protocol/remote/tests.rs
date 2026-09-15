@@ -69,6 +69,21 @@ fn every_message_round_trips() {
             session_id: "w_1".to_string(),
         },
         RemoteMessage::Sessions { rows: vec![row()] },
+        RemoteMessage::WorkflowCall {
+            request_id: "q1".to_string(),
+            tool: "store_get".to_string(),
+            args: serde_json::json!({ "id": "wf_1" }),
+        },
+        RemoteMessage::WorkflowResult {
+            request_id: "q1".to_string(),
+            result: Some(serde_json::json!({ "id": "wf_1", "name": "Deploy" })),
+            error: None,
+        },
+        RemoteMessage::WorkflowResult {
+            request_id: "q2".to_string(),
+            result: None,
+            error: Some("workflows not built".to_string()),
+        },
     ];
     for message in messages {
         let parsed = parse_remote_message(&encode_remote_message(&message))
