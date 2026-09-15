@@ -119,7 +119,6 @@ impl RemoteWorkflowCache {
             }
             // Status answers; nothing to keep.
             RemoteWorkflowIntent::Run(_)
-            | RemoteWorkflowIntent::Cancel(_)
             | RemoteWorkflowIntent::Delete(_) => {}
         }
         Ok(())
