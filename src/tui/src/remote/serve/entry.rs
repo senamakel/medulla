@@ -283,7 +283,7 @@ pub(super) fn local_sessions(
 }
 
 /// This machine's name, for the client's rail.
-fn hostname_of(env: &HashMap<String, String>) -> Option<String> {
+pub(super) fn hostname_of(env: &HashMap<String, String>) -> Option<String> {
     env.get("HOSTNAME")
         .filter(|name| !name.trim().is_empty())
         .cloned()
@@ -296,7 +296,7 @@ fn hostname_of(env: &HashMap<String, String>) -> Option<String> {
 }
 
 /// Read `--name value` or `--name=value`.
-fn flag(args: &[String], name: &str) -> Option<String> {
+pub(super) fn flag(args: &[String], name: &str) -> Option<String> {
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         if arg == name {
