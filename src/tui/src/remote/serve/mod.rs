@@ -29,8 +29,10 @@
 mod bootstrap;
 pub mod control;
 pub mod entry;
+pub mod paired;
 mod sessions;
 mod types;
+mod workflows;
 
 // Unix only, and not for want of portability: these drive a **real pty running
 // a real POSIX shell**, which is the whole of their value — they prove the relay
@@ -62,6 +64,7 @@ pub use bootstrap::{
 };
 pub use sessions::{resolve_choice, wire_choice, wire_row};
 pub use types::Subscriptions;
+pub use workflows::WorkflowHost;
 
 /// How often the serve loop samples subscribed screens.
 ///
@@ -98,6 +101,8 @@ pub struct RemoteServer {
     /// [`publish_sessions_if_changed`]: Self::publish_sessions_if_changed
     last_rows: Vec<RemoteSessionRow>,
     log: Option<LogFn>,
+    /// The workflow store served to clients, when this host serves one.
+    workflows: Option<Arc<WorkflowHost>>,
 }
 
 impl RemoteServer {
@@ -118,6 +123,7 @@ impl RemoteServer {
             peers: HashSet::new(),
             last_rows: Vec::new(),
             log: None,
+            workflows: None,
         }
     }
 
@@ -307,6 +313,11 @@ impl RemoteServer {
                 self.send(from, &encode_remote_message(&answer)).await;
                 self.publish_sessions(from).await;
             }
+            RemoteMessage::WorkflowCall {
+                request_id,
+                tool,
+                args,
+            } => self.handle_workflow_call(from, request_id, tool, args),
             RemoteMessage::Close { session_id } => {
                 if self.sessions.sessions.close(&session_id) {
                     self.log(&format!("remote: {from} closed {session_id}"));
@@ -319,6 +330,7 @@ impl RemoteServer {
             RemoteMessage::Capabilities(_)
             | RemoteMessage::Opened { .. }
             | RemoteMessage::OpenFailed { .. }
+            | RemoteMessage::WorkflowResult { .. }
             | RemoteMessage::Sessions { .. } => {
                 self.log(&format!(
                     "remote: ignored a daemon-to-client message from {from}"
