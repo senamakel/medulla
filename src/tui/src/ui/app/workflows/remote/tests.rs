@@ -152,7 +152,10 @@ fn running_goes_over_the_link_and_authoring_is_refused() {
         id: "sweep".to_string(),
         inputs: Default::default(),
     }));
-    assert!(cmd.is_none(), "the run went to the host, not the event loop");
+    assert!(
+        cmd.is_none(),
+        "the run went to the host, not the event loop"
+    );
     let calls = drain(&mut rx);
     assert_eq!(calls[0].1, "workflow_run");
 
@@ -161,8 +164,15 @@ fn running_goes_over_the_link_and_authoring_is_refused() {
         inputs: Default::default(),
     }));
     assert!(cmd.is_none());
-    assert!(app.status.contains("not available on gpu-example-com"), "{}", app.status);
-    assert!(drain(&mut rx).is_empty(), "nothing was sent for a refused action");
+    assert!(
+        app.status.contains("not available on gpu-example-com"),
+        "{}",
+        app.status
+    );
+    assert!(
+        drain(&mut rx).is_empty(),
+        "nothing was sent for a refused action"
+    );
 
     // Off the remote host, commands pass through untouched.
     app.set_current_host(HostSelection::All);

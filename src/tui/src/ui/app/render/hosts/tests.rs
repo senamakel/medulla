@@ -41,7 +41,10 @@ fn an_empty_page_says_how_to_add_a_host() {
     let (_dir, mut app) = app_with(Vec::new());
     let out = render(&mut app);
     assert!(out.contains("No hosts yet"), "{out}");
-    assert!(out.contains("a add"), "the shortcut line names the add key: {out}");
+    assert!(
+        out.contains("a add"),
+        "the shortcut line names the add key: {out}"
+    );
 }
 
 #[test]
@@ -79,7 +82,10 @@ fn the_header_names_a_narrowed_selection_and_the_switcher_draws_its_rows() {
         ..RemoteHostSection::default()
     }]);
     let out = render(&mut app);
-    assert!(!out.contains("⌂"), "the combined default is not announced: {out}");
+    assert!(
+        !out.contains("⌂"),
+        "the combined default is not announced: {out}"
+    );
     app.set_current_host(HostSelection::Host("tower".to_string()));
     let out = render(&mut app);
     assert!(out.contains("⌂ Tower"), "{out}");

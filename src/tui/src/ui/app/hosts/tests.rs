@@ -62,13 +62,19 @@ fn adding_a_host_walks_the_form_persists_it_and_issues_a_key() {
     let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('a'))));
     assert!(matches!(
         app.prompt.as_ref().map(|p| &p.kind),
-        Some(PromptKind::HostField { field: HostFormField::Name, .. })
+        Some(PromptKind::HostField {
+            field: HostFormField::Name,
+            ..
+        })
     ));
     // Name is required: an empty answer re-asks.
     assert!(submit(&mut app, "").is_none());
     assert!(matches!(
         app.prompt.as_ref().map(|p| &p.kind),
-        Some(PromptKind::HostField { field: HostFormField::Name, .. })
+        Some(PromptKind::HostField {
+            field: HostFormField::Name,
+            ..
+        })
     ));
     submit(&mut app, "GPU Box");
     submit(&mut app, "gpu.example.com");
@@ -76,7 +82,10 @@ fn adding_a_host_walks_the_form_persists_it_and_issues_a_key() {
     submit(&mut app, "sixty");
     assert!(matches!(
         app.prompt.as_ref().map(|p| &p.kind),
-        Some(PromptKind::HostField { field: HostFormField::UdpPort, .. })
+        Some(PromptKind::HostField {
+            field: HostFormField::UdpPort,
+            ..
+        })
     ));
     submit(&mut app, "");
     submit(&mut app, "ops");
@@ -94,8 +103,15 @@ fn adding_a_host_walks_the_form_persists_it_and_issues_a_key() {
     // And the key was minted, shown, and copied.
     let pending = app.hosts.pending_key.clone().expect("a key is pending");
     assert_eq!(pending.host_id, "gpu-box");
-    assert!(pending.command.starts_with("medulla daemon HK1-"), "{}", pending.command);
-    assert_eq!(clipboard.lock().unwrap().as_slice(), [pending.command.clone()]);
+    assert!(
+        pending.command.starts_with("medulla daemon HK1-"),
+        "{}",
+        pending.command
+    );
+    assert_eq!(
+        clipboard.lock().unwrap().as_slice(),
+        [pending.command.clone()]
+    );
     let state_dir =
         crate::remote::client::task::client_state_dir(&dir.path().join("home"), "gpu-box");
     assert!(medulla_link::keys::node_path(&state_dir).exists());
@@ -137,7 +153,10 @@ fn the_switcher_lists_this_device_all_hosts_and_each_host() {
     // to start here.
     let rows = app.switcher_rows();
     assert_eq!(rows[0].0, HostSelection::All);
-    assert_eq!(rows[1].0, HostSelection::Host("gpu-example-com".to_string()));
+    assert_eq!(
+        rows[1].0,
+        HostSelection::Host("gpu-example-com".to_string())
+    );
     assert_eq!(rows[2].0, HostSelection::Host("tower-local".to_string()));
     assert_eq!(rows[2].2, HostLiveness::Unpaired);
 
@@ -148,14 +167,21 @@ fn the_switcher_lists_this_device_all_hosts_and_each_host() {
         KeyModifiers::SHIFT,
     )));
     assert!(app.host_switcher.is_some());
-    assert_eq!(app.host_switcher.as_ref().unwrap().index, 0, "on the current selection");
+    assert_eq!(
+        app.host_switcher.as_ref().unwrap().index,
+        0,
+        "on the current selection"
+    );
     let _ = app.on_event(crossterm::event::Event::Key(KeyEvent::new(
         KeyCode::Char('H'),
         KeyModifiers::SHIFT,
     )));
     let cmd = app.on_event(crossterm::event::Event::Key(key(KeyCode::Enter)));
     assert!(app.host_switcher.is_none());
-    assert_eq!(*app.current_host(), HostSelection::Host("gpu-example-com".to_string()));
+    assert_eq!(
+        *app.current_host(),
+        HostSelection::Host("gpu-example-com".to_string())
+    );
     assert!(
         matches!(cmd, Some(Cmd::ConnectRemoteHost { ref host_id }) if host_id == "gpu-example-com"),
         "selecting a paired host dials it: {cmd:?}"
@@ -166,7 +192,10 @@ fn the_switcher_lists_this_device_all_hosts_and_each_host() {
     app.open_host_switcher();
     let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Esc)));
     assert!(app.host_switcher.is_none());
-    assert_eq!(*app.current_host(), HostSelection::Host("gpu-example-com".to_string()));
+    assert_eq!(
+        *app.current_host(),
+        HostSelection::Host("gpu-example-com".to_string())
+    );
 }
 
 #[test]

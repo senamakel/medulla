@@ -527,7 +527,9 @@ fn the_combined_view_files_remote_sessions_under_host_headers() {
 
     // Narrowed to one host, the header goes and only its session remains;
     // the New Session row is offered because a remote host can start one.
-    app.set_current_host(crate::ui::app::hosts::HostSelection::Host("gpu".to_string()));
+    app.set_current_host(crate::ui::app::hosts::HostSelection::Host(
+        "gpu".to_string(),
+    ));
     let rows = app.rail_rows();
     assert!(!rows.iter().any(|row| matches!(row, RailRow::Host(_))));
     assert!(matches!(rows.first(), Some(RailRow::NewSession)));

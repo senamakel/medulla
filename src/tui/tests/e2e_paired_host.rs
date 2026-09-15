@@ -13,10 +13,10 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use medulla::config::RemoteHostSection;
+use medulla_link::keys::HostKey;
 use medulla_tui::remote::client::pairing::{mint_pairing, pairing_command};
 use medulla_tui::remote::client::{PumpEvent, RemoteHost};
 use medulla_tui::remote::serve::paired;
-use medulla_link::keys::HostKey;
 
 /// A UDP port nothing is listening on right now.
 fn free_port() -> u16 {
@@ -56,7 +56,11 @@ async fn a_pasted_key_pairs_a_host_the_client_can_dial_and_use() {
     let key = mint_pairing(&state_dir, port).unwrap();
     let command = pairing_command(&key);
     let pasted = command.strip_prefix("medulla daemon ").unwrap().to_string();
-    assert_eq!(HostKey::decode(&pasted).unwrap(), key, "the command carries the key intact");
+    assert_eq!(
+        HostKey::decode(&pasted).unwrap(),
+        key,
+        "the command carries the key intact"
+    );
 
     // The host's half: `medulla daemon <key>` under its own home.
     let mut env: HashMap<String, String> = HashMap::new();
