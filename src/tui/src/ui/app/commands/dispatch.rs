@@ -124,24 +124,6 @@ impl App {
                 self.set_status("Answer sent");
                 None
             }
-            PromptKind::DecisionAnswer {
-                decision_id,
-                cycle_id,
-                question_id,
-            } => {
-                if text.is_empty() {
-                    self.set_status("Answer cancelled (empty)");
-                    return None;
-                }
-                if !self.runtime.steering_reaches_backend() {
-                    self.set_status("Answering a question is not wired to this runtime yet");
-                    return None;
-                }
-                self.runtime.answer_question(cycle_id, question_id, text);
-                self.dismissed_decisions.insert(decision_id);
-                self.set_status("Decision answered");
-                None
-            }
             PromptKind::FeedbackComment { id } => {
                 if text.is_empty() {
                     self.set_status("Comment cancelled (empty)");

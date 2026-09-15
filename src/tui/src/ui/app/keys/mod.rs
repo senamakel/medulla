@@ -142,16 +142,6 @@ impl App {
             return None;
         }
 
-        // The prepared-decision overlay owns navigation while open.
-        if self.decision_open {
-            if ctrl && k.code == KeyCode::Char('c') {
-                self.should_quit = true;
-            } else {
-                self.handle_decision_key(k.code);
-            }
-            return None;
-        }
-
         let tab = self.tab();
 
         // Global control chords.
@@ -262,10 +252,6 @@ impl App {
         }
 
         match k.code {
-            KeyCode::Char('E') if tab == "Subconscious" => {
-                self.open_decisions();
-                return None;
-            }
             KeyCode::Tab => {
                 self.tab_index = (self.tab_index + 1) % TABS.len();
                 self.selected = 0;

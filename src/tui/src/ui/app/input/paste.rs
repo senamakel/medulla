@@ -75,7 +75,7 @@ impl App {
             self.paste_into_harness_workspace(text);
             return;
         }
-        // Every remaining modal — the resume picker and the decisions board —
+        // Every remaining modal — the resume picker for now —
         // owns the keyboard and offers no field, so it swallows the paste for
         // the same reason it swallows a keystroke. Checked here rather than
         // beside the composer because a modal can be raised over *any* tab: a
