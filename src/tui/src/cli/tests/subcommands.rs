@@ -13,6 +13,21 @@ use crate::cli::*;
 fn dispatches_subcommands() {
     assert_eq!(parse_command(&argv(&[])), Command::Tui);
     assert_eq!(parse_command(&argv(&["daemon", "--foo"])), Command::Daemon);
+    assert_eq!(
+        parse_command(&argv(&["daemon", "HK1-0000-AAAA", "--workspace", "/x"])),
+        Command::DaemonHost,
+        "a pasted host key selects the paired host"
+    );
+    assert_eq!(
+        parse_command(&argv(&["daemon", "--host"])),
+        Command::DaemonHost,
+        "--host re-runs a pairing already on disk"
+    );
+    assert_eq!(
+        parse_command(&argv(&["daemon", "--direct", "--peer-node", "00"])),
+        Command::DaemonDirect,
+        "the SSH-bootstrapped daemon is untouched"
+    );
     assert_eq!(parse_command(&argv(&["version"])), Command::Version);
     assert_eq!(parse_command(&argv(&["-v"])), Command::Version);
     assert_eq!(parse_command(&argv(&["help"])), Command::Help);
