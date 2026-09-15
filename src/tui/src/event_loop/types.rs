@@ -141,6 +141,13 @@ pub(super) enum AppMsg {
         /// The tool's JSON, or the host's reason.
         result: Result<serde_json::Value, String>,
     },
+    /// The pairing command was run over ssh, and this is how it went.
+    HostPairingRun {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// `Ok` when ssh exited cleanly; otherwise what it said.
+        result: Result<(), String>,
+    },
     /// How recently a remote host was heard from changed.
     RemoteHostLiveness {
         /// Which `[[remoteHosts]]` entry.

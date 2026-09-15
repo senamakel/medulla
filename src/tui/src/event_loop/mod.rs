@@ -192,6 +192,15 @@ pub(crate) async fn run(
                     }
                     AppMsg::RemoteHostLiveness { host_id, liveness } => {
                         app.remote_host_liveness(&host_id, liveness);
+                        app.rebuild_host_entries();
+                    }
+                    AppMsg::HostPairingRun { host_id, result } => {
+                        match result {
+                            Ok(()) => app.set_status(format!(
+                                "{host_id} paired over ssh — press ⏎ on the Hosts tab to connect"
+                            )),
+                            Err(reason) => app.set_status(format!("{host_id}: ssh failed: {reason}")),
+                        }
                     }
                     AppMsg::UsageLoaded(result) => {
                         let cmd = match result {

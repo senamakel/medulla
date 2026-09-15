@@ -30,6 +30,8 @@ pub(in crate::ui::app) struct ResumePicker {
 /// see [`super::super::overlays`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(in crate::ui::app) enum Overlay {
+    /// The `H` host switcher.
+    HostSwitcher,
     /// The "start a session" picker.
     SessionPicker,
     /// The destructive confirmation before ending a local harness or remote task.
@@ -200,6 +202,14 @@ pub(in crate::ui::app) enum PromptKind {
         cycle_id: String,
         /// The pending question's id.
         question_id: String,
+    },
+    /// One field of the Hosts page's add/edit form; the answers so far ride
+    /// along so an abandoned form leaves nothing on the App.
+    HostField {
+        /// Answers collected so far.
+        form: Box<crate::ui::app::hosts::HostForm>,
+        /// The field this prompt is asking for.
+        field: crate::ui::app::hosts::HostFormField,
     },
     /// Comment on the given feedback board item.
     FeedbackComment {

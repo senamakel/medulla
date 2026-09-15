@@ -124,6 +124,7 @@ impl App {
                 self.set_status("Answer sent");
                 None
             }
+            PromptKind::HostField { form, field } => self.submit_host_field(*form, field, text),
             PromptKind::FeedbackComment { id } => {
                 if text.is_empty() {
                     self.set_status("Comment cancelled (empty)");

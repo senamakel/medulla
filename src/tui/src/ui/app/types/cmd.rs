@@ -11,6 +11,15 @@ use medulla::runtime::WorkerOp;
 pub enum Cmd {
     /// Exit the application.
     Quit,
+    /// Run the pairing command on a host over ssh, for the operator.
+    RunPairingOverSsh {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// Its SSH details.
+        section: Box<medulla::config::RemoteHostSection>,
+        /// The `medulla daemon HK1-…` line to run there.
+        command: String,
+    },
     /// Submit a composer line as a new conversational turn.
     Submit(String),
     /// Resume a previously saved chat by session id.

@@ -83,7 +83,7 @@ impl App {
             self.rail_index = 0;
             self.agent_anchor = None;
             self.pane_view = PaneView::Harness;
-            self.release_harness_focus();
+            self.release_session();
             #[cfg(feature = "workflows")]
             if self.tab() == "Workflows" {
                 self.reload_workflows();
