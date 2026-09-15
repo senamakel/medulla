@@ -111,6 +111,29 @@ impl App {
         }
     }
 
+    /// `r`: re-read the store, wherever it is.
+    ///
+    /// Locally that is a re-read of the files. On a remote host the cache is
+    /// dropped first so every record and run list is fetched again — the
+    /// whole point of pressing `r` there is to see what changed on the host.
+    pub(in crate::ui::app) fn refresh_workflows(&mut self) {
+        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
+            let cache = self.remote_workflow_cache(&host_id);
+            {
+                let mut cache = cache.lock().expect("remote workflow cache");
+                cache.records.clear();
+                cache.runs.clear();
+                cache.revisions.clear();
+                cache.notes.clear();
+                cache.proposals.clear();
+                cache.listed = false;
+            }
+            self.refresh_remote_workflows(&host_id);
+            return;
+        }
+        self.reload_workflows();
+    }
+
     /// Ask for the catalogue, and for whatever the selection needs beside it.
     pub(in crate::ui::app) fn refresh_remote_workflows(&mut self, host_id: &str) {
         self.remote_workflow_request(
