@@ -210,7 +210,7 @@ fn a_selection_scopes_which_sessions_the_rail_shows() {
     };
     assert_eq!(ids(&app).len(), 2, "the combined view lists both");
     app.set_current_host(HostSelection::Host("tower-local".to_string()));
-    assert_eq!(ids(&app), vec!["tower-local::w_2".to_string()]);
+    assert_eq!(ids(&app), vec!["tower-local/w_2".to_string()]);
     app.set_current_host(HostSelection::ThisDevice);
     assert!(ids(&app).is_empty(), "this device hosts nothing");
     app.set_current_host(HostSelection::All);
