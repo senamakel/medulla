@@ -418,7 +418,7 @@ fn daemon_master_roster_persists_public_peer_data_without_identity_secrets() {
         "[link]\nstateDir = \"/worker-link\"\nforwarderUrl = \"https://relay\"\n",
     )
     .unwrap();
-    let peer = super::Peer {
+    let peer = crate::config::Peer {
         id: "master-id".into(),
         node_id: Some("00112233445566778899aabbccddeeff".into()),
         name: Some("Primary master".into()),
