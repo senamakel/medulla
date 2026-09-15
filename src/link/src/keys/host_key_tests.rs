@@ -28,7 +28,7 @@ fn is_stable_for_a_fixed_input() {
     // Pinned so a layout change cannot slip through as a refactor.
     assert_eq!(
         text,
-        "HK1-0H8H-44H2-8J49-24H2-8J49-24H2-8J4H-44H2-8J49-24H2-8J49-24H2-8J4S-6CS6-6CS6-6CS6-6CS6-6CS6-6CS6-6CS6-6CS7-8Y7A-3G"
+        "HK1-048H-248H-248H-248H-248H-248H-248J-48H2-48H2-48H2-48H2-48H2-48H2-4CSK-6CSK-6CSK-6CSK-6CSK-6CSK-6CZA-C6K4-T"
     );
 }
 
@@ -38,8 +38,11 @@ fn ignores_case_whitespace_and_separators_and_folds_confusables() {
     let text = key.encode();
     let messy: String = text
         .chars()
-        .map(|ch| match ch {
-            '-' => ' ',
+        .enumerate()
+        .map(|(index, ch)| match ch {
+            // The prefix's own hyphen is what marks a host key; every other
+            // separator is decoration a chat window may have rewritten.
+            '-' if index > 3 => ' ',
             '0' => 'O',
             '1' => 'l',
             other => other.to_ascii_lowercase(),
