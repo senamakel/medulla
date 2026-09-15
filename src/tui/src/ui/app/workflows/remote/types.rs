@@ -36,8 +36,6 @@ pub enum RemoteWorkflowIntent {
     Proposals(String),
     /// A run was requested; the answer is its admission.
     Run(String),
-    /// A run's cancellation was requested.
-    Cancel(String),
     /// A workflow's deletion was requested.
     Delete(String),
 }

@@ -170,12 +170,36 @@ impl App {
         }
     }
 
+    /// Once a tick: re-read the selected remote workflow's runs while one is
+    /// unsettled.
+    ///
+    /// Rate-limited by the request dedupe rather than a clock — an answer has
+    /// to land before the next ask goes out — which bounds the polling to one
+    /// round trip at a time and costs nothing when every run has settled.
+    pub fn tick_remote_workflows(&mut self) {
+        if self.tab() != "Workflows" {
+            return;
+        }
+        let WorkflowSource::Remote { host_id } = self.workflow_source() else {
+            return;
+        };
+        // Roughly every second at the 90 ms frame rate: a run's steps change
+        // on that timescale, and asking every frame would only queue answers.
+        if !self.frame.is_multiple_of(11) {
+            return;
+        }
+        let Some(id) = self.selected_workflow().map(|w| w.id.clone()) else {
+            return;
+        };
+        self.poll_remote_workflow_runs(&host_id, &id);
+    }
+
     /// Re-read the selected workflow's runs from the host.
     ///
     /// The one read that is *not* cached-until-invalidated: a run in flight
     /// changes on the host without anything here knowing, so the rail polls
     /// it while one is unsettled.
-    pub(in crate::ui::app) fn poll_remote_workflow_runs(&mut self, host_id: &str, id: &str) {
+    fn poll_remote_workflow_runs(&mut self, host_id: &str, id: &str) {
         let cache = self.remote_workflow_cache(host_id);
         let unsettled = cache
             .lock()
@@ -232,7 +256,7 @@ impl App {
             | RemoteWorkflowIntent::Revisions(_) => self.reload_workflow_runs(),
             // A run was admitted (or refused): the answer is a status, and the
             // run list is what shows it.
-            RemoteWorkflowIntent::Run(id) | RemoteWorkflowIntent::Cancel(id) => {
+            RemoteWorkflowIntent::Run(id) => {
                 let error = cache.lock().expect("remote workflow cache").error.clone();
                 match error {
                     Some(error) => self.set_status(format!("{host_id}: {error}")),

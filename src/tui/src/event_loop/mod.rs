@@ -396,6 +396,9 @@ pub(crate) async fn run(
                 // last tick stops being listed, and the record it was holding
                 // is dropped with it.
                 app.sweep_finished_sessions();
+                // A remote host's run list moves on that host; the Workflows
+                // tab polls it while a run there is unsettled.
+                app.tick_remote_workflows();
                 // The subscription meters are sampled from the tick rather than
                 // on a timer of their own: `due_subscription_refresh` is the
                 // one place that knows whether a sample is switched on, stale,
