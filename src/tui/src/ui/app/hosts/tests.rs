@@ -110,7 +110,7 @@ fn adding_a_host_walks_the_form_persists_it_and_issues_a_key() {
     );
     assert_eq!(
         clipboard.lock().unwrap().as_slice(),
-        [pending.command.clone()]
+        std::slice::from_ref(&pending.command)
     );
     let state_dir =
         crate::remote::client::task::client_state_dir(&dir.path().join("home"), "gpu-box");
