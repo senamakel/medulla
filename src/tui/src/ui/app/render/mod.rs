@@ -21,6 +21,7 @@ use super::types::{App, Overlay, PaneView, TABS};
 mod changes;
 mod feedback;
 mod frame_state;
+mod hosts;
 mod points;
 mod prompt;
 mod selection;
@@ -136,6 +137,7 @@ impl App {
         // taking input behind it.
         for overlay in self.visible_overlays() {
             match overlay {
+                Overlay::HostSwitcher => self.draw_host_switcher(f, rows[2]),
                 Overlay::SessionPicker => self.draw_harness_picker(f, rows[2]),
                 Overlay::SessionKill => self.draw_session_kill_prompt(f, rows[2]),
                 Overlay::WorkflowDelete => self.draw_workflow_delete_prompt(f, rows[2]),
@@ -228,6 +230,20 @@ impl App {
             spans.push(Span::raw(gap));
             col += w + gap.len() as u16;
         }
+        // The current host, right-aligned, when there is room after the tabs.
+        // Only when a host or the combined view is selected: "this device" is
+        // the default and saying it on every frame would be noise.
+        let host_label = match self.current_host {
+            crate::ui::app::hosts::HostSelection::ThisDevice => String::new(),
+            _ => format!("⌂ {}", self.current_host_label()),
+        };
+        let used = (col - area.x) as usize;
+        let room = (area.width as usize).saturating_sub(used);
+        if !host_label.is_empty() && host_label.chars().count() + 2 <= room {
+            let pad = room - host_label.chars().count();
+            spans.push(Span::raw(" ".repeat(pad)));
+            spans.push(Span::styled(host_label, Style::default().fg(self.theme.muted)));
+        }
         f.render_widget(Paragraph::new(TLine::from(spans)), area);
     }
 
@@ -264,6 +280,8 @@ impl App {
             "Tab views · TokenMaxxxing coming soon"
         } else if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
+        } else if self.tab() == "Hosts" {
+            "Tab views · ↑↓ hosts · a add · e edit · d remove · i issue key · s ssh · ⏎ connect · u use · H switch host"
         } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ steps · v layout · i inspect · c copilot · x run · d dry-run · r refresh"
         } else if self.tab() == "Sessions" && self.pane_view == PaneView::Diff {
@@ -330,6 +348,7 @@ impl App {
             #[cfg(feature = "workflows")]
             "Workflows" => self.draw_workflows_tab(f, area),
             "TokenMaxxxing" => self.draw_points(f, area),
+            "Hosts" => self.draw_hosts_tab(f, area),
             "Feedback" => self.draw_feedback(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.
             "Settings" => self.draw_settings(f, area),
