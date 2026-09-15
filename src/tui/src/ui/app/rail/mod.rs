@@ -132,7 +132,13 @@ impl App {
     /// snapshot: lane indexes in fold rows are meaningful only to the lanes
     /// that produced them.
     pub(super) fn rail_rows_in(&self, lanes: &[AgentLane]) -> Vec<RailRow> {
-        let folded = self.split_fold(lanes);
+        // The folded lanes are this device's orchestration — dispatched tasks
+        // and the workers serving them. Scoped to one remote host, none of
+        // that is on the machine in view, so the tree is built without it.
+        let folded = match self.current_host.host_id() {
+            Some(_) => Vec::new(),
+            None => self.split_fold(lanes),
+        };
         let mut hosts = place_agents(&self.host_tree(), folded);
         let orphans = self.attach_sessions(&mut hosts);
         let mut orphans = self.fold_orphans_by_host(&mut hosts, orphans);
