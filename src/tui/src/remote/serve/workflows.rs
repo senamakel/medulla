@@ -40,7 +40,7 @@ impl WorkflowHost {
         cwd: &std::path::Path,
     ) -> Self {
         let store: Arc<dyn medulla::workflows::WorkflowStore> =
-            Arc::new(medulla::workflows::discover_store(env, cwd));
+            medulla::workflows::discover_store(env, cwd);
         let policy = medulla::mcp::policy_from_loaded(loaded);
         let session = Arc::new(medulla::mcp::McpSession::local(
             store.clone(),
