@@ -127,7 +127,8 @@ impl HostKey {
         raw[17..33].copy_from_slice(&self.host.0);
         raw[33..49].copy_from_slice(self.pair_key.as_bytes());
         raw[49..51].copy_from_slice(&self.port.to_be_bytes());
-        raw[51..53].copy_from_slice(&checksum_of(&raw[..BODY_LEN]));
+        let sum = checksum_of(&raw[..BODY_LEN]);
+        raw[51..53].copy_from_slice(&sum);
         crockford::encode_bits(&raw, PAYLOAD_BITS)
     }
 
