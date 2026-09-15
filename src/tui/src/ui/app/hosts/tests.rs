@@ -59,7 +59,7 @@ fn the_page_lists_configured_hosts_with_their_liveness() {
 fn adding_a_host_walks_the_form_persists_it_and_issues_a_key() {
     let (dir, mut app) = app_with_hosts(&[]);
     let clipboard = app.capture_clipboard();
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Char('a'))));
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('a'))));
     assert!(matches!(
         app.prompt.as_ref().map(|p| &p.kind),
         Some(PromptKind::HostField { field: HostFormField::Name, .. })
@@ -106,9 +106,9 @@ fn adding_a_host_walks_the_form_persists_it_and_issues_a_key() {
 fn re_issuing_replaces_the_key_and_removal_forgets_everything() {
     let (dir, mut app) = app_with_hosts(&[("gpu.example.com", 60001)]);
     let _ = app.capture_clipboard();
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Char('i'))));
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('i'))));
     let first = app.hosts.pending_key.clone().unwrap().command;
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Char('i'))));
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('i'))));
     let second = app.hosts.pending_key.clone().unwrap().command;
     assert_ne!(first, second, "a re-issued key is a new key");
 
@@ -118,11 +118,11 @@ fn re_issuing_replaces_the_key_and_removal_forgets_everything() {
     assert!(state_dir.exists());
 
     // `d` arms; anything but `y` cancels; `y` removes.
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Char('d'))));
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Esc)));
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('d'))));
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Esc)));
     assert_eq!(app.hosts.entries.len(), 1, "cancelled");
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Char('d'))));
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Char('y'))));
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('d'))));
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('y'))));
     assert!(app.hosts.entries.is_empty());
     assert!(app.hosts.pending_key.is_none());
     assert!(!state_dir.exists(), "the pairing is forgotten");
@@ -143,17 +143,17 @@ fn the_switcher_lists_this_device_all_hosts_and_each_host() {
 
     // `H` from another tab opens it; `H` again cycles; Enter picks.
     app.tab_index = tab_pos("Feedback");
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(KeyEvent::new(
+    let _ = app.on_event(crossterm::event::Event::Key(KeyEvent::new(
         KeyCode::Char('H'),
         KeyModifiers::SHIFT,
     )));
     assert!(app.host_switcher.is_some());
     assert_eq!(app.host_switcher.as_ref().unwrap().index, 0, "on the current selection");
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(KeyEvent::new(
+    let _ = app.on_event(crossterm::event::Event::Key(KeyEvent::new(
         KeyCode::Char('H'),
         KeyModifiers::SHIFT,
     )));
-    let cmd = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Enter)));
+    let cmd = app.on_event(crossterm::event::Event::Key(key(KeyCode::Enter)));
     assert!(app.host_switcher.is_none());
     assert_eq!(*app.current_host(), HostSelection::Host("gpu-example-com".to_string()));
     assert!(
@@ -164,7 +164,7 @@ fn the_switcher_lists_this_device_all_hosts_and_each_host() {
 
     // Escape closes without changing anything.
     app.open_host_switcher();
-    let _ = app.on_event(crate::ui::events::TuiEventInput::Key(key(KeyCode::Esc)));
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Esc)));
     assert!(app.host_switcher.is_none());
     assert_eq!(*app.current_host(), HostSelection::Host("gpu-example-com".to_string()));
 }
