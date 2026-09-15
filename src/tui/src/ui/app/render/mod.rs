@@ -136,7 +136,6 @@ impl App {
         // taking input behind it.
         for overlay in self.visible_overlays() {
             match overlay {
-                Overlay::Decisions => self.draw_decisions(f, rows[2]),
                 Overlay::SessionPicker => self.draw_harness_picker(f, rows[2]),
                 Overlay::SessionKill => self.draw_session_kill_prompt(f, rows[2]),
                 Overlay::WorkflowDelete => self.draw_workflow_delete_prompt(f, rows[2]),
@@ -265,8 +264,6 @@ impl App {
             "Tab views · TokenMaxxxing coming soon"
         } else if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
-        } else if self.tab() == "Subconscious" {
-            "Tab views · signal map · E decisions"
         } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ steps · v layout · i inspect · c copilot · x run · d dry-run · r refresh"
         } else if self.tab() == "Sessions" && self.pane_view == PaneView::Diff {
@@ -332,9 +329,6 @@ impl App {
             "Sessions" => self.draw_sessions_tab(f, area),
             #[cfg(feature = "workflows")]
             "Workflows" => self.draw_workflows_tab(f, area),
-            // Not feature-gated: the tab exists in the slim build too, and a
-            // placeholder has nothing to draw that the workflow engine provides.
-            "Subconscious" => self.draw_subconscious(f, area),
             "TokenMaxxxing" => self.draw_points(f, area),
             "Feedback" => self.draw_feedback(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.
@@ -371,7 +365,6 @@ fn compact_tab_label(name: &str, compact: bool) -> &str {
     match name {
         "Sessions" => "Sess",
         "Workflows" => "Flows",
-        "Subconscious" => "Sub",
         "Feedback" => "Feed",
         "Settings" => "Set",
         _ => name,
