@@ -64,6 +64,11 @@ impl App {
             wf: Default::default(),
             #[cfg(feature = "workflows")]
             workflow_store_override: None,
+            hosts: Default::default(),
+            current_host: Default::default(),
+            host_switcher: None,
+            #[cfg(feature = "workflows")]
+            remote_workflows: Default::default(),
             tokenmaxxing_index: 0,
             tokenmaxxing_focused: false,
             feedback: Default::default(),

@@ -616,6 +616,23 @@ pub struct App {
     /// [`remote_hosts`](crate::ui::app::remote_hosts).
     pub(in crate::ui::app) remote_hosts:
         std::collections::HashMap<String, crate::ui::app::remote_hosts::RemoteHostState>,
+    /// The Hosts tab: the list, its cursor, and the key it is showing.
+    pub(in crate::ui::app) hosts: crate::ui::app::hosts::HostsState,
+    /// Which machine Sessions and Workflows are scoped to. See
+    /// [`hosts`](crate::ui::app::hosts).
+    pub(in crate::ui::app) current_host: crate::ui::app::hosts::HostSelection,
+    /// The `H` overlay, while it is open.
+    pub(in crate::ui::app) host_switcher: Option<crate::ui::app::hosts::HostSwitcher>,
+    /// What each remote host's workflow store has answered so far, by host id.
+    ///
+    /// The Workflows tab reads a remote host through a store over this cache,
+    /// so its render path is unchanged: the cache is filled by answers to
+    /// `WorkflowCall`s the tab issues when it is scoped to that host.
+    #[cfg(feature = "workflows")]
+    pub(in crate::ui::app) remote_workflows: std::collections::HashMap<
+        String,
+        Arc<std::sync::Mutex<crate::ui::app::workflows::RemoteWorkflowCache>>,
+    >,
     /// Commands left by a handler that had no way to return one.
     ///
     /// The mouse path answers `bool` and the picker's key path answers nothing,
