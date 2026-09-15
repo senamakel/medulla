@@ -112,7 +112,7 @@ async fn a_pasted_key_pairs_a_host_the_client_can_dial_and_use() {
     let mut client = client.unwrap();
     client.hello().await.unwrap();
     pump_until(&mut client, "the host to answer hello", |events, _| {
-        events.iter().any(|event| *event == PumpEvent::Connected)
+        events.contains(&PumpEvent::Connected)
     })
     .await;
     assert_eq!(client.capabilities().host_name, "boxy");
