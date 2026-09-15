@@ -11,6 +11,7 @@
 //! time. [`RemoteHost::watch`] moves that stream. Every other session stays live
 //! and keeps appearing in the session list, which rides the reliable channel.
 
+pub mod autorun;
 mod bootstrap;
 pub mod exec;
 pub mod pairing;
