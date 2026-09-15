@@ -13,6 +13,7 @@
 
 mod bootstrap;
 pub mod exec;
+pub mod pairing;
 pub mod task;
 
 // Unix only, and not for want of portability: these drive a **real pty running
