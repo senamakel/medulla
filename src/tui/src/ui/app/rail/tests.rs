@@ -458,3 +458,84 @@ fn no_remote_hosts_means_no_remote_rows() {
         .iter()
         .all(|row| row.kind == medulla::ui::hosts::HostKind::Local));
 }
+
+/// Two remote hosts each reporting one session, and nothing local.
+fn app_with_two_remote_hosts() -> App {
+    let rt: Arc<dyn medulla::runtime::Runtime> =
+        Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.remote_hosts = ["tower", "gpu"]
+        .iter()
+        .map(|id| medulla::config::RemoteHostSection {
+            id: id.to_string(),
+            host: format!("{id}.local"),
+            udp_port: 60001,
+            enabled: true,
+            ..medulla::config::RemoteHostSection::default()
+        })
+        .collect();
+    let mut app = App::new(rt, loaded);
+    let row = |id: &str| medulla::protocol::RemoteSessionRow {
+        id: id.to_string(),
+        label: "shell".to_string(),
+        provider: "shell".to_string(),
+        preset: None,
+        state: medulla::protocol::RemoteSessionState::Running,
+        cwd: "/".to_string(),
+        name: None,
+        thread_name: None,
+        started_at: 1,
+        last_output_at: 1,
+        busy: false,
+        working: false,
+        attention: None,
+        bracketed_paste: false,
+        last_error: None,
+    };
+    app.remote_host_sessions("tower", vec![row("w_1")]);
+    app.remote_host_sessions("gpu", vec![row("w_2")]);
+    app
+}
+
+#[test]
+fn the_combined_view_files_remote_sessions_under_host_headers() {
+    let mut app = app_with_two_remote_hosts();
+    let rows = app.rail_rows();
+    let headers: Vec<String> = rows
+        .iter()
+        .filter_map(|row| match row {
+            RailRow::Host(host) => Some(host.host_id.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(headers, vec!["tower".to_string(), "gpu".to_string()]);
+    // Each session sits under its own host's header rather than loose at the
+    // bottom.
+    let order: Vec<String> = rows
+        .iter()
+        .filter_map(|row| match row {
+            RailRow::Host(host) => Some(format!("host:{}", host.host_id)),
+            RailRow::Session(session) => session.local.as_ref().map(|row| row.id.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        order,
+        vec!["host:tower", "tower/w_1", "host:gpu", "gpu/w_2"]
+    );
+
+    // Narrowed to one host, the header goes and only its session remains;
+    // the New Session row is offered because a remote host can start one.
+    app.set_current_host(crate::ui::app::hosts::HostSelection::Host("gpu".to_string()));
+    let rows = app.rail_rows();
+    assert!(!rows.iter().any(|row| matches!(row, RailRow::Host(_))));
+    assert!(matches!(rows.first(), Some(RailRow::NewSession)));
+    let sessions: Vec<String> = rows
+        .iter()
+        .filter_map(|row| match row {
+            RailRow::Session(session) => session.local.as_ref().map(|row| row.id.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(sessions, vec!["gpu/w_2".to_string()]);
+}
