@@ -62,11 +62,26 @@ pub const PAIRING_FILE: &str = "pairing.json";
 /// that half-started.
 pub async fn run(args: &[String]) -> anyhow::Result<()> {
     let env: HashMap<String, String> = std::env::vars().collect();
-    let home = medulla::home::medulla_home(&env);
-    let explicit_config = flag(args, "--config");
-    if let Some(path) = explicit_config.as_deref() {
+    if let Some(path) = flag(args, "--config") {
         std::env::set_var(medulla::config::CONFIG_PATH_ENV, path);
     }
+    run_in(&env, args).await
+}
+
+/// [`run`] over an explicit environment.
+///
+/// The seam a test uses to stand a paired host up under a scratch home
+/// without touching the process environment; `MEDULLA_HOME` in `env` is
+/// where the pairing is read from and written to.
+///
+/// # Errors
+///
+/// As [`run`].
+pub async fn run_in(env: &HashMap<String, String>, args: &[String]) -> anyhow::Result<()> {
+    let env = env.clone();
+    let env = &env;
+    let home = medulla::home::medulla_home(env);
+    let explicit_config = flag(args, "--config");
     let cwd = std::env::current_dir()
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_else(|_| ".".to_string());
@@ -103,11 +118,11 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     // One control plane for the process: `attach_mcp` reads it process-wide,
     // and every session any server here opens is launched from this process.
     let first = client_dir(&home, pairings[0].client);
-    let _control = control::start(&env, &loaded.config, &first, |line| eprintln!("{line}")).await;
+    let _control = control::start(env, &loaded.config, &first, |line| eprintln!("{line}")).await;
     let presets =
         medulla::config::load_layered_custom_harnesses(&loaded.sources).unwrap_or_default();
     let host_name = flag(args, "--host-name")
-        .unwrap_or_else(|| hostname_of(&env).unwrap_or_else(|| "remote host".to_string()));
+        .unwrap_or_else(|| hostname_of(env).unwrap_or_else(|| "remote host".to_string()));
     let workspaces: Vec<String> = flag(args, "--workspaces")
         .map(|list| {
             list.split(',')
@@ -160,8 +175,8 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
                 }],
             },
         ));
-        let sessions = local_sessions(&env, &loaded.config, &presets, &workspace);
-        let workflows = workflow_host(&env, &loaded, Path::new(&cwd));
+        let sessions = local_sessions(env, &loaded.config, &presets, &workspace);
+        let workflows = workflow_host(env, &loaded, Path::new(&cwd));
         let mut server = RemoteServer::new(sessions, bridge, host_name.clone())
             .with_workspaces(workspaces.clone())
             .with_log(Arc::new(|line: &str| eprintln!("{line}")));
