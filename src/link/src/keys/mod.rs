@@ -16,6 +16,8 @@
 //! Nothing in this module performs enrollment. The caller supplies the state to
 //! create from ([`acquire_or_create`]); Phase 1 has no HTTP.
 
+mod crockford;
+mod host_key;
 mod pair_key;
 mod seq;
 mod store;
@@ -26,6 +28,7 @@ mod tests;
 
 use std::path::{Path, PathBuf};
 
+pub use host_key::{HostKey, HostKeyError};
 pub use pair_key::{PairKey, PairKeyError};
 pub use seq::{MemorySeq, ReservedSeq, SeqSource, RESERVATION_BLOCK};
 pub use store::{node_path, read_node_state, write_node_state, LOCK_FILE, NODE_FILE};
