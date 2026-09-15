@@ -111,3 +111,11 @@ pub struct RemoteHostSection {
     #[serde(default = "super::d_true")]
     pub enabled: bool,
 }
+
+impl RemoteHostSection {
+    /// Whether this host has been paired: it runs a daemon that this device
+    /// dials directly, rather than one bootstrapped over SSH on each use.
+    pub fn paired(&self) -> bool {
+        self.udp_port != 0
+    }
+}
