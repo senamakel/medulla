@@ -47,14 +47,14 @@ use super::rail_hit::RailHit;
 /// simply no page that edits them by hand any more. The agent-template catalog
 /// did not survive — the `.medulla/agents` store and its loader are gone with
 /// the tab, so any templates it held are no longer read.
-/// Subconscious sits after Workflows because it is the tier *under* the work
-/// rather than another view of it: what gets filtered on the way in, what is
-/// learned from the difference between expectation and outcome, and what is
-/// escalated for a human to approve. It is a tab and not a Settings subpage for
-/// the same reason Workflows is — approvals are work an operator acts on, not a
-/// setting they configure. It draws a placeholder for now, and is listed anyway,
-/// because an operator who can see where approvals will surface knows the layer
-/// is not going to act behind their back.
+/// `Hosts` is back, in a different shape. The old page managed an
+/// orchestration engine's fleet; this one manages the *machines* — the
+/// `[[remoteHosts]]` a session can run on, paired to this device with a
+/// one-shot key. It sits after Workflows because it is what the two tabs before
+/// it are scoped by: `H` picks the current host, and Sessions and Workflows
+/// follow it. `Subconscious` was in this slot; it was a placeholder for an
+/// approvals layer that never grew past a demo signal field, and it went
+/// together with the prepared-decisions overlay only it could open.
 ///
 /// `Tasks` and `Memory` are commented out rather than deleted: the code behind
 /// both still builds and their render paths are intact, so restoring either is
@@ -71,7 +71,7 @@ use super::rail_hit::RailHit;
 pub const TABS: [&str; 5] = [
     "Sessions",
     "Workflows",
-    "Subconscious",
+    "Hosts",
     "Feedback",
     "Settings",
 ];
@@ -80,10 +80,10 @@ pub const TABS: [&str; 5] = [
 /// draw anything.
 ///
 /// This is the workflow-enabled list minus `Workflows`: every remaining tab —
-/// the Sessions rail with its `d` diff pane, the live Subconscious signal
-/// field, Feedback, and Settings — renders without the workflow engine.
+/// the Sessions rail with its `d` diff pane, Hosts, Feedback, and Settings —
+/// renders without the workflow engine.
 #[cfg(not(feature = "workflows"))]
-pub const TABS: [&str; 4] = ["Sessions", "Subconscious", "Feedback", "Settings"];
+pub const TABS: [&str; 4] = ["Sessions", "Hosts", "Feedback", "Settings"];
 
 /// The TokenMaxxxing tab's sidebar pages.
 pub(in crate::ui::app) const TOKENMAXXING_SUBPAGES: [&str; 3] =
@@ -567,10 +567,6 @@ pub struct App {
     pub(in crate::ui::app) changes: super::super::changes::GitChangesState,
     pub(in crate::ui::app) draft: Draft,
     pub(in crate::ui::app) selected: usize,
-    /// The Subconscious tab's animated signal graph. Held on the app because its
-    /// simulation has to survive between frames; it is advanced by the draw
-    /// path, which is the only thing that looks at it.
-    pub(in crate::ui::app) graph: super::super::render::graph::Graph,
     pub(in crate::ui::app) status: String,
     /// A persistent "update vX.Y.Z available" banner, set by the background
     /// update checker; shown in the header until the app exits.
@@ -653,12 +649,6 @@ pub struct App {
     /// Feedback-board state (lazily loaded on entry / refresh).
     pub(in crate::ui::app) feedback: FeedbackState,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
-    /// Whether the prepared-decision modal is visible.
-    pub(in crate::ui::app) decision_open: bool,
-    /// Highlighted decision row.
-    pub(in crate::ui::app) decision_index: usize,
-    /// Session-local ids intentionally hidden by the operator.
-    pub(in crate::ui::app) dismissed_decisions: std::collections::BTreeSet<String>,
     pub(in crate::ui::app) prompt: Option<Prompt>,
     /// The animation frame counter: one per event-loop tick (~90ms).
     ///
