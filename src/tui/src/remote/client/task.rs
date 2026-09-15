@@ -57,6 +57,15 @@ pub enum RemoteRequest {
     },
     /// End a session.
     Close(String),
+    /// Run one workflow operation on the host's own store.
+    WorkflowCall {
+        /// Correlates the answer.
+        request_id: String,
+        /// The tool name — a `store_*` read or a `workflow_*` MCP tool.
+        tool: String,
+        /// The tool's arguments.
+        args: serde_json::Value,
+    },
 }
 
 /// What a connected host tells the App.
@@ -84,6 +93,18 @@ pub enum RemoteUpdate {
         /// The screen, ready for the ordinary renderer.
         snapshot: Box<ScreenSnapshot>,
     },
+    /// The host answered a workflow call.
+    WorkflowResult {
+        /// Echoes the request.
+        request_id: String,
+        /// The tool's JSON, or the host's reason.
+        result: Result<serde_json::Value, String>,
+    },
+    /// How recently the host was heard from changed.
+    ///
+    /// Advisory (protocol §6.2): the link keeps retransmitting, so `Offline`
+    /// is a hint for the rail, never a reason to drop the connection.
+    Liveness(medulla::bridge::BridgeLiveness),
 }
 
 /// Bring `section` up and serve it until the request channel closes.
@@ -100,7 +121,14 @@ pub async fn run(
     mut requests: tokio::sync::mpsc::UnboundedReceiver<RemoteRequest>,
     updates: tokio::sync::mpsc::UnboundedSender<(String, RemoteUpdate)>,
 ) {
-    let mut host = match RemoteHost::connect(&host_id, &section, &state_dir, &workspace).await {
+    // A paired host is dialled straight at the port its key named; an entry
+    // with only SSH details is bootstrapped the older way.
+    let connected = if section.paired() {
+        RemoteHost::dial(&host_id, &section, &state_dir).await
+    } else {
+        RemoteHost::connect(&host_id, &section, &state_dir, &workspace).await
+    };
+    let mut host = match connected {
         Ok(host) => host,
         Err(reason) => {
             let _ = updates.send((host_id, RemoteUpdate::Failed(reason)));
@@ -124,6 +152,7 @@ pub async fn run(
     // holds the previous session's, and an equal grid looks like "nothing
     // changed".
     let mut last_screen: Option<(String, ScreenSnapshot)> = None;
+    let mut last_liveness: Option<medulla::bridge::BridgeLiveness> = None;
 
     loop {
         // Requests first, so a keystroke is not held behind a tick.
@@ -150,6 +179,9 @@ pub async fn run(
                     session_id,
                 },
                 super::PumpEvent::OpenFailed(reason) => RemoteUpdate::OpenFailed(reason),
+                super::PumpEvent::WorkflowResult { request_id, result } => {
+                    RemoteUpdate::WorkflowResult { request_id, result }
+                }
             };
             let _ = updates.send((host_id.clone(), update));
         }
@@ -176,6 +208,16 @@ pub async fn run(
                     snapshot: Box::new(update.1),
                 },
             ));
+        }
+
+        // Reported on change only, and only once the host has answered: a
+        // link that has not heard anything yet is "connecting", not "offline".
+        if answered {
+            let liveness = host.liveness().await;
+            if last_liveness != Some(liveness) {
+                last_liveness = Some(liveness);
+                let _ = updates.send((host_id.clone(), RemoteUpdate::Liveness(liveness)));
+            }
         }
 
         if requests.is_closed() && requests.is_empty() {
@@ -241,6 +283,11 @@ async fn serve(
         RemoteRequest::Input(bytes) => host.input(&bytes).await,
         RemoteRequest::Resize { cols, rows } => host.resize(cols, rows).await,
         RemoteRequest::Close(session_id) => host.close(&session_id).await,
+        RemoteRequest::WorkflowCall {
+            request_id,
+            tool,
+            args,
+        } => host.workflow_call(&request_id, &tool, args).await,
     };
     if let Err(reason) = &result {
         // Surfaced rather than swallowed: a request that silently does nothing
