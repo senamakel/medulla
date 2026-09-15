@@ -231,10 +231,10 @@ impl App {
             col += w + gap.len() as u16;
         }
         // The current host, right-aligned, when there is room after the tabs.
-        // Only when a host or the combined view is selected: "this device" is
-        // the default and saying it on every frame would be noise.
+        // Only when the view is narrowed: the combined view is the default,
+        // and saying so on every frame would be noise.
         let host_label = match self.current_host {
-            crate::ui::app::hosts::HostSelection::ThisDevice => String::new(),
+            crate::ui::app::hosts::HostSelection::All => String::new(),
             _ => format!("⌂ {}", self.current_host_label()),
         };
         let used = (col - area.x) as usize;

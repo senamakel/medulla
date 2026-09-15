@@ -12,9 +12,12 @@ use medulla::config::RemoteHostSection;
 pub enum HostSelection {
     /// This machine only — the rail hides remote sessions and the picker
     /// starts here.
-    #[default]
     ThisDevice,
     /// Every machine at once, sessions grouped under a header per host.
+    ///
+    /// The default: it is what the rail always showed before there was a
+    /// selection, and narrowing is a keystroke away.
+    #[default]
     All,
     /// One remote host, by its `[[remoteHosts]]` id.
     Host(String),
