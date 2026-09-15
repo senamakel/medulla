@@ -12,7 +12,7 @@ pub const LOGO: [&str; 3] = ["      ▌  ▜ ▜   ", "▛▛▌█▌▛▌▌�
 
 pub use medulla::clipboard;
 pub use medulla::ui::{
-    agents, chat_store, command, decisions, events, fleet, git_review, harness, meters, stream,
+    agents, chat_store, command, events, fleet, git_review, harness, meters, stream,
     util, work,
 };
 

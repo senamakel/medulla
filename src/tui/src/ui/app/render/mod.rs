@@ -19,10 +19,8 @@ use crate::worker::pty::ATTENTION_GLYPH;
 use super::types::{App, Overlay, PaneView, TABS};
 
 mod changes;
-mod decisions;
 mod feedback;
 mod frame_state;
-pub(super) mod graph;
 mod points;
 mod prompt;
 mod selection;
@@ -30,9 +28,6 @@ mod session_modals;
 mod sessions;
 mod settings;
 mod status_line;
-mod subconscious;
-#[cfg(test)]
-mod subconscious_tests;
 #[cfg(feature = "workflows")]
 pub(super) mod workflows;
 
