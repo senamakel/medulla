@@ -32,8 +32,6 @@ mod load_tests;
 #[cfg(test)]
 mod local_hosts_tests;
 #[cfg(test)]
-mod persist_tests;
-#[cfg(test)]
 mod remote_hosts_tests;
 #[cfg(test)]
 mod types_tests;
@@ -55,7 +53,7 @@ pub use local_hosts::{local_host_address, local_host_name, local_hosts, LocalHos
 pub use persist::{
     clear_setting, persist_agent_declarations, persist_custom_harnesses, persist_hook_defaults,
     persist_hooks, persist_host_workspaces, persist_hub_workers, persist_link_peers,
-    persist_local_hosts, persist_root_setting, persist_section, persist_setting,
+    persist_local_hosts, persist_remote_hosts, persist_root_setting, persist_section, persist_setting,
     persist_welcome_completed, persist_workflow_workspaces,
 };
 pub use remote_hosts::{

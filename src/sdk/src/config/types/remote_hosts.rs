@@ -12,6 +12,14 @@
 //! everything else — the user, the port, the identity file, the far-side binary —
 //! has a working default or is something `ssh` already knows from the operator's
 //! own `~/.ssh/config`.
+//!
+//! Two ways to reach a host share this section. A *paired* host
+//! ([`udp_port`](RemoteHostSection::udp_port) set) runs `medulla daemon <key>`
+//! once and is dialled directly over UDP; the SSH fields are then only what the
+//! Hosts page uses to run that command for the operator. An entry with no
+//! `udp_port` is bootstrapped over SSH on every connection, which is how remote
+//! hosts worked before pairing existed and still works for a machine that was
+//! declared by hand.
 
 use serde::{Deserialize, Serialize};
 
@@ -71,6 +79,15 @@ pub struct RemoteHostSection {
     /// remote `PATH`.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub remote_command: String,
+    /// The UDP port the host's paired daemon listens on; `0` means the host
+    /// has not been paired.
+    ///
+    /// Set when the Hosts page mints a pairing key: the port travels inside the
+    /// key so `medulla daemon <key>` binds it, and the client dials
+    /// [`host`](Self::host) (or [`udp_host`](Self::udp_host)) at this port with
+    /// no SSH in between. An entry with a `host` and no `udp_port` is reached
+    /// the older way, by bootstrapping a daemon over SSH.
+    pub udp_port: u16,
     /// The UDP address to send datagrams to, when it differs from
     /// [`host`](Self::host).
     ///

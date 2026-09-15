@@ -3,7 +3,7 @@
 //! Split out of the main config tests to keep both files under the repository's
 //! 500-line ceiling.
 
-use super::*;
+use super::super::*;
 
 #[test]
 fn persists_the_welcome_flag_to_a_new_file() {
