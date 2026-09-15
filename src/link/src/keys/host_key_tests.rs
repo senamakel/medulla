@@ -43,8 +43,8 @@ fn ignores_case_whitespace_and_separators_and_folds_confusables() {
             // The prefix's own hyphen is what marks a host key; every other
             // separator is decoration a chat window may have rewritten.
             '-' if index > 3 => ' ',
-            '0' => 'O',
-            '1' => 'l',
+            '0' if index > 3 => 'O',
+            '1' if index > 3 => 'l',
             other => other.to_ascii_lowercase(),
         })
         .collect();
