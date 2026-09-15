@@ -175,7 +175,12 @@ impl<'de> Deserialize<'de> for ForwarderKey {
 /// its `Debug` is redacted.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodeState {
-    /// Schema version of this file. `1`.
+    /// Schema version of this file.
+    ///
+    /// `1` files predate the `peers` list: their single peer lives in
+    /// [`peer_node_id`](Self::peer_node_id) and [`pair_key`](Self::pair_key).
+    /// `2` files keep every peer in [`peers`](Self::peers), and an empty list
+    /// there means *no peers* rather than "look at the legacy fields".
     pub version: u32,
     /// This node's wire identifier.
     pub node_id: NodeId,
@@ -209,8 +214,13 @@ pub struct EnrolledPeer {
 
 impl NodeState {
     /// Return every enrolled peer, including the legacy single-peer fields.
+    ///
+    /// The legacy fallback applies to version-1 files only. A version-2 client
+    /// identity is minted before its first host is paired, so an empty `peers`
+    /// list is a real state there; falling back would open a session to
+    /// whatever placeholder `peer_node_id` holds.
     pub fn enrolled_peers(&self) -> Vec<EnrolledPeer> {
-        if self.peers.is_empty() {
+        if self.peers.is_empty() && self.version <= 1 {
             vec![EnrolledPeer {
                 node_id: self.peer_node_id,
                 pair_key: self.pair_key.clone(),
