@@ -182,7 +182,7 @@ impl App {
             .expect("remote workflow cache")
             .runs
             .get(id)
-            .is_some_and(|runs| runs.iter().any(|run| !run.is_settled()));
+            .is_some_and(|runs| runs.iter().any(|run| !run.status.is_settled()));
         if unsettled {
             self.remote_workflow_request(
                 host_id,
