@@ -32,7 +32,7 @@ The Rust module tree for the `medulla` SDK crate. `lib.rs` defines the public su
 - [`protocol/`](./protocol/) — Medulla's own wire protocol for the medulla TUI/daemon.
 - [`session_history/`](./session_history/) — Recent-session history for local harness sessions.
 - [`sessions/`](./sessions/) — Interactive coding-agent session management: the two lifetime classes, the two turn-source drivers, and the machinery that runs them.
-- [`ui/`](./ui/) — UI-facing data surface shared with the terminal app: `events` (the folded event log + `TuiEvent`), `agents` lane folding, `stream` token/thread derivations, the `chat_store`, the `work` panel over a harness's own todos and sub-agents, and small `util` helpers. Rendering-heavy screens (app, login, composer, theme) and the interactive onboarding screen live in the `medulla-tui` crate, which re-exports these data modules.
+- [`ui/`](./ui/) — UI-facing data surface shared with the terminal app: the `agents` lanes and the tasks dispatched to them, the `hosts` projection, the `work` panel over a harness's own todos and sub-agents, the `git_review` model behind the session change set, the `checkout` identity that says which repository, worktree, and branch a directory belongs to, and small `util` helpers. Rendering-heavy screens (app, login, composer, theme) and the interactive onboarding screen live in the `medulla-tui` crate, which re-exports these data modules.
 - [`update/`](./update/) — Release update checking and self-update.
 - [`worker_profile/`](./worker_profile/) — The persisted first-run worker profile.
 - [`workflows/`](./workflows/) — Authored, durable, multi-step work: workflow definitions and their runs.
