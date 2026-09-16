@@ -128,9 +128,9 @@ impl App {
             previously_paired_port.is_some_and(|old| udp_port != 0 && udp_port != old);
         eprintln!("DEBUG previously_paired_port={:?} udp_port={} repair={}", previously_paired_port, udp_port, repair_for_new_port);
         match editing {
-            Some(_) if repair_for_new_port => self.issue_host_key(&id),
-            Some(_) => self.set_status(format!("Saved {id}")),
-            None => self.issue_host_key(&id),
+            Some(_) if repair_for_new_port => { eprintln!("DEBUG arm=repair"); self.issue_host_key(&id); }
+            Some(_) => { eprintln!("DEBUG arm=saved"); self.set_status(format!("Saved {id}")); }
+            None => { eprintln!("DEBUG arm=new"); self.issue_host_key(&id); }
         }
         None
     }
