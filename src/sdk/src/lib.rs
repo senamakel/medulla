@@ -7,6 +7,7 @@ pub mod access;
 pub mod agent;
 pub mod attribution;
 pub mod auth;
+pub mod backend;
 pub mod bridge;
 pub mod client;
 pub mod clipboard;
