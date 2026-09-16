@@ -9,8 +9,21 @@
 //! here touches the network.
 
 use std::path::Path;
+use std::time::Duration;
 
-use medulla_link::keys::{self, EnrolledPeer, ForwarderKey, HostKey, NodeId, NodeState, Role};
+use medulla_link::keys::{self, EnrolledPeer, ForwarderKey, HostKey, KeyError, NodeId, NodeState, Role};
+
+/// How long re-issuing a key waits for a just-dropped connection's identity
+/// lock to clear, and how often it checks.
+///
+/// Disconnecting a host only drops the App's sender; the connection task
+/// notices on its next tick and releases the lock when it unwinds, so the
+/// very next `mint_pairing` call — issuing a fresh key for a host that was
+/// connected a moment ago — otherwise loses this race almost every time. Both
+/// numbers are small because the lock is local-filesystem-only and the task
+/// unwind that releases it has nothing to wait on itself.
+const LOCK_RETRY_BUDGET: Duration = Duration::from_millis(200);
+const LOCK_RETRY_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Mint (or re-mint) the pairing for the host whose client state lives in
 /// `state_dir`, listening on `port`.
@@ -24,16 +37,11 @@ use medulla_link::keys::{self, EnrolledPeer, ForwarderKey, HostKey, NodeId, Node
 /// # Errors
 ///
 /// When the directory cannot be created or written, or when a connection to
-/// this host is still holding its identity lock — the caller should drop the
-/// connection and try again.
+/// this host is still holding its identity lock after [`LOCK_RETRY_BUDGET`]
+/// — the caller should drop the connection and try again.
 pub fn mint_pairing(state_dir: &Path, port: u16) -> Result<HostKey, String> {
     std::fs::create_dir_all(state_dir).map_err(|error| error.to_string())?;
-    let _lock = keys::lock_node_dir(state_dir).map_err(|error| match error {
-        keys::KeyError::Busy(_) => {
-            "this host is still connected; try again in a moment".to_string()
-        }
-        other => other.to_string(),
-    })?;
+    let _lock = lock_node_dir_with_retry(state_dir)?;
     let path = keys::node_path(state_dir);
     let client = keys::read_node_state(&path)
         .ok()
