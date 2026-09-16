@@ -10,7 +10,7 @@ use super::super::rail::RailRow;
 use super::super::types::{App, Cmd};
 #[cfg(test)]
 use crate::ui::agents::{agent_row_model_paged, AgentRow};
-use crate::ui::agents::{AgentRole, TaskStatus};
+use crate::ui::agents::TaskStatus;
 
 /// How many of a lane's task sublanes one page reveals.
 ///
@@ -231,18 +231,11 @@ impl App {
         };
         let task = session.task.as_ref()?;
         let lane = lanes.get(session.lane_index?)?;
-        // `Agent` is main's name for a roster agent / delegated task / peer
-        // session — the tiers above it (orchestrator, reasoning, compress) run
-        // no watchable harness.
-        if lane.role != AgentRole::Agent {
-            return None;
-        }
         let agent_id = lane.agent_id.as_deref()?;
         // Streams are addressed to the worker's link address; a lane
         // carries its roster id. A worker added by address is registered under
         // it, so that is the fallback.
         let address = self
-            .runtime
             .workers()
             .into_iter()
             .find(|w| w.id == agent_id)

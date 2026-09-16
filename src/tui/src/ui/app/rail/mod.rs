@@ -41,7 +41,7 @@ use medulla::fleet::AgentDeclaration;
 use medulla::ui::hosts::{HostAgentRow, HostKind, HostRow};
 
 use super::types::App;
-use crate::ui::agents::{ordered_tasks, AgentLane, AgentRole};
+use crate::ui::agents::{ordered_tasks, AgentLane};
 use crate::worker::pty::SessionRow;
 
 mod cleanup;
@@ -153,17 +153,12 @@ impl App {
         self.flatten(sections, orphans, lanes)
     }
 
-    /// Fold the lane rows into per-agent groups.
-    ///
-    /// Only agent-role lanes produce anything. The orchestrator's own lane, the
-    /// `── functions ──` divider and the function lanes beneath it used to be
-    /// carried through as rows of their own; the rail lists sessions now, and
-    /// none of those is one.
+    /// Fold the lane rows into per-agent groups: one group per roster agent,
+    /// holding the tasks dispatched to it.
     fn split_fold(&self, lanes: &[AgentLane]) -> Vec<AgentGroup> {
         lanes
             .iter()
             .enumerate()
-            .filter(|(_, lane)| lane.role == AgentRole::Agent)
             .map(|(lane_index, lane)| {
                 let mut group = self.group_for_lane(lane, lane_index);
                 group.sessions = ordered_tasks(&lane.tasks)
