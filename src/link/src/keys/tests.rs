@@ -149,6 +149,15 @@ fn a_pair_key_never_prints_itself() {
 // ------------------------------------------------------------- identity file
 
 #[test]
+fn legacy_orchestrator_roles_load_as_owners_but_write_as_owners() {
+    assert_eq!(
+        serde_json::from_str::<Role>("\"orchestrator\"").unwrap(),
+        Role::Owner
+    );
+    assert_eq!(serde_json::to_string(&Role::Owner).unwrap(), "\"owner\"");
+}
+
+#[test]
 fn an_identity_is_created_then_loaded_unchanged() {
     let dir = tempfile::tempdir().unwrap();
     let path = link_dir(dir.path());

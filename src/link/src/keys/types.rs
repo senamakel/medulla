@@ -48,6 +48,7 @@ pub type KeyResult<T> = Result<T, KeyError>;
 pub enum Role {
     /// The owner side: the `medulla` that dispatches over the link. Sets the
     /// direction bit.
+    #[serde(alias = "orchestrator")]
     Owner,
     /// A remote host. Clears the direction bit.
     Host,
