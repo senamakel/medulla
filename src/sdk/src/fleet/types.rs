@@ -1,6 +1,9 @@
-//! Shared data types for the runtime abstraction.
-#[allow(unused_imports)]
-use super::*;
+//! Roster and worker-registry data types shared by the hub, the protocol
+//! service, and the UI.
+
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+
 /// A connected agent medulla can delegate to.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct AgentDescriptor {
@@ -39,6 +42,7 @@ pub struct AgentDescriptor {
     #[serde(default)]
     pub metadata: Map<String, Value>,
 }
+
 /// Latest liveness reading for one roster agent (remote transports only).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct AgentPresence {
@@ -49,6 +53,7 @@ pub struct AgentPresence {
     /// Timestamp of the liveness observation.
     pub at: i64,
 }
+
 /// One wrapper session on a peer machine, as shown in the Agents view.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PeerSession {
@@ -61,38 +66,7 @@ pub struct PeerSession {
     /// Timestamp of the most recent observation.
     pub last_seen_at: i64,
 }
-/// One row in the Chat-tab thread sidebar.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ThreadSummary {
-    /// Stable thread identifier.
-    pub id: String,
-    /// Human-facing thread name.
-    pub name: String,
-    /// Whether the thread is processing a turn.
-    pub running: bool,
-    /// Number of recorded turns.
-    pub turns: usize,
-    /// Number of delegated tasks still running.
-    pub running_tasks: usize,
-    /// Number of tasks or questions awaiting operator attention.
-    pub attention: usize,
-}
-/// This endpoint's own host-link identity, as the TUI displays it.
-#[derive(Debug, Clone, PartialEq)]
-pub struct LinkIdentity {
-    /// The node name peers address this endpoint by.
-    pub node_name: String,
-    /// The forwarder this endpoint links through.
-    pub forwarder: String,
-}
-/// The last cycle's result, as surfaced in the Overview tab.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct CycleResultSummary {
-    /// Number of orchestration passes consumed.
-    pub pass_count: i64,
-    /// Final task state keyed by task identifier.
-    pub task_ledger: HashMap<String, TaskDigest>,
-}
+
 /// One managed worker peer, projected from a `worker.list` entry. A worker is a
 /// remote host-link peer the orchestrator can delegate to. §4.2 is load-bearing:
 /// `id` is the registry's own stable handle (for select/edit/remove), `address` is
@@ -133,6 +107,7 @@ pub struct WorkerInfo {
     /// when none were reported. Display-only.
     pub readiness: Vec<crate::protocol::HarnessReadiness>,
 }
+
 /// A mutation on the worker-peer registry (`worker.add`/`select`/`update`/`remove`).
 #[derive(Debug, Clone)]
 pub enum WorkerOp {
@@ -170,83 +145,4 @@ pub enum WorkerOp {
         /// Registry identifier of the worker to probe.
         id: String,
     },
-}
-/// The event stream's health, surfaced in the header when a cycle runs under the
-/// core runtime (§01 "lossy-but-not-silently").
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StreamState {
-    /// `seq` is contiguous; the go-forward tap is trusted.
-    Live,
-    /// A `seq` gap was seen; a `snapshot.get` rebaselined the folded views.
-    Resyncing,
-    /// The stream has produced nothing for too long while a cycle is still in flight.
-    Stalled,
-}
-/// One inspected context chunk (`inspect_context`).
-#[derive(Debug, Clone, PartialEq)]
-pub struct ContextItem {
-    /// Stable reference used when citing the context chunk.
-    pub ref_: String,
-    /// Context source or content kind.
-    pub kind: String,
-    /// Encoded size of the context chunk.
-    pub bytes: usize,
-    /// Human-readable context contents.
-    pub content: String,
-}
-/// The full render snapshot (see spec 01 appendix).
-#[derive(Debug, Clone, Default)]
-pub struct RuntimeSnapshot {
-    /// Active main-session identifier.
-    pub session_id: String,
-    /// Whether a cycle is currently in flight.
-    pub running: bool,
-    /// Folded orchestration event stream.
-    pub events: Vec<EventEnvelope>,
-    /// Events projected into the chat surface.
-    pub chat_events: Vec<EventEnvelope>,
-    /// Materialized chat transcript.
-    pub messages: Vec<ChatMessage>,
-    /// Summary of the most recently completed cycle.
-    pub last_result: Option<CycleResultSummary>,
-    /// Whether verbose tracing is enabled.
-    pub tracing: bool,
-    /// Agents currently known to the runtime.
-    pub roster: Vec<AgentDescriptor>,
-    /// The declared capacity the roster's agents sit in: hosts, harnesses,
-    /// workspaces, and the agent-template catalog. Empty on runtimes that
-    /// declare none, which every fleet surface reads as "nothing declared".
-    pub capacity: crate::runtime::fleet::CapacitySnapshot,
-    /// Latest liveness observation keyed by agent identifier.
-    pub presence: HashMap<String, AgentPresence>,
-    /// Wrapper sessions grouped by peer identifier.
-    pub sessions: HashMap<String, Vec<PeerSession>>,
-    /// This installation's host-link identity, when configured.
-    pub link: Option<LinkIdentity>,
-    /// Resumable chat threads.
-    pub threads: Vec<ThreadSummary>,
-    /// Thread currently selected for input.
-    pub active_thread_id: String,
-    /// Latest agent-harness status, when the backing runtime exposes the public
-    /// harness contract. `None` until (and unless) the backend surfaces one; the
-    /// Agents view renders the compact task board only while it is `Some`.
-    pub harness: Option<crate::harness_contract::HarnessStatus>,
-    /// Bumped each time the backing runtime rebaselines its folded event log —
-    /// e.g. the core runtime clearing state ahead of a reconnect replay — which
-    /// restarts the local `seq`s in [`events`](RuntimeSnapshot::events). Pollers
-    /// tracking a "last streamed seq" cursor must rewind it when this changes,
-    /// or every rebaselined event lands at or below the stale cursor and is
-    /// silently dropped. Stays `0` on runtimes that never rebaseline.
-    pub replay_epoch: u64,
-}
-/// The correlation receipt an instruct-style submit returns, when the backing
-/// wire carries one (the core runtime's `instruct` `res`, serve-protocol §4.1).
-/// It lets a poller tie a later `cycle_end` back to *this* submission instead
-/// of completing on the first cycle end it happens to observe.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SubmitReceipt {
-    /// The instruction id the runtime minted for this submission, if reported.
-    pub instruction_id: Option<String>,
-    /// The cycle id this instruction will run under, if reported.
-    pub cycle_id: Option<String>,
 }
