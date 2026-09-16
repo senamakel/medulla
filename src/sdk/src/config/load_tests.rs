@@ -373,7 +373,7 @@ fn load_config_layers_router_section_from_toml() {
     std::fs::create_dir_all(home_of(&home)).unwrap();
     std::fs::write(
         home_of(&home).join("config.toml"),
-        "[router]\nbaseUrl = \"https://gateway.internal/v1\"\napiKeyEnv = \"MEDULLA_ROUTER_KEY\"\n\n[router.models]\nreasoning = \"gpt-tier-a\"\n",
+        "[router]\nbaseUrl = \"https://gateway.internal/v1\"\napiKeyEnv = \"MEDULLA_ROUTER_KEY\"\n",
     )
     .unwrap();
     std::fs::create_dir_all(cwd.join(".medulla")).unwrap();
@@ -392,7 +392,6 @@ fn load_config_layers_router_section_from_toml() {
     let router = loaded.config.router.expect("router section merged");
     // Global top-level survives the merge.
     assert_eq!(router.api_key_env.as_deref(), Some("MEDULLA_ROUTER_KEY"));
-    assert_eq!(router.model_for_tier("reasoning"), Some("gpt-tier-a"));
     // Project-local provider override wins for claude; codex inherits top-level.
     assert_eq!(
         router.base_url_for("claude"),

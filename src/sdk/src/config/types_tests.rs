@@ -217,7 +217,6 @@ fn router_section_round_trips_camel_case() {
         r#"{"router":{
             "baseUrl":"https://gateway.internal/v1",
             "apiKeyEnv":"MEDULLA_ROUTER_KEY",
-            "models":{"reasoning":"gpt-tier-a","compress":"gpt-tier-c"},
             "providers":{"claude":{"baseUrl":"https://gateway.internal/anthropic"}}
         }}"#,
     )
@@ -228,9 +227,6 @@ fn router_section_round_trips_camel_case() {
         Some("https://gateway.internal/v1")
     );
     assert_eq!(router.api_key_env.as_deref(), Some("MEDULLA_ROUTER_KEY"));
-    assert_eq!(router.model_for_tier("reasoning"), Some("gpt-tier-a"));
-    assert_eq!(router.model_for_tier("compress"), Some("gpt-tier-c"));
-    assert_eq!(router.model_for_tier("orchestrator"), None);
 
     // Re-serialize and confirm camelCase keys survive (never snake_case).
     let out = serde_json::to_string(&cfg).unwrap();

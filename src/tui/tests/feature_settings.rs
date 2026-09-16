@@ -541,7 +541,6 @@ fn config_subpage_shows_effective_router_without_the_key_value() {
     l.config.router = Some(medulla::config::RouterConfig {
         base_url: Some("https://gw.example/v1".into()),
         api_key_env: Some(KEY_ENV.into()),
-        models: std::collections::HashMap::new(),
         providers,
         provider_only: Vec::new(),
     });

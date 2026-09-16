@@ -81,10 +81,8 @@ pub struct RouterProviderConfig {
 /// proxy) the worker points its harnesses at, so inference is centralized,
 /// metered, and re-routable without hand-editing each harness's on-disk config.
 ///
-/// camelCase on the wire (`baseUrl`, `apiKeyEnv`, `models`,
-/// `providers.<p>.baseUrl`), matching the contract served at
-/// `GET/PUT /medulla/v1/router`. Absent
-/// entirely means the feature is off — zero behaviour change.
+/// camelCase on the wire (`baseUrl`, `apiKeyEnv`, `providers.<p>.baseUrl`).
+/// Absent entirely means the feature is off — zero behaviour change.
 ///
 /// The API key is referenced by env-var **name** (`apiKeyEnv`), never inlined:
 /// it is resolved from the daemon's own environment at spawn and excluded from
@@ -99,10 +97,6 @@ pub struct RouterConfig {
     /// Env-var NAME holding the API key — never the secret itself.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key_env: Option<String>,
-    /// Tier → model/SKU mapping (`reasoning` / `compress` / `orchestrator`). A
-    /// missing tier falls through to the harness's own configuration.
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub models: HashMap<String, String>,
     /// Per-provider overrides, keyed by provider id (`claude` / `codex` /
     /// `opencode`).
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -141,11 +135,6 @@ impl RouterConfig {
             .filter(|s| !s.is_empty())
     }
 
-    /// The model/SKU mapped for `tier`, or `None` when the router leaves it to
-    /// the harness.
-    pub fn model_for_tier(&self, tier: &str) -> Option<&str> {
-        self.models.get(tier).map(String::as_str)
-    }
 }
 
 /// Operator-declared budget numbers for one provider in the `[budget]` section.
