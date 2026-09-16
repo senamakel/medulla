@@ -1,11 +1,6 @@
-//! Unit tests for slash-command parsing and the `/copy` helper.
+//! Unit tests for slash-command parsing and the catalog.
 
 use super::*;
-use crate::ui::events::{EventEnvelope, TuiEvent};
-
-fn ev(seq: u64, event: TuiEvent) -> EventEnvelope {
-    EventEnvelope { seq, at: 0, event }
-}
 
 #[test]
 fn non_slash_input_is_not_a_command() {
@@ -17,10 +12,6 @@ fn non_slash_input_is_not_a_command() {
 fn simple_commands_and_aliases() {
     assert_eq!(parse("/quit"), Some(SlashCommand::Quit));
     assert_eq!(parse("/q"), Some(SlashCommand::Quit));
-    assert_eq!(parse("/new"), Some(SlashCommand::NewSession));
-    assert_eq!(parse("/resume"), Some(SlashCommand::Resume));
-    assert_eq!(parse("/abort"), Some(SlashCommand::Abort));
-    assert_eq!(parse("/clear"), Some(SlashCommand::ClearView));
     assert_eq!(parse("/settings"), Some(SlashCommand::Settings));
     assert_eq!(parse("/theme"), Some(SlashCommand::Settings));
     assert_eq!(parse("/fb"), Some(SlashCommand::Feedback));
@@ -29,21 +20,7 @@ fn simple_commands_and_aliases() {
 #[test]
 fn command_token_is_case_insensitive() {
     assert_eq!(parse("/QUIT"), Some(SlashCommand::Quit));
-    assert_eq!(parse("  /New  "), Some(SlashCommand::NewSession));
-}
-
-#[test]
-fn copy_validates_scope() {
-    assert_eq!(parse("/copy"), Some(SlashCommand::Copy(CopyScope::All)));
-    assert_eq!(parse("/copy all"), Some(SlashCommand::Copy(CopyScope::All)));
-    assert_eq!(
-        parse("/copy LAST"),
-        Some(SlashCommand::Copy(CopyScope::Last))
-    );
-    assert_eq!(
-        parse("/copy bogus"),
-        Some(SlashCommand::BadUsage("Usage: /copy [all|last]"))
-    );
+    assert_eq!(parse("  /Help  "), Some(SlashCommand::Help));
 }
 
 #[test]
@@ -52,23 +29,6 @@ fn unknown_command_carries_original_input() {
         parse("/frobnicate x"),
         Some(SlashCommand::Unknown("/frobnicate x".into()))
     );
-}
-
-#[test]
-fn copy_text_scopes() {
-    let events = vec![
-        ev(1, TuiEvent::User { body: "q".into() }),
-        ev(2, TuiEvent::Assistant { body: "a".into() }),
-    ];
-    assert_eq!(copy_text(&events, CopyScope::Last), "a");
-    assert_eq!(copy_text(&events, CopyScope::All), "> q\n\na");
-}
-
-#[test]
-fn copy_text_last_is_empty_without_assistant() {
-    let events = vec![ev(1, TuiEvent::User { body: "q".into() })];
-    assert_eq!(copy_text(&events, CopyScope::Last), "");
-    assert_eq!(copy_text(&[], CopyScope::All), "");
 }
 
 // --- the catalog ------------------------------------------------------------
@@ -93,8 +53,8 @@ fn every_parseable_command_is_catalogued() {
     // The other direction: a command the parser knows but the catalog omits is
     // undiscoverable — it exists only for whoever read the source.
     for name in [
-        "new", "resume", "abort", "clear", "copy", "usage", "settings", "theme", "config",
-        "feedback", "fb", "mouse", "help", "quit", "exit", "q",
+        "session", "harness", "usage", "settings", "theme", "config", "feedback", "fb", "mouse",
+        "help", "quit", "exit", "q",
     ] {
         assert!(
             lookup(name).is_some(),
@@ -128,14 +88,14 @@ fn suggestions_narrow_as_the_name_is_typed() {
     assert_eq!(suggestions("/zzz").expect("still a command line").len(), 0);
 
     // …and once an argument is being typed the choice is made.
-    assert!(suggestions("/copy last").is_none());
+    assert!(suggestions("/session codex").is_none());
     assert!(suggestions("hello").is_none(), "not a command at all");
 }
 
 #[test]
 fn usage_renders_the_argument_hint_only_when_there_is_one() {
-    assert_eq!(lookup("copy").unwrap().usage(), "/copy [all|last]");
-    assert_eq!(lookup("clear").unwrap().usage(), "/clear");
+    assert_eq!(lookup("session").unwrap().usage(), "/session [harness] [path]");
+    assert_eq!(lookup("help").unwrap().usage(), "/help");
 }
 
 #[test]
