@@ -89,21 +89,21 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     run_in(&env, args).await
 }
 
-/// Replace `--host`-less argv (or, on a platform without process
-/// replacement, spawn an equivalent child and exit this process) so the
-/// pairing key does not remain visible in this process's command line.
+/// Re-invoke this binary with the pairing key removed from argv (or, on a
+/// platform without process replacement, spawn an equivalent child and exit
+/// this process) so the key does not remain visible in this process's
+/// command line for as long as the daemon serves.
 ///
-/// `pairing` is unused beyond confirming the caller already wrote it to
-/// disk — the re-exec always serves via `--host`, which reads every pairing
-/// found there.
+/// The caller must have already written the pairing to disk: the
+/// re-invocation always serves via `--host`, which reads every pairing found
+/// there rather than expecting another key.
 ///
 /// # Errors
 ///
 /// When the current executable's path cannot be determined, or — on a
 /// platform without `exec` — when the child process cannot be spawned or
 /// exits with a signal rather than a code.
-fn reexec_without_key(args: &[String], key_arg: &str, pairing: &Pairing) -> anyhow::Result<()> {
-    let _ = pairing;
+fn reexec_without_key(args: &[String], key_arg: &str) -> anyhow::Result<()> {
     let exe = std::env::current_exe()?;
     let new_args = reexec_args(args, key_arg);
 
