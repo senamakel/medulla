@@ -1,6 +1,8 @@
 //! Tests for minting a pairing: what is kept across re-issues, what is fresh,
 //! and that the dial reads back what the host was told.
 
+use std::time::Duration;
+
 use medulla_link::keys;
 
 use super::{forget_pairing, mint_pairing, pairing_command};
