@@ -13,7 +13,7 @@ pub use tokio::sync::broadcast;
 
 pub use medulla::config::LoadedConfig;
 pub use medulla::runtime::mock::MockRuntime;
-pub use medulla::runtime::{
+pub use medulla::fleet::{
     ContextItem, Runtime, RuntimeSnapshot, StreamState, WorkerInfo, WorkerOp,
 };
 pub use medulla_tui::ui::app::App;

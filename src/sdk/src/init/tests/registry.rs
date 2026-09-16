@@ -8,7 +8,7 @@ use crate::config::TuiConfig;
 use crate::init::registry::{
     deregister_workspace, register_workspace, workspace_id, DEFAULT_HARNESS_ID,
 };
-use crate::runtime::{HarnessDescriptor, HostDescriptor, WorkspaceDescriptor};
+use crate::fleet::{HarnessDescriptor, HostDescriptor, WorkspaceDescriptor};
 
 /// A unique scratch directory per test.
 fn scratch(tag: &str) -> PathBuf {

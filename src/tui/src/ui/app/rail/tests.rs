@@ -8,7 +8,7 @@ use std::sync::Arc;
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
 use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::{AgentDeclaration, Runtime, WorkerInfo};
+use medulla::fleet::{AgentDeclaration, Runtime, WorkerInfo};
 
 use super::{AgentGroup, AgentRailRow, GroupRailRow, RailRow, NEW_SESSION_LABEL};
 use crate::ui::app::App;

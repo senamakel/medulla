@@ -17,7 +17,7 @@ use crate::ui::composer::Draft;
 use crate::ui::theme::Theme;
 use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery};
 use medulla::config::LoadedConfig;
-use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot};
+use medulla::fleet::{ContextItem, Runtime, RuntimeSnapshot};
 
 use super::cmd::Cmd;
 use super::picker::*;

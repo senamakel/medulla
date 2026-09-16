@@ -13,7 +13,7 @@
 
 use serde_json::{Map, Value};
 
-use crate::runtime::{AgentDescriptor, WorkerInfo};
+use crate::fleet::{AgentDescriptor, WorkerInfo};
 
 /// The metadata key marking a descriptor that came from the local registry
 /// rather than the backend roster.

@@ -26,7 +26,7 @@ use medulla_link::keys::NodeId;
 use medulla_link::{Link, LinkConfig as LinkTransportConfig, LinkHandle, Liveness};
 
 use crate::config::LinkConfig;
-use crate::runtime::{AgentDescriptor, AgentPresence, LinkIdentity};
+use crate::fleet::{AgentDescriptor, AgentPresence, LinkIdentity};
 
 /// How often peer liveness is folded into the observation.
 ///

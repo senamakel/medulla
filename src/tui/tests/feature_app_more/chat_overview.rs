@@ -23,7 +23,7 @@ fn events_changed_flips_then_settles() {
 #[test]
 fn link_observation_merges_into_snapshot() {
     use medulla::protocol::service::LinkObservation;
-    use medulla::runtime::{AgentDescriptor, AgentPresence, LinkIdentity};
+    use medulla::fleet::{AgentDescriptor, AgentPresence, LinkIdentity};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 

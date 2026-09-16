@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
 
 use crate::config::{persist_setting, persist_workflow_workspaces, TuiConfig};
-use crate::runtime::{HarnessDescriptor, HostDescriptor, WorkspaceDescriptor};
+use crate::fleet::{HarnessDescriptor, HostDescriptor, WorkspaceDescriptor};
 
 /// The harness a workspace is attached to when the operator has declared none.
 ///

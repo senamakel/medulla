@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use medulla::client::{FeedbackQuery, FeedbackType};
 use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
+use medulla::fleet::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
 use medulla_tui::ui::app::Cmd;
 
 use super::run_cmd as dispatch_cmd;

@@ -11,7 +11,7 @@ use crate::ui::composer::Draft;
 use crate::ui::fleet::{merge_capacity, registry_capacity};
 use crate::ui::theme::Theme;
 use medulla::config::LoadedConfig;
-use medulla::runtime::{ContextItem, Runtime};
+use medulla::fleet::{ContextItem, Runtime};
 
 use super::types::{
     App, Cmd, PaneView, ResumePicker, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_SUBSCRIPTIONS,

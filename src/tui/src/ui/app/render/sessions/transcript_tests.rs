@@ -6,7 +6,7 @@ use std::sync::Arc;
 use medulla::config::LoadedConfig;
 use medulla::harness_work::{HarnessSessionInfo, WorkSnapshot};
 use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::{AgentDeclaration, Runtime};
+use medulla::fleet::{AgentDeclaration, Runtime};
 use medulla::ui::agents::{AgentLane, AgentRole, TurnBlock};
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
