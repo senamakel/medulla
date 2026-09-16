@@ -121,23 +121,25 @@ fn reexec_without_key(args: &[String], key_arg: &str) -> anyhow::Result<()> {
 
     #[cfg(not(unix))]
     {
-        // No `exec` here, so fall back to spawn-and-exit: the pairing key
-        // is briefly visible in two processes' argv rather than one, but
-        // neither keeps running with it after this function returns.
-        let status = std::process::Command::new(&exe).args(&new_args).status()?;
-        std::process::exit(status.code().unwrap_or(1));
+        // No `exec` here, so fall back to spawn-and-exit. `spawn` — not
+        // `status`, which would block this process on the child and defeat
+        // the whole point: the child inherits stdio and keeps running
+        // independently once spawned, so this process can exit immediately
+        // rather than sitting around with the key still on its own argv for
+        // as long as the daemon serves.
+        std::process::Command::new(&exe).args(&new_args).spawn()?;
+        std::process::exit(0);
     }
 }
 
-/// Build the argv for [`reexec_without_key`]: drop `key_arg` and make sure
-/// `--host` is present so the re-invocation reads pairings from disk instead
-/// of expecting another key.
+/// Build the argv for [`reexec_without_key`]: `args` is what [`run`] was
+/// given — everything after the binary name, `daemon` already stripped by
+/// `main`'s own dispatch — so this restores `daemon`, drops `key_arg`, and
+/// makes sure `--host` is present so the re-invocation reads pairings from
+/// disk instead of expecting another key.
 pub(crate) fn reexec_args(args: &[String], key_arg: &str) -> Vec<String> {
-    let mut out: Vec<String> = args
-        .iter()
-        .filter(|arg| arg.as_str() != key_arg)
-        .cloned()
-        .collect();
+    let mut out: Vec<String> = vec!["daemon".to_string()];
+    out.extend(args.iter().filter(|arg| arg.as_str() != key_arg).cloned());
     if !out.iter().any(|arg| arg == "--host") {
         out.push("--host".to_string());
     }
