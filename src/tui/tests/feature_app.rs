@@ -1,8 +1,7 @@
 //! Feature-level tests: drive the `App` like a user via synthetic crossterm
 //! events and assert on observable state and the rendered `TestBackend` buffer.
 //! These complement the crate's inline unit tests — here we exercise whole flows
-//! (typing + submit, slash commands, tab nav, scrolling, working indicator,
-//! resume picker, threads/fork, abort/new-session, copy, config rendering).
+//! (tab nav, transcript scrolling, the update banner, config rendering).
 
 use std::sync::Arc;
 
@@ -12,8 +11,9 @@ use crossterm::event::{
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
-use medulla::config::{LinkConfig, LoadedConfig};
 use medulla::backend::MockBackend;
+use medulla::config::{LinkConfig, LoadedConfig};
+use medulla_tui::ui::agents::demo_lanes;
 use medulla_tui::ui::app::{App, TABS};
 
 // --- harness helpers --------------------------------------------------------
@@ -24,19 +24,21 @@ fn loaded() -> LoadedConfig {
     l
 }
 
-/// App over a populated demo runtime; returns the app and the concrete handle so
-/// tests can script events / read recorded calls.
-fn demo_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockBackend::new());
-    let app = App::new(rt.clone(), loaded());
-    (app, rt)
+/// App over the mock backend with the demo lanes standing in for a hub;
+/// returns the app and the backend handle.
+fn demo_app() -> (App, Arc<MockBackend>) {
+    let backend = Arc::new(MockBackend::new());
+    let mut app = App::new(backend.clone(), loaded());
+    app.inject_lanes(demo_lanes());
+    (app, backend)
 }
 
-/// App over a bare runtime (no roster, empty chat).
-fn empty_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockBackend::new());
-    let app = App::new(rt.clone(), loaded());
-    (app, rt)
+/// App over the mock backend with no lanes at all.
+fn empty_app() -> (App, Arc<MockBackend>) {
+    let backend = Arc::new(MockBackend::new());
+    let mut app = App::new(backend.clone(), loaded());
+    app.inject_lanes(Vec::new());
+    (app, backend)
 }
 
 fn key_mod(code: KeyCode, mods: KeyModifiers) -> Event {
@@ -139,7 +141,6 @@ fn app_on_a_task_transcript() -> App {
         .iter()
         .position(|tab| *tab == "Sessions")
         .expect("Sessions tab is listed");
-    app.refresh_snapshot();
     app
 }
 
