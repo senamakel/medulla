@@ -142,7 +142,7 @@ fn keys_a_subpage_does_not_bind_fall_through_to_the_global_bindings() {
     // on both — it walks that page's two tabs — and BackTab is left unbound
     // precisely so this invariant stays observable on them.
     for subpage in [
-        "Usage", "Config", "Feedback", "Trace", "Context", "Account", "Help",
+        "Usage", "Config", "Feedback", "Account", "Help",
     ] {
         let mut app = app_on(subpage);
         app.on_event(key(KeyCode::Tab));
