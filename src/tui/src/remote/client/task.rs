@@ -165,6 +165,7 @@ pub async fn run(
     let mut last_screen: Option<(String, ScreenSnapshot)> = None;
     let mut last_liveness: Option<medulla::bridge::BridgeLiveness> = None;
     let mut last_hello = std::time::Instant::now();
+    let mut last_capabilities: Option<RemoteCapabilities> = None;
 
     loop {
         if last_hello.elapsed() >= HELLO_EVERY {
@@ -204,8 +205,12 @@ pub async fn run(
             let _ = updates.send((host_id.clone(), update));
         }
 
-        if answered && !announced {
+        // Announced on the first answer, and again whenever a later `Hello`
+        // answers differently: a daemon restarted with another harness set
+        // or version must not leave the picker offering the old one.
+        if answered && (!announced || last_capabilities.as_ref() != Some(host.capabilities())) {
             announced = true;
+            last_capabilities = Some(host.capabilities().clone());
             let _ = updates.send((
                 host_id.clone(),
                 RemoteUpdate::Connected(Box::new(host.capabilities().clone())),
