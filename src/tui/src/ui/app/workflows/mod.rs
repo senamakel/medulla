@@ -200,15 +200,27 @@ impl App {
     /// failing: the usual way a workflow changes is the operator's own editor,
     /// and a half-written file should cost a refresh, not the app.
     pub fn reload_workflows(&mut self) {
-        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
-            let listed = self
-                .remote_workflows
-                .get(&host_id)
-                .is_some_and(|cache| cache.lock().expect("remote workflow cache").listed);
-            if !listed {
-                self.refresh_remote_workflows(&host_id);
+        // A remote host's catalogue answers asynchronously: the first call
+        // after switching to it (or before the answer has arrived) reads the
+        // cache before it has anything in it, which is not the same as the
+        // host confirming an empty store. Treating the two alike used to
+        // latch `creating` on an unlisted cache and never clear it once the
+        // real (non-empty) catalogue landed, because nothing here re-reads
+        // it — only a cursor move does. Only a *confirmed* empty catalogue —
+        // local, or remote and already listed — should open the New row.
+        let confirmed = match self.workflow_source() {
+            WorkflowSource::Local => true,
+            WorkflowSource::Remote { host_id } => {
+                let listed = self
+                    .remote_workflows
+                    .get(&host_id)
+                    .is_some_and(|cache| cache.lock().expect("remote workflow cache").listed);
+                if !listed {
+                    self.refresh_remote_workflows(&host_id);
+                }
+                listed
             }
-        }
+        };
         match self.workflow_store().list() {
             Ok(workflows) => {
                 let count = workflows.len();
@@ -221,7 +233,7 @@ impl App {
                 // "select a workflow first", which on an empty host is advice
                 // that cannot be followed and reads as the copilot refusing to
                 // work at all.
-                if count == 0 {
+                if count == 0 && confirmed {
                     self.wf.creating = true;
                 }
                 self.reload_workflow_runs();
