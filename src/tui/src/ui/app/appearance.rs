@@ -176,7 +176,7 @@ pub(super) const APPEARANCE_TABLE: [AppearanceRow; 16] = [
     row(
         Some("Sessions sidebar"),
         "Session titles",
-        "Whether an orchestrator-run agent shows the title taken from its work.",
+        "Whether a dispatched session shows the title taken from its work.",
         AppearanceControl::SessionTitles,
     ),
     row(

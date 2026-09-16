@@ -46,7 +46,7 @@ impl App {
         // one that needs attention: together they preview every visibility.
         let samples = [
             (sample_selected as fn() -> SessionRow, true, "selected"),
-            (sample_orchestrator, false, "not selected"),
+            (sample_dispatched, false, "not selected"),
             (sample_alerting, false, "on alert"),
         ];
         let mut lines = vec![TLine::from(Span::styled(
@@ -129,9 +129,9 @@ fn sample_selected() -> SessionRow {
     }
 }
 
-/// A finished, orchestrator-held harness outside a repository — the other half
+/// A finished, dispatch-held harness outside a repository — the other half
 /// of what the state, control, branch, and worktree rows can produce.
-fn sample_orchestrator() -> SessionRow {
+fn sample_dispatched() -> SessionRow {
     SessionRow {
         provider: HarnessProvider::Codex,
         preset: None,

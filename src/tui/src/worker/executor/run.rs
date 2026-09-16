@@ -325,7 +325,7 @@ impl PtySessionExecutor {
             .row(id)
             .is_some_and(|row| row.state.is_running());
         let retain = retains_finished_session(class, control, settled, origin);
-        let bounded_for_the_orchestrator =
+        let bounded_for_dispatch =
             class == SessionClass::Bounded && control != Some(SessionControl::User);
         if retain {
             // A retained session can serve the operator a later turn, so its
@@ -340,7 +340,7 @@ impl PtySessionExecutor {
             // Freed as well as retained: the turn is over, and a session left
             // busy would read as working forever in every surface that asks.
             self.sessions.release(id);
-        } else if bounded_for_the_orchestrator {
+        } else if bounded_for_dispatch {
             // A bounded turn with nothing to keep standing: it never answered,
             // or it answered for nobody. Either way this is a close, exactly as
             // the bounded path was before retention existed.

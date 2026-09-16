@@ -217,7 +217,7 @@ fn only_transcript_writing_harnesses_can_run_watchable_tasks() {
 }
 
 #[tokio::test]
-async fn a_session_opened_to_serve_a_task_is_orchestrator_originated() {
+async fn a_session_opened_to_serve_a_task_is_task_originated() {
     // The dispatch door. §4.1: a task that names no session creates one, and
     // that session belongs to the orchestrator for the rest of its life —
     // including after an operator takes it over, which is why the row keeps
@@ -243,7 +243,7 @@ async fn a_session_opened_to_serve_a_task_is_orchestrator_originated() {
     assert_eq!(rows.len(), 1);
     assert!(
         rows[0].origin.is_dispatch(),
-        "a dispatched session is the orchestrator's"
+        "a dispatched session is task-originated"
     );
     assert_eq!(rows[0].name, None, "a dispatch never names a session");
 

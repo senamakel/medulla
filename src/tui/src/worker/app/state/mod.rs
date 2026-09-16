@@ -165,7 +165,7 @@ impl WorkerApp {
             handle,
             address: Some(address),
             tags: Some(vec!["master".into()]),
-            description: Some("Medulla orchestrator controlling this worker".into()),
+            description: Some("The medulla that owns this worker".into()),
             protocol: "task".into(),
         });
         self.master_index = self.masters.len().saturating_sub(1);
@@ -256,7 +256,7 @@ impl WorkerApp {
             },
         );
         self.set_status(
-            "Copied this worker's address — add it as a [[link.peers]] entry in the orchestrator's config.toml",
+            "Copied this worker's address — add it as a [[link.peers]] entry in the owning medulla's config.toml",
         );
     }
 

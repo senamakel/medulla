@@ -132,7 +132,7 @@ done
 }
 
 #[tokio::test]
-async fn a_held_session_is_skipped_and_a_sibling_orchestrator_session_serves_the_task() {
+async fn a_held_session_is_skipped_and_a_sibling_dispatch_session_serves_the_task() {
     // Candidacy, at session grain (spec §4.1). The conversation already has a
     // session of its own, idle and the orchestrator's. The operator then opens a
     // session of their own in the same checkout and keeps it. The next dispatch
@@ -184,7 +184,7 @@ async fn a_held_session_is_skipped_and_a_sibling_orchestrator_session_serves_the
 
     assert_eq!(
         second.reply, "answer 2",
-        "the task must be served by the orchestrator's own session"
+        "the task must be served by a dispatch-held session"
     );
     assert_eq!(
         sessions.rows().len(),
