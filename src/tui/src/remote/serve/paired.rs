@@ -50,22 +50,98 @@ pub const PAIRING_FILE: &str = "pairing.json";
 
 /// Run the paired host until told otherwise.
 ///
-/// With a key: record the pairing (or confirm the one already on disk), then
-/// serve. With `--host` alone: serve every pairing on disk. Either way the
-/// process stays up until a signal.
+/// With a key: record the pairing, then re-exec into `--host` mode so the key
+/// never lingers in this process's argv (see [`reexec_without_key`]). With
+/// `--host` alone: serve every pairing on disk. Either way the process stays
+/// up until a signal.
 ///
 /// # Errors
 ///
 /// When the key does not decode, when neither a key nor a pairing on disk is
-/// available, when an identity cannot be written or locked, or when a port
-/// cannot be bound — each fatal, because a client would wait forever on a host
-/// that half-started.
+/// available, when an identity cannot be written or locked, when a port
+/// cannot be bound, or when re-exec fails — each fatal, because a client
+/// would wait forever on a host that half-started.
 pub async fn run(args: &[String]) -> anyhow::Result<()> {
     let env: HashMap<String, String> = std::env::vars().collect();
     if let Some(path) = flag(args, "--config") {
         std::env::set_var(medulla::config::CONFIG_PATH_ENV, path);
     }
+
+    // A pasted key is only ever needed once, to write the pairing to disk.
+    // `ps`/`/proc/<pid>/cmdline` show a process's argv for its whole
+    // lifetime, not just at startup, so a daemon that kept serving with the
+    // key still on its command line would leak it — the shared secret and
+    // both node ids — to every other user on a multi-user host for as long
+    // as it ran. Pair, then hand off to a fresh process invoked with
+    // `--host` instead, which re-derives everything from the pairing this
+    // one just wrote.
+    if let Some(text) = args.iter().find(|arg| HostKey::looks_like(arg)) {
+        let key = HostKey::decode(text)?;
+        let home = medulla::home::medulla_home(&env);
+        let pairing = pair(&home, &key)?;
+        eprintln!(
+            "medulla daemon: paired with client {} on udp/{}",
+            key.client, key.port
+        );
+        return reexec_without_key(args, text, &pairing);
+    }
+
     run_in(&env, args).await
+}
+
+/// Replace `--host`-less argv (or, on a platform without process
+/// replacement, spawn an equivalent child and exit this process) so the
+/// pairing key does not remain visible in this process's command line.
+///
+/// `pairing` is unused beyond confirming the caller already wrote it to
+/// disk — the re-exec always serves via `--host`, which reads every pairing
+/// found there.
+///
+/// # Errors
+///
+/// When the current executable's path cannot be determined, or — on a
+/// platform without `exec` — when the child process cannot be spawned or
+/// exits with a signal rather than a code.
+fn reexec_without_key(args: &[String], key_arg: &str, pairing: &Pairing) -> anyhow::Result<()> {
+    let _ = pairing;
+    let exe = std::env::current_exe()?;
+    let new_args = reexec_args(args, key_arg);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // `exec` replaces this process's image (and its argv) in place;
+        // on success it never returns.
+        let error = std::process::Command::new(&exe).args(&new_args).exec();
+        anyhow::bail!(
+            "failed to re-exec {} without the pairing key: {error}",
+            exe.display()
+        );
+    }
+
+    #[cfg(not(unix))]
+    {
+        // No `exec` here, so fall back to spawn-and-exit: the pairing key
+        // is briefly visible in two processes' argv rather than one, but
+        // neither keeps running with it after this function returns.
+        let status = std::process::Command::new(&exe).args(&new_args).status()?;
+        std::process::exit(status.code().unwrap_or(1));
+    }
+}
+
+/// Build the argv for [`reexec_without_key`]: drop `key_arg` and make sure
+/// `--host` is present so the re-invocation reads pairings from disk instead
+/// of expecting another key.
+fn reexec_args(args: &[String], key_arg: &str) -> Vec<String> {
+    let mut out: Vec<String> = args
+        .iter()
+        .filter(|arg| arg.as_str() != key_arg)
+        .cloned()
+        .collect();
+    if !out.iter().any(|arg| arg == "--host") {
+        out.push("--host".to_string());
+    }
+    out
 }
 
 /// [`run`] over an explicit environment.
