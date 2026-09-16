@@ -1,14 +1,8 @@
-//! Tests for status/role classification, key parsing, task ordering, and
-//! transcript rendering (plus the shared formatting helpers).
+//! Tests for status classification, key parsing, task ordering, and transcript
+//! rendering.
 
-use super::env;
 use crate::fleet::AgentDescriptor;
 use crate::ui::agents::*;
-use crate::ui::events::TuiEvent;
-
-// The formatting helpers are private to the `agents` module; reach them through
-// the module ancestor rather than the public re-exports.
-use super::super::fmt::{event_kind_color, tool_line};
 
 #[test]
 fn task_status_from_wire_maps_all_states() {
