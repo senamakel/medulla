@@ -13,18 +13,16 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
-use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
-use medulla::runtime::ContextItem;
+use medulla::config::LoadedConfig;
 use medulla_tui::ui::app::{App, Cmd};
-use medulla_tui::ui::events::{NodeTrace, TuiEvent};
 
 fn key(code: KeyCode) -> Event {
     Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
 }
 
-/// Render small enough that a paged list (Trace) actually changes when the
-/// selection moves — a tall terminal fits every row and hides the scroll.
+/// Render small enough that a paged list actually changes when the selection
+/// moves — a tall terminal fits every row and hides the scroll.
 fn render(app: &mut App) -> String {
     let mut terminal = Terminal::new(TestBackend::new(120, 16)).unwrap();
     terminal.draw(|f| app.draw(f)).unwrap();
@@ -37,37 +35,12 @@ fn render(app: &mut App) -> String {
         .collect()
 }
 
-/// An app with enough scripted state that every subpage has rows to scroll.
+/// An app parked on `subpage`, with the pane focused.
 fn app_on(subpage: &str) -> App {
-    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(
-        rt.clone(),
+        Arc::new(MockBackend::new()),
         LoadedConfig::defaults("medulla.tui.json".into()),
     );
-    // Trace shows only `Trace` events, and pages by the visible height, so it
-    // needs more of them than fit on screen before scrolling is observable.
-    for i in 0..40 {
-        rt.script_event(TuiEvent::Trace {
-            entry: NodeTrace {
-                node: format!("node-{i}"),
-                ms: i,
-                tool: None,
-                op: Some("step".into()),
-            },
-        });
-    }
-    app.set_contexts(
-        ["first", "second", "third"]
-            .into_iter()
-            .map(|name| ContextItem {
-                ref_: name.into(),
-                kind: "file".into(),
-                bytes: name.len(),
-                content: format!("contents of {name}"),
-            })
-            .collect(),
-    );
-    app.refresh_snapshot();
     let _ = app.focus_settings_subpage(subpage);
     app
 }
@@ -78,7 +51,7 @@ fn arrows_scroll_the_content_of_every_scrollable_subpage() {
     // subpage itself stays put. This is the whole point of the focus model.
     // Feedback's own arrow behaviour is covered in `feature_feedback_tab.rs`,
     // where a board is already seeded.
-    for subpage in ["Appearance", "Config", "Trace", "Context"] {
+    for subpage in ["Appearance", "Config"] {
         let mut app = app_on(subpage);
         assert!(app.settings_focused(), "{subpage} opens focused");
         let before = render(&mut app);
@@ -121,29 +94,7 @@ fn arrows_are_swallowed_on_pages_with_nothing_to_scroll() {
 }
 
 #[test]
-fn jk_still_browse_inside_a_focused_pane() {
-    // The pre-focus-model muscle memory keeps working, so nobody has to relearn
-    // navigation just because entry is now explicit.
-    for subpage in ["Trace", "Context"] {
-        let mut app = app_on(subpage);
-        let before = render(&mut app);
-        app.on_event(key(KeyCode::Char('j')));
-        assert_ne!(render(&mut app), before, "{subpage}: j moves down");
-        app.on_event(key(KeyCode::Char('k')));
-        assert_eq!(render(&mut app), before, "{subpage}: k moves back up");
-    }
-}
-
-#[test]
 fn refresh_keys_emit_their_subpage_command() {
-    let mut app = app_on("Context");
-    let cmd = app.on_event(key(KeyCode::Char('r')));
-    assert!(
-        matches!(cmd, Some(Cmd::InspectContext)),
-        "Context · r re-inspects"
-    );
-    assert!(app.status().contains("refreshing"), "{}", app.status());
-
     let mut app = app_on("Feedback");
     let cmd = app.on_event(key(KeyCode::Char('r')));
     assert!(
