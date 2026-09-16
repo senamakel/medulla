@@ -208,12 +208,14 @@ impl App {
         // flight, so nothing will ever answer it. Left alone, its intent
         // would permanently deduplicate a fresh ask for the same thing after
         // every reconnect.
-        if let Some(cache) = self.remote_workflows.get(host_id) {
-            cache.lock().expect("remote workflow cache").pending.clear();
-        }
         #[cfg(feature = "workflows")]
-        if self.current_host.host_id() == Some(host_id) && self.tab() == "Workflows" {
-            self.reload_workflows();
+        {
+            if let Some(cache) = self.remote_workflows.get(host_id) {
+                cache.lock().expect("remote workflow cache").pending.clear();
+            }
+            if self.current_host.host_id() == Some(host_id) && self.tab() == "Workflows" {
+                self.reload_workflows();
+            }
         }
     }
 
