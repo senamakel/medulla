@@ -47,7 +47,9 @@ pub trait Backend: Send + Sync {
 
     /// Clear the stored session so the next start opens the login screen.
     fn logout(&self) -> BoxFuture<'static, anyhow::Result<()>> {
-        Box::pin(std::future::ready(Ok(())))
+        Box::pin(std::future::ready(Err(anyhow::anyhow!(
+            "this backend has no stored session to clear"
+        ))))
     }
 
     // --- feedback board ----------------------------------------------------

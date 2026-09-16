@@ -580,6 +580,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             backend.clone(),
             hub_slot.clone(),
             SessionWiring {
+                offline_demo: args.mock,
                 local_hosts: local_host_harnesses.clone(),
                 loaded: loaded.clone(),
                 startup_status: status.take(),

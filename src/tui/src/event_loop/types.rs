@@ -283,6 +283,8 @@ pub(crate) enum SessionExit {
 /// app" values, and a session is started afresh on every relogin, so the call
 /// site reads better as one named record than as eight arguments.
 pub(crate) struct SessionWiring {
+    /// Whether this is the hermetic `--mock` demo, which seeds scripted lanes.
+    pub offline_demo: bool,
     /// The loaded configuration for this session.
     pub loaded: medulla::config::LoadedConfig,
     /// The custom harnesses this device's primary host declares, for a

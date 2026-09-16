@@ -4,7 +4,7 @@
 //! tab. The board is stateful rather than a frozen fixture: votes retally and
 //! comments persist for the life of the process, so the tab's controls can be
 //! exercised without a backend. There is no account behind it, so usage reads
-//! as unavailable and logout is a no-op.
+//! as unavailable and logout refuses rather than pretending a session changed.
 
 use std::sync::{Arc, Mutex};
 

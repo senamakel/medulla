@@ -43,6 +43,7 @@ pub(crate) async fn run(
     wiring: SessionWiring,
 ) -> anyhow::Result<SessionExit> {
     let SessionWiring {
+        offline_demo,
         loaded,
         local_hosts,
         startup_status,
@@ -58,6 +59,9 @@ pub(crate) async fn run(
         hook_log,
     } = wiring;
     let mut app = App::with_hub(backend.clone(), hub, loaded);
+    if offline_demo {
+        app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
+    }
     app.set_config_path(config_path);
     app.set_hooks_config_path(hooks_config_path);
     app.set_medulla_home(medulla_home);

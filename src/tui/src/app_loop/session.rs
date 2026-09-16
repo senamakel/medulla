@@ -37,10 +37,15 @@ pub(super) fn session_of(
     // the environment carries no identity, so an operator running on
     // `MEDULLA_TOKEN` has a session and no account to name — which is what the
     // Account subpage should show.
-    let account = Some(medulla::auth::state(env));
     let session = jwt.map(|jwt| medulla::auth::Credentials {
         base_url: backend.base_url.clone(),
         jwt,
     });
+    let mut account = medulla::auth::state(env);
+    // An explicitly configured credential has no persisted account identity,
+    // but it still authenticated this process. Keep those two facts separate:
+    // account pages may lack a name while connection chrome remains truthful.
+    account.is_authenticated = session.is_some();
+    let account = Some(account);
     (session, account)
 }
