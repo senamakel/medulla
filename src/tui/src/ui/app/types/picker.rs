@@ -32,7 +32,6 @@ pub(in crate::ui::app) enum Overlay {
     WorkflowDelete,
     /// The shared single-line prompt (Workers add/edit, Agents answer).
     InlinePrompt,
-    /// The saved-chat resume picker.
 }
 
 /// The modal state for the harness-type/workspace picker overlay.
