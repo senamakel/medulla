@@ -18,7 +18,6 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::hosts::HostsKey;
 use super::types::{App, Cmd, TABS};
-use crate::ui::command::CopyScope;
 use crate::ui::composer::{edit_prompt, PromptAction};
 
 mod changes;
@@ -168,10 +167,6 @@ impl App {
                 }
                 KeyCode::Char('o') => {
                     self.toggle_mouse();
-                    return None;
-                }
-                KeyCode::Char('y') => {
-                    self.copy_chat(CopyScope::All);
                     return None;
                 }
                 KeyCode::Char('x') => {
@@ -330,14 +325,9 @@ impl App {
                     return Some(cmd);
                 }
             }
-            // Sessions steering: cancel the selected running task, answer a pending
-            // question through the modal prompt. Enter answers it inline too.
+            // Sessions steering: cancel the selected running task.
             KeyCode::Char('X') | KeyCode::Char('x') if tab == "Sessions" && alt => {
                 self.cancel_selected_task();
-                return None;
-            }
-            KeyCode::Char('A') | KeyCode::Char('a') if tab == "Sessions" && alt => {
-                self.answer_selected_task();
                 return None;
             }
             KeyCode::Up => {

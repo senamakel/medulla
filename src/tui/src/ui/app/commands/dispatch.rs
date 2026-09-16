@@ -1,7 +1,7 @@
 //! Task, prompt, and clipboard command dispatch.
 
 use crate::ui::agents::TaskState;
-use crate::ui::clipboard::copy_for_operator;
+use crate::ui::clipboard::{copy_for_operator, current_platform};
 
 use super::super::types::{tab_pos, App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES};
 
@@ -197,14 +197,13 @@ impl App {
     /// Copy one short line — a command, an address — to the clipboard, naming it
     /// in the status line.
     ///
-    /// Kept apart from [`App::copy_chat`] in two ways. It reports *what* was
-    /// copied rather than a size, because for one line the size says nothing.
-    /// And it goes to the terminal first
-    /// ([`copy_for_operator`](medulla::clipboard::copy_for_operator)): the
-    /// orchestrator itself may be running over SSH, and a short line is exactly
-    /// what an operator then pastes somewhere else. A transcript keeps the
-    /// local-writer-first path, since terminals cap how much an OSC 52 escape
-    /// may carry and a long chat would be truncated or dropped outright.
+    /// It reports *what* was copied rather than a size, because for one line
+    /// the size says nothing. And it goes to the terminal first
+    /// ([`copy_for_operator`](medulla::clipboard::copy_for_operator)): this
+    /// `medulla` may itself be running over SSH, and a short line is exactly
+    /// what an operator then pastes somewhere else. The pointer selection keeps
+    /// the local-writer-first path, since terminals cap how much an OSC 52
+    /// escape may carry and a long block would be truncated or dropped outright.
     pub(in crate::ui::app) fn copy_line(&mut self, what: &str, text: &str) {
         if let Some(sink) = &self.copy_capture {
             sink.lock().expect("copy sink").push(text.to_string());

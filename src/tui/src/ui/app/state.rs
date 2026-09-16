@@ -272,7 +272,7 @@ impl App {
         self.selected_agent_task().map(|t| t.task_id)
     }
 
-    /// Route `copy_chat` into a captured sink instead of the OS clipboard, and
+    /// Route clipboard copies into a captured sink instead of the OS clipboard, and
     /// return that sink. Test-only: keeps `pbcopy`/OSC 52 out of the test run.
     pub fn capture_clipboard(&mut self) -> Arc<std::sync::Mutex<Vec<String>>> {
         let sink = Arc::new(std::sync::Mutex::new(Vec::new()));

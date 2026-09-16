@@ -186,13 +186,6 @@ pub(in crate::ui::app) enum PromptKind {
         /// The proposal awaiting the decision.
         proposal_id: String,
     },
-    /// Answer a pending sub-agent question.
-    AnswerQuestion {
-        /// The cycle the question belongs to.
-        cycle_id: String,
-        /// The pending question's id.
-        question_id: String,
-    },
     /// One field of the Hosts page's add/edit form; the answers so far ride
     /// along so an abandoned form leaves nothing on the App.
     HostField {
