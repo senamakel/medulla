@@ -1,9 +1,7 @@
-//! Runtime, prompt, and clipboard command dispatch.
+//! Task, prompt, and clipboard command dispatch.
 
 use crate::ui::agents::TaskState;
-use crate::ui::clipboard::{copy_for_operator, copy_to_clipboard, current_platform};
-use crate::ui::command::{self, CopyScope};
-use crate::ui::composer::Draft;
+use crate::ui::clipboard::copy_for_operator;
 
 use super::super::types::{tab_pos, App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES};
 
@@ -22,53 +20,22 @@ impl App {
     }
 
     /// Request cancellation of the selected running task, or note why it cannot.
+    ///
+    /// A dispatched task is cancelled on the hub's own runner, which admitted
+    /// it: the runner sends the abort frame to the worker and settles the task.
     pub(in crate::ui::app) fn cancel_selected_task(&mut self) {
         match self.selected_agent_task() {
             Some(t) => {
-                let (cycle, task) = crate::ui::agents::parse_task_key(&t.task_id);
-                match cycle {
-                    Some(c) => {
-                        // MCP tasks run on CloudRuntime's local task runner,
-                        // not its backend steering API. Their cycle prefix is
-                        // the capability marker for that separate cancel path.
-                        if !c.starts_with("mcp:") && !self.runtime.steering_reaches_backend() {
-                            self.set_status("Cancelling a task is not wired to this runtime yet");
-                            return;
-                        }
-                        self.runtime.cancel_task(c.to_string(), task.to_string());
+                let (_, task) = crate::ui::agents::parse_task_key(&t.task_id);
+                match medulla::hub::hub_in(&self.hub) {
+                    Some(hub) => {
+                        hub.task_runner().abort_task(task);
                         self.set_status(format!("Cancel requested · {task}"));
                     }
-                    None => self.set_status("Selected task has no cycle to cancel"),
+                    None => self.set_status("No hub is running, so nothing can be cancelled"),
                 }
             }
             None => self.set_status("Select a running task (↑↓) to cancel with X"),
-        }
-    }
-
-    pub(in crate::ui::app) fn answer_selected_task(&mut self) {
-        match self.selected_agent_task() {
-            Some(t) => match (
-                t.question_id.clone(),
-                crate::ui::agents::parse_task_key(&t.task_id).0,
-            ) {
-                (Some(qid), Some(cycle)) => {
-                    self.prompt = Some(Prompt {
-                        kind: PromptKind::AnswerQuestion {
-                            cycle_id: cycle.to_string(),
-                            question_id: qid,
-                        },
-                        title: t
-                            .attention
-                            .clone()
-                            .map(|a| format!("Answer — {a}"))
-                            .unwrap_or_else(|| "Answer the pending question".into()),
-                        draft: Draft::new(),
-                    });
-                    self.set_status("Type an answer · Enter send · Esc cancel");
-                }
-                _ => self.set_status("Selected task has no pending question"),
-            },
-            None => self.set_status("Select a task (↑↓) with a pending question to answer"),
         }
     }
 
@@ -107,22 +74,6 @@ impl App {
                     proposal_id,
                     reason: text,
                 })
-            }
-            PromptKind::AnswerQuestion {
-                cycle_id,
-                question_id,
-            } => {
-                if text.is_empty() {
-                    self.set_status("Answer cancelled (empty)");
-                    return None;
-                }
-                if !self.runtime.steering_reaches_backend() {
-                    self.set_status("Answering a question is not wired to this runtime yet");
-                    return None;
-                }
-                self.runtime.answer_question(cycle_id, question_id, text);
-                self.set_status("Answer sent");
-                None
             }
             PromptKind::HostField { form, field } => self.submit_host_field(*form, field, text),
             PromptKind::FeedbackComment { id } => {
@@ -241,53 +192,6 @@ impl App {
             title,
             prefill,
         ));
-    }
-
-    /// Copy the requested chat scope to the clipboard (or the test capture sink),
-    /// reporting the result in the status line.
-    pub(in crate::ui::app) fn copy_chat(&mut self, scope: CopyScope) {
-        let text = command::copy_text(&self.snapshot.chat_events, scope);
-        if text.trim().is_empty() {
-            self.set_status(match scope {
-                CopyScope::Last => "No assistant reply to copy yet.",
-                CopyScope::All => "Nothing to copy yet.",
-            });
-            return;
-        }
-        if let Some(sink) = &self.copy_capture {
-            sink.lock().expect("copy sink").push(text.clone());
-            let rows = text.split('\n').count();
-            let what = match scope {
-                CopyScope::Last => "last reply",
-                CopyScope::All => "chat",
-            };
-            self.set_status(format!(
-                "Copied {what} · {rows} line{} · {} chars (captured)",
-                if rows == 1 { "" } else { "s" },
-                text.len()
-            ));
-            return;
-        }
-        let report = copy_to_clipboard(&text, current_platform(), |osc| {
-            use std::io::Write;
-            let _ = std::io::stdout().write_all(osc.as_bytes());
-            let _ = std::io::stdout().flush();
-        });
-        let rows = text.split('\n').count();
-        let what = match scope {
-            CopyScope::Last => "last reply",
-            CopyScope::All => "chat",
-        };
-        let size = format!(
-            "{rows} line{} · {} chars",
-            if rows == 1 { "" } else { "s" },
-            text.len()
-        );
-        self.set_status(if report.confirmed() {
-            format!("Copied {what} · {size} → clipboard ({})", report.describe())
-        } else {
-            format!("Sent {what} · {size} → terminal (OSC 52); check your clipboard")
-        });
     }
 
     /// Copy one short line — a command, an address — to the clipboard, naming it
