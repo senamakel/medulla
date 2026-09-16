@@ -78,12 +78,12 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     if let Some(text) = args.iter().find(|arg| HostKey::looks_like(arg)) {
         let key = HostKey::decode(text)?;
         let home = medulla::home::medulla_home(&env);
-        let pairing = pair(&home, &key)?;
+        pair(&home, &key)?;
         eprintln!(
             "medulla daemon: paired with client {} on udp/{}",
             key.client, key.port
         );
-        return reexec_without_key(args, text, &pairing);
+        return reexec_without_key(args, text);
     }
 
     run_in(&env, args).await
