@@ -126,6 +126,7 @@ impl App {
         // fresh key rather than leave the entry silently unreachable.
         let repair_for_new_port =
             previously_paired_port.is_some_and(|old| udp_port != 0 && udp_port != old);
+        eprintln!("DEBUG previously_paired_port={:?} udp_port={} repair={}", previously_paired_port, udp_port, repair_for_new_port);
         match editing {
             Some(_) if repair_for_new_port => self.issue_host_key(&id),
             Some(_) => self.set_status(format!("Saved {id}")),
