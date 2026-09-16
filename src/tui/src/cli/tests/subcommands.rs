@@ -1,5 +1,5 @@
-//! Unit tests for subcommand dispatch, the login/init/workspace/workflow flag
-//! parsers, help text, and the `sessions` JSON.
+//! Unit tests for subcommand dispatch, the login/workflow flag parsers, help
+//! text, and the `sessions` JSON.
 
 use std::collections::HashMap;
 
