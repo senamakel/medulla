@@ -159,7 +159,11 @@ fn editing_a_paired_hosts_port_re_pairs_instead_of_leaving_it_unreachable() {
     let first_key = app.hosts.pending_key.clone().unwrap().command;
 
     let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('e'))));
-    submit(&mut app, "GPU Box"); // Name, unchanged
+    // Name is left as the host string, matching how it was derived: changing
+    // it would also change the host's resolved id (`RemoteHostSection::id` is
+    // blank until a real add-host flow sets it), which is not what this test
+    // means to exercise.
+    submit(&mut app, "gpu.example.com"); // Name, unchanged
     submit(&mut app, "gpu.example.com"); // Host, unchanged
     submit(&mut app, "60002"); // UdpPort, changed
     submit(&mut app, ""); // User
@@ -187,7 +191,7 @@ fn editing_a_paired_host_without_changing_its_port_does_not_re_pair() {
     let first_key = app.hosts.pending_key.clone().unwrap().command;
 
     let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('e'))));
-    submit(&mut app, "GPU Box");
+    submit(&mut app, "gpu.example.com");
     submit(&mut app, "gpu.example.com");
     submit(&mut app, ""); // UdpPort left blank keeps the existing port
     submit(&mut app, "");
