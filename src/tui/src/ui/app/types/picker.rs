@@ -1,7 +1,7 @@
 //! Modal state for the manual-launcher picker and small prompt/overlay surfaces.
 //!
-//! The harness/workspace launcher ([`SessionPicker`], [`ResumePicker`],
-//! [`SessionPickerStep`], [`WorkspaceChoice`]) plus the single-line prompt
+//! The harness/workspace launcher ([`SessionPicker`], [`SessionPickerStep`],
+//! [`WorkspaceChoice`]) plus the single-line prompt
 //! overlays ([`Prompt`]/[`PromptKind`]) sit here rather
 //! than in [`super::model`], which holds the screen model itself and is at its
 //! size ceiling. All are re-exported through [`super`] as `types::*`.
@@ -10,14 +10,6 @@ use ratatui::layout::Rect;
 
 use crate::ui::composer::TextPrompt;
 use medulla::client::FeedbackType;
-
-/// The modal state for the "resume a chat" picker overlay.
-pub(in crate::ui::app) struct ResumePicker {
-    /// The resumable chats to choose from.
-    pub(in crate::ui::app) chats: Vec<crate::ui::chat_store::MainChatSummary>,
-    /// The highlighted row.
-    pub(in crate::ui::app) index: usize,
-}
 
 /// An overlay the app can draw over the content pane.
 ///
@@ -41,7 +33,6 @@ pub(in crate::ui::app) enum Overlay {
     /// The shared single-line prompt (Workers add/edit, Agents answer).
     InlinePrompt,
     /// The saved-chat resume picker.
-    ResumePicker,
 }
 
 /// The modal state for the harness-type/workspace picker overlay.
