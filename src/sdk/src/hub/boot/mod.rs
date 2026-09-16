@@ -1,22 +1,20 @@
-//! Hub bootstrap: bring up the host link, build the bridge + sender-runner,
-//! and expose a live [`HubHandle`].
+//! Hub bootstrap: bind the device-local bus, build the sender-runner, and
+//! expose a live [`HubHandle`].
 //!
 //! [`start_hub`] wires everything and returns a [`HubSession`] (holding the
 //! handle plus the keep-alive runner) so an embedding host can manage the
 //! roster at runtime.
 //!
-//! A hub without a link identity is not an error. It becomes a local-only
-//! router: it still dispatches to the host in this process, and a remote
-//! address reports plainly that there is no transport for it rather than being
-//! accepted and dropped.
+//! The hub is a local router: it dispatches to the hosts in this process over
+//! the in-memory bus. A machine elsewhere is reached by the remote-session
+//! client, not through here, so an address nothing on the bus binds reports
+//! plainly that there is no transport for it rather than being accepted and
+//! dropped.
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use medulla_link::{Link, LinkConfig, PeerConfig};
-
-use crate::bridge::{LinkBridge, LinkBridgeConfig, RoutingBridge};
+use crate::bridge::RoutingBridge;
 
 use super::handle::HubHandle;
 use super::roster::SharedRoster;
@@ -26,46 +24,24 @@ use super::runner::TaskRunner;
 pub const DEFAULT_LOCAL_HUB_ADDRESS: &str = "medulla-hub";
 
 /// Build the transport + runner and return a [`HubSession`]. Errors only on
-/// fatal setup (unusable link identity, no transport at all).
+/// fatal setup (no bus to bind, or the address already taken).
 pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
-    // The remote half. `None` is the ordinary single-device case, not a failure.
-    let remote = match &config.link {
-        Some(link) => Some(connect_link(link, &config.log).await?),
-        None => None,
+    // Binding is fatal rather than best-effort — a failure means something
+    // else already holds this address, and silently continuing would look
+    // exactly like a host that never answers.
+    let Some(network) = &config.local_network else {
+        anyhow::bail!("hub: no transport — attach a device-local network");
     };
-    let hub_address = remote
-        .as_ref()
-        .map(|bridge| bridge.address().to_string())
-        .unwrap_or_else(|| config.local_address.clone());
-
-    // With a local bus attached the relay becomes a router: workers hosted in
-    // this process are reached in memory and never touch the link, while remote
-    // ones fall through unchanged. Binding is fatal rather than best-effort —
-    // a failure means something else already holds this address, and silently
-    // continuing remote-only would look exactly like a host that never answers.
-    let relay: Arc<dyn super::relay::Relay> = match (&config.local_network, remote) {
-        (Some(network), remote) => {
-            let address = match config.local_address.trim() {
-                "" => DEFAULT_LOCAL_HUB_ADDRESS,
-                value => value,
-            };
-            let local = network.bind(address).map_err(|e| {
-                anyhow::anyhow!("hub: could not bind local address {address} ({e})")
-            })?;
-            (config.log)(&format!("hub: also hosting on the local bus as {address}"));
-            match remote {
-                Some(remote) => Arc::new(RoutingBridge::new(
-                    local,
-                    Arc::new(remote) as Arc<dyn crate::bridge::Bridge>,
-                )),
-                None => Arc::new(RoutingBridge::local_only(local)),
-            }
-        }
-        (None, Some(remote)) => Arc::new(remote),
-        (None, None) => anyhow::bail!(
-            "hub: no transport — configure a host link or attach a device-local network"
-        ),
+    let address = match config.local_address.trim() {
+        "" => DEFAULT_LOCAL_HUB_ADDRESS,
+        value => value,
     };
+    let local = network
+        .bind(address)
+        .map_err(|e| anyhow::anyhow!("hub: could not bind local address {address} ({e})"))?;
+    (config.log)(&format!("hub: hosting on the local bus as {address}"));
+    let hub_address = address.to_string();
+    let relay: Arc<dyn super::relay::Relay> = Arc::new(RoutingBridge::local_only(local));
 
     // One activity log, shared by the pump that observes frames and the
     // dispatchers that send them — the Sessions view reads what both write.
@@ -102,61 +78,7 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
     })
 }
 
-/// Bring up the link and wrap it as a bridge.
-///
-/// The peer table is supplied by the caller rather than discovered: node names
-/// and ids are issued together at enrollment (protocol §2), so by the time a hub
-/// starts there is nothing left to resolve.
-async fn connect_link(
-    config: &HubLinkConfig,
-    log: &super::types::HubLog,
-) -> anyhow::Result<LinkBridge> {
-    let handle = match &config.handle {
-        Some(handle) => handle.clone(),
-        None => {
-            let mut link_config = LinkConfig::new(config.state_dir.clone());
-            link_config.path = medulla_link::LinkPath::Forwarder {
-                endpoint: config.forwarder_endpoint.clone(),
-            };
-            link_config.peers = config
-                .peers
-                .iter()
-                .map(|peer| PeerConfig {
-                    node_id: peer.node_id,
-                    pair_key: peer.pair_key.clone(),
-                })
-                .collect();
-            Arc::new(
-                Link::connect(link_config)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("hub: could not bring up the host link ({e})"))?,
-            )
-        }
-    };
-    log(&format!(
-        "hub: link up as {} ({} peer(s))",
-        config.node_name,
-        config.peers.len()
-    ));
-    Ok(LinkBridge::new(
-        handle,
-        LinkBridgeConfig {
-            node_name: config.node_name.clone(),
-            peers: config
-                .peers
-                .iter()
-                .map(|peer| crate::bridge::LinkPeer {
-                    name: peer.name.clone(),
-                    node_id: peer.node_id,
-                })
-                .collect(),
-        },
-    ))
-}
-
 mod types;
 pub use types::HubConfig;
-pub use types::HubLinkConfig;
-pub use types::HubLinkPeer;
 pub use types::HubSession;
 pub use types::WorkerSpec;
