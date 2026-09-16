@@ -12,10 +12,10 @@ use std::sync::Arc;
 use crate::flow_engine::{folding_sink, CapabilitySettings, HostServices};
 use crate::protocol::{TaskFrame, TaskFrameKind, WorkflowAdvert, WorkflowInputAdvert};
 // `trigger_input` is shared with the cloud plane's adapter
-// ([`crate::workflows::bridge`]) rather than defined twice: a frame's text must
+// ([`crate::workflows::task_frame`]) rather than defined twice: a frame's text must
 // become the same trigger payload whether it arrived over the host link or over the
 // backend socket, and two copies of that rule would eventually disagree.
-use crate::workflows::bridge::trigger_input;
+use crate::workflows::task_frame::trigger_input;
 use crate::workflows::evolve::{EvolveConfig, EvolveSession, EvolveTrigger};
 use crate::workflows::{
     run_workflow_versioned, RunContext, RunStatus, StoreWorkflowResolver, WorkflowStore,

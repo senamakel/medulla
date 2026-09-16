@@ -22,7 +22,7 @@
 //! The store is behind the [`WorkflowStore`] trait, so a remote catalog is a new
 //! implementation rather than a rewrite.
 
-pub mod bridge;
+pub mod task_frame;
 pub mod copilot;
 mod dispatch_error;
 pub mod evolve;
@@ -47,7 +47,7 @@ mod tests;
 
 // Patch-based editing moved to the engine crate with the store it writes to;
 // the gates an edit is judged by ride along on the store's own policy.
-pub use bridge::{cancel_task_workflow, run_task_workflow, StoreWorkflowBridge};
+pub use task_frame::{cancel_task_workflow, run_task_workflow};
 pub use copilot::{CopilotOutcome, CopilotRequest, CopilotSession, FailedRun};
 pub use local::{LocalCopilotDispatch, LocalWorkflowHost, LOCAL_WORKER_ADDRESS};
 pub use node_contracts::{all_node_kind_contracts, node_kind_contract};
