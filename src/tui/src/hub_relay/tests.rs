@@ -279,26 +279,3 @@ fn a_host_added_after_launch_is_not_remembered_as_a_remote_peer() {
         "only the genuinely remote peer is remembered"
     );
 }
-
-// ------------------------------------------------------------- workflows ---
-
-/// Install a workflow document in `<home>/workflows`, the layer
-/// `medulla::workflows::discover_store` reads for a `MEDULLA_HOME`.
-#[cfg(feature = "workflows")]
-fn seed_workflow(root: &std::path::Path, id: &str) {
-    // Under the account directory: the store is resolved from the account's
-    // home, one level inside the root `MEDULLA_HOME` names.
-    let dir = root.join("local").join("workflows");
-    std::fs::create_dir_all(&dir).expect("workflow dir");
-    let document = serde_json::json!({
-        "id": id,
-        "name": "Nightly sweep",
-        "description": "sweeps the estate",
-        "nodes": [
-            { "id": "start", "kind": "trigger", "name": "Start",
-              "config": { "trigger_kind": "manual" } }
-        ],
-        "edges": []
-    });
-    std::fs::write(dir.join(format!("{id}.json")), document.to_string()).expect("write");
-}
