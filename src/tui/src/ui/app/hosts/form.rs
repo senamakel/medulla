@@ -121,7 +121,13 @@ impl App {
         if let Some(index) = self.hosts.entries.iter().position(|entry| entry.id == id) {
             self.hosts.index = index;
         }
+        // A port change on an already-paired host invalidates the pairing on
+        // both ends, so treat it the same as first pairing: mint and show a
+        // fresh key rather than leave the entry silently unreachable.
+        let repair_for_new_port =
+            previously_paired_port.is_some_and(|old| udp_port != 0 && udp_port != old);
         match editing {
+            Some(_) if repair_for_new_port => self.issue_host_key(&id),
             Some(_) => self.set_status(format!("Saved {id}")),
             None => self.issue_host_key(&id),
         }
