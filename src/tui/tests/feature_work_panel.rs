@@ -35,9 +35,7 @@ fn worker_app() -> App {
         LoadedConfig::defaults("medulla.tui.json".into()),
     );
     let mut lanes = medulla_tui::ui::agents::demo_lanes();
-    lanes.retain(|lane| {
-        lane.agent_id.as_deref() == Some(medulla_tui::ui::agents::DEMO_BUSY_AGENT)
-    });
+    lanes.retain(|lane| lane.agent_id.as_deref() == Some(medulla_tui::ui::agents::DEMO_BUSY_AGENT));
     app.inject_lanes(lanes);
     app.tab_index = TABS.iter().position(|t| *t == "Sessions").unwrap();
     // Focus the rail the way an operator does; its one session is the first
