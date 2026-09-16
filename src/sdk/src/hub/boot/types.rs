@@ -72,24 +72,19 @@ pub struct WorkerSpec {
     /// when the roster entry is built.
     pub max_sessions: u32,
 }
-/// Everything [`start_hub`] needs to bridge the backend to remote workers.
-/// Not `Debug`: the log sink is a boxed closure with no useful representation,
-/// and the JWT should not be printable by accident either.
+/// Everything [`start_hub`] needs to reach its workers.
+/// Not `Debug`: the log sink is a boxed closure with no useful representation.
 #[derive(Clone)]
 pub struct HubConfig {
-    /// Backend Socket.IO base URL (e.g. `https://staging-api.tinyhumans.ai`).
-    pub backend_url: String,
-    /// JWT for the Socket.IO handshake (from `medulla login`).
-    pub jwt: String,
     /// The host link to bring up, or `None` for a device-local-only hub.
     pub link: Option<HubLinkConfig>,
-    /// The workers to advertise initially (may be empty; add more at runtime).
+    /// The workers in the roster initially (may be empty; add more at runtime).
     pub workers: Vec<WorkerSpec>,
-    /// The hosts *this machine* declares, advertised as the payload's `hosts[]`
-    /// block and used to decide which advertised agents run locally.
+    /// The hosts *this machine* declares, used to decide which roster agents
+    /// run locally.
     ///
     /// Shared rather than owned so a host started mid-session joins the same
-    /// list the hub reads at registration time (see
+    /// list the hub reads (see
     /// [`SharedLocalHosts`](crate::hub::SharedLocalHosts)). Default-empty is the
     /// honest answer for a hub that hosts nothing itself: every agent it fronts
     /// then belongs to another machine, and the block says so.
@@ -105,31 +100,18 @@ pub struct HubConfig {
     ///
     /// `Some` makes the hub bi-modal: a worker whose address is bound on this
     /// network is reached in-process, and everything else still goes over the
-    /// host link. That is what lets one program be both the orchestrator and a
+    /// host link. That is what lets one program be both the dispatcher and a
     /// host for its own machine. `None` keeps every worker remote.
     pub local_network: Option<crate::bridge::LocalBridgeNetwork>,
     /// The address the hub binds on the local bus. Ignored without a
     /// [`local_network`](Self::local_network); empty falls back to
     /// [`DEFAULT_LOCAL_HUB_ADDRESS`](super::DEFAULT_LOCAL_HUB_ADDRESS).
     pub local_address: String,
-    /// This host's saved workflows, as the cloud plane's store side.
-    ///
-    /// `Some` advertises them to the orchestrator on every (re)connect and
-    /// serves the reads and the authoring turn it round-trips back —
-    /// [`crate::workflows::StoreWorkflowBridge`] is the implementation this host
-    /// ships. `None` advertises nothing and refuses (rather than drops) any
-    /// workflow request that still arrives.
-    ///
-    /// Install it only when workflows are *enabled*: the bridge is a view of the
-    /// store and applies no policy, so advertising graphs this host would refuse
-    /// to run only teaches the orchestrator to delegate work that will bounce.
-    pub workflows: Option<crate::hub::WorkflowPlane>,
 }
-/// A running hub: the live [`HubHandle`] plus the client/runner kept alive for
-/// the session (dropping this disconnects and stops the pump).
+/// A running hub: the live [`HubHandle`] plus the runner kept alive for the
+/// session (dropping this stops the pump).
 pub struct HubSession {
-    /// Live roster control (add/remove/list workers), re-registering on change.
+    /// Live roster control (add/remove/list workers).
     pub handle: HubHandle,
     pub(super) _runner: Arc<TaskRunner>,
-    pub(super) _client: Client,
 }

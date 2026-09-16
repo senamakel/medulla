@@ -46,7 +46,7 @@ impl HubHandle {
             w.control_since = Some(at);
             w.handoff = None;
         }
-        self.reregister().await
+        Ok(())
     }
 
     /// Hand a harness back to the orchestrator, carrying the operator's brief.
@@ -70,7 +70,7 @@ impl HubHandle {
             w.control_since = None;
             w.handoff = Some(brief);
         }
-        self.reregister().await
+        Ok(())
     }
 
     /// The roster worker covering `workspace`.

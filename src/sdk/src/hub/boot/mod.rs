@@ -1,36 +1,32 @@
 //! Hub bootstrap: bring up the host link, build the bridge + sender-runner,
-//! connect the Socket.IO harness client, and expose a live [`HubHandle`].
+//! and expose a live [`HubHandle`].
 //!
 //! [`start_hub`] wires everything and returns a [`HubSession`] (holding the
-//! handle plus the keep-alive client/runner) so an embedding host can manage the
-//! roster at runtime; [`run_hub`] is the standalone wrapper that starts a session
-//! and holds the process open until interrupted.
+//! handle plus the keep-alive runner) so an embedding host can manage the
+//! roster at runtime.
 //!
 //! A hub without a link identity is not an error. It becomes a local-only
-//! router: it still orchestrates the host in this process, and a remote address
-//! reports plainly that there is no transport for it rather than being accepted
-//! and dropped.
+//! router: it still dispatches to the host in this process, and a remote
+//! address reports plainly that there is no transport for it rather than being
+//! accepted and dropped.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use medulla_link::{Link, LinkConfig, PeerConfig};
-use rust_socketio::asynchronous::Client;
 
 use crate::bridge::{LinkBridge, LinkBridgeConfig, RoutingBridge};
 
 use super::handle::HubHandle;
 use super::roster::SharedRoster;
 use super::runner::TaskRunner;
-use super::socket::connect_harness;
 
 /// The address a hub binds on the device-local bus when the caller names none.
-pub const DEFAULT_LOCAL_HUB_ADDRESS: &str = "medulla-orchestrator";
+pub const DEFAULT_LOCAL_HUB_ADDRESS: &str = "medulla-hub";
 
-/// Build the transport + runner, connect the harness client, and return a
-/// [`HubSession`]. Errors only on fatal setup (unusable link identity,
-/// unreachable backend).
+/// Build the transport + runner and return a [`HubSession`]. Errors only on
+/// fatal setup (unusable link identity, no transport at all).
 pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
     // The remote half. `None` is the ordinary single-device case, not a failure.
     let remote = match &config.link {
@@ -71,8 +67,8 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
         ),
     };
 
-    // One activity log, shared by the pump that observes frames and the socket
-    // that dispatches them — the Agents view reads what both write.
+    // One activity log, shared by the pump that observes frames and the
+    // dispatchers that send them — the Sessions view reads what both write.
     let activity = super::ActivityLog::new();
     let runner = Arc::new(TaskRunner::start_with_log_and_activity(
         relay.clone(),
@@ -81,7 +77,7 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
         activity.clone(),
     ));
 
-    // The shared roster the socket advertises and the handle mutates.
+    // The shared roster dispatch resolves against and the handle mutates.
     let roster: SharedRoster = Arc::new(Mutex::new(
         config
             .workers
@@ -89,33 +85,10 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
             .map(super::roster::worker_from_spec)
             .collect(),
     ));
-
-    (config.log)(&format!(
-        "hub: connecting to {} ({} worker(s))",
-        config.backend_url,
-        config.workers.len()
-    ));
-    let socket = connect_harness(
-        &config.backend_url,
-        &config.jwt,
-        super::socket::HarnessWiring {
-            roster: roster.clone(),
-            local_hosts: config.local_hosts.clone(),
-            runner: runner.clone(),
-            log: config.log.clone(),
-            activity: Some(activity.clone()),
-            // Installed here and nowhere else: this is the one place a hub's
-            // uplink is built, so a bridge the host supplied on its config is
-            // the bridge the socket serves.
-            workflows: config.workflows.clone(),
-        },
-    )
-    .await?;
-    (config.log)("hub: connected + registered — relaying tasks to linked hosts");
+    (config.log)(&format!("hub: up ({} worker(s))", config.workers.len()));
 
     let handle = HubHandle::new(super::handle::HandleWiring {
         roster,
-        socket: socket.clone(),
         address: hub_address,
         relay,
         local_hosts: config.local_hosts.clone(),
@@ -127,7 +100,6 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
     Ok(HubSession {
         handle,
         _runner: runner,
-        _client: socket,
     })
 }
 
@@ -181,16 +153,6 @@ async fn connect_link(
                 .collect(),
         },
     ))
-}
-
-/// Standalone entry: start a hub session and hold until interrupted (Ctrl-C /
-/// SIGINT, or the parent killing the process).
-pub async fn run_hub(config: HubConfig) -> anyhow::Result<()> {
-    let log = config.log.clone();
-    let _session = start_hub(config).await?;
-    tokio::signal::ctrl_c().await.ok();
-    log("hub: shutting down");
-    Ok(())
 }
 
 mod types;
