@@ -8,6 +8,7 @@
 
 mod activity;
 mod activity_retirement;
+mod capabilities;
 mod dispatch;
 mod held;
 mod held_watchdog;
