@@ -60,11 +60,9 @@ fn a_lock_released_shortly_after_a_disconnect_still_lets_the_reissue_through() {
     let dir = tempfile::tempdir().unwrap();
     mint_pairing(dir.path(), 60001).unwrap();
     let held = keys::lock_node_dir(dir.path()).unwrap();
-    let released = dir.path().to_path_buf();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(30));
         drop(held);
-        let _ = released;
     });
     let key = mint_pairing(dir.path(), 60002).unwrap();
     assert_eq!(key.port, 60002);
