@@ -10,10 +10,9 @@ use medulla_tui::cli::{parse_command, sessions_json, Command};
 
 use crate::app_loop::run_tui;
 use crate::commands::run_hook_cmd;
-use crate::commands::{run_hub, run_init, run_login, run_logout, run_workspace};
+use crate::commands::{run_login, run_logout};
 #[cfg(feature = "workflows")]
 use crate::commands::{run_mcp_cmd, run_skills_cmd, run_workflow_cmd};
-use crate::run::run_core;
 
 mod access_gate;
 mod app_loop;
@@ -25,7 +24,6 @@ mod control_plane;
 mod event_loop;
 mod hub_relay;
 mod local_host;
-mod run;
 mod sign_in;
 #[cfg(test)]
 mod sign_in_tests;
@@ -91,7 +89,6 @@ async fn async_main(raw: Vec<String>) -> anyhow::Result<()> {
     }
 
     match command {
-        Command::Run => run_core(&raw[1..]).await,
         Command::Daemon if daemon_uses_tui(io::stdout().is_terminal(), &raw) => {
             run_worker_tui_command(&raw[1..]).await
         }
@@ -143,9 +140,6 @@ async fn async_main(raw: Vec<String>) -> anyhow::Result<()> {
         }
         Command::Login => run_login(&raw[1..]).await,
         Command::Logout => run_logout().await,
-        Command::Init => run_init(&raw[1..]).await,
-        Command::Workspace => run_workspace(&raw[1..]).await,
-        Command::Hub => run_hub(&raw[1..]).await,
         #[cfg(feature = "workflows")]
         Command::Workflow => run_workflow_cmd(&raw[1..]).await,
         #[cfg(feature = "workflows")]
@@ -252,7 +246,7 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| medulla::home::medulla_home(&env).join("config.toml"));
 
-    // The link identity is what lets an orchestrator reach this worker at all.
+    // The link identity is what lets an owner reach this worker at all.
     // Without an enrolled one the TUI still runs — as a local-sessions screen
     // that simply never receives peer work — rather than refusing to start on a
     // machine the operator has not finished setting up.
@@ -263,7 +257,7 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
     // not for the daemon would mean adding `--tui` silently cost you your hosts.
     // It must be `default_link_config`, not `LinkConfig::default()`: only the
     // former follows the resolved backend, and a host on the prod forwarder
-    // never hears from an orchestrator on staging.
+    // never hears from an owner on staging.
     let link_config = loaded.config.link.clone().unwrap_or_else(|| {
         medulla::config::default_link_config(&env, &loaded.config.backend.base_url)
     });
@@ -300,12 +294,12 @@ async fn run_worker_tui_command(args: &[String]) -> anyhow::Result<()> {
         {
             Ok(link) => {
                 // The owner is the link's single peer: a host enrolls against
-                // exactly one orchestrator (protocol §7.3).
+                // exactly one owner (protocol §7.3).
                 let owner = link_config
                     .peers
                     .first()
                     .map(|peer| peer.id.clone())
-                    .unwrap_or_else(|| "orchestrator".to_string());
+                    .unwrap_or_else(|| "owner".to_string());
                 let node_name = link_config
                     .node_name
                     .clone()

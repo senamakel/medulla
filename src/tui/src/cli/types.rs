@@ -11,9 +11,6 @@ use medulla::protocol::HarnessProvider;
 pub enum Command {
     /// Run the interactive TUI (bare invocation, or with TUI flags).
     Tui,
-    /// Run the non-interactive core-runtime driver: submit one instruction to
-    /// the embedded core and stream the cycle's events as JSON lines.
-    Run,
     /// Run the headless daemon; carries the remaining args.
     Daemon,
     /// `medulla daemon --tui` — the worker daemon with its operator screen.
@@ -22,10 +19,10 @@ pub enum Command {
     /// that bootstrapped it over SSH.
     ///
     /// A different program from [`Daemon`](Self::Daemon) despite the shared
-    /// word. That one enrolls with the backend, requires a coding CLI on `PATH`,
-    /// and serves dispatched tasks through a forwarder. This one is minted
-    /// on the spot, serves operator-opened sessions (a shell included), and
-    /// speaks straight to one client over UDP.
+    /// word. That one requires a coding CLI on `PATH` and serves dispatched
+    /// tasks over an enrolled host link. This one is minted on the spot, serves
+    /// operator-opened sessions (a shell included), and speaks straight to one
+    /// client over UDP.
     DaemonDirect,
     /// `medulla daemon <key>` / `medulla daemon --host` — a paired remote
     /// host: serves operator sessions to the one client that minted the key,
@@ -51,14 +48,6 @@ pub enum Command {
     Wrapper(HarnessProvider),
     /// Check for / install a newer release (`update [--check]`).
     Update,
-    /// Author a `MEDULLA.md` workspace profile for a directory.
-    Init,
-    /// Manage the workspace registry (`add`/`list`/`remove`) — the directories
-    /// the orchestrator knows about and can place work in.
-    Workspace,
-    /// Run the orchestrator hub: relay hosted-backend tasks to host-link
-    /// workers over Signal DMs; carries the remaining args.
-    Hub,
     /// Author, inspect, and run workflows (`list`/`get`/`create`/`apply-ops`/…).
     Workflow,
     /// Serve Medulla's tools over MCP on stdin/stdout.
