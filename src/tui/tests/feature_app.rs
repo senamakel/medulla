@@ -217,3 +217,20 @@ fn config_tab_annotates_token_env_presence() {
     let out = render(&mut app, 200, 50);
     assert!(out.contains("(missing)"), "expected (missing) annotation");
 }
+
+// --- 4. event routing --------------------------------------------------------
+
+#[test]
+fn non_key_non_mouse_events_are_ignored() {
+    let (mut app, _rt) = demo_app();
+    assert!(app.on_event(Event::FocusGained).is_none());
+    assert!(app.on_event(Event::Resize(10, 10)).is_none());
+    // A key *release* is not a press and must not act.
+    assert!(app
+        .on_event(Event::Key(KeyEvent::new_with_kind(
+            KeyCode::Char('q'),
+            KeyModifiers::NONE,
+            crossterm::event::KeyEventKind::Release,
+        )))
+        .is_none());
+}
