@@ -208,6 +208,41 @@ fn editing_a_paired_host_without_changing_its_port_does_not_re_pair() {
 }
 
 #[test]
+fn a_persistence_failure_stays_on_screen_rather_than_being_overwritten() {
+    // No `set_config_path` here, deliberately: `persist_remote_hosts` then
+    // has no writable file and fails every time, the same shape as an
+    // unwritable config on disk. The final status used to be set
+    // unconditionally after persisting, silently discarding this warning —
+    // an operator who then pasted the command would pair a host that
+    // disappears from config the moment this run ends.
+    let dir = tempfile::tempdir().unwrap();
+    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.remote_hosts = vec![RemoteHostSection {
+        host: "gpu.example.com".to_string(),
+        enabled: true,
+        ..RemoteHostSection::default()
+    }];
+    let mut app = App::new(rt, loaded);
+    app.set_medulla_home(dir.path().join("home"));
+    app.tab_index = tab_pos("Hosts");
+    app.rebuild_host_entries();
+    let _ = app.capture_clipboard();
+
+    let host_id = app.hosts.entries[0].id.clone();
+    app.issue_host_key(&host_id);
+
+    assert!(
+        app.status.contains("not saved"),
+        "the save failure must survive to the final status: {}",
+        app.status
+    );
+    // The key was still minted and is still what the operator can use now,
+    // even though it will not survive a restart.
+    assert!(app.hosts.pending_key.is_some());
+}
+
+#[test]
 fn the_switcher_lists_this_device_all_hosts_and_each_host() {
     let (_dir, mut app) = app_with_hosts(&[("gpu.example.com", 60001), ("tower.local", 0)]);
     // No local sessions: "This device" is not offered, since there is nothing
