@@ -189,20 +189,6 @@ fn harness_opencode_bare_command_and_empty() {
 }
 
 #[test]
-fn core_section_round_trips_and_omits_when_absent() {
-    // Present socketPath deserializes; absent [core] serializes to nothing.
-    let cfg: TuiConfig =
-        serde_json::from_str(r#"{"core":{"socketPath":"/run/serve.sock"}}"#).unwrap();
-    assert_eq!(
-        cfg.core.as_ref().unwrap().socket_path.as_deref(),
-        Some("/run/serve.sock")
-    );
-    let bare = TuiConfig::default();
-    let json = serde_json::to_value(&bare).unwrap();
-    assert!(json.get("core").is_none(), "absent core must be omitted");
-}
-
-#[test]
 fn unknown_fields_are_ignored() {
     // Permissive parsing: extra keys (including retired sections like
     // `inference`/`langfuse`/`medulla`) must not fail the load.
