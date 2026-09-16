@@ -91,7 +91,6 @@ pub async fn start_hub(config: HubConfig) -> anyhow::Result<HubSession> {
         roster,
         address: hub_address,
         relay,
-        local_hosts: config.local_hosts.clone(),
         runner: runner.clone(),
         log: config.log.clone(),
         persist: config.persist.clone(),
