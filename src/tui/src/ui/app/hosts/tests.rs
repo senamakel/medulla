@@ -147,6 +147,60 @@ fn re_issuing_replaces_the_key_and_removal_forgets_everything() {
 }
 
 #[test]
+fn editing_a_paired_hosts_port_re_pairs_instead_of_leaving_it_unreachable() {
+    // A paired entry's client state and the remote `pairing.json` both name
+    // the port that was paired. Changing `udpPort` in the edit form without
+    // re-pairing would leave the client dialling a port nothing listens on.
+    let (dir, mut app) = app_with_hosts(&[("gpu.example.com", 60001)]);
+    let _ = app.capture_clipboard();
+    let host_id = app.hosts.entries[0].id.clone();
+    // Pair it first, so there is a real identity on disk to compare against.
+    app.issue_host_key(&host_id);
+    let first_key = app.hosts.pending_key.clone().unwrap().command;
+
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('e'))));
+    submit(&mut app, "GPU Box"); // Name, unchanged
+    submit(&mut app, "gpu.example.com"); // Host, unchanged
+    submit(&mut app, "60002"); // UdpPort, changed
+    submit(&mut app, ""); // User
+    submit(&mut app, ""); // SshPort
+    submit(&mut app, ""); // IdentityFile
+    submit(&mut app, ""); // Workspace
+    assert!(app.prompt.is_none(), "the form is done");
+
+    let written = std::fs::read_to_string(dir.path().join("config.toml")).unwrap();
+    assert!(written.contains("udpPort = 60002"), "{written}");
+
+    // A fresh key was minted for the new port rather than the entry being
+    // silently saved with a port nothing was paired for.
+    let second_key = app.hosts.pending_key.clone().unwrap().command;
+    assert_ne!(first_key, second_key, "a port change re-pairs with a new key");
+    assert_eq!(app.hosts.entries[0].section.udp_port, 60002);
+}
+
+#[test]
+fn editing_a_paired_host_without_changing_its_port_does_not_re_pair() {
+    let (_dir, mut app) = app_with_hosts(&[("gpu.example.com", 60001)]);
+    let _ = app.capture_clipboard();
+    let host_id = app.hosts.entries[0].id.clone();
+    app.issue_host_key(&host_id);
+    let first_key = app.hosts.pending_key.clone().unwrap().command;
+
+    let _ = app.on_event(crossterm::event::Event::Key(key(KeyCode::Char('e'))));
+    submit(&mut app, "GPU Box");
+    submit(&mut app, "gpu.example.com");
+    submit(&mut app, ""); // UdpPort left blank keeps the existing port
+    submit(&mut app, "");
+    submit(&mut app, "");
+    submit(&mut app, "");
+    submit(&mut app, "");
+    assert!(app.prompt.is_none());
+
+    // No new key was minted — the pending one is still the one from pairing.
+    assert_eq!(app.hosts.pending_key.clone().unwrap().command, first_key);
+}
+
+#[test]
 fn the_switcher_lists_this_device_all_hosts_and_each_host() {
     let (_dir, mut app) = app_with_hosts(&[("gpu.example.com", 60001), ("tower.local", 0)]);
     // No local sessions: "This device" is not offered, since there is nothing
