@@ -65,7 +65,6 @@ pub fn route_openrouter(
         router: RouterConfig {
             base_url: router.base_url.clone(),
             api_key_env: Some(PROXY_TOKEN_ENV.to_string()),
-            models: router.models.clone(),
             providers,
             // Deliberately not propagated to the child: the pin is applied by
             // the proxy on the way out, and the child has no say in it. Passing

@@ -8,7 +8,7 @@ use super::super::wrap::{flow_path, short_home, wrap_line, wrap_path};
 
 #[test]
 fn a_row_that_fits_is_left_exactly_as_it_was() {
-    let line = TLine::from(Span::raw("● orchestrator · 1"));
+    let line = TLine::from(Span::raw("● dispatcher · 1"));
     let out = wrap_line(&line, 36, 5);
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].width(), line.width());

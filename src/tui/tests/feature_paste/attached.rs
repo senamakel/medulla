@@ -60,7 +60,7 @@ fn attached_app(sessions: PtyManager, id: &str) -> App {
         log: None,
         sessions,
         runtimes: Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env: HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],

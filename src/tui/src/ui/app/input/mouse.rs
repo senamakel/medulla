@@ -87,8 +87,7 @@ impl App {
             return None;
         }
         // A modal swallows the mouse, the same way it swallows the keyboard.
-        if self.resume_picker.is_some()
-            || self.session_picker.is_some()
+        if self.session_picker.is_some()
             || self.kill_armed.is_some()
             || self.harness_close_armed.is_some()
         {
@@ -386,38 +385,17 @@ impl App {
                 }
             }
             #[cfg(feature = "workflows")]
-            "Workflows" => {
+            "Workflows"
                 if self
                     .hit_workflow_preview
-                    .is_some_and(|area| area.contains((x, y).into()))
-                {
-                    self.wf.preview_scroll = if up {
-                        self.wf.preview_scroll.saturating_sub(SCROLL_ROWS)
-                    } else {
-                        self.wf.preview_scroll.saturating_add(SCROLL_ROWS)
-                    };
-                }
+                    .is_some_and(|area| area.contains((x, y).into())) =>
+            {
+                self.wf.preview_scroll = if up {
+                    self.wf.preview_scroll.saturating_sub(SCROLL_ROWS)
+                } else {
+                    self.wf.preview_scroll.saturating_add(SCROLL_ROWS)
+                };
             }
-            // Trace and Context are Settings subpages, not tabs, so they are
-            // matched on the subpage rather than on the tab — which is always
-            // "Settings" for both.
-            "Settings" => match self.settings_subpage() {
-                "Trace" => {
-                    self.selected = if up {
-                        self.selected.saturating_sub(3)
-                    } else {
-                        self.selected + 3
-                    }
-                }
-                "Context" => {
-                    self.context_index = if up {
-                        self.context_index.saturating_sub(1)
-                    } else {
-                        (self.context_index + 1).min(self.contexts.len().saturating_sub(1))
-                    }
-                }
-                _ => {}
-            },
             _ => {}
         }
     }
@@ -488,37 +466,6 @@ impl App {
             return None;
         }
         if tab == "Sessions" {
-            // §A7: clicking an entry of the orchestrator's "sessions started"
-            // block opens that session — the rail selection follows, which is
-            // what makes the pane show its conversation. Checked before the rail
-            // because the block lives in the pane beside it.
-            if let Some((rect, tasks)) = self.hit_started_sessions.clone() {
-                if rect.contains((x, y).into()) {
-                    // Only the rows that *are* entries answer; a click on the
-                    // conversation between them falls through to the rail's own
-                    // hit test, exactly as a click above the block used to.
-                    if let Some(task_id) = tasks.get((y - rect.y) as usize).and_then(Option::as_ref)
-                    {
-                        let task_id = task_id.clone();
-                        self.focus_session_for_task(&task_id);
-                        return self.retarget_watch();
-                    }
-                }
-            }
-            // The rail stacks two hit boxes — threads above lanes — so both are
-            // tried; an `else if` here would leave the strip unclickable.
-            if let Some((rect, window_start)) = self.hit_threads {
-                if rect.contains((x, y).into()) {
-                    let rel = (y - rect.y) as usize;
-                    let idx = window_start + rel;
-                    if let Some(t) = self.snapshot.threads.get(idx) {
-                        let id = t.id.clone();
-                        self.runtime.set_active_thread(id);
-                        self.agent_scroll = 0;
-                        self.refresh_snapshot();
-                    }
-                }
-            }
             if let Some((rect, owners)) = self.hit_agents.clone() {
                 if rect.contains((x, y).into()) {
                     // Each drawn line records the rail row it came from, so a
@@ -620,28 +567,6 @@ impl App {
                     && !self.harness_focus.is_attached_to(&session)
                 {
                     self.attach_to_pane_session();
-                }
-            }
-        } else if tab == "Settings" && self.settings_subpage() == "Context" {
-            // Context is a Settings subpage, not a tab — matching on `tab` here
-            // made this branch unreachable, so clicking a chunk did nothing.
-            if let Some(rect) = self.hit_context {
-                if rect.contains((x, y).into()) {
-                    let rel = (y - rect.y) as usize;
-                    // The list is windowed on the selection (see `draw_context`),
-                    // so a clicked row names `start + rel`, not `rel`. Recomputed
-                    // from the same inputs the draw used — the rect it recorded
-                    // and the selection, neither of which can have moved since.
-                    let vis = (rect.height as usize).max(1);
-                    let start = crate::ui::selection::viewport_start(
-                        crate::ui::selection::clamp(self.context_index, self.contexts.len()),
-                        self.contexts.len(),
-                        vis,
-                    );
-                    let clicked = start + rel;
-                    if rel < vis && clicked < self.contexts.len() {
-                        self.context_index = clicked;
-                    }
                 }
             }
         }

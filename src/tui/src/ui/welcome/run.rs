@@ -194,7 +194,7 @@ fn dispatch(
 
 /// Redact, upload, and claim, forwarding the SDK's progress as screen events.
 ///
-/// The orchestration itself lives in [`medulla::history_upload::share_history`] —
+/// The dispatch itself lives in [`medulla::history_upload::share_history`] —
 /// it is UI-free logic and is tested there against a mock backend. This wrapper
 /// only translates progress and the final claim into [`WelcomeEvent`]s.
 async fn upload_and_claim(

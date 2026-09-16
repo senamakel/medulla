@@ -171,7 +171,7 @@ pub fn apply_host_overlay(mut contract: NodeKindContract) -> NodeKindContract {
         ],
         "trigger" => vec![
             "Only `manual` triggers fire on this host today: a run starts because an operator \
-             or the orchestrator asked for it. Other kinds are accepted and stored, but \
+             or the dispatcher asked for it. Other kinds are accepted and stored, but \
              nothing dispatches them yet."
                 .to_string(),
         ],

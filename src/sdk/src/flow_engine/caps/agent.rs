@@ -4,7 +4,7 @@
 //! this engine. Elsewhere an `agent` node is a model call, or an in-process
 //! agent loop. Here it is a *task dispatched to a coding harness* — Claude Code,
 //! Codex, or OpenCode, local or on another machine — over the same bridge the
-//! orchestrator already uses. A workflow is therefore a plan whose steps are
+//! dispatcher already uses. A workflow is therefore a plan whose steps are
 //! real harness sessions, not a chain of completions.
 //!
 //! Two routes, chosen by [`route_for_agent_ref`]:
@@ -137,7 +137,7 @@ fn dispatch_harness(request: &TaskRequest) -> String {
 /// Map a dispatch failure onto a capability error.
 ///
 /// An abort keeps its identity in the message because it is the one failure a
-/// retry must not paper over: the orchestrator cancelled the work deliberately.
+/// retry must not paper over: the dispatcher cancelled the work deliberately.
 fn dispatch_error(node_kind: &str, err: RunError) -> EngineError {
     EngineError::Capability(format!("{node_kind}: {err}"))
 }
@@ -307,7 +307,7 @@ impl HarnessAgentRunner {
         let task_id = format!("wf:{}:{suffix}#{sequence}", self.run_id);
         TaskRequest {
             // Distinct ids on purpose: the worker dedupes on the wire id, while
-            // the orchestrator aborts by the run id — so aborting the run
+            // the dispatcher aborts by the run id — so aborting the run
             // cancels whichever node is in flight.
             task_id,
             abort_id: self.run_id.clone(),

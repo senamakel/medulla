@@ -5,21 +5,24 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use medulla::backend::{Backend, MockBackend};
 use medulla::config::LoadedConfig;
+use medulla::fleet::{AgentDeclaration, WorkerInfo};
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::{AgentDeclaration, Runtime, WorkerInfo};
 
 use super::{AgentGroup, AgentRailRow, GroupRailRow, RailRow, NEW_SESSION_LABEL};
 use crate::ui::app::App;
 use crate::worker::pty::PtyManager;
 
-/// An Agents app on the mock runtime, hosting nothing.
+/// A Sessions app on the mock backend with the demo lanes standing in for a
+/// hub, hosting nothing.
 pub(in crate::ui::app) fn app() -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let backend: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.link = Some(medulla::config::LinkConfig::default());
-    App::new(runtime, loaded)
+    let mut app = App::new(backend, loaded);
+    app.inject_lanes(crate::ui::agents::demo_lanes());
+    app
 }
 
 /// The same app with a live (but empty) local host attached, so the rail is
@@ -44,7 +47,7 @@ pub(in crate::ui::app) fn shell_harnesses(
     crate::ui::harness_pane::LocalSessions {
         sessions,
         runtimes: Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
@@ -75,8 +78,8 @@ pub(in crate::ui::app) fn stub_session(id: &str) -> crate::worker::pty::SessionR
         last_output_at: 0,
         last_error: None,
         busy: false,
-        control: crate::worker::pty::SessionControl::Orchestrator,
-        origin: crate::worker::pty::SessionOrigin::Orchestrator,
+        control: crate::worker::pty::SessionControl::Dispatch,
+        origin: crate::worker::pty::SessionOrigin::Task,
         retained: false,
         closed_by_request: false,
         name: None,
@@ -215,7 +218,7 @@ fn a_finished_tasks_session_is_still_there_to_work_in() {
         .expect("a /bin/sh session starts");
     harnesses
         .sessions
-        .set_control(&id, crate::worker::pty::SessionControl::Orchestrator);
+        .set_control(&id, crate::worker::pty::SessionControl::Dispatch);
 
     // Its task answers, so the executor retains rather than closes it.
     assert!(harnesses.sessions.retain(&id));
@@ -269,8 +272,10 @@ fn a_session_in_an_undeclared_directory_is_still_listed() {
 
 #[test]
 fn the_host_tree_keeps_a_second_declared_host() {
-    let runtime = MockRuntime::empty();
-    runtime.set_workers(vec![WorkerInfo {
+    let mut app = app();
+    // The tree, not the traffic: no lanes, so the rows are the declarations.
+    app.inject_lanes(Vec::new());
+    app.inject_workers(vec![WorkerInfo {
         id: "studio-claude".into(),
         address: "studio".into(),
         handle: None,
@@ -286,9 +291,6 @@ fn the_host_tree_keeps_a_second_declared_host() {
         budgets: Vec::new(),
         readiness: Vec::new(),
     }]);
-    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
-    loaded.config.link = Some(medulla::config::LinkConfig::default());
-    let mut app = App::new(Arc::new(runtime), loaded);
     app.loaded.config.fleet.agent_declarations =
         vec![AgentDeclaration::new("local-claude", "", "claude", "/work")];
     assert!(
@@ -415,8 +417,8 @@ fn a_configured_remote_host_is_in_the_host_projection() {
     // known before it is ever dialled. Whether it is *drawn* is a separate
     // question, answered by the rail's own progressive-disclosure rule: a
     // section with no sessions in it gets no header, remote or local.
-    let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
-        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let rt: std::sync::Arc<dyn medulla::backend::Backend> =
+        std::sync::Arc::new(medulla::backend::MockBackend::new());
     let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = vec![medulla::config::RemoteHostSection {
         name: "Tower".to_string(),
@@ -449,8 +451,8 @@ fn a_configured_remote_host_is_in_the_host_projection() {
 
 #[test]
 fn no_remote_hosts_means_no_remote_rows() {
-    let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
-        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let rt: std::sync::Arc<dyn medulla::backend::Backend> =
+        std::sync::Arc::new(medulla::backend::MockBackend::new());
     let loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
     let app = crate::ui::app::App::new(rt, loaded);
     assert!(app
@@ -461,8 +463,7 @@ fn no_remote_hosts_means_no_remote_rows() {
 
 /// Two remote hosts each reporting one session, and nothing local.
 fn app_with_two_remote_hosts() -> App {
-    let rt: Arc<dyn medulla::runtime::Runtime> =
-        Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let rt: Arc<dyn medulla::backend::Backend> = Arc::new(medulla::backend::MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = ["tower", "gpu"]
         .iter()

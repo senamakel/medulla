@@ -284,15 +284,15 @@ fn harness_text(row: &SessionRow, style: HarnessNameStyle) -> String {
 ///
 /// "unmanaged" rather than [`SessionControl::as_str`]'s "you": this is the whole
 /// reason an operator-started row exists, and someone who hands one to the
-/// orchestrator needs to see that it took effect.
+/// dispatcher needs to see that it took effect.
 fn control_text(control: SessionControl, style: ControlStyle) -> String {
     match (style, control) {
         (ControlStyle::Text, SessionControl::User) => "unmanaged",
-        (ControlStyle::Text, SessionControl::Orchestrator) => "task",
+        (ControlStyle::Text, SessionControl::Dispatch) => "task",
         // `⊘` reads as "dispatch does not enter here", which is exactly what an
-        // operator-held session means; `⊙` is the orchestrator holding it.
+        // operator-held session means; `⊙` is the dispatcher holding it.
         (ControlStyle::Icon, SessionControl::User) => "⊘",
-        (ControlStyle::Icon, SessionControl::Orchestrator) => "⊙",
+        (ControlStyle::Icon, SessionControl::Dispatch) => "⊙",
     }
     .to_string()
 }

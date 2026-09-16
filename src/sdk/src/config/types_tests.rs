@@ -36,14 +36,6 @@ fn defaults_are_applied() {
     assert_eq!(cfg.state_dir, "state");
     assert_eq!(cfg.backend.base_url, "https://api.tinyhumans.ai");
     assert_eq!(cfg.backend.token_env, "MEDULLA_TOKEN");
-    // One million, matching the models this runs against. Understating the
-    // window makes the context meter read near-full on a prompt using a few
-    // percent of the real budget.
-    assert_eq!(
-        cfg.medulla.context_window(),
-        super::types::DEFAULT_CONTEXT_WINDOW_TOKENS
-    );
-    assert_eq!(cfg.medulla.context_window(), 1_000_000);
     assert!(cfg.workflow.workspaces.is_empty());
     assert!(cfg.workflows.allow_code);
     assert!(cfg.appearance.show_harness_branch);
@@ -189,35 +181,14 @@ fn harness_opencode_bare_command_and_empty() {
 }
 
 #[test]
-fn context_window_honors_override() {
-    let cfg: TuiConfig =
-        serde_json::from_str(r#"{"medulla":{"contextWindowTokens":128000}}"#).unwrap();
-    assert_eq!(cfg.medulla.context_window(), 128_000);
-}
-
-#[test]
-fn core_section_round_trips_and_omits_when_absent() {
-    // Present socketPath deserializes; absent [core] serializes to nothing.
-    let cfg: TuiConfig =
-        serde_json::from_str(r#"{"core":{"socketPath":"/run/serve.sock"}}"#).unwrap();
-    assert_eq!(
-        cfg.core.as_ref().unwrap().socket_path.as_deref(),
-        Some("/run/serve.sock")
-    );
-    let bare = TuiConfig::default();
-    let json = serde_json::to_value(&bare).unwrap();
-    assert!(json.get("core").is_none(), "absent core must be omitted");
-}
-
-#[test]
 fn unknown_fields_are_ignored() {
     // Permissive parsing: extra keys (including retired sections like
-    // `inference`/`langfuse`) must not fail the load.
+    // `inference`/`langfuse`/`medulla`) must not fail the load.
     let cfg: TuiConfig = serde_json::from_str(
-        r#"{"totallyUnknown":true,"inference":{"temperature":0.9},"langfuse":{"enabled":true},"medulla":{"maxPasses":3}}"#,
+        r#"{"totallyUnknown":true,"inference":{"temperature":0.9},"langfuse":{"enabled":true},"medulla":{"maxPasses":3},"update":{"check":false}}"#,
     )
     .unwrap();
-    assert_eq!(cfg.medulla.max_passes, Some(3));
+    assert!(!cfg.update.check);
 }
 
 #[test]
@@ -246,7 +217,6 @@ fn router_section_round_trips_camel_case() {
         r#"{"router":{
             "baseUrl":"https://gateway.internal/v1",
             "apiKeyEnv":"MEDULLA_ROUTER_KEY",
-            "models":{"reasoning":"gpt-tier-a","compress":"gpt-tier-c"},
             "providers":{"claude":{"baseUrl":"https://gateway.internal/anthropic"}}
         }}"#,
     )
@@ -257,9 +227,6 @@ fn router_section_round_trips_camel_case() {
         Some("https://gateway.internal/v1")
     );
     assert_eq!(router.api_key_env.as_deref(), Some("MEDULLA_ROUTER_KEY"));
-    assert_eq!(router.model_for_tier("reasoning"), Some("gpt-tier-a"));
-    assert_eq!(router.model_for_tier("compress"), Some("gpt-tier-c"));
-    assert_eq!(router.model_for_tier("orchestrator"), None);
 
     // Re-serialize and confirm camelCase keys survive (never snake_case).
     let out = serde_json::to_string(&cfg).unwrap();

@@ -1,9 +1,9 @@
-//! End-to-end: the orchestrator half and the host half in one process.
+//! End-to-end: the dispatcher half and the host half in one process.
 //!
 //! This is the shape a plain `medulla` runs in — a [`TaskRunner`] dispatching
 //! over a [`RoutingBridge`] to an [`EmbeddedDaemon`] bound on the same
 //! device-local bus. No remote client, no identity, no contact graph, no
-//! relay, and no second process: a task leaves the orchestrator and comes back
+//! relay, and no second process: a task leaves the dispatcher and comes back
 //! answered without a packet leaving the machine.
 
 use std::sync::Arc;
@@ -17,8 +17,8 @@ use medulla::protocol::HarnessProvider;
 
 /// The host's address on the bus, as the TUI's `[host].address` default names it.
 const HOST: &str = "this-device";
-/// The orchestrator's address, as `DEFAULT_LOCAL_HUB_ADDRESS` names it.
-const ORCHESTRATOR: &str = "medulla-orchestrator";
+/// The sender's address, as `DEFAULT_LOCAL_HUB_ADDRESS` names it.
+const ORCHESTRATOR: &str = "medulla-hub";
 
 /// A path that is guaranteed to exist and be executable on every platform.
 ///
@@ -58,7 +58,7 @@ fn echoing_executor() -> RunTaskFn {
 }
 
 #[tokio::test]
-async fn a_task_round_trips_from_the_orchestrator_to_this_device_and_back() {
+async fn a_task_round_trips_from_the_sender_to_this_device_and_back() {
     let network = LocalBridgeNetwork::new();
 
     // The host half: what a plain `medulla` starts from its `[host]` section.
@@ -74,7 +74,7 @@ async fn a_task_round_trips_from_the_orchestrator_to_this_device_and_back() {
     )
     .expect("this device can host");
 
-    // The orchestrator half: the hub's task sender over a routing relay. Local
+    // The dispatcher half: the hub's task sender over a routing relay. Local
     // only here — the point is that the remote transport is never needed.
     let relay = Arc::new(RoutingBridge::local_only(
         network.bind(ORCHESTRATOR).unwrap(),

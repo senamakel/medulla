@@ -36,7 +36,7 @@
 //! # This is still not the enforcement point
 //!
 //! It decides what the terminal shows. What an account may actually spend is
-//! metered by the backend on the inference and orchestration routes, where the
+//! metered by the backend on the inference and dispatch routes, where the
 //! client cannot argue with it. A patched binary walks straight through this
 //! module; treat it as the thing that explains the situation to the operator,
 //! not as the thing that holds the line.

@@ -19,7 +19,7 @@
 # owner legs via `run_owner`, and rely on the EXIT trap installed here.
 #
 # Enrollment (protocol §7) happens up front, before anything boots: for each
-# name, `coordination_owner --enroll` mints one orchestrator/host pair — a pair
+# name, `coordination_owner --enroll` mints one owner/host pair — a pair
 # key, two node ids and two forwarder keys — and writes a `node.json` for each
 # end. The forwarder is then seeded with the two *forwarder* keys, which is all a
 # blind forwarder is ever given; it never sees a pair key and cannot read a
@@ -192,17 +192,17 @@ s.close()
 PY
 }
 
-# Enroll one orchestrator/host pair for NAME (protocol §7).
+# Enroll one owner/host pair for NAME (protocol §7).
 #
 # Writes `$RUN_DIR/mhome-<name>/e2e/link/node.json` (the host, which the daemon
-# opens) and `$RUN_DIR/owner-<name>/link/node.json` (its orchestrator), and sets:
+# opens) and `$RUN_DIR/owner-<name>/link/node.json` (its owner), and sets:
 #
 # `MEDULLA_HOME` names the install *root*, and a medulla home is
 # `<root>/<account>` — so the host identity goes under the account the daemon is
 # launched with (`MEDULLA_USER=e2e`), not directly under the root.
 #
 #   HOST_NODE_ID_<name>   the worker's wire id — what an owner leg's --to takes
-#   OWNER_NODE_ID_<name>  the orchestrator's wire id
+#   OWNER_NODE_ID_<name>  the owner's wire id
 #   OWNER_FOR_<host id>   reverse lookup used by start_owner to pick a queue
 #   HOST_FOR_<owner id>   reverse lookup used by the delivery assertion
 #   FORWARDER_NODES       accumulated --node specs for the forwarder's table
@@ -313,7 +313,7 @@ boot_daemon_named() {
 $(harness_env "$RUN_DIR/ochome-$name")
 export MEDULLA_HOME=$(printf %q "$RUN_DIR/mhome-$name")
 export MEDULLA_USER=e2e
-export MEDULLA_LINK_OWNER=$(printf %q "orchestrator-$name")
+export MEDULLA_LINK_OWNER=$(printf %q "owner-$name")
 exec $(printf %q "$MEDULLA_BIN") daemon --providers $(printf %q "$HARNESS") --no-pair \
   --name $(printf %q "worker-$name") \
   --workspace $(printf %q "$workspace") --poll-ms 500 $(harness_daemon_flags) $extra_flags
@@ -386,7 +386,7 @@ start_owner() {
 # Call this between killing a host and starting its replacement. The restarted
 # host comes back with empty SSP state, and a frame the old session was still
 # retransmitting would land on it and leave the two ends numbering from different
-# origins — so the orchestrator's side is torn down while nothing is listening.
+# origins — so the owner's side is torn down while nothing is listening.
 reset_owner_link() {
   local name="$1"
   local label="reset-$name-$RANDOM"

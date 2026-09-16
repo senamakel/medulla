@@ -140,12 +140,13 @@ fn persist_setting_creates_and_merges_sections() {
     // Writing into a file that does not exist yet creates it and its parent.
     super::persist_setting(&path, "update", "check", toml::Value::Boolean(false)).expect("write");
     // A second key in the same section merges rather than replacing.
-    super::persist_setting(&path, "medulla", "maxPasses", toml::Value::Integer(7)).expect("write");
+    super::persist_setting(&path, "workflows", "allowCode", toml::Value::Boolean(false))
+        .expect("write");
 
     let parsed: TuiConfig =
         toml::from_str(&std::fs::read_to_string(&path).expect("read")).expect("reparse");
     assert!(!parsed.update.check);
-    assert_eq!(parsed.medulla.max_passes, Some(7));
+    assert!(!parsed.workflows.allow_code);
 }
 
 #[test]
@@ -278,14 +279,14 @@ fn persist_section_replaces_only_the_named_table() {
 fn clear_setting_removes_only_its_key() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("config.toml");
-    std::fs::write(&path, "[medulla]\nmaxPasses = 9\nmaxSteps = 40\n").expect("seed");
+    std::fs::write(&path, "[workflows]\nallowCode = false\nenabled = false\n").expect("seed");
 
-    super::clear_setting(&path, "medulla", "maxPasses").expect("clear");
+    super::clear_setting(&path, "workflows", "allowCode").expect("clear");
 
     let parsed: TuiConfig =
         toml::from_str(&std::fs::read_to_string(&path).expect("read")).expect("reparse");
-    assert_eq!(parsed.medulla.max_passes, None, "cleared back to unset");
-    assert_eq!(parsed.medulla.max_steps, Some(40));
+    assert!(parsed.workflows.allow_code, "cleared back to the default");
+    assert!(!parsed.workflows.enabled);
 }
 
 #[test]
@@ -425,7 +426,7 @@ fn daemon_master_roster_persists_public_peer_data_without_identity_secrets() {
         handle: Some("@master".into()),
         address: Some("master-id".into()),
         tags: Some(vec!["master".into()]),
-        description: Some("Orchestrator".into()),
+        description: Some("Primary".into()),
         protocol: "task".into(),
     };
 

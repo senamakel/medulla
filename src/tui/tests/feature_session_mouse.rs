@@ -21,10 +21,10 @@ use crossterm::event::{
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::harness_pane::LocalSessions;
 use medulla_tui::worker::pty::{LaunchSpec, PtyManager, SessionControl};
@@ -40,7 +40,7 @@ const HEIGHT: u16 = 44;
 
 /// An Agents-tab app with a live session manager behind it.
 fn app_with_harnesses(sessions: PtyManager) -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.tab_index = TABS.iter().position(|t| *t == "Sessions").unwrap();
 
@@ -84,7 +84,7 @@ fn app_with_harnesses(sessions: PtyManager) -> App {
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],

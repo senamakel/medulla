@@ -284,7 +284,7 @@ impl SessionManager {
                         key: observation.key.clone(),
                         // Observed, not dispatched: a wrapper somewhere is
                         // running this for a person, so it is not the
-                        // orchestrator's session even though this daemon never
+                        // dispatcher's session even though this daemon never
                         // saw it start. It has no name because nobody named it
                         // *here*.
                         origin: SessionOrigin::User,

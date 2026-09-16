@@ -60,7 +60,7 @@ impl PtyState {
 ///
 /// Keyboard focus ([`HarnessFocus`](crate::ui::harness_pane::HarnessFocus)) says
 /// where *keystrokes* go; this says who holds *authority*. They are not the same
-/// thing, and conflating them is what let the orchestrator paste a task prompt
+/// thing, and conflating them is what let a dispatched task prompt be pasted
 /// into a composer the operator was already typing in — a session serves one turn
 /// at a time, so two writers produce one confidently wrong answer rather than an
 /// error.
@@ -68,11 +68,11 @@ impl PtyState {
 /// Nor is it [`SessionOrigin`], which is who *started* the session. Control
 /// moves — `ctrl-g` takes a session and handing it back returns it — and origin
 /// never does. A task-spawned session an operator is holding is
-/// `origin: orchestrator, control: user`; both halves are true at once, and only
-/// this one gates dispatch.
+/// `origin: task, control: user`; both halves are true at once, and only this
+/// one gates dispatch.
 ///
 /// This is the single gate on dispatch: [`claim_idle`](super::PtyManager::claim_idle)
-/// only ever returns an orchestrator-held session. So "unmanaged" names a
+/// only ever returns a dispatch-held session. So "unmanaged" names a
 /// *current* state rather than a kind of session — one held by
 /// [`User`](Self::User) right now, whoever started it and however it got there.
 /// A session the operator opened is unmanaged because it was born that way; a
@@ -82,9 +82,9 @@ impl PtyState {
 /// [`SessionOrigin`] is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SessionControl {
-    /// The orchestrator may dispatch task frames into this session.
+    /// Task frames may be dispatched into this session.
     #[default]
-    Orchestrator,
+    Dispatch,
     /// The operator holds it. Dispatch skips it entirely until it is handed back.
     User,
 }
@@ -96,21 +96,21 @@ impl SessionControl {
     /// person reading it is looking at.
     pub fn as_str(self) -> &'static str {
         match self {
-            SessionControl::Orchestrator => "orchestrator",
+            SessionControl::Dispatch => "dispatch",
             SessionControl::User => "you",
         }
     }
 
-    /// Whether the orchestrator may dispatch into a session in this state.
-    pub fn is_orchestrator(self) -> bool {
-        matches!(self, SessionControl::Orchestrator)
+    /// Whether task frames may be dispatched into a session in this state.
+    pub fn is_dispatch(self) -> bool {
+        matches!(self, SessionControl::Dispatch)
     }
 
     /// The other side of the handover, for a toggle.
     pub fn toggled(self) -> Self {
         match self {
-            SessionControl::Orchestrator => SessionControl::User,
-            SessionControl::User => SessionControl::Orchestrator,
+            SessionControl::Dispatch => SessionControl::User,
+            SessionControl::User => SessionControl::Dispatch,
         }
     }
 }
@@ -118,7 +118,7 @@ impl SessionControl {
 /// What a settled-turn close attempt actually did, so a caller can tell three
 /// outcomes apart that a plain `bool` collapses into two.
 ///
-/// `close_if_orchestrator`'s ownership recheck refuses for two entirely
+/// `close_if_dispatch`'s ownership recheck refuses for two entirely
 /// different reasons that both used to come back as `false`: an operator
 /// really does hold the session (their session, keep its state), or the
 /// session's handle is simply gone — the rail's per-frame sweep forgets any
@@ -128,7 +128,7 @@ impl SessionControl {
 /// about to read it, when nobody ever will again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CloseAttempt {
-    /// The close won: the session existed, was still orchestrator-owned, and
+    /// The close won: the session existed, was still dispatch-owned, and
     /// is now dead.
     Closed,
     /// The recheck refused because an operator holds this session. It is
@@ -185,7 +185,7 @@ pub struct LaunchSpec {
     pub session_id: Option<String>,
     /// Who holds the session the moment it opens.
     ///
-    /// A task frame opens an [`Orchestrator`](SessionControl::Orchestrator)
+    /// A task frame opens an [`Dispatcher`](SessionControl::Dispatch)
     /// session; an operator spawning one from the TUI opens a
     /// [`User`](SessionControl::User) one, which is what makes it unmanaged.
     pub control: SessionControl,
@@ -193,7 +193,7 @@ pub struct LaunchSpec {
     ///
     /// Display and labelling only — never gate behaviour on it. Control is the
     /// gate; this is what lets a session be shown under its agent as "started
-    /// by you" rather than the less useful "orchestrator-spawned, currently
+    /// by you" rather than the less useful "dispatcher-spawned, currently
     /// yours". It is fixed here for the session's whole life.
     pub origin: SessionOrigin,
     /// The display name the operator gave this session as they spun it up.
@@ -279,7 +279,7 @@ pub struct SessionRow {
     /// being kept standing for the operator to read.
     ///
     /// Orthogonal to [`control`](SessionRow::control), which still says
-    /// `Orchestrator`: nobody has taken it, and reading it as taken would make
+    /// `Dispatcher`: nobody has taken it, and reading it as taken would make
     /// it hold the checkout against every task queued behind it. Cleared the
     /// moment the operator does take it.
     pub retained: bool,
@@ -299,7 +299,7 @@ pub struct SessionRow {
     ///
     /// The one piece of session state nothing else on this row can express. A
     /// harness stopped on a permission prompt is running, not busy in any way
-    /// the orchestrator knows about, and producing no output — so `state`,
+    /// the dispatcher knows about, and producing no output — so `state`,
     /// `busy`, and `last_output_at` all read exactly as they do for a harness
     /// thinking hard, and the operator watching a different pane never learns
     /// it stopped. Recomputed from the screen as it paints (see

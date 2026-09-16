@@ -4,7 +4,7 @@
 ///
 /// The v1 capability split (spec §2.4): agents are created and edited on the
 /// machine that owns them, so a remote host's agents are read-only here. This is
-/// about the *operator's* affordances only — the orchestrator dispatches to a
+/// about the *operator's* affordances only — the dispatcher dispatches to a
 /// remote agent exactly as it does to a local one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostKind {
@@ -84,7 +84,7 @@ pub struct HostAgentRow {
     /// remote host's agents are declared on that machine.
     pub editable: bool,
     /// Whether the live roster carries an entry for it — i.e. whether the
-    /// orchestrator can dispatch to it right now.
+    /// dispatcher can dispatch to it right now.
     pub live: bool,
     /// Whether it is the operator's manually-selected default worker.
     pub selected: bool,

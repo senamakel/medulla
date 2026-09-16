@@ -6,7 +6,7 @@ use super::super::{AgentGroup, AgentRailRow, RailAnchor, RailRow, SessionRailRow
 use super::push_group;
 use medulla::config::SidebarSort;
 use medulla::control_socket::{HarnessRunStatus, RunReport};
-use medulla::ui::agents::{AgentLane, AgentRole, TaskState, TaskStatus};
+use medulla::ui::agents::{AgentLane, TaskState, TaskStatus};
 
 fn task_row(task_id: &str) -> SessionRailRow {
     SessionRailRow {
@@ -49,12 +49,9 @@ fn shell_lane() -> AgentLane {
     AgentLane {
         key: "agent:shell".into(),
         label: "shell".into(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: Some("shell".into()),
         session_id: None,

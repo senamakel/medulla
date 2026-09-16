@@ -24,8 +24,8 @@ pub(super) struct Selection {
     ///
     /// `None` for a row that has no lane of its own — a host header or the
     /// action row. Deliberately an `Option` rather than a defaulted index: this
-    /// used to fall back to lane **0**, which is the orchestrator's, so
-    /// selecting an action row rendered the orchestrator's own thinking as if it
+    /// used to fall back to lane **0**, which is the sender's, so
+    /// selecting an action row rendered another lane's thinking as if it
     /// belonged to that row. A row with no lane now has no lane, and the caller
     /// renders what the row actually is.
     pub(super) lane_index: Option<usize>,

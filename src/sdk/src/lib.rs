@@ -7,6 +7,7 @@ pub mod access;
 pub mod agent;
 pub mod attribution;
 pub mod auth;
+pub mod backend;
 pub mod bridge;
 pub mod client;
 pub mod clipboard;
@@ -16,6 +17,7 @@ pub mod codex_overrides;
 pub mod config;
 pub mod control_socket;
 pub mod daemon;
+pub mod fleet;
 #[cfg(feature = "workflows")]
 pub mod flow_engine;
 pub mod harness_contract;
@@ -27,7 +29,6 @@ pub mod history_upload;
 pub mod home;
 pub mod hub;
 pub mod inference_proxy;
-pub mod init;
 pub mod logging;
 /// Medulla's own MCP server, offered to the harnesses it spawns.
 ///
@@ -39,7 +40,6 @@ pub mod mcp;
 pub mod onboarding;
 pub(crate) mod persistence;
 pub mod protocol;
-pub mod runtime;
 pub mod session_history;
 pub mod sessions;
 pub mod subscriptions;

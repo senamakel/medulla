@@ -81,7 +81,7 @@ pub async fn run_worker_tui(config: WorkerTuiConfig) -> anyhow::Result<()> {
     // State the identity and the forwarder together, first thing. Two peers
     // pointed at different forwarders both start cleanly and report healthy —
     // the only symptom is that neither ever hears from the other. Side by side
-    // with the orchestrator's own line, a mismatch is immediate.
+    // with the sender's own line, a mismatch is immediate.
     match &endpoint {
         Some(endpoint) => logs.push(format!(
             "host link: {} on {endpoint}",
@@ -219,7 +219,7 @@ pub(super) fn worker_runtime(
         attribution: *attribution,
         hooks: hooks.clone(),
         // The standalone worker TUI does not yet expose a config editor; named
-        // presets are loaded by the orchestrator's embedded host.
+        // presets are loaded by the sender's embedded host.
         custom_harnesses: Vec::new(),
         // Operator-declared budgets from the `[budget]` config, advertised on the
         // capability probe as `source: configured` for matching providers.

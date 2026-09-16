@@ -119,11 +119,11 @@ fn flooding(label: &str) -> LaunchSpec {
         label: label.to_string(),
         model: None,
         session_id: None,
-        // The orchestrator's own sessions, as a task frame opens them: this
+        // The sender's own sessions, as a task frame opens them: this
         // measures the dispatch path, and an operator-held session is one
         // `claim_idle` skips entirely.
-        control: SessionControl::Orchestrator,
-        origin: medulla_tui::worker::pty::SessionOrigin::Orchestrator,
+        control: SessionControl::Dispatch,
+        origin: medulla_tui::worker::pty::SessionOrigin::Task,
         name: None,
         mcp_grant_session: None,
     }

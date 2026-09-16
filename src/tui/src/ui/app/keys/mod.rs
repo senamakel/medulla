@@ -6,10 +6,10 @@
 //! Routing and Settings host subpages with bindings of their own,
 //! so their handling lives in focused sibling modules rather than inline here.
 //!
-//! The Sessions tab used to carry the orchestrator's composer, and every binding
+//! The Sessions tab used to carry the conversation composer, and every binding
 //! on it was arranged around that: printable keys always typed, the bare arrows
 //! drove the caret, and rail selection was pushed onto `Alt`+`↑`/`↓`. The
-//! composer went with the orchestrator, so the bare arrows walk the rail again;
+//! composer went with the dispatcher, so the bare arrows walk the rail again;
 //! `Alt`+`↑`/`↓` still does too, because that is what fingers learned. Transcript
 //! scrolling stays on `PageUp`/`PageDown` and task steering on
 //! `Alt`+`X`/`Alt`+`A`.
@@ -18,7 +18,6 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::hosts::HostsKey;
 use super::types::{App, Cmd, TABS};
-use crate::ui::command::CopyScope;
 use crate::ui::composer::{edit_prompt, PromptAction};
 
 mod changes;
@@ -86,7 +85,7 @@ impl App {
         // overlays and the quit chord both. Anything less is not a terminal:
         // the operator would be typing into Claude Code with a handful of keys
         // mysteriously reserved, and `Ctrl-C` (interrupt the harness) would quit
-        // the orchestrator instead.
+        // the dispatcher instead.
         if self.handle_harness_key(k) {
             return None;
         }
@@ -130,33 +129,6 @@ impl App {
             return self.on_host_switcher_key(k.code);
         }
 
-        // Resume picker owns navigation while open.
-        if self.resume_picker.is_some() {
-            match k.code {
-                KeyCode::Char('c') if ctrl => self.should_quit = true,
-                KeyCode::Esc => self.resume_picker = None,
-                KeyCode::Up => {
-                    if let Some(p) = &mut self.resume_picker {
-                        p.index = p.index.saturating_sub(1);
-                    }
-                }
-                KeyCode::Down => {
-                    if let Some(p) = &mut self.resume_picker {
-                        p.index = (p.index + 1).min(p.chats.len().saturating_sub(1));
-                    }
-                }
-                KeyCode::Enter => {
-                    if let Some(p) = self.resume_picker.take() {
-                        if let Some(chat) = p.chats.get(p.index) {
-                            return Some(Cmd::Resume(chat.session_id.clone()));
-                        }
-                    }
-                }
-                _ => {}
-            }
-            return None;
-        }
-
         let tab = self.tab();
 
         // Global control chords.
@@ -170,30 +142,13 @@ impl App {
                     self.toggle_mouse();
                     return None;
                 }
-                KeyCode::Char('y') => {
-                    self.copy_chat(CopyScope::All);
-                    return None;
+                // On the Workflows tab with a turn in flight, ⌃X stops the
+                // copilot: it is the thing the operator is watching.
+                #[cfg(feature = "workflows")]
+                KeyCode::Char('x') if tab == "Workflows" && self.copilot_busy() => {
+                    return self.abort_copilot();
                 }
-                KeyCode::Char('x') => {
-                    // On the Workflows tab with a turn in flight, ⌃X means the
-                    // copilot: it is the thing the operator is watching, and
-                    // aborting the chat runtime instead would stop something
-                    // they are not looking at while the pane kept spinning.
-                    #[cfg(feature = "workflows")]
-                    if tab == "Workflows" && self.copilot_busy() {
-                        return self.abort_copilot();
-                    }
-                    self.runtime.abort();
-                    self.set_status("Abort requested");
-                    return None;
-                }
-                KeyCode::Char('n') => {
-                    self.new_thread();
-                    return None;
-                }
-                // Open a session. `Ctrl-T` for terminal; `Ctrl-N` is already a
-                // new thread, which is the thing it would otherwise be confused
-                // with.
+                // Open a session. `Ctrl-T` for terminal.
                 //
                 // One door, from every row: pick a harness type, pick a
                 // directory, and the session is open. It used to branch on the
@@ -203,23 +158,6 @@ impl App {
                 // be, and the fast case was the one nobody could predict.
                 KeyCode::Char('t') => {
                     self.open_session_picker();
-                    return None;
-                }
-                // Walk the open threads. The bare arrows belong to the composer,
-                // so switching between conversations takes the control chord.
-                KeyCode::Up | KeyCode::Down if tab == "Sessions" => {
-                    let idx = self.active_thread_idx();
-                    let next = if matches!(k.code, KeyCode::Up) {
-                        idx.checked_sub(1)
-                    } else {
-                        Some(idx + 1)
-                    };
-                    if let Some(thread) = next.and_then(|n| self.snapshot.threads.get(n)) {
-                        let id = thread.id.clone();
-                        self.runtime.set_active_thread(id);
-                        self.agent_scroll = 0;
-                        self.refresh_snapshot();
-                    }
                     return None;
                 }
                 _ => {}
@@ -330,14 +268,9 @@ impl App {
                     return Some(cmd);
                 }
             }
-            // Sessions steering: cancel the selected running task, answer a pending
-            // question through the modal prompt. Enter answers it inline too.
+            // Sessions steering: cancel the selected running task.
             KeyCode::Char('X') | KeyCode::Char('x') if tab == "Sessions" && alt => {
                 self.cancel_selected_task();
-                return None;
-            }
-            KeyCode::Char('A') | KeyCode::Char('a') if tab == "Sessions" && alt => {
-                self.answer_selected_task();
                 return None;
             }
             KeyCode::Up => {

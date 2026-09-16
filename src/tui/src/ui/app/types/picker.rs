@@ -1,7 +1,7 @@
 //! Modal state for the manual-launcher picker and small prompt/overlay surfaces.
 //!
-//! The harness/workspace launcher ([`SessionPicker`], [`ResumePicker`],
-//! [`SessionPickerStep`], [`WorkspaceChoice`]) plus the single-line prompt
+//! The harness/workspace launcher ([`SessionPicker`], [`SessionPickerStep`],
+//! [`WorkspaceChoice`]) plus the single-line prompt
 //! overlays ([`Prompt`]/[`PromptKind`]) sit here rather
 //! than in [`super::model`], which holds the screen model itself and is at its
 //! size ceiling. All are re-exported through [`super`] as `types::*`.
@@ -10,14 +10,6 @@ use ratatui::layout::Rect;
 
 use crate::ui::composer::TextPrompt;
 use medulla::client::FeedbackType;
-
-/// The modal state for the "resume a chat" picker overlay.
-pub(in crate::ui::app) struct ResumePicker {
-    /// The resumable chats to choose from.
-    pub(in crate::ui::app) chats: Vec<crate::ui::chat_store::MainChatSummary>,
-    /// The highlighted row.
-    pub(in crate::ui::app) index: usize,
-}
 
 /// An overlay the app can draw over the content pane.
 ///
@@ -40,8 +32,6 @@ pub(in crate::ui::app) enum Overlay {
     WorkflowDelete,
     /// The shared single-line prompt (Workers add/edit, Agents answer).
     InlinePrompt,
-    /// The saved-chat resume picker.
-    ResumePicker,
 }
 
 /// The modal state for the harness-type/workspace picker overlay.
@@ -91,10 +81,10 @@ pub(in crate::ui::app) struct SessionPicker {
 ///
 /// There is deliberately no "managed or unmanaged?" stage. A session the
 /// operator starts by hand is theirs — that is what starting it by hand *means*
-/// — and the orchestrator spawns its own sessions managed without asking
+/// — and the dispatcher spawns its own sessions managed without asking
 /// anybody. So the question only ever had one sensible answer, and asking it
 /// bought a keystroke, an extra screen, and a freshly started session the
-/// operator then had to take back from the orchestrator before typing into it.
+/// operator then had to take back from the dispatcher before typing into it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::ui::app) enum SessionPickerStep {
     /// Choose which machine the session runs on.
@@ -195,13 +185,6 @@ pub(in crate::ui::app) enum PromptKind {
         workflow: String,
         /// The proposal awaiting the decision.
         proposal_id: String,
-    },
-    /// Answer a pending sub-agent question.
-    AnswerQuestion {
-        /// The cycle the question belongs to.
-        cycle_id: String,
-        /// The pending question's id.
-        question_id: String,
     },
     /// One field of the Hosts page's add/edit form; the answers so far ride
     /// along so an abandoned form leaves nothing on the App.

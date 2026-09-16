@@ -179,36 +179,6 @@ fn logout_refuses_to_claim_success_while_an_environment_token_still_wins() {
 }
 
 #[test]
-fn init_offline_writes_then_protects_a_workspace_profile() {
-    let dir = TempDir::new().unwrap();
-    std::fs::write(
-        dir.path().join("README.md"),
-        "# Example\n\nA small workspace.\n",
-    )
-    .unwrap();
-
-    let first = run(&["init", ".", "--offline"], dir.path(), dir.path());
-    assert!(
-        first.status.success(),
-        "{}",
-        String::from_utf8_lossy(&first.stderr)
-    );
-    assert!(dir.path().join("MEDULLA.md").exists());
-    assert!(String::from_utf8_lossy(&first.stdout).contains("Wrote"));
-
-    let second = run(&["init", ".", "--offline"], dir.path(), dir.path());
-    assert!(!second.status.success());
-    assert!(String::from_utf8_lossy(&second.stderr).contains("already exists"));
-
-    let forced = run(
-        &["init", ".", "--offline", "--force"],
-        dir.path(),
-        dir.path(),
-    );
-    assert!(forced.status.success());
-}
-
-#[test]
 fn invalid_cli_inputs_and_non_tty_tui_exit_cleanly() {
     let dir = TempDir::new().unwrap();
 

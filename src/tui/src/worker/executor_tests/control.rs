@@ -16,7 +16,7 @@
 //! The last row is why these are the deliverable rather than the safety net:
 //! control state is no longer advertised to the backend at all, so the hand-back
 //! turn is now the *only* way a held in-flight task reaches a result. A silent
-//! dispatch would be an orchestrator waiting forever on a task it cannot see the
+//! dispatch would be a dispatcher waiting forever on a task it cannot see the
 //! state of.
 //!
 //! These replace `a_dispatch_into_a_workspace_the_operator_holds_is_refused` and
@@ -132,9 +132,9 @@ done
 }
 
 #[tokio::test]
-async fn a_held_session_is_skipped_and_a_sibling_orchestrator_session_serves_the_task() {
+async fn a_held_session_is_skipped_and_a_sibling_dispatch_session_serves_the_task() {
     // Candidacy, at session grain (spec §4.1). The conversation already has a
-    // session of its own, idle and the orchestrator's. The operator then opens a
+    // session of its own, idle and the sender's. The operator then opens a
     // session of their own in the same checkout and keeps it. The next dispatch
     // must go to the sibling and leave the person alone — where before, the hold
     // on *their* session refused the whole workspace, and this task failed with
@@ -184,7 +184,7 @@ async fn a_held_session_is_skipped_and_a_sibling_orchestrator_session_serves_the
 
     assert_eq!(
         second.reply, "answer 2",
-        "the task must be served by the orchestrator's own session"
+        "the task must be served by a dispatch-held session"
     );
     assert_eq!(
         sessions.rows().len(),
@@ -266,7 +266,7 @@ async fn with_only_a_held_session_the_work_queues_and_runs_on_hand_back() {
     );
 
     // The operator hands their session back; the queue drains.
-    assert!(sessions.set_control(&held, SessionControl::Orchestrator));
+    assert!(sessions.set_control(&held, SessionControl::Dispatch));
     let result = tokio::time::timeout(SETTLES, run)
         .await
         .expect("the queued dispatch must settle once the tree is free")
@@ -283,7 +283,7 @@ async fn with_only_a_held_session_the_work_queues_and_runs_on_hand_back() {
 #[tokio::test]
 async fn a_queue_that_outlives_its_budget_fails_loudly_rather_than_silently() {
     // The other half of the queue, and the reason the shared held prefix still
-    // exists. Control state is not advertised any more, so an orchestrator
+    // exists. Control state is not advertised any more, so a dispatcher
     // cannot see that a task is parked behind a person — which makes waiting
     // forever indistinguishable from losing the task. The wait is therefore
     // bounded by the caller's own idle ceiling and ends in a real, retryable
@@ -414,7 +414,7 @@ async fn a_mid_turn_takeover_suspends_the_turn_and_hands_back_its_result() {
     );
 
     // Hand-back: a fresh turn in that same session produces the task's result.
-    assert!(sessions.set_control(&id, SessionControl::Orchestrator));
+    assert!(sessions.set_control(&id, SessionControl::Dispatch));
     let result = tokio::time::timeout(SETTLES, run)
         .await
         .expect("the hand-back turn must settle the task")
@@ -504,7 +504,7 @@ async fn the_idle_watchdog_does_not_fire_across_a_hold() {
         "an idle-timeout would have stopped the harness the operator is using"
     );
 
-    assert!(sessions.set_control(&id, SessionControl::Orchestrator));
+    assert!(sessions.set_control(&id, SessionControl::Dispatch));
     let result = tokio::time::timeout(SETTLES, run)
         .await
         .expect("the hand-back turn must settle")

@@ -73,7 +73,7 @@ impl PtyManager {
     /// The last `max` non-blank lines of `id`'s screen, oldest first.
     ///
     /// This is what a handoff brief carries: enough of what the operator was
-    /// doing for the orchestrator to continue the thread rather than restart it.
+    /// doing for the dispatcher to continue the thread rather than restart it.
     /// Plain text, not cells — nobody downstream renders it, they read it.
     ///
     /// Reads at scrollback offset 0 and puts the operator's offset back

@@ -195,7 +195,7 @@ PY
 
 # ── 4. both transports answer the same task the same way ────────────────────
 #
-# What must match is the shape the orchestrator sees: a Reply frame carrying the
+# What must match is the shape the owner sees: a Reply frame carrying the
 # marker, from a task it dispatched the same way. The reply *texts* differ by
 # design — each leg echoes its own task — so they are not compared.
 #
@@ -203,7 +203,7 @@ PY
 # carries the context window (`used` of `size`) rather than an input/output
 # split, so there is nothing on that transport to fill `usage` with that would
 # not be invented. This is a property of the protocol, not a gap in the fold —
-# an orchestrator that bills or throttles on reported tokens gets nothing from an
+# an owner that bills or throttles on reported tokens gets nothing from an
 # ACP run and has to account for that.
 scenario_parity() {
   scenario "both transports answer the same task the same way"

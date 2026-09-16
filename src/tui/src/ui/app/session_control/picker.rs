@@ -284,10 +284,10 @@ impl App {
     ///
     /// Always unmanaged, and not as a default the operator can override: a
     /// session started by hand is one somebody intends to type into, and the
-    /// orchestrator starts its own managed without being asked. Spawning one
+    /// dispatcher starts its own managed without being asked. Spawning one
     /// into dispatch would mean the very next thing the operator does — press
     /// Enter on the row they just created — is a request to take it back off
-    /// the orchestrator it was handed to a keystroke earlier.
+    /// the dispatcher it was handed to a keystroke earlier.
     ///
     /// Selecting the new row matters more than it sounds: a session that
     /// appears somewhere below the fold, with the pane still showing whatever
@@ -307,7 +307,7 @@ impl App {
                 // was choosing it and a confirmation that omits the answer is
                 // not one. "local session" covers a shell as squarely as it
                 // covers a harness: it states where the session runs and who
-                // holds it, not whether the orchestrator declined to dispatch
+                // holds it, not whether the dispatcher declined to dispatch
                 // into it, so a shell needs no wording of its own here.
                 let mut status = format!(
                     "Started {} in {workspace} · local session",

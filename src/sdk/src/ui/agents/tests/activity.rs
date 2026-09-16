@@ -7,7 +7,7 @@
 
 use crate::hub::WorkerActivity;
 use crate::ui::agents::merge_host_activity;
-use crate::ui::agents::{AgentLane, AgentRole, TaskStatus};
+use crate::ui::agents::{AgentLane, TaskStatus};
 
 /// One observed frame.
 fn record(agent: &str, task: &str, kind: &str, content: &str, at: i64) -> WorkerActivity {
@@ -21,18 +21,15 @@ fn record(agent: &str, task: &str, kind: &str, content: &str, at: i64) -> Worker
     }
 }
 
-/// A worker lane as `derive_agent_lanes` seeds it from the roster: present, and
+/// A worker lane as `roster_lanes` seeds it from the roster: present, and
 /// entirely empty of activity.
 fn worker_lane(agent_id: &str) -> AgentLane {
     AgentLane {
         key: format!("agent:{agent_id}"),
         label: agent_id.into(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: Some(agent_id.into()),
         session_id: None,
@@ -154,21 +151,6 @@ fn a_worker_lane_without_an_agent_id_cannot_be_attributed_activity() {
         lanes[0].tasks.is_empty(),
         "an id-less lane cannot claim a task"
     );
-    assert_eq!(lanes[0].active_tasks, 0);
-}
-
-#[test]
-fn a_tier_lane_is_never_given_worker_tasks() {
-    // Orchestrator/Reasoning lanes are cognitive tiers, not agents; hanging a
-    // delegated task off one would claim the tier ran it.
-    let mut tier = worker_lane("claude-worker");
-    tier.role = AgentRole::Orchestrator;
-    let mut lanes = vec![tier];
-    merge_host_activity(
-        &mut lanes,
-        &[record("claude-worker", "t1", "status", "running", 10)],
-    );
-    assert!(lanes[0].tasks.is_empty());
     assert_eq!(lanes[0].active_tasks, 0);
 }
 

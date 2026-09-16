@@ -451,7 +451,7 @@ fn the_master_tab_is_the_same_in_both_modes() {
 
 #[test]
 fn y_copies_this_workers_address() {
-    // The orchestrator addresses a worker by this string, and the screen holds
+    // The dispatcher addresses a worker by this string, and the screen holds
     // the terminal's mouse capture — so without a key the address on screen can
     // only be retyped.
     let mut app = app_with(PtyManager::new());

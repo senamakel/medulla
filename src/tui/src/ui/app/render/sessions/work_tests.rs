@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
 use medulla::harness_work::{kinds, WorkFold, WorkSnapshot};
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::Terminal;
@@ -15,7 +15,7 @@ use serde_json::json;
 use crate::ui::app::App;
 
 fn app() -> App {
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 

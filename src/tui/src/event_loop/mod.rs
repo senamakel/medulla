@@ -1,8 +1,8 @@
 //! The interactive TUI event loop and its async plumbing.
 //!
 //! Owns [`AppMsg`] (the messages spawned tasks send back to the UI), the main
-//! [`run`] select-loop over crossterm events / runtime pings / a 90ms tick,
-//! [`run_cmd`] which turns a [`Cmd`] into a spawned async task, and the
+//! [`run`] select-loop over crossterm events / background messages / a 90ms
+//! tick, [`run_cmd`] which turns a [`Cmd`] into a spawned async task, and the
 //! background [`spawn_update_checker`]. The loop keeps all mutation on one task
 //! and folds async results back in over an mpsc channel.
 
@@ -14,8 +14,9 @@ use futures::StreamExt;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
-use medulla::runtime::Runtime;
-use medulla_tui::ui::app::{App, Cmd, TABS};
+use medulla::backend::Backend;
+use medulla::hub::HubSlot;
+use medulla_tui::ui::app::{App, Cmd};
 
 use crate::terminal::set_mouse_capture;
 
@@ -33,15 +34,16 @@ use update_checker::spawn_update_checker;
 pub(crate) use cmd_dispatch::clear_copilot_hosts;
 use cmd_dispatch::run_cmd;
 
-/// Drive the ratatui app: build [`App`], subscribe to the runtime, and loop over
-/// input events, runtime snapshots, background [`AppMsg`]s, and the animation
-/// tick until the app requests quit.
+/// Drive the ratatui app: build [`App`] and loop over input events, background
+/// [`AppMsg`]s, and the animation tick until the app requests quit.
 pub(crate) async fn run(
     terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
-    runtime: Arc<dyn Runtime>,
+    backend: Arc<dyn Backend>,
+    hub: HubSlot,
     wiring: SessionWiring,
 ) -> anyhow::Result<SessionExit> {
     let SessionWiring {
+        offline_demo,
         loaded,
         local_hosts,
         startup_status,
@@ -51,20 +53,19 @@ pub(crate) async fn run(
         account,
         mut sharing,
         onboarding_path,
-        link_obs,
         host,
         local_sessions,
         harness_runs,
         hook_log,
     } = wiring;
-    let mut app = App::new(runtime.clone(), loaded);
+    let mut app = App::with_hub(backend.clone(), hub, loaded);
+    if offline_demo {
+        app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
+    }
     app.set_config_path(config_path);
     app.set_hooks_config_path(hooks_config_path);
     app.set_medulla_home(medulla_home);
     app.set_account(account);
-    if let Some(obs) = link_obs {
-        app.set_link_observation(obs);
-    }
     if let Some(host) = host {
         app.set_host_observation(host);
     }
@@ -76,7 +77,6 @@ pub(crate) async fn run(
     if let Some(status) = startup_status {
         app.set_status(status);
     }
-    let mut sub = runtime.subscribe();
     let mut reader = EventStream::new();
     // The one animation clock. Every frame-driven effect — spinners, the
     // attention pulse — counts in this unit, so the period is declared beside
@@ -84,11 +84,6 @@ pub(crate) async fn run(
     let mut tick = tokio::time::interval(Duration::from_millis(medulla_tui::ui::theme::FRAME_MS));
     let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel::<AppMsg>();
     let mut mouse_on = true;
-    // Once the runtime's broadcast sender is gone, `sub.recv()` returns
-    // `Closed` immediately forever. Guarding the arm off keeps that from
-    // becoming a busy-loop: the select would otherwise always pick a ready
-    // arm and spin at 100% CPU, redrawing nothing new.
-    let mut runtime_sub_closed = false;
 
     // Background release-update checker ("automated cron"): first probe ~10s
     // after startup, then every 6h. A newer version surfaces as a persistent
@@ -112,21 +107,8 @@ pub(crate) async fn run(
                     if let Some(cmd) = app.on_event(ev) {
                         run_cmd(
                             cmd,
-                            &runtime,
-                            &app.loaded.config,
-                            &msg_tx,
-                            local_hosts.as_ref(),
-                        );
-                    }
-                }
-            }
-            recv = sub.recv(), if !runtime_sub_closed => {
-                if runtime_ping_needs_refresh(&mut runtime_sub_closed, &recv) {
-                    app.refresh_snapshot();
-                    if should_refresh_context(&mut app) {
-                        run_cmd(
-                            Cmd::InspectContext,
-                            &runtime,
+                            &backend,
+                            &app.hub,
                             &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
@@ -136,8 +118,7 @@ pub(crate) async fn run(
             }
             Some(msg) = msg_rx.recv() => {
                 match msg {
-                    AppMsg::Status(s) => { app.set_status(s); app.refresh_snapshot(); }
-                    AppMsg::Contexts(c) => app.set_contexts(c),
+                    AppMsg::Status(s) => app.set_status(s),
                     AppMsg::RemoteHostConnected {
                         host_id,
                         capabilities,
@@ -219,7 +200,8 @@ pub(crate) async fn run(
                         if let Some(cmd) = cmd {
                             run_cmd(
                                 cmd,
-                                &runtime,
+                                &backend,
+                                &app.hub,
                                 &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
@@ -230,25 +212,17 @@ pub(crate) async fn run(
                         if let Some(cmd) = app.set_subscriptions(*snapshot) {
                             run_cmd(
                                 cmd,
-                                &runtime,
+                                &backend,
+                                &app.hub,
                                 &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
                             );
                         }
                     }
-                    AppMsg::OpenResume(chats) => app.open_resume(chats),
                     AppMsg::LoggedOut => {
                         app.set_status("Account · logged out. Returning to the login screen…");
                         app.logged_out();
-                    }
-                    AppMsg::Resumed(s) => {
-                        app.tab_index = TABS
-                            .iter()
-                            .position(|tab| *tab == "Sessions")
-                            .expect("Sessions tab is listed");
-                        app.refresh_snapshot();
-                        app.set_status(s);
                     }
                     #[cfg(feature = "workflows")]
                     AppMsg::CopilotStarted { workflow, instruction } => {
@@ -309,7 +283,8 @@ pub(crate) async fn run(
                         if let Some(cmd) = queued {
                             run_cmd(
                                 cmd,
-                                &runtime,
+                                &backend,
+                                &app.hub,
                                 &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
@@ -338,7 +313,8 @@ pub(crate) async fn run(
                         if let Some(cmd) = app.feedback_detail_cmd() {
                             run_cmd(
                                 cmd,
-                                &runtime,
+                                &backend,
+                                &app.hub,
                                 &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
@@ -362,7 +338,8 @@ pub(crate) async fn run(
                         // it rather than patching state locally.
                         run_cmd(
                             Cmd::LoadFeedback(app.feedback_query()),
-                            &runtime,
+                            &backend,
+                            &app.hub,
                             &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
@@ -371,7 +348,6 @@ pub(crate) async fn run(
                     AppMsg::UpdateAvailable(notice) => {
                         app.set_update_notice(notice.clone());
                         app.set_status(notice);
-                        app.refresh_snapshot();
                     }
                 }
             }
@@ -393,11 +369,10 @@ pub(crate) async fn run(
                 }
             }
             _ = tick.tick() => {
-                // Advanced every tick rather than only while a cycle is
-                // running: it is the whole UI's animation clock now, and the
-                // workflow canvas's wires flow whether or not this process
-                // happens to be mid-cycle. The spinner it also drives is only
-                // drawn while running, so it is unaffected.
+                // Advanced every tick: it is the whole UI's animation clock,
+                // and the workflow canvas's wires flow whether or not anything
+                // is running. The spinner it also drives is only drawn while
+                // running, so it is unaffected.
                 app.frame = app.frame.wrapping_add(1);
                 // And the rail's own clock: a harness that exited since the
                 // last tick stops being listed, and the record it was holding
@@ -413,7 +388,8 @@ pub(crate) async fn run(
                 if let Some(cmd) = app.due_subscription_refresh() {
                     run_cmd(
                         cmd,
-                        &runtime,
+                        &backend,
+                        &app.hub,
                         &app.loaded.config,
                         &msg_tx,
                         local_hosts.as_ref(),
@@ -436,43 +412,4 @@ fn apply_workflow_deleted(app: &mut App, id: &str, close_host: impl FnOnce(&str)
     close_host(id);
     app.forget_copilot(id);
     app.reload_workflows();
-}
-
-/// Whether a runtime broadcast wakeup means the snapshot on screen is stale.
-///
-/// `Lagged` is the case with the *most* to redraw, not the least: the runtime
-/// published faster than this loop consumed, so the subscription dropped
-/// notifications and what is drawn is further behind than a plain `Ok` would
-/// leave it. Treating it as nothing-to-do — which an `is_ok()` test does — left
-/// the UI stale until some unrelated event happened to wake it, exactly when
-/// the most had changed.
-///
-/// `Closed` is the one wakeup that refreshes nothing — and it is *terminal*:
-/// the runtime is gone, so no newer snapshot will ever arrive, and the caller
-/// sets `shut` from it so the loop disarms the arm instead of spinning on an
-/// ever-ready error. That is what keeps the select from busy-looping after the
-/// last sender drops.
-fn runtime_ping_needs_refresh(
-    shut: &mut bool,
-    recv: &Result<(), tokio::sync::broadcast::error::RecvError>,
-) -> bool {
-    // Once shut, nothing refreshes: the closure is terminal, so any wakeup
-    // that still arrives (the drained tail of the channel) was detached from
-    // a snapshot we can no longer read.
-    if *shut {
-        return false;
-    }
-    if matches!(recv, Err(tokio::sync::broadcast::error::RecvError::Closed)) {
-        *shut = true;
-        return false;
-    }
-    matches!(
-        recv,
-        Ok(()) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_))
-    )
-}
-
-/// Detect a changed event stream while the nested Context surface is visible.
-fn should_refresh_context(app: &mut App) -> bool {
-    app.tab() == "Settings" && app.settings_subpage() == "Context" && app.events_changed()
 }

@@ -1,12 +1,11 @@
-//! TUI startup: config load, runtime selection, terminal setup, the optional
-//! pre-app login screen, and background-service wiring before handing off to the
+//! TUI startup: config load, sign-in, terminal setup, the optional pre-app
+//! login screen, and background-service wiring before handing off to the
 //! [`crate::event_loop::run`] loop.
 //!
-//! [`run_tui`] selects a runtime — the embedded OpenHuman core, signing the
-//! operator in through the pre-app login screen when the core has no session —
-//! installs the panic-safe terminal guard, starts
-//! the optional host-link presence service, runs the event loop, and tears
-//! everything down on exit.
+//! [`run_tui`] resolves the backend this host is signed in to — running the
+//! pre-app login screen when it has no session — installs the panic-safe
+//! terminal guard, starts this device's hosts and the in-process hub, runs the
+//! event loop, and tears everything down on exit.
 
 use std::io::{self, IsTerminal};
 use std::sync::{Arc, Mutex};
@@ -14,9 +13,11 @@ use std::sync::{Arc, Mutex};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
+use medulla::backend::connect::{
+    client_from_config, external_credential_source, probe, readiness, Readiness,
+};
+use medulla::backend::{Backend, CloudBackend, MockBackend};
 use medulla::config::load_config;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 use medulla_tui::cli::parse_tui_args;
 
 use crate::event_loop::{run, SessionExit, SessionWiring};
@@ -25,11 +26,11 @@ use crate::sign_in::{
 };
 use crate::terminal::{restore, TermGuard};
 
-mod runtime;
+mod session;
 
-use runtime::{cloud_runtime, session_of, workspace_roots};
+use session::session_of;
 
-/// Parse TUI args, select a runtime, set up the terminal, optionally run the
+/// Parse TUI args, resolve the backend, set up the terminal, optionally run the
 /// login screen, start background services, and drive the event loop to exit.
 pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let args = parse_tui_args(raw);
@@ -57,8 +58,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
 
     // Sign in before resolving anything else, when this install has no account
     // yet. Every path below — the config that wins, the log directory, the
-    // workflow store, the core's own workspace — is derived from the *account's*
-    // home, so learning who the operator is has to come first or all of it lands
+    // workflow store — is derived from the *account's* home, so learning who the operator is has to come first or all of it lands
     // in the pre-login directory and stays there for the life of the process.
     //
     // Skipped on `--mock`, which never touches a backend, and skipped once an
@@ -79,8 +79,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // credential, so the account on screen and the identity on the wire would
     // disagree from the first frame.
     let externally_authenticated =
-        medulla::runtime::cloud::connect::external_credential_source(&env, &loaded.config.backend)
-            .is_some();
+        external_credential_source(&env, &loaded.config.backend).is_some();
     if !args.mock && !account_is_active(&env) && !externally_authenticated {
         let issuer = loaded.config.backend.base_url.clone();
         match sign_in_first_account(&env, &issuer, args.alt_screen).await? {
@@ -109,34 +108,32 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
 
     let home = medulla::home::medulla_home(&env);
 
-    // Runtime selection.
+    // Backend selection.
     //
-    // The orchestration backend is THE runtime: no fallback chain, because a
+    // The configured backend is THE backend: no fallback chain, because a
     // misconfiguration must surface rather than silently downgrade to something
     // that behaves differently. No session is not a reason to run something
     // else, it is a reason to sign in, so it routes to the pre-app login screen
-    // below. `--mock` is still honoured ahead of all of this: the demo runtime
-    // exists for tests and offline demos, and reaching it requires asking for
-    // it.
-    let mut runtime: Option<Arc<dyn Runtime>> = None;
+    // below. `--mock` is still honoured ahead of all of this: the offline demo
+    // exists for tests and demos, and reaching it requires asking for it.
+    let mut backend: Option<Arc<dyn Backend>> = None;
     let mut startup_status: Option<String> = None;
     // Deferred across terminal setup: the login screen needs the alt screen,
     // which is not up yet at selection time.
     let mut need_login: Option<String> = None;
     // The signed-in session, resolved once from the store. Everything that needs
-    // a backend bearer — the hub uplink, the Account subpage — takes it from
-    // here rather than looking it up again, so
-    // no two surfaces can disagree about whether this process is signed in.
+    // a backend bearer — the access gate, the Account subpage — takes it from
+    // here rather than looking it up again, so no two surfaces can disagree
+    // about whether this process is signed in.
     let mut session: Option<medulla::auth::Credentials> = None;
     let mut account: Option<medulla::auth::AuthState> = None;
 
-    // Shared hub roster slot: filled after the hub connects, read by the
-    // runtime's worker surface so the Workers tab manages the hub's host-link
-    // peers live.
-    let hub_slot: crate::hub_relay::HubSlot = Arc::new(Mutex::new(None));
-    // Kept so a relogin can rebuild the runtime around a freshly built client
-    // without re-reading config.
-    let mut client_arc: Option<Arc<medulla::client::MedullaClient>> = None;
+    // Shared hub roster slot: filled once the hub is up, read by the app's
+    // worker surfaces so the Hosts tab manages the roster live.
+    let hub_slot: medulla::hub::HubSlot = Arc::new(Mutex::new(None));
+    // Whether this process holds a real session: only then can the Account
+    // page's logout succeed and land back on the login screen.
+    let mut signed_in = false;
     // The hub narrates itself; those lines must not reach the terminal while the
     // TUI owns the screen, so they are captured here instead.
     let hub_logs = medulla_tui::log::LogBuffer::new();
@@ -150,7 +147,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // that could be said at startup, so it belongs at the end of the fallback
     // chain, not the front.
     let log_note = hub_logs
-        .attach_file(&log_dir, "orchestrator")
+        .attach_file(&log_dir, "medulla")
         .map(|path| format!("logging to {}", path.display()));
 
     // User-launched Claude/Codex sessions read their fixed user skill roots,
@@ -171,21 +168,10 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     if args.mock {
         // Explicit offline demo: skip the token lookup and the login screen
         // entirely so the TUI is drivable with no backend at all.
-        runtime = Some(Arc::new(MockRuntime::demo()));
-        startup_status = Some("running the offline mock runtime (--mock)".to_string());
+        backend = Some(Arc::new(MockBackend::new()));
+        startup_status = Some("running offline (--mock)".to_string());
     }
-    // The embedded core, whenever it is compiled in. Deliberately ahead of the
-    // old token/login chain: a host that ships the core has no reason to dial a
-    // remote backend, and keeping that chain as a general fallback would mean a
-    // misconfiguration silently downgrades to a different runtime with
-    // different behaviour instead of surfacing itself.
-    //
-    // The one exception is a core that booted but has no Medulla backend to
-    // talk to — no configured URL, or nobody signed in. That is not a
-    // misconfiguration to surface, it is the documented credential-free start,
-    // and every drive method would otherwise return the same error behind a UI
-    // that looks live. It takes the offline demo, exactly as `--mock` does.
-    if runtime.is_none() {
+    if backend.is_none() {
         // Before the readiness check, because it can change the answer: an
         // install that predates the store holds its bearer in a
         // `credentials.json` nothing reads any more, and would otherwise be sent
@@ -195,21 +181,16 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         // lands on the screen the UI is about to take over. `medulla login`
         // says so on its own path, where there is a terminal to say it to.
         let _ = medulla::auth::adopt_legacy(&env, &loaded.config.backend).await;
-        match medulla::runtime::cloud::connect::readiness(&env, &loaded.config.backend) {
-            medulla::runtime::cloud::connect::Readiness::Ready => {
-                let client = Arc::new(
-                    medulla::runtime::cloud::connect::client_from_config(
-                        &env,
-                        &loaded.config.backend,
-                    )
+        match readiness(&env, &loaded.config.backend) {
+            Readiness::Ready => {
+                let client = client_from_config(&env, &loaded.config.backend)
                     // Unreachable: `Ready` is exactly the state in which the
                     // same two inputs yield a client. Kept as a real error
                     // rather than an `expect` so a future divergence between
                     // the two reports itself instead of aborting the process.
-                    .ok_or_else(|| anyhow::anyhow!("the backend client could not be built"))?,
-                );
-                match medulla::runtime::cloud::connect::probe(&client).await {
-                    medulla::runtime::cloud::connect::Readiness::SignedOut => {
+                    .ok_or_else(|| anyhow::anyhow!("the backend client could not be built"))?;
+                match probe(&client).await {
+                    Readiness::SignedOut => {
                         // A rejected credential that came from the config or the
                         // environment cannot be fixed by signing in: the fresh
                         // JWT lands in the store, which that source outranks, so
@@ -217,10 +198,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                         // Say where it came from instead of opening a login
                         // screen that resolves to the same failure.
                         if let Some(source) =
-                            medulla::runtime::cloud::connect::external_credential_source(
-                                &env,
-                                &loaded.config.backend,
-                            )
+                            external_credential_source(&env, &loaded.config.backend)
                         {
                             anyhow::bail!(
                                 "the backend rejected the credential from {source} — replace \
@@ -234,29 +212,21 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                     // backend actually rejected the credential.
                     _ => {
                         (session, account) = session_of(&env, &loaded.config.backend);
-                        client_arc = Some(Arc::clone(&client));
-                        runtime = Some(
-                            cloud_runtime(
-                                client,
-                                hub_slot.clone(),
-                                &loaded.config.backend,
-                                workspace_roots(&loaded.config),
-                            )
-                            .await,
-                        );
+                        signed_in = true;
+                        backend = Some(Arc::new(CloudBackend::new(loaded.config.backend.clone())));
                     }
                 }
             }
             // Signed out is an expected state with an obvious remedy, so it is
             // the one thing that does not end here: the login screen runs once
             // the terminal is up.
-            medulla::runtime::cloud::connect::Readiness::SignedOut => {
+            Readiness::SignedOut => {
                 need_login = Some(loaded.config.backend.base_url.clone());
             }
             // No backend to reach. Not fixable from inside the app, and not a
-            // reason to start a different runtime that would quietly behave
+            // reason to start something else that would quietly behave
             // differently.
-            medulla::runtime::cloud::connect::Readiness::Unusable(why) => {
+            Readiness::Unusable(why) => {
                 // No terminal teardown needed: this runs before `TermGuard`
                 // takes over the screen, so the error reaches a normal stdout.
                 anyhow::bail!("Medulla is unreachable: {why}");
@@ -275,10 +245,10 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     let guard = TermGuard::setup(args.alt_screen)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
 
-    // Pre-app login screen: the core booted but has no app session. Runs inside
-    // the alt-screen session already set up, and resolves to a signed-in core or
-    // a clean quit — there is no third option, because a TUI with no runtime has
-    // nothing to show.
+    // Pre-app login screen: a configured backend with no session. Runs inside
+    // the alt-screen session already set up, and resolves to a signed-in host
+    // or a clean quit — there is no third option, because the plan gate below
+    // needs an account to ask about.
     if let Some(base_url) = need_login.take() {
         // Same flow as a mid-session relogin, and deliberately the same code: an
         // install with an account whose session went missing is signing in
@@ -304,23 +274,11 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 return Err(e);
             }
             Ok(SignIn::SameAccount) => {
-                match medulla::runtime::cloud::connect::client_from_config(
-                    &env,
-                    &loaded.config.backend,
-                ) {
-                    Some(client) => {
-                        let client = Arc::new(client);
+                match client_from_config(&env, &loaded.config.backend) {
+                    Some(_) => {
                         (session, account) = session_of(&env, &loaded.config.backend);
-                        client_arc = Some(Arc::clone(&client));
-                        runtime = Some(
-                            cloud_runtime(
-                                client,
-                                hub_slot.clone(),
-                                &loaded.config.backend,
-                                workspace_roots(&loaded.config),
-                            )
-                            .await,
-                        );
+                        signed_in = true;
+                        backend = Some(Arc::new(CloudBackend::new(loaded.config.backend.clone())));
                     }
                     // Stored and still no client: the token was written and
                     // then did not resolve, which means the config named no
@@ -334,8 +292,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         }
     }
 
-    // `mut` because a relogin rebuilds it around a fresh client.
-    let mut runtime = runtime.expect("a runtime is always selected");
+    let backend = backend.expect("a backend is always selected");
 
     // Entitlement gate. Placed here because this is where both boot paths meet —
     // the launch that found a stored session and the one that just signed in —
@@ -380,10 +337,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     //      layered load (`sources` is ordered low → high, so `.last()`), which is
     //      the project-local `.medulla/config.toml` / `medulla.toml` when present;
     //   3. otherwise the home config (nothing was discovered to layer).
-    // The welcome/credit-sharing flow ran only against an authenticated cloud
-    // backend, which the embedded core replaces; it returns with the auth
-    // migration rather than being reconstructed against a core that has no
-    // notion of a Medulla account.
+    // The welcome/credit-sharing flow is not wired into startup at present.
     let mut sharing = None;
     let active_config_path = args
         .config
@@ -405,38 +359,13 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| home_config_path.clone());
 
-    // Optional background host-link service (observational only): keep per-peer
-    // liveness current and surface it into routing and Agents lanes.
-    let mut link_status: Option<String> = None;
-    let link_config = loaded.config.link.clone().unwrap_or_else(|| {
-        medulla::config::default_link_config(&env, &loaded.config.backend.base_url)
-    });
-    let link_service = match medulla::protocol::service::LinkService::start(&link_config).await {
-        Ok(service) => Some(service),
-        Err(e) => {
-            link_status = Some(format!("host link unavailable ({e})"));
-            None
-        }
-    };
-    let link_obs = link_service.as_ref().map(|s| s.observation());
-
-    // Backend runtime only: start the orchestrator hub so the hosted brain's
-    // delegated tasks reach linked hosts, and fill the roster slot so
-    // the Workers tab manages it live. Opt-in via `MEDULLA_LINK_PEER` /
-    // `MEDULLA_HUB_WORKERS`; the session is dropped (disconnected) on exit.
-    //
-    // The hub is scoped to the *authenticated* session: its Socket.IO uplink
-    // carries the current account's JWT and its roster handle is that account's.
-    // On a relogin (below) it is torn down and re-started for the new account so
-    // no worker mutation or task relay ever targets a revoked/stale session.
-    // This device also *runs* the work, unless `[host].enabled = false` /
+    // This device *runs* the work, unless `[host].enabled = false` /
     // `MEDULLA_HOST=0`. The host binds an address on a bus the hub dispatches
     // over, so a task for this machine is delivered in-process — no relay, no
     // second identity, no contact edge between two programs on one laptop.
     //
-    // Started before the hub because the hub advertises it: the roster it
-    // registers with the backend has to name this host from the first moment, or
-    // the orchestrator's opening move has nowhere to send work.
+    // Started before the hub because the hub's roster has to name this host
+    // from the first moment, or the first dispatch has nowhere to go.
     let local_network = medulla::bridge::LocalBridgeNetwork::new();
     // Every harness this device runs lives here, on a real pseudo-terminal with
     // its screen parsed by an emulator. Built out here rather than inside the
@@ -491,8 +420,8 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             hosts
         }
         Err(e) => {
-            // Not fatal: the orchestrator still drives remote workers. But it is
-            // the difference between "nothing happens" and "nothing happens
+            // Not fatal: remote workers are still reachable. But it is the
+            // difference between "nothing happens" and "nothing happens
             // *here*", so it goes on the status line rather than only the log.
             hub_logs.push(format!("host: not hosting on this device ({e})"));
             startup_status.get_or_insert(format!("not hosting on this device ({e})"));
@@ -591,29 +520,16 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             .collect(),
     };
 
-    // Start the hub unconditionally. It used to be gated on an authenticated
-    // cloud client; it reads its own credentials from the Medulla home and
-    // returns `None` when there are none, so the gate only duplicated a check it
-    // already makes. The hub is host-link/harness wiring and stays TUI-side
-    // regardless of which runtime backs the session.
+    // Start the hub. It is host-link/harness wiring and needs no account.
     // Held (not read) for the rest of this scope: dropping it early would tear
-    // the hub session down. Whether it started is no longer a gate on the
-    // control plane below — see that call's doc comment.
+    // the hub session down. Whether it started is not a gate on the control
+    // plane below — see that call's doc comment.
     let _hub_session = crate::hub_relay::start(
         &env,
         &home,
         hub_slot.clone(),
         hub_logs.clone(),
         Some(local_dispatch.clone()),
-        session.as_ref(),
-        crate::hub_relay::StartupConfig {
-            link: link_service
-                .as_ref()
-                .map(|service| crate::hub_relay::ResolvedLink {
-                    config: link_config.clone(),
-                    handle: service.link().clone(),
-                }),
-        },
     )
     .await;
 
@@ -649,7 +565,7 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
     // reach the login screen — dropping the operator back to the shell instead
     // would contradict both the message it shows and the no-session startup path
     // they would then have to trigger by relaunching.
-    let mut status = startup_status.or(link_status).or(log_note);
+    let mut status = startup_status.or(log_note);
     let result = loop {
         // Read before the wiring is built: holding the lock into an awaited call
         // would park every other host operation behind this session for as long
@@ -661,12 +577,13 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
             .map(|host| host.observation());
         let exit = run(
             &mut terminal,
-            runtime.clone(),
+            backend.clone(),
+            hub_slot.clone(),
             SessionWiring {
+                offline_demo: args.mock,
                 local_hosts: local_host_harnesses.clone(),
                 loaded: loaded.clone(),
                 startup_status: status.take(),
-                link_obs: link_obs.clone(),
                 config_path: active_config_path.clone(),
                 hooks_config_path: hooks_config_path.clone(),
                 medulla_home: home.clone(),
@@ -694,10 +611,10 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                 // live conversation on would silently inherit that daemon's
                 // harness session and context.
                 crate::event_loop::clear_copilot_hosts();
-                // Only a runtime that actually holds a session reaches here:
-                // every other one reports that it holds none, so its logout
-                // never succeeds and this arm is unreachable for it.
-                if client_arc.is_some() {
+                // Only a host that actually holds a session reaches here: the
+                // mock reports that it holds none, so its logout never
+                // succeeds and this arm is unreachable for it.
+                if signed_in {
                     match relogin(&mut terminal, &env, &loaded.config.backend.base_url).await {
                         // Signing in as a different account re-homes the
                         // install, and this process cannot follow: its config,
@@ -710,28 +627,16 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
                         }
                         Ok(SignIn::SameAccount) => {
                             (_, account) = session_of(&env, &loaded.config.backend);
-                            // Rebuilt rather than reused: the relogin replaced
-                            // the stored token, and the client captured its
-                            // bearer at construction — carrying the old one
-                            // forward would present the retired credential on
-                            // every call after a successful sign-in.
-                            let Some(client) = medulla::runtime::cloud::connect::client_from_config(
-                                &env,
-                                &loaded.config.backend,
-                            ) else {
+                            // The backend mints a client per call from the
+                            // current credential, so the relogin's fresh token
+                            // is picked up with nothing to rebuild — but a
+                            // config that stopped naming a backend is still
+                            // worth refusing here rather than call by call.
+                            if client_from_config(&env, &loaded.config.backend).is_none() {
                                 break Err(anyhow::anyhow!(
                                     "signed in, but Medulla is still unreachable"
                                 ));
-                            };
-                            let client = Arc::new(client);
-                            client_arc = Some(Arc::clone(&client));
-                            runtime = cloud_runtime(
-                                client,
-                                hub_slot.clone(),
-                                &loaded.config.backend,
-                                workspace_roots(&loaded.config),
-                            )
-                            .await;
+                            }
                             continue;
                         }
                         // Quit from the login screen: the operator asked to
@@ -747,13 +652,11 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         }
     };
 
-    runtime.shutdown().await.ok();
     // Explicit teardown (the guard also runs on drop / panic).
     drop(guard);
-    drop(link_service); // aborts the background loops.
-                        // Printed after the screen is back: the operator signed in as somebody else
-                        // mid-session, the marker now names them, and the next launch opens their
-                        // home. Nothing is lost — the previous account's directory stays put.
+    // Printed after the screen is back: the operator signed in as somebody else
+    // mid-session, the marker now names them, and the next launch opens their
+    // home. Nothing is lost — the previous account's directory stays put.
     if let Some(notice) = account_switched {
         // Both after the restore: the alt screen swallows anything written to
         // the terminal while the app still owns it.

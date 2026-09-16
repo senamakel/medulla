@@ -82,6 +82,6 @@ pub use types::{AttentionKind, HarnessAttention};
 /// Deliberately not one of the lifecycle glyphs (`●`, `✓`, `✕`): those answer
 /// "how is it", and this answers "it needs you", which is a different question
 /// and the only one that warrants taking a row over. Defined here so the
-/// orchestrator's rail and the worker's session list cannot drift into marking
+/// dispatcher's rail and the worker's session list cannot drift into marking
 /// the same state with two different symbols.
 pub const ATTENTION_GLYPH: char = '⚠';

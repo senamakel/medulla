@@ -1,11 +1,11 @@
 # Dispatch
 
-Tests for the sender-runner: dispatch, routing by `correlationId`, the ack window + reset/resend recovery, the no-progress watchdog, and orchestrator abort. Driven by the `FakeWorker` `Relay` harness, which replays a worker's frame sequence into the inbox with no network.
+Tests for the sender-runner: dispatch, routing by `correlationId`, the ack window + reset/resend recovery, the no-progress watchdog, and a sender's abort. Driven by the `FakeWorker` `Relay` harness, which replays a worker's frame sequence into the inbox with no network.
 
 ## Contents
 
 - [`harness/`](./harness/) — The `FakeWorker` `Relay` the dispatch tests run against.
-- [`mod.rs`](./mod.rs) — Tests for the sender-runner: dispatch, routing by `correlationId`, the ack window + reset/resend recovery, the no-progress watchdog, and orchestrator abort. Driven by the `FakeWorker` `Relay` harness, which replays a worker's frame sequence into the inbox with no network.
+- [`mod.rs`](./mod.rs) — Tests for the sender-runner: dispatch, routing by `correlationId`, the ack window + reset/resend recovery, the no-progress watchdog, and a sender's abort. Driven by the `FakeWorker` `Relay` harness, which replays a worker's frame sequence into the inbox with no network.
 
 ## Maintenance
 

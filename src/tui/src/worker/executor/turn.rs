@@ -119,7 +119,7 @@ impl PtySessionExecutor {
             //
             // What it does instead is **suspend** (spec §5). The turn used to
             // return an error here, throwing away everything the harness had
-            // produced and telling the orchestrator its task had failed — for
+            // produced and telling the dispatcher its task had failed — for
             // the entirely ordinary event of a person opening the session to
             // look. Now the fold, its events, its usage and its workspace
             // context all stay exactly where they are, the session keeps the

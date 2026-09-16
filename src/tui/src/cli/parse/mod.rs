@@ -5,10 +5,7 @@
 
 use medulla::protocol::HarnessProvider;
 
-use super::types::{
-    Command, InitArgs, RunArgs, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs, WorkspaceAction,
-    WorkspaceArgs,
-};
+use super::types::{Command, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs};
 #[cfg(feature = "workflows")]
 use super::types::{SkillsAction, SkillsArgs};
 
@@ -19,7 +16,6 @@ pub use login::parse_login_args;
 /// Dispatch on the first argument. Anything else (including TUI flags) is the TUI.
 pub fn parse_command(args: &[String]) -> Command {
     match args.first().map(String::as_str) {
-        Some("run") => Command::Run,
         // `--tui` selects the worker-daemon screen instead of the headless
         // daemon. It is one process either way: the TUI *is* the daemon, so the
         // flag chooses a face, not a second program. Must precede the bare
@@ -47,9 +43,6 @@ pub fn parse_command(args: &[String]) -> Command {
         Some("login") => Command::Login,
         Some("logout") => Command::Logout,
         Some("update") => Command::Update,
-        Some("init") => Command::Init,
-        Some("workspace") | Some("workspaces") => Command::Workspace,
-        Some("hub") => Command::Hub,
         Some("remote") => Command::Remote,
         Some("workflow") | Some("workflows") => Command::Workflow,
         Some("skills") | Some("skill") => Command::Skills,
@@ -70,81 +63,6 @@ pub fn parse_update_args(args: &[String]) -> UpdateArgs {
             out.check = true;
         }
     }
-    out
-}
-
-/// Parse the flags following `medulla init`. The first non-flag argument is the
-/// target directory; everything else defaults, so a bare `medulla init` targets
-/// the current working directory.
-pub fn parse_init_args(args: &[String]) -> InitArgs {
-    let mut out = InitArgs::default();
-    let mut it = args.iter();
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--config" => {
-                if let Some(v) = it.next() {
-                    out.config = Some(v.clone());
-                }
-            }
-            "--force" | "-f" => out.force = true,
-            "--offline" => out.offline = true,
-            other => {
-                // First bare word is the directory; later ones are ignored.
-                if !other.starts_with('-') && out.dir.is_none() {
-                    out.dir = Some(other.to_string());
-                }
-            }
-        }
-    }
-    out
-}
-
-/// Parse `medulla workspace` args out of the args following `workspace`.
-///
-/// The first bare word selects the action; a second bare word is its operand
-/// (the directory for `add`, the directory or registry id for `remove`). An
-/// unrecognised or absent action lists the registry, which is the harmless
-/// read-only answer to "I typed something roughly like this".
-///
-/// `remove` with no operand also falls back to listing rather than guessing at a
-/// target — deleting the wrong registry entry on a typo is not recoverable from
-/// the output.
-pub fn parse_workspace_args(args: &[String]) -> WorkspaceArgs {
-    let mut out = WorkspaceArgs::default();
-    let mut bare: Vec<String> = Vec::new();
-    let mut it = args.iter();
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--config" => {
-                if let Some(v) = it.next() {
-                    out.config = Some(v.clone());
-                }
-            }
-            "--harness" => {
-                if let Some(v) = it.next() {
-                    out.harness = Some(v.clone());
-                }
-            }
-            "--force" | "-f" => out.force = true,
-            "--offline" => out.offline = true,
-            "--json" => out.json = true,
-            other => {
-                if !other.starts_with('-') {
-                    bare.push(other.to_string());
-                }
-            }
-        }
-    }
-
-    let operand = bare.get(1).cloned();
-    out.action = match bare.first().map(String::as_str) {
-        Some("add") | Some("init") => WorkspaceAction::Add(operand),
-        Some("remove") | Some("rm") => match operand {
-            Some(target) => WorkspaceAction::Remove(target),
-            None => WorkspaceAction::List,
-        },
-        _ => WorkspaceAction::List,
-    };
     out
 }
 
@@ -498,46 +416,12 @@ pub fn parse_tui_args(args: &[String]) -> TuiArgs {
     out
 }
 
-/// Parse `medulla run [flags] <instruction...>`. `--config` takes a value;
-/// every other non-flag token is part of the instruction, joined by spaces.
-/// Returns a usage error when no instruction text is supplied, or when the
-/// retired `--core-socket` flag is passed.
-pub fn parse_run_args(args: &[String]) -> Result<RunArgs, String> {
-    let mut out = RunArgs::default();
-    let mut instruction: Vec<String> = Vec::new();
-    let mut it = args.iter();
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--config" => {
-                if let Some(v) = it.next() {
-                    out.config = Some(v.clone());
-                }
-            }
-            // Rejected rather than ignored: an unrecognized token here joins
-            // the instruction, so quietly dropping this arm would submit
-            // "--core-socket /path ..." to the agent as prompt text.
-            "--core-socket" => {
-                return Err(
-                    "run: --core-socket is gone; the core is embedded in this process".to_string(),
-                )
-            }
-            other => instruction.push(other.to_string()),
-        }
-    }
-    out.instruction = instruction.join(" ");
-    if out.instruction.trim().is_empty() {
-        return Err("run: expected an instruction to submit".to_string());
-    }
-    Ok(out)
-}
-
 /// The `medulla help` / `--help` text.
 pub fn help_text() -> String {
     format!(
         "medulla {version}\n\n\
 Usage:\n  \
-medulla                 Start the interactive chat TUI (default)\n  \
-medulla run <text>      Submit one instruction to the embedded core and stream the cycle's events (JSON lines)\n  \
+medulla                 Start the interactive TUI (default)\n  \
 medulla daemon [flags]  Run the daemon TUI (agents, master, workspaces, requests)\n  \
 medulla daemon --headless  Run without the operator screen (automatic when piped)\n  \
 medulla daemon <key>    Pair this machine as a remote host (the key comes from the Hosts tab)\n  \
@@ -547,13 +431,11 @@ medulla daemon --host   Serve again with the pairing already on disk\n  \
                         --workspace <dir>      where peer tasks run\n  \
                         --no-trust-workspace   don't pre-trust it with claude\n  \
 medulla sessions        List recent claude/codex sessions as JSON\n  \
-medulla codex [args]    Run Codex in your terminal, bridged to your orchestrator\n  \
-medulla claude [args]   Run Claude Code in your terminal, bridged to your orchestrator\n  \
-medulla opencode [args] Run OpenCode in your terminal, bridged to your orchestrator\n  \
+medulla codex [args]    Run Codex in your terminal, bridged over the host link\n  \
+medulla claude [args]   Run Claude Code in your terminal, bridged over the host link\n  \
+medulla opencode [args] Run OpenCode in your terminal, bridged over the host link\n  \
 medulla login [flags]   Log in to the backend and store credentials\n  \
 medulla logout          Clear stored credentials\n  \
-medulla init [dir]      Write a MEDULLA.md workspace profile for a directory\n  \
-medulla workspace <cmd> Workspace registry: add [dir]|list|remove <dir|id>\n  \
 medulla workflow <cmd>  Workflows: list|get|create|apply-ops|validate|dry-run|run|resume|cancel|catalog\n  \
 medulla skills <cmd>    Harness skills for workflows: list|install|sync|uninstall\n  \
 medulla mcp             Serve Medulla's tools over MCP (spawned for harnesses)\n  \
@@ -601,21 +483,9 @@ Login flags:\n  \
         (works over SSH, where loopback cannot)\n  \
 --token <64-hex>        Redeem a one-time login token instead (headless)\n  \
 --config <path>         Config file to read backend.baseUrl from (.toml or .json)\n\n\
-Init flags:\n  \
---force, -f             Overwrite an existing MEDULLA.md\n  \
---offline               Skip the model call and write an editable stub\n  \
---config <path>         Explicit config file (.toml or .json) for backend/model settings\n\n\
-Workspace flags:\n  \
---harness <id>          Attach the added workspace to this harness (add)\n  \
---force, -f             Overwrite an existing MEDULLA.md (add)\n  \
---offline               Skip the model call and write an editable stub (add)\n  \
---json                  Emit JSON instead of human-readable output (list)\n  \
---config <path>         Explicit config file (.toml or .json) holding the registry\n\n\
-Run flags:\n  \
---config <path>         Explicit config file (.toml or .json)\n\n\
 TUI flags:\n  \
 --config <path>         Explicit config file (.toml or .json); bypasses layered discovery\n  \
---mock                  Run the offline demo runtime (no backend, no login)\n  \
+--mock                  Run offline with a demo feedback board (no backend, no login)\n  \
 --no-alt-screen         Do not switch to the alternate screen\n",
         version = env!("CARGO_PKG_VERSION"),
     )

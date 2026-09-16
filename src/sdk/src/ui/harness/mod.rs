@@ -129,7 +129,7 @@ pub fn task_board_lines(status: &HarnessStatus, width: usize) -> Vec<Line> {
 }
 
 /// Compact token count that scales into millions (`980` · `1.2k` · `34k` · `1.2M`).
-/// Uses the public budget display convention so the TUI and orchestrator-facing
+/// Uses the public budget display convention so the TUI and sender-facing
 /// notes read consistently.
 fn fmt_headroom(tokens: u64) -> String {
     if tokens >= 1_000_000 {
@@ -143,7 +143,7 @@ fn fmt_headroom(tokens: u64) -> String {
 
 /// A one-line, read-only budget note for an agent's seat stamp, e.g.
 /// `Claude Max 5× · 1.2M left` or `Claude Max 5× · exhausted`. Uses the
-/// human-facing `plan_label` to match the existing orchestrator budget note.
+/// human-facing `plan_label` to match the existing dispatcher budget note.
 pub fn budget_note(budget: &AgentBudgetMetadata) -> String {
     if budget.exhausted {
         format!("{} · exhausted", budget.plan_label)

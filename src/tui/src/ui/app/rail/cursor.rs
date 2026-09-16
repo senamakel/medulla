@@ -116,10 +116,4 @@ impl App {
         self.rail_index = hit.index;
         self.agent_anchor = hit.anchor.clone();
     }
-
-    /// Returns the rail cursor to its initial position without retaining its anchor.
-    pub(in crate::ui::app) fn reset_rail_cursor(&mut self) {
-        self.rail_index = 0;
-        self.agent_anchor = None;
-    }
 }

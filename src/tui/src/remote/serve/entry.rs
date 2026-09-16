@@ -280,7 +280,7 @@ pub(super) fn local_sessions(
         runtimes: Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(daemon, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: medulla::hub::DEFAULT_LOCAL_HUB_ADDRESS.to_string(),
         env: env.clone(),
         workspace: workspace.to_string(),
         providers,

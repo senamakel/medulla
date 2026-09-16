@@ -1,6 +1,6 @@
 //! The `medulla-task/1` task wire protocol.
 //!
-//! An orchestrator delegates work to remote coding agents over an encrypted
+//! A dispatcher delegates work to remote coding agents over an encrypted
 //! transport using a small JSON frame. Peers exchange `task`/`input` requests
 //! and answer with `ack`/`status`/`reply`/`error`. A `capabilities` frame is the
 //! request ("what can you do here?"); the answer is a distinct

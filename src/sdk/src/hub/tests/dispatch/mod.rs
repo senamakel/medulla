@@ -1,5 +1,5 @@
 //! Tests for the sender-runner: dispatch, routing by `correlationId`, the ack
-//! window + reset/resend recovery, the no-progress watchdog, and orchestrator
+//! window + reset/resend recovery, the no-progress watchdog, and dispatcher
 //! abort. Driven by the [`FakeWorker`](harness::FakeWorker) [`Relay`] harness,
 //! which replays a worker's frame sequence into the inbox with no network.
 
@@ -36,19 +36,14 @@ async fn surfaces_a_worker_error_frame() {
 
     let err = runner.run(req("x"), None).await.expect_err("errors");
     assert_eq!(err, RunError::Worker("boom".to_string()));
-    assert!(
-        !crate::hub::socket::is_retryable(&err),
-        "a task the harness attempted and rejected must not be re-dispatched"
-    );
 }
 
 #[tokio::test]
 async fn a_capacity_rejection_is_backpressure_not_a_task_failure() {
     // A worker at `max_pending` refuses the task without attempting it. That
     // arrives as an ordinary `error` frame, so it used to settle as
-    // `RunError::Worker` and reach the orchestrator with `retryable: false` — a
-    // message that says "retry later" delivered as a permanent failure. It has
-    // to settle as `Busy` and be retryable instead.
+    // `RunError::Worker` — a message that says "retry later" delivered as a
+    // permanent failure. It has to settle as `Busy` instead.
     let message = format!(
         "{} (16 pending tasks); retry later",
         crate::daemon::CAPACITY_REJECTION_PREFIX
@@ -58,10 +53,6 @@ async fn a_capacity_rejection_is_backpressure_not_a_task_failure() {
 
     let err = runner.run(req("x"), None).await.expect_err("is shed");
     assert_eq!(err, RunError::Busy(message.clone()));
-    assert!(
-        crate::hub::socket::is_retryable(&err),
-        "backpressure must be re-dispatched, not failed"
-    );
     // The worker's own wording survives, so an operator reading the failure
     // still sees which worker was full and why.
     assert_eq!(err.to_string(), format!("worker busy: {message}"));
@@ -162,10 +153,7 @@ async fn reaps_a_peer_that_acks_but_then_goes_silent() {
 #[test]
 fn run_error_display_is_human_readable_per_variant() {
     assert_eq!(RunError::Timeout.to_string(), "bridge task timed out");
-    assert_eq!(
-        RunError::Aborted.to_string(),
-        "task aborted by orchestrator"
-    );
+    assert_eq!(RunError::Aborted.to_string(), "task aborted by its sender");
     assert_eq!(
         RunError::Worker("boom".to_string()).to_string(),
         "worker error: boom"
@@ -180,7 +168,7 @@ fn run_error_display_is_human_readable_per_variant() {
 async fn every_inbound_worker_frame_is_narrated_with_its_payload() {
     // The hub reported only the settled outcome, so "the worker never answered"
     // and "the worker answered with nothing" read identically from the
-    // orchestrator's side — and neither said whether the worker had been
+    // dispatcher's side — and neither said whether the worker had been
     // talking at all. Every frame it sends is now on the record.
     let seen = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let worker = FakeWorker::new(Mode::Reply("REMOTE: 4 agents, 1 offline".to_string()));
@@ -252,27 +240,6 @@ async fn a_worker_that_keeps_reporting_progress_is_not_timed_out() {
     assert_eq!(outcome.reply, "scan complete");
 }
 
-#[test]
-fn each_dispatch_gets_its_own_worker_facing_task_id() {
-    // `delegate_tasks` names unnamed tasks positionally per call, so every call
-    // starts again at `t1`. The worker dedupes on sender + taskId, so without a
-    // per-dispatch id the second call's `t1` is refused as a duplicate of the
-    // first's — three dispatches named `t1`, carrying three different
-    // instructions, two refused. Observed in the field.
-    let a = super::super::socket::wire_task_id("t1");
-    let b = super::super::socket::wire_task_id("t1");
-    assert_ne!(
-        a, b,
-        "two dispatches of `t1` must not collide on the worker"
-    );
-    // The original id stays legible in it, so a worker log line can still be
-    // traced back to the task the orchestrator named.
-    assert!(a.starts_with("t1#"), "got {a}");
-    assert!(b.starts_with("t1#"), "got {b}");
-    // A named task keeps its name too.
-    assert!(super::super::socket::wire_task_id("repo-scan").starts_with("repo-scan#"));
-}
-
 #[tokio::test]
 async fn giving_up_tells_the_worker_to_stop() {
     // An abandoned task keeps a harness busy AND keeps its id live — a responder
@@ -302,10 +269,10 @@ async fn giving_up_tells_the_worker_to_stop() {
 }
 
 #[tokio::test]
-async fn an_orchestrator_abort_stops_the_worker_and_reaps() {
+async fn a_senders_abort_stops_the_worker_and_reaps() {
     // The backend owns the deadline and cancels a running task via
     // `medulla:task_abort`. A healthy worker — here acked and working, so no
-    // liveness bound would ever fire — must still stop when the orchestrator
+    // liveness bound would ever fire — must still stop when the dispatcher
     // aborts. The default idle window is minutes away, so ONLY the abort can end
     // this run; if it hangs, the abort path is broken.
     let worker = FakeWorker::new(Mode::AckOnly);
@@ -314,7 +281,7 @@ async fn an_orchestrator_abort_stops_the_worker_and_reaps() {
     let r = runner.clone();
     let handle = tokio::spawn(async move { r.run(req("x"), None).await });
 
-    // Abort by the orchestrator-facing id (`req`'s `abort_id` is "t1"). Retried
+    // Abort by the sender-facing id (`req`'s `abort_id` is "t1"). Retried
     // until the run resolves: a notify sent before `run` has registered its
     // signal is a no-op, so a single early call could miss the dispatch.
     loop {

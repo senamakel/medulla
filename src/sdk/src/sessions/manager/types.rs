@@ -113,17 +113,17 @@ impl OpenSession {
     ///
     /// The counterpart of [`operator`](Self::operator): same shape, opposite
     /// provenance, and never named — the UI labels it from its task.
-    pub fn orchestrator(conversation: impl Into<String>) -> Self {
+    pub fn task(conversation: impl Into<String>) -> Self {
         OpenSession {
-            origin: SessionOrigin::Orchestrator,
+            origin: SessionOrigin::Task,
             ..OpenSession::operator(conversation)
         }
     }
 
     /// Give the session the display name a person typed.
     ///
-    /// Naming does not change provenance: an orchestrator-originated session
-    /// that someone later labels is still `origin: orchestrator`.
+    /// Naming does not change provenance: a task-originated session
+    /// that someone later labels is still `origin: dispatcher`.
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self

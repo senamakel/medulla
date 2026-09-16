@@ -13,7 +13,7 @@
 //! into the in-memory struct, so a round-trip would pin those as if the user had
 //! typed them.
 
-use medulla::config::{MedullaConfig, OpencodeConfig};
+use medulla::config::OpencodeConfig;
 
 use super::types::App;
 
@@ -23,17 +23,6 @@ mod types;
 mod tests;
 
 pub(crate) use types::{SettingKind, SettingRow, SettingValue};
-
-/// A bounded, optional whole-number setting.
-const fn count(min: u32, max: u32, step: u32, fallback: u32) -> SettingKind {
-    SettingKind::Count {
-        min,
-        max,
-        step,
-        fallback,
-        optional: true,
-    }
-}
 
 impl App {
     /// The editable rows for the Config subpage, in display order.
@@ -45,66 +34,21 @@ impl App {
             kind: SettingKind::Toggle,
             help: "Check for a newer Medulla release on startup.",
         }];
-        rows.extend([
-            SettingRow {
-                label: "Max passes",
-                section: "medulla",
-                key: "maxPasses",
-                kind: count(1, 50, 1, 4),
-                help: "Orchestration passes before a cycle stops.",
+        rows.extend([SettingRow {
+            label: "Worker concurrency",
+            section: "opencode",
+            key: "maxConcurrency",
+            kind: SettingKind::Count {
+                min: 1,
+                max: 32,
+                step: 1,
+                fallback: 4,
+                // The field is a plain u32 with a serde default, so it is
+                // always set; there is no "auto" state to fall back to.
+                optional: false,
             },
-            SettingRow {
-                label: "Max steps",
-                section: "medulla",
-                key: "maxSteps",
-                kind: count(1, 500, 4, 24),
-                help: "Total steps a single cycle may take.",
-            },
-            SettingRow {
-                label: "Max depth",
-                section: "medulla",
-                key: "maxDepth",
-                kind: count(1, 10, 1, 3),
-                help: "How deeply sub-agents may delegate further work.",
-            },
-            SettingRow {
-                label: "Max tokens",
-                section: "medulla",
-                key: "maxTokens",
-                kind: count(256, 200_000, 1024, 8192),
-                help: "Token ceiling for a single model response.",
-            },
-            SettingRow {
-                label: "Context window",
-                section: "medulla",
-                key: "contextWindowTokens",
-                // The editor's default and fallback must be the config's own, or
-                // opening this row would silently rewrite an unset window to a
-                // different number than the one the meter has been showing.
-                kind: count(
-                    4096,
-                    medulla::config::DEFAULT_CONTEXT_WINDOW_TOKENS,
-                    4096,
-                    medulla::config::DEFAULT_CONTEXT_WINDOW_TOKENS,
-                ),
-                help: "Window size used when deciding to compress context.",
-            },
-            SettingRow {
-                label: "Worker concurrency",
-                section: "opencode",
-                key: "maxConcurrency",
-                kind: SettingKind::Count {
-                    min: 1,
-                    max: 32,
-                    step: 1,
-                    fallback: 4,
-                    // The field is a plain u32 with a serde default, so it is
-                    // always set; there is no "auto" state to fall back to.
-                    optional: false,
-                },
-                help: "Agent sessions Medulla may run at once.",
-            },
-        ]);
+            help: "Agent sessions Medulla may run at once.",
+        }]);
         // Only where there is a Workflows page for it to bound.
         #[cfg(feature = "workflows")]
         rows.push(SettingRow {
@@ -130,7 +74,6 @@ impl App {
         let cfg = &self.loaded.config;
         match (row.section, row.key) {
             ("update", "check") => SettingValue::Flag(cfg.update.check),
-            ("medulla", key) => opt_number(medulla_field(&cfg.medulla, key)),
             ("opencode", "maxConcurrency") => SettingValue::Number(
                 cfg.opencode
                     .as_ref()
@@ -204,15 +147,6 @@ impl App {
         let cfg = &mut self.loaded.config;
         match (row.section, row.key, value) {
             ("update", "check", SettingValue::Flag(on)) => cfg.update.check = on,
-            ("medulla", key, value) => {
-                let slot = medulla_field_mut(&mut cfg.medulla, key);
-                if let Some(slot) = slot {
-                    *slot = match value {
-                        SettingValue::Number(n) => Some(n),
-                        _ => None,
-                    };
-                }
-            }
             ("opencode", "maxConcurrency", SettingValue::Number(n)) => {
                 cfg.opencode
                     .get_or_insert_with(OpencodeConfig::default)
@@ -306,39 +240,5 @@ impl App {
         } else {
             (self.config_row_index() + 1).min(max)
         };
-    }
-}
-
-/// Wrap an optional number as a [`SettingValue`].
-fn opt_number(value: Option<u32>) -> SettingValue {
-    match value {
-        Some(n) => SettingValue::Number(n),
-        None => SettingValue::Auto,
-    }
-}
-
-/// Read one of [`MedullaConfig`]'s optional limits by its camelCase key.
-fn medulla_field(cfg: &MedullaConfig, key: &str) -> Option<u32> {
-    match key {
-        "maxPasses" => cfg.max_passes,
-        "maxSteps" => cfg.max_steps,
-        "maxDepth" => cfg.max_depth,
-        "maxTasksPerDelegate" => cfg.max_tasks_per_delegate,
-        "maxTokens" => cfg.max_tokens,
-        "contextWindowTokens" => cfg.context_window_tokens,
-        _ => None,
-    }
-}
-
-/// The mutable slot for one of [`MedullaConfig`]'s optional limits.
-fn medulla_field_mut<'a>(cfg: &'a mut MedullaConfig, key: &str) -> Option<&'a mut Option<u32>> {
-    match key {
-        "maxPasses" => Some(&mut cfg.max_passes),
-        "maxSteps" => Some(&mut cfg.max_steps),
-        "maxDepth" => Some(&mut cfg.max_depth),
-        "maxTasksPerDelegate" => Some(&mut cfg.max_tasks_per_delegate),
-        "maxTokens" => Some(&mut cfg.max_tokens),
-        "contextWindowTokens" => Some(&mut cfg.context_window_tokens),
-        _ => None,
     }
 }

@@ -49,7 +49,7 @@ pub fn encode_task_frame_with_usage(input: EncodeFrameInput, usage: Option<Token
 }
 
 /// [`encode_task_frame`] with the child harness's work snapshot attached
-/// (status and reply frames), so the orchestrator sees what the worker is
+/// (status and reply frames), so the dispatcher sees what the worker is
 /// actually doing and not just a one-line detail.
 pub fn encode_task_frame_with_work(
     input: EncodeFrameInput,

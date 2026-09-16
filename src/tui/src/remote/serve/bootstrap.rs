@@ -238,7 +238,7 @@ pub fn enroll_client(
         version: 1,
         node_id: NodeId::generate(),
         // The host half of the direction bit (§4.2). The client that dialled in
-        // is the orchestrator, which is what makes the two nonce spaces
+        // is the dispatcher, which is what makes the two nonce spaces
         // disjoint.
         role: Role::Host,
         pair_key: pair_key.clone(),

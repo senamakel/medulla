@@ -2,7 +2,7 @@
 //!
 //! The link's SSP state lives in memory, so an endpoint that exits and restarts
 //! comes back at state 0 while its peer still holds state *n* and neither side's
-//! diffs apply again. A long-lived orchestrator is what the protocol assumes, so
+//! diffs apply again. A long-lived dispatcher is what the protocol assumes, so
 //! legs arrive as files rather than as processes.
 
 use std::path::{Path, PathBuf};

@@ -1,4 +1,4 @@
-//! Moving a harness between the operator and the orchestrator, and telling the
+//! Moving a harness between the operator and the dispatcher, and telling the
 //! backend it moved.
 //!
 //! Both directions go through the roster and end in a re-advertisement. That is
@@ -20,8 +20,8 @@ impl HubHandle {
     ///
     /// Clears any handoff brief still hanging off that worker: a brief is an
     /// invitation to continue work in that workspace, and one on a harness the
-    /// operator has just re-taken is an invitation the orchestrator cannot
-    /// accept. Left there it would have the orchestrator plan a pass into a
+    /// operator has just re-taken is an invitation the dispatcher cannot
+    /// accept. Left there it would have the dispatcher plan a pass into a
     /// workspace it is refused from.
     ///
     /// Errors when no worker covers `workspace`. A host can be removed between
@@ -46,16 +46,16 @@ impl HubHandle {
             w.control_since = Some(at);
             w.handoff = None;
         }
-        self.reregister().await
+        Ok(())
     }
 
-    /// Hand a harness back to the orchestrator, carrying the operator's brief.
+    /// Hand a harness back to the dispatcher, carrying the operator's brief.
     ///
     /// The brief is *context*, not permission. Control is already the
-    /// orchestrator's by the time this lands — the local flag flips on the same
+    /// dispatcher's by the time this lands — the local flag flips on the same
     /// keystroke, so the operator gets an immediate answer — and this is what
     /// tells the backend what the person was in the middle of. A handback whose
-    /// brief fails to send is still a handback; the orchestrator simply picks
+    /// brief fails to send is still a handback; the dispatcher simply picks
     /// the harness up without knowing the story, which is the pre-existing
     /// behaviour rather than a new failure.
     pub async fn hand_off_harness(&self, brief: HarnessHandoff) -> anyhow::Result<()> {
@@ -65,12 +65,12 @@ impl HubHandle {
             let Some(w) = r.iter_mut().find(|w| w.id == id) else {
                 anyhow::bail!("no host {id} to hand a harness back on");
             };
-            w.control = HandoffControl::Orchestrator;
+            w.control = HandoffControl::Dispatch;
             w.control_reason = None;
             w.control_since = None;
             w.handoff = Some(brief);
         }
-        self.reregister().await
+        Ok(())
     }
 
     /// The roster worker covering `workspace`.
@@ -82,7 +82,7 @@ impl HubHandle {
     ///
     /// Deliberately no fall-back to "the selected worker". Attaching a brief to
     /// whichever host happened to be selected would advertise work as available
-    /// in a workspace that has nothing to do with it, and the orchestrator would
+    /// in a workspace that has nothing to do with it, and the dispatcher would
     /// dispatch somewhere the operator never was.
     ///
     /// Resolves to **one** agent even when several are declared in that

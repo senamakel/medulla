@@ -128,7 +128,7 @@ async fn probe_degrades_to_facts_when_provider_fails() {
 #[tokio::test]
 async fn the_directory_digest_survives_a_failed_probe() {
     // The digest is a cheap fact, not a probe result: a wedged provider is
-    // exactly when an orchestrator still needs to know what this project is.
+    // exactly when a dispatcher still needs to know what this project is.
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("README.md"),

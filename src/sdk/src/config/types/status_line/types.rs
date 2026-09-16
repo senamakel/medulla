@@ -50,7 +50,7 @@ pub enum HarnessNameStyle {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum ControlStyle {
-    /// Words such as "unmanaged" or "orchestrator".
+    /// Words such as "unmanaged" or "dispatcher".
     #[default]
     Text,
     /// A single control-state glyph.

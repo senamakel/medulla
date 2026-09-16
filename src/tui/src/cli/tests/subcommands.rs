@@ -1,5 +1,5 @@
-//! Unit tests for subcommand dispatch, the login/init/workspace/workflow flag
-//! parsers, help text, and the `sessions` JSON.
+//! Unit tests for subcommand dispatch, the login/workflow flag parsers, help
+//! text, and the `sessions` JSON.
 
 use std::collections::HashMap;
 
@@ -48,14 +48,11 @@ fn dispatches_subcommands() {
         Command::Wrapper(HarnessProvider::Opencode)
     );
     assert_eq!(parse_command(&argv(&["update"])), Command::Update);
-    assert_eq!(parse_command(&argv(&["init"])), Command::Init);
-    assert_eq!(parse_command(&argv(&["init", "some/dir"])), Command::Init);
     assert_eq!(
         parse_command(&argv(&["update", "--check"])),
         Command::Update
     );
     assert_eq!(parse_command(&argv(&["--config", "x.json"])), Command::Tui);
-    assert_eq!(parse_command(&argv(&["run", "do", "it"])), Command::Run);
 }
 
 #[test]
@@ -167,131 +164,6 @@ fn tui_args_default_and_debug() {
 }
 
 #[test]
-fn parses_init_args() {
-    // A bare `init` targets the cwd with every flag off.
-    let bare = parse_init_args(&argv(&[]));
-    assert_eq!(bare, InitArgs::default());
-
-    let with_dir = parse_init_args(&argv(&["packages/api"]));
-    assert_eq!(with_dir.dir.as_deref(), Some("packages/api"));
-    assert!(!with_dir.force);
-    assert!(!with_dir.offline);
-
-    let full = parse_init_args(&argv(&[
-        "packages/api",
-        "--force",
-        "--offline",
-        "--config",
-        "/tmp/medulla.toml",
-    ]));
-    assert_eq!(full.dir.as_deref(), Some("packages/api"));
-    assert!(full.force);
-    assert!(full.offline);
-    assert_eq!(full.config.as_deref(), Some("/tmp/medulla.toml"));
-
-    // Short form, and flags before the directory.
-    let short = parse_init_args(&argv(&["-f", "docs"]));
-    assert!(short.force);
-    assert_eq!(short.dir.as_deref(), Some("docs"));
-
-    // The config VALUE must not be mistaken for the directory.
-    let cfg_only = parse_init_args(&argv(&["--config", "/tmp/c.toml"]));
-    assert_eq!(cfg_only.dir, None);
-    assert_eq!(cfg_only.config.as_deref(), Some("/tmp/c.toml"));
-
-    // Only the first bare word is taken as the directory.
-    let two = parse_init_args(&argv(&["first", "second"]));
-    assert_eq!(two.dir.as_deref(), Some("first"));
-}
-
-#[test]
-fn workspace_dispatches_on_its_own_verb() {
-    assert_eq!(parse_command(&argv(&["workspace"])), Command::Workspace);
-    assert_eq!(
-        parse_command(&argv(&["workspace", "add", "."])),
-        Command::Workspace
-    );
-    // The plural reads naturally enough that typing it should not launch the TUI.
-    assert_eq!(parse_command(&argv(&["workspaces"])), Command::Workspace);
-}
-
-#[test]
-fn parses_workspace_args() {
-    // A bare `workspace` lists, which is the read-only default.
-    let bare = parse_workspace_args(&argv(&[]));
-    assert_eq!(bare, WorkspaceArgs::default());
-    assert_eq!(bare.action, WorkspaceAction::List);
-
-    // `add` with no directory means the cwd, resolved by the runner.
-    assert_eq!(
-        parse_workspace_args(&argv(&["add"])).action,
-        WorkspaceAction::Add(None)
-    );
-
-    let add = parse_workspace_args(&argv(&[
-        "add",
-        "packages/api",
-        "--harness",
-        "gpu-box",
-        "--force",
-        "--offline",
-        "--config",
-        "/tmp/medulla.toml",
-    ]));
-    assert_eq!(
-        add.action,
-        WorkspaceAction::Add(Some("packages/api".to_string()))
-    );
-    assert_eq!(add.harness.as_deref(), Some("gpu-box"));
-    assert!(add.force);
-    assert!(add.offline);
-    assert_eq!(add.config.as_deref(), Some("/tmp/medulla.toml"));
-
-    assert!(parse_workspace_args(&argv(&["list", "--json"])).json);
-
-    // Remove takes a path or a registry id.
-    assert_eq!(
-        parse_workspace_args(&argv(&["remove", "ws-api-1234abcd"])).action,
-        WorkspaceAction::Remove("ws-api-1234abcd".to_string())
-    );
-    assert_eq!(
-        parse_workspace_args(&argv(&["rm", "."])).action,
-        WorkspaceAction::Remove(".".to_string())
-    );
-
-    // A `remove` with no target must never guess at one — it lists instead.
-    assert_eq!(
-        parse_workspace_args(&argv(&["remove"])).action,
-        WorkspaceAction::List
-    );
-
-    // Flag VALUES must not be mistaken for the action or its operand.
-    let cfg_only = parse_workspace_args(&argv(&["--config", "/tmp/c.toml"]));
-    assert_eq!(cfg_only.action, WorkspaceAction::List);
-    assert_eq!(cfg_only.config.as_deref(), Some("/tmp/c.toml"));
-    assert_eq!(
-        parse_workspace_args(&argv(&["add", "--harness", "laptop"])).action,
-        WorkspaceAction::Add(None)
-    );
-}
-
-#[test]
-fn help_lists_init() {
-    let help = help_text();
-    assert!(help.contains("medulla init"));
-    assert!(help.contains("--offline"));
-}
-
-#[test]
-fn help_lists_the_workspace_registry_command() {
-    let help = help_text();
-    assert!(help.contains("medulla workspace"));
-    // The three actions must be discoverable without reading the source.
-    assert!(help.contains("add [dir]|list|remove"));
-    assert!(help.contains("--harness"));
-}
-
-#[test]
 fn tui_args_parse_the_mock_flag() {
     // `--mock` is the only headless route to a working runtime with no backend
     // token: it must skip the login screen entirely.
@@ -340,39 +212,6 @@ fn worker_flag_values_parse_in_both_spellings() {
     assert_eq!(flag_value(&bare, "--workspace"), None);
     let dangling: Vec<String> = vec!["--workspace".to_string()];
     assert_eq!(flag_value(&dangling, "--workspace"), None);
-}
-
-#[test]
-fn run_args_join_the_instruction_and_read_flags() {
-    let a = parse_run_args(&argv(&["--config", "c.toml", "reconcile", "the", "world"]))
-        .expect("a run with an instruction parses");
-    assert_eq!(a.config.as_deref(), Some("c.toml"));
-    assert_eq!(a.instruction, "reconcile the world");
-}
-
-#[test]
-fn run_args_require_an_instruction() {
-    // Only flags, no instruction text → a usage error rather than an empty run.
-    let err = parse_run_args(&argv(&["--config", "c.toml"]))
-        .expect_err("a flags-only run is a usage error");
-    assert!(err.contains("instruction"), "{err}");
-    // A dangling value-flag consumes the following token, so this is empty too.
-    assert!(parse_run_args(&argv(&["--config"])).is_err());
-}
-
-#[test]
-fn help_text_documents_the_run_command() {
-    let help = help_text();
-    assert!(help.contains("medulla run"));
-}
-
-#[test]
-fn run_rejects_the_retired_core_socket_flag() {
-    // Loudly, not silently: an unrecognized token joins the instruction, so a
-    // quiet removal would submit the flag to the agent as prompt text.
-    let err = parse_run_args(&argv(&["--core-socket", "/run/serve.sock", "hello"]))
-        .expect_err("the retired flag is a usage error");
-    assert!(err.contains("--core-socket"), "{err}");
 }
 
 #[test]

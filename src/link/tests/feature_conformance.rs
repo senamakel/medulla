@@ -28,7 +28,7 @@ fn frames(count: usize) -> Vec<Vec<u8>> {
 fn a_clean_link_delivers_in_order_and_settles() {
     let mut harness = Harness::new(Script::default());
     for index in 0..10 {
-        harness.orchestrator.queue_message(frame(index)).unwrap();
+        harness.owner.queue_message(frame(index)).unwrap();
     }
     let converged = harness.run_until(5_000, |harness| harness.host_inbox.len() == 10);
     assert!(converged, "the host received {:?}", harness.host_inbox);
@@ -42,7 +42,7 @@ fn a_clean_link_delivers_in_order_and_settles() {
         "an idle link sent {} datagrams in 3 s",
         harness.counters.sent - before
     );
-    assert!(!harness.orchestrator.has_pending_state());
+    assert!(!harness.owner.has_pending_state());
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn it_converges_under_thirty_percent_loss_reordering_and_duplication() {
     // carry all 25 frames in one datagram, and one datagram is not a test of
     // loss.
     for index in 0..25 {
-        harness.orchestrator.queue_message(frame(index)).unwrap();
+        harness.owner.queue_message(frame(index)).unwrap();
         harness
             .host
             .queue_message(format!("reply {index}").into_bytes())
@@ -62,20 +62,20 @@ fn it_converges_under_thirty_percent_loss_reordering_and_duplication() {
     }
 
     let converged = harness.run_until(60_000, |harness| {
-        harness.host_inbox.len() == 25 && harness.orchestrator_inbox.len() == 25
+        harness.host_inbox.len() == 25 && harness.owner_inbox.len() == 25
     });
     assert!(
         converged,
-        "host had {} and orchestrator {} of 25 after {} ms",
+        "host had {} and owner {} of 25 after {} ms",
         harness.host_inbox.len(),
-        harness.orchestrator_inbox.len(),
+        harness.owner_inbox.len(),
         harness.now()
     );
 
     // Ordered, complete, and no duplicates despite the network making copies.
     assert_eq!(harness.host_inbox, frames(25));
     assert_eq!(
-        harness.orchestrator_inbox,
+        harness.owner_inbox,
         (0..25)
             .map(|index| format!("reply {index}").into_bytes())
             .collect::<Vec<_>>()
@@ -95,8 +95,8 @@ fn a_sixty_second_blackout_mid_exchange_completes_without_error() {
     // §9: "A 60-second total blackout mid-task completes without error and
     // without re-enrolling."
     let mut harness = Harness::new(Script::default().with_blackout(500, 60_000));
-    harness.orchestrator.queue_message(frame(0)).unwrap();
-    harness.orchestrator.queue_message(frame(1)).unwrap();
+    harness.owner.queue_message(frame(0)).unwrap();
+    harness.owner.queue_message(frame(1)).unwrap();
     // The first frames land; the rest are queued mid-task, while the link is
     // down, which is the case §6.3 exists for.
     harness.run_for(400);
@@ -109,7 +109,7 @@ fn a_sixty_second_blackout_mid_exchange_completes_without_error() {
     // they are genuinely stuck behind it.
     harness.run_for(200);
     for index in 2..5 {
-        harness.orchestrator.queue_message(frame(index)).unwrap();
+        harness.owner.queue_message(frame(index)).unwrap();
     }
     assert_eq!(harness.host_inbox.len(), 2);
 
@@ -141,13 +141,13 @@ fn a_sixty_second_blackout_mid_exchange_completes_without_error() {
 fn a_task_continues_across_a_blackout_that_starts_mid_stream() {
     // Frames queued *during* the outage arrive too, in order, once it lifts.
     let mut harness = Harness::new(Script::default().with_blackout(1_000, 60_000));
-    harness.orchestrator.queue_message(frame(0)).unwrap();
+    harness.owner.queue_message(frame(0)).unwrap();
     harness.run_for(900);
     assert_eq!(harness.host_inbox, frames(1));
 
     harness.run_for(30_000);
     for index in 1..4 {
-        harness.orchestrator.queue_message(frame(index)).unwrap();
+        harness.owner.queue_message(frame(index)).unwrap();
     }
     harness.run_for(31_000);
 
@@ -161,10 +161,7 @@ fn the_screen_channel_catches_up_in_exactly_one_diff_after_a_forty_second_outage
     // §9: "Channel 1 catch-up after a 40-second outage converges in one diff to
     // the current grid — not a replay."
     let mut harness = Harness::new(Script::default().with_blackout(100, 40_000));
-    harness
-        .orchestrator
-        .set_screen(vec![b"line 0".to_vec()])
-        .unwrap();
+    harness.owner.set_screen(vec![b"line 0".to_vec()]).unwrap();
     harness.run_for(60);
     assert_eq!(harness.host.screen().rows(), [b"line 0".to_vec()]);
     // Let the outage begin before anything else is drawn.
@@ -173,7 +170,7 @@ fn the_screen_channel_catches_up_in_exactly_one_diff_after_a_forty_second_outage
     // Forty seconds of updates that nobody can see.
     for generation in 1..=400 {
         harness
-            .orchestrator
+            .owner
             .set_screen(vec![
                 format!("line {generation}").into_bytes(),
                 b"status".to_vec(),
@@ -204,7 +201,7 @@ fn queue_overflow_surfaces_a_retryable_transport_error() {
     let mut config = SessionConfig::new(
         NodeId([1u8; 16]),
         NodeId([2u8; 16]),
-        Role::Orchestrator,
+        Role::Owner,
         PairKey::from_bytes([7u8; 16]),
         ForwarderKey([8u8; 32]),
     );
@@ -243,7 +240,7 @@ fn the_sent_state_history_is_bounded_by_the_same_retryable_error() {
     let mut config = SessionConfig::new(
         NodeId([1u8; 16]),
         NodeId([2u8; 16]),
-        Role::Orchestrator,
+        Role::Owner,
         PairKey::from_bytes([7u8; 16]),
         ForwarderKey([8u8; 32]),
     );
@@ -272,12 +269,12 @@ fn round_trip_estimation_tracks_the_network_delay() {
         ..Default::default()
     };
     let mut harness = Harness::new(script);
-    harness.orchestrator.queue_message(frame(0)).unwrap();
+    harness.owner.queue_message(frame(0)).unwrap();
     harness.run_until(5_000, |harness| !harness.host_inbox.is_empty());
     harness.run_for(1_000);
 
     let srtt = harness
-        .orchestrator
+        .owner
         .rtt()
         .srtt()
         .expect("a completed round trip must produce a sample");
@@ -285,7 +282,7 @@ fn round_trip_estimation_tracks_the_network_delay() {
         (srtt - 90.0).abs() < 25.0,
         "SRTT was {srtt} ms for a 90 ms round trip"
     );
-    let rto = harness.orchestrator.rto();
+    let rto = harness.owner.rto();
     assert!(
         (50..=1_000).contains(&rto),
         "RTO {rto} left the [MIN_RTO, MAX_RTO] clamp"
@@ -297,9 +294,9 @@ fn both_channels_progress_independently() {
     // §4.4: an Instruction on channel 0 says nothing about channel 1.
     let mut harness = Harness::new(Script::hostile());
     for index in 0..10 {
-        harness.orchestrator.queue_message(frame(index)).unwrap();
+        harness.owner.queue_message(frame(index)).unwrap();
         harness
-            .orchestrator
+            .owner
             .set_screen(vec![format!("row {index}").into_bytes()])
             .unwrap();
     }

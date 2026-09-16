@@ -1,14 +1,14 @@
 //! What the live-run buffer keeps for a run this TUI started.
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 
 use crate::ui::app::App;
 
 fn app() -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 

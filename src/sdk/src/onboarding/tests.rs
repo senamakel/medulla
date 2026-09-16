@@ -1,4 +1,4 @@
-//! Unit tests for the onboarding orchestration: the env-owner chain, link
+//! Unit tests for the onboarding dispatch: the env-owner chain, link
 //! identity detection, and the headless and interactive register paths.
 
 use super::*;
@@ -32,12 +32,12 @@ fn env_owner_priority_order() {
     // The link-native key wins over every legacy one.
     assert_eq!(
         env_owner(&env(&[
-            ("MEDULLA_LINK_OWNER", "orchestrator-1"),
+            ("MEDULLA_LINK_OWNER", "owner-1"),
             ("MEDULLA_HARNESS_DM_TO", "@dm"),
             ("MEDULLA_OPENHUMAN_OWNER", "@boss"),
         ]))
         .as_deref(),
-        Some("orchestrator-1")
+        Some("owner-1")
     );
     // Harness DM_TO still wins over the generic owner.
     assert_eq!(
@@ -84,7 +84,7 @@ fn identity_present_reads_the_link_state_file_and_never_mints_one() {
 #[tokio::test]
 async fn headless_auto_registers_with_env_owner() {
     let dir = tempfile::tempdir().unwrap();
-    let e = home_env(dir.path(), &[("MEDULLA_LINK_OWNER", "orchestrator-1")]);
+    let e = home_env(dir.path(), &[("MEDULLA_LINK_OWNER", "owner-1")]);
 
     let reg = ensure_registered(&e, false, None)
         .await
@@ -97,7 +97,7 @@ async fn headless_auto_registers_with_env_owner() {
         "name: {}",
         reg.profile.name
     );
-    assert_eq!(reg.profile.owner.as_deref(), Some("orchestrator-1"));
+    assert_eq!(reg.profile.owner.as_deref(), Some("owner-1"));
     assert!(reg.profile.registered_at.is_some());
 
     // Second call: a profile exists but this host has not enrolled, so it is
@@ -142,7 +142,7 @@ async fn malformed_explicit_config_cannot_mutate_an_existing_profile() {
     let profile = WorkerProfile {
         name: "existing-worker".to_string(),
         address: String::new(),
-        owner: Some("orchestrator-1".to_string()),
+        owner: Some("owner-1".to_string()),
         registered_at: Some("2026-01-01T00:00:00Z".to_string()),
     };
     profile.save(&profile_file).unwrap();

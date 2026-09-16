@@ -90,7 +90,7 @@ impl SidebarSort {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppearanceConfig {
-    /// Whether orchestrator-managed harness titles appear in the Agents sidebar.
+    /// Whether dispatcher-managed harness titles appear in the Agents sidebar.
     pub show_session_titles: bool,
     /// Whether an operator-started harness row shows its Git branch.
     pub show_harness_branch: bool,

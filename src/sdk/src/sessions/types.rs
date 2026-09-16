@@ -18,7 +18,7 @@ use crate::protocol::HarnessProvider;
 ///
 /// **This is the inverse of the JavaScript prior art's vocabulary, and the
 /// inversion is deliberate.** The implementations this was ported from — the
-/// former `core-js` orchestrator (since removed from this repo) and the
+/// former `core-js` dispatcher (since removed from this repo) and the
 /// host-link daemon — call the *long-lived* session "bound" (it
 /// is bound to a thread) and the throwaway one "unbound"/"pool". Here the
 /// adjective describes the session's **lifetime**, not its attachment: a
@@ -84,8 +84,8 @@ impl fmt::Display for SessionClass {
 /// | Lifetime | immutable | moves on every take / hand-back |
 /// | Set by | the creation path | takeover, hand-back, spawn-time choice |
 ///
-/// So an [`Orchestrator`](Self::Orchestrator)-originated session an operator
-/// takes over is still `origin: orchestrator` while they hold it, and still is
+/// So an [`Dispatcher`](Self::Dispatcher)-originated session an operator
+/// takes over is still `origin: dispatcher` while they hold it, and still is
 /// after they hand it back. Nothing may write this field after creation — the
 /// structures that carry it put it in their immutable half for that reason.
 ///
@@ -97,7 +97,7 @@ impl fmt::Display for SessionClass {
 pub enum SessionOrigin {
     /// Auto-created to serve a dispatched task. Unnamed: the UI labels it from
     /// the task it was created for.
-    Orchestrator,
+    Task,
     /// Spun up by a person from the UI. Carries the name they gave it.
     User,
 }
@@ -106,7 +106,7 @@ impl SessionOrigin {
     /// The wire/display string.
     pub fn as_str(self) -> &'static str {
         match self {
-            SessionOrigin::Orchestrator => "orchestrator",
+            SessionOrigin::Task => "task",
             SessionOrigin::User => "user",
         }
     }
@@ -114,15 +114,15 @@ impl SessionOrigin {
     /// Whether a person, rather than a dispatch, started this session.
     ///
     /// Display and labelling only — never a gate on dispatch. Control is the
-    /// gate: a user-originated session that was handed to the orchestrator is
-    /// dispatchable, and an orchestrator-originated one a person holds is not.
+    /// gate: a user-originated session that was handed back for dispatch is
+    /// dispatchable, and a task-originated one a person holds is not.
     pub fn is_user(self) -> bool {
         matches!(self, SessionOrigin::User)
     }
 
     /// Whether a dispatch, rather than a person, started this session.
-    pub fn is_orchestrator(self) -> bool {
-        matches!(self, SessionOrigin::Orchestrator)
+    pub fn is_dispatch(self) -> bool {
+        matches!(self, SessionOrigin::Task)
     }
 }
 
@@ -327,7 +327,7 @@ pub struct SessionRecord {
     pub origin: SessionOrigin,
     /// The display name a person gave this session when they spun it up.
     ///
-    /// `None` for an [`SessionOrigin::Orchestrator`]-originated session, which
+    /// `None` for an [`SessionOrigin::Task`]-originated session, which
     /// the UI labels from the task it was created for instead.
     pub name: Option<String>,
     /// Lifetime class.
@@ -406,13 +406,13 @@ impl TurnOrigin {
     /// The provenance a session auto-created for this turn is born with.
     ///
     /// A task frame is a dispatch, so the session it creates is the
-    /// orchestrator's (§4.1: a task without a session id creates one). Anything
+    /// dispatcher's (§4.1: a task without a session id creates one). Anything
     /// a person or a wrapper they are sitting in front of drives is theirs — an
     /// envelope stream reports a session started outside this daemon's dispatch
-    /// path, so it is never counted as orchestrator-originated.
+    /// path, so it is never counted as task-originated.
     pub fn session_origin(&self) -> SessionOrigin {
         match self {
-            TurnOrigin::Frame { .. } => SessionOrigin::Orchestrator,
+            TurnOrigin::Frame { .. } => SessionOrigin::Task,
             TurnOrigin::Envelope { .. } | TurnOrigin::Operator => SessionOrigin::User,
         }
     }

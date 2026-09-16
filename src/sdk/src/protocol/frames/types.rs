@@ -325,7 +325,7 @@ pub fn dispatchable_flavors() -> Vec<(HarnessProvider, HarnessTransport)> {
     flavors
 }
 
-/// The frame kinds the daemon and orchestrator loop exchange.
+/// The frame kinds the daemon and dispatcher loop exchange.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskFrameKind {
@@ -393,7 +393,7 @@ impl TaskFrameKind {
 }
 
 /// Token usage a responder reports for a completed task (child harness
-/// consumption, surfaced to the orchestrator).
+/// consumption, surfaced to the dispatcher).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenUsage {
     /// Tokens the child harness consumed as input/prompt.
@@ -439,7 +439,7 @@ pub enum BudgetSource {
 }
 
 /// A best-effort, per-harness token-budget descriptor advertised on
-/// `capabilities_result` so an orchestrator can size tasks against real
+/// `capabilities_result` so a dispatcher can size tasks against real
 /// capacity.
 ///
 /// Every numeric field is optional — a probe that cannot establish a number
@@ -517,7 +517,7 @@ pub struct HarnessReadiness {
 /// `task_id` is the cycle-scoped correlation key; `correlation_id` (when present)
 /// is the globally-unique dispatch key that responders must echo verbatim.
 /// `harness` names the provider that ran a task (set on responses); `provider`
-/// is an inbound-only hint naming the agent the orchestrator wants to run it.
+/// is an inbound-only hint naming the agent the dispatcher wants to run it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TaskFrame {
     /// Wire version tag ([`MEDULLA_TASK_PROTO`]).
@@ -541,7 +541,7 @@ pub struct TaskFrame {
     /// The provider that ran a task (set on responses).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub harness: Option<HarnessProvider>,
-    /// Inbound-only hint naming the agent the orchestrator wants to run this task.
+    /// Inbound-only hint naming the agent the dispatcher wants to run this task.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub provider: Option<HarnessProvider>,
     /// Inbound-only hint naming the *flavor* of `provider` to run it over.
@@ -566,7 +566,7 @@ pub struct TaskFrame {
         default
     )]
     pub custom_harness: Option<Box<str>>,
-    /// Inbound-only advisory hint naming the model the orchestrator wants this
+    /// Inbound-only advisory hint naming the model the dispatcher wants this
     /// task run on (parallels `provider`). The worker daemon may honor it as the
     /// harness `--model`/`-m` or fall back to its configured model; never echoed
     /// on responses.
@@ -706,7 +706,7 @@ pub struct TaskFrame {
     pub session_id: Option<String>,
     /// What the child harness is working on, as of this frame.
     ///
-    /// Carried on `status` and `reply` frames so an orchestrator sees the
+    /// Carried on `status` and `reply` frames so a dispatcher sees the
     /// worker's todo list, plan, sub-agents, and file edits rather than only the
     /// one-line detail `text` — the whole point of a master terminal is that the
     /// remote screen is legible from here. Additive and optional in both
@@ -760,7 +760,7 @@ pub struct EncodeFrameInput {
     pub correlation_id: Option<String>,
     /// The provider that ran a task (set on responses).
     pub harness: Option<HarnessProvider>,
-    /// Inbound-only hint naming the agent the orchestrator wants to run this task.
+    /// Inbound-only hint naming the agent the dispatcher wants to run this task.
     pub provider: Option<HarnessProvider>,
     /// Inbound-only hint naming the flavor of `provider` to run it over; `None`
     /// selects the provider's default transport. See [`TaskFrame::transport`].
@@ -869,7 +869,7 @@ pub struct AgentCapabilities {
     /// Workflows this worker has installed and can be asked to run (see
     /// [`WorkflowAdvert`]).
     ///
-    /// This is how an orchestrator learns that a worker can do more than take an
+    /// This is how a dispatcher learns that a worker can do more than take an
     /// instruction: each entry is an id it may name in a task frame's `workflow`
     /// field. Same backward-compatibility contract as the two vectors above.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -890,7 +890,7 @@ pub struct AgentCapabilities {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomHarnessAdvert {
-    /// Stable id an orchestrator may send as `customHarness`.
+    /// Stable id a dispatcher may send as `customHarness`.
     pub id: String,
     /// Operator-facing label.
     pub name: String,
@@ -905,7 +905,7 @@ pub struct CustomHarnessAdvert {
 
 /// One workflow a worker advertises as runnable.
 ///
-/// Deliberately just enough for an orchestrator to choose one and explain the
+/// Deliberately just enough for a dispatcher to choose one and explain the
 /// choice — the graph itself stays on the worker, where it is authored and
 /// validated.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -915,7 +915,7 @@ pub struct WorkflowAdvert {
     /// Display name.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub name: String,
-    /// What the workflow does, for an orchestrator deciding whether it fits.
+    /// What the workflow does, for a dispatcher deciding whether it fits.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub description: String,
     /// How many steps it has — a rough cost signal.
@@ -994,7 +994,7 @@ where
 {
     let raw = de_string_array(deserializer)?;
     // Dropped rather than trusted: this list is a *peer's* claim about what it
-    // can run, and the orchestrator picks a provider from it. A peer that
+    // can run, and the dispatcher picks a provider from it. A peer that
     // advertised `"shell"` would be offering to take work on a terminal.
     Ok(raw
         .iter()

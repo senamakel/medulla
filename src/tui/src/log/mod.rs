@@ -35,7 +35,7 @@ pub const MAX_LOG_BYTES: u64 = 8 * 1024 * 1024;
 /// Deliberately **not** the workspace: a worker's workspace is a directory full
 /// of the operator's real repositories, and dropping a log file into one invites
 /// it into a commit. `<medulla_home>/logs` is one predictable place, survives
-/// changing the workspace, and works for the orchestrator, which has no
+/// changing the workspace, and works for the dispatcher, which has no
 /// workspace at all. `MEDULLA_LOG_DIR` overrides it.
 pub fn default_log_dir(env: &std::collections::HashMap<String, String>) -> PathBuf {
     if let Some(dir) = env

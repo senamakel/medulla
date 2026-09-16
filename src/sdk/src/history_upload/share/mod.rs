@@ -1,6 +1,6 @@
 //! Uploading a scanned history and claiming the reward.
 //!
-//! This is the orchestration behind the welcome flow's approval step: redact each
+//! This is the dispatch behind the welcome flow's approval step: redact each
 //! transcript, upload it, then claim. It lives in the SDK rather than the TUI
 //! because none of it is rendering — the caller supplies a progress callback and
 //! renders however it likes, which also makes the whole sequence testable against

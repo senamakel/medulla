@@ -2,7 +2,7 @@
 
 use super::{host_rows, HostKind};
 use crate::config::LocalHostRef;
-use crate::runtime::{AgentDeclaration, WorkerInfo};
+use crate::fleet::{AgentDeclaration, WorkerInfo};
 
 /// A roster entry with nothing probed — the shape an added peer has.
 fn worker(id: &str, address: &str) -> WorkerInfo {

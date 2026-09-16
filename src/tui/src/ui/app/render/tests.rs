@@ -3,20 +3,20 @@
 //!
 //! The lane presence-glyph and chat-transcript tests that used to live here went
 //! with the surfaces they covered — the rail lists sessions rather than lanes,
-//! and the orchestrator's transcript is no longer drawn in the TUI at all.
+//! and the sender's transcript is no longer drawn in the TUI at all.
 
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 
 use crate::ui::app::changes::types::ChangedFile;
 use crate::ui::app::types::{tab_pos, PaneView};
 use crate::ui::app::App;
 
 fn app() -> App {
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 

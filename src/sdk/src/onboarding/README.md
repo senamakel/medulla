@@ -1,11 +1,11 @@
 # Onboarding
 
-First-run worker registration orchestration.
+First-run worker registration.
 
 ## Contents
 
-- [`mod.rs`](./mod.rs) — First-run worker registration orchestration.
-- [`tests.rs`](./tests.rs) — Unit tests for the onboarding orchestration: the env-owner chain, identity presence detection, and the headless auto-register path.
+- [`mod.rs`](./mod.rs) — First-run worker registration.
+- [`tests.rs`](./tests.rs) — Unit tests for onboarding: the env-owner chain, identity presence detection, and the headless auto-register path.
 - [`types.rs`](./types.rs) — The onboarding module's data types: the `Registration` result, the `OnboardingContext` handed to an interactive UI, and the `OnboardingUi` callback the app injects to render the interactive screen.
 
 ## Maintenance

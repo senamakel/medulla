@@ -335,13 +335,13 @@ fn load_config_toml_and_json_parity() {
     let json = cwd.join("c.json");
     std::fs::write(
         &json,
-        r#"{"backend":{"baseUrl":"http://x:1"},"medulla":{"maxPasses":3}}"#,
+        r#"{"backend":{"baseUrl":"http://x:1"},"update":{"check":false}}"#,
     )
     .unwrap();
     let toml_path = cwd.join("c.toml");
     std::fs::write(
         &toml_path,
-        "[backend]\nbaseUrl = \"http://x:1\"\n\n[medulla]\nmaxPasses = 3\n",
+        "[backend]\nbaseUrl = \"http://x:1\"\n\n[update]\ncheck = false\n",
     )
     .unwrap();
     let from_json = load_config(Some(json.to_str().unwrap()), &env(&[home_env]), &cwd).unwrap();
@@ -356,8 +356,8 @@ fn load_config_toml_and_json_parity() {
         from_toml.config.backend.base_url,
         "https://api.tinyhumans.ai"
     );
-    assert_eq!(from_json.config.medulla.max_passes, Some(3));
-    assert_eq!(from_toml.config.medulla.max_passes, Some(3));
+    assert!(!from_json.config.update.check);
+    assert!(!from_toml.config.update.check);
     let _ = std::fs::remove_dir_all(&home);
     let _ = std::fs::remove_dir_all(&cwd);
 }
@@ -373,7 +373,7 @@ fn load_config_layers_router_section_from_toml() {
     std::fs::create_dir_all(home_of(&home)).unwrap();
     std::fs::write(
         home_of(&home).join("config.toml"),
-        "[router]\nbaseUrl = \"https://gateway.internal/v1\"\napiKeyEnv = \"MEDULLA_ROUTER_KEY\"\n\n[router.models]\nreasoning = \"gpt-tier-a\"\n",
+        "[router]\nbaseUrl = \"https://gateway.internal/v1\"\napiKeyEnv = \"MEDULLA_ROUTER_KEY\"\n",
     )
     .unwrap();
     std::fs::create_dir_all(cwd.join(".medulla")).unwrap();
@@ -392,7 +392,6 @@ fn load_config_layers_router_section_from_toml() {
     let router = loaded.config.router.expect("router section merged");
     // Global top-level survives the merge.
     assert_eq!(router.api_key_env.as_deref(), Some("MEDULLA_ROUTER_KEY"));
-    assert_eq!(router.model_for_tier("reasoning"), Some("gpt-tier-a"));
     // Project-local provider override wins for claude; codex inherits top-level.
     assert_eq!(
         router.base_url_for("claude"),
@@ -423,7 +422,7 @@ fn a_synthesized_link_section_follows_the_resolved_backend() {
     // config file has none, and used to do it with `LinkConfig::default()` —
     // whose `forwarder_url` is a *constant*, because a serde default can read
     // neither the environment nor the rest of the document. Pointed at staging
-    // that put the worker on one forwarder while the orchestrator's hub sat on
+    // that put the worker on one forwarder while the sender's hub sat on
     // another: both started cleanly and reported healthy, but a datagram handed
     // to one forwarder never reaches the other, so the two simply never heard
     // from each other with nothing logged anywhere.

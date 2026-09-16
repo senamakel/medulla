@@ -1,7 +1,7 @@
 //! The pair key and its human-transcribable encoding (protocol §7.1).
 //!
 //! The pair key is the 128-bit end-to-end secret. It is generated on the
-//! orchestrator, read aloud or carried to the host, and typed in there — so its
+//! owner, read aloud or carried to the host, and typed in there — so its
 //! encoding is optimised for a human retyping it, not for compactness:
 //!
 //! ```text
@@ -62,7 +62,7 @@ impl From<CrockfordError> for PairKeyError {
 pub struct PairKey([u8; 16]);
 
 impl PairKey {
-    /// Mint a fresh random pair key. This happens on the orchestrator, once per
+    /// Mint a fresh random pair key. This happens on the owner, once per
     /// host, and the result is shown to the user (protocol §7.1).
     pub fn generate() -> Self {
         let mut bytes = [0u8; 16];

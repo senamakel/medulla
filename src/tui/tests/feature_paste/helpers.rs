@@ -9,8 +9,8 @@ pub use std::sync::Arc;
 
 pub use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
+pub use medulla::backend::MockBackend;
 pub use medulla::config::{LinkConfig, LoadedConfig};
-pub use medulla::runtime::mock::MockRuntime;
 pub use medulla_tui::ui::app::{App, Cmd, TABS};
 
 pub fn loaded() -> LoadedConfig {
@@ -21,17 +21,17 @@ pub fn loaded() -> LoadedConfig {
 
 /// An app on the Agents tab, where the chat composer lives.
 pub fn agents_app() -> App {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     app.tab_index = tab_index("Sessions");
     app
 }
 
-/// An Agents-tab app with lanes on its rail, so the cursor can be moved off the
-/// orchestrator onto a row that draws no composer.
+/// A Sessions-tab app with the demo lanes on its rail, so the cursor can be
+/// moved onto a row that draws no composer.
 pub fn demo_agents_app() -> App {
-    let mut app = App::new(Arc::new(MockRuntime::demo()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
+    app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
     app.tab_index = tab_index("Sessions");
-    app.refresh_snapshot();
     app
 }
 

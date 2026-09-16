@@ -63,7 +63,7 @@ pub(super) struct CapabilityProbeGuard {
     pub(super) waiters: CapabilitiesWaiters,
     pub(super) key: String,
 }
-/// Shared registry of abort signals, keyed by the orchestrator-facing task id
+/// Shared registry of abort signals, keyed by the sender-facing task id
 /// (`medulla:task_abort.taskId`). One entry per in-flight [`TaskRunner::run`],
 /// registered for the whole call; notifying it makes that call stop the worker,
 /// reap its correlation entry, and return [`RunError::Aborted`].
@@ -98,7 +98,7 @@ pub struct TaskRunner {
     pub(super) capabilities_waiters: CapabilitiesWaiters,
     /// Last successfully negotiated capabilities for each worker address.
     pub(super) capabilities: Arc<Mutex<HashMap<String, AgentCapabilities>>>,
-    /// Abort signals for in-flight dispatches, keyed by orchestrator-facing task
+    /// Abort signals for in-flight dispatches, keyed by sender-facing task
     /// id; [`abort_task`](Self::abort_task) notifies one to cancel its dispatch.
     pub(super) aborts: Aborts,
     pub(super) counter: AtomicU64,

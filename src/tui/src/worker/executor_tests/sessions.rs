@@ -90,7 +90,7 @@ async fn a_peer_is_shown_progress_while_its_task_runs() {
 #[tokio::test]
 async fn a_second_turn_on_a_reused_session_gets_its_own_answer() {
     // Regression, seen in the field: the first task on a peer's session
-    // succeeded and the reply reached the orchestrator; the next one died with
+    // succeeded and the reply reached the dispatcher; the next one died with
     // "claude never started a turn".
     //
     // The tailer is built for a session about to start — it ignores every
@@ -152,7 +152,7 @@ async fn a_second_turn_on_a_reused_session_gets_its_own_answer() {
 
 #[tokio::test]
 async fn concurrent_tasks_from_one_peer_do_not_share_a_session() {
-    // Reproduced from the field. The orchestrator fans out — its prompt calls
+    // Reproduced from the field. The dispatcher fans out — its prompt calls
     // delegation its DEFAULT path — so three tasks arrived from the same peer at
     // once. All three found the same running session, were pasted into the same
     // composer, and all three tails settled on the same completion:
@@ -289,7 +289,7 @@ async fn sequential_task_frames_from_one_sender_do_not_share_a_session() {
     // it and inherits A's whole conversation.
     //
     // It was reachable for every locally dispatched task. `DaemonRuntime` sets
-    // `conversation` to the authenticated sender, which for an orchestrator's
+    // `conversation` to the authenticated sender, which for a sender's
     // own host is always the hub address, so the old
     // `conversation.is_empty() => Bounded` inference never fired: every task
     // frame classified as unbound and reused the sender's session. Two

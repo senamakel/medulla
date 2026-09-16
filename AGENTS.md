@@ -21,11 +21,10 @@ build output ever crosses that boundary.
 
 This repository is a two-crate Cargo workspace: the `medulla` SDK library at `src/sdk/` and the `medulla-tui` app crate at `src/tui/` (which ships the `medulla` binary). Keep reusable APIs in the SDK; keep rendering and process wiring in the app crate.
 
-- `src/sdk/src/client/` implements the backend HTTP/SSE client and protocol types.
-- `src/sdk/src/runtime/` contains the cloud-backend and scripted mock runtime adapters.
+- `src/sdk/src/client/` implements the backend HTTP client (sign-in, the plan entitlement, account usage, the feedback board); `src/sdk/src/backend/` is the trait the TUI drives it through, with the scripted mock behind `--mock`.
 - `src/sdk/src/daemon/` implements provider integration; `src/link/` implements the host-link transport.
 - `src/sdk/src/workflows/` owns authored multi-step workflows (store, execution, authoring, MCP tools); `src/sdk/src/flow_engine/` is the adapter seam onto the vendored `tinyflows` engine. Keep engine coupling in the seam.
-- `src/sdk/src/ui/` holds the UI-facing data surface (events, agent lanes, chat store, onboarding screen, util); the app crate re-exports it under `crate::ui`.
+- `src/sdk/src/ui/` holds the UI-facing data surface (agent lanes, the hosts projection, the work panel, util); the app crate re-exports it under `crate::ui`.
 - `src/tui/src/ui/` owns ratatui state, rendering, input, and theming; `src/tui/src/cli.rs` owns argument parsing; `src/tui/src/main.rs` owns process wiring.
 - `src/sdk/tests/` and `src/tui/tests/` contain feature and mocked end-to-end suites; reusable stand-ins live in `src/sdk/tests/support/` (the app crate's tests reach them via `#[path]`).
 - `src/sdk/src/agent/` is the local agent: a `tinyagents` harness plus Medulla's own tool surface (shell, filesystem), used by the in-process daemon provider.
@@ -34,8 +33,8 @@ This repository is a two-crate Cargo workspace: the `medulla` SDK library at `sr
 
 ## Build, Test, and Development Commands
 
-- `cargo run` starts the TUI on the Medulla orchestration backend; with no app session it opens the login screen first.
-- `cargo run -- --mock` runs the offline demo runtime — the only way to reach it, and what the test suites use.
+- `cargo run` starts the TUI; with no app session it opens the login screen first, since the backend gates access by plan.
+- `cargo run -- --mock` runs offline against a scripted demo backend — the only way to reach it, and what the test suites use.
 - `cargo run --release` runs an optimized build.
 - `cargo install --path src/tui` installs the `medulla` binary.
 - `cargo test` runs unit, feature, and mocked end-to-end tests for both crates without live network access.
@@ -69,7 +68,7 @@ store, agent templates, and state rather than the developer's.
 
 ## Coding Style & Naming Conventions
 
-Use standard `rustfmt` output (four-space indentation). Name modules, functions, and files in `snake_case`; types and traits in `PascalCase`; constants in `SCREAMING_SNAKE_CASE`. Prefer explicit error types at library boundaries and `anyhow` for binary orchestration. Keep imports grouped at the top.
+Use standard `rustfmt` output (four-space indentation). Name modules, functions, and files in `snake_case`; types and traits in `PascalCase`; constants in `SCREAMING_SNAKE_CASE`. Prefer explicit error types at library boundaries and `anyhow` for binary wiring. Keep imports grouped at the top.
 
 ## File Organization & Size
 

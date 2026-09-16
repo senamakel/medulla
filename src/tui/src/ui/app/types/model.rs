@@ -15,9 +15,10 @@ use ratatui::layout::Rect;
 
 use crate::ui::composer::Draft;
 use crate::ui::theme::Theme;
+use medulla::backend::Backend;
 use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery};
 use medulla::config::LoadedConfig;
-use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot};
+use medulla::hub::HubSlot;
 
 use super::cmd::Cmd;
 use super::picker::*;
@@ -29,11 +30,9 @@ use super::rail_hit::RailHit;
 /// two of them diagnostic — so they now sit under Settings, keeping the tab bar
 /// to the views a session is actually driven from.
 ///
-/// Chat used to live here too, and is now the Sessions tab: talking to the
-/// orchestrator *is* selecting its lane and typing. Splitting them meant reading
-/// what an operation was doing on one tab and steering it on another, with two
-/// scroll positions and no way to answer an agent's question from where the
-/// question was visible.
+/// Chat used to live here too, back when a cloud dispatcher model sat above
+/// the fleet. That model is gone: the Sessions tab is the whole conversation
+/// now — pick a session's lane and type into it.
 ///
 /// Workflows is a tab because it is *work* — a plan an operator reads, edits,
 /// and runs, with a graph to navigate and a copilot to edit it by. Three panes'
@@ -42,14 +41,14 @@ use super::rail_hit::RailHit;
 /// `Hosts` is gone. It was the fleet's management surface — the hosts registered
 /// on it, the harness types and their credentials, the hook declarations, the
 /// agent-template catalog, host onboarding, and the routing strategies — and all
-/// of it existed to feed an orchestration engine that no longer exists. Most of
+/// of it existed to feed an dispatch engine that no longer exists. Most of
 /// it survives as config: `[[hosts]]`, `[[harnesses]]` and `[[hooks]]` are still
 /// read at load, so the runtime behaves exactly as before for those; there is
 /// simply no page that edits them by hand any more. The agent-template catalog
 /// did not survive — the `.medulla/agents` store and its loader are gone with
 /// the tab, so any templates it held are no longer read.
 /// `Hosts` is back, in a different shape. The old page managed an
-/// orchestration engine's fleet; this one manages the *machines* — the
+/// dispatch engine's fleet; this one manages the *machines* — the
 /// `[[remoteHosts]]` a session can run on, paired to this device with a
 /// one-shot key. It sits after Workflows because it is what the two tabs before
 /// it are scoped by: `H` picks the current host, and Sessions and Workflows
@@ -92,15 +91,13 @@ pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 10] = [
+pub const SETTINGS_SUBPAGES: [&str; 8] = [
     "Usage",
     "Appearance",
     "Subscriptions",
     "Status line",
     "Config",
     "Feedback",
-    "Trace",
-    "Context",
     "Account",
     "Help",
 ];
@@ -108,13 +105,9 @@ pub const SETTINGS_SUBPAGES: [&str; 10] = [
 /// The left-nav group headings, as `(heading, first subpage index)`.
 ///
 /// Headings are rendered dim and are not selectable — they exist to separate the
-/// everyday settings from the diagnostic ones. Each group runs until the next
+/// everyday settings from the account pages. Each group runs until the next
 /// group's start index.
-pub const SETTINGS_GROUPS: [(&str, usize); 3] = [
-    ("GENERAL", SP_USAGE),
-    ("DEBUG", SP_TRACE),
-    ("ABOUT", SP_ACCOUNT),
-];
+pub const SETTINGS_GROUPS: [(&str, usize); 2] = [("GENERAL", SP_USAGE), ("ABOUT", SP_ACCOUNT)];
 
 // Settings subpage indices.
 pub(in crate::ui::app) const SP_USAGE: usize = 0;
@@ -123,10 +116,8 @@ pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 2;
 pub(in crate::ui::app) const SP_STATUS_LINE: usize = 3;
 pub(in crate::ui::app) const SP_CONFIG: usize = 4;
 pub(in crate::ui::app) const SP_FEEDBACK: usize = 5;
-pub(in crate::ui::app) const SP_TRACE: usize = 6;
-pub(in crate::ui::app) const SP_CONTEXT: usize = 7;
-pub(in crate::ui::app) const SP_ACCOUNT: usize = 8;
-pub(in crate::ui::app) const SP_HELP: usize = 9;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 6;
+pub(in crate::ui::app) const SP_HELP: usize = 7;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
@@ -340,12 +331,13 @@ impl Default for FeedbackState {
 
 /// The interactive TUI screen: all tab state, input focus, and render geometry.
 pub struct App {
-    /// The runtime this screen drives.
-    pub runtime: Arc<dyn Runtime>,
+    /// The backend this screen asks for account usage and the feedback board.
+    pub backend: Arc<dyn Backend>,
+    /// The in-process hub, once it is up: the worker roster and what each
+    /// worker is doing. Read on the render path, never awaited.
+    pub hub: HubSlot,
     /// The loaded configuration (for the Config and settings surfaces).
     pub loaded: LoadedConfig,
-    /// The most recent runtime snapshot, refreshed each loop tick.
-    pub snapshot: RuntimeSnapshot,
     /// The active top-level tab index (into [`TABS`]).
     pub tab_index: usize,
     /// Git changes from the selected session or operator-chosen commit.
@@ -356,17 +348,15 @@ pub struct App {
     /// A persistent "update vX.Y.Z available" banner, set by the background
     /// update checker; shown in the header until the app exits.
     pub(in crate::ui::app) update_notice: Option<String>,
-    pub(in crate::ui::app) contexts: Vec<ContextItem>,
-    pub(in crate::ui::app) context_index: usize,
     pub(in crate::ui::app) rail_index: usize,
     /// Which selectable rail row remains selected while the live rail is rebuilt.
     pub(in crate::ui::app) agent_anchor: Option<super::super::rail::RailAnchor>,
     /// Extra pages of sublanes revealed under an agent lane, keyed by lane key.
     ///
     /// Keyed by [`AgentLane::key`](crate::ui::agents::AgentLane::key) rather than
-    /// by the lane's rail position, because lanes are re-folded from events every
-    /// tick and a lane that appears or ends shifts every index below it — an
-    /// expansion tied to a position would silently jump to a different agent.
+    /// by the lane's rail position, because lanes are rebuilt from the roster
+    /// every tick and a lane that appears or ends shifts every index below it —
+    /// an expansion tied to a position would silently jump to a different agent.
     /// Absent means the lane shows its first page, which is the default every
     /// lane starts at.
     pub(in crate::ui::app) subtask_pages: std::collections::HashMap<String, usize>,
@@ -536,7 +526,6 @@ pub struct App {
     /// [`Self::set_hooks_config_path`] whenever the caller knows the two must
     /// differ — see `app_loop::run_tui` in the `medulla-tui` crate.
     pub(in crate::ui::app) hooks_config_path: Option<std::path::PathBuf>,
-    pub(in crate::ui::app) resume_picker: Option<ResumePicker>,
     /// Whether the event loop should exit after this tick.
     pub should_quit: bool,
 
@@ -553,22 +542,6 @@ pub struct App {
     // wheel event can be routed to the terminal under the pointer and given
     // coordinates relative to *its* origin rather than the screen's.
     pub(in crate::ui::app) hit_session: Option<(Rect, String)>,
-    /// The threads strip's hit box and its first visible row, for click-to-switch.
-    pub(in crate::ui::app) hit_threads: Option<(Rect, usize)>,
-    /// Where the orchestrator's conversation drew, and the task each of its
-    /// visible lines opens (§A7) — `None` for the lines that are transcript
-    /// rather than a session entry.
-    ///
-    /// One slot per drawn row rather than a dense list, because the entries are
-    /// interleaved with the conversation: each one sits under the turn that
-    /// started it, so the block is no longer contiguous and an offset from its
-    /// top no longer identifies an entry.
-    ///
-    /// Tasks rather than row indices: the rail is rebuilt every frame, so an
-    /// index recorded during the draw can name a different row by the time the
-    /// click lands. A task id either still has a session or does not.
-    pub(in crate::ui::app) hit_started_sessions: Option<(Rect, Vec<Option<String>>)>,
-    pub(in crate::ui::app) hit_context: Option<Rect>,
     /// The selected workflow step's preview, for pointer-wheel scrolling.
     pub(in crate::ui::app) hit_workflow_preview: Option<Rect>,
     /// Where the active tab's subpage nav drew its page rows. Only one nav is on
@@ -587,22 +560,18 @@ pub struct App {
     /// Set when the button is released over a live selection: the next draw
     /// copies what the selection covers, since only then is the buffer readable.
     pub(in crate::ui::app) copy_selection: bool,
-    pub(in crate::ui::app) last_events_len: usize,
 
-    // Test-only clipboard capture: when set, `copy_chat` records the copied text
-    // here and skips the platform writers (no `pbcopy`/OSC subprocess in tests).
+    // Test-only clipboard capture: when set, the selection copier records the
+    // copied text here and skips the platform writers (no `pbcopy`/OSC
+    // subprocess in tests).
     pub(in crate::ui::app) copy_capture: Option<Arc<std::sync::Mutex<Vec<String>>>>,
-
-    // Optional observational overlay from the background host-link service:
-    // this endpoint's own identity, its peer roster, and peer presence. Merged
-    // into the snapshot on every refresh so the routing and Agents lanes
-    // light up without the runtime having to know about the link.
-    pub(in crate::ui::app) link_obs:
-        Option<Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>>,
+    /// Lanes standing in for the hub's, when a test or the offline demo
+    /// injected some. `None` derives them from the hub on every read.
+    pub(in crate::ui::app) lane_override: Option<Vec<crate::ui::agents::AgentLane>>,
+    /// A worker roster standing in for the hub's, when a test injected one.
+    pub(in crate::ui::app) worker_override: Option<Vec<medulla::fleet::WorkerInfo>>,
     // A read-only view of the task host running on this device, when one is.
-    // Read live at render rather than merged into the snapshot: its counters
-    // move on the host's own schedule, and the snapshot is the *runtime's*
-    // picture of the world — the host is a peer to it, not part of it.
+    // Read live at render: its counters move on the host's own schedule.
     pub(in crate::ui::app) host_obs: Option<medulla::daemon::embedded::HostObservation>,
     // The live sessions this device is running. `None` when this machine
     // does not host, in which case the Sessions tab has no local screen to show

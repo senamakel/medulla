@@ -1,15 +1,15 @@
 //! Regression tests for harness-pane-only keyboard commands.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
 use std::sync::Arc;
 
 use super::super::types::{tab_pos, App};
 
 /// Build the standard app fixture with the harness pane available.
 fn app() -> App {
-    let runtime = Arc::new(MockRuntime::demo());
+    let runtime = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.link = Some(medulla::config::LinkConfig::default());
     App::new(runtime, loaded)

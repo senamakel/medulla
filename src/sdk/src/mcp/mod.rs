@@ -35,7 +35,7 @@
 //! unavailable. `fleet_status` exists for the case where a session does hold the
 //! family and wants to know the fleet's shape before planning around it.
 //!
-//! Routing a remote worker's fleet calls back to the orchestrator over the
+//! Routing a remote worker's fleet calls back to the dispatcher over the
 //! remote bridge would remove the asymmetry, and is deliberately not done
 //! here: it needs frames, cross-machine correlation, and abort routing that this
 //! surface does not yet have.

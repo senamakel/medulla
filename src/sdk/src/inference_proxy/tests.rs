@@ -354,27 +354,6 @@ fn a_provider_override_alone_is_enough_to_route() {
 }
 
 #[test]
-fn models_survive_the_rewrite() {
-    let mut router = openrouter_router();
-    router.models.insert(
-        "reasoning".to_string(),
-        "anthropic/claude-opus-4".to_string(),
-    );
-    let routing = route_openrouter(
-        &router,
-        HarnessProvider::Claude,
-        &endpoint(),
-        "OPENROUTER_API_KEY",
-    )
-    .expect("routed");
-
-    assert_eq!(
-        routing.router.model_for_tier("reasoning"),
-        Some("anthropic/claude-opus-4")
-    );
-}
-
-#[test]
 fn route_spawn_scrubs_the_real_key_and_rewrites_the_router() {
     let mut router = Some(openrouter_router());
     let mut env: HashMap<String, String> = HashMap::from([

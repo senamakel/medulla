@@ -19,8 +19,8 @@ use medulla_link::{Session, SessionConfig};
 /// Which end of the link a datagram is travelling to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum End {
-    /// The orchestrator endpoint.
-    Orchestrator,
+    /// The owner endpoint.
+    Owner,
     /// The host endpoint.
     Host,
 }
@@ -29,8 +29,8 @@ impl End {
     /// The other end.
     pub fn other(self) -> End {
         match self {
-            End::Orchestrator => End::Host,
-            End::Host => End::Orchestrator,
+            End::Owner => End::Host,
+            End::Host => End::Owner,
         }
     }
 }
@@ -113,19 +113,19 @@ pub struct Counters {
 
 /// Two endpoints, the network between them, and a simulated clock.
 pub struct Harness {
-    /// The orchestrator endpoint.
-    pub orchestrator: Session,
+    /// The owner endpoint.
+    pub owner: Session,
     /// The host endpoint.
     pub host: Session,
-    /// Messages the orchestrator has received, in arrival order.
-    pub orchestrator_inbox: Vec<Vec<u8>>,
+    /// Messages the owner has received, in arrival order.
+    pub owner_inbox: Vec<Vec<u8>>,
     /// Messages the host has received, in arrival order.
     pub host_inbox: Vec<Vec<u8>>,
     /// What the network did.
     pub counters: Counters,
     script: Script,
     rng: u64,
-    orchestrator_seq: MemorySeq,
+    owner_seq: MemorySeq,
     host_seq: MemorySeq,
     in_flight: Vec<InFlight>,
     now: u64,
@@ -138,15 +138,15 @@ impl Harness {
     /// Build a link governed by `script`.
     pub fn new(script: Script) -> Self {
         let pair_key = PairKey::from_bytes([0x42; 16]);
-        let orchestrator_id = NodeId([0xA1; 16]);
+        let owner_id = NodeId([0xA1; 16]);
         let host_id = NodeId([0xB2; 16]);
         let rng = script.seed | 1;
         Harness {
-            orchestrator: Session::new(
+            owner: Session::new(
                 SessionConfig::new(
-                    orchestrator_id,
+                    owner_id,
                     host_id,
-                    Role::Orchestrator,
+                    Role::Owner,
                     pair_key.clone(),
                     ForwarderKey([0xC3; 32]),
                 ),
@@ -155,19 +155,19 @@ impl Harness {
             host: Session::new(
                 SessionConfig::new(
                     host_id,
-                    orchestrator_id,
+                    owner_id,
                     Role::Host,
                     pair_key,
                     ForwarderKey([0xD4; 32]),
                 ),
                 0,
             ),
-            orchestrator_inbox: Vec::new(),
+            owner_inbox: Vec::new(),
             host_inbox: Vec::new(),
             counters: Counters::default(),
             script,
             rng,
-            orchestrator_seq: MemorySeq::default(),
+            owner_seq: MemorySeq::default(),
             host_seq: MemorySeq::default(),
             in_flight: Vec::new(),
             now: 0,
@@ -210,11 +210,11 @@ impl Harness {
         self.now += 1;
         let now = self.now;
 
-        let from_orchestrator = self
-            .orchestrator
-            .outgoing(now, &mut self.orchestrator_seq)
-            .expect("the orchestrator produced an unsendable datagram");
-        for datagram in from_orchestrator {
+        let from_owner = self
+            .owner
+            .outgoing(now, &mut self.owner_seq)
+            .expect("the owner produced an unsendable datagram");
+        for datagram in from_owner {
             self.enqueue(End::Host, datagram);
         }
         let from_host = self
@@ -222,7 +222,7 @@ impl Harness {
             .outgoing(now, &mut self.host_seq)
             .expect("the host produced an unsendable datagram");
         for datagram in from_host {
-            self.enqueue(End::Orchestrator, datagram);
+            self.enqueue(End::Owner, datagram);
         }
 
         self.deliver();
@@ -282,7 +282,7 @@ impl Harness {
             }
             let accepted = match packet.to {
                 End::Host => self.host.handle_datagram(&packet.bytes, now),
-                End::Orchestrator => self.orchestrator.handle_datagram(&packet.bytes, now),
+                End::Owner => self.owner.handle_datagram(&packet.bytes, now),
             };
             if accepted.is_err() {
                 self.counters.rejected += 1;
@@ -293,9 +293,9 @@ impl Harness {
                     let messages = self.host.take_messages();
                     self.host_inbox.extend(messages);
                 }
-                End::Orchestrator => {
-                    let messages = self.orchestrator.take_messages();
-                    self.orchestrator_inbox.extend(messages);
+                End::Owner => {
+                    let messages = self.owner.take_messages();
+                    self.owner_inbox.extend(messages);
                 }
             }
         }

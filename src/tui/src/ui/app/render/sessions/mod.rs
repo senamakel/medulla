@@ -1,8 +1,8 @@
 //! The Sessions tab: the sessions surface. The rail is on the left, and the
 //! selected row's terminal, diff, run or transcript fills the right.
 //!
-//! Chat used to live here — selecting the orchestrator's lane and typing *was*
-//! the conversation. The orchestrator is a subconscious layer now: it runs below
+//! Chat used to live here — selecting the dispatch lane and typing *was*
+//! the conversation. The dispatcher is a subconscious layer now: it runs below
 //! the surface rather than being driven from one, so it has no lane, no
 //! transcript and no composer here. What is left is the thing the tab was always
 //! also for — the sessions running on this machine and the ones dispatched to
@@ -79,7 +79,7 @@ impl App {
         self.set_rail_cursor_in(&rows, &lanes, active);
         // No fallback: a row with no lane keeps `None`, and the pane renders
         // what that row *is* rather than whoever happens to hold lane 0 — which
-        // is the orchestrator, so the old `unwrap_or(0)` put its thinking under
+        // is the dispatcher, so the old `unwrap_or(0)` put its thinking under
         // `+ New agent`, host headers and idle agents.
         let lane_index = rows.get(active).and_then(|row| row.lane_index());
         let task = rows.get(active).and_then(|row| row.task()).cloned();

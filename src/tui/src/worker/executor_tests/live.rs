@@ -224,8 +224,8 @@ async fn experiment_codex_dialog_dismissal() {
             label: "exp".to_string(),
             session_id: None,
             model: None,
-            control: SessionControl::Orchestrator,
-            origin: crate::worker::pty::SessionOrigin::Orchestrator,
+            control: SessionControl::Dispatch,
+            origin: crate::worker::pty::SessionOrigin::Task,
             name: None,
             mcp_grant_session: None,
         })
@@ -309,8 +309,8 @@ async fn experiment_codex_startup_dialog_dismissal() {
             label: "trust".to_string(),
             session_id: None,
             model: None,
-            control: SessionControl::Orchestrator,
-            origin: crate::worker::pty::SessionOrigin::Orchestrator,
+            control: SessionControl::Dispatch,
+            origin: crate::worker::pty::SessionOrigin::Task,
             name: None,
             mcp_grant_session: None,
         })
@@ -385,8 +385,8 @@ async fn diagnose_codex_paste_rendering() {
             label: "diag".to_string(),
             session_id: None,
             model: None,
-            control: SessionControl::Orchestrator,
-            origin: crate::worker::pty::SessionOrigin::Orchestrator,
+            control: SessionControl::Dispatch,
+            origin: crate::worker::pty::SessionOrigin::Task,
             name: None,
             mcp_grant_session: None,
         })

@@ -217,11 +217,11 @@ fn only_transcript_writing_harnesses_can_run_watchable_tasks() {
 }
 
 #[tokio::test]
-async fn a_session_opened_to_serve_a_task_is_orchestrator_originated() {
+async fn a_session_opened_to_serve_a_task_is_task_originated() {
     // The dispatch door. §4.1: a task that names no session creates one, and
-    // that session belongs to the orchestrator for the rest of its life —
+    // that session belongs to the dispatcher for the rest of its life —
     // including after an operator takes it over, which is why the row keeps
-    // reporting `origin: orchestrator` while `control` moves.
+    // reporting `origin: dispatcher` while `control` moves.
     let dir = tempfile::tempdir().unwrap();
     let cwd = dir.path().to_string_lossy().into_owned();
     let rollout = dir.path().join("rollout-origin.jsonl");
@@ -242,15 +242,15 @@ async fn a_session_opened_to_serve_a_task_is_orchestrator_originated() {
     let rows = sessions.rows();
     assert_eq!(rows.len(), 1);
     assert!(
-        rows[0].origin.is_orchestrator(),
-        "a dispatched session is the orchestrator's"
+        rows[0].origin.is_dispatch(),
+        "a dispatched session is task-originated"
     );
     assert_eq!(rows[0].name, None, "a dispatch never names a session");
 
     let id = rows[0].id.clone();
     sessions.set_control(&id, super::super::pty::SessionControl::User);
     assert!(
-        sessions.row(&id).unwrap().origin.is_orchestrator(),
+        sessions.row(&id).unwrap().origin.is_dispatch(),
         "taking it over is a control change, not a change of provenance"
     );
     sessions.shutdown();

@@ -1,4 +1,4 @@
-//! Running workflows on this machine, with no orchestrator involved.
+//! Running workflows on this machine, with no remote dispatcher involved.
 //!
 //! A workflow's `agent` nodes dispatch task frames, and a task frame needs
 //! somewhere to go. In the deployed shape that is the hub relaying to a remote
@@ -74,7 +74,7 @@ async fn nested_harness_env(
 const LOCAL_POLL: Duration = Duration::from_millis(20);
 
 /// The bridge address the workflow runner dispatches from.
-const ORCHESTRATOR_ADDRESS: &str = "workflow-runner";
+const RUNNER_ADDRESS: &str = "workflow-runner";
 
 /// The bridge address the embedded worker listens on. Workflows whose nodes
 /// name no `agent_ref` dispatch here.
@@ -146,10 +146,10 @@ impl LocalWorkflowHost {
     pub fn start(options: EmbeddedDaemonOptions) -> Result<Self, String> {
         let network = LocalBridgeNetwork::new();
         let worker = network.bind(LOCAL_WORKER_ADDRESS)?;
-        let orchestrator = network.bind(ORCHESTRATOR_ADDRESS)?;
+        let sender = network.bind(RUNNER_ADDRESS)?;
 
         let daemon = EmbeddedDaemon::start(Arc::new(worker), LOCAL_WORKER_ADDRESS, options)?;
-        let runner = Arc::new(TaskRunner::start(Arc::new(orchestrator), LOCAL_POLL));
+        let runner = Arc::new(TaskRunner::start(Arc::new(sender), LOCAL_POLL));
 
         Ok(Self {
             dispatch: Arc::new(TaskRunnerDispatch::new(runner.clone())),
@@ -749,7 +749,7 @@ pub async fn evolve_here(
 /// store: its edits land through the `medulla-workflows` MCP tools, which are
 /// attached to the session by [`LocalWorkflowHost`] and point at this host's own
 /// store. Dispatching the turn to a remote worker instead would run the prompt
-/// somewhere its edits could never reach the graph the orchestrator asked about.
+/// somewhere its edits could never reach the graph the dispatcher asked about.
 ///
 /// Per turn, not per process: the host binds two loopback addresses and holds a
 /// daemon draining them, and keeping that alive between turns would occupy the

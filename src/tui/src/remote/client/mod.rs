@@ -483,10 +483,10 @@ fn mint_identity(dir: &std::path::Path) -> Result<NodeId, String> {
     let node = keys::acquire_or_create(dir, || NodeState {
         version: 1,
         node_id: NodeId::generate(),
-        // The orchestrator half of the direction bit (§4.2): this end dialled
+        // The dispatcher half of the direction bit (§4.2): this end dialled
         // in, the daemon is the host. The two halves must disagree, or both
         // would draw nonces from the same space under one key.
-        role: Role::Orchestrator,
+        role: Role::Owner,
         pair_key: PairKey::generate(),
         forwarder_key: ForwarderKey::generate(),
         forwarder_endpoint: String::new(),

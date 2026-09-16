@@ -96,8 +96,8 @@ impl App {
         // paste made on either is dropped rather than banked into the copilot
         // one pane over.
         // Every other tab is a list or a board with no text field of its own —
-        // the Sessions tab included, since the orchestrator's composer went with
-        // the orchestrator — so a paste made on one is dropped rather than
+        // the Sessions tab included, since the conversation composer went with
+        // the dispatcher — so a paste made on one is dropped rather than
         // banked into a draft nobody can see.
         #[cfg(feature = "workflows")]
         if self.tab() == "Workflows" && self.wf.focus == WorkflowFocus::Copilot {

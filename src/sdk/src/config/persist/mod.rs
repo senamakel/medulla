@@ -274,7 +274,7 @@ pub fn persist_welcome_completed(path: &Path, completed: bool) -> anyhow::Result
     )
 }
 
-/// Write the orchestrator's worker roster to the `[hub]` table.
+/// Write the sender's worker roster to the `[hub]` table.
 ///
 /// Replaces the list wholesale rather than merging: the roster in memory is the
 /// operator's current intent, and a merge would resurrect a worker they had just
@@ -311,14 +311,14 @@ pub fn persist_hub_workers(
 /// shape and the shape the roster reads cannot drift apart.
 pub fn persist_agent_declarations(
     path: &Path,
-    declarations: &[crate::runtime::AgentDeclaration],
+    declarations: &[crate::fleet::AgentDeclaration],
 ) -> anyhow::Result<()> {
     let value = toml::Value::try_from(declarations)
         .map_err(|error| anyhow::anyhow!("Cannot serialize agent declarations: {error}"))?;
     persist_setting(path, "fleet", "agentDeclarations", value)
 }
 
-/// Replace the workspace roots this daemon may advertise to an orchestrator.
+/// Replace the workspace roots this daemon may advertise to a dispatcher.
 ///
 /// The list is written under `[workflow].workspaces`, which is shared with the
 /// main TUI's repository view. Replacing rather than merging makes removals

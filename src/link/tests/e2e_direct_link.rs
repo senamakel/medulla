@@ -83,7 +83,7 @@ async fn direct_pair(
         client_dir,
         client_id,
         daemon_id,
-        Role::Orchestrator,
+        Role::Owner,
         pair_key.clone(),
     );
     enroll(daemon_dir, daemon_id, client_id, Role::Host, pair_key);
@@ -166,7 +166,7 @@ async fn a_direct_link_refuses_more_than_one_peer() {
         dir.path(),
         node_id,
         NodeId([0x22; 16]),
-        Role::Orchestrator,
+        Role::Owner,
         PairKey::generate(),
     );
 

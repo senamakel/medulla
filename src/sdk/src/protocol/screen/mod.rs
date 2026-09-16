@@ -1,5 +1,5 @@
 //! The `medulla.screen.v1` protocol: streaming a worker's live terminal to a
-//! watching orchestrator as synchronised *state* rather than a byte stream.
+//! watching dispatcher as synchronised *state* rather than a byte stream.
 //!
 //! Modelled on mosh's State Synchronization Protocol. The worker already runs a
 //! terminal emulator over each harness pty, so what crosses the wire is the
@@ -20,7 +20,7 @@
 //!
 //! That third property once meant the viewer was strictly passive — no `input`,
 //! no `resize`. It no longer does, because there turned out to be two kinds of
-//! viewer. A *watcher* (an orchestrator observing a fan-out) still is passive:
+//! viewer. A *watcher* (a dispatcher observing a fan-out) still is passive:
 //! it must not type into a session someone else is using, or resize a harness
 //! under them. An *attached* viewer is a remote session's terminal, and its pane
 //! genuinely is that terminal — so [`types::ScreenMessage::Input`] and
