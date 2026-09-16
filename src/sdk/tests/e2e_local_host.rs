@@ -18,7 +18,7 @@ use medulla::protocol::HarnessProvider;
 /// The host's address on the bus, as the TUI's `[host].address` default names it.
 const HOST: &str = "this-device";
 /// The orchestrator's address, as `DEFAULT_LOCAL_HUB_ADDRESS` names it.
-const ORCHESTRATOR: &str = "medulla-orchestrator";
+const ORCHESTRATOR: &str = "medulla-hub";
 
 /// A path that is guaranteed to exist and be executable on every platform.
 ///

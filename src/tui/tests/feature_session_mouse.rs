@@ -84,7 +84,7 @@ fn app_with_harnesses(sessions: PtyManager) -> App {
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],

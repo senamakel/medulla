@@ -158,7 +158,7 @@ async fn a_failed_backing_session_draws_the_task_row_red_with_the_explanation() 
         "nothing asked this session to close"
     );
 
-    let from = "medulla-orchestrator";
+    let from = "medulla-hub";
     let task_id = "t1#0";
     let runtime = runtime_serving(id.clone());
     start_task(&runtime, from, task_id, &id).await;

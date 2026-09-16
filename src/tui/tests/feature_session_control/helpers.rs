@@ -82,7 +82,7 @@ pub fn app_with_workspace(sessions: PtyManager, workspace: &str) -> App {
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: workspace.to_string(),
         providers: vec![HarnessProvider::Codex],

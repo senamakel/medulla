@@ -76,7 +76,7 @@ fn local_sessions() -> crate::ui::harness_pane::LocalSessions {
         runtimes: Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: "/tmp".to_string(),
         providers: Vec::new(),

@@ -33,7 +33,7 @@ use medulla_tui::worker::pty::{LaunchSpec, PtyManager, SessionControl};
 const PATIENCE: Duration = Duration::from_secs(20);
 
 /// The address local work is dispatched from, matching the hub's own.
-const HUB: &str = "medulla-orchestrator";
+const HUB: &str = "medulla-hub";
 
 /// A spec that runs `sh -c <script>` on a pty.
 ///

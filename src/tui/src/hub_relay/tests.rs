@@ -328,7 +328,7 @@ fn a_roster_remembered_from_a_hosting_run_is_dropped_when_hosting_is_off() {
         medulla::hub::stderr_log(),
         Some(super::LocalDispatch {
             network: medulla::bridge::LocalBridgeNetwork::new(),
-            hub_address: "medulla-orchestrator".to_string(),
+            hub_address: "medulla-hub".to_string(),
             local_hosts: shared(vec!["this-device".to_string()]),
             // Hosting is off: nothing is bound at `this-device` this run.
             hosts: Vec::new(),

@@ -47,7 +47,7 @@ pub(in crate::ui::app) fn shell_harnesses(
     crate::ui::harness_pane::LocalSessions {
         sessions,
         runtimes: Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],

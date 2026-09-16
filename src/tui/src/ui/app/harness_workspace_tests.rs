@@ -121,7 +121,7 @@ fn picker_on_workspace_step(workspace: &std::path::Path) -> super::types::App {
         log: None,
         sessions: crate::worker::pty::PtyManager::new(),
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env: std::collections::HashMap::new(),
         workspace: workspace.to_string_lossy().into_owned(),
         providers: vec![medulla::protocol::HarnessProvider::Codex],

@@ -49,7 +49,7 @@ fn app_with_harnesses(sessions: PtyManager) -> App {
         log: None,
         sessions,
         runtimes: Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
