@@ -41,7 +41,7 @@ fn agents_app() -> App {
         log: None,
         sessions: PtyManager::new(),
         runtimes: Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env: std::collections::HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
@@ -49,7 +49,6 @@ fn agents_app() -> App {
         router: None,
         attribution: true,
     });
-    app.refresh_snapshot();
     app
 }
 

@@ -82,8 +82,8 @@ fn jk_moves_between_settings_without_leaving_the_subpage() {
     key(&mut app, KeyCode::Char('j'));
     assert_eq!(app.settings_subpage(), "Config", "j stays in the pane");
 
-    // j landed on Max passes; k comes back to the Update check switch, which is
-    // on by default, so Enter turns it off.
+    // j landed on Worker concurrency; k comes back to the Update check switch,
+    // which is on by default, so Enter turns it off.
     key(&mut app, KeyCode::Char('k'));
     key(&mut app, KeyCode::Enter);
     assert!(!written(dir.path()).update.check, "the switch turned off");
@@ -94,23 +94,25 @@ fn arrows_step_a_number_and_persist_it() {
     let dir = tempfile::tempdir().expect("tempdir");
     let mut app = config_app(dir.path());
 
-    // Rows are: Update check, then the medulla limits — so one press of j lands
-    // on Max passes. (No host-link row: it is unconfigured.)
+    // Rows are: Update check, then Worker concurrency — so one press of j
+    // lands on the count.
     key(&mut app, KeyCode::Char('j'));
 
+    let concurrency = |dir: &std::path::Path| {
+        written(dir)
+            .opencode
+            .expect("the section is created on first write")
+            .max_concurrency
+    };
     key(&mut app, KeyCode::Right);
-    let first = written(dir.path()).medulla.max_passes.expect("persisted");
+    let first = concurrency(dir.path());
 
     key(&mut app, KeyCode::Right);
-    let second = written(dir.path()).medulla.max_passes.expect("persisted");
+    let second = concurrency(dir.path());
     assert_eq!(second, first + 1, "each → steps once");
 
     key(&mut app, KeyCode::Left);
-    assert_eq!(
-        written(dir.path()).medulla.max_passes,
-        Some(first),
-        "← steps back"
-    );
+    assert_eq!(concurrency(dir.path()), first, "← steps back");
 }
 
 #[test]

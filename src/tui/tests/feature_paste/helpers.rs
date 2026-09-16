@@ -26,12 +26,12 @@ pub fn agents_app() -> App {
     app
 }
 
-/// An Agents-tab app with lanes on its rail, so the cursor can be moved off the
-/// orchestrator onto a row that draws no composer.
+/// A Sessions-tab app with the demo lanes on its rail, so the cursor can be
+/// moved onto a row that draws no composer.
 pub fn demo_agents_app() -> App {
     let mut app = App::new(Arc::new(MockBackend::new()), loaded());
+    app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
     app.tab_index = tab_index("Sessions");
-    app.refresh_snapshot();
     app
 }
 
