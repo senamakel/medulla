@@ -110,9 +110,12 @@ impl App {
     pub(in crate::ui::app) fn connect_host(&mut self, host_id: &str) -> Option<Cmd> {
         let section =
             medulla::config::remote_host_section(&self.loaded.config.remote_hosts, host_id)?;
-        if !section.paired() {
+        // An entry with no pairing but an address is still reachable the older
+        // way — the connection task bootstraps it over SSH — so only an entry
+        // with nowhere to dial is refused.
+        if !section.paired() && section.host.trim().is_empty() {
             self.set_status(format!(
-                "{host_id} is not paired yet — press i to issue its key"
+                "{host_id} has no address — press e to add one, or i to issue its key"
             ));
             return None;
         }

@@ -47,17 +47,25 @@ impl App {
         if self.current_host.host_id() == Some(host_id) {
             self.current_host = super::HostSelection::ThisDevice;
         }
-        let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-        let home = self
-            .medulla_home
-            .clone()
-            .unwrap_or_else(|| medulla::home::medulla_home(&env));
-        let state_dir = crate::remote::client::task::client_state_dir(&home, host_id);
-        if let Err(error) = crate::remote::client::pairing::forget_pairing(&state_dir) {
-            self.set_status(format!("removed {host_id}, but its pairing stays: {error}"));
-        }
+        // The pairing on disk is forgotten only once the config row is gone
+        // for good. If the write fails the row comes back on the next launch,
+        // and it must come back with the identity it dials from — otherwise a
+        // full disk would turn "removed for this run" into "must re-pair".
         match self.persist_remote_hosts() {
-            Ok(()) => self.set_status(format!("Removed {host_id}")),
+            Ok(()) => {
+                let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+                let home = self
+                    .medulla_home
+                    .clone()
+                    .unwrap_or_else(|| medulla::home::medulla_home(&env));
+                let state_dir = crate::remote::client::task::client_state_dir(&home, host_id);
+                match crate::remote::client::pairing::forget_pairing(&state_dir) {
+                    Ok(()) => self.set_status(format!("Removed {host_id}")),
+                    Err(error) => self.set_status(format!(
+                        "Removed {host_id}, but its pairing stays: {error}"
+                    )),
+                }
+            }
             Err(error) => self.set_status(format!("Removed {host_id} for this run only: {error}")),
         }
         self.rebuild_host_entries();
