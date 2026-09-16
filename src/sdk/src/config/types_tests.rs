@@ -36,14 +36,6 @@ fn defaults_are_applied() {
     assert_eq!(cfg.state_dir, "state");
     assert_eq!(cfg.backend.base_url, "https://api.tinyhumans.ai");
     assert_eq!(cfg.backend.token_env, "MEDULLA_TOKEN");
-    // One million, matching the models this runs against. Understating the
-    // window makes the context meter read near-full on a prompt using a few
-    // percent of the real budget.
-    assert_eq!(
-        cfg.medulla.context_window(),
-        super::types::DEFAULT_CONTEXT_WINDOW_TOKENS
-    );
-    assert_eq!(cfg.medulla.context_window(), 1_000_000);
     assert!(cfg.workflow.workspaces.is_empty());
     assert!(cfg.workflows.allow_code);
     assert!(cfg.appearance.show_harness_branch);

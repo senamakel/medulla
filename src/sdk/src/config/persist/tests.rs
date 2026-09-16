@@ -279,14 +279,14 @@ fn persist_section_replaces_only_the_named_table() {
 fn clear_setting_removes_only_its_key() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("config.toml");
-    std::fs::write(&path, "[medulla]\nmaxPasses = 9\nmaxSteps = 40\n").expect("seed");
+    std::fs::write(&path, "[workflows]\nallowCode = false\nenabled = false\n").expect("seed");
 
-    super::clear_setting(&path, "medulla", "maxPasses").expect("clear");
+    super::clear_setting(&path, "workflows", "allowCode").expect("clear");
 
     let parsed: TuiConfig =
         toml::from_str(&std::fs::read_to_string(&path).expect("read")).expect("reparse");
-    assert_eq!(parsed.medulla.max_passes, None, "cleared back to unset");
-    assert_eq!(parsed.medulla.max_steps, Some(40));
+    assert!(parsed.workflows.allow_code, "cleared back to the default");
+    assert!(!parsed.workflows.enabled);
 }
 
 #[test]
