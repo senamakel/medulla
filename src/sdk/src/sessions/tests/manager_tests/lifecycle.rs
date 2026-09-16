@@ -305,7 +305,7 @@ fn a_turns_provenance_decides_the_origin_of_the_session_it_auto_creates() {
 }
 
 #[tokio::test]
-async fn a_task_frame_auto_creates_an_orchestrator_originated_session() {
+async fn a_task_frame_auto_creates_a_task_originated_session() {
     let (run, _) = recording_executor("done", Some("thread-abc"));
     let manager = manager(run);
     let request = TurnRequest {
@@ -333,7 +333,7 @@ async fn a_task_frame_auto_creates_an_orchestrator_originated_session() {
 }
 
 #[test]
-fn an_observed_wrapper_session_is_never_the_orchestrators() {
+fn an_observed_wrapper_session_is_never_task_originated() {
     // It was started somewhere this daemon never dispatched to, so counting it
     // as orchestrator-originated would make it a dispatch candidate in the rail.
     let (run, _) = recording_executor("ok", None);
@@ -412,7 +412,7 @@ async fn a_closed_user_session_resumed_by_a_task_frame_is_still_theirs() {
 }
 
 #[tokio::test]
-async fn a_frame_turn_with_no_binding_to_resume_is_still_the_orchestrators() {
+async fn a_frame_turn_with_no_binding_to_resume_is_still_task_originated() {
     // The other branch of the same decision: with nothing bound, the turn's own
     // provenance is the only thing that can answer, and §4.1 says a session made
     // to serve a task frame is the orchestrator's.

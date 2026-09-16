@@ -209,7 +209,7 @@ fn a_payload_with_no_tool_calls_yields_nothing() {
 }
 
 #[test]
-fn harness_select_reads_the_harness_id_the_orchestrator_actually_sends() {
+fn harness_select_reads_the_harness_id_the_sender_actually_sends() {
     // Observed live: the argument is `harnessId`, not `harness`.
     assert_eq!(
         summarize(

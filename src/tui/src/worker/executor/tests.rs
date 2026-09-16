@@ -35,7 +35,7 @@ fn mapper_context_survives_only_for_live_reusable_sessions() {
 }
 
 #[test]
-fn a_failed_orchestrator_stop_keeps_operator_owned_mapper_context() {
+fn a_failed_dispatch_stop_keeps_operator_owned_mapper_context() {
     let mut context = HashMap::from([(
         "pty-1".to_string(),
         (
@@ -417,7 +417,7 @@ mod children {
     /// The other half of the same recheck: a session still orchestrator-owned
     /// closes exactly as a plain `close` would.
     #[test]
-    fn close_if_dispatch_closes_a_session_still_orchestrator_owned() {
+    fn close_if_dispatch_closes_a_session_still_dispatch_owned() {
         let dir = tempfile::tempdir().expect("a scratch directory");
         let marker = dir.path().join("ticks");
         let sessions = PtyManager::new();

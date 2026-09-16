@@ -181,7 +181,7 @@ pub fn user_session(sessions: &PtyManager) -> String {
 /// Origin is immutable and is what decides whether the orchestrator has a claim
 /// on a session, so a test about the release question has to be able to open one
 /// of each — the two differ in nothing else.
-pub fn orchestrator_session(sessions: &PtyManager) -> String {
+pub fn dispatched_session(sessions: &PtyManager) -> String {
     session_with_origin(sessions, medulla_tui::worker::pty::SessionOrigin::Task)
 }
 

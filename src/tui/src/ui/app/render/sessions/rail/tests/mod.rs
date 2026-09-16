@@ -190,7 +190,7 @@ fn viewport_keeps_all_three_lines_of_the_selected_harness_visible() {
 }
 
 #[test]
-fn an_operator_harness_uses_one_compact_line_like_the_orchestrator() {
+fn an_operator_harness_uses_one_compact_line_like_a_dispatched_one() {
     let app = app();
     let lines = app.own_session_lines(&harness_row("/workspace/medulla"), false, 48, NOW);
 

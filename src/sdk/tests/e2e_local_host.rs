@@ -58,7 +58,7 @@ fn echoing_executor() -> RunTaskFn {
 }
 
 #[tokio::test]
-async fn a_task_round_trips_from_the_orchestrator_to_this_device_and_back() {
+async fn a_task_round_trips_from_the_sender_to_this_device_and_back() {
     let network = LocalBridgeNetwork::new();
 
     // The host half: what a plain `medulla` starts from its `[host]` section.

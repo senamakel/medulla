@@ -272,7 +272,7 @@ fn sessions_in_reports_what_is_running_in_a_directory_and_who_holds_it() {
 }
 
 #[test]
-fn sessions_in_lists_an_orchestrator_session_too() {
+fn sessions_in_lists_a_dispatched_session_too() {
     // The old query dropped these, because it was really asking "may anything
     // start here". This one reports them, so the caller applying the checkout's
     // one-writer rule can see every writer rather than only the human one — the

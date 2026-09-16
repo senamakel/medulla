@@ -360,7 +360,7 @@ async fn a_worker_refuses_a_workflow_changed_after_capability_discovery() {
 }
 
 #[tokio::test]
-async fn the_reply_carries_the_run_as_a_work_snapshot_the_orchestrator_can_render() {
+async fn the_reply_carries_the_run_as_a_work_snapshot_the_sender_can_render() {
     let home = tempfile::tempdir().unwrap();
     install_workflow(home.path(), "two-step");
     let (_host, peer) = worker(

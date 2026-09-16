@@ -165,7 +165,7 @@ async fn only_unbound_turns_take_the_conversation_chain() {
 // ---------------------------------------------------------------- identity ---
 
 #[test]
-fn an_unrecorded_conversation_plans_as_an_unnamed_orchestrator_session() {
+fn an_unrecorded_conversation_plans_as_an_unnamed_task_session() {
     // The auto-creation default (§4.1): a turn nobody opened by hand is serving
     // a dispatch, and only a person supplies a name.
     let registry = SessionRegistry::default();

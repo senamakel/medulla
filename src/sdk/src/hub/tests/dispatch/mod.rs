@@ -269,7 +269,7 @@ async fn giving_up_tells_the_worker_to_stop() {
 }
 
 #[tokio::test]
-async fn an_orchestrator_abort_stops_the_worker_and_reaps() {
+async fn a_senders_abort_stops_the_worker_and_reaps() {
     // The backend owns the deadline and cancels a running task via
     // `medulla:task_abort`. A healthy worker — here acked and working, so no
     // liveness bound would ever fire — must still stop when the orchestrator
