@@ -1,9 +1,7 @@
 //! Overlay rendering for [`App`]: the inline prompt overlay.
 
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line as TLine, Span, Text};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use super::super::types::App;

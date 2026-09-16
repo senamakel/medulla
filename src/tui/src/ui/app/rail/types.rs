@@ -193,8 +193,9 @@ impl SessionRailRow {
 
     /// Who started this session.
     ///
-    /// A row backed by a task is an orchestrator dispatch by construction; a
-    /// local-only row reports what the PTY manager recorded at launch.
+    /// A row backed by a task is a dispatch by construction; a local-only row
+    /// reports what the PTY manager recorded at launch.
+    #[cfg(test)]
     pub fn origin(&self) -> SessionOrigin {
         match (&self.task, &self.local) {
             (Some(_), _) => SessionOrigin::Task,

@@ -24,17 +24,6 @@ mod tests;
 
 pub(crate) use types::{SettingKind, SettingRow, SettingValue};
 
-/// A bounded, optional whole-number setting.
-const fn count(min: u32, max: u32, step: u32, fallback: u32) -> SettingKind {
-    SettingKind::Count {
-        min,
-        max,
-        step,
-        fallback,
-        optional: true,
-    }
-}
-
 impl App {
     /// The editable rows for the Config subpage, in display order.
     pub(crate) fn config_rows(&self) -> Vec<SettingRow> {
