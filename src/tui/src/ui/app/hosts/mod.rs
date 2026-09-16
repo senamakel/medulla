@@ -162,10 +162,8 @@ impl App {
             .clone()
             .unwrap_or_else(|| medulla::home::medulla_home(&env));
         let state_dir = crate::remote::client::task::client_state_dir(&home, host_id);
-        eprintln!("DEBUG issue_host_key host_id={} port={}", host_id, port);
         match crate::remote::client::pairing::mint_pairing(&state_dir, port) {
             Ok(key) => {
-                eprintln!("DEBUG minted key.host={:?} key.pair_key={:?}", key.host, key.pair_key);
                 let command = crate::remote::client::pairing::pairing_command(&key);
                 if let Some(entry) = self.loaded.config.remote_hosts.iter_mut().find(|entry| {
                     medulla::config::remote_host_section(std::slice::from_ref(entry), host_id)
