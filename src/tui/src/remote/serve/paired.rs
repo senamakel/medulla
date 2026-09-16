@@ -214,18 +214,45 @@ pub async fn run_in(env: &HashMap<String, String>, args: &[String]) -> anyhow::R
     let mut servers = Vec::new();
     for pairing in &pairings {
         let dir = link_dir(&client_dir(&home, pairing.client));
-        let state = keys::read_node_state(&keys::node_path(&dir))?;
-        let pair_key = state
+        // A missing or malformed identity for one pairing (its `pairing.json`
+        // survived, but `link/node.json` did not) must not take every other,
+        // healthy pairing offline with it — the same "skip, and only fail
+        // outright when nothing could be served" rule the bind failure below
+        // already follows.
+        let state = match keys::read_node_state(&keys::node_path(&dir)) {
+            Ok(state) => state,
+            Err(error) => {
+                let message = format!(
+                    "could not load identity for client {} ({error}); pair it again from the \
+                     Hosts tab",
+                    pairing.client
+                );
+                if pairings.len() == 1 {
+                    anyhow::bail!(message);
+                }
+                eprintln!("medulla daemon: {message}");
+                continue;
+            }
+        };
+        let pair_key = match state
             .peers
             .iter()
             .find(|peer| peer.node_id == pairing.client)
             .map(|peer| peer.pair_key.clone())
-            .ok_or_else(|| {
-                anyhow::anyhow!(
+        {
+            Some(pair_key) => pair_key,
+            None => {
+                let message = format!(
                     "pairing for client {} has no key material; pair it again",
                     pairing.client
-                )
-            })?;
+                );
+                if pairings.len() == 1 {
+                    anyhow::bail!(message);
+                }
+                eprintln!("medulla daemon: {message}");
+                continue;
+            }
+        };
         let mut config = LinkConfig::new(&dir);
         config.bind = bind_address(pairing.port);
         config.path = LinkPath::Direct {
