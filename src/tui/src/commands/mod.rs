@@ -98,7 +98,7 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     // authenticating as whoever the external token belongs to. The account on
     // screen and the identity on the wire would disagree.
     if let Some(source) =
-        medulla::runtime::cloud::connect::external_credential_source(&env, &loaded.config.backend)
+        medulla::backend::connect::external_credential_source(&env, &loaded.config.backend)
     {
         anyhow::bail!(
             "signed in, but {source} outranks the stored session — this shell would keep \
@@ -109,9 +109,7 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
     adopt_account(&env, &me, &base_url).map_err(|why| anyhow::anyhow!("signed in, but {why}"))?;
 
     // Store last. `store` re-verifies the token against `/auth/me` before it
-    // writes, which is the same contract the core's `auth_store_session` had —
-    // the difference is that satisfying it no longer costs an OpenHuman core
-    // boot on a flow that has already spent minutes on a browser round-trip.
+    // writes, so a rejected token fails here rather than on the next launch.
     medulla::auth::store(&env, &base_url, &jwt)
         .await
         .map_err(|e| anyhow::anyhow!("could not store the session: {e}"))?;
