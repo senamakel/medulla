@@ -235,7 +235,11 @@ fn a_local_only_hub_does_not_advertise_remembered_peers() {
     assert!(
         config.workers.is_empty(),
         "the local-only hub must not advertise undeliverable peers: {:?}",
-        config.workers.iter().map(|w| &w.address).collect::<Vec<_>>()
+        config
+            .workers
+            .iter()
+            .map(|w| &w.address)
+            .collect::<Vec<_>>()
     );
 }
 
