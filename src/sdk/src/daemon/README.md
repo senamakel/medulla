@@ -1,6 +1,6 @@
 # Daemon
 
-The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable host over the medulla host link (`docs/host-link-protocol.md`), speaking both plain-text prompts and the `medulla-task/1` task protocol an orchestrator delegates with.
+The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable host over the medulla host link (`docs/host-link-protocol.md`), speaking both plain-text prompts and the `medulla-task/1` task protocol a medulla dispatches with.
 
 ## Contents
 
@@ -15,7 +15,7 @@ The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Cla
 - [`tests/`](./tests/) — Runtime state-machine tests driven by a fake executor (no network, no CLIs), split by surface: `task_tests` covers task acceptance, dispatch, input forwarding, and shutdown; `provider_tests` covers provider selection and plain-text DM routing; `capability_tests` covers the cached capability probe, status throttling, and semantic-event → status-line mapping.
 - [`entry_tests.rs`](./entry_tests.rs) — Tests for the entry module.
 - [`entry.rs`](./entry.rs) — The `medulla daemon` CLI entry point: `run_daemon` wires provider detection, worker onboarding, the host link, and the link-backed serve loop around a `DaemonRuntime`. Flag parsing lives in `super::flags`; the runtime state machine in `super::runtime` and `super::task_loop`.
-- [`mod.rs`](./mod.rs) — The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable host over the medulla host link (`docs/host-link-protocol.md`), speaking both plain-text prompts and the `medulla-task/1` task protocol an orchestrator delegates with.
+- [`mod.rs`](./mod.rs) — The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable host over the medulla host link (`docs/host-link-protocol.md`), speaking both plain-text prompts and the `medulla-task/1` task protocol a medulla dispatches with.
 - [`runtime.rs`](./runtime.rs) — `DaemonRuntime` lifecycle: construction and test overrides, fire-and-forget dispatch and idle/shutdown coordination, controller bookkeeping, and the encrypted reply helpers. The frame- and task-handling half of the state machine lives in `super::task_loop`.
 - [`status.rs`](./status.rs) — Status-line derivation: turn a semantic harness event into the short, human-facing detail string the daemon forwards as a `status` frame. Ported from provider status details, and extended with the work-derived line the newer structured events need.
 - [`types.rs`](./types.rs) — Daemon data model: the callback type aliases, non-callback `DaemonConfig`, the shared per-runtime `Inner` state, and the cheaply-clonable `DaemonRuntime` handle.

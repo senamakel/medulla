@@ -15,7 +15,7 @@ The Rust module tree for the `medulla` SDK crate. `lib.rs` defines the public su
 - [`codex_overrides/`](./codex_overrides/) — Codex `-c` config overrides that make a routed Codex run actually reach a non-OpenAI model: the provider block, the API-key auth preference, and a model catalog derived at spawn time from the one the installed Codex cached for itself.
 - [`config/`](./config/) — `medulla.tui.json`-compatible config — the subset the TUI reads, plus a `backend` section for the HTTP runtime. Permissive: missing fields take defaults, unknown fields are ignored.
 - [`control_socket/`](./control_socket/) — The control plane a spawned harness reaches Medulla's live fleet through: this `medulla` binds a unix socket, and the MCP shim proxies its fleet tools over it.
-- [`daemon/`](./daemon/) — The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable tiny.place agent over Signal end-to-end encrypted DMs, speaking both plain-text prompts and the `medulla-task/1` task protocol an orchestrator delegates with.
+- [`daemon/`](./daemon/) — The headless `medulla daemon`: offer this machine's local coding-agent CLIs (Claude Code / Codex / OpenCode) as an addressable tiny.place agent over Signal end-to-end encrypted DMs, speaking both plain-text prompts and the `medulla-task/1` task protocol a medulla dispatches with.
 - [`fleet/`](./fleet/) — The declared-capacity contracts (`Host → Harness → Workspace → Agent`), the roster entry and worker-registry shapes, and the opt-in demo fleet.
 - [`flow_engine/`](./flow_engine/) — The adapter seam between Medulla and the `tinyflows` workflow engine.
 - [`harness_contract/`](./harness_contract/) — Public agent-harness wire-contract types.
