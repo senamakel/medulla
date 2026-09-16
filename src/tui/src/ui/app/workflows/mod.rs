@@ -23,10 +23,12 @@ mod live;
 mod outline;
 pub use copilot::thread_of as copilot_thread_of;
 mod rail;
+mod remote;
 
 pub(in crate::ui::app) use live::LiveRun;
 pub(in crate::ui::app) use outline::{OutlineRow, SinkGroup};
 pub(in crate::ui::app) use rail::{WorkflowRailRow, NEW_LABEL};
+pub(in crate::ui::app) use remote::{RemoteWorkflowCache, WorkflowSource};
 
 #[cfg(test)]
 mod copilot_overlap_tests;
@@ -50,6 +52,12 @@ impl App {
     /// project defaults first, then the user-global directory where authored
     /// workflows are saved.
     pub(in crate::ui::app) fn workflow_store(&self) -> Arc<dyn WorkflowStore> {
+        // A remote host outranks the test override: the override stands in
+        // for this device's files, and a tab pointed at another machine is
+        // not reading this device's files.
+        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
+            return self.remote_workflow_store(&host_id);
+        }
         if let Some(store) = &self.workflow_store_override {
             return store.clone();
         }
@@ -103,6 +111,13 @@ impl App {
     /// Called when the selection or the catalogue changes, never from a render
     /// pass: drawing a frame must not touch the disk.
     pub(in crate::ui::app) fn reload_workflow_runs(&mut self) {
+        // A remote store answers from its cache; ask the host for anything
+        // the cache lacks, and the answer re-enters here when it lands.
+        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
+            if let Some(id) = self.selected_workflow().map(|w| w.id.clone()) {
+                self.ensure_remote_workflow_loaded(&host_id, &id);
+            }
+        }
         let Some(workflow) = self.selected_workflow().map(|w| w.id.clone()) else {
             self.workflow_runs.clear();
             self.workflow_runs_error = None;
@@ -185,6 +200,27 @@ impl App {
     /// failing: the usual way a workflow changes is the operator's own editor,
     /// and a half-written file should cost a refresh, not the app.
     pub fn reload_workflows(&mut self) {
+        // A remote host's catalogue answers asynchronously: the first call
+        // after switching to it (or before the answer has arrived) reads the
+        // cache before it has anything in it, which is not the same as the
+        // host confirming an empty store. Treating the two alike used to
+        // latch `creating` on an unlisted cache and never clear it once the
+        // real (non-empty) catalogue landed, because nothing here re-reads
+        // it — only a cursor move does. Only a *confirmed* empty catalogue —
+        // local, or remote and already listed — should open the New row.
+        let confirmed = match self.workflow_source() {
+            WorkflowSource::Local => true,
+            WorkflowSource::Remote { host_id } => {
+                let listed = self
+                    .remote_workflows
+                    .get(&host_id)
+                    .is_some_and(|cache| cache.lock().expect("remote workflow cache").listed);
+                if !listed {
+                    self.refresh_remote_workflows(&host_id);
+                }
+                listed
+            }
+        };
         match self.workflow_store().list() {
             Ok(workflows) => {
                 let count = workflows.len();
@@ -197,8 +233,17 @@ impl App {
                 // "select a workflow first", which on an empty host is advice
                 // that cannot be followed and reads as the copilot refusing to
                 // work at all.
-                if count == 0 {
+                if count == 0 && confirmed {
                     self.wf.creating = true;
+                } else if count > 0
+                    && self.wf.creating
+                    && self.workflow_source() != WorkflowSource::Local
+                {
+                    // Switching from an empty scope to a host with a
+                    // catalogue: the New row was the only row there, not a
+                    // choice, so it must not follow the operator here and
+                    // leave the cursor refusing every real workflow.
+                    self.wf.creating = false;
                 }
                 self.reload_workflow_runs();
                 self.reload_workflow_graph();
@@ -219,6 +264,9 @@ impl App {
 
     /// A short label naming where workflows are read from, for the status line.
     fn workflow_dir_label(&self) -> String {
+        if let WorkflowSource::Remote { host_id } = self.workflow_source() {
+            return format!("{host_id} (remote)");
+        }
         match &self.medulla_home {
             Some(home) => home.join("workflows").display().to_string(),
             None => ".medulla/workflows".to_string(),

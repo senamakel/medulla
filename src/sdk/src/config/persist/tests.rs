@@ -3,7 +3,7 @@
 //! Split out of the main config tests to keep both files under the repository's
 //! 500-line ceiling.
 
-use super::*;
+use super::super::*;
 
 #[test]
 fn persists_the_welcome_flag_to_a_new_file() {
@@ -418,7 +418,7 @@ fn daemon_master_roster_persists_public_peer_data_without_identity_secrets() {
         "[link]\nstateDir = \"/worker-link\"\nforwarderUrl = \"https://relay\"\n",
     )
     .unwrap();
-    let peer = super::Peer {
+    let peer = crate::config::Peer {
         id: "master-id".into(),
         node_id: Some("00112233445566778899aabbccddeeff".into()),
         name: Some("Primary master".into()),
@@ -556,4 +556,45 @@ fn persisting_hosts_leaves_every_other_section_alone() {
     let written = std::fs::read_to_string(&path).expect("read back");
     assert!(written.contains("welcomeCompleted"), "{written}");
     assert!(written.contains("[[hosts]]"), "{written}");
+}
+
+#[test]
+fn persisting_remote_hosts_writes_only_what_was_set_and_round_trips() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("config.toml");
+    std::fs::write(&path, "[onboarding]\nwelcomeCompleted = true\n").expect("seed");
+
+    let hosts = vec![
+        crate::config::RemoteHostSection {
+            name: "GPU Box".to_string(),
+            host: "gpu.example.com".to_string(),
+            user: "ops".to_string(),
+            udp_port: 60001,
+            ..crate::config::RemoteHostSection::default()
+        },
+        crate::config::RemoteHostSection {
+            host: "tower.local".to_string(),
+            enabled: false,
+            ..crate::config::RemoteHostSection::default()
+        },
+    ];
+    super::persist_remote_hosts(&path, &hosts).expect("write");
+
+    let written = std::fs::read_to_string(&path).expect("read back");
+    assert!(written.contains("welcomeCompleted"), "{written}");
+    assert!(written.contains("[[remoteHosts]]"), "{written}");
+    assert!(written.contains("udpPort = 60001"), "{written}");
+    assert!(written.contains("enabled = false"), "{written}");
+    // Defaults are not written back: a port of 0 and an enabled row say nothing.
+    assert!(!written.contains("port = 0"), "{written}");
+    assert!(!written.contains("enabled = true"), "{written}");
+
+    let loaded: crate::config::TuiConfig = toml::from_str(&written).expect("parses");
+    assert_eq!(loaded.remote_hosts, hosts);
+
+    // Replacing with an empty list removes every row rather than merging.
+    super::persist_remote_hosts(&path, &[]).expect("clear");
+    let cleared: crate::config::TuiConfig =
+        toml::from_str(&std::fs::read_to_string(&path).unwrap()).expect("parses");
+    assert!(cleared.remote_hosts.is_empty());
 }

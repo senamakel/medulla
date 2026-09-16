@@ -61,13 +61,12 @@ pub use attach::{
     server_command, sweep_stale_config_files, ServerSpec, ATTACHED_ENV, SERVER_COMMAND_ENV,
 };
 pub use backend::{FleetBackend, OfflineFleet};
+pub use policy::policy_from_loaded;
 pub use tools::{
     tool_definitions, ToolMode, FLEET_TOOL_NAMES, TOOL_MODE_ENV, TOOL_NAMES, TOOL_SCOPE_ENV,
 };
 pub use types::McpSession;
 pub(crate) use types::RpcError;
-
-use policy::policy_from_loaded;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -245,6 +244,56 @@ fn serves_workflow_tools(command: &Path) -> Result<(), String> {
     let _ = child.kill();
     let _ = child.wait();
     result
+}
+
+/// Call one workflow tool by name, as `tools/call` would, and hand back the
+/// tool's own JSON rather than the MCP content envelope.
+///
+/// The seam for an embedding that is not a JSON-RPC client — a remote host
+/// answering a client's `WorkflowCall` — so that running or deleting a
+/// workflow over the link goes through exactly the policy and scoping a
+/// harness's call does. A tool that reports its own failure (`isError`) comes
+/// back as `Err` with the message the model would have read.
+///
+/// # Errors
+///
+/// When the tool is unknown or its arguments are unusable, or when the tool
+/// itself failed.
+pub async fn call_tool(
+    session: &McpSession,
+    name: &str,
+    arguments: Value,
+) -> Result<Value, String> {
+    let envelope = crate::workflows::mcp::call(session, name, arguments, None)
+        .await
+        .map_err(|error| error.message)?;
+    unwrap_content(&envelope)
+}
+
+/// Pull the tool's JSON back out of an MCP content envelope.
+fn unwrap_content(envelope: &Value) -> Result<Value, String> {
+    let text = envelope
+        .get("content")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(|item| item.get("text"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let value: Value =
+        serde_json::from_str(text).unwrap_or_else(|_| Value::String(text.to_string()));
+    if envelope
+        .get("isError")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        let message = value
+            .get("error")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| text.to_string());
+        return Err(message);
+    }
+    Ok(value)
 }
 
 /// Handle one JSON-RPC request, returning the response to write back.

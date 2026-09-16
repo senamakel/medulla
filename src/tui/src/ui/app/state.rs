@@ -35,7 +35,6 @@ impl App {
             draft: Draft::new(),
             selected: 0,
             frame: 0,
-            graph: Default::default(),
             status: "Ready".into(),
             update_notice: None,
             contexts: Vec::new(),
@@ -65,12 +64,14 @@ impl App {
             wf: Default::default(),
             #[cfg(feature = "workflows")]
             workflow_store_override: None,
+            hosts: Default::default(),
+            current_host: Default::default(),
+            host_switcher: None,
+            #[cfg(feature = "workflows")]
+            remote_workflows: Default::default(),
             tokenmaxxing_index: 0,
             tokenmaxxing_focused: false,
             feedback: Default::default(),
-            decision_open: false,
-            decision_index: 0,
-            dismissed_decisions: Default::default(),
             prompt: None,
             mouse_capture: true,
             account_usage: None,
@@ -576,6 +577,7 @@ impl App {
         // there, and nothing is lost by not starting in it.
         match self.tab() {
             "Feedback" => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
+            "Hosts" => self.hosts_tab_enter(),
             // The diff pane is the Changes surface now, so entering the tab
             // re-loads its git data the way the removed Changes tab did on
             // entry: a repo that changed while the operator was on another tab

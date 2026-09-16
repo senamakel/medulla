@@ -167,7 +167,7 @@ pub fn remote_command(host: &RemoteHostSection) -> String {
 /// string, appending an escaped quote, and reopening it — the standard
 /// `'\''` trick. Every character is safe inside single quotes except `'`
 /// itself, so this needs no allowlist of "safe" characters to get wrong.
-fn posix_quote(value: &str) -> String {
+pub(super) fn posix_quote(value: &str) -> String {
     if !value.is_empty()
         && value
             .chars()

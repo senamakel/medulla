@@ -10,7 +10,14 @@
 //! JSON targets; only `.toml` targets use TOML. Unrelated keys — and any other
 //! file in the layered load — are preserved.
 
+mod remote_hosts;
+
+#[cfg(test)]
+mod tests;
+
 use std::path::Path;
+
+pub use remote_hosts::persist_remote_hosts;
 
 /// Writes a single `key` into `section` in the config file at `path`.
 ///

@@ -24,7 +24,6 @@ fn app() -> App {
 fn compact_tab_labels_shorten_the_current_wide_destinations() {
     assert_eq!(super::compact_tab_label("Sessions", true), "Sess");
     assert_eq!(super::compact_tab_label("Workflows", true), "Flows");
-    assert_eq!(super::compact_tab_label("Subconscious", true), "Sub");
     assert_eq!(super::compact_tab_label("Feedback", true), "Feed");
     assert_eq!(super::compact_tab_label("Settings", true), "Set");
     assert_eq!(super::compact_tab_label("Hosts", true), "Hosts");
@@ -155,7 +154,7 @@ fn leaving_the_agents_tab_takes_the_keyboard_back_from_an_attached_harness() {
 #[test]
 fn a_stale_harness_diff_does_not_advertise_agents_shortcuts_on_another_tab() {
     let mut app = app();
-    app.tab_index = tab_pos("Subconscious");
+    app.tab_index = tab_pos("Feedback");
     app.pane_view = PaneView::Diff;
     let mut terminal =
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).expect("terminal");
@@ -168,7 +167,7 @@ fn a_stale_harness_diff_does_not_advertise_agents_shortcuts_on_another_tab() {
         .map(|cell| cell.symbol())
         .collect();
 
-    assert!(output.contains("signal map · E decisions"), "{output}");
+    assert!(output.contains("Tab views"), "{output}");
     assert!(!output.contains("d/Esc harness"), "{output}");
 }
 

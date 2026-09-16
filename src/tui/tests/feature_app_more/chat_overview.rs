@@ -1,7 +1,7 @@
 //! Chat transcript, Trace, host-link merge, and events-seam coverage:
 //! the `events_changed` baseline seam, observation
 //! merge into the snapshot, error/wrapped/spinner/thread-badge chat rendering,
-//! the Trace JSON detail row, and the Subconscious active-signal count.
+//! and the Trace JSON detail row.
 
 use crate::helpers::*;
 
@@ -85,42 +85,4 @@ fn trace_tab_renders_event_and_json() {
     let out = render(&mut app, 120, 40);
     assert!(out.contains("Trace ·"), "trace header");
     assert!(out.contains("orchestrate"), "trace json detail row");
-}
-
-// --- subconscious: active model calls, completed task -----------------------
-
-#[test]
-fn subconscious_shows_active_model_calls() {
-    let (mut app, rt) = empty_app();
-    rt.script_event(TuiEvent::InferenceStart {
-        tier: "reasoning".into(),
-        op: "step".into(),
-        model: Some("m".into()),
-    });
-    rt.script_event(TuiEvent::TaskComplete {
-        digest: TaskDigest {
-            task_id: "t1".into(),
-            status: "done".into(),
-            digest: "d".into(),
-            result_ref: None,
-            usage: Some(Usage {
-                input_tokens: 10,
-                output_tokens: 2,
-                ..Default::default()
-            }),
-            depth: 2,
-            contract: None,
-            evidence: None,
-        },
-    });
-    app.refresh_snapshot();
-    app.tab_index = TABS
-        .iter()
-        .position(|tab| *tab == "Subconscious")
-        .expect("Subconscious tab is listed");
-    let out = render(&mut app, 120, 40);
-    assert!(
-        out.contains("1 active pulses"),
-        "subconscious: active calls"
-    );
 }

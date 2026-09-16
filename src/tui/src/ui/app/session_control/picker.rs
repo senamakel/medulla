@@ -40,7 +40,21 @@ impl App {
                 // early on a missing local surface made those unreachable, which
                 // is the one configuration where they are the *only* thing there
                 // is to reach.
-                let hosts = self.picker_hosts();
+                // Scoped by the current host: pointed at one machine, the
+                // picker offers that machine alone and skips the host step;
+                // on this device, this device alone; in the combined view,
+                // everything with the host step to choose on.
+                let hosts: Vec<PickerHost> = self
+                    .picker_hosts()
+                    .into_iter()
+                    .filter(|host| match &self.current_host {
+                        crate::ui::app::hosts::HostSelection::All => true,
+                        crate::ui::app::hosts::HostSelection::ThisDevice => !host.remote,
+                        crate::ui::app::hosts::HostSelection::Host(id) => {
+                            host.remote && &host.id == id
+                        }
+                    })
+                    .collect();
                 let Some(first) = hosts.first().cloned() else {
                     self.set_status(
                         "This device is not hosting and no [[remoteHosts]] are configured",
@@ -68,7 +82,14 @@ impl App {
                 // ordinary case gains not a single keystroke. A remote host has
                 // to be dialled before its harnesses are known, and dialling
                 // happens on the host step, so a lone remote host starts there.
-                let step = match hosts.len() > 1 || first.remote {
+                // A remote host that has already answered can skip the host
+                // step too: its harnesses are known, and the step's only job —
+                // dialling it — is done.
+                let answered = first.remote
+                    && self
+                        .remote_host(&first.id)
+                        .is_some_and(|state| state.answered());
+                let step = match hosts.len() > 1 || (first.remote && !answered) {
                     true => SessionPickerStep::Host,
                     false => SessionPickerStep::Harness,
                 };
@@ -210,10 +231,13 @@ impl App {
                 self.set_status(format!("Connecting to {}…", host.label));
                 return;
             }
-            if !matches!(
-                self.remote_host(&host.id).map(|state| state.status.clone()),
-                Some(crate::ui::app::remote_hosts::RemoteHostStatus::Live)
-            ) {
+            // Degraded and offline still count as answered: the host's
+            // capabilities are known and the link is retransmitting, so an
+            // `Open` sent now is delivered when it comes back.
+            if !self
+                .remote_host(&host.id)
+                .is_some_and(|state| state.answered())
+            {
                 self.set_status(format!("{} is still connecting…", host.label));
                 return;
             }

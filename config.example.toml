@@ -119,20 +119,32 @@ tokenEnv = "MEDULLA_TOKEN"
 # skipPermissions = true
 
 # ---------------------------------------------------------------------------
-# [[remoteHosts]] — other machines, reached over SSH (optional)
+# [[remoteHosts]] — other machines (optional)
 # ---------------------------------------------------------------------------
 # The other axis from [[hosts]] above. Those are several hosts on *this*
-# machine, told apart by working directory; these are other machines entirely,
-# told apart by login. A local host has a bus address and no login, a remote
-# host has login details and no bus address — which is why they are separate
-# sections rather than one with half its fields blank.
+# machine, told apart by working directory; these are other machines entirely.
+# A local host has a bus address and no login, a remote host has an address
+# to dial — which is why they are separate sections rather than one with half
+# its fields blank.
 #
-# How a connection is made, and when: SSH is only the bootstrap. It starts a
-# medulla daemon on the far side and carries its key back inside the SSH
-# channel, after which datagrams go straight to the machine over UDP, mosh-style
-# — so the session survives a suspended laptop or a change of network with no
-# reconnect. One connection is shared by every session on that host, and it is
-# opened the first time you actually start a session there, not at startup.
+# The Hosts tab writes this section for you; the fields are documented here
+# for hand-editing. Two ways a machine is reached:
+#
+# * Paired (udpPort set): the Hosts tab minted a key, you ran
+#   `medulla daemon <key>` once on the machine, and it listens on that UDP
+#   port. The TUI dials `host:udpPort` directly — no SSH, no relay — and the
+#   session survives a suspended laptop or a change of network with no
+#   reconnect, mosh-style. The SSH fields are then only used when you ask the
+#   Hosts tab to run the pairing command for you (`s`). The machine has to be
+#   reachable on that UDP port from wherever the TUI runs: a LAN, a VPN such
+#   as Tailscale, or a public address with the port open.
+# * SSH-bootstrapped (no udpPort): the older way, still supported. SSH starts
+#   a daemon on the far side on every connection and carries its key back
+#   inside the SSH channel; datagrams then go direct as above.
+#
+# Either way one connection is shared by every session on that host, and it
+# is opened the first time you actually use the host, not at startup. `H` in
+# the TUI switches which host the Sessions and Workflows tabs are about.
 #
 # SECURITY: this whole section is ignored in a project-local config file
 # (./medulla.toml or ./.medulla/config.toml) and honoured only in your global
@@ -146,6 +158,9 @@ tokenEnv = "MEDULLA_TOKEN"
 # name = "Tower"                # display name; defaults to `host`
 # id = "tower"                  # stable id for sessions and the rail lane;
 #                               # defaults to a slug of `name`, then of `host`
+# udpPort = 62001               # the paired daemon's port; set by the Hosts
+#                               # tab when it issues a key. 0/omitted = not
+#                               # paired, bootstrap over SSH instead
 # user = "steven"               # omit to let ssh and ~/.ssh/config decide
 # port = 22                     # 0 or omitted leaves ssh's own default
 # identityFile = "~/.ssh/id_ed25519"

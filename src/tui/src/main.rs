@@ -98,6 +98,7 @@ async fn async_main(raw: Vec<String>) -> anyhow::Result<()> {
         Command::Daemon => medulla::daemon::run_daemon(&raw[1..], onboarding_ui()).await,
         Command::DaemonTui => run_worker_tui_command(&raw[1..]).await,
         Command::DaemonDirect => medulla_tui::remote::serve::entry::run(&raw[1..]).await,
+        Command::DaemonHost => medulla_tui::remote::serve::paired::run(&raw[1..]).await,
         Command::Remote => medulla_tui::remote::client::exec::run(&raw[1..]).await,
         Command::Version => {
             println!("medulla {}", env!("CARGO_PKG_VERSION"));

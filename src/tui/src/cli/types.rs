@@ -27,6 +27,16 @@ pub enum Command {
     /// on the spot, serves operator-opened sessions (a shell included), and
     /// speaks straight to one client over UDP.
     DaemonDirect,
+    /// `medulla daemon <key>` / `medulla daemon --host` — a paired remote
+    /// host: serves operator sessions to the one client that minted the key,
+    /// over UDP on the port the key names, with no SSH and no backend.
+    ///
+    /// Beside [`DaemonDirect`](Self::DaemonDirect) rather than folded into it
+    /// because the two answer different questions. That one is started *by*
+    /// the client, over SSH, and prints its key back up the pipe; this one is
+    /// started by the operator, once, from a key the client already holds, and
+    /// stays up across the client coming and going.
+    DaemonHost,
     /// `medulla remote <host> --exec <command>` — run one command on a remote
     /// host and print what its screen showed.
     Remote,

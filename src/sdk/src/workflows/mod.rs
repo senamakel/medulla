@@ -32,6 +32,7 @@ pub(crate) mod mcp;
 pub mod node_contracts;
 pub mod ops;
 mod registry;
+pub mod remote_call;
 pub mod report;
 pub mod run;
 pub mod skills;

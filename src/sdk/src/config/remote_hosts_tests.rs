@@ -101,3 +101,16 @@ fn declaration_order_is_preserved() {
     let ids: Vec<&str> = hosts.iter().map(|h| h.id.as_str()).collect();
     assert_eq!(ids, ["a-local", "b-local", "c-local"]);
 }
+
+#[test]
+fn a_paired_host_is_marked_and_an_unpaired_one_is_not() {
+    let paired = RemoteHostSection {
+        udp_port: 60001,
+        ..entry("gpu.example.com")
+    };
+    assert!(paired.paired());
+    assert!(!entry("tower.local").paired());
+    let hosts = remote_hosts(&[paired, entry("tower.local")]);
+    assert!(hosts[0].paired);
+    assert!(!hosts[1].paired);
+}

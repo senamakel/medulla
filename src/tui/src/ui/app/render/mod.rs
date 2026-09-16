@@ -19,10 +19,9 @@ use crate::worker::pty::ATTENTION_GLYPH;
 use super::types::{App, Overlay, PaneView, TABS};
 
 mod changes;
-mod decisions;
 mod feedback;
 mod frame_state;
-pub(super) mod graph;
+mod hosts;
 mod points;
 mod prompt;
 mod selection;
@@ -30,9 +29,6 @@ mod session_modals;
 mod sessions;
 mod settings;
 mod status_line;
-mod subconscious;
-#[cfg(test)]
-mod subconscious_tests;
 #[cfg(feature = "workflows")]
 pub(super) mod workflows;
 
@@ -141,7 +137,7 @@ impl App {
         // taking input behind it.
         for overlay in self.visible_overlays() {
             match overlay {
-                Overlay::Decisions => self.draw_decisions(f, rows[2]),
+                Overlay::HostSwitcher => self.draw_host_switcher(f, rows[2]),
                 Overlay::SessionPicker => self.draw_harness_picker(f, rows[2]),
                 Overlay::SessionKill => self.draw_session_kill_prompt(f, rows[2]),
                 Overlay::WorkflowDelete => self.draw_workflow_delete_prompt(f, rows[2]),
@@ -234,6 +230,23 @@ impl App {
             spans.push(Span::raw(gap));
             col += w + gap.len() as u16;
         }
+        // The current host, right-aligned, when there is room after the tabs.
+        // Only when the view is narrowed: the combined view is the default,
+        // and saying so on every frame would be noise.
+        let host_label = match self.current_host {
+            crate::ui::app::hosts::HostSelection::All => String::new(),
+            _ => format!("⌂ {}", self.current_host_label()),
+        };
+        let used = (col - area.x) as usize;
+        let room = (area.width as usize).saturating_sub(used);
+        if !host_label.is_empty() && host_label.chars().count() + 2 <= room {
+            let pad = room - host_label.chars().count();
+            spans.push(Span::raw(" ".repeat(pad)));
+            spans.push(Span::styled(
+                host_label,
+                Style::default().fg(ratatui::style::Color::DarkGray),
+            ));
+        }
         f.render_widget(Paragraph::new(TLine::from(spans)), area);
     }
 
@@ -270,8 +283,8 @@ impl App {
             "Tab views · TokenMaxxxing coming soon"
         } else if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
-        } else if self.tab() == "Subconscious" {
-            "Tab views · signal map · E decisions"
+        } else if self.tab() == "Hosts" {
+            "Tab views · ↑↓ hosts · a add · e edit · d remove · i issue key · s ssh · ⏎ connect · u use · H switch host"
         } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ steps · v layout · i inspect · c copilot · x run · d dry-run · r refresh"
         } else if self.tab() == "Sessions" && self.pane_view == PaneView::Diff {
@@ -337,10 +350,8 @@ impl App {
             "Sessions" => self.draw_sessions_tab(f, area),
             #[cfg(feature = "workflows")]
             "Workflows" => self.draw_workflows_tab(f, area),
-            // Not feature-gated: the tab exists in the slim build too, and a
-            // placeholder has nothing to draw that the workflow engine provides.
-            "Subconscious" => self.draw_subconscious(f, area),
             "TokenMaxxxing" => self.draw_points(f, area),
+            "Hosts" => self.draw_hosts_tab(f, area),
             "Feedback" => self.draw_feedback(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.
             "Settings" => self.draw_settings(f, area),
@@ -376,7 +387,6 @@ fn compact_tab_label(name: &str, compact: bool) -> &str {
     match name {
         "Sessions" => "Sess",
         "Workflows" => "Flows",
-        "Subconscious" => "Sub",
         "Feedback" => "Feed",
         "Settings" => "Set",
         _ => name,

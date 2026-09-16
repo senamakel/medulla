@@ -82,7 +82,7 @@ impl App {
                 WorkflowsKey::Handled(None)
             }
             KeyCode::Char('r') => {
-                self.reload_workflows();
+                self.refresh_workflows();
                 WorkflowsKey::Handled(None)
             }
             KeyCode::Char('d') => WorkflowsKey::Handled(self.dry_run_selected_workflow()),
@@ -193,7 +193,7 @@ impl App {
                 WorkflowsKey::Handled(None)
             }
             KeyCode::Char('r') => {
-                self.reload_workflows();
+                self.refresh_workflows();
                 WorkflowsKey::Handled(None)
             }
             KeyCode::Char('d') => WorkflowsKey::Handled(self.dry_run_selected_workflow()),

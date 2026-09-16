@@ -11,7 +11,6 @@ pub mod agents;
 pub mod chat_store;
 pub mod checkout;
 pub mod command;
-pub mod decisions;
 pub mod events;
 pub mod fleet;
 pub mod git_review;

@@ -183,6 +183,31 @@ pub(crate) async fn run(
                         // rail.
                         app.set_status(format!("{host_id} could not start it: {reason}"));
                     }
+                    AppMsg::RemoteWorkflowResult {
+                        host_id,
+                        request_id,
+                        result,
+                    } => {
+                        app.remote_workflow_result(&host_id, &request_id, result);
+                    }
+                    AppMsg::RemoteHostLiveness { host_id, liveness } => {
+                        app.remote_host_liveness(&host_id, liveness);
+                    }
+                    AppMsg::HostPairingRun { host_id, result } => {
+                        match result {
+                            // `Ok` here only means the remote shell accepted
+                            // the backgrounded command — it is not proof the
+                            // daemon came up (a missing binary, a bad key, or
+                            // a taken port would still exit the ssh session
+                            // successfully). Liveness is confirmed the same
+                            // way it always is: by dialling, which is what
+                            // pressing ⏎ does next.
+                            Ok(()) => app.set_status(format!(
+                                "ssh command sent to {host_id} — press ⏎ on the Hosts tab to connect and confirm pairing"
+                            )),
+                            Err(reason) => app.set_status(format!("{host_id}: ssh failed: {reason}")),
+                        }
+                    }
                     AppMsg::UsageLoaded(result) => {
                         let cmd = match result {
                             Ok(data) => app.set_account_usage(data),
@@ -378,6 +403,9 @@ pub(crate) async fn run(
                 // last tick stops being listed, and the record it was holding
                 // is dropped with it.
                 app.sweep_finished_sessions();
+                // A remote host's run list moves on that host; the Workflows
+                // tab polls it while a run there is unsettled.
+                app.tick_remote_workflows();
                 // The subscription meters are sampled from the tick rather than
                 // on a timer of their own: `due_subscription_refresh` is the
                 // one place that knows whether a sample is switched on, stale,

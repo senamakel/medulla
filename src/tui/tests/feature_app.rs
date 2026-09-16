@@ -92,9 +92,9 @@ fn tab_and_backtab_cycle_tabs() {
     assert_eq!(app.tab(), "Sessions");
     let _ = app.on_event(key(KeyCode::Tab));
     assert_eq!(app.tab(), "Workflows");
-    // Workflows is followed by the live Subconscious surface.
+    // Workflows is followed by the Hosts page.
     let _ = app.on_event(key(KeyCode::Tab));
-    assert_eq!(app.tab(), "Subconscious");
+    assert_eq!(app.tab(), "Hosts");
     let _ = app.on_event(key_mod(KeyCode::BackTab, KeyModifiers::SHIFT));
     assert_eq!(app.tab(), "Workflows");
     // Wrap backwards from Sessions to the last tab (Settings).
@@ -117,7 +117,7 @@ fn each_tab_renders_its_signature() {
     let signatures = [
         ("Sessions", "Sessions ·"),
         ("Workflows", "Workflows"),
-        ("Subconscious", "Signal field · demo"),
+        ("Hosts", "Hosts"),
         ("Settings", "Settings"),
     ];
     for (name, sig) in signatures {

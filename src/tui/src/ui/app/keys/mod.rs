@@ -16,6 +16,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use super::hosts::HostsKey;
 use super::types::{App, Cmd, TABS};
 use crate::ui::command::CopyScope;
 use crate::ui::composer::{edit_prompt, PromptAction};
@@ -46,9 +47,14 @@ impl App {
         if let Some((id, name)) = self.workflow_delete_armed.take() {
             if k.code == KeyCode::Delete && k.modifiers.is_empty() {
                 self.set_status(format!("Deleting {name}…"));
-                return Some(Cmd::DeleteWorkflow { id });
+                return self.scope_workflow_cmd(Some(Cmd::DeleteWorkflow { id }));
             }
             self.set_status("Workflow deletion cancelled");
+            return None;
+        }
+
+        // Removing a host forgets its pairing; the same one-keypress contract.
+        if self.consume_host_delete(k) {
             return None;
         }
 
@@ -115,6 +121,15 @@ impl App {
             return None;
         }
 
+        // The host switcher owns navigation while open.
+        if self.host_switcher.is_some() {
+            if ctrl && k.code == KeyCode::Char('c') {
+                self.should_quit = true;
+                return None;
+            }
+            return self.on_host_switcher_key(k.code);
+        }
+
         // Resume picker owns navigation while open.
         if self.resume_picker.is_some() {
             match k.code {
@@ -138,16 +153,6 @@ impl App {
                     }
                 }
                 _ => {}
-            }
-            return None;
-        }
-
-        // The prepared-decision overlay owns navigation while open.
-        if self.decision_open {
-            if ctrl && k.code == KeyCode::Char('c') {
-                self.should_quit = true;
-            } else {
-                self.handle_decision_key(k.code);
             }
             return None;
         }
@@ -221,6 +226,20 @@ impl App {
             }
         }
 
+        // `H` switches the current host from anywhere a bare letter is not
+        // text. Before the per-tab handlers: the Sessions diff pane swallows
+        // printables, and Hosts binds lowercase letters of its own.
+        if k.code == KeyCode::Char('H') && !ctrl && !alt && !self.text_input_focused() {
+            self.open_host_switcher();
+            return None;
+        }
+
+        if tab == "Hosts" {
+            if let HostsKey::Handled(cmd) = self.on_hosts_key(k) {
+                return cmd;
+            }
+        }
+
         // The Feedback tab is the same board as Settings › Feedback, so it
         // reuses that page's bindings; anything it does not bind still falls
         // through to the global ones.
@@ -248,7 +267,7 @@ impl App {
         #[cfg(feature = "workflows")]
         if tab == "Workflows" {
             if let WorkflowsKey::Handled(cmd) = self.on_workflows_key(k.code, shift, alt) {
-                return cmd;
+                return self.scope_workflow_cmd(cmd);
             }
         }
 
@@ -262,10 +281,6 @@ impl App {
         }
 
         match k.code {
-            KeyCode::Char('E') if tab == "Subconscious" => {
-                self.open_decisions();
-                return None;
-            }
             KeyCode::Tab => {
                 self.tab_index = (self.tab_index + 1) % TABS.len();
                 self.selected = 0;

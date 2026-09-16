@@ -124,24 +124,7 @@ impl App {
                 self.set_status("Answer sent");
                 None
             }
-            PromptKind::DecisionAnswer {
-                decision_id,
-                cycle_id,
-                question_id,
-            } => {
-                if text.is_empty() {
-                    self.set_status("Answer cancelled (empty)");
-                    return None;
-                }
-                if !self.runtime.steering_reaches_backend() {
-                    self.set_status("Answering a question is not wired to this runtime yet");
-                    return None;
-                }
-                self.runtime.answer_question(cycle_id, question_id, text);
-                self.dismissed_decisions.insert(decision_id);
-                self.set_status("Decision answered");
-                None
-            }
+            PromptKind::HostField { form, field } => self.submit_host_field(*form, field, text),
             PromptKind::FeedbackComment { id } => {
                 if text.is_empty() {
                     self.set_status("Comment cancelled (empty)");
@@ -201,19 +184,20 @@ impl App {
                     self.open_workflow_input_prompt(workflow_id, dry_run, remaining, collected);
                     return None;
                 }
-                if dry_run {
+                let cmd = if dry_run {
                     self.set_status("Simulating…");
-                    Some(Cmd::DryRunWorkflow {
+                    Cmd::DryRunWorkflow {
                         id: workflow_id,
                         inputs: collected,
-                    })
+                    }
                 } else {
                     self.set_status("Running…");
-                    Some(Cmd::RunWorkflow {
+                    Cmd::RunWorkflow {
                         id: workflow_id,
                         inputs: collected,
-                    })
-                }
+                    }
+                };
+                self.scope_workflow_cmd(Some(cmd))
             }
         }
     }

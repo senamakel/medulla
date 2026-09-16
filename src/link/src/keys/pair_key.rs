@@ -23,14 +23,13 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
-/// Crockford's base32 alphabet: no `I`, `L`, `O` or `U`.
-const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+use super::crockford::{self, CrockfordError};
 
 /// Encoded length: 140 bits / 5 bits per character.
 const ENCODED_CHARS: usize = 28;
 
-/// Characters per hyphen-separated display group.
-const GROUP: usize = 4;
+/// Payload width in bits: the key and its checksum.
+const PAYLOAD_BITS: usize = 140;
 
 /// Why a typed pair key was rejected.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -44,6 +43,15 @@ pub enum PairKeyError {
     /// The 12-bit checksum did not match — almost certainly a typo.
     #[error("pair key checksum does not match; check for a mistyped character")]
     Checksum,
+}
+
+impl From<CrockfordError> for PairKeyError {
+    fn from(error: CrockfordError) -> Self {
+        match error {
+            CrockfordError::Length(got) => PairKeyError::Length(got),
+            CrockfordError::InvalidCharacter(ch) => PairKeyError::InvalidCharacter(ch),
+        }
+    }
 }
 
 /// The 128-bit end-to-end key shared by exactly two endpoints.
@@ -75,38 +83,19 @@ impl PairKey {
     /// Encode for display: 7 hyphen-separated groups of 4 Crockford characters,
     /// checksum included.
     pub fn encode(&self) -> String {
-        let raw = self.encode_compact();
-        let mut out = String::with_capacity(ENCODED_CHARS + ENCODED_CHARS / GROUP - 1);
-        for (index, ch) in raw.chars().enumerate() {
-            if index > 0 && index.is_multiple_of(GROUP) {
-                out.push('-');
-            }
-            out.push(ch);
-        }
-        out
+        crockford::group(&self.encode_compact())
     }
 
     /// Encode without the display grouping — 28 characters, no separators.
     pub fn encode_compact(&self) -> String {
+        // 140 bits, big-endian: the key then the checksum's low 12 bits, left
+        // aligned so the whole payload is exactly 28 five-bit characters.
         let checksum = checksum_of(&self.0);
-        // 140 bits, big-endian: the key then the checksum's low 12 bits.
-        let mut bits = Vec::with_capacity(140);
-        for byte in self.0 {
-            for offset in (0..8).rev() {
-                bits.push((byte >> offset) & 1 == 1);
-            }
-        }
-        for offset in (0..12).rev() {
-            bits.push((checksum >> offset) & 1 == 1);
-        }
-        bits.chunks(5)
-            .map(|chunk| {
-                let value = chunk
-                    .iter()
-                    .fold(0u8, |acc, bit| (acc << 1) | u8::from(*bit));
-                ALPHABET[value as usize] as char
-            })
-            .collect()
+        let mut payload = [0u8; 18];
+        payload[..16].copy_from_slice(&self.0);
+        payload[16] = (checksum >> 4) as u8;
+        payload[17] = ((checksum & 0x0f) << 4) as u8;
+        crockford::encode_bits(&payload, PAYLOAD_BITS)
     }
 
     /// Decode a key a human typed.
@@ -115,32 +104,10 @@ impl PairKey {
     /// to `1`. A wrong length, an unfoldable character, or a checksum mismatch
     /// is an error here rather than an opaque decrypt failure later.
     pub fn decode(text: &str) -> Result<Self, PairKeyError> {
-        let mut values = Vec::with_capacity(ENCODED_CHARS);
-        for ch in text.chars() {
-            if ch == '-' || ch.is_whitespace() {
-                continue;
-            }
-            values.push(decode_char(ch).ok_or(PairKeyError::InvalidCharacter(ch))?);
-        }
-        if values.len() != ENCODED_CHARS {
-            return Err(PairKeyError::Length(values.len()));
-        }
-
-        let mut bits = Vec::with_capacity(140);
-        for value in values {
-            for offset in (0..5).rev() {
-                bits.push((value >> offset) & 1 == 1);
-            }
-        }
+        let payload = crockford::decode_bits(text, PAYLOAD_BITS)?;
         let mut key = [0u8; 16];
-        for (index, byte) in key.iter_mut().enumerate() {
-            *byte = bits[index * 8..index * 8 + 8]
-                .iter()
-                .fold(0u8, |acc, bit| (acc << 1) | u8::from(*bit));
-        }
-        let found = bits[128..140]
-            .iter()
-            .fold(0u16, |acc, bit| (acc << 1) | u16::from(*bit));
+        key.copy_from_slice(&payload[..16]);
+        let found = (u16::from(payload[16]) << 4) | u16::from(payload[17] >> 4);
         if found != checksum_of(&key) {
             return Err(PairKeyError::Checksum);
         }
@@ -172,20 +139,4 @@ impl<'de> Deserialize<'de> for PairKey {
 fn checksum_of(key: &[u8; 16]) -> u16 {
     let digest = Sha256::digest(key);
     (u16::from(digest[0]) << 4) | u16::from(digest[1] >> 4)
-}
-
-/// Map one typed character to its 5-bit value, folding the confusables
-/// Crockford's alphabet deliberately omits. `U` stays invalid: it is excluded
-/// from the alphabet and folding it would guess at the user's intent.
-fn decode_char(ch: char) -> Option<u8> {
-    let upper = ch.to_ascii_uppercase();
-    let folded = match upper {
-        'O' => '0',
-        'I' | 'L' => '1',
-        other => other,
-    };
-    ALPHABET
-        .iter()
-        .position(|candidate| *candidate as char == folded)
-        .map(|index| index as u8)
 }

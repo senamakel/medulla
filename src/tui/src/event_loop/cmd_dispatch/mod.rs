@@ -147,6 +147,18 @@ pub(super) fn run_cmd(
                 }
             });
         }
+        Cmd::RunPairingOverSsh {
+            host_id,
+            section,
+            command,
+        } => {
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                let result =
+                    medulla_tui::remote::client::autorun::run_pairing(&section, &command).await;
+                let _ = tx.send(AppMsg::HostPairingRun { host_id, result });
+            });
+        }
         Cmd::ConnectRemoteHost { host_id } => {
             if let Some(requests) = remote_hosts::spawn_connect(host_id.clone(), _config, msg_tx) {
                 // Handed straight back to the App: it is the only thing that can
