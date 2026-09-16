@@ -140,12 +140,13 @@ fn persist_setting_creates_and_merges_sections() {
     // Writing into a file that does not exist yet creates it and its parent.
     super::persist_setting(&path, "update", "check", toml::Value::Boolean(false)).expect("write");
     // A second key in the same section merges rather than replacing.
-    super::persist_setting(&path, "medulla", "maxPasses", toml::Value::Integer(7)).expect("write");
+    super::persist_setting(&path, "workflows", "allowCode", toml::Value::Boolean(false))
+        .expect("write");
 
     let parsed: TuiConfig =
         toml::from_str(&std::fs::read_to_string(&path).expect("read")).expect("reparse");
     assert!(!parsed.update.check);
-    assert_eq!(parsed.medulla.max_passes, Some(7));
+    assert!(!parsed.workflows.allow_code);
 }
 
 #[test]

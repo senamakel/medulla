@@ -189,13 +189,6 @@ fn harness_opencode_bare_command_and_empty() {
 }
 
 #[test]
-fn context_window_honors_override() {
-    let cfg: TuiConfig =
-        serde_json::from_str(r#"{"medulla":{"contextWindowTokens":128000}}"#).unwrap();
-    assert_eq!(cfg.medulla.context_window(), 128_000);
-}
-
-#[test]
 fn core_section_round_trips_and_omits_when_absent() {
     // Present socketPath deserializes; absent [core] serializes to nothing.
     let cfg: TuiConfig =
@@ -212,12 +205,12 @@ fn core_section_round_trips_and_omits_when_absent() {
 #[test]
 fn unknown_fields_are_ignored() {
     // Permissive parsing: extra keys (including retired sections like
-    // `inference`/`langfuse`) must not fail the load.
+    // `inference`/`langfuse`/`medulla`) must not fail the load.
     let cfg: TuiConfig = serde_json::from_str(
-        r#"{"totallyUnknown":true,"inference":{"temperature":0.9},"langfuse":{"enabled":true},"medulla":{"maxPasses":3}}"#,
+        r#"{"totallyUnknown":true,"inference":{"temperature":0.9},"langfuse":{"enabled":true},"medulla":{"maxPasses":3},"update":{"check":false}}"#,
     )
     .unwrap();
-    assert_eq!(cfg.medulla.max_passes, Some(3));
+    assert!(!cfg.update.check);
 }
 
 #[test]

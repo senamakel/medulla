@@ -335,13 +335,13 @@ fn load_config_toml_and_json_parity() {
     let json = cwd.join("c.json");
     std::fs::write(
         &json,
-        r#"{"backend":{"baseUrl":"http://x:1"},"medulla":{"maxPasses":3}}"#,
+        r#"{"backend":{"baseUrl":"http://x:1"},"update":{"check":false}}"#,
     )
     .unwrap();
     let toml_path = cwd.join("c.toml");
     std::fs::write(
         &toml_path,
-        "[backend]\nbaseUrl = \"http://x:1\"\n\n[medulla]\nmaxPasses = 3\n",
+        "[backend]\nbaseUrl = \"http://x:1\"\n\n[update]\ncheck = false\n",
     )
     .unwrap();
     let from_json = load_config(Some(json.to_str().unwrap()), &env(&[home_env]), &cwd).unwrap();
@@ -356,8 +356,8 @@ fn load_config_toml_and_json_parity() {
         from_toml.config.backend.base_url,
         "https://api.tinyhumans.ai"
     );
-    assert_eq!(from_json.config.medulla.max_passes, Some(3));
-    assert_eq!(from_toml.config.medulla.max_passes, Some(3));
+    assert!(!from_json.config.update.check);
+    assert!(!from_toml.config.update.check);
     let _ = std::fs::remove_dir_all(&home);
     let _ = std::fs::remove_dir_all(&cwd);
 }
