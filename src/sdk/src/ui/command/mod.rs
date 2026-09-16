@@ -12,7 +12,7 @@ mod types;
 mod tests;
 
 pub use catalog::{lookup, suggestions, CommandSpec, COMMANDS};
-pub use types::{CopyScope, SlashCommand};
+pub use types::SlashCommand;
 
 use crate::protocol::HarnessProvider;
 
