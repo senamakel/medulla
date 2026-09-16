@@ -104,6 +104,7 @@ pub(crate) async fn run(
                         run_cmd(
                             cmd,
                             &backend,
+                            &app.hub,
                             &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
@@ -196,6 +197,7 @@ pub(crate) async fn run(
                             run_cmd(
                                 cmd,
                                 &backend,
+                                &app.hub,
                                 &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
@@ -207,6 +209,7 @@ pub(crate) async fn run(
                             run_cmd(
                                 cmd,
                                 &backend,
+                                &app.hub,
                                 &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
@@ -277,6 +280,7 @@ pub(crate) async fn run(
                             run_cmd(
                                 cmd,
                                 &backend,
+                                &app.hub,
                                 &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
@@ -306,6 +310,7 @@ pub(crate) async fn run(
                             run_cmd(
                                 cmd,
                                 &backend,
+                                &app.hub,
                                 &app.loaded.config,
                                 &msg_tx,
                                 local_hosts.as_ref(),
@@ -330,6 +335,7 @@ pub(crate) async fn run(
                         run_cmd(
                             Cmd::LoadFeedback(app.feedback_query()),
                             &backend,
+                            &app.hub,
                             &app.loaded.config,
                             &msg_tx,
                             local_hosts.as_ref(),
@@ -379,6 +385,7 @@ pub(crate) async fn run(
                     run_cmd(
                         cmd,
                         &backend,
+                        &app.hub,
                         &app.loaded.config,
                         &msg_tx,
                         local_hosts.as_ref(),

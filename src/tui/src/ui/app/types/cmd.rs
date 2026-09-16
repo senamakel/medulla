@@ -20,12 +20,6 @@ pub enum Cmd {
         /// The `medulla daemon HK1-…` line to run there.
         command: String,
     },
-    /// Submit a composer line as a new conversational turn.
-    Submit(String),
-    /// Resume a previously saved chat by session id.
-    Resume(String),
-    /// Fetch the list of resumable chats for the resume picker.
-    ListChats,
     /// Bootstrap a `[[remoteHosts]]` machine and learn what it can do.
     ///
     /// Runs `ssh`, so it must never be on the render path. Issued the first time
@@ -35,8 +29,6 @@ pub enum Cmd {
         /// The `[[remoteHosts]]` id to dial.
         host_id: String,
     },
-    /// Re-inspect the runtime's context chunks for the Context tab.
-    InspectContext,
     /// Clear the session this host is signed in with.
     Logout,
     /// Apply a worker fleet mutation.
@@ -103,8 +95,6 @@ pub enum Cmd {
         /// The submission's body.
         body: String,
     },
-    /// Re-read the declared fleet (roster + capacity) from the runtime.
-    RefreshFleet,
     /// Run an installed workflow on this machine.
     ///
     /// Off-thread like every other filesystem/process command: a workflow run
