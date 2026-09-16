@@ -397,12 +397,6 @@ impl App {
                     };
                 }
             }
-            // Trace and Context are Settings subpages, not tabs, so they are
-            // matched on the subpage rather than on the tab — which is always
-            // "Settings" for both.
-            "Settings" => match self.settings_subpage() {
-                _ => {}
-            },
             _ => {}
         }
     }
