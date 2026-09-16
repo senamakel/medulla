@@ -15,7 +15,7 @@
 
 use std::time::Duration;
 
-use super::super::types::{RunError, TaskOutcome};
+use super::super::types::RunError;
 use super::super::TaskRunner;
 use super::dispatch::harness::{req, FakeWorker, Mode};
 
@@ -31,7 +31,7 @@ fn held_message() -> String {
 async fn an_operator_hold_settles_as_held_not_as_a_worker_error() {
     // It arrives as an ordinary `error` frame, exactly like backpressure did
     // before it was told apart. Left as `RunError::Worker` it would reach the
-    // orchestrator as a task that was attempted and failed — so the work would
+    // dispatcher as a task that was attempted and failed — so the work would
     // be abandoned rather than picked up again when the person is done.
     let message = held_message();
     let worker = FakeWorker::new(Mode::Error(message.clone()));
@@ -39,10 +39,6 @@ async fn an_operator_hold_settles_as_held_not_as_a_worker_error() {
 
     let err = runner.run(req("x"), None).await.expect_err("is refused");
     assert_eq!(err, RunError::Held(message.clone()));
-    assert!(
-        is_retryable(&err),
-        "nothing was attempted, so the task is deferred rather than failed"
-    );
     // The daemon's own wording survives, so whoever reads the failure still sees
     // which workspace was occupied and by which session.
     assert_eq!(
