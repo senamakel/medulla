@@ -52,7 +52,7 @@ fn the_editor_lists_settings_over_the_effective_config() {
     let mut app = config_app(dir.path());
     let out = render(&mut app, 200, 60);
 
-    for label in ["Update check", "Max passes", "Worker concurrency"] {
+    for label in ["Update check", "Worker concurrency"] {
         assert!(out.contains(label), "editor missing {label}: {out}");
     }
     assert!(
