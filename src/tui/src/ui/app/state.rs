@@ -136,6 +136,7 @@ impl App {
             harness_skip_permissions,
             copy_capture: None,
             lane_override: None,
+            worker_override: None,
         }
     }
 
@@ -563,9 +564,17 @@ impl App {
         }
     }
 
+    /// Stand in a fixed worker roster for the hub's. Test seam.
+    pub fn inject_workers(&mut self, workers: Vec<medulla::fleet::WorkerInfo>) {
+        self.worker_override = Some(workers);
+    }
+
     /// The hub's worker roster, as the surfaces read it. Empty until the hub
-    /// is up.
+    /// is up; an injected roster wins outright.
     pub(super) fn workers(&self) -> Vec<medulla::fleet::WorkerInfo> {
+        if let Some(workers) = &self.worker_override {
+            return workers.clone();
+        }
         medulla::hub::workers_of(&self.hub)
     }
 

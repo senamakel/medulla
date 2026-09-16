@@ -568,6 +568,8 @@ pub struct App {
     /// Lanes standing in for the hub's, when a test or the offline demo
     /// injected some. `None` derives them from the hub on every read.
     pub(in crate::ui::app) lane_override: Option<Vec<crate::ui::agents::AgentLane>>,
+    /// A worker roster standing in for the hub's, when a test injected one.
+    pub(in crate::ui::app) worker_override: Option<Vec<medulla::fleet::WorkerInfo>>,
     // A read-only view of the task host running on this device, when one is.
     // Read live at render: its counters move on the host's own schedule.
     pub(in crate::ui::app) host_obs: Option<medulla::daemon::embedded::HostObservation>,

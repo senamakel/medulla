@@ -5,21 +5,24 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use medulla::backend::{Backend, MockBackend};
 use medulla::config::LoadedConfig;
+use medulla::fleet::{AgentDeclaration, WorkerInfo};
 use medulla::protocol::HarnessProvider;
-use medulla::backend::MockBackend;
-use medulla::fleet::{AgentDeclaration, Runtime, WorkerInfo};
 
 use super::{AgentGroup, AgentRailRow, GroupRailRow, RailRow, NEW_SESSION_LABEL};
 use crate::ui::app::App;
 use crate::worker::pty::PtyManager;
 
-/// An Agents app on the mock runtime, hosting nothing.
+/// A Sessions app on the mock backend with the demo lanes standing in for a
+/// hub, hosting nothing.
 pub(in crate::ui::app) fn app() -> App {
-    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
+    let backend: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.link = Some(medulla::config::LinkConfig::default());
-    App::new(runtime, loaded)
+    let mut app = App::new(backend, loaded);
+    app.inject_lanes(crate::ui::agents::demo_lanes());
+    app
 }
 
 /// The same app with a live (but empty) local host attached, so the rail is
@@ -269,8 +272,8 @@ fn a_session_in_an_undeclared_directory_is_still_listed() {
 
 #[test]
 fn the_host_tree_keeps_a_second_declared_host() {
-    let runtime = MockBackend::new();
-    runtime.set_workers(vec![WorkerInfo {
+    let mut app = app();
+    app.inject_workers(vec![WorkerInfo {
         id: "studio-claude".into(),
         address: "studio".into(),
         handle: None,
@@ -286,9 +289,6 @@ fn the_host_tree_keeps_a_second_declared_host() {
         budgets: Vec::new(),
         readiness: Vec::new(),
     }]);
-    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
-    loaded.config.link = Some(medulla::config::LinkConfig::default());
-    let mut app = App::new(Arc::new(runtime), loaded);
     app.loaded.config.fleet.agent_declarations =
         vec![AgentDeclaration::new("local-claude", "", "claude", "/work")];
     assert!(
