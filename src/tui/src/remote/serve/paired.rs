@@ -235,14 +235,24 @@ pub async fn run_in(env: &HashMap<String, String>, args: &[String]) -> anyhow::R
             node_id: pairing.client,
             pair_key,
         }];
-        let link = Link::connect(config).await.map_err(|error| {
-            anyhow::anyhow!(
-                "could not listen on udp/{} for client {} ({error}); if the port is taken, \
-                 re-issue the key from the Hosts tab with another port",
-                pairing.port,
-                pairing.client
-            )
-        })?;
+        // With several pairings on disk, one whose port cannot be bound must
+        // not take the others down: it is reported and skipped, and the
+        // process still fails when *nothing* could be served.
+        let link = match Link::connect(config).await {
+            Ok(link) => link,
+            Err(error) => {
+                let message = format!(
+                    "could not listen on udp/{} for client {} ({error}); if the port is taken, \
+                     re-issue the key from the Hosts tab with another port",
+                    pairing.port, pairing.client
+                );
+                if pairings.len() == 1 {
+                    anyhow::bail!(message);
+                }
+                eprintln!("medulla daemon: {message}");
+                continue;
+            }
+        };
         let bridge = Arc::new(LinkBridge::new(
             Arc::new(link),
             LinkBridgeConfig {
@@ -268,6 +278,9 @@ pub async fn run_in(env: &HashMap<String, String>, args: &[String]) -> anyhow::R
         servers.push(server);
     }
 
+    if servers.is_empty() {
+        anyhow::bail!("no pairing could be served");
+    }
     eprintln!(
         "medulla daemon: this machine is paired. Keep this process running to stay reachable — \
          for example `systemd-run --user --unit medulla-host medulla daemon --host`, a launchd \
@@ -296,6 +309,22 @@ pub async fn run_in(env: &HashMap<String, String>, args: &[String]) -> anyhow::R
 /// locked — the last meaning a daemon for this client is already running, and
 /// the operator should stop it before re-pairing.
 pub fn pair(home: &Path, key: &HostKey) -> anyhow::Result<Pairing> {
+    // Each client's link is its own socket, so two clients cannot share a
+    // port on this host. Two TUIs that each picked the first free port in
+    // *their* config would collide here, and the collision is only visible on
+    // this side — so it is refused now, where the operator is looking, rather
+    // than on the next `--host` restart.
+    if let Some(taken) = pairings_on_disk(home)
+        .into_iter()
+        .find(|pairing| pairing.port == key.port && pairing.client != key.client)
+    {
+        anyhow::bail!(
+            "udp/{} is already used by this host's pairing with client {}; re-issue the key \
+             from the Hosts tab with another port",
+            key.port,
+            taken.client
+        );
+    }
     let dir = client_dir(home, key.client);
     let link = link_dir(&dir);
     std::fs::create_dir_all(&link)?;
