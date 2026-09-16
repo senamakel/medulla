@@ -124,11 +124,11 @@ jobs:
       # Gate reusable SDK and UI logic at 95%. The excluded files are the
       # process/terminal/network drivers themselves: they depend on OS terminal
       # state or a live Socket.IO/tiny.place connection and are exercised
-      # separately by the binary subprocess + direct-PTY E2E suite (`e2e_cli`)
-      # and the live staging hub run, while their pure state machines, routing,
-      # and data types remain counted. The orchestrator-hub split keeps the
-      # dispatch runner + roster resolution + data types counted; only the
-      # connect/boot/relay/handle IO drivers and the TUI hub wiring are excluded.
+      # separately by the binary subprocess + direct-PTY E2E suite (`e2e_cli`),
+      # while their pure state machines, routing,
+      # and data types remain counted. The hub split keeps the dispatch runner
+      # + roster resolution + data types counted; only the boot/relay/handle IO
+      # drivers and the TUI hub wiring are excluded.
       # Daemon entry/transport, backend worker operations, wrapper run/bridge,
       # and the harness PTY module are likewise process or network adapters;
       # their reusable types and helpers remain counted in their sibling modules.

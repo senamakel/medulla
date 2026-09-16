@@ -132,7 +132,7 @@ context rebuild, and minutes of wall clock.
 # Triggers that actually fire
 
 Only `manual` triggers fire on this host. A run starts because an operator
-pressed a key or the orchestrator asked for it.
+pressed a key or the dispatcher asked for it.
 
 Other trigger kinds are accepted and stored, and nothing dispatches them. So if
 the operator asks for "every morning at 9", build it with a `manual` trigger and
