@@ -295,11 +295,15 @@ fn the_switcher_lists_this_device_all_hosts_and_each_host() {
 }
 
 #[test]
-fn selecting_an_unpaired_host_does_not_dial_it() {
+fn selecting_an_unpaired_host_bootstraps_it_over_ssh() {
+    // An entry with an address but no pairing is still a machine: the
+    // connection task reaches it the older way, over ssh.
     let (_dir, mut app) = app_with_hosts(&[("tower.local", 0)]);
     let cmd = app.set_current_host(HostSelection::Host("tower-local".to_string()));
-    assert!(cmd.is_none());
-    assert!(app.status.contains("not paired"), "{}", app.status);
+    assert!(
+        matches!(cmd, Some(Cmd::ConnectRemoteHost { .. })),
+        "{cmd:?}"
+    );
 }
 
 #[test]
@@ -372,6 +376,9 @@ fn a_removal_that_cannot_be_saved_keeps_the_pairing_on_disk() {
     std::fs::create_dir(dir.path().join("config.toml")).unwrap();
     app.remove_host("gpu-example-com");
     assert!(app.hosts.entries.is_empty(), "gone for this run");
-    assert!(state_dir.exists(), "but the pairing survives for the next launch");
+    assert!(
+        state_dir.exists(),
+        "but the pairing survives for the next launch"
+    );
     assert!(app.status.contains("this run only"), "{}", app.status);
 }

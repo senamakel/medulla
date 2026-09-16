@@ -61,9 +61,8 @@ impl App {
                 let state_dir = crate::remote::client::task::client_state_dir(&home, host_id);
                 match crate::remote::client::pairing::forget_pairing(&state_dir) {
                     Ok(()) => self.set_status(format!("Removed {host_id}")),
-                    Err(error) => self.set_status(format!(
-                        "Removed {host_id}, but its pairing stays: {error}"
-                    )),
+                    Err(error) => self
+                        .set_status(format!("Removed {host_id}, but its pairing stays: {error}")),
                 }
             }
             Err(error) => self.set_status(format!("Removed {host_id} for this run only: {error}")),

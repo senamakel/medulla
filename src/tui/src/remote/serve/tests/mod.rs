@@ -12,6 +12,6 @@
 
 mod bootstrap;
 mod config;
+mod paired;
 mod sessions;
 mod support;
-mod paired;
