@@ -50,3 +50,22 @@ fn a_held_identity_refuses_a_re_issue_and_forgetting_is_idempotent() {
     assert!(!dir.path().exists());
     forget_pairing(dir.path()).unwrap();
 }
+
+#[test]
+fn a_lock_released_shortly_after_a_disconnect_still_lets_the_reissue_through() {
+    // Disconnecting a host only drops the App's sender; the connection task's
+    // identity lock clears on its own next tick, a handful of milliseconds
+    // later. `mint_pairing` retries across a short budget for exactly this
+    // race, rather than making the operator press `i` twice.
+    let dir = tempfile::tempdir().unwrap();
+    mint_pairing(dir.path(), 60001).unwrap();
+    let held = keys::lock_node_dir(dir.path()).unwrap();
+    let released = dir.path().to_path_buf();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(30));
+        drop(held);
+        let _ = released;
+    });
+    let key = mint_pairing(dir.path(), 60002).unwrap();
+    assert_eq!(key.port, 60002);
+}
