@@ -128,6 +128,32 @@ fn a_catalogue_answer_lists_and_fetches_what_the_selection_needs() {
 }
 
 #[test]
+fn the_new_row_is_not_selected_while_a_non_empty_catalogue_is_still_loading() {
+    // Before the host has answered, an empty read of its cache is not the
+    // same as the host confirming an empty store — `reload_workflows` must
+    // not treat the two alike, or `creating` latches on the unlisted cache
+    // and never clears once the real, non-empty catalogue lands (nothing
+    // but a cursor move otherwise resets it).
+    let (mut app, mut rx) = app_on_remote();
+    app.reload_workflows();
+    assert!(
+        !app.wf.creating,
+        "an unanswered catalogue is not a confirmed-empty one"
+    );
+
+    let (list_id, _) = drain(&mut rx).remove(0);
+    let summary = json!([{
+        "id": "sweep", "name": "sweep workflow", "description": "", "enabled": true,
+        "nodeCount": 5, "triggerKind": "manual", "inputs": []
+    }]);
+    app.remote_workflow_result("gpu-example-com", &list_id, Ok(summary));
+    assert!(
+        !app.wf.creating,
+        "a non-empty catalogue must not leave the New row selected"
+    );
+}
+
+#[test]
 fn a_bad_answer_is_reported_rather_than_folded() {
     let (mut app, mut rx) = app_on_remote();
     app.reload_workflows();
