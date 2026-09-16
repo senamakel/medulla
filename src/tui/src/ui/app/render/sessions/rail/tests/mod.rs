@@ -8,7 +8,7 @@ use std::sync::Arc;
 use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
 use medulla::backend::Backend;
-use medulla::ui::agents::{AgentLane, AgentRole};
+use medulla::ui::agents::AgentLane;
 use ratatui::style::{Color, Modifier};
 use unicode_width::UnicodeWidthStr;
 

@@ -8,7 +8,7 @@ use medulla::harness_work::{HarnessSessionInfo, WorkSnapshot};
 use medulla::backend::MockBackend;
 use medulla::backend::Backend;
 use medulla::fleet::{AgentDeclaration};
-use medulla::ui::agents::{AgentLane, AgentRole, TurnBlock};
+use medulla::ui::agents::{AgentLane, TurnBlock};
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::Terminal;
