@@ -129,33 +129,6 @@ impl App {
             return self.on_host_switcher_key(k.code);
         }
 
-        // Resume picker owns navigation while open.
-        if self.resume_picker.is_some() {
-            match k.code {
-                KeyCode::Char('c') if ctrl => self.should_quit = true,
-                KeyCode::Esc => self.resume_picker = None,
-                KeyCode::Up => {
-                    if let Some(p) = &mut self.resume_picker {
-                        p.index = p.index.saturating_sub(1);
-                    }
-                }
-                KeyCode::Down => {
-                    if let Some(p) = &mut self.resume_picker {
-                        p.index = (p.index + 1).min(p.chats.len().saturating_sub(1));
-                    }
-                }
-                KeyCode::Enter => {
-                    if let Some(p) = self.resume_picker.take() {
-                        if let Some(chat) = p.chats.get(p.index) {
-                            return Some(Cmd::Resume(chat.session_id.clone()));
-                        }
-                    }
-                }
-                _ => {}
-            }
-            return None;
-        }
-
         let tab = self.tab();
 
         // Global control chords.

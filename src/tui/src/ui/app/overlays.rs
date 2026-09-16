@@ -19,9 +19,6 @@ impl App {
     ///
     /// Each entry pairs a variant with the condition that puts it on screen, so
     /// "is it drawn?" and "does it own input?" cannot be answered differently.
-    /// One subtlety is encoded here rather than at the call sites: the resume
-    /// picker and the inline prompt share the row below the content, and the
-    /// prompt wins, so the picker is only on screen when no prompt is.
     /// Whether a bare letter would land in a text field right now.
     ///
     /// The prompt and an attached harness are routed before any global
@@ -48,10 +45,6 @@ impl App {
                 self.workflow_delete_armed.is_some(),
             ),
             (Overlay::InlinePrompt, self.prompt.is_some()),
-            (
-                Overlay::ResumePicker,
-                self.resume_picker.is_some() && self.prompt.is_none(),
-            ),
         ]
         .into_iter()
         .filter_map(|(overlay, shown)| shown.then_some(overlay))
