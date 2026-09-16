@@ -153,28 +153,6 @@ impl App {
         self.sync_selected_workflow_run();
     }
 
-    /// Open a new thread and focus the conversation.
-    ///
-    /// A thread is opened, not reset: several conversations can be in flight at
-    /// once, and clearing the one you were in would throw away the transcript
-    /// you were keeping. Nothing is inherited from the current thread — that is
-    /// the whole difference from the fork this replaced.
-    pub(in crate::ui::app) fn new_thread(&mut self) {
-        self.runtime.new_session();
-        self.draft = crate::ui::composer::Draft::new();
-        self.agent_scroll = 0;
-        self.reset_rail_cursor();
-        self.tab_index = super::super::types::tab_pos("Sessions");
-        self.refresh_snapshot();
-        let name = self
-            .snapshot
-            .threads
-            .get(self.active_thread_idx())
-            .map(|t| t.name.clone())
-            .unwrap_or_else(|| "main".into());
-        self.set_status(format!("Opened {name} · ^↑↓ switches threads"));
-    }
-
     /// Toggle mouse capture and note the new mode in the status line.
     pub(in crate::ui::app) fn toggle_mouse(&mut self) {
         self.mouse_capture = !self.mouse_capture;

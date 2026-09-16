@@ -142,26 +142,13 @@ impl App {
                     self.toggle_mouse();
                     return None;
                 }
-                KeyCode::Char('x') => {
-                    // On the Workflows tab with a turn in flight, ⌃X means the
-                    // copilot: it is the thing the operator is watching, and
-                    // aborting the chat runtime instead would stop something
-                    // they are not looking at while the pane kept spinning.
-                    #[cfg(feature = "workflows")]
-                    if tab == "Workflows" && self.copilot_busy() {
-                        return self.abort_copilot();
-                    }
-                    self.runtime.abort();
-                    self.set_status("Abort requested");
-                    return None;
+                // On the Workflows tab with a turn in flight, ⌃X stops the
+                // copilot: it is the thing the operator is watching.
+                #[cfg(feature = "workflows")]
+                KeyCode::Char('x') if tab == "Workflows" && self.copilot_busy() => {
+                    return self.abort_copilot();
                 }
-                KeyCode::Char('n') => {
-                    self.new_thread();
-                    return None;
-                }
-                // Open a session. `Ctrl-T` for terminal; `Ctrl-N` is already a
-                // new thread, which is the thing it would otherwise be confused
-                // with.
+                // Open a session. `Ctrl-T` for terminal.
                 //
                 // One door, from every row: pick a harness type, pick a
                 // directory, and the session is open. It used to branch on the
@@ -171,23 +158,6 @@ impl App {
                 // be, and the fast case was the one nobody could predict.
                 KeyCode::Char('t') => {
                     self.open_session_picker();
-                    return None;
-                }
-                // Walk the open threads. The bare arrows belong to the composer,
-                // so switching between conversations takes the control chord.
-                KeyCode::Up | KeyCode::Down if tab == "Sessions" => {
-                    let idx = self.active_thread_idx();
-                    let next = if matches!(k.code, KeyCode::Up) {
-                        idx.checked_sub(1)
-                    } else {
-                        Some(idx + 1)
-                    };
-                    if let Some(thread) = next.and_then(|n| self.snapshot.threads.get(n)) {
-                        let id = thread.id.clone();
-                        self.runtime.set_active_thread(id);
-                        self.agent_scroll = 0;
-                        self.refresh_snapshot();
-                    }
                     return None;
                 }
                 _ => {}
