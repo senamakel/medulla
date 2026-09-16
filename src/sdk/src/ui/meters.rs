@@ -145,34 +145,3 @@ pub fn disk_line(resources: &crate::fleet::HostResources) -> Option<Line> {
     })
 }
 
-/// The context meter for one lane: the prompt against the window, the window's
-/// size, and the `(in / out / cached)` breakdown.
-///
-/// The bar is input-against-window because that is the ceiling that actually
-/// stops a turn. The window is named rather than left implicit — a bar at 4%
-/// means nothing without knowing 4% of what, and the difference between a 32k
-/// and a 1M window is the difference between "nearly out of room" and "barely
-/// started". Output sits in the breakdown rather than the bar because it does
-/// not consume the same budget.
-///
-/// `cached` is a dash when the provider reported no cache figure. Omitting the
-/// field entirely would make the row change shape between providers; inventing a
-/// zero would claim a cache miss we never observed.
-pub fn context_meter(usage: &LaneUsage, window: i64) -> Option<Line> {
-    if usage.input == 0 && usage.output == 0 {
-        return None;
-    }
-    let window = window.max(1);
-    let fraction = usage.input as f64 / window as f64;
-    let cached = match usage.cache_hit_rate() {
-        Some(rate) => format!("{}%", (rate * 100.0).round() as i64),
-        None => "—".to_string(),
-    };
-    let detail = format!(
-        "{} window · (in {} / out {} / cached {cached})",
-        tokens(window),
-        tokens(usage.input),
-        tokens(usage.output),
-    );
-    Some(meter("ctx", fraction, detail))
-}

@@ -33,17 +33,6 @@ fn task_status_labels_and_colors() {
 }
 
 #[test]
-fn agent_role_color_and_function() {
-    assert_eq!(AgentRole::Orchestrator.color(), "yellow");
-    assert_eq!(AgentRole::Reasoning.color(), "yellow");
-    assert_eq!(AgentRole::Compress.color(), "blue");
-    assert_eq!(AgentRole::Agent.color(), "magenta");
-    assert!(AgentRole::Compress.is_function());
-    assert!(!AgentRole::Agent.is_function());
-    assert!(!AgentRole::Orchestrator.is_function());
-}
-
-#[test]
 fn parse_task_key_splits_cycle_and_bare() {
     assert_eq!(parse_task_key("cyc-1/t:task-9"), (Some("cyc-1"), "task-9"));
     assert_eq!(parse_task_key("task-9"), (None, "task-9"));
@@ -76,41 +65,14 @@ fn ordered_tasks_puts_running_first_then_recency() {
 #[test]
 fn lane_lines_none_and_empty_and_flat() {
     assert!(lane_lines(None, 40).is_empty());
-    // A tier lane with no turns renders the "No turns yet." placeholder.
-    let lanes = derive_agent_lanes(&[], "", &[]);
+    // A lane with no turns renders the "No turns yet." placeholder.
+    let lanes = roster_lanes(&[AgentDescriptor {
+        id: "dev".into(),
+        ..Default::default()
+    }]);
     let lines = lane_lines(Some(&lanes[0]), 40);
     assert_eq!(lines.len(), 1);
     assert!(lines[0].text.contains("No turns yet"));
-}
-
-#[test]
-fn lane_lines_groups_agent_tasks_with_headers() {
-    let roster = vec![AgentDescriptor {
-        id: "dev".into(),
-        name: "Dev".into(),
-        description: String::new(),
-        availability: "online".into(),
-        workspace_id: None,
-        host_id: None,
-        template_id: None,
-        tags: vec![],
-        metadata: serde_json::Map::new(),
-    }];
-    let events = vec![env(
-        1,
-        TuiEvent::TaskStart {
-            task_id: "t1".into(),
-            instruction: "do the thing".into(),
-            depth: 2,
-            agent_id: Some("dev".into()),
-            contract: None,
-        },
-    )];
-    let lanes = derive_agent_lanes(&events, "MEDULLA", &roster);
-    let dev = lanes.iter().find(|l| l.key == "agent:dev").unwrap();
-    let lines = lane_lines(Some(dev), 60);
-    // A per-task header divider precedes the turn body.
-    assert!(lines.iter().any(|l| l.text.contains("── t1 · running")));
 }
 
 #[test]
@@ -157,7 +119,6 @@ fn lane_lines_agent_task_with_no_turns_shows_placeholder() {
     let lane = AgentLane {
         key: "agent:dev".into(),
         label: "Dev".into(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: vec![TaskState {
@@ -170,8 +131,6 @@ fn lane_lines_agent_task_with_no_turns_shows_placeholder() {
             question_id: None,
             work: None,
         }],
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: Some("dev".into()),
         session_id: None,
@@ -217,24 +176,3 @@ fn task_lines_truncate_long_header_and_default_color() {
     assert_eq!(lines[0].color.as_deref(), Some("cyan"));
 }
 
-#[test]
-fn tool_line_truncates_long_args() {
-    let big = serde_json::json!({ "blob": "x".repeat(500) });
-    let line = tool_line("write", &big);
-    assert!(line.starts_with("→ write("));
-    assert!(line.ends_with(')'));
-    assert!(line.contains('…'), "long args should be ellipsized");
-    assert!(line.chars().count() <= 220);
-}
-
-#[test]
-fn event_kind_color_maps_known_kinds() {
-    assert_eq!(event_kind_color("tool"), Some("blue"));
-    assert_eq!(event_kind_color("prompt"), Some("cyan"));
-    assert_eq!(event_kind_color("stdout"), Some("gray"));
-    assert_eq!(event_kind_color("stderr"), Some("red"));
-    assert_eq!(event_kind_color("error"), Some("red"));
-    assert_eq!(event_kind_color("text"), Some("green"));
-    assert_eq!(event_kind_color("thinking"), Some("yellow"));
-    assert_eq!(event_kind_color("mystery"), None);
-}
