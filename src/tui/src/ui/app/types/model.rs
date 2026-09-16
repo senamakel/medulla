@@ -15,8 +15,10 @@ use ratatui::layout::Rect;
 
 use crate::ui::composer::Draft;
 use crate::ui::theme::Theme;
+use medulla::backend::Backend;
 use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery};
 use medulla::config::LoadedConfig;
+use medulla::hub::HubSlot;
 
 use super::cmd::Cmd;
 use super::picker::*;
