@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla::workflows::{parse_workflow, FileWorkflowStore, WorkflowStore};
 use medulla_tui::ui::app::{App, TABS};
 use ratatui::backend::TestBackend;
@@ -81,7 +81,7 @@ fn main() {
     store.save(&record).expect("installs");
 
     let mut app = App::new(
-        Arc::new(MockRuntime::demo()),
+        Arc::new(MockBackend::new()),
         LoadedConfig::defaults("medulla.tui.json".into()),
     );
     app.set_medulla_home(home.path().to_path_buf());
