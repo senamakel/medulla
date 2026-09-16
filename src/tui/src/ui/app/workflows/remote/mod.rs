@@ -137,6 +137,13 @@ impl App {
                 cache.notes.clear();
                 cache.proposals.clear();
                 cache.listed = false;
+                // A request that never got answered (a transport failure
+                // before entering the reliable queue, or a host that went
+                // away and came back under this same cache) must not go on
+                // permanently deduplicating its intent — `r` is exactly the
+                // operator's way of saying "ask again," and it must actually
+                // ask again.
+                cache.pending.clear();
             }
             self.refresh_remote_workflows(&host_id);
             return;
