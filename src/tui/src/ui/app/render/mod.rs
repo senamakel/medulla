@@ -1,8 +1,7 @@
 //! The ratatui render surface for [`App`]. This module owns the outer chrome —
 //! the [`App::draw`] layout, hints/tabs/status line, the shared [`App::panel`] block
 //! builder, and content dispatch — plus the small styling helpers ([`color`],
-//! [`styled_to_tline`], [`event_color`], [`App::event_line`])
-//! reused by the per-tab submodules. Each tab's body lives in a sibling module,
+//! [`styled_to_tline`]) reused by the per-tab submodules. Each tab's body lives in a sibling module,
 //! and [`frame_state`] owns the per-frame reset every draw opens with.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -12,8 +11,6 @@ use ratatui::widgets::{Block, Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::ui::agents::Line as StyledLine;
-use crate::ui::events::{describe_event, EventEnvelope, TuiEvent};
-use crate::ui::util::{clip, clock};
 use crate::worker::pty::ATTENTION_GLYPH;
 
 use super::types::{App, Overlay, PaneView, TABS};
@@ -65,29 +62,10 @@ pub(super) fn styled_to_tline(line: &StyledLine) -> TLine<'static> {
     TLine::from(Span::styled(text, style))
 }
 
-/// The accent color for an event line in the Trace list, if any.
-pub(super) fn event_color(env: &EventEnvelope) -> Option<&'static str> {
-    match &env.event {
-        TuiEvent::Error { .. } => Some("red"),
-        TuiEvent::TaskStart { .. } | TuiEvent::TaskComplete { .. } | TuiEvent::TaskEvent { .. } => {
-            Some("magenta")
-        }
-        TuiEvent::User { .. } => Some("cyan"),
-        TuiEvent::Assistant { .. } => Some("green"),
-        TuiEvent::AgentStatus { availability, .. } => Some(if availability == "online" {
-            "green"
-        } else {
-            "red"
-        }),
-        TuiEvent::InferenceStart { .. } | TuiEvent::InferenceEnd { .. } => Some("blue"),
-        _ => None,
-    }
-}
-
 impl App {
     /// Draw the whole screen: the shortcut hints, tabs, the active tab's
-    /// content, the composer/prompt/resume overlay when applicable, and the
-    /// identity/status line.
+    /// content, the prompt overlay when applicable, and the identity/status
+    /// line.
     ///
     /// The hints ride at the top and the backend/status line at the bottom: the
     /// keys are what a new operator reads, and pinning them under the cursor's
@@ -98,18 +76,10 @@ impl App {
         // Everything the last frame recorded for the next key press, dropped
         // before this one records its own — see [`frame_state`].
         self.reset_frame_state();
-        // The composer now lives inside the Sessions pane, so the only things that
-        // still claim a row of their own below the content are the inline prompt
-        // and the resume picker.
-        let has_prompt = self.prompt.is_some();
-        let picking = self.resume_picker.is_some();
-        let extra = if has_prompt {
-            3
-        } else if picking {
-            self.extra_height()
-        } else {
-            0
-        };
+        // The composer now lives inside the Sessions pane, so the only thing
+        // that still claims a row of its own below the content is the inline
+        // prompt.
+        let extra = if self.prompt.is_some() { 3 } else { 0 };
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -142,24 +112,12 @@ impl App {
                 Overlay::SessionKill => self.draw_session_kill_prompt(f, rows[2]),
                 Overlay::WorkflowDelete => self.draw_workflow_delete_prompt(f, rows[2]),
                 Overlay::InlinePrompt => self.draw_prompt(f, rows[3]),
-                Overlay::ResumePicker => self.draw_resume(f, rows[3]),
             }
         }
         self.draw_status_line(f, rows[4]);
         // Last: the pointer selection paints over whatever the tabs drew, and
         // reads its text back out of the finished buffer.
         self.paint_selection(f);
-    }
-
-    /// The height reserved below the content for the composer or resume picker.
-    pub(super) fn extra_height(&self) -> u16 {
-        if let Some(p) = &self.resume_picker {
-            let cap = ((self.area.height as usize).saturating_sub(9)).max(3);
-            (p.chats.len().min(cap) as u16 + 3).min(self.area.height / 2)
-        } else {
-            let lines = self.draft.text.split('\n').count() as u16;
-            lines.max(1) + 2
-        }
     }
 
     /// Draw the tab bar and record each tab's column span for click hit-testing.
@@ -293,7 +251,7 @@ impl App {
             // which the content draw has not filled in yet this frame.
             "Tab views · ↑↓ files · j/k line · [ ] hunk · b baseline · c comment · d/Esc harness"
         } else {
-            "Tab views · ↑↓ rail · ^T new session · ⏎/^] session · d session diff · k close session · ⌥X cancel · ⌥A answer · ^X abort"
+            "Tab views · ↑↓ rail · ^T new session · ⏎/^] session · d session diff · k close session · ⌥X cancel"
         };
         f.render_widget(
             Paragraph::new(TLine::from(Span::styled(
@@ -353,30 +311,12 @@ impl App {
             "TokenMaxxxing" => self.draw_points(f, area),
             "Hosts" => self.draw_hosts_tab(f, area),
             "Feedback" => self.draw_feedback(f, area),
-            // Trace, Context, and Feedback are Settings subpages, not tabs.
+            // Feedback is a Settings subpage as well as a tab.
             "Settings" => self.draw_settings(f, area),
             _ => self.draw_sessions_tab(f, area),
         }
     }
 
-    /// One formatted event row for the Trace list.
-    pub(super) fn event_line(
-        &self,
-        env: &EventEnvelope,
-        width: usize,
-        selected: bool,
-    ) -> TLine<'static> {
-        let mut style = Style::default().fg(color(event_color(env).unwrap_or("white")));
-        if selected {
-            style = self.theme.selection();
-        }
-        let text = format!(
-            "{} {}",
-            clock(env.at),
-            clip(&describe_event(&env.event), width.saturating_sub(11))
-        );
-        TLine::from(Span::styled(text, style))
-    }
 }
 
 /// Shorten current tab names when their one-space labels cannot all fit.
