@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use medulla::config::{LoadedConfig, RemoteHostSection};
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 
 use crate::ui::app::hosts::HostSelection;
 use crate::ui::app::types::tab_pos;
@@ -13,7 +13,7 @@ use crate::ui::app::App;
 
 fn app_with(hosts: Vec<RemoteHostSection>) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = hosts;
     let mut app = App::new(rt, loaded);

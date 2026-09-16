@@ -12,12 +12,12 @@ use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
 use medulla::config::{LoadedConfig, TuiConfig};
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::App;
 
 /// An app parked on the Config subpage, persisting into `dir/config.toml`.
 fn config_app(dir: &std::path::Path) -> App {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
     app.set_config_path(dir.join("config.toml"));
     let _ = app.focus_settings_subpage("Config");

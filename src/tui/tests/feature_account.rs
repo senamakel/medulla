@@ -14,12 +14,12 @@ use ratatui::Terminal;
 
 use medulla::auth::AuthState;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::{App, Cmd};
 
 /// An app parked on the Account subpage with `home` as its Medulla home.
 fn account_app(home: &std::path::Path) -> App {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let mut l = LoadedConfig::defaults("medulla.tui.json".into());
     l.config.backend.base_url = "https://api.tinyhumans.ai".into();
     let mut app = App::new(rt, l);

@@ -6,8 +6,8 @@ mod wrap_tests;
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 use medulla::ui::agents::{AgentLane, AgentRole};
 use ratatui::style::{Color, Modifier};
 use unicode_width::UnicodeWidthStr;
@@ -19,7 +19,7 @@ use crate::worker::pty::{AttentionKind, HarnessAttention, PtyState, SessionContr
 use super::rows::{display_session_title, lane_title};
 
 pub(super) fn app() -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 

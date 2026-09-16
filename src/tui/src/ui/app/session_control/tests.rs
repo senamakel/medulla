@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::{LoadedConfig, RemoteHostSection};
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 
 use super::super::types::{App, SessionPickerStep};
 
@@ -21,7 +21,7 @@ use super::super::types::{App, SessionPickerStep};
 /// picker never opens, so every assertion about it would pass by never running.
 /// A shell is offered, which is enough for the picker to have a row.
 fn app_with_remote_hosts(hosts: &[&str]) -> App {
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.link = Some(medulla::config::LinkConfig::default());
     loaded.config.remote_hosts = hosts
@@ -117,7 +117,7 @@ fn a_configured_remote_host_is_offered_after_this_device() {
 fn a_half_written_remote_host_is_not_offered() {
     // An entry with no `host` cannot be dialled, so a row for it could only
     // fail when clicked.
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = vec![RemoteHostSection {
         name: "half".to_string(),

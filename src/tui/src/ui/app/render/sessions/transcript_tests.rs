@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
 use medulla::harness_work::{HarnessSessionInfo, WorkSnapshot};
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla::fleet::{AgentDeclaration, Runtime};
 use medulla::ui::agents::{AgentLane, AgentRole, TurnBlock};
 use ratatui::backend::TestBackend;
@@ -19,7 +19,7 @@ use super::types::Selection;
 
 #[test]
 fn descriptorless_lanes_still_show_their_pull_request_context() {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     let lane = AgentLane {
         key: "worker".into(),
@@ -127,7 +127,7 @@ fn pane_for(row: RailRow) -> String {
 
 /// Draw one rail row's pane at a particular terminal size.
 fn pane_for_size(row: RailRow, width: u16, height: u16) -> String {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     // Derived from the row rather than defaulted, exactly as `sessions_selection`
     // does it: the pane chooses what to draw from this field, so a fixture that
@@ -322,7 +322,7 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     // The mirror is what lets the Sessions pane reuse the Workflows tab's canvas:
     // that canvas reads the overlay out of the workflow state, so selecting a
     // run here has to move it.
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.workflows = vec![medulla::workflows::WorkflowSummary {
         id: "release-train".into(),
@@ -395,7 +395,7 @@ fn the_pane_diff_says_which_checkout_it_is_reading() {
     use crate::ui::app::changes::types::ChangedFile;
     use crate::ui::app::types::PaneView;
 
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.changes.root = Some(std::path::PathBuf::from("/repo"));
     app.changes.baseline = Some("baseline".to_owned());
@@ -450,7 +450,7 @@ fn the_pane_diff_takes_the_harness_screens_real_estate() {
     use crate::ui::app::changes::types::ChangedFile;
     use crate::ui::app::types::PaneView;
 
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.changes.root = Some(std::path::PathBuf::from("/repo"));
     // The app-start capture read this process's own checkout; the root above

@@ -19,7 +19,7 @@ use ratatui::Terminal;
 
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::App;
 use medulla_tui::ui::harness_pane::LocalSessions;
 use medulla_tui::worker::pty::PtyManager;
@@ -30,7 +30,7 @@ use medulla_tui::worker::pty::PtyManager;
 /// can start one, and without it the demo fixture's single dispatched session is
 /// the whole rail — one row, which no arrow can move off.
 fn agents_app() -> App {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
     app.tab_index = medulla_tui::ui::app::TABS
         .iter()

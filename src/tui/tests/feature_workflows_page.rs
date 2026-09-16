@@ -15,7 +15,7 @@ use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla::workflows::{FileWorkflowStore, WorkflowStore};
 use medulla_tui::ui::app::{App, TABS};
 use serde_json::json;
@@ -30,7 +30,7 @@ fn store(home: &std::path::Path) -> Arc<dyn WorkflowStore> {
 
 /// An app parked on the Workflows tab with `home` as its Medulla home.
 fn workflows_app(home: &std::path::Path) -> App {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
     app.set_medulla_home(home.to_path_buf());
     app.set_workflow_store(store(home));

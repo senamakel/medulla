@@ -12,7 +12,7 @@ use crossterm::event::{
 };
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla::runtime::ContextItem;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::events::{NodeTrace, TuiEvent};
@@ -42,7 +42,7 @@ fn render(app: &mut App) -> String {
 }
 
 fn seeded_app() -> App {
-    let rt = Arc::new(MockRuntime::empty());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(
         rt.clone(),
         LoadedConfig::defaults("medulla.tui.json".into()),

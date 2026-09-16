@@ -16,7 +16,7 @@ use serde_json::json;
 
 use medulla::client::{FeedbackComment, FeedbackItem, FeedbackPage, FeedbackStatus, FeedbackType};
 use medulla::config::{LinkConfig, LoadedConfig};
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::{App, Cmd, TABS};
 
 fn loaded() -> LoadedConfig {
@@ -80,7 +80,7 @@ fn comment(body: &str, who: Option<&str>) -> FeedbackComment {
 
 /// An app on the Feedback tab with a loaded page of two items.
 fn board() -> App {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     focus_feedback(&mut app);
     app.set_feedback_page(
         app.feedback_query(),
@@ -294,7 +294,7 @@ fn the_comment_pane_distinguishes_loading_empty_and_present() {
 
 #[test]
 fn an_empty_board_still_renders() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     focus_feedback(&mut app);
     app.set_feedback_page(
         app.feedback_query(),
@@ -311,7 +311,7 @@ fn an_empty_board_still_renders() {
 
 #[test]
 fn commenting_without_a_selection_explains_itself() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     focus_feedback(&mut app);
     app.set_feedback_page(
         app.feedback_query(),
@@ -461,7 +461,7 @@ fn a_posted_comment_forces_the_detail_to_be_re_fetched() {
 
 #[test]
 fn an_empty_board_mid_load_says_it_is_loading() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     focus_feedback(&mut app);
 
     // Cycling the sort marks the board loading and clears nothing, so an empty
@@ -478,7 +478,7 @@ fn an_empty_board_mid_load_says_it_is_loading() {
 
 #[test]
 fn a_settled_empty_board_invites_the_first_submission() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     focus_feedback(&mut app);
     app.set_feedback_page(
         app.feedback_query(),

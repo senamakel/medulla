@@ -4,15 +4,15 @@
 use std::sync::Arc;
 
 use medulla::config::{LoadedConfig, TuiConfig};
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 
 use super::super::types::App;
 use super::{SettingKind, SettingValue};
 
 /// An app over a bare mock runtime, with settings persisted into `dir`.
 fn app_in(dir: &std::path::Path) -> App {
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
     app.set_config_path(dir.join("config.toml"));
     app
@@ -166,7 +166,7 @@ fn enter_on_a_number_row_explains_itself_instead_of_changing_it() {
 
 #[test]
 fn without_a_config_path_changes_apply_live_but_say_they_are_not_saved() {
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
     app.config_index = row_at(&app, "Update check");
     let row = app.config_rows()[app.config_index];

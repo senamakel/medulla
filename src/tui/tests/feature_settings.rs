@@ -14,7 +14,7 @@ use ratatui::style::Color;
 use ratatui::Terminal;
 
 use medulla::config::{AppearanceConfig, LinkConfig, LoadedConfig, ResourceDisplay};
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::{App, Cmd, TABS};
 use medulla_tui::ui::resources::DeviceSnapshot;
 
@@ -25,7 +25,7 @@ fn loaded() -> LoadedConfig {
 }
 
 fn settings_app() -> App {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt, loaded());
     app.tab_index = TABS.iter().position(|t| *t == "Settings").unwrap();
     app
@@ -393,7 +393,7 @@ fn device_sample() -> DeviceSnapshot {
 fn agents_app(appearance: AppearanceConfig) -> App {
     let mut config = loaded();
     config.config.appearance = appearance;
-    let runtime = Arc::new(MockRuntime::demo());
+    let runtime = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, config);
     app.set_device_snapshot(device_sample());
     app.tab_index = TABS.iter().position(|tab| *tab == "Sessions").unwrap();
@@ -482,7 +482,7 @@ fn enabled_process_indicators_render_on_the_status_line() {
         disk_io: ResourceDisplay::Bar,
         ..AppearanceConfig::default()
     };
-    let runtime = Arc::new(MockRuntime::demo());
+    let runtime = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, config);
     let out = text_of(&draw(&mut app, 80, 40));
     for label in ["CPU", "RAM", "IO"] {
@@ -552,7 +552,7 @@ fn config_subpage_shows_effective_router_without_the_key_value() {
         provider_only: Vec::new(),
     });
 
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt, l);
     app.tab_index = TABS.iter().position(|t| *t == "Settings").unwrap();
     let _ = app.focus_settings_subpage("Config");

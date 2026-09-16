@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::events::TuiEvent;
 
@@ -26,7 +26,7 @@ fn ctrl(c: char) -> Event {
 }
 
 fn chat_app() -> App {
-    let rt = Arc::new(MockRuntime::empty());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(
         rt.clone(),
         LoadedConfig::defaults("medulla.tui.json".into()),
@@ -59,7 +59,7 @@ fn copying_a_chat_reports_what_went_where() {
 
 #[test]
 fn copying_an_empty_chat_says_there_is_nothing_to_copy() {
-    let rt = Arc::new(MockRuntime::empty());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
     app.tab_index = TABS.iter().position(|t| *t == "Sessions").unwrap();
     app.on_event(ctrl('y'));

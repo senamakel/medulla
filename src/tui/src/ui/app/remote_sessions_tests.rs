@@ -145,8 +145,8 @@ fn an_unknown_attention_kind_still_raises_a_cue() {
 
 /// An app with one connected remote host holding `rows`.
 fn app_with_host(rows: Vec<RemoteSessionRow>) -> crate::ui::app::App {
-    let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
-        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let rt: std::sync::Arc<dyn medulla::backend::Backend> =
+        std::sync::Arc::new(medulla::backend::MockBackend::demo());
     let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = vec![medulla::config::RemoteHostSection {
         id: "tower".to_string(),
@@ -238,8 +238,8 @@ fn a_remote_harness_keeps_the_name_and_id_its_host_gave_it() {
     // different rows here. Deriving the label from the provider instead collapsed
     // both to "Shell", and sent back an id the host could not resolve — which is
     // how a picker ends up offering the same thing twice and starting neither.
-    let rt: std::sync::Arc<dyn medulla::runtime::Runtime> =
-        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let rt: std::sync::Arc<dyn medulla::backend::Backend> =
+        std::sync::Arc::new(medulla::backend::MockBackend::demo());
     let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = vec![medulla::config::RemoteHostSection {
         id: "tower".to_string(),

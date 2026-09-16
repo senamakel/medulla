@@ -18,8 +18,8 @@ use ratatui::Terminal;
 
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::harness_pane::LocalSessions;
 use medulla_tui::worker::pty::{LaunchSpec, PtyManager, SessionControl};
@@ -35,7 +35,7 @@ pub fn app_with_harnesses(sessions: PtyManager) -> App {
 
 /// Variant whose picker and shell child use an isolated workspace.
 pub fn app_with_workspace(sessions: PtyManager, workspace: &str) -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.tab_index = TABS.iter().position(|t| *t == "Sessions").unwrap();
 

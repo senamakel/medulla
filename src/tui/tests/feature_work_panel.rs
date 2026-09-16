@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::{App, TABS};
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
@@ -31,7 +31,7 @@ fn render(app: &mut App, w: u16, h: u16) -> String {
 /// orchestrator and onto the worker that is doing the work.
 fn worker_app() -> App {
     let mut app = App::new(
-        Arc::new(MockRuntime::demo()),
+        Arc::new(MockBackend::new()),
         LoadedConfig::defaults("medulla.tui.json".into()),
     );
     app.tab_index = TABS.iter().position(|t| *t == "Sessions").unwrap();

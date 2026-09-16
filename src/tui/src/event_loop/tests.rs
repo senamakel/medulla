@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 #[cfg(feature = "workflows")]
 use medulla::workflows::{FileWorkflowStore, WorkflowRecord, WorkflowStore};
 use medulla_tui::ui::app::App;
@@ -21,7 +21,7 @@ fn workflow_deleted_closes_conversation_and_reloads_catalogue() {
     use medulla::workflows::copilot::{Thread, Transcripts};
 
     let home = tempfile::tempdir().expect("tempdir");
-    let runtime = Arc::new(MockRuntime::demo());
+    let runtime = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.set_medulla_home(home.path().to_path_buf());
     let store: Arc<dyn WorkflowStore> = Arc::new(FileWorkflowStore::new(
@@ -72,7 +72,7 @@ fn workflow_deleted_closes_conversation_and_reloads_catalogue() {
 
 #[test]
 fn context_refresh_tracks_the_nested_settings_page() {
-    let runtime = Arc::new(MockRuntime::demo());
+    let runtime = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
 
     let _ = app.focus_settings_subpage("Usage");

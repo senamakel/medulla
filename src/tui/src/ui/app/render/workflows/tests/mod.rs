@@ -9,8 +9,8 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 use medulla::ui::workflows::Move;
 use medulla::workflows::{RunRecord, RunStatus, RunStep, WorkflowRecord, WorkflowStore};
 use ratatui::backend::TestBackend;
@@ -88,7 +88,7 @@ fn fanout(id: &str) -> WorkflowRecord {
 /// An app on the Workflows tab, with `workflows` installed and `runs` recorded.
 fn app_with(workflows: &[WorkflowRecord], runs: &[RunRecord]) -> (tempfile::TempDir, App) {
     let home = tempfile::tempdir().expect("tempdir");
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.set_medulla_home(home.path().to_path_buf());
     // Only the temp directory, so the catalogue is exactly what this test

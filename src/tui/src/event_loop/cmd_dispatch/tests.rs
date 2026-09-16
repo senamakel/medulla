@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use medulla::client::{FeedbackQuery, FeedbackType};
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla::fleet::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
 use medulla_tui::ui::app::Cmd;
 
@@ -17,7 +17,7 @@ use super::workflows::{report_delete, DeleteOutcome};
 /// Dispatch through the production entry point with default workflow settings.
 fn run_cmd(
     cmd: Cmd,
-    runtime: &Arc<dyn Runtime>,
+    runtime: &Arc<dyn Backend>,
     _: Option<()>,
     tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) {
@@ -185,8 +185,8 @@ impl Runtime for FailingRuntime {
 
 #[tokio::test]
 async fn dispatches_conversation_fleet_usage_and_context_commands() {
-    let concrete = Arc::new(MockRuntime::demo());
-    let runtime: Arc<dyn Runtime> = concrete.clone();
+    let concrete = Arc::new(MockBackend::new());
+    let runtime: Arc<dyn Backend> = concrete.clone();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
     run_cmd(Cmd::Quit, &runtime, None, &tx);
@@ -223,7 +223,7 @@ async fn dispatches_conversation_fleet_usage_and_context_commands() {
 
 #[tokio::test]
 async fn dispatches_every_feedback_action() {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
     run_cmd(
@@ -280,8 +280,8 @@ async fn dispatches_every_feedback_action() {
 
 #[tokio::test]
 async fn dispatcher_surfaces_feedback_and_resume_errors() {
-    let concrete = Arc::new(MockRuntime::demo());
-    let runtime: Arc<dyn Runtime> = concrete.clone();
+    let concrete = Arc::new(MockBackend::new());
+    let runtime: Arc<dyn Backend> = concrete.clone();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
     for cmd in [
@@ -307,7 +307,7 @@ async fn dispatcher_surfaces_feedback_and_resume_errors() {
 
 #[tokio::test]
 async fn dispatcher_surfaces_every_runtime_failure() {
-    let runtime: Arc<dyn Runtime> = Arc::new(FailingRuntime);
+    let runtime: Arc<dyn Backend> = Arc::new(FailingRuntime);
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let commands = [
         Cmd::Submit("fail".into()),
@@ -410,7 +410,7 @@ impl Runtime for AcceptsWithoutSettling {
 
 #[tokio::test]
 async fn a_non_blocking_submit_reports_acceptance_not_completion() {
-    let runtime: Arc<dyn Runtime> = Arc::new(AcceptsWithoutSettling(Arc::new(MockRuntime::demo())));
+    let runtime: Arc<dyn Backend> = Arc::new(AcceptsWithoutSettling(Arc::new(MockBackend::new())));
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
     run_cmd(Cmd::Submit("hello".into()), &runtime, None, &tx);

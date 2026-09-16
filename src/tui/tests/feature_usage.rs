@@ -9,7 +9,7 @@ use serde_json::json;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::{LinkConfig, LoadedConfig};
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::events::{TaskDigest, TuiEvent, Usage};
 
@@ -20,7 +20,7 @@ fn loaded() -> LoadedConfig {
 }
 
 fn usage_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockRuntime::empty());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt.clone(), loaded());
     // Usage now lives as the default subpage of the Settings tab.
     app.tab_index = TABS.iter().position(|t| *t == "Settings").unwrap();

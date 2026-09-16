@@ -14,7 +14,7 @@ use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla::runtime::ContextItem;
 use medulla_tui::ui::app::{App, Cmd};
 use medulla_tui::ui::events::{NodeTrace, TuiEvent};
@@ -39,7 +39,7 @@ fn render(app: &mut App) -> String {
 
 /// An app with enough scripted state that every subpage has rows to scroll.
 fn app_on(subpage: &str) -> App {
-    let rt = Arc::new(MockRuntime::empty());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(
         rt.clone(),
         LoadedConfig::defaults("medulla.tui.json".into()),

@@ -182,8 +182,8 @@ fn deleting_a_workflow_takes_its_conversation_with_it() {
 fn an_app_with_no_home_keeps_its_conversation_in_memory_and_writes_nothing() {
     // The shape a test fixture or an embedded use has. It must work — just
     // without history — rather than panicking or writing somewhere arbitrary.
-    let runtime: std::sync::Arc<dyn medulla::runtime::Runtime> =
-        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
+    let runtime: std::sync::Arc<dyn medulla::backend::Backend> =
+        std::sync::Arc::new(medulla::backend::MockBackend::demo());
     let home = tempfile::tempdir().expect("tempdir");
     let mut app = App::new(
         runtime,

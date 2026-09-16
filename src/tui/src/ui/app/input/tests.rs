@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 use medulla::ui::agents::AgentRow;
 use medulla::ui::events::{EventEnvelope, TuiEvent};
 use ratatui::backend::TestBackend;
@@ -19,7 +19,7 @@ use super::nav::SUBTASK_PAGE;
 /// An app whose event stream is only the tasks these tests are about, so the
 /// demo runtime's own lanes cannot shift the rows out from under an assertion.
 fn app_with_tasks(agent: &str, tasks: usize) -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.snapshot.events.clear();
     push_tasks(&mut app, agent, tasks);

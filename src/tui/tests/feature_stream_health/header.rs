@@ -20,7 +20,7 @@ fn header_shows_stream_glyph_for_running_cycle() {
     struct RunningFleet(MockRuntime);
     impl RunningFleet {
         fn new() -> Self {
-            let m = MockRuntime::empty();
+            let m = MockBackend::new();
             m.set_running(true);
             RunningFleet(m)
         }
@@ -65,7 +65,7 @@ fn header_shows_stream_glyph_for_running_cycle() {
         }
     }
 
-    let rt: Arc<dyn Runtime> = Arc::new(RunningFleet::new());
+    let rt: Arc<dyn Backend> = Arc::new(RunningFleet::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
     let out = render(&mut app, 120, 40);
     assert!(

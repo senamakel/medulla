@@ -88,7 +88,7 @@ fn agents_x_cancels_selected_cycle_task() {
 
 #[test]
 fn agents_x_reaches_local_mcp_cancel_when_backend_steering_is_unavailable() {
-    let inner = Arc::new(MockRuntime::empty());
+    let inner = Arc::new(MockBackend::new());
     inner.script_event(TuiEvent::TaskStart {
         task_id: "mcp:dispatch-1/t:task-1".into(),
         instruction: "delegated locally".into(),

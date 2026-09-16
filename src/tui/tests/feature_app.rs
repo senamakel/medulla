@@ -13,7 +13,7 @@ use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
 use medulla::config::{LinkConfig, LoadedConfig};
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla_tui::ui::app::{App, TABS};
 
 // --- harness helpers --------------------------------------------------------
@@ -27,14 +27,14 @@ fn loaded() -> LoadedConfig {
 /// App over a populated demo runtime; returns the app and the concrete handle so
 /// tests can script events / read recorded calls.
 fn demo_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let app = App::new(rt.clone(), loaded());
     (app, rt)
 }
 
 /// App over a bare runtime (no roster, empty chat).
 fn empty_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockRuntime::empty());
+    let rt = Arc::new(MockBackend::new());
     let app = App::new(rt.clone(), loaded());
     (app, rt)
 }

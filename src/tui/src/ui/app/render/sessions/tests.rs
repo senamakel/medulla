@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::Terminal;
@@ -13,7 +13,7 @@ use ratatui::Terminal;
 use crate::ui::app::App;
 
 fn app() -> App {
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 

@@ -12,8 +12,8 @@ pub use ratatui::backend::TestBackend;
 pub use ratatui::Terminal;
 
 pub use medulla::config::{LinkConfig, LoadedConfig};
-pub use medulla::runtime::mock::MockRuntime;
-pub use medulla::runtime::Runtime;
+pub use medulla::backend::MockBackend;
+pub use medulla::backend::Backend;
 pub use medulla_tui::ui::app::{App, Cmd, TABS};
 pub use medulla_tui::ui::events::{TaskDigest, TuiEvent, Usage};
 
@@ -24,13 +24,13 @@ pub fn loaded() -> LoadedConfig {
 }
 
 pub fn demo_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let app = App::new(rt.clone(), loaded());
     (app, rt)
 }
 
 pub fn empty_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockRuntime::empty());
+    let rt = Arc::new(MockBackend::new());
     let app = App::new(rt.clone(), loaded());
     (app, rt)
 }
@@ -50,7 +50,7 @@ pub struct LocalCancelRuntime {
     pub cancelled: Mutex<Vec<(String, String)>>,
 }
 
-impl medulla::runtime::Runtime for LocalCancelRuntime {
+impl medulla::backend::Backend for LocalCancelRuntime {
     fn describe(&self) -> String {
         "LocalCancelRuntime (test)".into()
     }
@@ -112,7 +112,7 @@ impl medulla::runtime::Runtime for LocalCancelRuntime {
     }
 }
 
-impl medulla::runtime::Runtime for FleetRuntime {
+impl medulla::backend::Backend for FleetRuntime {
     fn describe(&self) -> String {
         "FleetRuntime (test)".into()
     }
@@ -164,7 +164,7 @@ impl medulla::runtime::Runtime for FleetRuntime {
 }
 
 pub fn fleet_app() -> App {
-    let inner = Arc::new(MockRuntime::demo());
+    let inner = Arc::new(MockBackend::new());
     inner.set_running(true); // header shows stream health only while running
     let rt = Arc::new(FleetRuntime {
         inner,

@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 
 use super::types::{
     tab_pos, App, Overlay, PromptKind, ResumePicker, SessionPicker, SessionPickerStep,
@@ -25,7 +25,7 @@ use crate::ui::composer::TextPrompt;
 
 fn app() -> App {
     App::new(
-        Arc::new(MockRuntime::empty()),
+        Arc::new(MockBackend::new()),
         LoadedConfig::defaults("medulla.tui.json".into()),
     )
 }

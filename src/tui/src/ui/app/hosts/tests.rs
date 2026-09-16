@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::{LoadedConfig, RemoteHostSection};
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 
 use super::super::types::{tab_pos, App, Cmd, PromptKind};
 use super::{HostFormField, HostLiveness, HostSelection};
@@ -16,7 +16,7 @@ use super::{HostFormField, HostLiveness, HostSelection};
 /// config file to persist to.
 fn app_with_hosts(hosts: &[(&str, u16)]) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = hosts
         .iter()
@@ -216,7 +216,7 @@ fn a_persistence_failure_stays_on_screen_rather_than_being_overwritten() {
     // an operator who then pasted the command would pair a host that
     // disappears from config the moment this run ends.
     let dir = tempfile::tempdir().unwrap();
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = vec![RemoteHostSection {
         host: "gpu.example.com".to_string(),

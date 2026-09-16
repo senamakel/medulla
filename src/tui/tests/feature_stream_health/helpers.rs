@@ -12,7 +12,7 @@ pub use ratatui::Terminal;
 pub use tokio::sync::broadcast;
 
 pub use medulla::config::LoadedConfig;
-pub use medulla::runtime::mock::MockRuntime;
+pub use medulla::backend::MockBackend;
 pub use medulla::fleet::{
     ContextItem, Runtime, RuntimeSnapshot, StreamState, WorkerInfo, WorkerOp,
 };
@@ -31,7 +31,7 @@ pub struct FleetRuntime {
 impl FleetRuntime {
     pub fn new(workers: Vec<WorkerInfo>, stream: Option<StreamState>) -> Self {
         FleetRuntime {
-            inner: MockRuntime::demo(),
+            inner: MockBackend::new(),
             workers,
             stream,
             ops: Arc::new(Mutex::new(Vec::new())),
@@ -116,7 +116,7 @@ pub fn app_with_workers(stream: Option<StreamState>) -> App {
 
 /// An `App` over an explicit roster, useful for empty/edge rosters.
 pub fn app_with_roster(workers: Vec<WorkerInfo>, stream: Option<StreamState>) -> App {
-    let rt: Arc<dyn Runtime> = Arc::new(FleetRuntime::new(workers, stream));
+    let rt: Arc<dyn Backend> = Arc::new(FleetRuntime::new(workers, stream));
     App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 

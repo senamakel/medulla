@@ -15,7 +15,7 @@ use ratatui::Terminal;
 use medulla::config::{
     AppearanceConfig, LinkConfig, LoadedConfig, MeterId, ResourceDisplay, SubscriptionsConfig,
 };
-use medulla::runtime::mock::MockRuntime;
+use medulla::backend::MockBackend;
 use medulla::subscriptions::{MeterReading, SubscriptionSnapshot};
 use medulla_tui::ui::app::{App, Cmd, TABS};
 
@@ -81,7 +81,7 @@ fn sample() -> SubscriptionSnapshot {
 fn settings_app(config: SubscriptionsConfig) -> App {
     let mut loaded = loaded();
     loaded.config.subscriptions = config;
-    let mut app = App::new(Arc::new(MockRuntime::demo()), loaded);
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded);
     app.tab_index = TABS.iter().position(|tab| *tab == "Settings").unwrap();
     // Entering the page asks for a sample; delivering it is what clears the
     // in-flight flag, so the keys under test are not swallowed by the guard
@@ -102,7 +102,7 @@ fn agents_app_with(config: SubscriptionsConfig, appearance: AppearanceConfig) ->
     let mut loaded = loaded();
     loaded.config.subscriptions = config;
     loaded.config.appearance = appearance;
-    let mut app = App::new(Arc::new(MockRuntime::demo()), loaded);
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded);
     let _ = app.set_subscriptions(sample());
     app.tab_index = TABS.iter().position(|tab| *tab == "Sessions").unwrap();
     app

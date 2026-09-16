@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use medulla::config::{LoadedConfig, RemoteHostSection};
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
+use medulla::backend::MockBackend;
+use medulla::backend::Backend;
 use serde_json::json;
 
 use super::super::super::hosts::HostSelection;
@@ -19,7 +19,7 @@ fn app_on_remote() -> (
     App,
     tokio::sync::mpsc::UnboundedReceiver<crate::remote::client::RemoteRequest>,
 ) {
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = vec![RemoteHostSection {
         host: "gpu.example.com".to_string(),

@@ -14,7 +14,7 @@ use ratatui::Terminal;
 /// current directory's `.medulla/workflows`, which would make the test
 /// depend on the developer's own catalogue.
 fn workflows_app(home: &std::path::Path) -> App {
-    let mut app = App::new(Arc::new(MockRuntime::demo()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     app.set_medulla_home(home.to_path_buf());
     app.set_workflow_store(Arc::new(medulla::workflows::FileWorkflowStore::new(
         vec![home.join("workflows")],

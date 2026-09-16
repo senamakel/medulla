@@ -12,7 +12,7 @@ use crate::helpers::*;
 
 #[test]
 fn an_open_prompt_overlay_takes_the_paste_flattened_to_one_line() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     app.tab_index = tab_index("Settings");
     app.focus_settings_subpage("Feedback");
     // `n` opens the new-feedback title prompt, which is the single-line field here.
@@ -31,7 +31,7 @@ fn an_open_prompt_overlay_takes_the_paste_flattened_to_one_line() {
 
 #[test]
 fn a_paste_outside_a_text_field_is_ignored() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     app.tab_index = tab_index("Settings");
 
     assert!(paste(&mut app, "stray text").is_none());
