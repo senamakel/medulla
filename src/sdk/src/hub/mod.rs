@@ -27,7 +27,7 @@ mod tests;
 
 pub use activity::{ActivityLog, WorkerActivity};
 pub use boot::{
-    start_hub, HubConfig, HubLinkConfig, HubLinkPeer, HubSession, WorkerSpec,
+    start_hub, HubConfig, HubSession, WorkerSpec,
     DEFAULT_LOCAL_HUB_ADDRESS,
 };
 pub use handle::HubHandle;
