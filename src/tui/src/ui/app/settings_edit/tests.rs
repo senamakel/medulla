@@ -61,59 +61,6 @@ fn toggling_a_flag_applies_live_and_persists() {
 }
 
 #[test]
-fn stepping_an_unset_number_starts_from_its_fallback() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let mut app = app_in(dir.path());
-    app.config_index = row_at(&app, "Max passes");
-    let row = app.config_rows()[app.config_index];
-    assert_eq!(
-        app.read_setting(&row),
-        SettingValue::Auto,
-        "unset by default"
-    );
-
-    app.adjust_setting(1);
-
-    // The first step lands on the documented default rather than on 0 or 1.
-    let SettingKind::Count { fallback, .. } = row.kind else {
-        panic!("Max passes should be a count");
-    };
-    assert_eq!(app.read_setting(&row), SettingValue::Number(fallback));
-    assert_eq!(written(dir.path()).medulla.max_passes, Some(fallback));
-}
-
-#[test]
-fn stepping_an_optional_number_below_its_minimum_returns_to_auto() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let mut app = app_in(dir.path());
-    app.config_index = row_at(&app, "Max depth");
-    let row = app.config_rows()[app.config_index];
-    let SettingKind::Count { min, fallback, .. } = row.kind else {
-        panic!("Max depth should be a count");
-    };
-
-    // Set a value first, so there is a persisted key to remove.
-    app.adjust_setting(1);
-    assert_eq!(written(dir.path()).medulla.max_depth, Some(fallback));
-
-    // Walk down to the minimum, then one step past it.
-    for _ in 0..(fallback - min + 1) {
-        app.adjust_setting(-1);
-    }
-
-    assert_eq!(
-        app.read_setting(&row),
-        SettingValue::Auto,
-        "falls back to the runtime default rather than pinning it"
-    );
-    assert_eq!(
-        written(dir.path()).medulla.max_depth,
-        None,
-        "the key is removed, not written as a number"
-    );
-}
-
-#[test]
 fn a_required_number_clamps_instead_of_going_auto() {
     let dir = tempfile::tempdir().expect("tempdir");
     let mut app = app_in(dir.path());

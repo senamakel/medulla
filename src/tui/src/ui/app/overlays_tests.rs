@@ -18,8 +18,7 @@ use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
 
 use super::types::{
-    tab_pos, App, Overlay, PromptKind, ResumePicker, SessionPicker, SessionPickerStep,
-    WorkspaceChoice,
+    tab_pos, App, Overlay, PromptKind, SessionPicker, SessionPickerStep, WorkspaceChoice,
 };
 use crate::ui::composer::TextPrompt;
 
@@ -56,23 +55,16 @@ fn raise(app: &mut App, overlay: Overlay) {
                 "Diff from commit or revision",
             ))
         }
-        Overlay::ResumePicker => {
-            app.resume_picker = Some(ResumePicker {
-                chats: Vec::new(),
-                index: 0,
-            })
-        }
     }
 }
 
 /// Every variant, so a new one cannot be added without appearing here.
-const EVERY_OVERLAY: [Overlay; 6] = [
+const EVERY_OVERLAY: [Overlay; 5] = [
     Overlay::HostSwitcher,
     Overlay::SessionPicker,
     Overlay::SessionKill,
     Overlay::WorkflowDelete,
     Overlay::InlinePrompt,
-    Overlay::ResumePicker,
 ];
 
 #[test]
@@ -261,13 +253,3 @@ fn no_overlay_lets_a_paste_through_to_the_composer_behind_it() {
     }
 }
 
-#[test]
-fn the_inline_prompt_replaces_the_resume_picker_rather_than_stacking_on_it() {
-    // They share the row below the content and the prompt wins, so listing both
-    // would claim something is on screen that the render never draws.
-    let mut app = app();
-    raise(&mut app, Overlay::ResumePicker);
-    raise(&mut app, Overlay::InlinePrompt);
-
-    assert_eq!(app.visible_overlays(), vec![Overlay::InlinePrompt]);
-}
