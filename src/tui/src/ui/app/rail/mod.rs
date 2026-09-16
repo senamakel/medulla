@@ -37,7 +37,7 @@
 //! module is the assembly.
 
 use medulla::config::agent_declarations_for_host;
-use medulla::runtime::AgentDeclaration;
+use medulla::fleet::AgentDeclaration;
 use medulla::ui::hosts::{HostAgentRow, HostKind, HostRow};
 
 use super::types::App;

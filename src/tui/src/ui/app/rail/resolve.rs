@@ -18,7 +18,7 @@
 //!
 //! [`lane_id`]: https://docs.rs/medulla
 
-use medulla::runtime::AgentDeclaration;
+use medulla::fleet::AgentDeclaration;
 
 use crate::worker::pty::SessionRow;
 

@@ -3,7 +3,7 @@
 //!
 //! The UI stays synchronous: a keypress produces a `SessionOp` value, the event
 //! loop runs it off the render thread, and the result comes back as a status
-//! line. Mirrors the shape [`WorkerOp`](crate::runtime::WorkerOp) already
+//! line. Mirrors the shape [`WorkerOp`](crate::fleet::WorkerOp) already
 //! establishes for the Workers tab.
 
 use crate::protocol::HarnessProvider;

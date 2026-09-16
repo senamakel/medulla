@@ -165,7 +165,7 @@ fn an_agent_with_no_declared_workspace_still_serializes() {
 #[test]
 fn the_advert_metadata_carries_placement_and_never_control() {
     let mut held = placed("this-device", "this-device");
-    held.workspace = Some(crate::runtime::WorkspaceRef::checkout("/repos/acme"));
+    held.workspace = Some(crate::fleet::WorkspaceRef::checkout("/repos/acme"));
     held.control = super::super::super::HandoffControl::Operator;
     held.control_reason = Some("  pairing on the migration  ".to_string());
     held.control_since = Some(1_753_420_600_000);

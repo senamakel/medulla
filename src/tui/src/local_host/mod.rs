@@ -25,7 +25,7 @@ use medulla::config::HostSection;
 use medulla::daemon::embedded::{resolve_workspace, EmbeddedDaemon, EmbeddedDaemonOptions};
 use medulla::daemon::providers::{run_provider_task, RunTaskFn, RunTaskOptions};
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::AgentDeclaration;
+use medulla::fleet::AgentDeclaration;
 use medulla_tui::worker::executor::{agent_kind, PtySessionExecutor};
 use medulla_tui::worker::pty::PtyManager;
 use std::collections::HashMap;
@@ -269,7 +269,7 @@ the declarations module so this module remains host lifecycle wiring.
 /// `declared` is the operator's whole declaration list; the entries for *this*
 /// host are the ones naming its address. With none — every install that predates
 /// declarations — the daemon's own detection seeds them
-/// ([`seed_declarations`](medulla::runtime::seed_declarations)) so the roster is
+/// ([`seed_declarations`](medulla::fleet::seed_declarations)) so the roster is
 /// never empty and the pre-existing entry keeps its exact id.
 ///
 /// Labelled rather than left to the default name so the fleet view can say "this

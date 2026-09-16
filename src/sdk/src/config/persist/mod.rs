@@ -311,7 +311,7 @@ pub fn persist_hub_workers(
 /// shape and the shape the roster reads cannot drift apart.
 pub fn persist_agent_declarations(
     path: &Path,
-    declarations: &[crate::runtime::AgentDeclaration],
+    declarations: &[crate::fleet::AgentDeclaration],
 ) -> anyhow::Result<()> {
     let value = toml::Value::try_from(declarations)
         .map_err(|error| anyhow::anyhow!("Cannot serialize agent declarations: {error}"))?;

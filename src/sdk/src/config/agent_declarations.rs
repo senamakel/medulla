@@ -17,7 +17,7 @@
 
 use std::path::Path;
 
-use crate::runtime::AgentDeclaration;
+use crate::fleet::AgentDeclaration;
 
 /// The declarations belonging to `host_id`, in declaration order.
 ///

@@ -304,7 +304,7 @@ fn registering_declares_the_harness_and_host_so_the_chain_resolves() {
 
     // The chain resolves end to end through the capacity snapshot.
     let capacity = written.fleet.capacity();
-    let agent = crate::runtime::AgentDescriptor {
+    let agent = crate::fleet::AgentDescriptor {
         workspace_id: Some(reg.id.clone()),
         ..Default::default()
     };

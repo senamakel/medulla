@@ -135,7 +135,7 @@ pub const DEFAULT_HOST_ID: &str = "this-device";
 /// its host) when it does not.
 ///
 /// A workspace names its owning harness by id, and
-/// [`CapacitySnapshot::placement`](crate::runtime::CapacitySnapshot::placement)
+/// [`CapacitySnapshot::placement`](crate::fleet::CapacitySnapshot::placement)
 /// resolves the parent only from the declared harness list. Registering a
 /// workspace against an id nobody declared therefore produces a dangling chain:
 /// the workspace exists but has no harness and no host, which is exactly the

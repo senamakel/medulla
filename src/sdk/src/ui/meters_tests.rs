@@ -2,7 +2,7 @@
 //! omit-rather-than-zero rule, and the lane usage accumulation.
 
 use super::meters::*;
-use crate::runtime::HostResources;
+use crate::fleet::HostResources;
 use crate::ui::events::Usage;
 
 #[test]

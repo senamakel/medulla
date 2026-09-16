@@ -20,7 +20,7 @@ fn register_payload_advertises_id_address_and_harness() {
 #[test]
 fn register_payload_advertises_a_known_workspace() {
     let mut w = worker("this-device", "this-device");
-    w.workspace = Some(crate::runtime::WorkspaceRef::checkout("/srv/repos/medulla"));
+    w.workspace = Some(crate::fleet::WorkspaceRef::checkout("/srv/repos/medulla"));
     let payload = register_payload(&[w], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert_eq!(agents[0]["metadata"]["workspace"], "/srv/repos/medulla");
@@ -36,7 +36,7 @@ fn register_payload_omits_an_unknown_or_blank_workspace() {
     assert!(agents[0]["metadata"].get("workspace").is_none());
 
     let mut blank = worker("w2", "ADDR2");
-    blank.workspace = Some(crate::runtime::WorkspaceRef::checkout("   "));
+    blank.workspace = Some(crate::fleet::WorkspaceRef::checkout("   "));
     let payload = register_payload(&[blank], &no_presence(), &[]);
     let agents = payload.get("agents").unwrap().as_array().unwrap();
     assert!(agents[0]["metadata"].get("workspace").is_none());

@@ -2,7 +2,7 @@
 //! transcript rendering (plus the shared formatting helpers).
 
 use super::env;
-use crate::runtime::AgentDescriptor;
+use crate::fleet::AgentDescriptor;
 use crate::ui::agents::*;
 use crate::ui::events::TuiEvent;
 

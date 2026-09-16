@@ -41,7 +41,7 @@ pub struct HubLinkConfig {
 
 /// One worker the hub fronts on the backend roster.
 ///
-/// A projection of an [`AgentDeclaration`](crate::runtime::AgentDeclaration) for
+/// A projection of an [`AgentDeclaration`](crate::fleet::AgentDeclaration) for
 /// a host in this process, and of a remembered roster row for a remote peer.
 /// Several specs may share one `address`: a machine advertises one entry per
 /// declared agent, and `id` is what tells them apart.
@@ -66,7 +66,7 @@ pub struct WorkerSpec {
     ///
     /// Its path is advertised as `metadata.workspace`; see
     /// [`HubWorker::workspace`](crate::hub::HubWorker::workspace).
-    pub workspace: Option<crate::runtime::WorkspaceRef>,
+    pub workspace: Option<crate::fleet::WorkspaceRef>,
     /// Sessions this worker may run at once, derived from its declared
     /// strategy. Zero means unstated and is normalised to the serial default
     /// when the roster entry is built.

@@ -2,7 +2,7 @@
 
 use super::*;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::WorkspaceRef;
+use medulla::fleet::WorkspaceRef;
 
 use crate::worker::pty::{PtyState, SessionControl, SessionOrigin};
 

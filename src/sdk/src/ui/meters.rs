@@ -98,7 +98,7 @@ pub fn tokens(value: i64) -> String {
 ///
 /// Reported as *used* rather than free: pressure is what the colour encodes, and
 /// a bar that empties as a machine fills up would invert that.
-pub fn memory_meter(resources: &crate::runtime::HostResources) -> Option<Line> {
+pub fn memory_meter(resources: &crate::fleet::HostResources) -> Option<Line> {
     let total = resources.total_memory_bytes.filter(|t| *t > 0)?;
     let available = resources.available_memory_bytes?;
     let used = total.saturating_sub(available);
@@ -116,7 +116,7 @@ pub fn memory_meter(resources: &crate::runtime::HostResources) -> Option<Line> {
 /// cores". Without a load reading there is nothing to fill a bar with — cores
 /// are capacity, not usage — so the row states the capacity instead of drawing a
 /// meter that would have to invent a number.
-pub fn cpu_meter(resources: &crate::runtime::HostResources) -> Option<Line> {
+pub fn cpu_meter(resources: &crate::fleet::HostResources) -> Option<Line> {
     let cores = resources.cpu_cores.filter(|c| *c > 0.0);
     match (resources.load_average_1m, cores) {
         (Some(load), Some(cores)) => Some(meter(
@@ -137,7 +137,7 @@ pub fn cpu_meter(resources: &crate::runtime::HostResources) -> Option<Line> {
 ///
 /// Free space alone has no denominator to divide by, so this states the figure
 /// rather than drawing a fraction it cannot compute.
-pub fn disk_line(resources: &crate::runtime::HostResources) -> Option<Line> {
+pub fn disk_line(resources: &crate::fleet::HostResources) -> Option<Line> {
     resources.disk_free_bytes.map(|free| Line {
         text: format!("disk · {} free", bytes(free)),
         color: None,

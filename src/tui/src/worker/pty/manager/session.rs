@@ -64,7 +64,7 @@ impl PtyManager {
     ///
     /// What remains true is that sessions sharing one *checkout* share one
     /// working tree, so how many of them may write at once is a property of the
-    /// agent's [`WorkspaceStrategy`](medulla::runtime::WorkspaceStrategy) — a
+    /// agent's [`WorkspaceStrategy`](medulla::fleet::WorkspaceStrategy) — a
     /// separate rule, applied by the executor, that this only supplies the facts
     /// for. Under `worktree` (phase G) sessions in one declared workspace get
     /// their own trees and the rule changes without this query changing at all.

@@ -16,6 +16,7 @@ pub mod codex_overrides;
 pub mod config;
 pub mod control_socket;
 pub mod daemon;
+pub mod fleet;
 #[cfg(feature = "workflows")]
 pub mod flow_engine;
 pub mod harness_contract;
@@ -39,7 +40,6 @@ pub mod mcp;
 pub mod onboarding;
 pub(crate) mod persistence;
 pub mod protocol;
-pub mod runtime;
 pub mod session_history;
 pub mod sessions;
 pub mod subscriptions;

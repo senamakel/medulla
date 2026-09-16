@@ -1,7 +1,7 @@
 //! Tests for the event fold and the Agents-list row model.
 
 use super::env;
-use crate::runtime::AgentDescriptor;
+use crate::fleet::AgentDescriptor;
 use crate::ui::agents::*;
 use crate::ui::events::{TaskDigest, TuiEvent, Usage};
 

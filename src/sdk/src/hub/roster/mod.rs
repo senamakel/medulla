@@ -203,7 +203,7 @@ pub(crate) fn worker_from_spec(spec: &crate::hub::WorkerSpec) -> HubWorker {
         // A spec that states no capacity is a remembered roster row or a remote
         // peer, not a declaration; the serial default is the safe reading.
         max_sessions: if spec.max_sessions == 0 {
-            crate::runtime::WorkspaceStrategy::Checkout.max_sessions()
+            crate::fleet::WorkspaceStrategy::Checkout.max_sessions()
         } else {
             spec.max_sessions
         },

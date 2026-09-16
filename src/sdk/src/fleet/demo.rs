@@ -24,7 +24,7 @@ use super::{
     CapacitySnapshot, HarnessBudget, HarnessDescriptor, HostDescriptor, HostResources,
     WorkspaceDescriptor, WorkspaceProfile,
 };
-use crate::runtime::AgentDescriptor;
+use super::AgentDescriptor;
 
 /// The environment variable that turns the stand-in fleet on.
 pub const DEMO_FLEET_ENV: &str = "MEDULLA_DEMO_FLEET";

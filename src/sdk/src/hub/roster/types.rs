@@ -54,7 +54,7 @@ pub struct HubWorker {
     /// Was a bare `Option<String>` before agents were declared. Readers that
     /// only want the path use [`workspace_path`](Self::workspace_path), which is
     /// the same answer the old field gave.
-    pub workspace: Option<crate::runtime::WorkspaceRef>,
+    pub workspace: Option<crate::fleet::WorkspaceRef>,
     /// Sessions this agent may run at once, derived from its declared strategy
     /// (`checkout` ⇒ 1, serial).
     ///
@@ -99,7 +99,7 @@ impl Default for HubWorker {
             label: None,
             selected: false,
             workspace: None,
-            max_sessions: crate::runtime::WorkspaceStrategy::Checkout.max_sessions(),
+            max_sessions: crate::fleet::WorkspaceStrategy::Checkout.max_sessions(),
             control: super::super::HandoffControl::default(),
             control_reason: None,
             control_since: None,

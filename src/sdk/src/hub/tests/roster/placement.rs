@@ -14,7 +14,7 @@ fn a_declared_agents_placement_survives_into_the_advert() {
         name: "API".to_string(),
         description: "claude on this machine · /srv/api".to_string(),
         harness: "claude".to_string(),
-        workspace: Some(crate::runtime::WorkspaceRef::checkout("/srv/api")),
+        workspace: Some(crate::fleet::WorkspaceRef::checkout("/srv/api")),
         max_sessions: 1,
     };
 
@@ -97,7 +97,7 @@ fn a_spec_that_states_no_capacity_falls_back_to_the_serial_default() {
 #[test]
 fn a_task_is_grouped_under_the_agent_it_named_not_the_first_at_that_address() {
     let mut claude = worker("this-device", "this-device");
-    claude.workspace = Some(crate::runtime::WorkspaceRef::checkout("/srv/api"));
+    claude.workspace = Some(crate::fleet::WorkspaceRef::checkout("/srv/api"));
     let mut codex = worker("this-device-codex", "this-device");
     codex.harness = "codex".to_string();
     let workers = [claude, codex];

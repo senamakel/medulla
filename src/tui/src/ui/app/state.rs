@@ -669,7 +669,7 @@ impl App {
     /// not merged: two half-descriptions of one fleet interleaved would be
     /// harder to trust than whichever one is authoritative.
     ///
-    pub(super) fn fleet_capacity(&self) -> medulla::runtime::CapacitySnapshot {
+    pub(super) fn fleet_capacity(&self) -> medulla::fleet::CapacitySnapshot {
         let mut declared = if self.snapshot.capacity.is_empty() {
             self.loaded.config.fleet.capacity()
         } else {
@@ -678,8 +678,8 @@ impl App {
         // Last resort, and opt-in only: with `MEDULLA_DEMO_FLEET` set and nothing
         // real declared, stand in a small fake fleet so the surfaces can be
         // exercised without a backend. It never overrides a real reading.
-        if declared.is_empty() && medulla::runtime::demo_fleet_requested() {
-            declared = medulla::runtime::demo_capacity();
+        if declared.is_empty() && medulla::fleet::demo_fleet_requested() {
+            declared = medulla::fleet::demo_capacity();
         }
         // The locally registered peers are hosts too, and they are frequently
         // the only capacity a hub-backed session has. Declared records win on a
@@ -695,9 +695,9 @@ impl App {
     /// [`fleet_capacity`](App::fleet_capacity) as one. Listing it here too would
     /// show the same machine twice — once as capacity, once as an agent with
     /// nowhere to live.
-    pub(super) fn fleet_roster(&self) -> Vec<medulla::runtime::AgentDescriptor> {
-        if self.snapshot.roster.is_empty() && medulla::runtime::demo_fleet_requested() {
-            return medulla::runtime::demo_agents();
+    pub(super) fn fleet_roster(&self) -> Vec<medulla::fleet::AgentDescriptor> {
+        if self.snapshot.roster.is_empty() && medulla::fleet::demo_fleet_requested() {
+            return medulla::fleet::demo_agents();
         }
         self.snapshot.roster.clone()
     }

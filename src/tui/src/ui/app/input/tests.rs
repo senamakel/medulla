@@ -202,7 +202,7 @@ fn clicking_an_action_row_stops_a_task_stream_it_left_behind() {
     app.set_local_sessions(super::super::rail::tests::shell_harnesses(
         crate::worker::pty::PtyManager::new(),
     ));
-    app.loaded.config.fleet.agent_declarations = vec![medulla::runtime::AgentDeclaration::new(
+    app.loaded.config.fleet.agent_declarations = vec![medulla::fleet::AgentDeclaration::new(
         "dev",
         "",
         "codex",

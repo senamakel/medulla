@@ -8,14 +8,10 @@
 //! the id it claims, rather than vanishing — because a half-synced fleet must
 //! never blank the view.
 //!
-//! These types were previously private to the unix-only `medulla-serve`
-//! runtime. They live here because the same shapes now reach every runtime and
-//! the whole UI layer, neither of which is unix-only.
-//!
 //! `demo` holds the env-gated stand-in fleet used to exercise the UI without a
-//! backend; nothing in this module reads it. The default agent-template catalog
-//! and its on-disk store live in [`crate::agents`], which owns everything about
-//! where templates come from.
+//! backend; nothing in this module reads it. `types` holds the roster entry
+//! ([`AgentDescriptor`]) and the worker-registry shapes the hub, the protocol
+//! service, and the UI all share.
 //!
 //! `declaration` is the writable end of the same chain: the agents an operator
 //! declares on *this* machine, which are the source of the local roster rather
@@ -28,6 +24,8 @@ mod declaration;
 #[cfg(test)]
 mod declaration_tests;
 mod demo;
+mod types;
+pub use types::{AgentDescriptor, AgentPresence, PeerSession, WorkerInfo, WorkerOp};
 pub use declaration::{
     seed_declarations, suggest_agent_id, AgentDeclaration, WorkspaceRef, WorkspaceStrategy,
     SELECTABLE_STRATEGIES, WORKSPACE_TYPE_CHECKOUT,
@@ -184,7 +182,7 @@ pub struct WorkspaceDescriptor {
 
 /// The declared capacity a runtime currently knows about: the containment
 /// chain, with the agent level supplied separately by
-/// [`RuntimeSnapshot::roster`](crate::runtime::RuntimeSnapshot::roster).
+/// the hub roster.
 ///
 /// Empty is the normal resting state — a backend that declares nothing yields a
 /// snapshot byte-identical to one taken before capacity existed, and every
@@ -228,7 +226,7 @@ impl CapacitySnapshot {
     /// local agent (no `workspaceId`) may name a `hostId` directly instead. A
     /// dangling parent link resolves to whatever levels *are* declared rather
     /// than to nothing, so a half-synced fleet still explains where an agent is.
-    pub fn placement(&self, agent: &crate::runtime::AgentDescriptor) -> AgentPlacement<'_> {
+    pub fn placement(&self, agent: &AgentDescriptor) -> AgentPlacement<'_> {
         let workspace = agent
             .workspace_id
             .as_deref()

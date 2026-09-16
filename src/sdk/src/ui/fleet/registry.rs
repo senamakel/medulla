@@ -13,10 +13,10 @@
 
 use serde_json::{Map, Value};
 
-use crate::runtime::fleet::{
+use crate::fleet::{
     CapacitySnapshot, HarnessBudget, HarnessDescriptor, HostDescriptor, HostResources,
 };
-use crate::runtime::WorkerInfo;
+use crate::fleet::WorkerInfo;
 
 /// The hosts and harnesses a local registry declares.
 pub fn registry_capacity(peers: &[WorkerInfo]) -> CapacitySnapshot {

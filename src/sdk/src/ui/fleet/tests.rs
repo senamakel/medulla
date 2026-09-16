@@ -2,7 +2,7 @@
 //! onto the containment chain, merging that with what the runtime declares, and
 //! the env-gated stand-in fleet.
 
-use crate::runtime::fleet::{CapacitySnapshot, HostDescriptor, HostResources};
+use crate::fleet::{CapacitySnapshot, HostDescriptor, HostResources};
 
 fn host(id: &str) -> HostDescriptor {
     HostDescriptor {
@@ -24,7 +24,7 @@ fn host(id: &str) -> HostDescriptor {
 // --- local registry → capacity ---------------------------------------------
 
 use crate::protocol::{BudgetSource, BudgetWindow, HarnessProvider, HarnessReadiness};
-use crate::runtime::WorkerInfo;
+use crate::fleet::WorkerInfo;
 
 /// A registered peer with the capacity facts the projection reads.
 fn peer(id: &str) -> WorkerInfo {
@@ -129,8 +129,8 @@ fn merging_never_lists_one_machine_twice() {
 
 #[test]
 fn the_demo_fleet_is_a_walkable_chain() {
-    let capacity = crate::runtime::demo_capacity();
-    let agents = crate::runtime::demo_agents();
+    let capacity = crate::fleet::demo_capacity();
+    let agents = crate::fleet::demo_agents();
 
     // Every demo agent resolves all the way up to a host.
     for agent in &agents {
@@ -147,7 +147,7 @@ fn the_demo_fleet_is_a_walkable_chain() {
 
 #[test]
 fn the_demo_flag_is_opt_in_and_ignores_negative_spellings() {
-    use crate::runtime::demo_requested_from;
+    use crate::fleet::demo_requested_from;
     assert!(!demo_requested_from(None), "unset means off");
     for off in ["", "  ", "0", "false", "FALSE", "no", "off"] {
         assert!(!demo_requested_from(Some(off)), "{off:?} must read as off");

@@ -4,7 +4,7 @@
 //! the sibling logic modules; this file holds only the shapes and their trivial
 //! accessors.
 
-use crate::runtime::AgentDescriptor;
+use crate::fleet::AgentDescriptor;
 
 /// What a lane represents. Drives the lane colour and whether the lane is a
 /// delegatable agent or a graph-invoked function.

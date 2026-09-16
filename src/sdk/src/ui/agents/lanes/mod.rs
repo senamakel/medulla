@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 
-use crate::runtime::AgentDescriptor;
+use crate::fleet::AgentDescriptor;
 use crate::ui::events::{EventEnvelope, TuiEvent};
 
 use super::fmt::{event_kind_color, tokens_suffix, tool_line};

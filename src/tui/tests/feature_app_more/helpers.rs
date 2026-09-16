@@ -40,7 +40,7 @@ pub fn empty_app() -> (App, Arc<MockRuntime>) {
 /// something to render. Everything else delegates to the inner mock.
 pub struct FleetRuntime {
     pub inner: Arc<MockRuntime>,
-    pub workers: Vec<medulla::runtime::WorkerInfo>,
+    pub workers: Vec<medulla::fleet::WorkerInfo>,
 }
 
 /// A runtime whose backend steering is unavailable but whose local MCP task
@@ -155,7 +155,7 @@ impl medulla::runtime::Runtime for FleetRuntime {
     fn shutdown(&self) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
         self.inner.shutdown()
     }
-    fn workers(&self) -> Vec<medulla::runtime::WorkerInfo> {
+    fn workers(&self) -> Vec<medulla::fleet::WorkerInfo> {
         self.workers.clone()
     }
     fn stream_state(&self) -> Option<medulla::runtime::StreamState> {
@@ -168,7 +168,7 @@ pub fn fleet_app() -> App {
     inner.set_running(true); // header shows stream health only while running
     let rt = Arc::new(FleetRuntime {
         inner,
-        workers: vec![medulla::runtime::WorkerInfo {
+        workers: vec![medulla::fleet::WorkerInfo {
             id: "w_1".into(),
             address: "@dev".into(),
             handle: Some("@dev".into()),
