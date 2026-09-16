@@ -5,7 +5,10 @@ use super::*;
 
 #[tokio::test]
 async fn mock_logout_refuses_without_a_session() {
-    let error = MockBackend::new().logout().await.expect_err("mock has no session");
+    let error = MockBackend::new()
+        .logout()
+        .await
+        .expect_err("mock has no session");
     assert!(error.to_string().contains("no stored session"));
 }
 

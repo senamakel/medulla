@@ -362,6 +362,4 @@ fn selecting_a_run_overlays_it_on_the_graph() {
     );
 }
 
-
 mod interaction_tests;
-

@@ -354,4 +354,3 @@ fn a_folded_arms_port_name_stands_clear_of_the_wire() {
     assert_eq!(&row[at - 1..at], " ", "no blank before the name: {row}");
     assert_eq!(&row[at + 4..at + 5], " ", "no blank after the name: {row}");
 }
-

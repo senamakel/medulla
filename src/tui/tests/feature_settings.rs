@@ -375,6 +375,4 @@ fn appearance_persists_process_indicators_to_json() {
 }
 
 /// A fixed reading, so the sidebar says the same thing on every machine.
-
 mod appearance;
-
