@@ -6,7 +6,7 @@ The transparent harness wrapper behind `medulla codex` / `medulla claude` / `med
 
 - [`bridge/`](./bridge/) — The tiny.place bridge for one wrapped session and its I/O helpers.
 - [`envelope/`](./envelope/) — v2 session-envelope construction for the harness wrapper.
-- [`run/`](./run/) — Process orchestration for a wrapped session: the `run_wrapper` entry point, the `run_wrapper_with` core loop that drives the child CLI and the tiny.place `Bridge`, and the exit-code / signal plumbing around it.
+- [`run/`](./run/) — Process wiring for a wrapped session: the `run_wrapper` entry point, the `run_wrapper_with` core loop that drives the child CLI and the tiny.place `Bridge`, and the exit-code / signal plumbing around it.
 - [`tail/`](./tail/) — Session-log discovery and tailing for the wrapper.
 - [`args.rs`](./args.rs) — Command-line parsing for the wrapper entry point: split the wrapper's own flags from the arguments passed through to the child CLI.
 - [`control_tests.rs`](./control_tests.rs) — Tests for the control module.

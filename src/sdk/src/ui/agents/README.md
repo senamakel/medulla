@@ -4,7 +4,8 @@ Pure view-model fold: turn the flat event stream into one lane per cognitive tie
 
 ## Contents
 
-- [`lanes/`](./lanes/) — The event-stream fold: turn the flat event log into the orchestrator lane plus one lane per connected roster agent / anonymous task / peer session. A port of the TS `deriveAgentLanes` essentials. Owns `derive_agent_lanes` and the private lane-collection machinery it drives.
+- [`lanes.rs`](./lanes.rs) — Seeding one lane per roster agent; the hub's activity fills them afterwards.
+- [`demo.rs`](./demo.rs) — A scripted lane set for the offline demo and the test suites.
 - [`tests/`](./tests/) — Unit tests for the Agents view-model, split by responsibility: `fold` covers the event fold and Agents-list row model; `render` covers status/role classification, key parsing, and transcript rendering; `roster` covers the worker-registry merge that feeds the fold.
 - [`activity.rs`](./activity.rs) — Fold locally-observed worker activity into the Agents-view lanes.
 - [`fmt.rs`](./fmt.rs) — Small formatting helpers shared by the fold: event-kind colours and the header/tool-call string builders. Kept separate so the lane fold in `super::lanes` stays focused on the state machine rather than string plumbing.

@@ -1,11 +1,11 @@
 # SDK
 
-The `medulla` library crate: reusable clients, runtimes, orchestration, persistence, host-link integration, and UI-facing state shared by Medulla applications.
+The `medulla` library crate: reusable clients, dispatch, persistence, host-link integration, and UI-facing state shared by Medulla applications.
 
 ## Contents
 
 - [`examples/`](./examples/) — Runnable examples that demonstrate narrow SDK contracts without becoming production entry points.
-- [`src/`](./src/) — The Rust module tree for the `medulla` SDK crate. `lib.rs` defines the public surface; child folders separate transport, runtime, orchestration, integration, persistence, and UI-facing responsibilities.
+- [`src/`](./src/) — The Rust module tree for the `medulla` SDK crate. `lib.rs` defines the public surface; child folders separate transport, backend access, dispatch, integration, persistence, and UI-facing responsibilities.
 - [`tests/`](./tests/) — Cross-module integration, feature, and mocked end-to-end coverage for the SDK.
 - [`Cargo.toml`](./Cargo.toml) — Declares the SDK crate, its dependencies, examples, and integration-test targets.
 
