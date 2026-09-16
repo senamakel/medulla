@@ -134,7 +134,6 @@ impl RouterConfig {
             .or(self.base_url.as_deref())
             .filter(|s| !s.is_empty())
     }
-
 }
 
 /// Operator-declared budget numbers for one provider in the `[budget]` section.
