@@ -203,6 +203,14 @@ impl App {
         let state = self.remote_hosts.entry(host_id.to_string()).or_default();
         state.status = RemoteHostStatus::Live;
         state.capabilities = capabilities;
+        // Any workflow request still marked pending was sent on the
+        // connection that just ended — this one starts with nothing in
+        // flight, so nothing will ever answer it. Left alone, its intent
+        // would permanently deduplicate a fresh ask for the same thing after
+        // every reconnect.
+        if let Some(cache) = self.remote_workflows.get(host_id) {
+            cache.lock().expect("remote workflow cache").pending.clear();
+        }
         #[cfg(feature = "workflows")]
         if self.current_host.host_id() == Some(host_id) && self.tab() == "Workflows" {
             self.reload_workflows();
