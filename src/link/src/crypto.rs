@@ -15,7 +15,7 @@
 //!
 //! **The nonce carries a direction bit.** Both endpoints hold the same pair key,
 //! so they must not draw nonces from the same space. Bit 63 of `seq` is set by
-//! the orchestrator and clear by the host, splitting the counter in half. This
+//! the owner and clear by the host, splitting the counter in half. This
 //! is mosh's construction and the reason for it.
 //!
 //! *Deliberate deviation from mosh:* ChaCha20-Poly1305 rather than OCB-AES128 —
@@ -26,7 +26,7 @@ use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 
 use crate::keys::PairKey;
 
-/// Bit 63 of `seq`: set = orchestrator → host, clear = host → orchestrator.
+/// Bit 63 of `seq`: set = owner → host, clear = host → owner.
 pub const DIRECTION_MASK: u64 = 1 << 63;
 
 /// Bytes the AEAD adds to the plaintext.

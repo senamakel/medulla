@@ -24,7 +24,7 @@ fn elsewhere() -> SocketAddr {
 
 /// Two sessions keyed to each other, direct-mode, ready to exchange datagrams.
 fn pair() -> (Session, Session, PairKey) {
-    let orchestrator = NodeId::generate();
+    let owner = NodeId::generate();
     let host = NodeId::generate();
     let pair_key = PairKey::generate();
     let outer = path_key(&pair_key);
@@ -38,8 +38,8 @@ fn pair() -> (Session, Session, PairKey) {
         max_sent_states: MAX_SENT_STATES,
     };
     (
-        Session::new(config(orchestrator, host, Role::Owner), 0),
-        Session::new(config(host, orchestrator, Role::Host), 0),
+        Session::new(config(owner, host, Role::Owner), 0),
+        Session::new(config(host, owner, Role::Host), 0),
         pair_key,
     )
 }
@@ -94,10 +94,10 @@ fn a_direct_route_accepts_any_source_and_lets_the_aead_decide() {
 
 #[test]
 fn learning_never_moves_a_forwarded_route() {
-    let (mut orchestrator, mut host, _) = pair();
+    let (mut owner, mut host, _) = pair();
     let mut seq = MemorySeq::default();
-    orchestrator.queue_message(b"hello".to_vec()).unwrap();
-    let datagram = orchestrator.outgoing(0, &mut seq).unwrap().remove(0);
+    owner.queue_message(b"hello".to_vec()).unwrap();
+    let datagram = owner.outgoing(0, &mut seq).unwrap().remove(0);
     host.handle_datagram(&datagram, 0).unwrap();
 
     let mut route = Route::Forwarder(somewhere());
@@ -110,10 +110,10 @@ fn learning_never_moves_a_forwarded_route() {
 
 #[test]
 fn a_fresh_datagram_moves_a_direct_route() {
-    let (mut orchestrator, mut host, _) = pair();
+    let (mut owner, mut host, _) = pair();
     let mut seq = MemorySeq::default();
-    orchestrator.queue_message(b"hello".to_vec()).unwrap();
-    let datagram = orchestrator.outgoing(0, &mut seq).unwrap().remove(0);
+    owner.queue_message(b"hello".to_vec()).unwrap();
+    let datagram = owner.outgoing(0, &mut seq).unwrap().remove(0);
     host.handle_datagram(&datagram, 0).unwrap();
 
     let mut route = Route::Direct(somewhere());
@@ -131,12 +131,12 @@ fn a_replayed_datagram_does_not_move_a_direct_route() {
     // their own address would steal the flow into a blackhole — they hold no
     // key, so nothing they send is accepted, and the victim never hears the
     // acknowledgement that would correct it.
-    let (mut orchestrator, mut host, _) = pair();
+    let (mut owner, mut host, _) = pair();
     let mut seq = MemorySeq::default();
-    orchestrator.queue_message(b"first".to_vec()).unwrap();
-    let first = orchestrator.outgoing(0, &mut seq).unwrap().remove(0);
-    orchestrator.queue_message(b"second".to_vec()).unwrap();
-    let second = orchestrator.outgoing(1_000, &mut seq).unwrap().remove(0);
+    owner.queue_message(b"first".to_vec()).unwrap();
+    let first = owner.outgoing(0, &mut seq).unwrap().remove(0);
+    owner.queue_message(b"second".to_vec()).unwrap();
+    let second = owner.outgoing(1_000, &mut seq).unwrap().remove(0);
 
     host.handle_datagram(&first, 0).unwrap();
     host.handle_datagram(&second, 1_000).unwrap();
@@ -153,10 +153,10 @@ fn a_replayed_datagram_does_not_move_a_direct_route() {
 
 #[test]
 fn learning_is_a_no_op_when_the_peer_has_not_moved() {
-    let (mut orchestrator, mut host, _) = pair();
+    let (mut owner, mut host, _) = pair();
     let mut seq = MemorySeq::default();
-    orchestrator.queue_message(b"hello".to_vec()).unwrap();
-    let datagram = orchestrator.outgoing(0, &mut seq).unwrap().remove(0);
+    owner.queue_message(b"hello".to_vec()).unwrap();
+    let datagram = owner.outgoing(0, &mut seq).unwrap().remove(0);
     host.handle_datagram(&datagram, 0).unwrap();
 
     let mut route = Route::Direct(somewhere());

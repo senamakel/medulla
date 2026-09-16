@@ -185,7 +185,7 @@ pub struct NodeState {
     pub version: u32,
     /// This node's wire identifier.
     pub node_id: NodeId,
-    /// Orchestrator or host — fixes the direction bit.
+    /// Owner or host — fixes the direction bit.
     pub role: Role,
     /// The end-to-end key. Never leaves this file and the user's hands.
     pub pair_key: PairKey,
@@ -193,7 +193,7 @@ pub struct NodeState {
     pub forwarder_key: ForwarderKey,
     /// `host:port` of the forwarder to send datagrams to.
     pub forwarder_endpoint: String,
-    /// The node id of the peer this link talks to (the orchestrator, for a host).
+    /// The node id of the peer this link talks to (the owner, for a host).
     pub peer_node_id: NodeId,
     /// Every enrolled peer and its distinct pair key. Empty in version-1 files,
     /// which fall back to `peer_node_id` and `pair_key` above.

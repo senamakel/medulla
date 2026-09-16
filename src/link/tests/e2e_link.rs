@@ -81,47 +81,47 @@ async fn start_forwarder(keys: HashMap<NodeId, ForwarderKey>) -> SocketAddr {
 
 #[tokio::test]
 async fn two_links_exchange_messages_through_a_forwarder() {
-    let orchestrator_dir = tempfile::tempdir().unwrap();
+    let owner_dir = tempfile::tempdir().unwrap();
     let host_dir = tempfile::tempdir().unwrap();
-    let orchestrator_id = NodeId([0x11; 16]);
+    let owner_id = NodeId([0x11; 16]);
     let host_id = NodeId([0x22; 16]);
-    let orchestrator_key = ForwarderKey([0x33; 32]);
+    let owner_key = ForwarderKey([0x33; 32]);
     let host_key = ForwarderKey([0x44; 32]);
     let pair_key = PairKey::generate();
 
     let forwarder = start_forwarder(HashMap::from([
-        (orchestrator_id, orchestrator_key.clone()),
+        (owner_id, owner_key.clone()),
         (host_id, host_key.clone()),
     ]))
     .await;
 
     enroll(
-        orchestrator_dir.path(),
-        orchestrator_id,
+        owner_dir.path(),
+        owner_id,
         host_id,
         Role::Owner,
         pair_key.clone(),
-        orchestrator_key,
+        owner_key,
         forwarder.to_string(),
     );
     enroll(
         host_dir.path(),
         host_id,
-        orchestrator_id,
+        owner_id,
         Role::Host,
         pair_key,
         host_key,
         forwarder.to_string(),
     );
 
-    let orchestrator = Link::connect(LinkConfig::new(orchestrator_dir.path()))
+    let owner = Link::connect(LinkConfig::new(owner_dir.path()))
         .await
         .unwrap();
     let host = Link::connect(LinkConfig::new(host_dir.path()))
         .await
         .unwrap();
 
-    orchestrator
+    owner
         .send(host_id, b"dispatch task 1")
         .await
         .unwrap();
@@ -129,80 +129,80 @@ async fn two_links_exchange_messages_through_a_forwarder() {
         .await
         .expect("the host heard nothing")
         .expect("the link closed");
-    assert_eq!(from, orchestrator_id);
+    assert_eq!(from, owner_id);
     assert_eq!(body, b"dispatch task 1");
 
-    host.send(orchestrator_id, b"task 1 accepted")
+    host.send(owner_id, b"task 1 accepted")
         .await
         .unwrap();
-    let (from, _epoch, body) = tokio::time::timeout(PATIENCE, orchestrator.recv())
+    let (from, _epoch, body) = tokio::time::timeout(PATIENCE, owner.recv())
         .await
-        .expect("the orchestrator heard nothing")
+        .expect("the owner heard nothing")
         .expect("the link closed");
     assert_eq!(from, host_id);
     assert_eq!(body, b"task 1 accepted");
 
-    host.send_screen_frame(orchestrator_id, b"latest screen frame")
+    host.send_screen_frame(owner_id, b"latest screen frame")
         .await
         .unwrap();
-    let (from, _epoch, body) = tokio::time::timeout(PATIENCE, orchestrator.recv())
+    let (from, _epoch, body) = tokio::time::timeout(PATIENCE, owner.recv())
         .await
-        .expect("the orchestrator heard no screen update")
+        .expect("the owner heard no screen update")
         .expect("the link closed");
     assert_eq!(from, host_id);
     assert_eq!(body, b"latest screen frame");
 
     let large_screen = vec![b'x'; 4_000];
-    host.send_screen_frame(orchestrator_id, &large_screen)
+    host.send_screen_frame(owner_id, &large_screen)
         .await
         .unwrap();
-    let (_from, _epoch, body) = tokio::time::timeout(PATIENCE, orchestrator.recv())
+    let (_from, _epoch, body) = tokio::time::timeout(PATIENCE, owner.recv())
         .await
-        .expect("the orchestrator heard no fragmented screen update")
+        .expect("the owner heard no fragmented screen update")
         .expect("the link closed");
     assert_eq!(body, large_screen);
 
     // Both ends have heard from each other, so both report the peer live.
-    let status = orchestrator.status();
+    let status = owner.status();
     let peer = status.peer(&host_id).expect("a session for the host");
     assert_eq!(peer.liveness, Liveness::Live);
 }
 
 #[tokio::test]
 async fn many_messages_arrive_in_order() {
-    let orchestrator_dir = tempfile::tempdir().unwrap();
+    let owner_dir = tempfile::tempdir().unwrap();
     let host_dir = tempfile::tempdir().unwrap();
-    let orchestrator_id = NodeId([0x55; 16]);
+    let owner_id = NodeId([0x55; 16]);
     let host_id = NodeId([0x66; 16]);
-    let orchestrator_key = ForwarderKey([0x77; 32]);
+    let owner_key = ForwarderKey([0x77; 32]);
     let host_key = ForwarderKey([0x88; 32]);
     let pair_key = PairKey::generate();
 
     let forwarder = start_forwarder(HashMap::from([
-        (orchestrator_id, orchestrator_key.clone()),
+        (owner_id, owner_key.clone()),
         (host_id, host_key.clone()),
     ]))
     .await;
     enroll(
-        orchestrator_dir.path(),
-        orchestrator_id,
+        owner_dir.path(),
+        owner_id,
         host_id,
         Role::Owner,
         pair_key.clone(),
-        orchestrator_key,
+        owner_key,
         forwarder.to_string(),
     );
     enroll(
         host_dir.path(),
         host_id,
-        orchestrator_id,
+        owner_id,
         Role::Host,
         pair_key,
         host_key,
         forwarder.to_string(),
     );
 
-    let orchestrator = Link::connect(LinkConfig::new(orchestrator_dir.path()))
+    let owner = Link::connect(LinkConfig::new(owner_dir.path()))
         .await
         .unwrap();
     let host = Link::connect(LinkConfig::new(host_dir.path()))
@@ -210,7 +210,7 @@ async fn many_messages_arrive_in_order() {
         .unwrap();
 
     for index in 0..20u32 {
-        orchestrator
+        owner
             .send(host_id, format!("frame {index}").as_bytes())
             .await
             .unwrap();

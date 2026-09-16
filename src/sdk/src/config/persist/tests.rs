@@ -426,7 +426,7 @@ fn daemon_master_roster_persists_public_peer_data_without_identity_secrets() {
         handle: Some("@master".into()),
         address: Some("master-id".into()),
         tags: Some(vec!["master".into()]),
-        description: Some("Orchestrator".into()),
+        description: Some("Primary".into()),
         protocol: "task".into(),
     };
 
