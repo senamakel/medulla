@@ -30,6 +30,8 @@ mod bootstrap;
 pub mod control;
 pub mod entry;
 pub mod paired;
+#[cfg(test)]
+mod paired_tests;
 mod sessions;
 mod types;
 mod workflows;
