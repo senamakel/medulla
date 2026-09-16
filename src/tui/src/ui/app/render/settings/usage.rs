@@ -1,4 +1,4 @@
-//! The Usage subpage: this session's token spend, and the account totals.
+//! The Usage subpage: the account's plan and spend, as the backend reports them.
 
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
@@ -6,46 +6,15 @@ use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
-use crate::ui::stream;
-use crate::ui::util::clip;
-
 use crate::ui::app::types::App;
 
 impl App {
-    /// Draw the Usage subpage: this session's token usage and the account totals.
+    /// Draw the Usage subpage: the account's plan, cycle spend, and per-model
+    /// breakdown.
     pub(super) fn draw_usage(&mut self, f: &mut Frame, area: Rect) {
-        let fold = stream::usage_fold(&self.snapshot.events);
         let dim = Style::default().add_modifier(Modifier::DIM);
         let bold = Style::default().add_modifier(Modifier::BOLD);
         let mut lines: Vec<TLine> = Vec::new();
-        lines.push(TLine::from(Span::styled("This session", bold)));
-        let mut tiers: Vec<(&String, &stream::TierUsage)> = fold.tiers.iter().collect();
-        tiers.sort_by(|a, b| a.0.cmp(b.0));
-        if tiers.is_empty() && fold.subagent.calls == 0 {
-            lines.push(TLine::from(Span::styled("no model calls yet", dim)));
-        }
-        for (tier, t) in tiers {
-            lines.push(TLine::from(format!(
-                "{tier:<14} in {:<10} out {:<10} calls {}",
-                t.input_tokens, t.output_tokens, t.calls
-            )));
-        }
-        if fold.subagent.calls > 0 {
-            lines.push(TLine::from(format!(
-                "{:<14} in {:<10} out {:<10} tasks {}",
-                "sub-agents",
-                fold.subagent.input_tokens,
-                fold.subagent.output_tokens,
-                fold.subagent.calls
-            )));
-            for (task, input, output) in fold.tasks.iter().take(12) {
-                lines.push(TLine::from(Span::styled(
-                    format!("  {} in {input} out {output}", clip(task, 28)),
-                    dim,
-                )));
-            }
-        }
-        lines.push(TLine::from(""));
         lines.push(TLine::from(Span::styled("Account", bold)));
         match &self.account_usage {
             None => lines.push(TLine::from(Span::styled(
