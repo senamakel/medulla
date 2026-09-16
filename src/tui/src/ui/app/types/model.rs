@@ -565,6 +565,9 @@ pub struct App {
     // copied text here and skips the platform writers (no `pbcopy`/OSC
     // subprocess in tests).
     pub(in crate::ui::app) copy_capture: Option<Arc<std::sync::Mutex<Vec<String>>>>,
+    /// Lanes standing in for the hub's, when a test or the offline demo
+    /// injected some. `None` derives them from the hub on every read.
+    pub(in crate::ui::app) lane_override: Option<Vec<crate::ui::agents::AgentLane>>,
     // A read-only view of the task host running on this device, when one is.
     // Read live at render: its counters move on the host's own schedule.
     pub(in crate::ui::app) host_obs: Option<medulla::daemon::embedded::HostObservation>,

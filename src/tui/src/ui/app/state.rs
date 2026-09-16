@@ -135,6 +135,7 @@ impl App {
             help_scroll: 0,
             harness_skip_permissions,
             copy_capture: None,
+            lane_override: None,
         }
     }
 
@@ -575,12 +576,24 @@ impl App {
             .unwrap_or_default()
     }
 
+    /// Stand in a fixed lane set for the hub's.
+    ///
+    /// What the offline demo and the test suites use to put dispatched tasks
+    /// on the rail without a hub: [`medulla::ui::agents::demo_lanes`] is the
+    /// usual argument.
+    pub fn inject_lanes(&mut self, lanes: Vec<AgentLane>) {
+        self.lane_override = Some(lanes);
+    }
+
     /// Derive the current agent lanes from the roster and the hub's activity.
     ///
     /// One lane per roster agent — the stand-in roster when the demo fleet is
     /// requested, merged with the hub's own worker registry — filled with the
-    /// tasks the hub has dispatched to it.
+    /// tasks the hub has dispatched to it. An injected set wins outright.
     pub(super) fn lanes(&self) -> Vec<AgentLane> {
+        if let Some(lanes) = &self.lane_override {
+            return lanes.clone();
+        }
         let roster = merge_host_roster(&self.fleet_roster(), &self.workers());
         let mut lanes = roster_lanes(&roster);
         merge_host_activity(&mut lanes, &self.worker_activity());
