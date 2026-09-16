@@ -9,7 +9,7 @@ use ratatui::Frame;
 use super::super::types::App;
 
 impl App {
-    /// Draw the inline prompt overlay (Workers add/edit, task answer).
+    /// Draw the inline prompt overlay (host form fields, feedback text).
     pub(super) fn draw_prompt(&mut self, f: &mut Frame, area: Rect) {
         let Some(prompt) = &self.prompt else { return };
         let block = crate::ui::widgets::panel(&self.theme, prompt.title.clone(), true);
@@ -20,5 +20,4 @@ impl App {
             inner,
         );
     }
-
 }
