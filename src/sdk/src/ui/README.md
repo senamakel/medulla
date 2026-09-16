@@ -4,7 +4,7 @@ UI-facing data surface shared with the terminal app: the `agents` lanes and the 
 
 ## Contents
 
-- [`agents/`](./agents/) — Pure view-model fold: turn the flat event stream into one lane per cognitive tier plus one lane per connected roster agent / anonymous task / peer session, with a row model for the Agents list and pre-wrapped transcript lines. A port of the TS `deriveAgentLanes` / `agentRowModel` / `laneLines` essentials.
+- [`agents/`](./agents/) — Pure view-model for the agents a session rail lists: one lane per roster agent, each carrying the tasks the hub has dispatched to it, with a row model for the list and pre-wrapped transcript lines.
 - [`command/`](./command/) — Slash-command parsing, the command catalog, and the `/copy` transcript helper.
 - [`fleet/`](./fleet/) — Pure view-model for the fleet: project the locally registered peers onto the declared containment chain and merge that with whatever the runtime declares.
 - [`harness/`](./harness/) — Read-only view-model helpers for the agent-harness contract: a compact task board rendering for a `HarnessStatus` payload, and a one-line budget note for an agent's `AgentBudgetMetadata` seat stamp. Pure formatting only — the `medulla-tui` crate turns the returned `Line`s / strings into ratatui spans.
