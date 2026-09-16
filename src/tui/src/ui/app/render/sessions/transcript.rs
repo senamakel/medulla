@@ -2,10 +2,9 @@
 //! names one, its task transcript when it is a dispatch, and a description of
 //! the row itself when it is neither.
 //!
-//! Above whichever it is sits the header — the harness task board, the seat
-//! budget, where the lane runs, and the compact meters for that machine and
-//! this lane's context window. The header is built first because it decides how
-//! many rows are left for the body to scroll through.
+//! Above whichever it is sits the header — the seat budget, where the lane
+//! runs, and the compact meters for that machine. The header is built first
+//! because it decides how many rows are left for the body to scroll through.
 
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -14,7 +13,7 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::ui::agents::{lane_lines, task_lines, Line as StyledLine};
-use crate::ui::harness::{budget_note, task_board_lines};
+use crate::ui::harness::budget_note;
 use crate::ui::meters;
 use medulla::harness_contract::AgentBudgetMetadata;
 
@@ -264,8 +263,9 @@ impl App {
         selection: &Selection,
     ) -> Option<medulla::hub::WatchedScreen> {
         let task = selection.task.as_ref()?;
-        self.runtime
-            .worker_screens()
+        medulla::hub::hub_in(&self.hub)?
+            .screens()
+            .snapshot()
             .into_iter()
             .find(|held| held.task_id == task.task_id)
     }

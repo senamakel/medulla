@@ -45,7 +45,6 @@ impl App {
                     || (host.primary && hosting)
                     || self.declares_agent_on(&host.id)
                     || self
-                        .runtime
                         .workers()
                         .iter()
                         .any(|worker| worker.address.trim() == host.id)
@@ -71,7 +70,7 @@ impl App {
     /// nobody says otherwise, so it leads.
     pub(in crate::ui::app) fn host_tree(&self) -> Vec<HostRow> {
         let mut rows = host_rows(
-            &self.runtime.workers(),
+            &self.workers(),
             &self.loaded.config.fleet.agent_declarations,
             &self.local_host_refs(),
         );
