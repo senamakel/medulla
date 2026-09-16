@@ -3,7 +3,6 @@
 
 use super::meters::*;
 use crate::fleet::HostResources;
-use crate::ui::events::Usage;
 
 #[test]
 fn the_bar_fills_proportionally_and_clamps_at_both_ends() {
@@ -89,101 +88,3 @@ fn cpu_states_capacity_when_no_load_was_reported() {
     assert_eq!(line.color.as_deref(), Some("red"));
 }
 
-#[test]
-fn lane_usage_keeps_the_current_prompt_and_sums_the_output() {
-    let mut usage = LaneUsage::default();
-    usage.accumulate(&Usage {
-        input_tokens: 1_000,
-        output_tokens: 100,
-        ..Default::default()
-    });
-    usage.accumulate(&Usage {
-        input_tokens: 1_800,
-        output_tokens: 250,
-        ..Default::default()
-    });
-    // The prompt is resent every turn, so summing it would count the same
-    // tokens repeatedly; the output genuinely accumulates.
-    assert_eq!(usage.input, 1_800);
-    assert_eq!(usage.output, 350);
-    assert_eq!(usage.cache_hit_rate(), None, "nothing reported a cache");
-}
-
-#[test]
-fn the_context_meter_reports_in_out_and_cache_when_known() {
-    let mut usage = LaneUsage::default();
-    usage.accumulate(&Usage {
-        input_tokens: 24_000,
-        output_tokens: 1_500,
-        cache_read_tokens: Some(18_000),
-        cache_creation_tokens: None,
-    });
-    let line = context_meter(&usage, 32_000).expect("a used lane has a meter");
-    // The window is named, then the breakdown in one bracket.
-    assert!(
-        line.text
-            .contains("32k window · (in 24k / out 2k / cached 75%)"),
-        "{}",
-        line.text
-    );
-    assert_eq!(line.color.as_deref(), Some("yellow"), "75% of the window");
-
-    // An untouched lane has nothing to meter.
-    assert!(context_meter(&LaneUsage::default(), 32_000).is_none());
-}
-
-#[test]
-fn the_meter_names_a_million_token_window_without_spurious_precision() {
-    let mut usage = LaneUsage::default();
-    usage.accumulate(&Usage {
-        input_tokens: 40_000,
-        output_tokens: 900,
-        cache_read_tokens: Some(20_000),
-        cache_creation_tokens: None,
-    });
-    let line = context_meter(&usage, 1_000_000).expect("meter");
-    // `1M`, not `1.0M`: a decimal point with nothing after it reads as
-    // precision that was not measured.
-    assert!(
-        line.text
-            .contains("1M window · (in 40k / out 900 / cached 50%)"),
-        "{}",
-        line.text
-    );
-    // And the same prompt against the real window is no longer an alarm: 4% of
-    // 1M is green, where the old 32k default painted these same 40k tokens red
-    // at over 100% of a window the model does not actually have.
-    assert_eq!(line.color.as_deref(), Some("green"));
-    assert_eq!(
-        context_meter(&usage, 32_000)
-            .expect("meter")
-            .color
-            .as_deref(),
-        Some("red"),
-        "the understated window is what made this an alarm"
-    );
-}
-
-#[test]
-fn a_cache_figure_is_never_inferred_from_silence() {
-    let mut usage = LaneUsage::default();
-    usage.accumulate(&Usage {
-        input_tokens: 10_000,
-        output_tokens: 10,
-        ..Default::default()
-    });
-    let line = context_meter(&usage, 32_000).expect("meter");
-    // The field keeps its place so the row does not change shape between
-    // providers, but it states that nothing was reported rather than claiming a
-    // figure. `0%` would be a measured cache miss, which is not what happened.
-    assert!(
-        line.text.contains("cached —"),
-        "silence should read as a dash: {}",
-        line.text
-    );
-    assert!(
-        !line.text.contains("cached 0%"),
-        "an unreported cache must never be inferred as 0%: {}",
-        line.text
-    );
-}

@@ -121,7 +121,7 @@ async fn http_error_without_envelope_becomes_api_error() {
     ))
     .await;
     let client = MedullaClient::new(base, "jwt");
-    let err = client.get_session("s1").await.unwrap_err();
+    let err = client.me().await.unwrap_err();
     assert_eq!(err.status(), Some(503));
     assert_eq!(err.error_code(), None);
     match err {
@@ -136,7 +136,7 @@ async fn success_status_with_non_json_body_is_decode_error() {
     let client = MedullaClient::new(base, "jwt");
     // A typed endpoint: the SDK preserves an unparseable 2xx body as a JSON
     // string, and decoding it into the endpoint's shape is what fails.
-    let err = client.get_session("s1").await.unwrap_err();
+    let err = client.history_reward_status().await.unwrap_err();
     assert!(matches!(err, ClientError::Decode(_)), "got {err:?}");
 }
 
@@ -144,7 +144,7 @@ async fn success_status_with_non_json_body_is_decode_error() {
 async fn connection_refused_surfaces_transport_error() {
     let base = dead_addr();
     let client = MedullaClient::new(base, "jwt");
-    let err = client.list_sessions().await.unwrap_err();
+    let err = client.me().await.unwrap_err();
     assert!(matches!(err, ClientError::Transport(_)), "got {err:?}");
     assert_eq!(err.status(), None);
     assert_eq!(err.error_code(), None);

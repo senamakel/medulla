@@ -1,6 +1,6 @@
 //! One peer to one roster slot — the rule that keeps dispatch honest.
 
-use super::helpers::{hw, no_presence, worker};
+use super::helpers::hw;
 
 #[test]
 fn one_peer_never_occupies_two_roster_slots() {
