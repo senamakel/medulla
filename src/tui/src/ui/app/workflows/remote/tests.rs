@@ -154,6 +154,48 @@ fn the_new_row_is_not_selected_while_a_non_empty_catalogue_is_still_loading() {
 }
 
 #[test]
+fn refreshing_clears_a_stuck_pending_intent_so_it_can_be_asked_again() {
+    let (mut app, mut rx) = app_on_remote();
+    app.reload_workflows();
+    assert_eq!(drain(&mut rx).len(), 1, "the first ask goes out");
+
+    // No answer ever arrives (a transport hiccup after the request entered
+    // `pending`) — a second reload is deduplicated against it, exactly as it
+    // should be while it is genuinely still outstanding.
+    app.reload_workflows();
+    assert!(
+        drain(&mut rx).is_empty(),
+        "still deduplicated while pending"
+    );
+
+    // `r` must not leave that stuck intent blocking a fresh ask forever.
+    app.refresh_workflows();
+    assert_eq!(
+        drain(&mut rx).len(),
+        1,
+        "refresh must ask again despite the stuck pending intent"
+    );
+}
+
+#[test]
+fn reconnecting_clears_pending_so_a_stale_request_does_not_block_a_fresh_ask() {
+    let (mut app, mut rx) = app_on_remote();
+    app.reload_workflows();
+    assert_eq!(drain(&mut rx).len(), 1, "the first ask goes out");
+
+    // The connection that request was sent on is gone; nothing will ever
+    // answer it under the old request id. Reconnecting must not leave it
+    // sitting in `pending` blocking the catalogue from ever being asked for
+    // again.
+    app.remote_host_connected("gpu-example-com", Default::default());
+    assert_eq!(
+        drain(&mut rx).len(),
+        1,
+        "reconnecting's own reload must not be deduplicated against the stale request"
+    );
+}
+
+#[test]
 fn a_bad_answer_is_reported_rather_than_folded() {
     let (mut app, mut rx) = app_on_remote();
     app.reload_workflows();
