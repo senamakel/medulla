@@ -1,12 +1,7 @@
-//! Decode fixtures: event envelope/kind decoding, success/error envelope
-//! unwrapping and error mapping, and `LoopEvent`/`RunResult` deserialization.
+//! Decode fixtures: success/error envelope unwrapping and error mapping.
 
 use crate::client::*;
 use serde_json::{json, Value};
-
-// ---------------------------------------------------------------------------
-// Event envelope / kind decode fixtures
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // SDK error mapping

@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 // ---------------------------------------------------------------------------
-// Integration: create session / error envelope round-trips
+// Integration: error envelope round-trip
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
