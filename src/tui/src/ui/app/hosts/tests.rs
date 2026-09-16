@@ -341,3 +341,37 @@ fn a_selection_scopes_which_sessions_the_rail_shows() {
     app.set_current_host(HostSelection::All);
     assert_eq!(ids(&app).len(), 2);
 }
+
+#[test]
+fn an_ssh_only_host_still_connects_and_one_without_an_address_does_not() {
+    let (_dir, mut app) = app_with_hosts(&[("tower.local", 0)]);
+    let cmd = app.connect_host("tower-local");
+    assert!(
+        matches!(cmd, Some(Cmd::ConnectRemoteHost { ref host_id }) if host_id == "tower-local"),
+        "an unpaired entry with an address is bootstrapped over ssh: {cmd:?}"
+    );
+    app.loaded.config.remote_hosts.push(RemoteHostSection {
+        id: "nowhere".to_string(),
+        name: "Nowhere".to_string(),
+        enabled: true,
+        ..RemoteHostSection::default()
+    });
+    assert!(app.connect_host("nowhere").is_none());
+}
+
+#[test]
+fn a_removal_that_cannot_be_saved_keeps_the_pairing_on_disk() {
+    let (dir, mut app) = app_with_hosts(&[("gpu.example.com", 62001)]);
+    let _ = app.capture_clipboard();
+    app.issue_host_key("gpu-example-com");
+    let state_dir =
+        crate::remote::client::task::client_state_dir(&dir.path().join("home"), "gpu-example-com");
+    assert!(state_dir.exists());
+    // Make the config unwritable: a directory where the file should be.
+    std::fs::remove_file(dir.path().join("config.toml")).unwrap();
+    std::fs::create_dir(dir.path().join("config.toml")).unwrap();
+    app.remove_host("gpu-example-com");
+    assert!(app.hosts.entries.is_empty(), "gone for this run");
+    assert!(state_dir.exists(), "but the pairing survives for the next launch");
+    assert!(app.status.contains("this run only"), "{}", app.status);
+}
