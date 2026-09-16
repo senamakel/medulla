@@ -199,9 +199,6 @@ fn a_terminal_too_small_to_draw_anything_does_not_panic() {
     render_sized(&mut app, 20, 6);
 }
 
-mod layout_tests;
-mod outline_tests;
-
 /// A trigger into a loop whose body is a four-step chain that returns to it —
 /// the shape every "keep going until it is done" workflow has.
 fn looping(id: &str) -> WorkflowRecord {
