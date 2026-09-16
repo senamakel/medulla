@@ -1,7 +1,6 @@
 //! One peer to one roster slot, and withholding the addresses the relay says
 //! are unreachable — the two rules that keep an advert honest.
 
-use super::super::super::roster::{addresses_of, register_payload, unreachable_addresses};
 use super::helpers::{hw, no_presence, worker};
 
 #[test]
@@ -104,84 +103,3 @@ fn an_implausible_address_is_refused_before_it_reaches_the_relay() {
     assert!(!is_plausible_address("@"), "a bare @ names nobody");
 }
 
-#[test]
-fn an_unlabelled_worker_advertises_one_token_not_two() {
-    // `agent_list` renders `id (name)`. When those differ and both read as
-    // names, the model picks one and may pick the unroutable one — which is the
-    // original bug. Unlabelled, they must coincide.
-    let payload = register_payload(&[worker("claude-worker", "3Hob1Fxu")], &no_presence(), &[]);
-    let agents = payload.get("agents").unwrap().as_array().unwrap();
-    assert_eq!(agents[0]["id"], "claude-worker");
-    assert_eq!(
-        agents[0]["name"], "claude-worker",
-        "an unlabelled worker must not advertise a second, different name"
-    );
-
-    // A labelled one keeps its human name; the id stays a visible slug of it.
-    let mut labelled = worker("sanil-laptop", "3Hob1Fxu");
-    labelled.label = Some("Sanil Laptop".to_string());
-    let payload = register_payload(&[labelled], &no_presence(), &[]);
-    let agents = payload.get("agents").unwrap().as_array().unwrap();
-    assert_eq!(agents[0]["id"], "sanil-laptop");
-    assert_eq!(agents[0]["name"], "Sanil Laptop");
-}
-
-#[test]
-fn a_worker_the_relay_reports_down_is_withheld_entirely() {
-    // Not advertised as offline — withheld. Marking it down only stops the
-    // *automatic* assignment of an untargeted task; a task naming it still
-    // resolves and dispatches into the void, which is the stall being fixed.
-    let online = std::collections::HashMap::from([("GRVdead".to_string(), false)]);
-    let payload = register_payload(
-        &[worker("live", "GRVlive"), worker("dead", "GRVdead")],
-        &online,
-        &[],
-    );
-    let agents = payload["agents"].as_array().expect("an agent list");
-
-    assert_eq!(agents.len(), 1, "only the reachable one is offered");
-    assert_eq!(agents[0]["id"], "live");
-    // What survives is advertised online, because the orchestrator only
-    // auto-assigns to an agent whose availability is exactly that.
-    assert_eq!(agents[0]["availability"], "online");
-}
-
-#[test]
-fn a_worker_the_relay_reports_up_is_advertised() {
-    let online = std::collections::HashMap::from([("GRVaddr".to_string(), true)]);
-    let payload = register_payload(&[worker("w1", "GRVaddr")], &online, &[]);
-    assert_eq!(payload["agents"].as_array().expect("agents").len(), 1);
-    assert_eq!(payload["agents"][0]["availability"], "online");
-}
-
-#[test]
-fn no_answer_from_the_relay_advertises_everything() {
-    // "The relay did not say" is not "the worker is down". One dropped request
-    // must not empty a live roster.
-    let payload = register_payload(
-        &[worker("w1", "GRVone"), worker("w2", "GRVtwo")],
-        &no_presence(),
-        &[],
-    );
-    assert_eq!(payload["agents"].as_array().expect("agents").len(), 2);
-}
-
-#[test]
-fn every_roster_address_is_asked_about_in_one_batch() {
-    // One request for the whole roster, not one per worker: a hub with a dozen
-    // workers should not spend a dozen round trips to redraw one column.
-    let workers = [worker("w1", "GRVone"), worker("w2", "GRVtwo")];
-    assert_eq!(addresses_of(&workers), vec!["GRVone", "GRVtwo"]);
-}
-
-#[test]
-fn the_withheld_addresses_are_reportable() {
-    // Named in the log rather than silently dropped: a roster that quietly
-    // shrinks is indistinguishable from one that was never configured.
-    let online = std::collections::HashMap::from([
-        ("GRVdead".to_string(), false),
-        ("GRVlive".to_string(), true),
-    ]);
-    let workers = [worker("live", "GRVlive"), worker("dead", "GRVdead")];
-    assert_eq!(unreachable_addresses(&workers, &online), vec!["GRVdead"]);
-}

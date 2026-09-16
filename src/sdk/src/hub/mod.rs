@@ -15,7 +15,6 @@ mod handle;
 /// module so its bounds keep their short names — `handoff::NOTE_MAX` reads, a
 /// `HANDOFF_NOTE_MAX` flattened into the crate root does not.
 pub mod handoff;
-mod probe;
 mod relay;
 mod roster;
 mod runner;
