@@ -13,7 +13,7 @@ fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 }
 
 #[test]
-fn on_by_default_in_backend_mode() {
+fn on_by_default() {
     // A plain login (no hub-related vars) still runs the hub.
     assert!(hub_enabled(&env(&[])));
     // A pre-seeded worker also runs it (unchanged).
@@ -40,107 +40,11 @@ fn explicit_truthy_is_on() {
 }
 
 #[test]
-fn every_configured_link_peer_reaches_the_hub_bridge() {
-    use medulla_link::keys::{ForwarderKey, NodeId, NodeState, PairKey, Role};
-
-    let dir = tempfile::tempdir().expect("tempdir");
-    let state_dir = dir.path().join("link");
-    let _node = medulla_link::keys::acquire_or_create(&state_dir, || NodeState {
-        version: 1,
-        node_id: NodeId([1; 16]),
-        role: Role::Owner,
-        pair_key: PairKey::from_bytes([2; 16]),
-        forwarder_key: ForwarderKey([3; 32]),
-        forwarder_endpoint: "127.0.0.1:4600".to_string(),
-        peer_node_id: NodeId([4; 16]),
-        peers: vec![
-            medulla_link::keys::EnrolledPeer {
-                node_id: NodeId([5; 16]),
-                pair_key: PairKey::from_bytes([5; 16]),
-            },
-            medulla_link::keys::EnrolledPeer {
-                node_id: NodeId([6; 16]),
-                pair_key: PairKey::from_bytes([6; 16]),
-            },
-        ],
-        seq_reservation: 1,
-    })
-    .expect("node state");
-    let peer = |id: &str, byte: u8| medulla::config::Peer {
-        id: id.to_string(),
-        node_id: Some(NodeId([byte; 16]).to_string()),
-        address: Some(id.to_string()),
-        ..Default::default()
-    };
-    let config = medulla::config::LinkConfig {
-        state_dir: state_dir.display().to_string(),
-        peers: vec![peer("worker-alpha", 5), peer("worker-beta", 6)],
-        ..Default::default()
-    };
-
-    let link = super::link_from_resolved_config(&config, None).expect("hub link");
-    assert_eq!(link.peers.len(), 2);
-    assert_eq!(link.peers[0].name, "worker-alpha");
-    assert_eq!(link.peers[0].node_id, NodeId([5; 16]));
-    assert_eq!(link.peers[1].name, "worker-beta");
-    assert_eq!(link.peers[1].node_id, NodeId([6; 16]));
-}
-
-#[test]
-fn every_unconfigured_enrolled_peer_reaches_the_hub_bridge_by_node_id() {
-    use medulla_link::keys::{ForwarderKey, NodeId, NodeState, PairKey, Role};
-
-    let dir = tempfile::tempdir().expect("tempdir");
-    let state_dir = dir.path().join("link");
-    let _node = medulla_link::keys::acquire_or_create(&state_dir, || NodeState {
-        version: 1,
-        node_id: NodeId([1; 16]),
-        role: Role::Owner,
-        pair_key: PairKey::from_bytes([2; 16]),
-        forwarder_key: ForwarderKey([3; 32]),
-        forwarder_endpoint: "127.0.0.1:4600".to_string(),
-        peer_node_id: NodeId([4; 16]),
-        peers: vec![
-            medulla_link::keys::EnrolledPeer {
-                node_id: NodeId([5; 16]),
-                pair_key: PairKey::from_bytes([5; 16]),
-            },
-            medulla_link::keys::EnrolledPeer {
-                node_id: NodeId([6; 16]),
-                pair_key: PairKey::from_bytes([6; 16]),
-            },
-        ],
-        seq_reservation: 1,
-    })
-    .expect("node state");
-    let config = medulla::config::LinkConfig {
-        state_dir: state_dir.display().to_string(),
-        peers: vec![medulla::config::Peer {
-            id: "worker-alpha".to_string(),
-            node_id: Some(NodeId([5; 16]).to_string()),
-            address: Some("worker-alpha".to_string()),
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-
-    let link = super::link_from_resolved_config(&config, None).expect("hub link");
-    assert_eq!(link.peers.len(), 2);
-    assert!(link
-        .peers
-        .iter()
-        .any(|peer| peer.name == "worker-alpha" && peer.node_id == NodeId([5; 16])));
-    assert!(link.peers.iter().any(|peer| {
-        peer.name == NodeId([6; 16]).to_string() && peer.node_id == NodeId([6; 16])
-    }));
-}
-
-#[test]
 fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
-    // Regression. The hub used to `eprintln!` its progress — "hub: connecting to
-    // <url>", "socket closed — reconnecting", every task result. Under the
-    // orchestrator TUI that lands on top of the alternate screen, and ratatui
-    // only repaints the cells it manages, so the text never clears.
+    // Regression. The hub used to `eprintln!` its progress — every task
+    // result, every roster change. Under the TUI that lands on top of the
+    // alternate screen, and ratatui only repaints the cells it manages, so
+    // the text never clears.
     //
     // Asserted against the source rather than at runtime: the failure is a
     // stray write from a background task, which no unit test would observe.
@@ -149,8 +53,7 @@ fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
     // skips what it cannot find).
     for path in [
         "src/sdk/src/hub/boot/mod.rs",
-        "src/sdk/src/hub/socket/mod.rs",
-        "src/sdk/src/hub/workflows.rs",
+        "src/sdk/src/hub/runner/mod.rs",
         "src/tui/src/hub_relay/mod.rs",
     ] {
         let full = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -317,11 +220,6 @@ fn a_roster_remembered_from_a_hosting_run_is_dropped_when_hosting_is_off() {
     ]);
     assert_eq!(super::workers_from_config(home).len(), 2, "seeded");
 
-    let session = medulla::auth::Credentials {
-        base_url: "https://api.example".into(),
-        jwt: "jwt".into(),
-    };
-
     let config = super::build_hub_config_with_host(
         &env(&[]),
         home,
@@ -333,13 +231,12 @@ fn a_roster_remembered_from_a_hosting_run_is_dropped_when_hosting_is_off() {
             // Hosting is off: nothing is bound at `this-device` this run.
             hosts: Vec::new(),
         }),
-        Some(&session),
     )
-    .expect("the hub config builds with a session present");
+    .expect("the hub config builds");
 
     assert!(
         !config.workers.iter().any(|w| w.address == "this-device"),
-        "the stale local entry must not be advertised: {:?}",
+        "the stale local entry must not be listed: {:?}",
         config
             .workers
             .iter()
@@ -404,69 +301,4 @@ fn seed_workflow(root: &std::path::Path, id: &str) {
         "edges": []
     });
     std::fs::write(dir.join(format!("{id}.json")), document.to_string()).expect("write");
-}
-
-#[cfg(feature = "workflows")]
-#[test]
-fn the_hub_is_handed_a_bridge_over_the_workflows_this_host_has_installed() {
-    // The gap this closes: `StoreWorkflowBridge` was written, exported and unit
-    // tested, and nothing in the product ever installed it — so every workflow
-    // the orchestrator asked this host about was unanswerable however healthy
-    // the socket was.
-    let dir = tempfile::tempdir().expect("tempdir");
-    let home = dir.path();
-    seed_workflow(home, "sweep");
-    let session = medulla::auth::Credentials {
-        base_url: "https://api.example".into(),
-        jwt: "jwt".into(),
-    };
-
-    let config = super::build_hub_config_with_log(
-        &env(&[("MEDULLA_HOME", &home.to_string_lossy())]),
-        home,
-        medulla::hub::stderr_log(),
-        Some(&session),
-    )
-    .expect("the hub config builds with a session present");
-
-    let bridge = config
-        .workflows
-        .expect("the hub is handed this host's workflow store");
-    let adverts = bridge.list();
-    assert_eq!(adverts.len(), 1, "{adverts:?}");
-    assert_eq!(adverts[0].id, "sweep");
-    assert_eq!(adverts[0].name, "Nightly sweep");
-    // And it answers a read from the same store, which is what the socket's
-    // `medulla:workflow_request` handler calls.
-    assert_eq!(bridge.get("sweep").expect("the graph")["id"], "sweep");
-    // The capability probe reads this host's working directory off the same
-    // bridge, so an installed bridge that cannot name one costs every probe its
-    // `cwd`.
-    assert!(bridge.action_dir().is_some());
-}
-
-#[cfg(feature = "workflows")]
-#[test]
-fn a_host_with_workflows_disabled_advertises_none() {
-    // The bridge applies no policy of its own, so advertising graphs this host
-    // would refuse to run only teaches the orchestrator to delegate work that
-    // bounces.
-    let dir = tempfile::tempdir().expect("tempdir");
-    let home = dir.path();
-    seed_workflow(home, "sweep");
-    std::fs::write(home.join("config.toml"), "[workflows]\nenabled = false\n").expect("seed");
-    let session = medulla::auth::Credentials {
-        base_url: "https://api.example".into(),
-        jwt: "jwt".into(),
-    };
-
-    let config = super::build_hub_config_with_log(
-        &env(&[("MEDULLA_HOME", &home.to_string_lossy())]),
-        home,
-        medulla::hub::stderr_log(),
-        Some(&session),
-    )
-    .expect("the hub config builds with a session present");
-
-    assert!(config.workflows.is_none());
 }
