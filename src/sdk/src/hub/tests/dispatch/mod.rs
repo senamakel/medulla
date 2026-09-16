@@ -155,7 +155,7 @@ fn run_error_display_is_human_readable_per_variant() {
     assert_eq!(RunError::Timeout.to_string(), "bridge task timed out");
     assert_eq!(
         RunError::Aborted.to_string(),
-        "task aborted by orchestrator"
+        "task aborted by its sender"
     );
     assert_eq!(
         RunError::Worker("boom".to_string()).to_string(),
