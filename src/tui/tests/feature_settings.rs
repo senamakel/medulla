@@ -61,8 +61,6 @@ fn settings_tab_renders_nav_and_default_usage_subpage() {
         "Status line",
         "Config",
         "Feedback",
-        "Trace",
-        "Context",
         "Account",
         "Help",
     ] {
@@ -70,7 +68,7 @@ fn settings_tab_renders_nav_and_default_usage_subpage() {
     }
     // Default subpage is Usage.
     assert_eq!(app.settings_subpage(), "Usage");
-    assert!(out.contains("This session"), "usage content: {out}");
+    assert!(out.contains("Account"), "usage content: {out}");
 }
 
 #[test]
@@ -84,9 +82,7 @@ fn number_keys_jump_subpages() {
     assert_eq!(app.settings_subpage(), "Status line");
     let _ = key(&mut app, KeyCode::Char('5'));
     assert_eq!(app.settings_subpage(), "Config");
-    // Help is the last subpage, and past the nine a digit can reach now that
-    // Subscriptions is on the nav — so the arrows are what get there.
-    let _ = key(&mut app, KeyCode::Char('9'));
+    let _ = key(&mut app, KeyCode::Char('7'));
     assert_eq!(app.settings_subpage(), "Account");
     // A digit also enters the pane, so getting to Help means stepping back out
     // to the nav first — the arrows browse content once a page has focus.
@@ -504,14 +500,11 @@ fn selection_rows_use_theme_primary_background() {
 
 #[test]
 fn each_settings_subpage_renders_its_signature() {
-    // Trace and Context moved under Settings > DEBUG.
     let signatures = [
-        ("Usage", "This session"),
+        ("Usage", "account usage"),
         ("Appearance", "Appearance"),
         ("Status line", "as on the rail"),
         ("Config", "Effective configuration ·"),
-        ("Trace", "Trace ·"),
-        ("Context", "Environment ·"),
         ("Account", "Account"),
         ("Help", "Keyboard & REPL help"),
     ];
@@ -585,7 +578,7 @@ fn the_settings_nav_groups_its_subpages() {
     let mut app = settings_app();
     let _ = app.focus_settings_subpage("Usage");
     let out = text_of(&draw(&mut app, 160, 50));
-    for heading in ["GENERAL", "DEBUG", "ABOUT"] {
+    for heading in ["GENERAL", "ABOUT"] {
         assert!(
             out.contains(heading),
             "missing nav heading {heading}: {out}"
