@@ -11,7 +11,9 @@
 use std::path::Path;
 use std::time::Duration;
 
-use medulla_link::keys::{self, EnrolledPeer, ForwarderKey, HostKey, KeyError, NodeId, NodeState, Role};
+use medulla_link::keys::{
+    self, EnrolledPeer, ForwarderKey, HostKey, KeyError, NodeId, NodeState, Role,
+};
 
 /// How long re-issuing a key waits for a just-dropped connection's identity
 /// lock to clear, and how often it checks.

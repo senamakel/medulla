@@ -178,7 +178,10 @@ fn editing_a_paired_hosts_port_re_pairs_instead_of_leaving_it_unreachable() {
     // A fresh key was minted for the new port rather than the entry being
     // silently saved with a port nothing was paired for.
     let second_key = app.hosts.pending_key.clone().unwrap().command;
-    assert_ne!(first_key, second_key, "a port change re-pairs with a new key");
+    assert_ne!(
+        first_key, second_key,
+        "a port change re-pairs with a new key"
+    );
     assert_eq!(app.hosts.entries[0].section.udp_port, 60002);
 }
 
