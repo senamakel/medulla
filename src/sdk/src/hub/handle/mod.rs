@@ -173,7 +173,7 @@ impl HubHandle {
 
     /// The hub's own link node name. This is the value an operator sets as a
     /// worker's `MEDULLA_LINK_OWNER`, because a worker only accepts a task from
-    /// the orchestrator it enrolled with.
+    /// the dispatcher it enrolled with.
     pub fn address(&self) -> &str {
         &self.address
     }

@@ -124,7 +124,7 @@ impl PtySessionExecutor {
         // rather than inferred from `conversation`: the daemon sets that field
         // to the authenticated sender for *every* inbound run, so it is never
         // empty, and the old `is_empty()` test therefore classified every task
-        // frame as unbound. Two unrelated delegated tasks from one orchestrator
+        // frame as unbound. Two unrelated delegated tasks from one dispatcher
         // then shared a harness, each able to read the other's prompt and tool
         // context — the exact opposite of what the comment above promises.
         let class = options.session_class;
@@ -297,7 +297,7 @@ impl PtySessionExecutor {
     /// actually did rather than falling through to the transcript the moment it
     /// finishes — which read as a finished task vanishing.
     ///
-    /// Retention is not takeover. The session stays the orchestrator's, because
+    /// Retention is not takeover. The session stays the sender's, because
     /// [`checkout_writer`](Self::checkout_writer) counts any user-held session
     /// in a directory as the writer holding that checkout: marking these `User`
     /// would make the first task to finish in a workspace queue every task
@@ -498,7 +498,7 @@ pub(super) fn retains_workspace_context(
     running && (class == SessionClass::Unbound || control == Some(SessionControl::User))
 }
 
-/// Forget mapper state only when the orchestrator actually won the stop race.
+/// Forget mapper state only when the dispatcher actually won the stop race.
 pub(super) fn retire_stopped_workspace_context(
     context: &mut HashMap<String, WorkspaceContext>,
     id: &str,

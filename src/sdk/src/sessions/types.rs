@@ -18,7 +18,7 @@ use crate::protocol::HarnessProvider;
 ///
 /// **This is the inverse of the JavaScript prior art's vocabulary, and the
 /// inversion is deliberate.** The implementations this was ported from — the
-/// former `core-js` orchestrator (since removed from this repo) and the
+/// former `core-js` dispatcher (since removed from this repo) and the
 /// host-link daemon — call the *long-lived* session "bound" (it
 /// is bound to a thread) and the throwaway one "unbound"/"pool". Here the
 /// adjective describes the session's **lifetime**, not its attachment: a
@@ -84,8 +84,8 @@ impl fmt::Display for SessionClass {
 /// | Lifetime | immutable | moves on every take / hand-back |
 /// | Set by | the creation path | takeover, hand-back, spawn-time choice |
 ///
-/// So an [`Orchestrator`](Self::Orchestrator)-originated session an operator
-/// takes over is still `origin: orchestrator` while they hold it, and still is
+/// So an [`Dispatcher`](Self::Dispatcher)-originated session an operator
+/// takes over is still `origin: dispatcher` while they hold it, and still is
 /// after they hand it back. Nothing may write this field after creation — the
 /// structures that carry it put it in their immutable half for that reason.
 ///
@@ -406,10 +406,10 @@ impl TurnOrigin {
     /// The provenance a session auto-created for this turn is born with.
     ///
     /// A task frame is a dispatch, so the session it creates is the
-    /// orchestrator's (§4.1: a task without a session id creates one). Anything
+    /// dispatcher's (§4.1: a task without a session id creates one). Anything
     /// a person or a wrapper they are sitting in front of drives is theirs — an
     /// envelope stream reports a session started outside this daemon's dispatch
-    /// path, so it is never counted as orchestrator-originated.
+    /// path, so it is never counted as task-originated.
     pub fn session_origin(&self) -> SessionOrigin {
         match self {
             TurnOrigin::Frame { .. } => SessionOrigin::Task,

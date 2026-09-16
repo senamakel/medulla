@@ -27,7 +27,7 @@ use crate::worker::pty::{LaunchSpec, PtyManager, PtyState, SessionControl, Sessi
 /// load, and a tight deadline turns "the box was busy" into a red test.
 const PATIENCE: Duration = Duration::from_secs(20);
 
-/// A spec that runs `sh -c <script>` on a pty, as an orchestrator dispatch.
+/// A spec that runs `sh -c <script>` on a pty, as a dispatcher dispatch.
 ///
 /// Codex rather than Claude: claude's interactive argv carries a minted
 /// `--session-id`, which `/bin/sh` would reject as an unknown option. Codex

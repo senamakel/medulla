@@ -24,7 +24,7 @@ impl App {
     /// nothing to confirm, because there is no work left to lose.
     ///
     /// Routed by [`SessionRef`] like every other session action: a remote id
-    /// (`host/w_1`) has no orchestrator control to check — a remote session is
+    /// (`host/w_1`) has no dispatcher control to check — a remote session is
     /// always [`SessionControl::User`](crate::worker::pty::SessionControl::User),
     /// see [`session_row`](super::super::remote_sessions::session_row) — so only
     /// whether it is still running is worth asking about.

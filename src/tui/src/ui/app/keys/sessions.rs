@@ -6,7 +6,7 @@
 //! opens — which historically left the rail reachable only through
 //! `Alt`+`↑`/`↓`. That binding is unreachable on a stock macOS terminal, where
 //! Option+Arrow is either swallowed or sent as a word-motion sequence, so on
-//! those machines there was no way to select anything but the orchestrator.
+//! those machines there was no way to select anything but the dispatcher.
 //!
 //! Focus is therefore explicit, and moved with keys every terminal can send:
 //! `Esc` steps out of the composer to the rail, `Enter` steps back, and typing
@@ -32,9 +32,9 @@ impl App {
     /// Whether the Sessions rail currently holds the keyboard.
     ///
     /// Always, now. The tab used to be split between the rail and the
-    /// orchestrator's composer, and focus had to be tracked because a terminal
+    /// dispatcher's composer, and focus had to be tracked because a terminal
     /// has one keyboard for both. There is no composer any more — the
-    /// orchestrator runs below the surface rather than being typed at — so the
+    /// dispatcher runs below the surface rather than being typed at — so the
     /// rail is the only thing on the tab that can hold the keyboard. Kept as a
     /// named predicate because the rail's panel border reads it to say so.
     pub fn sessions_rail_focused(&self) -> bool {

@@ -50,10 +50,10 @@ pub struct TuiConfig {
     /// What Medulla's MCP server offers the harnesses it spawns.
     #[serde(default)]
     pub mcp: McpSection,
-    /// Persisted orchestrator worker roster.
+    /// Persisted dispatcher worker roster.
     #[serde(default)]
     pub hub: HubSection,
-    /// Whether this device also hosts the tasks the orchestrator hands out.
+    /// Whether this device also hosts the tasks the dispatcher hands out.
     #[serde(default)]
     pub host: HostSection,
     /// Additional hosts on this same machine, each working in its own directory.
@@ -61,7 +61,7 @@ pub struct TuiConfig {
     /// One laptop routinely holds several unrelated repos, and `[host]` can only
     /// name one working directory — its `workspaces` list is advisory, so a task
     /// still runs in the primary. Each entry here binds its own device-local
-    /// address and registers as its own agent, so the orchestrator can be told
+    /// address and registers as its own agent, so the dispatcher can be told
     /// *which project* to work in rather than only *which machine*.
     ///
     /// Additive: `[host]` keeps its meaning, and a config with no `[[hosts]]`

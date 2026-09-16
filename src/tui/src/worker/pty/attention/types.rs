@@ -32,7 +32,7 @@ pub enum AttentionKind {
     /// A numbered choice is on screen with the cursor resting on an option. What
     /// it is asking is not recognised, but that it is asking is unambiguous.
     Choice,
-    /// A turn the orchestrator dispatched has settled and the session is being
+    /// A turn the dispatcher dispatched has settled and the session is being
     /// held open for the operator to read.
     ///
     /// The weakest *actionable* cue, and deliberately not raised for an ordinary

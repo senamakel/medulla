@@ -219,9 +219,9 @@ fn only_transcript_writing_harnesses_can_run_watchable_tasks() {
 #[tokio::test]
 async fn a_session_opened_to_serve_a_task_is_task_originated() {
     // The dispatch door. §4.1: a task that names no session creates one, and
-    // that session belongs to the orchestrator for the rest of its life —
+    // that session belongs to the dispatcher for the rest of its life —
     // including after an operator takes it over, which is why the row keeps
-    // reporting `origin: orchestrator` while `control` moves.
+    // reporting `origin: dispatcher` while `control` moves.
     let dir = tempfile::tempdir().unwrap();
     let cwd = dir.path().to_string_lossy().into_owned();
     let rollout = dir.path().join("rollout-origin.jsonl");

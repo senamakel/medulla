@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Who holds a harness, as the orchestrator is told.
+/// Who holds a harness, as the dispatcher is told.
 ///
 /// The SDK-side spelling of the TUI's `SessionControl`. Deliberately a second
 /// type rather than `serde` on the first: that enum's contract is that it is

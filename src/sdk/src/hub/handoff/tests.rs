@@ -162,7 +162,7 @@ fn the_joined_transcript_is_capped() {
 
 #[test]
 fn control_uses_the_shared_spelling() {
-    // The orchestrator reasons about operators, not users. One word per
+    // The dispatcher reasons about operators, not users. One word per
     // concept, wherever it is read.
     assert_eq!(HandoffControl::Operator.as_str(), "operator");
     assert_eq!(HandoffControl::Dispatch.as_str(), "dispatch");

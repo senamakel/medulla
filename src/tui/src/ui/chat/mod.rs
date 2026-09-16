@@ -1,6 +1,6 @@
 //! The reusable chat surface: a transcript over a composer.
 //!
-//! Two surfaces in this app are the same gesture — the orchestrator on the
+//! Two surfaces in this app are the same gesture — the dispatcher on the
 //! Sessions tab and the copilot on the Workflows tab. Both are "read what happened,
 //! then say what you want next", and before this module they were two
 //! implementations of it that had already drifted: the copilot's input collapsed
@@ -14,7 +14,7 @@
 //! - [`tool_call`] — turning a harness tool call into one readable line.
 //!
 //! What stays with each caller is the thing that genuinely differs: where the
-//! lines come from. The orchestrator folds a live event stream
+//! lines come from. The dispatcher folds a live event stream
 //! ([`super::app::render::chat_lines`]); the copilot renders role-tagged turns.
 
 pub(crate) mod composer;

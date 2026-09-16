@@ -16,7 +16,7 @@
 //! The last row is why these are the deliverable rather than the safety net:
 //! control state is no longer advertised to the backend at all, so the hand-back
 //! turn is now the *only* way a held in-flight task reaches a result. A silent
-//! dispatch would be an orchestrator waiting forever on a task it cannot see the
+//! dispatch would be a dispatcher waiting forever on a task it cannot see the
 //! state of.
 //!
 //! These replace `a_dispatch_into_a_workspace_the_operator_holds_is_refused` and
@@ -134,7 +134,7 @@ done
 #[tokio::test]
 async fn a_held_session_is_skipped_and_a_sibling_dispatch_session_serves_the_task() {
     // Candidacy, at session grain (spec §4.1). The conversation already has a
-    // session of its own, idle and the orchestrator's. The operator then opens a
+    // session of its own, idle and the sender's. The operator then opens a
     // session of their own in the same checkout and keeps it. The next dispatch
     // must go to the sibling and leave the person alone — where before, the hold
     // on *their* session refused the whole workspace, and this task failed with
@@ -283,7 +283,7 @@ async fn with_only_a_held_session_the_work_queues_and_runs_on_hand_back() {
 #[tokio::test]
 async fn a_queue_that_outlives_its_budget_fails_loudly_rather_than_silently() {
     // The other half of the queue, and the reason the shared held prefix still
-    // exists. Control state is not advertised any more, so an orchestrator
+    // exists. Control state is not advertised any more, so a dispatcher
     // cannot see that a task is parked behind a person — which makes waiting
     // forever indistinguishable from losing the task. The wait is therefore
     // bounded by the caller's own idle ceiling and ends in a real, retryable

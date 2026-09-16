@@ -17,7 +17,7 @@ pub struct WorkerWiring {
     pub primary_workspace: String,
     /// Workspace roots approved for capability advertisement.
     pub workspaces: Vec<String>,
-    /// Configured orchestrator/master peers.
+    /// Configured dispatcher/master peers.
     pub masters: Vec<Peer>,
     /// Config file this screen owns for persistence.
     pub config_path: std::path::PathBuf,

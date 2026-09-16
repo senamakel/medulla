@@ -84,7 +84,7 @@ fn a_remote_row_becomes_a_session_row_the_rail_can_place() {
 #[test]
 fn a_remote_session_is_always_the_operators() {
     // Nothing dispatches into a remote session — it exists because somebody
-    // asked for it in the picker. The orchestrator must never see one as
+    // asked for it in the picker. The dispatcher must never see one as
     // available, so both fields are fixed rather than carried.
     let row = session_row("tower", &remote_row("w_1"), 0);
     assert_eq!(row.control, crate::worker::pty::SessionControl::User);

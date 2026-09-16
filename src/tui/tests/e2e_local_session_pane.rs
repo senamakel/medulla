@@ -1,4 +1,4 @@
-//! End-to-end for the orchestrator's embedded session pane: a task dispatched
+//! End-to-end for the sender's embedded session pane: a task dispatched
 //! into a host, served by a real child on a real pseudo-terminal, and resolved
 //! back out by the pane the way the Agents tab resolves it.
 //!

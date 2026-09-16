@@ -1,7 +1,7 @@
 //! The `Host → Agent` projection the Sessions rail places its lanes onto.
 //!
 //! This used to back the Hosts tab, which drew the tree directly and let an
-//! operator edit it. That tab is gone — its pages managed an orchestration
+//! operator edit it. That tab is gone — its pages managed a fleet
 //! engine that no longer exists — but the projection is not a management
 //! surface: it is what gives a session its lane, hence its transcript and its
 //! place in the rail's order. So the three reads the rail needs live here, and

@@ -7,7 +7,7 @@
 //! [`crate::protocol::env::router_env`]. That works, but it hands OpenRouter a
 //! request the *harness* composed — including the harness's own `HTTP-Referer`
 //! and `X-Title`, the two headers OpenRouter reads to decide which application
-//! to credit. Traffic Medulla orchestrated is therefore attributed to Claude
+//! to credit. Traffic Medulla dispatched is therefore attributed to Claude
 //! Code, Codex or OpenCode instead of to Medulla.
 //!
 //! Inserting a proxy Medulla controls is what makes the attribution ours: the

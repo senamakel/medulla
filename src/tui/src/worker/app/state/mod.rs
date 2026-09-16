@@ -229,7 +229,7 @@ impl WorkerApp {
         sink
     }
 
-    /// Copy this worker's address, so it can be handed to an orchestrator.
+    /// Copy this worker's address, so it can be handed to an owner.
     ///
     /// This remains the fastest way to copy the identity while mouse capture is
     /// active; Ctrl-O releases capture when arbitrary on-screen text is needed.

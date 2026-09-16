@@ -1,6 +1,6 @@
 //! Hosting tasks on the machine the TUI is running on.
 //!
-//! A plain `medulla` is both halves of the system: the orchestrator that decides
+//! A plain `medulla` is both halves of the system: the dispatcher that decides
 //! what work to hand out, and a host that runs it. Before this, only the first
 //! half was in the process — the second needed a separate `medulla daemon`, a
 //! host-link identity for each side, and a contact edge between two programs on
@@ -309,7 +309,7 @@ the declarations module so this module remains host lifecycle wiring.
 /// which agent on that host was picked — so the host serves every one of them
 /// from the single executor it started in its own workspace. A declaration
 /// naming another directory therefore advertises a placement that the very next
-/// dispatch contradicts: the orchestrator routes work for `/srv/web` to an agent
+/// dispatch contradicts: the dispatcher routes work for `/srv/web` to an agent
 /// that runs it in `/srv/api`, and the only evidence is the wrong repository
 /// being edited.
 ///
@@ -343,7 +343,7 @@ the declarations module so this module remains host lifecycle wiring.
 /// Returns `Ok(None)` when hosting is switched off, which is a choice rather
 /// than a failure. An `Err` means hosting was wanted and could not happen — no
 /// agent CLI installed, or the address already bound — and the caller surfaces
-/// it, because an orchestrator with no host silently does nothing at all.
+/// it, because a dispatcher with no host silently does nothing at all.
 ///
 /// The started host comes with the problems it survived: declarations dropped
 /// for naming a directory it does not run in ([`specs_for`]). Those are
@@ -427,7 +427,7 @@ impl LocalHostHarnesses {
 /// `[[hosts]]` entry.
 ///
 /// One process, several working directories. Each entry binds its own bus
-/// address and registers as its own agent, so the orchestrator can be told which
+/// address and registers as its own agent, so the dispatcher can be told which
 /// *project* to work in rather than only which machine — and because they share
 /// this process's session manager, every one of them stays readable and typeable
 /// in the Agents pane, which is what spawning separate daemons costs you.

@@ -1,4 +1,4 @@
-//! Running workflows on this machine, with no orchestrator involved.
+//! Running workflows on this machine, with no remote dispatcher involved.
 //!
 //! A workflow's `agent` nodes dispatch task frames, and a task frame needs
 //! somewhere to go. In the deployed shape that is the hub relaying to a remote
@@ -749,7 +749,7 @@ pub async fn evolve_here(
 /// store: its edits land through the `medulla-workflows` MCP tools, which are
 /// attached to the session by [`LocalWorkflowHost`] and point at this host's own
 /// store. Dispatching the turn to a remote worker instead would run the prompt
-/// somewhere its edits could never reach the graph the orchestrator asked about.
+/// somewhere its edits could never reach the graph the dispatcher asked about.
 ///
 /// Per turn, not per process: the host binds two loopback addresses and holds a
 /// daemon draining them, and keeping that alive between turns would occupy the

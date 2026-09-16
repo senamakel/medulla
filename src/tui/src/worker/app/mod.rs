@@ -1,6 +1,6 @@
 //! The worker TUI's screen: state, keys, and render.
 //!
-//! Partitioned like the orchestrator's [`App`](crate::ui::app::App) — [`types`]
+//! Partitioned like the sender's [`App`](crate::ui::app::App) — [`types`]
 //! holds the data model, [`state`] construction and accessors, [`keys`] the
 //! keyboard dispatcher, [`input`] pointer routing, and [`render`] the ratatui
 //! draw.

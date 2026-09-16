@@ -119,7 +119,7 @@ fn flooding(label: &str) -> LaunchSpec {
         label: label.to_string(),
         model: None,
         session_id: None,
-        // The orchestrator's own sessions, as a task frame opens them: this
+        // The sender's own sessions, as a task frame opens them: this
         // measures the dispatch path, and an operator-held session is one
         // `claim_idle` skips entirely.
         control: SessionControl::Dispatch,

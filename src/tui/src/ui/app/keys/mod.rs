@@ -6,10 +6,10 @@
 //! Routing and Settings host subpages with bindings of their own,
 //! so their handling lives in focused sibling modules rather than inline here.
 //!
-//! The Sessions tab used to carry the orchestrator's composer, and every binding
+//! The Sessions tab used to carry the conversation composer, and every binding
 //! on it was arranged around that: printable keys always typed, the bare arrows
 //! drove the caret, and rail selection was pushed onto `Alt`+`↑`/`↓`. The
-//! composer went with the orchestrator, so the bare arrows walk the rail again;
+//! composer went with the dispatcher, so the bare arrows walk the rail again;
 //! `Alt`+`↑`/`↓` still does too, because that is what fingers learned. Transcript
 //! scrolling stays on `PageUp`/`PageDown` and task steering on
 //! `Alt`+`X`/`Alt`+`A`.
@@ -85,7 +85,7 @@ impl App {
         // overlays and the quit chord both. Anything less is not a terminal:
         // the operator would be typing into Claude Code with a handful of keys
         // mysteriously reserved, and `Ctrl-C` (interrupt the harness) would quit
-        // the orchestrator instead.
+        // the dispatcher instead.
         if self.handle_harness_key(k) {
             return None;
         }

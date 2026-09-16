@@ -1,7 +1,7 @@
 //! Pairing hand-off: getting a worker's address from the machine it runs on to
-//! the orchestrator that will delegate to it.
+//! the dispatcher that will delegate to it.
 //!
-//! Adding a host is a one-string problem. The orchestrator opens the channel and
+//! Adding a host is a one-string problem. The dispatcher opens the channel and
 //! the daemon auto-accepts the contact, so nothing has to travel *to* the
 //! worker — only the worker's link address has to travel *back*. The
 //! awkward part is that the worker is usually a box you are on over SSH, where
@@ -30,7 +30,7 @@ use crate::clipboard::{tmux::operator_sequence, Tmux};
 
 /// The single line to paste into a shell on the machine being added.
 ///
-/// One paste, in the easy direction: it is copied on the orchestrator — a local
+/// One paste, in the easy direction: it is copied on the dispatcher — a local
 /// terminal, where copying is trivial — and pasted into the remote session.
 /// Installing is guarded rather than unconditional so pasting it onto a machine
 /// that already has `medulla` starts the worker instead of reinstalling it, and
@@ -72,7 +72,7 @@ pub fn clipboard_handoff(address: &str, stdout_is_terminal: bool) -> Option<Stri
 /// The framed pairing block printed once the daemon is onboarded.
 ///
 /// `handle` is the `@handle` this worker registered, when it has one — with a
-/// handle the operator can type `@name` on the orchestrator and skip the copy
+/// handle the operator can type `@name` on the owning medulla and skip the copy
 /// entirely, so it is worth naming right where the address is.
 ///
 /// `copied` reflects whether [`clipboard_handoff`] fired, so the block never

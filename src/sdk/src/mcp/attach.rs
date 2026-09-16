@@ -715,7 +715,7 @@ pub fn server_spec(
 /// Nothing is attached for a provider whose CLI has no registration flag we
 /// have verified; see [`supports_cli_attach`]. That is a real gap rather than a
 /// silent one: those providers still receive the tools over ACP, which is the
-/// transport the orchestrator uses for delegated work.
+/// transport the dispatcher uses for delegated work.
 ///
 /// `env` is read to resolve the session's policy (`workflows.enabled`, the
 /// operator's tool mode) but never written: the secret half of a granted

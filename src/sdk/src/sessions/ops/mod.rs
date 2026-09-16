@@ -54,7 +54,7 @@ impl SessionManager {
                     workspace: None,
                     model: None,
                     // A [`SessionOp`] is an operator action by definition — the
-                    // orchestrator dispatches, it does not press keys — so the
+                    // dispatcher dispatches, it does not press keys — so the
                     // session it opens is the person's.
                     origin: SessionOrigin::User,
                     name: None,

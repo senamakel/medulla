@@ -323,7 +323,7 @@ fn req_to(address: &str) -> TaskRequest {
 
 #[tokio::test(start_paused = true)]
 async fn a_dead_peer_does_not_pause_another_peers_clock() {
-    // §6.3: "The gate is per peer, not per link." An orchestrator holds sessions
+    // §6.3: "The gate is per peer, not per link." An owner holds sessions
     // with many hosts; gating on an aggregate would let one laptop going to
     // sleep stop every other host's clock, so a task dispatched to a healthy
     // worker would stop timing out for an unrelated reason.

@@ -142,7 +142,7 @@ impl App {
                 // in the capacity snapshot until it answers a capability probe.
                 // Falling back to what the descriptor itself carries means the
                 // machine and the working directory show from the first frame
-                // rather than only after the orchestrator happens to probe.
+                // rather than only after the dispatcher happens to probe.
                 let meta = |key: &str| {
                     descriptor
                         .metadata

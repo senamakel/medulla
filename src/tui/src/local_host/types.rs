@@ -21,7 +21,7 @@ pub(crate) struct LocalHost {
 }
 
 impl LocalHost {
-    /// The device-local address the orchestrator dispatches to.
+    /// The device-local address the dispatcher dispatches to.
     pub(crate) fn address(&self) -> &str {
         self.daemon.address()
     }

@@ -1,6 +1,6 @@
 //! Best-effort, fail-open budget and readiness probe for the installed harnesses.
 //!
-//! An orchestrator sizing tasks wants to know, per accepted harness, how much
+//! A dispatcher sizing tasks wants to know, per accepted harness, how much
 //! headroom a worker has and whether the harness is usable at all. Providers do
 //! not publish exact per-window numbers, so this probe is honest about its
 //! sourcing: it emits `source: estimate` for anything inferred and only reports

@@ -1,7 +1,7 @@
 //! Paste onto a tab with no text field, and into the one single-line overlay
 //! that still takes one.
 //!
-//! The Agents composer this file was written for is gone with the orchestrator
+//! The Agents composer this file was written for is gone with the dispatcher
 //! it submitted to, and with it every case about multi-line drafts, the command
 //! peek, and moving focus in on a paste. What is left is the rule those cases
 //! existed to protect: a payload never lands anywhere the operator cannot see

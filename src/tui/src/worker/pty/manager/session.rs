@@ -28,7 +28,7 @@ impl PtyManager {
     /// A session the operator holds is never returned, however idle it looks.
     /// That is the whole of the unmanaged-harness feature and the whole of
     /// takeover: [`SessionControl`] is the gate, and this is where it bites.
-    /// Without it, attaching to a pane and typing does not stop the orchestrator
+    /// Without it, attaching to a pane and typing does not stop the dispatcher
     /// pasting a task prompt into the same composer — the exact two-writers
     /// collision the `busy` flag above exists to prevent, reachable by an
     /// operator simply focusing a harness.
@@ -106,7 +106,7 @@ impl PtyManager {
     /// axis, and deliberately not the same thing: naming a session says nothing
     /// about who may drive it, and it never touches
     /// [`origin`](super::super::types::SessionOrigin) — a dispatched session an
-    /// operator names is still one the orchestrator started.
+    /// operator names is still one the dispatcher started.
     ///
     /// Passing `None` (or blank) clears the name; the session then falls back to
     /// whatever the UI derives for it.
@@ -310,7 +310,7 @@ impl PtyManager {
 ///
 /// String equality is not enough here because the two sides arrive by different
 /// routes: a harness the operator started ran its path through `expand_home`,
-/// while a task frame's `cwd` is used verbatim as the orchestrator wrote it. So
+/// while a task frame's `cwd` is used verbatim as the dispatcher wrote it. So
 /// `~/work/repo` and `/Users/e/work/repo` are one workspace that compares as
 /// two — and exclusivity that can be defeated by how a path was spelled is not
 /// exclusivity.

@@ -7,7 +7,7 @@
 //!
 //! [`RoutingBridge`] composes the two: one endpoint that keeps device-local
 //! peers on the in-memory bus and sends everything else over the link. That is
-//! what lets a single process act as both orchestrator and host.
+//! what lets a single process act as both dispatcher and host.
 
 mod link;
 mod local;

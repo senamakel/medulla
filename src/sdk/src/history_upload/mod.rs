@@ -9,7 +9,7 @@
 //!
 //! Split by responsibility: `types` holds the data model, `scan` locates and
 //! reads transcripts, `redact` removes secrets before anything leaves the
-//! machine, and `share` orchestrates the upload-then-claim sequence once the
+//! machine, and `share` dispatches the upload-then-claim sequence once the
 //! user has consented. Public items are re-exported so callers use
 //! `medulla::history_upload::*`.
 //!

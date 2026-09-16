@@ -119,7 +119,7 @@ pub fn declare_agent(
 /// Remove an agent declaration and write the list to `path`.
 ///
 /// Removing only undeclares: the workspace directory and anything in it are left
-/// alone, because the operator asked the orchestrator to stop placing work
+/// alone, because the operator asked the dispatcher to stop placing work
 /// there, not to lose their checkout.
 ///
 /// # Errors

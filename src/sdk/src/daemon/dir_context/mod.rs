@@ -1,6 +1,6 @@
 //! Workspace directory context for the capability probe.
 //!
-//! An orchestrator routing work across a roster needs to know *what project*
+//! A dispatcher routing work across a roster needs to know *what project*
 //! lives in each agent's working directory, not just which tools the agent has.
 //! This module reads the well-known instruction files (CLAUDE.md, AGENTS.md,
 //! README.md) from a workspace so the probe can ground its self-report prompt in

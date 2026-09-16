@@ -128,7 +128,7 @@ impl SessionControl {
 /// about to read it, when nobody ever will again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CloseAttempt {
-    /// The close won: the session existed, was still orchestrator-owned, and
+    /// The close won: the session existed, was still dispatch-owned, and
     /// is now dead.
     Closed,
     /// The recheck refused because an operator holds this session. It is
@@ -185,7 +185,7 @@ pub struct LaunchSpec {
     pub session_id: Option<String>,
     /// Who holds the session the moment it opens.
     ///
-    /// A task frame opens an [`Orchestrator`](SessionControl::Dispatch)
+    /// A task frame opens an [`Dispatcher`](SessionControl::Dispatch)
     /// session; an operator spawning one from the TUI opens a
     /// [`User`](SessionControl::User) one, which is what makes it unmanaged.
     pub control: SessionControl,
@@ -193,7 +193,7 @@ pub struct LaunchSpec {
     ///
     /// Display and labelling only — never gate behaviour on it. Control is the
     /// gate; this is what lets a session be shown under its agent as "started
-    /// by you" rather than the less useful "orchestrator-spawned, currently
+    /// by you" rather than the less useful "dispatcher-spawned, currently
     /// yours". It is fixed here for the session's whole life.
     pub origin: SessionOrigin,
     /// The display name the operator gave this session as they spun it up.
@@ -279,7 +279,7 @@ pub struct SessionRow {
     /// being kept standing for the operator to read.
     ///
     /// Orthogonal to [`control`](SessionRow::control), which still says
-    /// `Orchestrator`: nobody has taken it, and reading it as taken would make
+    /// `Dispatcher`: nobody has taken it, and reading it as taken would make
     /// it hold the checkout against every task queued behind it. Cleared the
     /// moment the operator does take it.
     pub retained: bool,
@@ -299,7 +299,7 @@ pub struct SessionRow {
     ///
     /// The one piece of session state nothing else on this row can express. A
     /// harness stopped on a permission prompt is running, not busy in any way
-    /// the orchestrator knows about, and producing no output — so `state`,
+    /// the dispatcher knows about, and producing no output — so `state`,
     /// `busy`, and `last_output_at` all read exactly as they do for a harness
     /// thinking hard, and the operator watching a different pane never learns
     /// it stopped. Recomputed from the screen as it paints (see

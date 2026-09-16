@@ -68,7 +68,7 @@ pub struct PeerSession {
 }
 
 /// One managed worker peer, projected from a `worker.list` entry. A worker is a
-/// remote host-link peer the orchestrator can delegate to. §4.2 is load-bearing:
+/// remote host-link peer the dispatcher can delegate to. §4.2 is load-bearing:
 /// `id` is the registry's own stable handle (for select/edit/remove), `address` is
 /// the messaging target, and `peer_id` (the wallet) is a separate field — never
 /// merged.
@@ -101,7 +101,7 @@ pub struct WorkerInfo {
     /// Whether this worker is the current manual default.
     pub selected: bool,
     /// Per-harness token budgets the worker advertised on its capability probe.
-    /// Empty when none were reported. Display-only; the orchestrator sizes tasks.
+    /// Empty when none were reported. Display-only; the dispatcher sizes tasks.
     pub budgets: Vec<crate::protocol::HarnessBudget>,
     /// Per-harness readiness the worker advertised on its capability probe. Empty
     /// when none were reported. Display-only.

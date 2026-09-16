@@ -44,7 +44,7 @@ impl WorkerApp {
         match key.code {
             KeyCode::Char('c') if ctrl => return Some(WorkerCmd::Quit),
             KeyCode::Char('q') => return Some(WorkerCmd::Quit),
-            // Available from every tab: the address is what an orchestrator
+            // Available from every tab: the address is what a dispatcher
             // needs, and hunting for the right tab to copy it would be silly.
             KeyCode::Char('y') => self.copy_address(),
             KeyCode::Tab => self.set_tab((self.tab + 1) % TABS.len()),

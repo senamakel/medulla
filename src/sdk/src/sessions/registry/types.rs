@@ -47,10 +47,10 @@ pub struct WorkspaceContext {
 ///
 /// The origin is **private**, and that is what makes the sentence above true
 /// rather than aspirational: a public field is a public mutation, and a caller
-/// who could flip a bound session between `Orchestrator` and `User` could move
+/// who could flip a bound session between `Dispatcher` and `User` could move
 /// somebody's session into the dispatch pool (or take a dispatched one out of
 /// it) after the fact. Build one through
-/// [`orchestrator`](Self::orchestrator)/[`user`](Self::user), read it through
+/// [`dispatcher`](Self::dispatcher)/[`user`](Self::user), read it through
 /// [`origin`](Self::origin), and rename it through
 /// [`rename`](Self::rename) — the display name is the only mutable half.
 /// [`SessionRegistry::record_identity`](super::SessionRegistry::record_identity)
@@ -120,9 +120,9 @@ pub(super) struct SessionBinding {
     /// `None` until the creating path records one. The distinction is what
     /// lets [`SessionRegistry::record_identity`](super::SessionRegistry::record_identity)
     /// *establish* an origin exactly once and refuse every later rewrite: with
-    /// a bare [`SessionIdentity`] the freshly-bound orchestrator default would
+    /// a bare [`SessionIdentity`] the freshly-bound dispatcher default would
     /// be indistinguishable from a deliberate one, and preserving it would
-    /// clamp every user session to the orchestrator.
+    /// clamp every user session to the dispatcher.
     pub(super) identity: Option<SessionIdentity>,
 }
 /// Insertion-ordered bindings plus the per-key turn chains.

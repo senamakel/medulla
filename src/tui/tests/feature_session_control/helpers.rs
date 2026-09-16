@@ -178,7 +178,7 @@ pub fn user_session(sessions: &PtyManager) -> String {
 
 /// The same session, but created by dispatch rather than by a person.
 ///
-/// Origin is immutable and is what decides whether the orchestrator has a claim
+/// Origin is immutable and is what decides whether the dispatcher has a claim
 /// on a session, so a test about the release question has to be able to open one
 /// of each — the two differ in nothing else.
 pub fn dispatched_session(sessions: &PtyManager) -> String {

@@ -81,10 +81,10 @@ pub(in crate::ui::app) struct SessionPicker {
 ///
 /// There is deliberately no "managed or unmanaged?" stage. A session the
 /// operator starts by hand is theirs — that is what starting it by hand *means*
-/// — and the orchestrator spawns its own sessions managed without asking
+/// — and the dispatcher spawns its own sessions managed without asking
 /// anybody. So the question only ever had one sensible answer, and asking it
 /// bought a keystroke, an extra screen, and a freshly started session the
-/// operator then had to take back from the orchestrator before typing into it.
+/// operator then had to take back from the dispatcher before typing into it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::ui::app) enum SessionPickerStep {
     /// Choose which machine the session runs on.

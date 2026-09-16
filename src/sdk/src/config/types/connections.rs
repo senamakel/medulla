@@ -177,7 +177,7 @@ pub struct ProviderBudgetConfig {
 /// Absent entirely (the default) means every installed, usable harness advertises
 /// a best-effort `estimate` with no invented numbers. A `[budget.providers.<p>]`
 /// entry promotes that provider's advertised descriptor to `source: configured`
-/// with the operator's exact numbers, so a hosted orchestrator can size tasks
+/// with the operator's exact numbers, so a hosted dispatcher can size tasks
 /// against a real allowance. Keyed by provider id (`claude` / `codex` /
 /// `opencode`), mirroring `[router.providers.<p>]`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

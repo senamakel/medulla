@@ -456,7 +456,7 @@ async fn a_host_describes_itself_by_where_it_is_and_what_it_serves() {
 
 #[test]
 fn the_primary_workspace_always_leads_the_advertised_directories() {
-    // An orchestrator reading the list top-down should see where tasks actually
+    // A dispatcher reading the list top-down should see where tasks actually
     // run before the alternatives.
     let dirs = accessible_dirs("/srv/primary", &[]);
     assert_eq!(dirs, vec!["/srv/primary".to_string()]);

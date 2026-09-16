@@ -3,7 +3,7 @@
 
 use super::declaration::*;
 
-/// Capacity is what the orchestrator schedules against, so it may never exceed
+/// Capacity is what the dispatcher schedules against, so it may never exceed
 /// what this build can actually provision. `Worktree` parses (a config from a
 /// later version must not fail the whole load) but nothing carves a per-session
 /// worktree yet, so advertising its eventual parallelism would put four

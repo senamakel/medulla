@@ -1,8 +1,8 @@
-//! Enrollment: mint one orchestrator/host pair and write both `node.json`
+//! Enrollment: mint one owner/host pair and write both `node.json`
 //! files (protocol §7).
 //!
 //! This is the harness's stand-in for the backend's invite/enroll endpoints
-//! (§7.2) *and* for the human who carries the pair key from the orchestrator to
+//! (§7.2) *and* for the human who carries the pair key from the dispatcher to
 //! the host (§7.1) — the one step of enrollment a script cannot perform. The
 //! backend's half of the material (the two forwarder keys) is printed for the
 //! mock forwarder's node table; the pair key is not printed anywhere.
@@ -14,9 +14,9 @@ use sha2::{Digest, Sha256};
 
 use crate::{decode_hex, encode_hex, Args};
 
-/// Mint an orchestrator/host pair and write both `node.json` files (§7).
+/// Mint a dispatcher/host pair and write both `node.json` files (§7).
 ///
-/// The pair key is generated here, on the orchestrator, exactly as §7.1 says —
+/// The pair key is generated here, on the dispatcher, exactly as §7.1 says —
 /// and written straight into the host's identity file rather than typed in by a
 /// human, which is the one step of enrollment a harness cannot perform.
 pub fn enroll(args: &Args, owner_dir: &Path) -> Result<(), String> {

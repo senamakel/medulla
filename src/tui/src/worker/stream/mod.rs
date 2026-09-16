@@ -1,4 +1,4 @@
-//! Streaming a live harness session's screen to a watching orchestrator.
+//! Streaming a live harness session's screen to a watching dispatcher.
 //!
 //! The worker half of the `medulla.screen.v1` protocol, whose diff, fold and
 //! codec live in the SDK ([`medulla::protocol::screen`]). What is here is the
@@ -12,7 +12,7 @@
 //! - [`router`] — the inbound half: who may watch what, and starting or stopping
 //!   the stream that answers.
 //!
-//! The worker is the sender and a *dispatch* orchestrator is a passive observer:
+//! The worker is the sender and a *dispatch* sender is a passive observer:
 //! [`router`] refuses input and resize, so such a subscription can only ever
 //! read. That is why the module needs no trust gate of its own — though *which*
 //! sessions a given peer may watch is a question for the caller that owns the

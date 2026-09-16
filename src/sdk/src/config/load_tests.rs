@@ -422,7 +422,7 @@ fn a_synthesized_link_section_follows_the_resolved_backend() {
     // config file has none, and used to do it with `LinkConfig::default()` —
     // whose `forwarder_url` is a *constant*, because a serde default can read
     // neither the environment nor the rest of the document. Pointed at staging
-    // that put the worker on one forwarder while the orchestrator's hub sat on
+    // that put the worker on one forwarder while the sender's hub sat on
     // another: both started cleanly and reported healthy, but a datagram handed
     // to one forwarder never reaches the other, so the two simply never heard
     // from each other with nothing logged anywhere.

@@ -112,7 +112,7 @@ impl WorkspaceStrategy {
     /// `Checkout` is serial by definition: every session shares the one
     /// directory. `Worktree` is serial *by provisioning*, which is a different
     /// reason for the same number and the one that matters here. The capacity
-    /// this returns is advertised as `maxSessions` and the orchestrator
+    /// this returns is advertised as `maxSessions` and the dispatcher
     /// schedules against it, so reporting the parallelism a carved worktree
     /// *would* allow — while nothing carves one — would schedule concurrent
     /// sessions into a single checkout: exactly the collision the strategy

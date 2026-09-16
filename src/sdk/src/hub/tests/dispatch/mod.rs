@@ -1,5 +1,5 @@
 //! Tests for the sender-runner: dispatch, routing by `correlationId`, the ack
-//! window + reset/resend recovery, the no-progress watchdog, and orchestrator
+//! window + reset/resend recovery, the no-progress watchdog, and dispatcher
 //! abort. Driven by the [`FakeWorker`](harness::FakeWorker) [`Relay`] harness,
 //! which replays a worker's frame sequence into the inbox with no network.
 
@@ -168,7 +168,7 @@ fn run_error_display_is_human_readable_per_variant() {
 async fn every_inbound_worker_frame_is_narrated_with_its_payload() {
     // The hub reported only the settled outcome, so "the worker never answered"
     // and "the worker answered with nothing" read identically from the
-    // orchestrator's side — and neither said whether the worker had been
+    // dispatcher's side — and neither said whether the worker had been
     // talking at all. Every frame it sends is now on the record.
     let seen = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let worker = FakeWorker::new(Mode::Reply("REMOTE: 4 agents, 1 offline".to_string()));
@@ -272,7 +272,7 @@ async fn giving_up_tells_the_worker_to_stop() {
 async fn a_senders_abort_stops_the_worker_and_reaps() {
     // The backend owns the deadline and cancels a running task via
     // `medulla:task_abort`. A healthy worker — here acked and working, so no
-    // liveness bound would ever fire — must still stop when the orchestrator
+    // liveness bound would ever fire — must still stop when the dispatcher
     // aborts. The default idle window is minutes away, so ONLY the abort can end
     // this run; if it hangs, the abort path is broken.
     let worker = FakeWorker::new(Mode::AckOnly);
@@ -281,7 +281,7 @@ async fn a_senders_abort_stops_the_worker_and_reaps() {
     let r = runner.clone();
     let handle = tokio::spawn(async move { r.run(req("x"), None).await });
 
-    // Abort by the orchestrator-facing id (`req`'s `abort_id` is "t1"). Retried
+    // Abort by the sender-facing id (`req`'s `abort_id` is "t1"). Retried
     // until the run resolves: a notify sent before `run` has registered its
     // signal is a no-op, so a single early call could miss the dispatch.
     loop {

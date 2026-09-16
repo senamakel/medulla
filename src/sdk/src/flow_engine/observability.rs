@@ -36,7 +36,7 @@ use crate::harness_work::kinds;
 /// Where emitted work events go.
 ///
 /// A callback rather than a channel so the caller decides whether an event is
-/// forwarded to the orchestrator, folded into a local snapshot, or both — the
+/// forwarded to the dispatcher, folded into a local snapshot, or both — the
 /// observer should not have to know which.
 pub type WorkEventSink = Arc<dyn Fn(&str, Value) + Send + Sync>;
 

@@ -252,7 +252,7 @@ pub struct SessionHandle {
     pub(super) generation: AtomicU64,
     /// Whether a turn is running in this session right now.
     pub(super) busy: AtomicBool,
-    /// Whether the operator, rather than the orchestrator, holds this session.
+    /// Whether the operator, rather than the dispatcher, holds this session.
     ///
     /// [`SessionControl`](super::super::types::SessionControl) as one bit, for
     /// the same reason `busy` is: `claim_idle` tests it for every session on
@@ -284,7 +284,7 @@ pub struct SessionHandle {
     ///
     /// Set by [`mark_closed`](SessionHandle::mark_closed), which only the
     /// deliberate-close paths call — an operator closing the harness, the
-    /// executor finishing a bounded turn that never answered, an orchestrator
+    /// executor finishing a bounded turn that never answered, a dispatcher
     /// interrupting a session it owns. The signal-derived exit status such a
     /// kill leaves behind is the harness obeying the request, not a lifecycle
     /// failure, so the lifecycle cue must not read it as one.

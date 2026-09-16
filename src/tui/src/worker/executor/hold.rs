@@ -8,7 +8,7 @@
 //!    writer in it: the dispatch *queues* behind them
 //!    ([`await_checkout_release`](PtySessionExecutor::await_checkout_release)).
 //!    It used to be refused outright, which made a person at a keyboard a task
-//!    failure the orchestrator had to route around.
+//!    failure the dispatcher had to route around.
 //!
 //! Note the grain, because it is easy to lose: **holds are on sessions**
 //! ([`SessionControl`]), never on directories. What is per-*checkout* is the
@@ -28,7 +28,7 @@
 //!
 //! The one thing none of this does is *fail*. A dispatch that meets a person
 //! ends in a real result or a real error, never in silence and never in a
-//! refusal the orchestrator has to interpret.
+//! refusal the dispatcher has to interpret.
 
 use std::time::Duration;
 
@@ -171,9 +171,9 @@ impl PtySessionExecutor {
     /// nothing at all about its siblings, with no control logic to revisit.
     ///
     /// **What this enforces today, and what it does not.** It prevents the one
-    /// pair of concurrent writers that nothing else does: the orchestrator
+    /// pair of concurrent writers that nothing else does: the dispatcher
     /// starting a harness in a tree a *person* is working in. It does **not**
-    /// serialize two orchestrator sessions in one checkout — main opens a second
+    /// serialize two dispatched sessions in one checkout — main opens a second
     /// session for a second concurrent dispatch (pinned by
     /// `concurrent_tasks_from_one_peer_do_not_share_a_session`), and turning
     /// that into a queue is a behaviour change with its own capacity story:
@@ -216,7 +216,7 @@ impl PtySessionExecutor {
     ///
     /// # Errors
     ///
-    /// - The orchestrator aborted while the task was queued — nothing has been
+    /// - The dispatcher aborted while the task was queued — nothing has been
     ///   started, so there is nothing to stop.
     /// - The budget ran out with the person still working. Reported with the
     ///   shared held prefix so the hub settles it as
@@ -258,7 +258,7 @@ impl PtySessionExecutor {
     /// idle ceiling by not accruing here (the caller resets it on resume), and
     /// the requester's no-progress window by the held status frame this
     /// suspension announces. What still ends the wait is an event, not a clock:
-    /// the operator hands it back, the orchestrator aborts, or the session dies.
+    /// the operator hands it back, the dispatcher aborts, or the session dies.
     ///
     /// # Errors
     ///

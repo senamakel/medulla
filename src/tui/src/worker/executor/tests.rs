@@ -82,13 +82,13 @@ fn a_multi_line_instruction_still_yields_a_one_line_prompt_with_its_tail() {
 fn a_finished_turn_is_kept_only_when_somebody_asked_for_it() {
     use medulla::daemon::providers::RunTaskOrigin;
 
-    let orchestrator = Some(SessionControl::Dispatch);
+    let dispatcher = Some(SessionControl::Dispatch);
 
     // The case retention was built for, unchanged: a peer's delegated task
     // answered, and whoever delegated it may attach to the pane and read it.
     assert!(retains_finished_session(
         SessionClass::Bounded,
-        orchestrator,
+        dispatcher,
         true,
         RunTaskOrigin::DelegatedTask,
     ));
@@ -97,13 +97,13 @@ fn a_finished_turn_is_kept_only_when_somebody_asked_for_it() {
     // hold a live harness process open for.
     assert!(!retains_finished_session(
         SessionClass::Bounded,
-        orchestrator,
+        dispatcher,
         true,
         RunTaskOrigin::Workflow,
     ));
     assert!(!retains_finished_session(
         SessionClass::Bounded,
-        orchestrator,
+        dispatcher,
         true,
         RunTaskOrigin::CapabilityProbe,
     ));
@@ -113,13 +113,13 @@ fn a_finished_turn_is_kept_only_when_somebody_asked_for_it() {
     // session an operator has taken.
     assert!(!retains_finished_session(
         SessionClass::Bounded,
-        orchestrator,
+        dispatcher,
         false,
         RunTaskOrigin::DelegatedTask,
     ));
     assert!(!retains_finished_session(
         SessionClass::Unbound,
-        orchestrator,
+        dispatcher,
         true,
         RunTaskOrigin::DelegatedTask,
     ));
@@ -414,7 +414,7 @@ mod children {
         sessions.close(&id);
     }
 
-    /// The other half of the same recheck: a session still orchestrator-owned
+    /// The other half of the same recheck: a session still dispatch-owned
     /// closes exactly as a plain `close` would.
     #[test]
     fn close_if_dispatch_closes_a_session_still_dispatch_owned() {

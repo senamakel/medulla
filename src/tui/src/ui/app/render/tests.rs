@@ -3,7 +3,7 @@
 //!
 //! The lane presence-glyph and chat-transcript tests that used to live here went
 //! with the surfaces they covered — the rail lists sessions rather than lanes,
-//! and the orchestrator's transcript is no longer drawn in the TUI at all.
+//! and the sender's transcript is no longer drawn in the TUI at all.
 
 use std::sync::Arc;
 

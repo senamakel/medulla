@@ -3,7 +3,7 @@
 /// How a composer should present itself for one frame.
 ///
 /// The three states are deliberately independent rather than one enum: a busy
-/// composer can still hold the keyboard (the orchestrator's does, so a follow-up
+/// composer can still hold the keyboard (the sender's does, so a follow-up
 /// can be typed while a turn runs), and an unfocused one still has to show what
 /// was left in the draft.
 #[derive(Debug, Clone, Copy, Default)]

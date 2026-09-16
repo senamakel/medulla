@@ -150,7 +150,7 @@ pub(super) fn with_tool_mode_at_depth(
             // Medulla tools are attached through ACP; legacy provider JSONL
             // cannot expose the MCP server. Restricted workflow turns need it
             // for authoring. Every task on the process that owns the control
-            // plane needs ACP, including the root orchestrator at depth zero;
+            // plane needs ACP, including the root run at depth zero;
             // a remote worker cannot mint a fleet grant, so forcing ACP there
             // changes transport without adding any tools and can break an
             // otherwise installed direct CLI.

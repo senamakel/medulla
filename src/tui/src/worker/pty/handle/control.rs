@@ -53,7 +53,7 @@ impl SessionHandle {
     /// the transcript and a finished task reads as one that disappeared.
     ///
     /// Retention says nothing about who holds the session: it stays the
-    /// orchestrator's on paper so it never counts as a checkout writer, and
+    /// dispatcher's on paper so it never counts as a checkout writer, and
     /// [`try_claim`](Self::try_claim) refuses it so no later task can land in a
     /// transcript that already answered someone else.
     pub(in super::super) fn retain(&self) {
@@ -61,7 +61,7 @@ impl SessionHandle {
         self.retained.store(true, Ordering::Release);
     }
 
-    /// Interrupt and close only while orchestration still owns the session.
+    /// Interrupt and close only while dispatch still owns the session.
     /// Serialized with control handoff so takeover and termination cannot race.
     pub(in super::super) fn stop_if_dispatch(&self) -> bool {
         let _cold = lock(&self.cold);
@@ -74,7 +74,7 @@ impl SessionHandle {
         true
     }
 
-    /// Close a settled turn's session only while orchestration still owns it.
+    /// Close a settled turn's session only while dispatch still owns it.
     ///
     /// The settled counterpart to [`stop_if_dispatch`](Self::stop_if_dispatch):
     /// no interrupt byte, because the turn is already over rather than running,
@@ -118,7 +118,7 @@ impl SessionHandle {
     }
 
     /// Take this session for a turn, if it is free, alive, and the
-    /// orchestrator's to take.
+    /// dispatcher's to take.
     ///
     /// A single compare-exchange, which is what makes the claim atomic without
     /// the registry lock the old find-and-claim needed: two tasks racing for the
@@ -127,7 +127,7 @@ impl SessionHandle {
     /// A session the operator holds is never claimed, however idle it looks.
     /// That is the whole of the unmanaged-harness feature and the whole of
     /// takeover: without it, attaching to a pane and typing does not stop the
-    /// orchestrator pasting a task prompt into the same composer — the exact
+    /// dispatcher pasting a task prompt into the same composer — the exact
     /// two-writers collision `busy` exists to prevent, reachable by an operator
     /// simply focusing a harness.
     /// Control is checked again *after* the claim lands, and the claim given

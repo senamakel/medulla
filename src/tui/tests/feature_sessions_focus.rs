@@ -1,10 +1,10 @@
 //! Feature tests for Agents-tab navigation: the rail holds the keyboard, bare
 //! arrows walk it, and a click selects the row under the pointer.
 //!
-//! This file used to pin a focus *split* — the tab merged the orchestrator's
+//! This file used to pin a focus *split* — the tab merged the sender's
 //! composer with the rail, one terminal keyboard drove both, and which of them
 //! had it was a state the operator could neither see nor reliably move. There is
-//! no composer here any more: the orchestrator is a subconscious layer rather
+//! no composer here any more: the dispatcher is a background layer rather
 //! than something typed at, so the rail is the only thing on the tab that takes
 //! keys. What is left to pin is that it always does, including on the rows that
 //! used to hand the keyboard away.
@@ -131,7 +131,7 @@ fn bare_arrows_walk_the_rail() {
 
 #[test]
 fn the_rail_keeps_the_keyboard_on_every_row() {
-    // Printable keys used to hop the cursor to the orchestrator's lane and type
+    // Printable keys used to hop the cursor to the dispatch lane and type
     // there. With no composer to type into, a character must leave the cursor
     // exactly where it was rather than moving it somewhere invisible.
     let mut app = agents_app();

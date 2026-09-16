@@ -369,7 +369,7 @@ impl App {
         self.persist_theme_value_now("Attention blink rate", blink_rate_label(next));
     }
 
-    /// Toggle extracted harness titles on orchestrator-managed agent rows.
+    /// Toggle extracted harness titles on dispatcher-managed agent rows.
     fn toggle_session_titles(&mut self) {
         let appearance = &mut self.loaded.config.appearance;
         appearance.show_session_titles = !appearance.show_session_titles;

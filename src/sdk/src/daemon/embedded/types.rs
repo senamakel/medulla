@@ -45,7 +45,7 @@ pub struct EmbeddedDaemonOptions {
     ///
     /// The primary [`workspace`](Self::workspace) is always included, so an
     /// empty list keeps the previous behaviour exactly. These reach the
-    /// orchestrator as `capabilities.accessibleDirs`, which is how it learns
+    /// dispatcher as `capabilities.accessibleDirs`, which is how it learns
     /// that a machine has more than one project on it — routing context, not a
     /// permission grant: a task frame still cannot name a working directory.
     pub workspaces: Vec<String>,
@@ -132,7 +132,7 @@ impl EmbeddedDaemonOptions {
 /// What the embedded host has been doing, for a UI to render.
 ///
 /// Counters rather than a history: the host is one lane in a fleet view, and the
-/// transcript of any individual task already belongs to the orchestrator that
+/// transcript of any individual task already belongs to the dispatcher that
 /// dispatched it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EmbeddedDaemonStats {
@@ -202,7 +202,7 @@ pub struct EmbeddedDaemon {
 /// counters simply stop advancing, which is the truth a UI should be showing.
 #[derive(Debug, Clone)]
 pub struct HostObservation {
-    /// The address the orchestrator dispatches to.
+    /// The address the dispatcher dispatches to.
     address: String,
     /// Where tasks run.
     workspace: String,
@@ -255,7 +255,7 @@ impl HostObservation {
         }
     }
 
-    /// The address the orchestrator dispatches to.
+    /// The address the dispatcher dispatches to.
     pub fn address(&self) -> &str {
         &self.address
     }

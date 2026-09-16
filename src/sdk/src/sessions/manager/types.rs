@@ -123,7 +123,7 @@ impl OpenSession {
     /// Give the session the display name a person typed.
     ///
     /// Naming does not change provenance: a task-originated session
-    /// that someone later labels is still `origin: orchestrator`.
+    /// that someone later labels is still `origin: dispatcher`.
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self

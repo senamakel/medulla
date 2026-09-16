@@ -80,7 +80,7 @@ pub(super) fn remove_conflicting(
 
 /// A short, stable, human-scale id for a worker.
 ///
-/// The id is what the orchestrator must reproduce to address this worker: it is
+/// The id is what the dispatcher must reproduce to address this worker: it is
 /// rendered first in `agent_list` (`id (name)`) and copied into a task's
 /// `agentId`. A 44-character base58 cryptoId reads as noise beside a memorable
 /// name, and the model reaches for the name — which then fails validation as an

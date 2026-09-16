@@ -1,6 +1,6 @@
 //! Capability discovery for supported local harnesses.
 //!
-//! An orchestrator picking a lane needs the repo, branch, accessible dirs, and
+//! A dispatcher picking a lane needs the repo, branch, accessible dirs, and
 //! the tools/MCP servers an agent can reach. Config heuristics get that wrong, so
 //! the daemon asks the agent itself with a short strict-JSON prompt run through
 //! the ordinary provider path — then merges the reply over the cheap facts it can

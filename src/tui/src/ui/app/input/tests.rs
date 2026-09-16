@@ -165,7 +165,7 @@ fn enter_on_the_overflow_row_pages_it_open() {
     select_overflow_row(&mut app);
 
     // Through the real key path, not the helper underneath it: the row is not
-    // the orchestrator lane, so no composer is drawn and the rail has focus.
+    // the dispatch lane, so no composer is drawn and the rail has focus.
     app.on_event(Event::Key(KeyEvent::new(
         KeyCode::Enter,
         KeyModifiers::NONE,

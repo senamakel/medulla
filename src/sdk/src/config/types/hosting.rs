@@ -59,7 +59,7 @@ pub struct HubWorkerConfig {
     pub selected: bool,
 }
 
-/// The `hub` section: the orchestrator's worker roster, remembered across runs.
+/// The `hub` section: the sender's worker roster, remembered across runs.
 ///
 /// Without this the roster lived only in memory, seeded from the environment at
 /// boot — so a worker added from the Workers tab vanished at exit and the tab
@@ -74,7 +74,7 @@ pub struct HubSection {
 /// The `link` section: this endpoint's host-link identity and its peer roster.
 ///
 /// The pair key is deliberately absent and must stay absent: it is generated on
-/// the orchestrator, carried to the host by the user, and lives only in
+/// the dispatcher, carried to the host by the user, and lives only in
 /// `<state_dir>/node.json` (protocol §7.1). A config file is copied, shared and
 /// pasted into issues; the key must never be in one.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,9 +176,9 @@ impl Default for HookDefaultsConfig {
 
 /// The `harness` section: how harnesses the operator starts themselves behave.
 ///
-/// Distinct from [`HostSection`], which is about the harnesses the *orchestrator*
+/// Distinct from [`HostSection`], which is about the harnesses the *dispatcher*
 /// starts to serve tasks. These are the ones an operator opens by hand and the
-/// orchestrator is not allowed to touch.
+/// dispatcher is not allowed to touch.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct HarnessSection {
@@ -192,14 +192,14 @@ pub struct HarnessSection {
     /// Recently chosen directories in the manual harness launcher, newest first.
     ///
     /// This is picker history, not a routing allowlist: it never changes where
-    /// orchestrated tasks may run.
+    /// dispatched tasks may run.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_workspaces: Vec<String>,
     /// Saved directory shortcuts for the manual harness launcher.
     ///
     /// Favorites are deliberately separate from recent history: a favorite is
     /// an operator's named destination and remains useful even after it has not
-    /// been used for a while. Like history, it does not grant the orchestrator
+    /// been used for a while. Like history, it does not grant the dispatcher
     /// access to the directory.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub favorite_workspaces: Vec<FavoriteWorkspace>,
@@ -216,9 +216,9 @@ pub struct FavoriteWorkspace {
 }
 
 /// The `host` section: whether this machine also *runs* the work the
-/// orchestrator hands out, and how.
+/// dispatcher hands out, and how.
 ///
-/// A plain `medulla` is both orchestrator and host by default — the common case
+/// A plain `medulla` is both dispatcher and host by default — the common case
 /// is one person on one laptop, and needing a second `medulla daemon` process
 /// beside the TUI to get any work done was a step nobody should have to know
 /// about. Every field has a working default; the whole section is optional.
@@ -234,7 +234,7 @@ pub struct HostSection {
     /// worth showing.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub name: String,
-    /// The address the host binds on the device-local bus. Orchestrator-facing
+    /// The address the host binds on the device-local bus. Dispatcher-facing
     /// only — it never leaves this machine — so it is a readable name rather
     /// than a key.
     pub address: String,
@@ -244,7 +244,7 @@ pub struct HostSection {
     pub workspace: String,
     /// Other directories this device is willing to work in.
     ///
-    /// Advertised to the orchestrator as `capabilities.accessibleDirs`, so it
+    /// Advertised to the dispatcher as `capabilities.accessibleDirs`, so it
     /// knows this machine has more than one project on it rather than inferring
     /// the whole device from the folder `medulla` happened to be launched in.
     /// Advisory routing context: a delegated task still runs in

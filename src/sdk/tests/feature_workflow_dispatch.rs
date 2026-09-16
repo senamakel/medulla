@@ -1,4 +1,4 @@
-//! An orchestrator dispatching a *workflow* to a worker, end to end.
+//! A dispatcher dispatching a *workflow* to a worker, end to end.
 //!
 //! The claim under test is the one that makes workflows more than a local
 //! convenience: a task frame naming an installed workflow makes the worker run
@@ -165,7 +165,7 @@ fn worker(home: &std::path::Path, run_task: RunTaskFn) -> (EmbeddedDaemon, Local
     (host, peer)
 }
 
-/// A frame the orchestrator sends. `workflow` names an installed graph; `None`
+/// A frame the dispatcher sends. `workflow` names an installed graph; `None`
 /// is an ordinary instruction.
 fn frame(
     task_id: &str,
@@ -210,7 +210,7 @@ fn frame_with_inputs(
     })
 }
 
-/// Fingerprint the exact installed record a simulated orchestrator selected.
+/// Fingerprint the exact installed record a simulated dispatcher selected.
 fn installed_fingerprint(home: &std::path::Path, id: &str) -> String {
     let home = home.join("local");
     let store = FileWorkflowStore::new(
@@ -410,7 +410,7 @@ async fn naming_a_workflow_the_worker_does_not_have_says_what_it_does_have() {
     let error = inbox.wait_for(&peer, TaskFrameKind::Error).await;
     assert!(
         error.text.contains("nonexistent") && error.text.contains("two-step"),
-        "an orchestrator should be able to correct itself from this: {}",
+        "a dispatcher should be able to correct itself from this: {}",
         error.text
     );
 }
@@ -456,7 +456,7 @@ async fn a_worker_advertises_the_workflows_it_has_installed() {
         .await;
     let capabilities = parse_agent_capabilities(&result.text).expect("a capabilities payload");
 
-    // This is how the orchestrator learns a worker can do more than take an
+    // This is how the dispatcher learns a worker can do more than take an
     // instruction: the ids here are the ones it may name in a task frame.
     let advertised = capabilities
         .workflows

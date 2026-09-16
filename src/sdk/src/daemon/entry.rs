@@ -220,7 +220,7 @@ pub async fn run_daemon(
         .map_err(|e| anyhow::anyhow!("host link is misconfigured: {e}"))?;
     let agent_id = transport.address().to_string();
 
-    // Pairing hand-off. Adding this worker to an orchestrator needs exactly one
+    // Pairing hand-off. Adding this worker to an owning medulla needs exactly one
     // string to travel — this address — and the machine printing it is usually
     // one the operator reached over SSH, where selecting it by hand is the step
     // that makes people give up. So it goes to their terminal's clipboard and

@@ -8,7 +8,7 @@ use crate::protocol::{HarnessProvider, TokenUsage};
 /// A line sink for hub diagnostics.
 ///
 /// The hub used to write these straight to stderr, which is fine for
-/// `medulla hub` but corrupts the orchestrator TUI: ratatui owns the alternate
+/// `medulla hub` but corrupts the TUI: ratatui owns the alternate
 /// screen and only repaints the cells it manages, so anything else written to
 /// the terminal lands on top and is never cleared. Injecting the sink lets a
 /// caller that owns the screen route the lines somewhere it can render them.
@@ -33,7 +33,7 @@ pub struct TaskRequest {
     /// is the wire id, made unique per dispatch so a worker never dedupes two
     /// different pieces of work that happen to share a name.
     pub task_id: String,
-    /// The orchestrator-facing task id the backend aborts by
+    /// The sender-facing task id the backend aborts by
     /// (`medulla:task_abort.taskId`). The runner registers this dispatch's abort
     /// signal under it, so a `task_abort` for this id cancels the dispatch.
     /// Distinct from [`task_id`](Self::task_id), which is the worker-facing wire id.
@@ -158,9 +158,9 @@ pub enum RunError {
     /// A liveness bound reaped the dispatch: either the peer never showed any
     /// sign of life within the ack window across every reset+resend attempt, or
     /// it acked and then went silent past the no-progress (idle) window. Not a
-    /// task deadline — that belongs to the orchestrator, which aborts separately.
+    /// task deadline — that belongs to the dispatcher, which aborts separately.
     Timeout,
-    /// The orchestrator aborted the task (`medulla:task_abort`): the hub told the
+    /// The dispatcher aborted the task (`medulla:task_abort`): the hub told the
     /// worker to stop and gave up waiting. Terminal and NOT retryable — the
     /// backend deliberately cancelled it, so re-running would undo its intent.
     Aborted,
@@ -194,7 +194,7 @@ pub enum RunError {
     ///
     /// Distinguished from [`Worker`](Self::Worker) because it says nothing about
     /// the *task*: nothing was attempted, and the same dispatch a moment later
-    /// will very likely succeed. Retryable, so the orchestrator re-dispatches
+    /// will very likely succeed. Retryable, so the dispatcher re-dispatches
     /// under its own attempt ceiling and backoff instead of turning a "come back
     /// later" into a permanently failed task.
     Busy(String),
@@ -204,7 +204,7 @@ pub enum RunError {
     /// Like [`Busy`](Self::Busy) it says nothing about the *task* — nothing was
     /// attempted — but it does not clear on the same timescale: a saturated
     /// daemon frees up in seconds, a workspace frees up when a person is done
-    /// with it. Retryable so the orchestrator's own attempt ceiling and backoff
+    /// with it. Retryable so the sender's own attempt ceiling and backoff
     /// apply, and reported with a distinct `reason` on the wire so it can prefer
     /// another host rather than waiting on this one.
     Held(String),

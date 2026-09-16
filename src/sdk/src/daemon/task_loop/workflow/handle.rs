@@ -31,7 +31,7 @@ impl DaemonRuntime {
     /// failing the probe, because a worker with an unreadable workflow directory
     /// is still a perfectly good worker for ordinary tasks.
     pub(in crate::daemon) fn installed_workflows(&self) -> Vec<WorkflowAdvert> {
-        // A host with workflows off advertises none: an orchestrator should not
+        // A host with workflows off advertises none: a dispatcher should not
         // be told about work it will be refused.
         if !self.workflow_settings().enabled {
             return Vec::new();
@@ -124,7 +124,7 @@ impl DaemonRuntime {
         let store = self.workflow_store();
         if store.get(&id).ok().flatten().is_none() {
             // Naming what *is* installed turns a failed dispatch into something
-            // the orchestrator can correct on its next attempt.
+            // the dispatcher can correct on its next attempt.
             let known: Vec<String> = store
                 .list()
                 .unwrap_or_default()
@@ -202,7 +202,7 @@ impl DaemonRuntime {
             ),
         };
 
-        // The frame's task id becomes the run id, so the orchestrator's existing
+        // The frame's task id becomes the run id, so the sender's existing
         // `abort` for that task is exactly what cancels the run.
         let Some(fingerprint) = frame.workflow_fingerprint.clone() else {
             self.reply(
@@ -280,7 +280,7 @@ impl DaemonRuntime {
     /// Start a review of a workflow whose run just failed.
     ///
     /// Spawned rather than awaited, and only after the reply has gone out: a
-    /// review is a whole harness turn, and the orchestrator waiting on this
+    /// review is a whole harness turn, and the dispatcher waiting on this
     /// task should not be held for one. Nothing depends on its result here —
     /// what it produces is a note and possibly a proposal, both of which live
     /// in the store for an operator to find.

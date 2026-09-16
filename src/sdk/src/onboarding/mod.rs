@@ -1,4 +1,4 @@
-//! First-run worker registration orchestration.
+//! First-run worker registration dispatch.
 //!
 //! [`ensure_registered`] is the single entry both `medulla daemon` and the
 //! `medulla codex|claude|opencode` wrappers call before they start serving. It
@@ -24,7 +24,7 @@ use std::path::Path;
 use crate::clock::iso_now;
 use crate::worker_profile::{default_worker_name, is_registered, profile_path, WorkerProfile};
 
-/// The owning orchestrator from the generic environment chain, in priority
+/// The owning dispatcher from the generic environment chain, in priority
 /// order: `MEDULLA_LINK_OWNER` → `MEDULLA_HARNESS_DM_TO` →
 /// `MEDULLA_OPENHUMAN_OWNER` → `OPENHUMAN_OWNER_AGENT`, with the deprecated
 /// `TINYPLACE_*` spelling of each read directly behind it.
@@ -55,7 +55,7 @@ pub fn env_owner(env: &HashMap<String, String>) -> Option<String> {
 
 /// Whether this host holds a link identity — i.e. it has enrolled.
 ///
-/// A read, never a mint: enrollment needs an invite token from the orchestrator
+/// A read, never a mint: enrollment needs an invite token from the dispatcher
 /// and a pair key typed in by hand (protocol §7), so nothing here can create one
 /// on the worker's behalf.
 pub fn identity_present(link_dir: &Path) -> bool {

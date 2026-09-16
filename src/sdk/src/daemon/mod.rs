@@ -1,7 +1,7 @@
 //! The headless `medulla daemon`: offer this machine's local coding-agent CLIs
 //! (Claude Code / Codex / OpenCode) as an addressable host over the medulla
 //! host link (`docs/host-link-protocol.md`), speaking both plain-text prompts
-//! and the `medulla-task/1` task protocol an orchestrator delegates with.
+//! and the `medulla-task/1` task protocol a dispatcher delegates with.
 //!
 //! Layout:
 //! - [`mappers`] — JSONL transcript → semantic-event line mappers.
@@ -10,13 +10,13 @@
 //! - `types` — the daemon data model ([`DaemonConfig`], [`DaemonRuntime`], and
 //!   the callback aliases).
 //! - `runtime` + `task_loop` — [`DaemonRuntime`], the provider-agnostic task
-//!   state machine, split into lifecycle/dispatch and frame/task orchestration.
+//!   state machine, split into lifecycle/dispatch and frame/task dispatch.
 //! - `status` — semantic-event → status-line derivation ([`status_detail`]).
 //! - `flags` + `entry` — CLI flag parsing and the entry ([`run_daemon`]) that
 //!   wires the host link in.
 //! - [`embedded`] — the same runtime driven over any
 //!   [`Bridge`](crate::bridge::Bridge) inside another process, so the
-//!   orchestrator TUI can host tasks on this device without a second daemon.
+//!   dispatcher TUI can host tasks on this device without a second daemon.
 //!
 //! The interactive PTY wrapper/bridge (node-pty equivalent), the machine bus, the
 //! terminal-envelope writer, and the opencode SSE server are intentionally out of

@@ -18,7 +18,7 @@ fn ctrl_t_opens_the_picker_and_two_enters_start_an_unmanaged_harness() {
     let out = render(&mut app, 140, 44);
     assert!(out.contains("Choose a session type"), "{out}");
     assert!(
-        out.contains("the orchestrator will not dispatch into it"),
+        out.contains("the dispatcher will not dispatch into it"),
         "the picker must say what unmanaged means: {out}"
     );
 

@@ -112,7 +112,7 @@ fn a_missing_target_still_yields_the_verb_rather_than_a_placeholder() {
 
 #[test]
 fn a_harness_tool_keeps_the_familiar_name_and_argument_shape() {
-    // Bash/Read/WebSearch already read well; only the orchestrator's own
+    // Bash/Read/WebSearch already read well; only the sender's own
     // vocabulary is rewritten into prose.
     assert_eq!(
         summarize("Bash", &json!({"command": "ls -la"})),
@@ -167,7 +167,7 @@ fn an_untyped_inference_end_yields_its_named_calls() {
     // an anonymous fragment.
     let payload = json!({
         "id": "inf:1",
-        "tier": "orchestrator",
+        "tier": "dispatcher",
         "toolCalls": [
             {"name": "host_list", "args": {}},
             {"name": "agent_list", "args": {}},
@@ -204,7 +204,7 @@ fn an_unparseable_argument_string_still_renders_the_call() {
 
 #[test]
 fn a_payload_with_no_tool_calls_yields_nothing() {
-    let payload = json!({"id": "inf:2", "tier": "orchestrator"});
+    let payload = json!({"id": "inf:2", "tier": "dispatcher"});
     assert!(calls_from_payload(payload.as_object().expect("object")).is_empty());
 }
 

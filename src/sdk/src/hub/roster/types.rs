@@ -42,7 +42,7 @@ pub struct HubWorker {
     /// The path is advertised to the backend as `metadata.workspace`, which is
     /// what turns a bare agent into a placed one: the backend derives a
     /// `WorkspaceDescriptor` from it and hangs the agent off that workspace.
-    /// Without it the orchestrator sees an agent with no workspace and no
+    /// Without it the dispatcher sees an agent with no workspace and no
     /// placement, and reports "no workspaces are declared on this host" — which
     /// reads as an unusable fleet and makes it decline work it could in fact
     /// delegate. The *type* rides along in memory only for now; sending
@@ -68,7 +68,7 @@ pub struct HubWorker {
     /// Who holds this worker's harness right now.
     ///
     /// Advertised as `metadata.control`, and **only** when a person holds it:
-    /// absent means the orchestrator has it. Omitting the common case keeps the
+    /// absent means the dispatcher has it. Omitting the common case keeps the
     /// advert byte-stable, which matters because it is re-emitted on every
     /// roster mutation.
     pub control: super::super::HandoffControl,
@@ -80,7 +80,7 @@ pub struct HubWorker {
     ///
     /// Cleared when the operator takes the harness back: a handoff on a harness
     /// somebody has re-taken is a stale invitation, and advertising it would have
-    /// the orchestrator plan work into a workspace it cannot enter.
+    /// the dispatcher plan work into a workspace it cannot enter.
     pub handoff: Option<super::super::HarnessHandoff>,
 }
 

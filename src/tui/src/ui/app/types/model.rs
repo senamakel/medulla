@@ -30,7 +30,7 @@ use super::rail_hit::RailHit;
 /// two of them diagnostic — so they now sit under Settings, keeping the tab bar
 /// to the views a session is actually driven from.
 ///
-/// Chat used to live here too, back when a cloud orchestrator model sat above
+/// Chat used to live here too, back when a cloud dispatcher model sat above
 /// the fleet. That model is gone: the Sessions tab is the whole conversation
 /// now — pick a session's lane and type into it.
 ///
@@ -41,14 +41,14 @@ use super::rail_hit::RailHit;
 /// `Hosts` is gone. It was the fleet's management surface — the hosts registered
 /// on it, the harness types and their credentials, the hook declarations, the
 /// agent-template catalog, host onboarding, and the routing strategies — and all
-/// of it existed to feed an orchestration engine that no longer exists. Most of
+/// of it existed to feed an dispatch engine that no longer exists. Most of
 /// it survives as config: `[[hosts]]`, `[[harnesses]]` and `[[hooks]]` are still
 /// read at load, so the runtime behaves exactly as before for those; there is
 /// simply no page that edits them by hand any more. The agent-template catalog
 /// did not survive — the `.medulla/agents` store and its loader are gone with
 /// the tab, so any templates it held are no longer read.
 /// `Hosts` is back, in a different shape. The old page managed an
-/// orchestration engine's fleet; this one manages the *machines* — the
+/// dispatch engine's fleet; this one manages the *machines* — the
 /// `[[remoteHosts]]` a session can run on, paired to this device with a
 /// one-shot key. It sits after Workflows because it is what the two tabs before
 /// it are scoped by: `H` picks the current host, and Sessions and Workflows
