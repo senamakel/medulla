@@ -77,7 +77,13 @@ pub fn demo_activity() -> Vec<WorkerActivity> {
                 at + 1_000,
             )
         },
-        record(DEMO_IDLE_AGENT, DEMO_DONE_TASK, "ack", "accepted", at + 2_000),
+        record(
+            DEMO_IDLE_AGENT,
+            DEMO_DONE_TASK,
+            "ack",
+            "accepted",
+            at + 2_000,
+        ),
         record(
             DEMO_IDLE_AGENT,
             DEMO_DONE_TASK,

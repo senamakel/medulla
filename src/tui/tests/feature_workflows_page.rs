@@ -14,8 +14,8 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
-use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 use medulla::workflows::{FileWorkflowStore, WorkflowStore};
 use medulla_tui::ui::app::{App, TABS};
 use serde_json::json;

@@ -9,8 +9,8 @@ pub use std::sync::Arc;
 
 pub use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
-pub use medulla::config::{LinkConfig, LoadedConfig};
 pub use medulla::backend::MockBackend;
+pub use medulla::config::{LinkConfig, LoadedConfig};
 pub use medulla_tui::ui::app::{App, Cmd, TABS};
 
 pub fn loaded() -> LoadedConfig {

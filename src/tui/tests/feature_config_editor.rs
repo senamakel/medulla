@@ -11,8 +11,8 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
-use medulla::config::{LoadedConfig, TuiConfig};
 use medulla::backend::MockBackend;
+use medulla::config::{LoadedConfig, TuiConfig};
 use medulla_tui::ui::app::App;
 
 /// An app parked on the Config subpage, persisting into `dir/config.toml`.

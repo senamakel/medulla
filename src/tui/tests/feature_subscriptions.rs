@@ -12,10 +12,10 @@ use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use ratatui::Terminal;
 
+use medulla::backend::MockBackend;
 use medulla::config::{
     AppearanceConfig, LinkConfig, LoadedConfig, MeterId, ResourceDisplay, SubscriptionsConfig,
 };
-use medulla::backend::MockBackend;
 use medulla::subscriptions::{MeterReading, SubscriptionSnapshot};
 use medulla_tui::ui::app::{App, Cmd, TABS};
 

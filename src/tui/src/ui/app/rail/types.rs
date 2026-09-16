@@ -19,9 +19,9 @@
 use medulla::ui::hosts::HostAgentRow;
 
 use crate::ui::agents::TaskState;
-use crate::worker::pty::SessionRow;
 #[cfg(test)]
 use crate::worker::pty::SessionOrigin;
+use crate::worker::pty::SessionRow;
 
 /// A stable identity for a selectable Sessions-rail row.
 ///

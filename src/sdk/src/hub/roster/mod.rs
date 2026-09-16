@@ -9,7 +9,6 @@
 
 use std::sync::{Arc, Mutex};
 
-
 /// The roster entry a [`WorkerSpec`](crate::hub::WorkerSpec) describes.
 ///
 /// The one place a spec becomes a live roster row, so the declaration → advert

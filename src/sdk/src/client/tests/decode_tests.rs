@@ -140,4 +140,3 @@ fn auth_error_classification_covers_status_codes_and_non_api_errors() {
 // ---------------------------------------------------------------------------
 // LoopEvent / run result decode
 // ---------------------------------------------------------------------------
-

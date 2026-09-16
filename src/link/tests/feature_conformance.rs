@@ -161,10 +161,7 @@ fn the_screen_channel_catches_up_in_exactly_one_diff_after_a_forty_second_outage
     // §9: "Channel 1 catch-up after a 40-second outage converges in one diff to
     // the current grid — not a replay."
     let mut harness = Harness::new(Script::default().with_blackout(100, 40_000));
-    harness
-        .owner
-        .set_screen(vec![b"line 0".to_vec()])
-        .unwrap();
+    harness.owner.set_screen(vec![b"line 0".to_vec()]).unwrap();
     harness.run_for(60);
     assert_eq!(harness.host.screen().rows(), [b"line 0".to_vec()]);
     // Let the outage begin before anything else is drawn.

@@ -87,4 +87,3 @@ fn cpu_states_capacity_when_no_load_was_reported() {
     assert!(line.text.contains("7.60 load / 8 cores"), "{}", line.text);
     assert_eq!(line.color.as_deref(), Some("red"));
 }
-

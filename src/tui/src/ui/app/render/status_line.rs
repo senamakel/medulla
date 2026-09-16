@@ -107,7 +107,11 @@ impl App {
     /// signed-out or offline host. An unknown connection must not read as a
     /// healthy one.
     pub(super) fn connection_dot(&self) -> (char, Color) {
-        match self.account.as_ref().is_some_and(|state| state.is_authenticated) {
+        match self
+            .account
+            .as_ref()
+            .is_some_and(|state| state.is_authenticated)
+        {
             true => ('●', Color::Green),
             false => ('○', Color::DarkGray),
         }

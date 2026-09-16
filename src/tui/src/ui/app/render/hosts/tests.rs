@@ -3,9 +3,9 @@
 
 use std::sync::Arc;
 
-use medulla::config::{LoadedConfig, RemoteHostSection};
-use medulla::backend::MockBackend;
 use medulla::backend::Backend;
+use medulla::backend::MockBackend;
+use medulla::config::{LoadedConfig, RemoteHostSection};
 
 use crate::ui::app::hosts::HostSelection;
 use crate::ui::app::types::tab_pos;

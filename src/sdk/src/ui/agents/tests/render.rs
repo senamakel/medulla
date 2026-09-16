@@ -169,4 +169,3 @@ fn task_lines_truncate_long_header_and_default_color() {
     assert!(lines[0].text.chars().count() <= 30);
     assert_eq!(lines[0].color.as_deref(), Some("cyan"));
 }
-

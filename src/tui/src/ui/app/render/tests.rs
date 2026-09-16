@@ -7,9 +7,9 @@
 
 use std::sync::Arc;
 
-use medulla::config::LoadedConfig;
-use medulla::backend::MockBackend;
 use medulla::backend::Backend;
+use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 
 use crate::ui::app::changes::types::ChangedFile;
 use crate::ui::app::types::{tab_pos, PaneView};

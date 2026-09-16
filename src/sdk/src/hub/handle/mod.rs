@@ -341,7 +341,6 @@ impl HubHandle {
         }
         self.save();
     }
-
 }
 
 mod handoff;

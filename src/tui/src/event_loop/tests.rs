@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 #[cfg(feature = "workflows")]
 use medulla::workflows::{FileWorkflowStore, WorkflowRecord, WorkflowStore};
 use medulla_tui::ui::app::App;

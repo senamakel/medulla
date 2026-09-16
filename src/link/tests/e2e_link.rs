@@ -121,10 +121,7 @@ async fn two_links_exchange_messages_through_a_forwarder() {
         .await
         .unwrap();
 
-    owner
-        .send(host_id, b"dispatch task 1")
-        .await
-        .unwrap();
+    owner.send(host_id, b"dispatch task 1").await.unwrap();
     let (from, _epoch, body) = tokio::time::timeout(PATIENCE, host.recv())
         .await
         .expect("the host heard nothing")
@@ -132,9 +129,7 @@ async fn two_links_exchange_messages_through_a_forwarder() {
     assert_eq!(from, owner_id);
     assert_eq!(body, b"dispatch task 1");
 
-    host.send(owner_id, b"task 1 accepted")
-        .await
-        .unwrap();
+    host.send(owner_id, b"task 1 accepted").await.unwrap();
     let (from, _epoch, body) = tokio::time::timeout(PATIENCE, owner.recv())
         .await
         .expect("the owner heard nothing")

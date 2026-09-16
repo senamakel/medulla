@@ -1,8 +1,8 @@
 //! The session-to-agent resolution rule, exercised without an `App`.
 
 use super::*;
-use medulla::protocol::HarnessProvider;
 use medulla::fleet::WorkspaceRef;
+use medulla::protocol::HarnessProvider;
 
 use crate::worker::pty::{PtyState, SessionControl, SessionOrigin};
 

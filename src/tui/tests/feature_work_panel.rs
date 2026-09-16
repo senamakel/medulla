@@ -7,8 +7,8 @@
 
 use std::sync::Arc;
 
-use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 use medulla_tui::ui::app::{App, TABS};
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};

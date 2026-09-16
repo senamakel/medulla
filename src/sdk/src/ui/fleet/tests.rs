@@ -23,8 +23,8 @@ fn host(id: &str) -> HostDescriptor {
 
 // --- local registry → capacity ---------------------------------------------
 
-use crate::protocol::{BudgetSource, BudgetWindow, HarnessProvider, HarnessReadiness};
 use crate::fleet::WorkerInfo;
+use crate::protocol::{BudgetSource, BudgetWindow, HarnessProvider, HarnessReadiness};
 
 /// A registered peer with the capacity facts the projection reads.
 fn peer(id: &str) -> WorkerInfo {

@@ -6,10 +6,7 @@ use super::*;
 fn a_bidirectional_task_round_trip_delivers_the_terminal_frame() {
     let mut pair = Pair::new();
     pair.owner.queue_message(b"task".to_vec()).unwrap();
-    let task = pair
-        .owner
-        .outgoing(100, &mut pair.owner_seq)
-        .unwrap();
+    let task = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&task[0], 110).unwrap();
     assert_eq!(pair.host.take_messages(), vec![b"task".to_vec()]);
 
@@ -20,30 +17,19 @@ fn a_bidirectional_task_round_trip_delivers_the_terminal_frame() {
 
     pair.host.queue_message(b"terminal".to_vec()).unwrap();
     let terminal = pair.host.outgoing(140, &mut pair.host_seq).unwrap();
-    pair.owner
-        .handle_datagram(&terminal[0], 150)
-        .unwrap();
-    let ack = pair
-        .owner
-        .outgoing(160, &mut pair.owner_seq)
-        .unwrap();
+    pair.owner.handle_datagram(&terminal[0], 150).unwrap();
+    let ack = pair.owner.outgoing(160, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&ack[0], 170).unwrap();
     let retry = pair.host.outgoing(1_000, &mut pair.host_seq).unwrap();
     pair.owner.handle_datagram(&retry[0], 190).unwrap();
-    assert_eq!(
-        pair.owner.take_messages(),
-        vec![b"terminal".to_vec()]
-    );
+    assert_eq!(pair.owner.take_messages(), vec![b"terminal".to_vec()]);
 }
 
 #[test]
 fn one_endpoint_restart_rebases_the_live_peer_and_delivers_new_work() {
     let mut pair = Pair::new();
     pair.owner.queue_message(b"before".to_vec()).unwrap();
-    let first = pair
-        .owner
-        .outgoing(100, &mut pair.owner_seq)
-        .unwrap();
+    let first = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&first[0], 110).unwrap();
     assert_eq!(pair.host.take_messages(), vec![b"before".to_vec()]);
     let ack = pair.host.outgoing(140, &mut pair.host_seq).unwrap();
@@ -64,10 +50,7 @@ fn one_endpoint_restart_rebases_the_live_peer_and_delivers_new_work() {
     assert!(!pair.owner.handle_datagram(&ack[0], 215).unwrap());
 
     pair.owner.queue_message(b"after".to_vec()).unwrap();
-    let after = pair
-        .owner
-        .outgoing(220, &mut pair.owner_seq)
-        .unwrap();
+    let after = pair.owner.outgoing(220, &mut pair.owner_seq).unwrap();
     for datagram in after {
         pair.host.handle_datagram(&datagram, 230).unwrap();
     }
@@ -78,9 +61,7 @@ fn one_endpoint_restart_rebases_the_live_peer_and_delivers_new_work() {
 fn a_peer_restart_preserves_every_pending_message_on_channel_zero() {
     let mut pair = Pair::new();
     pair.owner.queue_message(b"status".to_vec()).unwrap();
-    pair.owner
-        .queue_message(b"terminal".to_vec())
-        .unwrap();
+    pair.owner.queue_message(b"terminal".to_vec()).unwrap();
 
     pair.host = Session::new(
         SessionConfig::new(
@@ -95,10 +76,7 @@ fn a_peer_restart_preserves_every_pending_message_on_channel_zero() {
     let hello = pair.host.outgoing(200, &mut pair.host_seq).unwrap();
     pair.owner.handle_datagram(&hello[0], 210).unwrap();
 
-    let pending = pair
-        .owner
-        .outgoing(220, &mut pair.owner_seq)
-        .unwrap();
+    let pending = pair.owner.outgoing(220, &mut pair.owner_seq).unwrap();
     for datagram in pending {
         pair.host.handle_datagram(&datagram, 230).unwrap();
     }
@@ -129,17 +107,11 @@ fn a_peer_restart_preserves_datagram_sized_queue_prefixes() {
     let hello = pair.host.outgoing(200, &mut pair.host_seq).unwrap();
     pair.owner.handle_datagram(&hello[0], 210).unwrap();
 
-    let first_step = pair
-        .owner
-        .outgoing(220, &mut pair.owner_seq)
-        .unwrap();
+    let first_step = pair.owner.outgoing(220, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&first_step[0], 230).unwrap();
     let ack = pair.host.outgoing(240, &mut pair.host_seq).unwrap();
     pair.owner.handle_datagram(&ack[0], 250).unwrap();
-    let second_step = pair
-        .owner
-        .outgoing(260, &mut pair.owner_seq)
-        .unwrap();
+    let second_step = pair.owner.outgoing(260, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&second_step[0], 270).unwrap();
 
     assert_eq!(pair.host.take_messages(), vec![first, second]);
@@ -153,10 +125,7 @@ fn a_peer_restart_rebuilds_screen_rows_as_datagram_sized_prefixes() {
         pair.owner.set_screen(rows[..end].to_vec()).unwrap();
     }
 
-    let first = pair
-        .owner
-        .outgoing(100, &mut pair.owner_seq)
-        .unwrap();
+    let first = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&first[0], 110).unwrap();
     let ack = pair.host.outgoing(120, &mut pair.host_seq).unwrap();
     pair.owner.handle_datagram(&ack[0], 130).unwrap();
@@ -176,15 +145,10 @@ fn a_peer_restart_rebuilds_screen_rows_as_datagram_sized_prefixes() {
 
     for step in 0..3 {
         let base = 300 + step * 100;
-        let sent = pair
-            .owner
-            .outgoing(base, &mut pair.owner_seq)
-            .unwrap();
+        let sent = pair.owner.outgoing(base, &mut pair.owner_seq).unwrap();
         pair.host.handle_datagram(&sent[0], base + 10).unwrap();
         let ack = pair.host.outgoing(base + 20, &mut pair.host_seq).unwrap();
-        pair.owner
-            .handle_datagram(&ack[0], base + 30)
-            .unwrap();
+        pair.owner.handle_datagram(&ack[0], base + 30).unwrap();
     }
 
     assert_eq!(pair.host.screen().rows(), rows);

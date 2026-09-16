@@ -3,11 +3,11 @@
 
 use std::sync::Arc;
 
-use medulla::config::LoadedConfig;
-use medulla::harness_work::{HarnessSessionInfo, WorkSnapshot};
-use medulla::backend::MockBackend;
 use medulla::backend::Backend;
-use medulla::fleet::{AgentDeclaration};
+use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
+use medulla::fleet::AgentDeclaration;
+use medulla::harness_work::{HarnessSessionInfo, WorkSnapshot};
 use medulla::ui::agents::{AgentLane, TurnBlock};
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;

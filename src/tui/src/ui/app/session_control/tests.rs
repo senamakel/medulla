@@ -8,9 +8,9 @@
 use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use medulla::config::{LoadedConfig, RemoteHostSection};
-use medulla::backend::MockBackend;
 use medulla::backend::Backend;
+use medulla::backend::MockBackend;
+use medulla::config::{LoadedConfig, RemoteHostSection};
 
 use super::super::types::{App, SessionPickerStep};
 

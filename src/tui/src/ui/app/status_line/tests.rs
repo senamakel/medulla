@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::{
     AppearanceConfig, ControlStyle, FieldPlacement, HarnessNameStyle, LoadedConfig, PathStyle,
     StatusLineConfig, TuiConfig,
 };
-use medulla::backend::MockBackend;
-use medulla::backend::Backend;
 
 use super::{StatusLineField, STATUS_LINE_ROWS};
 use crate::ui::app::App;

@@ -24,8 +24,8 @@
 use std::sync::Arc;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 use medulla::workflows::{parse_workflow, FileWorkflowStore, WorkflowStore};
 use medulla_tui::ui::app::{App, TABS};
 use ratatui::backend::TestBackend;

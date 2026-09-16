@@ -59,7 +59,8 @@ async fn mock_comment_appends_and_bumps_count() {
     let before = backend.feedback_detail("fb-2".into()).await.unwrap();
     assert_eq!(before.comments.len(), 1);
 
-    backend.comment_feedback("fb-2".into(), "me too".into())
+    backend
+        .comment_feedback("fb-2".into(), "me too".into())
         .await
         .unwrap();
 

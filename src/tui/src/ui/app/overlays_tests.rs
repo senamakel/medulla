@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
-use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 
 use super::types::{
     tab_pos, App, Overlay, PromptKind, SessionPicker, SessionPickerStep, WorkspaceChoice,
@@ -252,4 +252,3 @@ fn no_overlay_lets_a_paste_through_to_the_composer_behind_it() {
         );
     }
 }
-

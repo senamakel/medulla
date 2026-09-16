@@ -3,9 +3,9 @@
 
 use std::sync::Arc;
 
-use medulla::config::{LoadedConfig, RemoteHostSection};
-use medulla::backend::MockBackend;
 use medulla::backend::Backend;
+use medulla::backend::MockBackend;
+use medulla::config::{LoadedConfig, RemoteHostSection};
 use serde_json::json;
 
 use super::super::super::hosts::HostSelection;

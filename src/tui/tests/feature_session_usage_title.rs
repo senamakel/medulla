@@ -21,10 +21,10 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
-use medulla::backend::MockBackend;
-use medulla::backend::Backend;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::harness_pane::LocalSessions;
 use medulla_tui::worker::pty::{LaunchSpec, PtyManager, SessionControl};

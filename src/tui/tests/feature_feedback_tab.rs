@@ -14,9 +14,9 @@ use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 use serde_json::json;
 
+use medulla::backend::MockBackend;
 use medulla::client::{FeedbackComment, FeedbackItem, FeedbackPage, FeedbackStatus, FeedbackType};
 use medulla::config::{LinkConfig, LoadedConfig};
-use medulla::backend::MockBackend;
 use medulla_tui::ui::app::{App, Cmd, TABS};
 
 fn loaded() -> LoadedConfig {

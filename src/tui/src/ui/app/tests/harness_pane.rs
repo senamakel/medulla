@@ -1,8 +1,8 @@
 //! Regression tests for harness-pane-only keyboard commands.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 use std::sync::Arc;
 
 use super::super::types::{tab_pos, App};

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 use medulla::bridge::LocalBridgeNetwork;
 use medulla::config::HostSection;
-use medulla::hub::WorkerSpec;
 use medulla::fleet::{AgentDeclaration, WorkspaceStrategy};
+use medulla::hub::WorkerSpec;
 use medulla_tui::worker::pty::PtyManager;
 
 use crate::local_host::{options_from_config, start};

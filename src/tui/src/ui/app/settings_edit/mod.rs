@@ -34,23 +34,21 @@ impl App {
             kind: SettingKind::Toggle,
             help: "Check for a newer Medulla release on startup.",
         }];
-        rows.extend([
-            SettingRow {
-                label: "Worker concurrency",
-                section: "opencode",
-                key: "maxConcurrency",
-                kind: SettingKind::Count {
-                    min: 1,
-                    max: 32,
-                    step: 1,
-                    fallback: 4,
-                    // The field is a plain u32 with a serde default, so it is
-                    // always set; there is no "auto" state to fall back to.
-                    optional: false,
-                },
-                help: "Agent sessions Medulla may run at once.",
+        rows.extend([SettingRow {
+            label: "Worker concurrency",
+            section: "opencode",
+            key: "maxConcurrency",
+            kind: SettingKind::Count {
+                min: 1,
+                max: 32,
+                step: 1,
+                fallback: 4,
+                // The field is a plain u32 with a serde default, so it is
+                // always set; there is no "auto" state to fall back to.
+                optional: false,
             },
-        ]);
+            help: "Agent sessions Medulla may run at once.",
+        }]);
         // Only where there is a Workflows page for it to bound.
         #[cfg(feature = "workflows")]
         rows.push(SettingRow {

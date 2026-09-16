@@ -5,9 +5,7 @@
 
 use medulla::protocol::HarnessProvider;
 
-use super::types::{
-    Command, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs,
-};
+use super::types::{Command, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs};
 #[cfg(feature = "workflows")]
 use super::types::{SkillsAction, SkillsArgs};
 

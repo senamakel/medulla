@@ -57,7 +57,10 @@ impl CloudBackend {
 
 impl Backend for CloudBackend {
     fn describe(&self) -> String {
-        format!("backend {}", crate::config::display_host(&self.backend.base_url))
+        format!(
+            "backend {}",
+            crate::config::display_host(&self.backend.base_url)
+        )
     }
 
     fn team_usage(&self) -> BoxFuture<'static, anyhow::Result<Option<serde_json::Value>>> {

@@ -144,4 +144,3 @@ pub fn disk_line(resources: &crate::fleet::HostResources) -> Option<Line> {
         dim: true,
     })
 }
-

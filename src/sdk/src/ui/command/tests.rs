@@ -94,7 +94,10 @@ fn suggestions_narrow_as_the_name_is_typed() {
 
 #[test]
 fn usage_renders_the_argument_hint_only_when_there_is_one() {
-    assert_eq!(lookup("session").unwrap().usage(), "/session [harness] [path]");
+    assert_eq!(
+        lookup("session").unwrap().usage(),
+        "/session [harness] [path]"
+    );
     assert_eq!(lookup("help").unwrap().usage(), "/help");
 }
 

@@ -7,9 +7,9 @@
 
 use std::sync::Arc;
 
-use medulla::config::LoadedConfig;
-use medulla::backend::MockBackend;
 use medulla::backend::Backend;
+use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 use medulla::workflows::{WorkflowRecord, WorkflowStore};
 use serde_json::json;
 

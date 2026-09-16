@@ -8,9 +8,9 @@
 
 use std::sync::Arc;
 
-use medulla::config::LoadedConfig;
-use medulla::backend::MockBackend;
 use medulla::backend::Backend;
+use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 use medulla::ui::workflows::Move;
 use medulla::workflows::{RunRecord, RunStatus, RunStep, WorkflowRecord, WorkflowStore};
 use ratatui::backend::TestBackend;

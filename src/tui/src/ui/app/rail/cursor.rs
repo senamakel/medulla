@@ -116,5 +116,4 @@ impl App {
         self.rail_index = hit.index;
         self.agent_anchor = hit.anchor.clone();
     }
-
 }

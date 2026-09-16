@@ -46,4 +46,3 @@ async fn an_operator_hold_settles_as_held_not_as_a_worker_error() {
         format!("harness held by operator: {message}")
     );
 }
-

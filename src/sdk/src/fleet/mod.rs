@@ -25,7 +25,6 @@ mod declaration;
 mod declaration_tests;
 mod demo;
 mod types;
-pub use types::{AgentDescriptor, AgentPresence, PeerSession, WorkerInfo, WorkerOp};
 pub use declaration::{
     seed_declarations, suggest_agent_id, AgentDeclaration, WorkspaceRef, WorkspaceStrategy,
     SELECTABLE_STRATEGIES, WORKSPACE_TYPE_CHECKOUT,
@@ -33,6 +32,7 @@ pub use declaration::{
 pub use demo::{
     demo_agents, demo_capacity, demo_fleet_requested, demo_requested_from, DEMO_FLEET_ENV,
 };
+pub use types::{AgentDescriptor, AgentPresence, PeerSession, WorkerInfo, WorkerOp};
 
 /// Resources declared for one host in the manager placement graph.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

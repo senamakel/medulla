@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 
 use medulla::daemon::embedded::{resolve_workspace, EmbeddedDaemon};
-use medulla::hub::WorkerSpec;
 use medulla::fleet::{seed_declarations, AgentDeclaration};
+use medulla::hub::WorkerSpec;
 
 /// Turn this host's declarations into advertised worker specs and placement
 /// problems without allowing a fallback to impersonate a dropped declaration.

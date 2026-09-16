@@ -316,7 +316,6 @@ impl App {
             _ => self.draw_sessions_tab(f, area),
         }
     }
-
 }
 
 /// Shorten current tab names when their one-space labels cannot all fit.

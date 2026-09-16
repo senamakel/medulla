@@ -16,10 +16,10 @@ use crossterm::event::{
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
-use medulla::backend::MockBackend;
-use medulla::backend::Backend;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::harness_pane::LocalSessions;
 use medulla_tui::worker::pty::{LaunchSpec, PtyManager, SessionControl};
@@ -182,10 +182,7 @@ pub fn user_session(sessions: &PtyManager) -> String {
 /// on a session, so a test about the release question has to be able to open one
 /// of each — the two differ in nothing else.
 pub fn orchestrator_session(sessions: &PtyManager) -> String {
-    session_with_origin(
-        sessions,
-        medulla_tui::worker::pty::SessionOrigin::Task,
-    )
+    session_with_origin(sessions, medulla_tui::worker::pty::SessionOrigin::Task)
 }
 
 fn session_with_origin(

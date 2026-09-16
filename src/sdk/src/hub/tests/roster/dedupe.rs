@@ -101,4 +101,3 @@ fn an_implausible_address_is_refused_before_it_reaches_the_relay() {
     assert!(is_plausible_address("@alice"));
     assert!(!is_plausible_address("@"), "a bare @ names nobody");
 }
-

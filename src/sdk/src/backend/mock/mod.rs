@@ -225,12 +225,7 @@ impl MockBackend {
     }
 
     /// Add a submitted item to the head of the scripted board.
-    fn mock_submit(
-        &self,
-        kind: FeedbackType,
-        title: &str,
-        body: &str,
-    ) -> FeedbackSubmission {
+    fn mock_submit(&self, kind: FeedbackType, title: &str, body: &str) -> FeedbackSubmission {
         let item = row(Seed {
             id: &gen_id("fb"),
             kind,

@@ -13,8 +13,8 @@ use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
 use medulla::auth::AuthState;
-use medulla::config::LoadedConfig;
 use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 use medulla_tui::ui::app::{App, Cmd};
 
 /// An app parked on the Account subpage with `home` as its Medulla home.

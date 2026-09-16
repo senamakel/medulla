@@ -22,7 +22,6 @@
 //! The store is behind the [`WorkflowStore`] trait, so a remote catalog is a new
 //! implementation rather than a rewrite.
 
-pub mod task_frame;
 pub mod copilot;
 mod dispatch_error;
 pub mod evolve;
@@ -37,6 +36,7 @@ pub mod report;
 pub mod run;
 pub mod skills;
 pub mod store;
+pub mod task_frame;
 pub mod workspace;
 
 #[cfg(test)]
@@ -47,7 +47,6 @@ mod tests;
 
 // Patch-based editing moved to the engine crate with the store it writes to;
 // the gates an edit is judged by ride along on the store's own policy.
-pub use task_frame::{cancel_task_workflow, run_task_workflow};
 pub use copilot::{CopilotOutcome, CopilotRequest, CopilotSession, FailedRun};
 pub use local::{LocalCopilotDispatch, LocalWorkflowHost, LOCAL_WORKER_ADDRESS};
 pub use node_contracts::{all_node_kind_contracts, node_kind_contract};
@@ -60,6 +59,7 @@ pub use store::{
     new_run_record, parse_workflow, require, require_proposal, require_run, rollback, undo_last,
     validate_graph, LoadReport, WorkflowStore, MAX_NOTES, MAX_REVISIONS,
 };
+pub use task_frame::{cancel_task_workflow, run_task_workflow};
 pub use tinyflows::store::{
     apply_workflow_ops, apply_workflow_ops_if_unchanged, create_workflow, preview_workflow_ops,
     validate_handle, GraphHandle,

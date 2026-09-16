@@ -29,7 +29,10 @@ fn app_with_tasks(agent: &str, tasks: usize) -> App {
 /// Append `tasks` running tasks for `agent`, adding its lane when it is new.
 fn push_tasks(app: &mut App, agent: &str, tasks: usize) {
     let mut lanes = app.lanes();
-    if !lanes.iter().any(|lane| lane.agent_id.as_deref() == Some(agent)) {
+    if !lanes
+        .iter()
+        .any(|lane| lane.agent_id.as_deref() == Some(agent))
+    {
         lanes.extend(roster_lanes(&[AgentDescriptor {
             id: agent.into(),
             name: agent.into(),

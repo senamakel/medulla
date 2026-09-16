@@ -3,9 +3,9 @@
 
 use std::sync::Arc;
 
-use medulla::config::LoadedConfig;
-use medulla::backend::MockBackend;
 use medulla::backend::Backend;
+use medulla::backend::MockBackend;
+use medulla::config::LoadedConfig;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::Terminal;

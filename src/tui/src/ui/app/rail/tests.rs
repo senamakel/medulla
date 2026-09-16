@@ -461,8 +461,7 @@ fn no_remote_hosts_means_no_remote_rows() {
 
 /// Two remote hosts each reporting one session, and nothing local.
 fn app_with_two_remote_hosts() -> App {
-    let rt: Arc<dyn medulla::backend::Backend> =
-        Arc::new(medulla::backend::MockBackend::new());
+    let rt: Arc<dyn medulla::backend::Backend> = Arc::new(medulla::backend::MockBackend::new());
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.remote_hosts = ["tower", "gpu"]
         .iter()

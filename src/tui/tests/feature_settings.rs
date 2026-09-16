@@ -13,8 +13,8 @@ use ratatui::buffer::Buffer;
 use ratatui::style::Color;
 use ratatui::Terminal;
 
-use medulla::config::{AppearanceConfig, LinkConfig, LoadedConfig, ResourceDisplay};
 use medulla::backend::MockBackend;
+use medulla::config::{AppearanceConfig, LinkConfig, LoadedConfig, ResourceDisplay};
 use medulla_tui::ui::app::{App, Cmd, TABS};
 use medulla_tui::ui::resources::DeviceSnapshot;
 

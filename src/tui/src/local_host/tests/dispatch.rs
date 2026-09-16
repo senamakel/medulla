@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use medulla::bridge::LocalBridgeNetwork;
 use medulla::config::HostSection;
 use medulla::daemon::providers::{Abort, RunTaskOptions};
-use medulla::protocol::HarnessProvider;
 use medulla::fleet::AgentDeclaration;
+use medulla::protocol::HarnessProvider;
 use medulla_tui::worker::executor::PtySessionExecutor;
 use medulla_tui::worker::pty::PtyManager;
 

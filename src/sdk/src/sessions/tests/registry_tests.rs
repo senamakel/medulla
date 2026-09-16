@@ -234,10 +234,7 @@ fn identity_is_per_conversation_like_every_other_binding_field() {
     registry.record(&bob, "sess-2");
     registry.record_identity(&alice, SessionIdentity::user(Some("mine".into())));
 
-    assert_eq!(
-        registry.identity(&bob),
-        Some(SessionIdentity::task())
-    );
+    assert_eq!(registry.identity(&bob), Some(SessionIdentity::task()));
 }
 
 #[test]

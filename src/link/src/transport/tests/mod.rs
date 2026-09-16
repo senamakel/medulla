@@ -54,10 +54,7 @@ fn applying_the_same_instruction_twice_equals_applying_it_once() {
     // The §9 conformance requirement, and the whole reason duplication is free.
     let mut pair = Pair::new();
     pair.owner.queue_message(b"frame".to_vec()).unwrap();
-    let datagrams = pair
-        .owner
-        .outgoing(100, &mut pair.owner_seq)
-        .unwrap();
+    let datagrams = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     assert_eq!(datagrams.len(), 1);
 
     assert!(pair.host.handle_datagram(&datagrams[0], 110).unwrap());
@@ -73,15 +70,9 @@ fn applying_the_same_instruction_twice_equals_applying_it_once() {
 fn an_instruction_whose_old_num_does_not_match_is_refused() {
     let mut pair = Pair::new();
     pair.owner.queue_message(b"one".to_vec()).unwrap();
-    let first = pair
-        .owner
-        .outgoing(100, &mut pair.owner_seq)
-        .unwrap();
+    let first = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     pair.owner.queue_message(b"two".to_vec()).unwrap();
-    let second = pair
-        .owner
-        .outgoing(200, &mut pair.owner_seq)
-        .unwrap();
+    let second = pair.owner.outgoing(200, &mut pair.owner_seq).unwrap();
 
     // The second datagram diffs from state 0 as well (nothing was acked), so
     // deliver it first and then the stale one.
@@ -98,13 +89,8 @@ fn an_instruction_whose_old_num_does_not_match_is_refused() {
 #[test]
 fn a_stale_instruction_leaves_the_held_state_byte_for_byte_unchanged() {
     let mut pair = Pair::new();
-    pair.owner
-        .set_screen(vec![b"row 0".to_vec()])
-        .unwrap();
-    let first = pair
-        .owner
-        .outgoing(100, &mut pair.owner_seq)
-        .unwrap();
+    pair.owner.set_screen(vec![b"row 0".to_vec()]).unwrap();
+    let first = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&first[0], 110).unwrap();
     // Acknowledge, so the next diff starts from state 1 and the replay of the
     // first datagram is genuinely stale.
@@ -114,10 +100,7 @@ fn a_stale_instruction_leaves_the_held_state_byte_for_byte_unchanged() {
     pair.owner
         .set_screen(vec![b"row 0".to_vec(), b"row 1".to_vec()])
         .unwrap();
-    let second = pair
-        .owner
-        .outgoing(200, &mut pair.owner_seq)
-        .unwrap();
+    let second = pair.owner.outgoing(200, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&second[0], 210).unwrap();
     let after = pair.host.screen().clone();
 
@@ -131,10 +114,7 @@ fn a_stale_instruction_leaves_the_held_state_byte_for_byte_unchanged() {
 fn a_datagram_for_another_node_is_refused() {
     let mut pair = Pair::new();
     pair.owner.queue_message(b"frame".to_vec()).unwrap();
-    let datagrams = pair
-        .owner
-        .outgoing(100, &mut pair.owner_seq)
-        .unwrap();
+    let datagrams = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     // The host's own session must not accept its own datagram back.
     assert!(matches!(
         pair.owner.handle_datagram(&datagrams[0], 110),
@@ -228,10 +208,7 @@ fn rto_never_leaves_its_clamp() {
 fn a_round_trip_produces_a_sample() {
     let mut pair = Pair::new();
     pair.owner.queue_message(b"frame".to_vec()).unwrap();
-    let out = pair
-        .owner
-        .outgoing(1_000, &mut pair.owner_seq)
-        .unwrap();
+    let out = pair.owner.outgoing(1_000, &mut pair.owner_seq).unwrap();
     assert!(pair.owner.rtt().srtt().is_none());
 
     pair.host.handle_datagram(&out[0], 1_040).unwrap();
@@ -344,10 +321,7 @@ fn an_unacknowledged_state_is_retransmitted_after_the_rto() {
 fn an_acknowledgement_stops_the_retransmission() {
     let mut pair = Pair::new();
     pair.owner.queue_message(b"frame".to_vec()).unwrap();
-    let out = pair
-        .owner
-        .outgoing(0, &mut pair.owner_seq)
-        .unwrap();
+    let out = pair.owner.outgoing(0, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&out[0], 10).unwrap();
     let ack = pair.host.outgoing(30, &mut pair.host_seq).unwrap();
     assert_eq!(ack.len(), 1, "the host owes an acknowledgement");
@@ -367,10 +341,7 @@ fn each_channel_is_acknowledged_on_its_own() {
     let mut pair = Pair::new();
     pair.owner.queue_message(b"frame".to_vec()).unwrap();
     pair.owner.set_screen(vec![b"row".to_vec()]).unwrap();
-    let out = pair
-        .owner
-        .outgoing(0, &mut pair.owner_seq)
-        .unwrap();
+    let out = pair.owner.outgoing(0, &mut pair.owner_seq).unwrap();
     assert_eq!(out.len(), 2, "both channels had work");
 
     for datagram in &out {
@@ -447,18 +418,12 @@ fn history_is_freed_as_the_peer_acknowledges() {
 
     let mut now = 0;
     for _ in 0..8 {
-        for datagram in pair
-            .owner
-            .outgoing(now, &mut pair.owner_seq)
-            .unwrap()
-        {
+        for datagram in pair.owner.outgoing(now, &mut pair.owner_seq).unwrap() {
             pair.host.handle_datagram(&datagram, now + 5).unwrap();
         }
         now += 100;
         for datagram in pair.host.outgoing(now, &mut pair.host_seq).unwrap() {
-            pair.owner
-                .handle_datagram(&datagram, now + 5)
-                .unwrap();
+            pair.owner.handle_datagram(&datagram, now + 5).unwrap();
         }
         now += 100;
     }
@@ -467,10 +432,7 @@ fn history_is_freed_as_the_peer_acknowledges() {
         1,
         "only the assumed receiver state should remain"
     );
-    assert_eq!(
-        pair.owner.messages_channel().assumed_receiver_num(),
-        8
-    );
+    assert_eq!(pair.owner.messages_channel().assumed_receiver_num(), 8);
     assert_eq!(pair.host.take_messages().len(), 8);
 }
 

@@ -385,17 +385,16 @@ impl App {
                 }
             }
             #[cfg(feature = "workflows")]
-            "Workflows" => {
+            "Workflows"
                 if self
                     .hit_workflow_preview
-                    .is_some_and(|area| area.contains((x, y).into()))
-                {
-                    self.wf.preview_scroll = if up {
-                        self.wf.preview_scroll.saturating_sub(SCROLL_ROWS)
-                    } else {
-                        self.wf.preview_scroll.saturating_add(SCROLL_ROWS)
-                    };
-                }
+                    .is_some_and(|area| area.contains((x, y).into())) =>
+            {
+                self.wf.preview_scroll = if up {
+                    self.wf.preview_scroll.saturating_sub(SCROLL_ROWS)
+                } else {
+                    self.wf.preview_scroll.saturating_add(SCROLL_ROWS)
+                };
             }
             _ => {}
         }

@@ -1,6 +1,5 @@
 //! Data exchanged by the interactive event loop and its background tasks.
 
-
 /// One harness progress frame's place in the sink's backlog.
 ///
 /// `AppMsg` is delivered over an unbounded channel, which is right for the
