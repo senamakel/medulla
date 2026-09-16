@@ -1,4 +1,4 @@
-//! Update, backend, core-socket, router, and budget configuration types.
+//! Update, backend, router, and budget configuration types.
 
 use super::*;
 
@@ -29,23 +29,6 @@ impl UpdateConfig {
             .unwrap_or(false);
         self.check && !killed
     }
-}
-
-/// The optional `core` section: the NDJSON `medulla-serve` orchestration socket.
-///
-/// When configured, the core runtime attaches to a long-lived `medulla-serve`
-/// process over a unix domain socket (the `medulla-serve` protocol, plan §2.2).
-/// This milestone is attach-only: the socket must already be listening. The
-/// section is unix-only; on Windows a request for it degrades to the
-/// backend→mock chain (see [`super::load_config`]).
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct CoreConfig {
-    /// Explicit NDJSON unix socket path. When unset the socket is resolved from
-    /// `$XDG_RUNTIME_DIR/medulla/serve.sock`, then `<stateDir>/serve.sock` (see
-    /// [`LoadedConfig::core_socket_path`]).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub socket_path: Option<String>,
 }
 
 /// Where the TUI reaches the Medulla backend HTTP API.

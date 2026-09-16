@@ -12,16 +12,11 @@ pub struct TuiConfig {
     /// Optional host-link identity and discovery configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link: Option<LinkConfig>,
-    /// Orchestration limits.
-    pub medulla: MedullaConfig,
     /// Directory for runtime state and caches.
     #[serde(default = "d_state_dir")]
     pub state_dir: String,
     /// Backend HTTP API and authentication configuration.
     pub backend: BackendConfig,
-    /// Optional embedded-core socket configuration.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub core: Option<CoreConfig>,
     /// Release update-check configuration.
     #[serde(default)]
     pub update: UpdateConfig,
@@ -119,10 +114,8 @@ impl Default for TuiConfig {
         TuiConfig {
             opencode: None,
             link: None,
-            medulla: MedullaConfig::default(),
             state_dir: d_state_dir(),
             backend: BackendConfig::default(),
-            core: None,
             update: UpdateConfig::default(),
             theme: ThemeConfig::default(),
             appearance: AppearanceConfig::default(),

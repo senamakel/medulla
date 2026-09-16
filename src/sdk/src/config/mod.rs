@@ -6,12 +6,10 @@
 //! constants and their env-aware resolvers, `types` the config data model,
 //! `load` the layered discovery/parse/merge that produces a [`LoadedConfig`],
 //! `persist` writes back the few sections the app owns as state, and
-//! `core_socket` resolves and validates the core (`medulla-serve`) socket path.
 //! All public items are re-exported here so callers use `medulla::config::*`.
 
 mod agent_declarations;
 mod appearance;
-mod core_socket;
 mod custom_harnesses;
 mod load;
 mod local_hosts;
@@ -23,8 +21,6 @@ mod urls;
 
 #[cfg(test)]
 mod agent_declarations_tests;
-#[cfg(test)]
-mod core_socket_tests;
 #[cfg(test)]
 mod custom_harnesses_tests;
 #[cfg(test)]
@@ -43,7 +39,6 @@ pub use agent_declarations::{
     load_agent_declarations, remove_agent_declaration, undeclare_agent, upsert_agent_declaration,
 };
 pub use appearance::{AppearanceConfig, ResourceDisplay, SidebarGrouping, SidebarSort};
-pub use core_socket::{validate_core_socket, CoreSocketError, CoreSocketSource};
 pub use custom_harnesses::{
     load_custom_harnesses, load_layered_custom_harnesses, CustomHarnessConfig,
     OPENROUTER_ANTHROPIC_URL, OPENROUTER_API_KEY_ENV, OPENROUTER_OPENAI_URL,
@@ -64,7 +59,7 @@ pub use subscriptions::{
     MIN_SUBSCRIPTION_REFRESH_SECONDS,
 };
 pub use types::{
-    wire_value, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle, CoreConfig,
+    wire_value, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle,
     EvolveSettings, FavoriteWorkspace, FieldPlacement, FieldVisibility, FleetConfig,
     HarnessNameStyle, HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig,
     LinkConfig, LoadedConfig, McpSection, MedullaConfig, OnboardingConfig, OpencodeConfig,
