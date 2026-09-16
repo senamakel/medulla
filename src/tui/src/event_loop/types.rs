@@ -1,6 +1,5 @@
 //! Data exchanged by the interactive event loop and its background tasks.
 
-use medulla::runtime::ContextItem;
 
 /// One harness progress frame's place in the sink's backlog.
 ///
@@ -65,8 +64,6 @@ impl Drop for PendingFrame {
 pub(super) enum AppMsg {
     /// A status-line update.
     Status(String),
-    /// Fresh context-inspection rows.
-    Contexts(Vec<ContextItem>),
     /// A remote host answered, and this is what it can do.
     RemoteHostConnected {
         /// Which `[[remoteHosts]]` entry.
@@ -155,13 +152,9 @@ pub(super) enum AppMsg {
         /// The link's advisory verdict.
         liveness: medulla::bridge::BridgeLiveness,
     },
-    /// Chats to display in the resume picker.
-    OpenResume(Vec<medulla::ui::chat_store::MainChatSummary>),
-    /// Confirmation that a chat was resumed.
-    Resumed(String),
     /// The session was cleared; quit back to the login screen.
     LoggedOut,
-    /// Account usage returned by the runtime, or the fetch failure.
+    /// Account usage returned by the backend, or the fetch failure.
     ///
     /// Failure stays in this message rather than arriving as a separate status
     /// so a subscription refresh waiting on usage is always released exactly
@@ -180,7 +173,7 @@ pub(super) enum AppMsg {
         /// The synthetic user turn shown in its transcript.
         instruction: String,
     },
-    /// A page of the feedback board. `None` = this runtime has no board.
+    /// A page of the feedback board. `None` = this backend has no board.
     FeedbackLoaded {
         /// The query that produced it, so a superseded load can be dropped.
         query: medulla::client::FeedbackQuery,
@@ -285,7 +278,7 @@ pub(crate) enum SessionExit {
     Relogin,
 }
 
-/// Everything a session needs besides the terminal and the runtime.
+/// Everything a session needs besides the terminal, the backend, and the hub.
 ///
 /// Bundled rather than passed positionally: these are all "wire this into the
 /// app" values, and a session is started afresh on every relogin, so the call
@@ -320,13 +313,8 @@ pub(crate) struct SessionWiring {
         Option<tokio::sync::mpsc::UnboundedReceiver<medulla_tui::ui::welcome::WelcomeEvent>>,
     /// Where to record onboarding once a backgrounded share settles.
     pub onboarding_path: std::path::PathBuf,
-    /// The background host-link service's shared observation: this endpoint's
-    /// identity, its peer roster and per-peer presence, merged into every
-    /// snapshot refresh. `None` when no link is configured.
-    pub link_obs:
-        Option<std::sync::Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>>,
     /// A read-only view of the host running on this device, when one is. `None`
-    /// means this machine orchestrates but does not run the work itself.
+    /// means this machine dispatches but does not run the work itself.
     pub host: Option<medulla::daemon::embedded::HostObservation>,
     /// The live sessions this device is running, and the state machine
     /// that says which task each one serves.
