@@ -32,6 +32,7 @@ use medulla_tui::worker::pty::PtyManager;
 fn agents_app() -> App {
     let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
     app.tab_index = medulla_tui::ui::app::TABS
         .iter()
         .position(|t| *t == "Sessions")

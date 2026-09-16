@@ -34,6 +34,7 @@ fn worker_app() -> App {
         Arc::new(MockBackend::new()),
         LoadedConfig::defaults("medulla.tui.json".into()),
     );
+    app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
     app.tab_index = TABS.iter().position(|t| *t == "Sessions").unwrap();
     // Walk the rail the way an operator does: focus it, then step down onto the
     // worker lane under the orchestrator.

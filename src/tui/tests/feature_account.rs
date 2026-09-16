@@ -187,8 +187,8 @@ fn navigating_away_disarms_the_logout() {
     key(&mut app, KeyCode::Esc);
     key(&mut app, KeyCode::Esc);
     assert!(!app.settings_focused(), "back on the nav");
-    key(&mut app, KeyCode::Up); // move to Context
-    assert_eq!(app.settings_subpage(), "Context");
+    key(&mut app, KeyCode::Up); // move to Feedback
+    assert_eq!(app.settings_subpage(), "Feedback");
     key(&mut app, KeyCode::Down); // back to Account
     key(&mut app, KeyCode::Enter); // re-enter the pane
 

@@ -103,6 +103,7 @@ fn agents_app_with(config: SubscriptionsConfig, appearance: AppearanceConfig) ->
     loaded.config.subscriptions = config;
     loaded.config.appearance = appearance;
     let mut app = App::new(Arc::new(MockBackend::new()), loaded);
+    app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
     let _ = app.set_subscriptions(sample());
     app.tab_index = TABS.iter().position(|tab| *tab == "Sessions").unwrap();
     app

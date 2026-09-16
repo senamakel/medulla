@@ -2,7 +2,7 @@
 //! arrow navigation, that every subpage renders, the Appearance theme editor
 //! (live-applies + persists), and the unified themed selection highlight.
 //!
-//! Settings also hosts what used to be the Trace and Context tabs,
+//! Settings also hosts the Feedback board as a subpage,
 //! so the tab bar's shrinking is asserted here too.
 
 use std::sync::Arc;
@@ -395,6 +395,7 @@ fn agents_app(appearance: AppearanceConfig) -> App {
     config.config.appearance = appearance;
     let runtime = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, config);
+    app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
     app.set_device_snapshot(device_sample());
     app.tab_index = TABS.iter().position(|tab| *tab == "Sessions").unwrap();
     app
