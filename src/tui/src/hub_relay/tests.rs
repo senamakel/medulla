@@ -206,11 +206,9 @@ fn the_device_local_host_is_never_written_into_the_saved_roster() {
 }
 
 #[test]
-fn a_roster_remembered_from_a_hosting_run_is_dropped_when_hosting_is_off() {
-    // The regression: a roster saved by an older build (or any run that wrote
-    // the entry) would keep advertising `this-device` after `MEDULLA_HOST=0`.
-    // With no local endpoint bound, the router finds no match and sends its
-    // tasks over the host link to a name no relay can resolve.
+fn a_local_only_hub_does_not_advertise_remembered_peers() {
+    // The local router cannot deliver to any remembered peer, whether it was
+    // this device in a previous hosting run or a genuinely remote address.
     let dir = tempfile::tempdir().expect("tempdir");
     let home = dir.path();
     // Write it the way a build without the filter would have.
@@ -235,16 +233,10 @@ fn a_roster_remembered_from_a_hosting_run_is_dropped_when_hosting_is_off() {
     .expect("the hub config builds");
 
     assert!(
-        !config.workers.iter().any(|w| w.address == "this-device"),
-        "the stale local entry must not be listed: {:?}",
-        config
-            .workers
-            .iter()
-            .map(|w| &w.address)
-            .collect::<Vec<_>>()
+        config.workers.is_empty(),
+        "the local-only hub must not advertise undeliverable peers: {:?}",
+        config.workers.iter().map(|w| &w.address).collect::<Vec<_>>()
     );
-    assert_eq!(config.workers.len(), 1);
-    assert_eq!(config.workers[0].address, "3Hob1Fxu");
 }
 
 #[test]

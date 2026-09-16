@@ -14,9 +14,8 @@ use ratatui::style::Color;
 use ratatui::Terminal;
 
 use medulla::backend::MockBackend;
-use medulla::config::{AppearanceConfig, LinkConfig, LoadedConfig, ResourceDisplay};
+use medulla::config::{LinkConfig, LoadedConfig};
 use medulla_tui::ui::app::{App, Cmd, TABS};
-use medulla_tui::ui::resources::DeviceSnapshot;
 
 fn loaded() -> LoadedConfig {
     let mut l = LoadedConfig::defaults("medulla.tui.json".into());
