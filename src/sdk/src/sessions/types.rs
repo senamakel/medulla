@@ -97,7 +97,7 @@ impl fmt::Display for SessionClass {
 pub enum SessionOrigin {
     /// Auto-created to serve a dispatched task. Unnamed: the UI labels it from
     /// the task it was created for.
-    Orchestrator,
+    Task,
     /// Spun up by a person from the UI. Carries the name they gave it.
     User,
 }
@@ -106,7 +106,7 @@ impl SessionOrigin {
     /// The wire/display string.
     pub fn as_str(self) -> &'static str {
         match self {
-            SessionOrigin::Orchestrator => "orchestrator",
+            SessionOrigin::Task => "task",
             SessionOrigin::User => "user",
         }
     }
@@ -114,8 +114,8 @@ impl SessionOrigin {
     /// Whether a person, rather than a dispatch, started this session.
     ///
     /// Display and labelling only — never a gate on dispatch. Control is the
-    /// gate: a user-originated session that was handed to the orchestrator is
-    /// dispatchable, and an orchestrator-originated one a person holds is not.
+    /// gate: a user-originated session that was handed back for dispatch is
+    /// dispatchable, and a task-originated one a person holds is not.
     pub fn is_user(self) -> bool {
         matches!(self, SessionOrigin::User)
     }

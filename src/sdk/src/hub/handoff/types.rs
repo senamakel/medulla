@@ -11,15 +11,15 @@ use serde::{Deserialize, Serialize};
 /// dispatch gate one careless `#[serde(default)]` away from being decided by a
 /// remote peer.
 ///
-/// The wire spelling is `operator`, not `user`: the orchestrator reasons about
-/// operators and orchestrators, and one word for one concept across the whole
-/// system is worth more than matching the local enum's variant name.
+/// The wire spelling is `operator`, not `user`: every dispatcher reasons about
+/// operators, and one word for one concept across the whole system is worth
+/// more than matching the local enum's variant name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HandoffControl {
-    /// The orchestrator may dispatch into this harness.
+    /// A dispatcher may send tasks into this harness.
     #[default]
-    Orchestrator,
+    Dispatch,
     /// A person is working in it. Nothing may be dispatched there.
     Operator,
 }
@@ -28,7 +28,7 @@ impl HandoffControl {
     /// The wire value.
     pub fn as_str(self) -> &'static str {
         match self {
-            HandoffControl::Orchestrator => "orchestrator",
+            HandoffControl::Dispatch => "dispatch",
             HandoffControl::Operator => "operator",
         }
     }
@@ -41,11 +41,11 @@ impl HandoffControl {
 
 /// What an operator leaves behind when they hand a running harness back.
 ///
-/// A *description of work in progress*, not a resumable session. The
-/// orchestrator never reopens the operator's session — it reads this and places
-/// a manager on the same harness to continue the thread. That distinction is
-/// why `transcript` is a bounded excerpt rather than a handle: there is nothing
-/// on the far end to resume.
+/// A *description of work in progress*, not a resumable session. A dispatcher
+/// never reopens the operator's session — it reads this and sends the next task
+/// to the same harness to continue the thread. That distinction is why
+/// `transcript` is a bounded excerpt rather than a handle: there is nothing on
+/// the far end to resume.
 ///
 /// `note` and `transcript` are operator and terminal text, so anything
 /// downstream must treat them as untrusted data describing work, never as
@@ -56,7 +56,7 @@ pub struct HarnessHandoff {
     /// Identifies this handback *event*, not the session.
     ///
     /// A second handback of the same harness mints a new id. Reusing one means
-    /// the orchestrator, having already picked that id up, silently ignores the
+    /// a dispatcher, having already picked that id up, silently ignores the
     /// new work — which looks exactly like the handoff never happening.
     pub id: String,
     /// Epoch ms the operator handed it back.

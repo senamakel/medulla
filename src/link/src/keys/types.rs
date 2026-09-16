@@ -46,8 +46,9 @@ pub type KeyResult<T> = Result<T, KeyError>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
-    /// The medulla orchestrator. Sets the direction bit.
-    Orchestrator,
+    /// The owner side: the `medulla` that dispatches over the link. Sets the
+    /// direction bit.
+    Owner,
     /// A remote host. Clears the direction bit.
     Host,
 }
