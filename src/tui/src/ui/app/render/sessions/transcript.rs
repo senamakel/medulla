@@ -106,13 +106,6 @@ impl App {
                 Style::default().fg(Color::Magenta),
             )));
         }
-        // Harness task board: session-wide, shown only when the backend surfaces a
-        // `HarnessStatus`. Degrades to nothing (empty vec) when absent or empty.
-        if let Some(status) = &self.snapshot.harness {
-            for line in task_board_lines(status, pane_width) {
-                header.push(styled_to_tline(&line));
-            }
-        }
         // Read-only seat budget for the selected lane, when its descriptor carries
         // a `metadata.budget` stamp. Seat CRUD stays a backend REST concern.
         if let Some(budget) = lane
@@ -228,12 +221,6 @@ impl App {
                     {
                         header.push(styled_to_tline(&line));
                     }
-                }
-            }
-            if let Some(lane) = lane {
-                let window = self.loaded.config.medulla.context_window() as i64;
-                if let Some(line) = meters::context_meter(&lane.usage, window) {
-                    header.push(styled_to_tline(&line));
                 }
             }
         }
