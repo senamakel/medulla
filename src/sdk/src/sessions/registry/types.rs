@@ -67,8 +67,8 @@ pub struct SessionIdentity {
 impl Default for SessionIdentity {
     /// The auto-creation default: started by a dispatch, unnamed.
     ///
-    /// A session nobody asked for by hand is one the orchestrator made to serve
-    /// a task (§4.1), and only a person supplies a name.
+    /// A session nobody asked for by hand is one opened to serve a dispatched
+    /// task (§4.1), and only a person supplies a name.
     fn default() -> Self {
         SessionIdentity {
             origin: SessionOrigin::Task,
@@ -78,8 +78,8 @@ impl Default for SessionIdentity {
 }
 
 impl SessionIdentity {
-    /// An orchestrator-originated, unnamed identity.
-    pub fn orchestrator() -> Self {
+    /// A task-originated, unnamed identity.
+    pub fn task() -> Self {
         SessionIdentity::default()
     }
 

@@ -216,7 +216,7 @@ impl std::fmt::Display for RunError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RunError::Timeout => write!(f, "bridge task timed out"),
-            RunError::Aborted => write!(f, "task aborted by orchestrator"),
+            RunError::Aborted => write!(f, "task aborted by its sender"),
             RunError::Worker(m) => write!(f, "worker error: {m}"),
             // Same message as `Worker`: the transcript is the step's own
             // account, delivered out-of-band, not part of the rendered error.

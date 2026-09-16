@@ -74,7 +74,7 @@ async fn nested_harness_env(
 const LOCAL_POLL: Duration = Duration::from_millis(20);
 
 /// The bridge address the workflow runner dispatches from.
-const ORCHESTRATOR_ADDRESS: &str = "workflow-runner";
+const RUNNER_ADDRESS: &str = "workflow-runner";
 
 /// The bridge address the embedded worker listens on. Workflows whose nodes
 /// name no `agent_ref` dispatch here.
@@ -146,10 +146,10 @@ impl LocalWorkflowHost {
     pub fn start(options: EmbeddedDaemonOptions) -> Result<Self, String> {
         let network = LocalBridgeNetwork::new();
         let worker = network.bind(LOCAL_WORKER_ADDRESS)?;
-        let orchestrator = network.bind(ORCHESTRATOR_ADDRESS)?;
+        let sender = network.bind(RUNNER_ADDRESS)?;
 
         let daemon = EmbeddedDaemon::start(Arc::new(worker), LOCAL_WORKER_ADDRESS, options)?;
-        let runner = Arc::new(TaskRunner::start(Arc::new(orchestrator), LOCAL_POLL));
+        let runner = Arc::new(TaskRunner::start(Arc::new(sender), LOCAL_POLL));
 
         Ok(Self {
             dispatch: Arc::new(TaskRunnerDispatch::new(runner.clone())),

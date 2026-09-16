@@ -195,14 +195,14 @@ pub async fn run_daemon(
         }
         Err(_) => medulla_link::keys::link_dir(&home),
     };
-    // The orchestrator this host serves. A host enrolls against exactly one
+    // The owner this host serves. A host enrolls against exactly one
     // (protocol §7.3), so this is also the link's single peer.
     let owner = crate::onboarding::env_owner(&env)
         .or_else(|| {
             let owner = worker_profile.owner.clone()?;
             (!owner.trim().is_empty()).then_some(owner)
         })
-        .unwrap_or_else(|| "orchestrator".to_string());
+        .unwrap_or_else(|| "owner".to_string());
     let node_name = if !worker_profile.address.trim().is_empty() {
         worker_profile.address.trim().to_string()
     } else {

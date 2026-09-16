@@ -87,7 +87,7 @@ pub fn pairing_banner(address: &str, handle: Option<&str>, copied: bool) -> Stri
     if let Some(handle) = handle.map(str::trim).filter(|h| !h.is_empty()) {
         let handle = handle.strip_prefix('@').unwrap_or(handle);
         out.push_str(&format!(
-            "  Registered as @{handle} — on the orchestrator you can type that\n  \
+            "  Registered as @{handle} — on the owning medulla you can type that\n  \
              instead of the address above.\n\n"
         ));
     }
@@ -95,7 +95,7 @@ pub fn pairing_banner(address: &str, handle: Option<&str>, copied: bool) -> Stri
         out.push_str("  Copied to your clipboard (via the terminal, so it works over SSH).\n\n");
     }
     out.push_str(
-        "  On the orchestrator: add a `[[link.peers]]` entry in config.toml with\n  \
+        "  On the owning medulla: add a `[[link.peers]]` entry in config.toml with\n  \
          this address (and handle, if you have one), then restart.\n  \
          Leave this daemon running; it accepts the connection automatically.\n",
     );

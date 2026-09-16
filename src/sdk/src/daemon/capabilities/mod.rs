@@ -22,7 +22,7 @@ use super::dir_context::{read_dir_context, truncate_chars, MAX_SUMMARY_CHARS};
 use super::providers::{Abort, RunTaskFn, RunTaskOptions};
 
 /// The strict-JSON self-report prompt.
-pub const CAPABILITY_PROMPT: &str = "Report your own capabilities for an orchestrator. Respond with ONLY a JSON object, no prose or markdown, matching {\"tools\":string[],\"mcpServers\":string[],\"accessibleDirs\":string[],\"summary\":string}: tools=tool/command names you can invoke; mcpServers=MCP servers/connectors available to you; accessibleDirs=absolute dirs you can read/write; summary=at most 100 tokens: what this project/directory is (drawn from the project files below when present), its key conventions, and what you can do here.";
+pub const CAPABILITY_PROMPT: &str = "Report your own capabilities for the medulla that dispatches to you. Respond with ONLY a JSON object, no prose or markdown, matching {\"tools\":string[],\"mcpServers\":string[],\"accessibleDirs\":string[],\"summary\":string}: tools=tool/command names you can invoke; mcpServers=MCP servers/connectors available to you; accessibleDirs=absolute dirs you can read/write; summary=at most 100 tokens: what this project/directory is (drawn from the project files below when present), its key conventions, and what you can do here.";
 
 /// A capability probe should answer in seconds; a slow one must not stall a query.
 pub const DEFAULT_PROBE_TIMEOUT_MS: u64 = 60_000;
