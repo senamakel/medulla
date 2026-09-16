@@ -55,12 +55,9 @@ pub(super) fn lane() -> AgentLane {
     AgentLane {
         key: "k".into(),
         label: "worker".into(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: None,
         session_id: None,

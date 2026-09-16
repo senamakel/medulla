@@ -18,12 +18,9 @@ fn lane(key: &str) -> AgentLane {
     AgentLane {
         key: key.to_string(),
         label: String::new(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: None,
         session_id: None,

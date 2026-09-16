@@ -49,12 +49,9 @@ fn shell_lane() -> AgentLane {
     AgentLane {
         key: "agent:shell".into(),
         label: "shell".into(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: Some("shell".into()),
         session_id: None,

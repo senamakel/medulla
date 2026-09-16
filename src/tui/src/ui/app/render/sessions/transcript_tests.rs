@@ -6,7 +6,8 @@ use std::sync::Arc;
 use medulla::config::LoadedConfig;
 use medulla::harness_work::{HarnessSessionInfo, WorkSnapshot};
 use medulla::backend::MockBackend;
-use medulla::fleet::{AgentDeclaration, Runtime};
+use medulla::backend::Backend;
+use medulla::fleet::{AgentDeclaration};
 use medulla::ui::agents::{AgentLane, AgentRole, TurnBlock};
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
@@ -24,12 +25,9 @@ fn descriptorless_lanes_still_show_their_pull_request_context() {
     let lane = AgentLane {
         key: "worker".into(),
         label: "worker".into(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: Some("worker".into()),
         session_id: None,
@@ -108,8 +106,6 @@ fn orchestrator_lane() -> AgentLane {
         }],
         last_at: 1,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: None,
         session_id: None,
