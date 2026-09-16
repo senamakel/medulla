@@ -21,8 +21,8 @@ use medulla::client::FeedbackType;
 
 use super::super::appearance::APPEARANCE_ROWS;
 use super::super::types::{
-    App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK,
-    SP_HELP, SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
+    App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_FEEDBACK, SP_HELP,
+    SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_USAGE,
 };
 
 impl App {
@@ -82,8 +82,6 @@ impl App {
             SP_STATUS_LINE => self.status_line_key(code),
             SP_CONFIG => self.config_key(code),
             SP_FEEDBACK => self.feedback_key(code),
-            SP_TRACE => self.trace_key(code),
-            SP_CONTEXT => self.context_key(code),
             SP_ACCOUNT => self.account_key(code),
             _ => SettingsKey::Unhandled,
         }
@@ -116,22 +114,6 @@ impl App {
                 SettingsKey::handled(None)
             }
             SP_FEEDBACK => SettingsKey::handled(self.move_feedback_index(up)),
-            SP_TRACE => {
-                self.selected = if up {
-                    self.selected.saturating_sub(1)
-                } else {
-                    self.selected + 1
-                };
-                SettingsKey::handled(None)
-            }
-            SP_CONTEXT => {
-                self.context_index = if up {
-                    self.context_index.saturating_sub(1)
-                } else {
-                    (self.context_index + 1).min(self.contexts.len().saturating_sub(1))
-                };
-                SettingsKey::handled(None)
-            }
             // Help is a single long page rather than a list, so it scrolls by
             // the line. It outgrew a short terminal once the harness bindings
             // and commands landed on it, and a reference you cannot reach the
@@ -321,41 +303,6 @@ impl App {
             KeyCode::Char('r') | KeyCode::Enter => {
                 self.set_status("Feedback · refreshing…");
                 SettingsKey::handled(self.reload_feedback())
-            }
-            _ => SettingsKey::Unhandled,
-        }
-    }
-
-    /// Trace: page through the event stream.
-    fn trace_key(&mut self, code: KeyCode) -> SettingsKey {
-        match code {
-            KeyCode::Char('k') => {
-                self.selected = self.selected.saturating_sub(1);
-                SettingsKey::handled(None)
-            }
-            KeyCode::Char('j') => {
-                self.selected += 1;
-                SettingsKey::handled(None)
-            }
-            _ => SettingsKey::Unhandled,
-        }
-    }
-
-    /// Context: browse the environment chunks.
-    fn context_key(&mut self, code: KeyCode) -> SettingsKey {
-        match code {
-            KeyCode::Char('k') => {
-                self.context_index = self.context_index.saturating_sub(1);
-                SettingsKey::handled(None)
-            }
-            KeyCode::Char('j') => {
-                let max = self.contexts.len().saturating_sub(1);
-                self.context_index = (self.context_index + 1).min(max);
-                SettingsKey::handled(None)
-            }
-            KeyCode::Char('r') => {
-                self.set_status("Context · refreshing…");
-                SettingsKey::handled(Some(Cmd::InspectContext))
             }
             _ => SettingsKey::Unhandled,
         }

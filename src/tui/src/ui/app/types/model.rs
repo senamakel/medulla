@@ -91,15 +91,13 @@ pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 10] = [
+pub const SETTINGS_SUBPAGES: [&str; 8] = [
     "Usage",
     "Appearance",
     "Subscriptions",
     "Status line",
     "Config",
     "Feedback",
-    "Trace",
-    "Context",
     "Account",
     "Help",
 ];
@@ -107,13 +105,9 @@ pub const SETTINGS_SUBPAGES: [&str; 10] = [
 /// The left-nav group headings, as `(heading, first subpage index)`.
 ///
 /// Headings are rendered dim and are not selectable — they exist to separate the
-/// everyday settings from the diagnostic ones. Each group runs until the next
+/// everyday settings from the account pages. Each group runs until the next
 /// group's start index.
-pub const SETTINGS_GROUPS: [(&str, usize); 3] = [
-    ("GENERAL", SP_USAGE),
-    ("DEBUG", SP_TRACE),
-    ("ABOUT", SP_ACCOUNT),
-];
+pub const SETTINGS_GROUPS: [(&str, usize); 2] = [("GENERAL", SP_USAGE), ("ABOUT", SP_ACCOUNT)];
 
 // Settings subpage indices.
 pub(in crate::ui::app) const SP_USAGE: usize = 0;
@@ -122,10 +116,8 @@ pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 2;
 pub(in crate::ui::app) const SP_STATUS_LINE: usize = 3;
 pub(in crate::ui::app) const SP_CONFIG: usize = 4;
 pub(in crate::ui::app) const SP_FEEDBACK: usize = 5;
-pub(in crate::ui::app) const SP_TRACE: usize = 6;
-pub(in crate::ui::app) const SP_CONTEXT: usize = 7;
-pub(in crate::ui::app) const SP_ACCOUNT: usize = 8;
-pub(in crate::ui::app) const SP_HELP: usize = 9;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 6;
+pub(in crate::ui::app) const SP_HELP: usize = 7;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
