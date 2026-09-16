@@ -40,6 +40,18 @@ fn restores_daemon_drops_the_key_and_adds_host() {
 }
 
 #[test]
+fn the_reexec_argv_still_dispatches_to_the_paired_host_command() {
+    // The regression this guards: `run` is handed `&raw[1..]` by `main`,
+    // which has already stripped `daemon` — so if `reexec_args` forgot to
+    // restore it, the re-invocation would read as bare `medulla --host …`,
+    // which `parse_command` resolves to the interactive TUI rather than
+    // `DaemonHost`, and the pairing would silently never actually serve.
+    let args = vec!["HK1-SECRET-KEY".to_string()];
+    let out = reexec_args(&args, "HK1-SECRET-KEY");
+    assert_eq!(parse_command(&out), Command::DaemonHost);
+}
+
+#[test]
 fn does_not_duplicate_an_existing_host_flag() {
     // Defensive: `run` only calls this on the pasted-key path, where
     // `--host` is never already present, but the helper should still be
