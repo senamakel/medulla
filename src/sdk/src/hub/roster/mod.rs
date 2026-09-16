@@ -9,7 +9,6 @@
 
 use std::sync::{Arc, Mutex};
 
-use serde_json::{json, Value};
 
 /// The roster entry a [`WorkerSpec`](crate::hub::WorkerSpec) describes.
 ///

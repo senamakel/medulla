@@ -1,5 +1,4 @@
-//! One peer to one roster slot, and withholding the addresses the relay says
-//! are unreachable — the two rules that keep an advert honest.
+//! One peer to one roster slot — the rule that keeps dispatch honest.
 
 use super::helpers::{hw, no_presence, worker};
 
