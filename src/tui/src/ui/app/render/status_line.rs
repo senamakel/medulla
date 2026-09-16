@@ -99,22 +99,16 @@ impl App {
         );
     }
 
-    /// The connection glyph and colour for the status line's backend host.
+    /// The glyph and colour beside the backend host on the status line.
     ///
-    /// Read from the runtime's event-stream health, which is the closest thing
-    /// to a live socket state the UI can see: the core runtime reports `Live`
-    /// once its stream is attached and contiguous, `Resyncing` while connecting,
-    /// reconnecting, or recovering a sequence gap, and `Stalled` when the
-    /// transport is unavailable.
-    ///
-    /// Runtimes with no stream to track (the mock and plain-HTTP backends)
-    /// report nothing, and get a dim hollow dot rather than a green one — an
-    /// unknown connection must not read as a healthy one.
+    /// The backend's part is account-shaped — the plan gate, usage, the
+    /// feedback board — so the dot says whether this host is signed in to it:
+    /// a green dot for a session that resolved, a dim hollow one for a
+    /// signed-out or offline host. An unknown connection must not read as a
+    /// healthy one.
     pub(super) fn connection_dot(&self) -> (char, Color) {
-        match self.runtime.stream_state() {
-            Some(medulla::runtime::StreamState::Live) => ('●', Color::Green),
-            Some(medulla::runtime::StreamState::Resyncing) => ('◌', Color::Yellow),
-            Some(medulla::runtime::StreamState::Stalled) => ('✕', Color::Red),
+        match self.account.as_ref().and_then(|state| state.session.as_ref()) {
+            Some(_) => ('●', Color::Green),
             None => ('○', Color::DarkGray),
         }
     }
