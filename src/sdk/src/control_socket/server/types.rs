@@ -8,7 +8,7 @@ use tokio::sync::watch;
 
 use super::super::grants::{Grant, GrantRegistry};
 use super::super::runs::HarnessRunRegistry;
-use crate::hub::{HubHandle, TaskOutcome};
+use crate::hub::TaskOutcome;
 
 /// The shared slot the hub fills once it is up — the same type as
 /// [`crate::hub::HubSlot`], re-exported so the control server names one thing.
