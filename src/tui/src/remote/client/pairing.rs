@@ -68,6 +68,29 @@ pub fn mint_pairing(state_dir: &Path, port: u16) -> Result<HostKey, String> {
     Ok(key)
 }
 
+/// [`keys::lock_node_dir`], retried across [`LOCK_RETRY_BUDGET`] while the
+/// error is [`KeyError::Busy`].
+///
+/// A blocking retry here, rather than in the caller, because the lock is a
+/// local file: the wait is bounded and short, and every caller wants the
+/// same behaviour, so there is nothing an async retry loop up the stack would
+/// buy beyond complexity.
+fn lock_node_dir_with_retry(state_dir: &Path) -> Result<keys::NodeLock, String> {
+    let deadline = std::time::Instant::now() + LOCK_RETRY_BUDGET;
+    loop {
+        match keys::lock_node_dir(state_dir) {
+            Ok(lock) => return Ok(lock),
+            Err(KeyError::Busy(_)) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(LOCK_RETRY_INTERVAL);
+            }
+            Err(KeyError::Busy(_)) => {
+                return Err("this host is still connected; try again in a moment".to_string())
+            }
+            Err(other) => return Err(other.to_string()),
+        }
+    }
+}
+
 /// Forget a host's pairing on this device.
 ///
 /// # Errors
