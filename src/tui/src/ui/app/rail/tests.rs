@@ -273,6 +273,8 @@ fn a_session_in_an_undeclared_directory_is_still_listed() {
 #[test]
 fn the_host_tree_keeps_a_second_declared_host() {
     let mut app = app();
+    // The tree, not the traffic: no lanes, so the rows are the declarations.
+    app.inject_lanes(Vec::new());
     app.inject_workers(vec![WorkerInfo {
         id: "studio-claude".into(),
         address: "studio".into(),

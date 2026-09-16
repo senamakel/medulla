@@ -79,39 +79,6 @@ fn a_required_number_clamps_instead_of_going_auto() {
 }
 
 #[test]
-fn numbers_clamp_at_their_maximum() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let mut app = app_in(dir.path());
-    app.config_index = row_at(&app, "Max depth");
-    let row = app.config_rows()[app.config_index];
-    let SettingKind::Count { max, .. } = row.kind else {
-        panic!("Max depth should be a count");
-    };
-
-    for _ in 0..(max + 5) {
-        app.adjust_setting(1);
-    }
-
-    assert_eq!(app.read_setting(&row), SettingValue::Number(max));
-}
-
-#[test]
-fn enter_on_a_number_row_explains_itself_instead_of_changing_it() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let mut app = app_in(dir.path());
-    app.config_index = row_at(&app, "Max steps");
-    let row = app.config_rows()[app.config_index];
-
-    let status = app.adjust_setting(0);
-
-    assert_eq!(app.read_setting(&row), SettingValue::Auto, "unchanged");
-    assert!(
-        status.contains("← or →"),
-        "tells the user what to press: {status}"
-    );
-}
-
-#[test]
 fn without_a_config_path_changes_apply_live_but_say_they_are_not_saved() {
     let rt: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
@@ -194,4 +161,38 @@ fn the_listed_run_cap_starts_at_its_default_and_persists() {
         (default + step) as usize,
         "persisted under [workflows]"
     );
+}
+
+#[test]
+fn enter_on_a_number_row_explains_itself_instead_of_changing_it() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut app = app_in(dir.path());
+    app.config_index = row_at(&app, "Worker concurrency");
+    let row = app.config_rows()[app.config_index];
+    let before = app.read_setting(&row);
+
+    let status = app.adjust_setting(0);
+
+    assert_eq!(app.read_setting(&row), before, "unchanged");
+    assert!(
+        status.contains("← or →"),
+        "tells the user what to press: {status}"
+    );
+}
+
+#[test]
+fn numbers_clamp_at_their_maximum() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut app = app_in(dir.path());
+    app.config_index = row_at(&app, "Worker concurrency");
+    let row = app.config_rows()[app.config_index];
+    let SettingKind::Count { max, .. } = row.kind else {
+        panic!("Worker concurrency should be a count");
+    };
+
+    for _ in 0..(max + 5) {
+        app.adjust_setting(1);
+    }
+
+    assert_eq!(app.read_setting(&row), SettingValue::Number(max));
 }
