@@ -10,7 +10,8 @@
 //! is the product implementation over [`MedullaClient`]; [`MockBackend`] is
 //! the offline stand-in behind `--mock` and the TUI's feature suites, with a
 //! scripted board that retallies votes and keeps comments for the life of the
-//! process.
+//! process. [`connect`] decides, before anything paints, whether this host is
+//! signed in to a backend at all.
 
 use futures::future::BoxFuture;
 
@@ -20,6 +21,7 @@ use crate::client::{
 };
 
 mod cloud;
+pub mod connect;
 pub mod mock;
 
 pub use cloud::CloudBackend;
