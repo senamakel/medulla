@@ -4,8 +4,7 @@
 //! never survive, and `--host` must always be present so the re-invocation
 //! reads pairings from disk.
 
-use crate::cli::parse::parse_command;
-use crate::cli::types::Command;
+use crate::cli::{parse_command, Command};
 use crate::remote::serve::paired::reexec_args;
 
 #[test]
