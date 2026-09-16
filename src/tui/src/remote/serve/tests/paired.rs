@@ -1,9 +1,14 @@
 //! Tests for recording pairings: the same key twice, a replaced key, and a
-//! port another client already holds on this host.
+//! port another client already holds on this host — plus that `--host`
+//! tolerates one pairing's identity being unreadable rather than refusing to
+//! serve any of them.
+
+use std::collections::HashMap;
+use std::time::Duration;
 
 use medulla_link::keys::{HostKey, NodeId};
 
-use crate::remote::serve::paired::{pair, pairings_on_disk};
+use crate::remote::serve::paired::{pair, pairings_on_disk, run_in};
 
 #[test]
 fn the_same_key_twice_is_one_pairing_and_a_new_key_replaces_it() {
