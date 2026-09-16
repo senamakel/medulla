@@ -10,11 +10,9 @@ use super::super::grants::{Grant, GrantRegistry};
 use super::super::runs::HarnessRunRegistry;
 use crate::hub::{HubHandle, TaskOutcome};
 
-/// The shared slot the hub fills once it connects.
-///
-/// Structurally identical to [`crate::runtime::cloud::HubSlot`], and the
-/// same type — named here so the control server does not depend on the runtime.
-pub type HubSlot = Arc<Mutex<Option<HubHandle>>>;
+/// The shared slot the hub fills once it is up — the same type as
+/// [`crate::hub::HubSlot`], re-exported so the control server names one thing.
+pub use crate::hub::HubSlot;
 
 /// Fleet defaults for dispatches that name no worker.
 #[derive(Debug, Clone, Default)]

@@ -20,6 +20,7 @@ mod roster;
 mod runner;
 mod screens;
 mod types;
+mod workers;
 
 #[cfg(test)]
 mod tests;
@@ -36,3 +37,6 @@ pub use roster::{HubWorker, SharedLocalHosts};
 pub use runner::TaskRunner;
 pub use screens::{ScreenStore, WatchedScreen};
 pub use types::{stderr_log, HubLog, RosterSink, RunError, TaskOutcome, TaskRequest};
+pub use workers::{
+    apply_worker_op, hub_in, hub_worker_to_info, label_from_patch, workers_of, HubSlot,
+};
