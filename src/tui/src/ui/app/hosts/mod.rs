@@ -189,7 +189,9 @@ impl App {
                 // daemon nothing can reach again. The unconditional "Run
                 // this once" status used to overwrite that warning outright.
                 match persisted {
-                    Ok(()) => self.set_status(format!("Run this once on {name} (copied): {command}")),
+                    Ok(()) => {
+                        self.set_status(format!("Run this once on {name} (copied): {command}"))
+                    }
                     Err(error) => self.set_status(format!(
                         "key issued but not saved ({error}) — it will not survive a restart; \
                          run this once on {name} (copied) if you want to use it now: {command}"
