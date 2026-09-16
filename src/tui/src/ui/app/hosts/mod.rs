@@ -171,9 +171,7 @@ impl App {
                 }) {
                     entry.udp_port = port;
                 }
-                if let Err(error) = self.persist_remote_hosts() {
-                    self.set_status(format!("key issued, but not saved: {error}"));
-                }
+                let persisted = self.persist_remote_hosts();
                 self.hosts.pending_key = Some(PendingKey {
                     host_id: host_id.to_string(),
                     command: command.clone(),
@@ -185,7 +183,18 @@ impl App {
                     .filter(|entry| entry.id == host_id)
                     .map(|entry| entry.name.clone())
                     .unwrap_or_else(|| host_id.to_string());
-                self.set_status(format!("Run this once on {name} (copied): {command}"));
+                // A save failure here must stay on screen: an operator who
+                // pastes the command anyway pairs a host and port that will
+                // vanish from config the moment this run ends, leaving a
+                // daemon nothing can reach again. The unconditional "Run
+                // this once" status used to overwrite that warning outright.
+                match persisted {
+                    Ok(()) => self.set_status(format!("Run this once on {name} (copied): {command}")),
+                    Err(error) => self.set_status(format!(
+                        "key issued but not saved ({error}) — it will not survive a restart; \
+                         run this once on {name} (copied) if you want to use it now: {command}"
+                    )),
+                }
             }
             Err(error) => self.set_status(format!("could not issue a key: {error}")),
         }
