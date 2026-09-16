@@ -132,7 +132,7 @@ fn reexec_without_key(args: &[String], key_arg: &str) -> anyhow::Result<()> {
 /// Build the argv for [`reexec_without_key`]: drop `key_arg` and make sure
 /// `--host` is present so the re-invocation reads pairings from disk instead
 /// of expecting another key.
-fn reexec_args(args: &[String], key_arg: &str) -> Vec<String> {
+pub(crate) fn reexec_args(args: &[String], key_arg: &str) -> Vec<String> {
     let mut out: Vec<String> = args
         .iter()
         .filter(|arg| arg.as_str() != key_arg)
