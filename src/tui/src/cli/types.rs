@@ -1,6 +1,5 @@
-//! CLI data model: the top-level [`Command`], the per-subcommand parsed-flag
-//! structs ([`LoginArgs`], [`UpdateArgs`],
-//! [`TuiArgs`]). The parsers that build these live in the sibling `parse`
+//! CLI data model: the top-level [`Command`] and the per-subcommand parsed-flag
+//! structs ([`LoginArgs`], [`UpdateArgs`], [`TuiArgs`]). The parsers that build these live in the sibling `parse`
 //! module.
 
 use medulla::auth::Provider;
@@ -161,64 +160,6 @@ impl Default for SkillsArgs {
             prune: false,
             all: false,
             json: false,
-        }
-    }
-}
-
-/// Parsed `medulla init` flags.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct InitArgs {
-    /// Directory to initialise. `None` means the current working directory.
-    pub dir: Option<String>,
-    /// Explicit `--config` path used to resolve the backend/model settings.
-    /// `None` selects the layered config discovery.
-    pub config: Option<String>,
-    /// `--force`: overwrite an existing `MEDULLA.md`.
-    pub force: bool,
-    /// `--offline`: skip the model call and write the editable stub.
-    pub offline: bool,
-}
-
-/// The `medulla workspace` action.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkspaceAction {
-    /// `add [dir]` — author the profile *and* enrol the directory in the
-    /// registry. `None` targets the current working directory.
-    Add(Option<String>),
-    /// `list` — show every registered workspace.
-    List,
-    /// `remove <dir|id>` — unregister a workspace, leaving its files alone.
-    Remove(String),
-}
-
-/// Parsed `medulla workspace` flags.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorkspaceArgs {
-    /// Explicit `--config` path — the file the registry is read from and written
-    /// to. `None` selects the layered config discovery.
-    pub config: Option<String>,
-    /// `--harness <id>`: attach the workspace to this harness instead of the
-    /// first declared one (`add` only).
-    pub harness: Option<String>,
-    /// `--force`: overwrite an existing `MEDULLA.md` (`add` only).
-    pub force: bool,
-    /// `--offline`: skip the model call and write the editable stub (`add` only).
-    pub offline: bool,
-    /// Emit JSON instead of human-readable output (`list` only).
-    pub json: bool,
-    /// The selected action.
-    pub action: WorkspaceAction,
-}
-
-impl Default for WorkspaceArgs {
-    fn default() -> Self {
-        WorkspaceArgs {
-            config: None,
-            harness: None,
-            force: false,
-            offline: false,
-            json: false,
-            action: WorkspaceAction::List,
         }
     }
 }
@@ -402,14 +343,4 @@ impl Default for TuiArgs {
             mock: false,
         }
     }
-}
-
-/// Parsed `medulla run` flags: the non-interactive one-instruction core-runtime
-/// driver for scripting / e2e.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct RunArgs {
-    /// Explicit `--config` path. `None` selects the layered config discovery.
-    pub config: Option<String>,
-    /// The instruction to submit — every non-flag argument, joined by spaces.
-    pub instruction: String,
 }
