@@ -97,7 +97,7 @@ fn orchestrator_lane() -> AgentLane {
     AgentLane {
         key: "orchestrator".into(),
         label: "orchestrator".into(),
-        role: AgentRole::Orchestrator,
+        role: AgentRole::Owner,
         turns: vec![TurnBlock {
             at: 1,
             header: ORCHESTRATOR_ONLY.into(),

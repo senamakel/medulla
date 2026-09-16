@@ -138,7 +138,7 @@ fn sample_orchestrator() -> SessionRow {
         state: PtyState::Exited { code: Some(0) },
         cwd: "/tmp/scratch".into(),
         checkout: medulla::ui::checkout::Checkout::default(),
-        control: SessionControl::Orchestrator,
+        control: SessionControl::Dispatch,
         ..sample_selected()
     }
 }

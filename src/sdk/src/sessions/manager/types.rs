@@ -115,7 +115,7 @@ impl OpenSession {
     /// provenance, and never named — the UI labels it from its task.
     pub fn orchestrator(conversation: impl Into<String>) -> Self {
         OpenSession {
-            origin: SessionOrigin::Orchestrator,
+            origin: SessionOrigin::Task,
             ..OpenSession::operator(conversation)
         }
     }

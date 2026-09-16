@@ -47,7 +47,7 @@ fn handing_a_session_back_makes_it_claimable() {
     });
     assert!(manager.claim_idle("test", HarnessProvider::Codex).is_none());
 
-    assert!(manager.set_control(&id, SessionControl::Orchestrator));
+    assert!(manager.set_control(&id, SessionControl::Dispatch));
     let claimed = manager
         .claim_idle("test", HarnessProvider::Codex)
         .expect("a handed-back session is the orchestrator's to use");
@@ -102,7 +102,7 @@ fn a_retained_session_says_so_on_its_row() {
     assert!(row.retained);
     assert_eq!(
         row.control,
-        SessionControl::Orchestrator,
+        SessionControl::Dispatch,
         "retention must not read as a takeover — `checkout_writer` counts \
          user-held sessions as holding the checkout, and one that never lets go \
          would queue every task dispatched into that directory afterwards"
@@ -148,7 +148,7 @@ fn handed_back_operator_session_adopts_the_first_real_conversation() {
         manager.row(&id).is_some_and(|r| r.state.is_running())
     });
 
-    assert!(manager.set_control(&id, SessionControl::Orchestrator));
+    assert!(manager.set_control(&id, SessionControl::Dispatch));
     let claimed = manager
         .claim_idle("peer@example", HarnessProvider::Codex)
         .expect("a handed-back session must be eligible for real dispatch");
@@ -228,7 +228,7 @@ fn handover_leaves_a_running_turn_marked_busy() {
 
     assert!(manager.set_control(&id, SessionControl::User));
     assert!(manager.row(&id).unwrap().busy);
-    assert!(manager.set_control(&id, SessionControl::Orchestrator));
+    assert!(manager.set_control(&id, SessionControl::Dispatch));
     assert!(
         manager.row(&id).unwrap().busy,
         "handback must not free a session whose turn is still running"
@@ -290,7 +290,7 @@ fn sessions_in_lists_an_orchestrator_session_too() {
 
     let running = manager.sessions_in(&dir.path().to_string_lossy());
     assert_eq!(running.len(), 1);
-    assert_eq!(running[0].control, SessionControl::Orchestrator);
+    assert_eq!(running[0].control, SessionControl::Dispatch);
 
     manager.close(&id);
 }

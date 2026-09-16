@@ -25,7 +25,7 @@ impl Pair {
                 SessionConfig::new(
                     orchestrator_id,
                     host_id,
-                    Role::Orchestrator,
+                    Role::Owner,
                     pair_key.clone(),
                     ForwarderKey([9u8; 32]),
                 ),

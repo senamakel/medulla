@@ -242,9 +242,9 @@ impl PtyManager {
     }
 
     /// Interrupt and close a session only if the operator has not taken it.
-    pub fn stop_if_orchestrator(&self, id: &str) -> bool {
+    pub fn stop_if_dispatch(&self, id: &str) -> bool {
         self.handle(id)
-            .is_some_and(|session| session.stop_if_orchestrator())
+            .is_some_and(|session| session.stop_if_dispatch())
     }
 
     /// Close a settled turn's session only if the operator has not taken it,
@@ -252,15 +252,15 @@ impl PtyManager {
     /// close and lose.
     ///
     /// Three outcomes, not two: the handle can be missing outright, which
-    /// [`SessionHandle::close_if_orchestrator`] cannot itself express (it
+    /// [`SessionHandle::close_if_dispatch`] cannot itself express (it
     /// already has a live handle by construction) but a caller that only has
     /// an id needs to tell apart from a real takeover — the two used to
     /// collapse into the same `false` and get treated identically, which is
     /// wrong for a caller that only wants to preserve state for the
     /// `UserOwned` case.
-    pub fn close_if_orchestrator(&self, id: &str) -> CloseAttempt {
+    pub fn close_if_dispatch(&self, id: &str) -> CloseAttempt {
         match self.handle(id) {
-            Some(session) if session.close_if_orchestrator() => CloseAttempt::Closed,
+            Some(session) if session.close_if_dispatch() => CloseAttempt::Closed,
             Some(_) => CloseAttempt::UserOwned,
             None => CloseAttempt::Missing,
         }

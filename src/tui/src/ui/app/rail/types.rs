@@ -197,9 +197,9 @@ impl SessionRailRow {
     /// local-only row reports what the PTY manager recorded at launch.
     pub fn origin(&self) -> SessionOrigin {
         match (&self.task, &self.local) {
-            (Some(_), _) => SessionOrigin::Orchestrator,
+            (Some(_), _) => SessionOrigin::Task,
             (None, Some(row)) => row.origin,
-            (None, None) => SessionOrigin::Orchestrator,
+            (None, None) => SessionOrigin::Task,
         }
     }
 

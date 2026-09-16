@@ -14,7 +14,7 @@ use crate::worker::pty::SessionControl;
 fn mapper_context_survives_only_for_live_reusable_sessions() {
     assert!(retains_workspace_context(
         SessionClass::Unbound,
-        Some(SessionControl::Orchestrator),
+        Some(SessionControl::Dispatch),
         true,
     ));
     assert!(retains_workspace_context(
@@ -24,12 +24,12 @@ fn mapper_context_survives_only_for_live_reusable_sessions() {
     ));
     assert!(!retains_workspace_context(
         SessionClass::Bounded,
-        Some(SessionControl::Orchestrator),
+        Some(SessionControl::Dispatch),
         true,
     ));
     assert!(!retains_workspace_context(
         SessionClass::Unbound,
-        Some(SessionControl::Orchestrator),
+        Some(SessionControl::Dispatch),
         false,
     ));
 }
@@ -82,7 +82,7 @@ fn a_multi_line_instruction_still_yields_a_one_line_prompt_with_its_tail() {
 fn a_finished_turn_is_kept_only_when_somebody_asked_for_it() {
     use medulla::daemon::providers::RunTaskOrigin;
 
-    let orchestrator = Some(SessionControl::Orchestrator);
+    let orchestrator = Some(SessionControl::Dispatch);
 
     // The case retention was built for, unchanged: a peer's delegated task
     // answered, and whoever delegated it may attach to the pane and read it.
@@ -194,8 +194,8 @@ mod children {
             label: "test".to_string(),
             session_id: None,
             model: None,
-            control: SessionControl::Orchestrator,
-            origin: SessionOrigin::Orchestrator,
+            control: SessionControl::Dispatch,
+            origin: SessionOrigin::Task,
             name: None,
             mcp_grant_session: None,
         }
@@ -216,8 +216,8 @@ mod children {
             label: "test".to_string(),
             session_id: None,
             model: None,
-            control: SessionControl::Orchestrator,
-            origin: SessionOrigin::Orchestrator,
+            control: SessionControl::Dispatch,
+            origin: SessionOrigin::Task,
             name: None,
             mcp_grant_session: None,
         }
@@ -320,7 +320,7 @@ mod children {
 
     /// Same finished, operator-less turn as above, except the operator adopts
     /// the session first. `finish_turn` snapshots `control()` well before its
-    /// non-retention branch would call `close_if_orchestrator`, so with control
+    /// non-retention branch would call `close_if_dispatch`, so with control
     /// already `User` at that snapshot the close is never attempted at all —
     /// this exercises the same `settle_or_hand_back` cleanup the close-loses
     /// path (below) shares, deterministically: `busy` clears so a later
@@ -375,7 +375,7 @@ mod children {
 
         // Hand back and confirm the session is genuinely reusable, not stuck
         // behind a busy flag nothing ever cleared.
-        sessions.set_control(&id, SessionControl::Orchestrator);
+        sessions.set_control(&id, SessionControl::Dispatch);
         assert!(
             sessions
                 .claim_idle("test", HarnessProvider::Codex)
@@ -386,11 +386,11 @@ mod children {
         sessions.close(&id);
     }
 
-    /// `close_if_orchestrator`'s own ownership recheck, pinned directly and
+    /// `close_if_dispatch`'s own ownership recheck, pinned directly and
     /// deterministically rather than via a live race: a session the operator
     /// already holds refuses the close and stays alive.
     #[test]
-    fn close_if_orchestrator_refuses_a_session_the_operator_already_holds() {
+    fn close_if_dispatch_refuses_a_session_the_operator_already_holds() {
         let dir = tempfile::tempdir().expect("a scratch directory");
         let marker = dir.path().join("ticks");
         let sessions = PtyManager::new();
@@ -399,7 +399,7 @@ mod children {
 
         assert!(sessions.set_control(&id, SessionControl::User));
         assert_eq!(
-            sessions.close_if_orchestrator(&id),
+            sessions.close_if_dispatch(&id),
             CloseAttempt::UserOwned,
             "must refuse to close a session the operator holds"
         );
@@ -417,7 +417,7 @@ mod children {
     /// The other half of the same recheck: a session still orchestrator-owned
     /// closes exactly as a plain `close` would.
     #[test]
-    fn close_if_orchestrator_closes_a_session_still_orchestrator_owned() {
+    fn close_if_dispatch_closes_a_session_still_orchestrator_owned() {
         let dir = tempfile::tempdir().expect("a scratch directory");
         let marker = dir.path().join("ticks");
         let sessions = PtyManager::new();
@@ -425,7 +425,7 @@ mod children {
         wait_for("the child to start writing", || ticks(&marker) > 0);
 
         assert_eq!(
-            sessions.close_if_orchestrator(&id),
+            sessions.close_if_dispatch(&id),
             CloseAttempt::Closed,
             "must close a session nobody has taken"
         );
@@ -442,7 +442,7 @@ mod children {
         );
     }
 
-    /// The other ambiguity in `close_if_orchestrator`'s `false`: it also comes
+    /// The other ambiguity in `close_if_dispatch`'s `false`: it also comes
     /// back when the session's handle is simply gone (the rail's per-frame
     /// sweep forgets any row whose child has exited, independent of whether
     /// `finish_turn` has run for it yet), not only when an operator holds it.
@@ -480,7 +480,7 @@ mod children {
     /// forgotten by the time `finish_turn` gets around to processing that
     /// turn's completion. `forget` only waits on `is_running()`, not on
     /// `finish_turn` having run first, so this ordering is a real one, not a
-    /// synthetic one — and its `close_if_orchestrator` outcome must read as
+    /// synthetic one — and its `close_if_dispatch` outcome must read as
     /// [`CloseAttempt::Missing`], not as an operator takeover.
     #[test]
     fn a_forgotten_but_finished_sessions_mapper_context_does_not_linger() {
@@ -508,7 +508,7 @@ mod children {
             .insert(id.clone(), (Some("cwd".to_string()), None, None));
 
         assert_eq!(
-            sessions.close_if_orchestrator(&id),
+            sessions.close_if_dispatch(&id),
             CloseAttempt::Missing,
             "a forgotten handle must read as missing, not as a takeover"
         );

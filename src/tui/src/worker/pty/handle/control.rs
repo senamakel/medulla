@@ -17,7 +17,7 @@ impl SessionHandle {
         if self.operator_held.load(Ordering::Acquire) {
             SessionControl::User
         } else {
-            SessionControl::Orchestrator
+            SessionControl::Dispatch
         }
     }
 
@@ -63,7 +63,7 @@ impl SessionHandle {
 
     /// Interrupt and close only while orchestration still owns the session.
     /// Serialized with control handoff so takeover and termination cannot race.
-    pub(in super::super) fn stop_if_orchestrator(&self) -> bool {
+    pub(in super::super) fn stop_if_dispatch(&self) -> bool {
         let _cold = lock(&self.cold);
         if self.operator_held.load(Ordering::Acquire) {
             return false;
@@ -76,14 +76,14 @@ impl SessionHandle {
 
     /// Close a settled turn's session only while orchestration still owns it.
     ///
-    /// The settled counterpart to [`stop_if_orchestrator`](Self::stop_if_orchestrator):
+    /// The settled counterpart to [`stop_if_dispatch`](Self::stop_if_dispatch):
     /// no interrupt byte, because the turn is already over rather than running,
     /// but the same lock-serialized ownership recheck. A plain [`kill`](Self::kill)
     /// call has no such recheck, so a caller that snapshots `control()` and then
     /// kills unconditionally has a window between the two where a takeover can
     /// land — and lose the race silently, ending the session an operator just
     /// adopted.
-    pub(in super::super) fn close_if_orchestrator(&self) -> bool {
+    pub(in super::super) fn close_if_dispatch(&self) -> bool {
         let _cold = lock(&self.cold);
         if self.operator_held.load(Ordering::Acquire) {
             return false;
@@ -141,7 +141,7 @@ impl SessionHandle {
     /// dispatches never reach here at all — they do not consult the idle pool —
     /// so this is the guard that keeps that true if they ever do.
     pub(in super::super) fn try_claim(&self) -> bool {
-        if !self.is_running() || !self.control().is_orchestrator() || self.is_retained() {
+        if !self.is_running() || !self.control().is_dispatch() || self.is_retained() {
             return false;
         }
         self.finish_completion_grace();
@@ -152,7 +152,7 @@ impl SessionHandle {
         {
             return false;
         }
-        if self.control().is_orchestrator() {
+        if self.control().is_dispatch() {
             return true;
         }
         self.release();

@@ -152,7 +152,7 @@ impl App {
             self.set_status("That session has exited — its last screen is all that is left");
             return;
         }
-        if row.control == SessionControl::Orchestrator {
+        if row.control == SessionControl::Dispatch {
             self.set_status("Task sessions are view-only while they are running");
             return;
         }

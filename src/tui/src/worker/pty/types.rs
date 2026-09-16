@@ -102,15 +102,15 @@ impl SessionControl {
     }
 
     /// Whether task frames may be dispatched into a session in this state.
-    pub fn is_orchestrator(self) -> bool {
-        matches!(self, SessionControl::Orchestrator)
+    pub fn is_dispatch(self) -> bool {
+        matches!(self, SessionControl::Dispatch)
     }
 
     /// The other side of the handover, for a toggle.
     pub fn toggled(self) -> Self {
         match self {
-            SessionControl::Orchestrator => SessionControl::User,
-            SessionControl::User => SessionControl::Orchestrator,
+            SessionControl::Dispatch => SessionControl::User,
+            SessionControl::User => SessionControl::Dispatch,
         }
     }
 }
@@ -118,7 +118,7 @@ impl SessionControl {
 /// What a settled-turn close attempt actually did, so a caller can tell three
 /// outcomes apart that a plain `bool` collapses into two.
 ///
-/// `close_if_orchestrator`'s ownership recheck refuses for two entirely
+/// `close_if_dispatch`'s ownership recheck refuses for two entirely
 /// different reasons that both used to come back as `false`: an operator
 /// really does hold the session (their session, keep its state), or the
 /// session's handle is simply gone — the rail's per-frame sweep forgets any
@@ -185,7 +185,7 @@ pub struct LaunchSpec {
     pub session_id: Option<String>,
     /// Who holds the session the moment it opens.
     ///
-    /// A task frame opens an [`Orchestrator`](SessionControl::Orchestrator)
+    /// A task frame opens an [`Orchestrator`](SessionControl::Dispatch)
     /// session; an operator spawning one from the TUI opens a
     /// [`User`](SessionControl::User) one, which is what makes it unmanaged.
     pub control: SessionControl,

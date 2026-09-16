@@ -49,8 +49,8 @@ fn sh(script: &str) -> LaunchSpec {
         label: "t1#0".to_string(),
         session_id: None,
         model: None,
-        control: SessionControl::Orchestrator,
-        origin: SessionOrigin::Orchestrator,
+        control: SessionControl::Dispatch,
+        origin: SessionOrigin::Task,
         name: None,
         mcp_grant_session: None,
     }

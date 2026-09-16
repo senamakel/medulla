@@ -54,7 +54,7 @@ pub fn mint_pairing(state_dir: &Path, port: u16) -> Result<HostKey, String> {
         version: 2,
         node_id: client,
         // The client half of the direction bit (§4.2): this end dials in.
-        role: Role::Orchestrator,
+        role: Role::Owner,
         pair_key: key.pair_key.clone(),
         // Never used on the direct path; present because the schema has it.
         forwarder_key: ForwarderKey::generate(),

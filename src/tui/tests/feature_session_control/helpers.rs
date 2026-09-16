@@ -184,7 +184,7 @@ pub fn user_session(sessions: &PtyManager) -> String {
 pub fn orchestrator_session(sessions: &PtyManager) -> String {
     session_with_origin(
         sessions,
-        medulla_tui::worker::pty::SessionOrigin::Orchestrator,
+        medulla_tui::worker::pty::SessionOrigin::Task,
     )
 }
 

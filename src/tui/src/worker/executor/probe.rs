@@ -174,12 +174,12 @@ impl PtySessionExecutor {
             // Opened to serve a task frame, so the orchestrator holds it. An
             // operator can still take it over later; that is what stops the
             // next frame landing in a composer they are typing in.
-            control: SessionControl::Orchestrator,
+            control: SessionControl::Dispatch,
             // …and that later takeover does *not* touch this: the session was
             // auto-created by a dispatch (§4.1), which is true for the rest of
             // its life however many times control changes hands. Unnamed on
             // purpose — the UI labels it from the task it was created for.
-            origin: SessionOrigin::Orchestrator,
+            origin: SessionOrigin::Task,
             name: None,
             mcp_grant_session,
         })))

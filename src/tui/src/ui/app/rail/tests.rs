@@ -75,8 +75,8 @@ pub(in crate::ui::app) fn stub_session(id: &str) -> crate::worker::pty::SessionR
         last_output_at: 0,
         last_error: None,
         busy: false,
-        control: crate::worker::pty::SessionControl::Orchestrator,
-        origin: crate::worker::pty::SessionOrigin::Orchestrator,
+        control: crate::worker::pty::SessionControl::Dispatch,
+        origin: crate::worker::pty::SessionOrigin::Task,
         retained: false,
         closed_by_request: false,
         name: None,
@@ -215,7 +215,7 @@ fn a_finished_tasks_session_is_still_there_to_work_in() {
         .expect("a /bin/sh session starts");
     harnesses
         .sessions
-        .set_control(&id, crate::worker::pty::SessionControl::Orchestrator);
+        .set_control(&id, crate::worker::pty::SessionControl::Dispatch);
 
     // Its task answers, so the executor retains rather than closes it.
     assert!(harnesses.sessions.retain(&id));

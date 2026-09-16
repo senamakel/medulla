@@ -359,7 +359,7 @@ impl PtySessionExecutor {
             // process and a rail row for the life of the daemon, since nothing
             // ends retention but a person taking or closing the session.
             //
-            // `close_if_orchestrator`, not a plain `close`: the `control`
+            // `close_if_dispatch`, not a plain `close`: the `control`
             // snapshot above and this call are not otherwise atomic with a
             // concurrent takeover, and the whole point of the `User` guard is
             // that adoption must win that race, not lose it silently.
@@ -384,7 +384,7 @@ impl PtySessionExecutor {
             // `busy` clears and `try_claim` can reuse it after handback, with
             // its mapper state left alone rather than torn down for a close
             // that never happened.
-            match self.sessions.close_if_orchestrator(id) {
+            match self.sessions.close_if_dispatch(id) {
                 CloseAttempt::Closed | CloseAttempt::Missing => {
                     self.workspace_context
                         .lock()
@@ -450,7 +450,7 @@ impl PtySessionExecutor {
     /// composer, which is the failure that produces confidently wrong answers
     /// rather than an error.
     pub(super) fn stop_turn(&self, id: &str) {
-        let stopped = self.sessions.stop_if_orchestrator(id);
+        let stopped = self.sessions.stop_if_dispatch(id);
         retire_stopped_workspace_context(
             &mut self
                 .workspace_context

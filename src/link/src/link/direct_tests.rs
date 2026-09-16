@@ -38,7 +38,7 @@ fn pair() -> (Session, Session, PairKey) {
         max_sent_states: MAX_SENT_STATES,
     };
     (
-        Session::new(config(orchestrator, host, Role::Orchestrator), 0),
+        Session::new(config(orchestrator, host, Role::Owner), 0),
         Session::new(config(host, orchestrator, Role::Host), 0),
         pair_key,
     )

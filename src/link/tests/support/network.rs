@@ -29,8 +29,8 @@ impl End {
     /// The other end.
     pub fn other(self) -> End {
         match self {
-            End::Orchestrator => End::Host,
-            End::Host => End::Orchestrator,
+            End::Owner => End::Host,
+            End::Host => End::Owner,
         }
     }
 }
@@ -146,7 +146,7 @@ impl Harness {
                 SessionConfig::new(
                     orchestrator_id,
                     host_id,
-                    Role::Orchestrator,
+                    Role::Owner,
                     pair_key.clone(),
                     ForwarderKey([0xC3; 32]),
                 ),
@@ -222,7 +222,7 @@ impl Harness {
             .outgoing(now, &mut self.host_seq)
             .expect("the host produced an unsendable datagram");
         for datagram in from_host {
-            self.enqueue(End::Orchestrator, datagram);
+            self.enqueue(End::Owner, datagram);
         }
 
         self.deliver();
@@ -282,7 +282,7 @@ impl Harness {
             }
             let accepted = match packet.to {
                 End::Host => self.host.handle_datagram(&packet.bytes, now),
-                End::Orchestrator => self.orchestrator.handle_datagram(&packet.bytes, now),
+                End::Owner => self.orchestrator.handle_datagram(&packet.bytes, now),
             };
             if accepted.is_err() {
                 self.counters.rejected += 1;
@@ -293,7 +293,7 @@ impl Harness {
                     let messages = self.host.take_messages();
                     self.host_inbox.extend(messages);
                 }
-                End::Orchestrator => {
+                End::Owner => {
                     let messages = self.orchestrator.take_messages();
                     self.orchestrator_inbox.extend(messages);
                 }

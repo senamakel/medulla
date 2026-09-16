@@ -121,8 +121,8 @@ impl SessionOrigin {
     }
 
     /// Whether a dispatch, rather than a person, started this session.
-    pub fn is_orchestrator(self) -> bool {
-        matches!(self, SessionOrigin::Orchestrator)
+    pub fn is_dispatch(self) -> bool {
+        matches!(self, SessionOrigin::Task)
     }
 }
 
@@ -327,7 +327,7 @@ pub struct SessionRecord {
     pub origin: SessionOrigin,
     /// The display name a person gave this session when they spun it up.
     ///
-    /// `None` for an [`SessionOrigin::Orchestrator`]-originated session, which
+    /// `None` for an [`SessionOrigin::Task`]-originated session, which
     /// the UI labels from the task it was created for instead.
     pub name: Option<String>,
     /// Lifetime class.
@@ -412,7 +412,7 @@ impl TurnOrigin {
     /// path, so it is never counted as orchestrator-originated.
     pub fn session_origin(&self) -> SessionOrigin {
         match self {
-            TurnOrigin::Frame { .. } => SessionOrigin::Orchestrator,
+            TurnOrigin::Frame { .. } => SessionOrigin::Task,
             TurnOrigin::Envelope { .. } | TurnOrigin::Operator => SessionOrigin::User,
         }
     }

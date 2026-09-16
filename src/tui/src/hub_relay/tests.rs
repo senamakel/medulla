@@ -48,7 +48,7 @@ fn every_configured_link_peer_reaches_the_hub_bridge() {
     let _node = medulla_link::keys::acquire_or_create(&state_dir, || NodeState {
         version: 1,
         node_id: NodeId([1; 16]),
-        role: Role::Orchestrator,
+        role: Role::Owner,
         pair_key: PairKey::from_bytes([2; 16]),
         forwarder_key: ForwarderKey([3; 32]),
         forwarder_endpoint: "127.0.0.1:4600".to_string(),
@@ -95,7 +95,7 @@ fn every_unconfigured_enrolled_peer_reaches_the_hub_bridge_by_node_id() {
     let _node = medulla_link::keys::acquire_or_create(&state_dir, || NodeState {
         version: 1,
         node_id: NodeId([1; 16]),
-        role: Role::Orchestrator,
+        role: Role::Owner,
         pair_key: PairKey::from_bytes([2; 16]),
         forwarder_key: ForwarderKey([3; 32]),
         forwarder_endpoint: "127.0.0.1:4600".to_string(),

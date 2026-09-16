@@ -266,7 +266,7 @@ async fn with_only_a_held_session_the_work_queues_and_runs_on_hand_back() {
     );
 
     // The operator hands their session back; the queue drains.
-    assert!(sessions.set_control(&held, SessionControl::Orchestrator));
+    assert!(sessions.set_control(&held, SessionControl::Dispatch));
     let result = tokio::time::timeout(SETTLES, run)
         .await
         .expect("the queued dispatch must settle once the tree is free")
@@ -414,7 +414,7 @@ async fn a_mid_turn_takeover_suspends_the_turn_and_hands_back_its_result() {
     );
 
     // Hand-back: a fresh turn in that same session produces the task's result.
-    assert!(sessions.set_control(&id, SessionControl::Orchestrator));
+    assert!(sessions.set_control(&id, SessionControl::Dispatch));
     let result = tokio::time::timeout(SETTLES, run)
         .await
         .expect("the hand-back turn must settle the task")
@@ -504,7 +504,7 @@ async fn the_idle_watchdog_does_not_fire_across_a_hold() {
         "an idle-timeout would have stopped the harness the operator is using"
     );
 
-    assert!(sessions.set_control(&id, SessionControl::Orchestrator));
+    assert!(sessions.set_control(&id, SessionControl::Dispatch));
     let result = tokio::time::timeout(SETTLES, run)
         .await
         .expect("the hand-back turn must settle")

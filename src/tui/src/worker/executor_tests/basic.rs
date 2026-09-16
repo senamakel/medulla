@@ -242,7 +242,7 @@ async fn a_session_opened_to_serve_a_task_is_orchestrator_originated() {
     let rows = sessions.rows();
     assert_eq!(rows.len(), 1);
     assert!(
-        rows[0].origin.is_orchestrator(),
+        rows[0].origin.is_dispatch(),
         "a dispatched session is the orchestrator's"
     );
     assert_eq!(rows[0].name, None, "a dispatch never names a session");
@@ -250,7 +250,7 @@ async fn a_session_opened_to_serve_a_task_is_orchestrator_originated() {
     let id = rows[0].id.clone();
     sessions.set_control(&id, super::super::pty::SessionControl::User);
     assert!(
-        sessions.row(&id).unwrap().origin.is_orchestrator(),
+        sessions.row(&id).unwrap().origin.is_dispatch(),
         "taking it over is a control change, not a change of provenance"
     );
     sessions.shutdown();

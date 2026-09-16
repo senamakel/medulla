@@ -57,7 +57,7 @@ impl Role {
     /// The §4.2 direction bit for datagrams **sent** by a node in this role.
     pub fn direction_bit(self) -> u64 {
         match self {
-            Role::Orchestrator => crate::crypto::DIRECTION_MASK,
+            Role::Owner => crate::crypto::DIRECTION_MASK,
             Role::Host => 0,
         }
     }
@@ -65,8 +65,8 @@ impl Role {
     /// The role at the other end of the link.
     pub fn peer(self) -> Role {
         match self {
-            Role::Orchestrator => Role::Host,
-            Role::Host => Role::Orchestrator,
+            Role::Owner => Role::Host,
+            Role::Host => Role::Owner,
         }
     }
 }

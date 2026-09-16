@@ -63,7 +63,7 @@ fn nonce_is_four_zero_bytes_then_big_endian_seq() {
 #[test]
 fn the_direction_bit_keeps_the_two_endpoints_nonce_spaces_disjoint() {
     // The whole reason one pair key is safe in both directions (§4.2).
-    let orchestrator = Role::Orchestrator.direction_bit() | 42;
+    let orchestrator = Role::Owner.direction_bit() | 42;
     let host = Role::Host.direction_bit() | 42;
     assert_ne!(nonce_for(orchestrator), nonce_for(host));
     assert!(orchestrator >= DIRECTION_MASK);

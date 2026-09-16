@@ -37,7 +37,7 @@ pub fn enroll(args: &Args, owner_dir: &Path) -> Result<(), String> {
     write_identity(
         owner_dir,
         &material,
-        Role::Orchestrator,
+        Role::Owner,
         forwarder.clone(),
         material.owner_id,
         material.host_id,

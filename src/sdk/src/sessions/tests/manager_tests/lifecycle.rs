@@ -273,9 +273,9 @@ fn the_door_a_session_came_through_decides_its_origin() {
 
     // A dispatch asked for this one, and dispatches do not name sessions — the
     // UI labels them from the task instead.
-    let dispatched = manager.open(OpenSession::orchestrator("bob"));
+    let dispatched = manager.open(OpenSession::task("bob"));
     let dispatched = manager.record(&dispatched).expect("the session exists");
-    assert_eq!(dispatched.origin, SessionOrigin::Orchestrator);
+    assert_eq!(dispatched.origin, SessionOrigin::Task);
     assert_eq!(dispatched.name, None);
 }
 
@@ -289,7 +289,7 @@ fn a_turns_provenance_decides_the_origin_of_the_session_it_auto_creates() {
             correlation_id: None,
         }
         .session_origin(),
-        SessionOrigin::Orchestrator
+        SessionOrigin::Task
     );
     // Anything a person drives — directly, or through a wrapper this daemon only
     // observes — is theirs.
@@ -322,13 +322,13 @@ async fn a_task_frame_auto_creates_an_orchestrator_originated_session() {
 
     let records = manager.records();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].origin, SessionOrigin::Orchestrator);
+    assert_eq!(records[0].origin, SessionOrigin::Task);
     assert_eq!(records[0].name, None);
     // …and the binding the next turn resumes carries the same provenance, so a
     // resumed conversation does not come back as somebody else's session.
     assert_eq!(
         manager.registry().identity(&records[0].key),
-        Some(SessionIdentity::orchestrator())
+        Some(SessionIdentity::task())
     );
 }
 
@@ -435,6 +435,6 @@ async fn a_frame_turn_with_no_binding_to_resume_is_still_the_orchestrators() {
 
     let records = manager.records();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].origin, SessionOrigin::Orchestrator);
+    assert_eq!(records[0].origin, SessionOrigin::Task);
     assert_eq!(records[0].name, None);
 }

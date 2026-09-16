@@ -41,7 +41,7 @@ pub struct WorkspaceContext {
 ///
 /// Both halves are set once, by the path that created the session:
 /// [`SessionOrigin::User`] with the name the person typed, or
-/// [`SessionOrigin::Orchestrator`] with no name at all. Nothing later in the
+/// [`SessionOrigin::Task`] with no name at all. Nothing later in the
 /// session's life rewrites the origin — control moves instead, and control is a
 /// different field on a different type.
 ///
@@ -71,7 +71,7 @@ impl Default for SessionIdentity {
     /// a task (§4.1), and only a person supplies a name.
     fn default() -> Self {
         SessionIdentity {
-            origin: SessionOrigin::Orchestrator,
+            origin: SessionOrigin::Task,
             name: None,
         }
     }

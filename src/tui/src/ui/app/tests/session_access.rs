@@ -87,7 +87,7 @@ fn orchestrator_session_refuses_attachment_and_remains_running() {
     let mut app = app();
     app.tab_index = tab("Sessions");
     let sessions = host(&mut app);
-    let session = open_session(&sessions, SessionControl::Orchestrator);
+    let session = open_session(&sessions, SessionControl::Dispatch);
     app.pane_session = Some(session.clone());
 
     let cmd = app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -107,7 +107,7 @@ fn stale_close_prompt_cannot_kill_an_orchestrator_session() {
     let sessions = host(&mut app);
     let session = open_session(&sessions, SessionControl::User);
     app.arm_harness_close(session.clone());
-    assert!(sessions.set_control(&session, SessionControl::Orchestrator));
+    assert!(sessions.set_control(&session, SessionControl::Dispatch));
 
     app.close_session(&session);
 
@@ -204,7 +204,7 @@ fn a_settled_task_session_is_dismissable_despite_orchestrator_control() {
     let mut app = app();
     app.tab_index = tab("Sessions");
     let sessions = host(&mut app);
-    let session = open_session(&sessions, SessionControl::Orchestrator);
+    let session = open_session(&sessions, SessionControl::Dispatch);
     assert!(sessions.close(&session));
     app.pane_session = Some(session.clone());
 

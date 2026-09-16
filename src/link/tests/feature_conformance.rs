@@ -204,7 +204,7 @@ fn queue_overflow_surfaces_a_retryable_transport_error() {
     let mut config = SessionConfig::new(
         NodeId([1u8; 16]),
         NodeId([2u8; 16]),
-        Role::Orchestrator,
+        Role::Owner,
         PairKey::from_bytes([7u8; 16]),
         ForwarderKey([8u8; 32]),
     );
@@ -243,7 +243,7 @@ fn the_sent_state_history_is_bounded_by_the_same_retryable_error() {
     let mut config = SessionConfig::new(
         NodeId([1u8; 16]),
         NodeId([2u8; 16]),
-        Role::Orchestrator,
+        Role::Owner,
         PairKey::from_bytes([7u8; 16]),
         ForwarderKey([8u8; 32]),
     );

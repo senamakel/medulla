@@ -65,7 +65,7 @@ impl HubHandle {
             let Some(w) = r.iter_mut().find(|w| w.id == id) else {
                 anyhow::bail!("no host {id} to hand a harness back on");
             };
-            w.control = HandoffControl::Orchestrator;
+            w.control = HandoffControl::Dispatch;
             w.control_reason = None;
             w.control_since = None;
             w.handoff = Some(brief);
