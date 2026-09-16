@@ -195,8 +195,15 @@ pub(crate) async fn run(
                     }
                     AppMsg::HostPairingRun { host_id, result } => {
                         match result {
+                            // `Ok` here only means the remote shell accepted
+                            // the backgrounded command — it is not proof the
+                            // daemon came up (a missing binary, a bad key, or
+                            // a taken port would still exit the ssh session
+                            // successfully). Liveness is confirmed the same
+                            // way it always is: by dialling, which is what
+                            // pressing ⏎ does next.
                             Ok(()) => app.set_status(format!(
-                                "{host_id} paired over ssh — press ⏎ on the Hosts tab to connect"
+                                "ssh command sent to {host_id} — press ⏎ on the Hosts tab to connect and confirm pairing"
                             )),
                             Err(reason) => app.set_status(format!("{host_id}: ssh failed: {reason}")),
                         }
