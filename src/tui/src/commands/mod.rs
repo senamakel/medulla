@@ -1,14 +1,12 @@
 //! Non-TUI subcommand runners and the pre-app login screen driver.
 //!
-//! Holds the CLI verbs that do not enter the ratatui app — `medulla login`,
-//! `logout`, `init`, and `workspace` — plus the credential persistence
-//! helper and the interactive login-screen loop the TUI runs before selecting a
-//! runtime. Each runner parses its own args, loads config, performs its work,
-//! and returns an `anyhow::Result`.
+//! Holds the CLI verbs that do not enter the ratatui app — `medulla login` and
+//! `logout` — plus the credential persistence helper and the interactive
+//! login-screen loop the TUI runs before it starts. Each runner parses its own
+//! args, loads config, performs its work, and returns an `anyhow::Result`.
 //!
-//! [`workspace`], [`workflow`], and [`skills`] own the registry, workflow, and
-//! harness-skill verbs, which are large enough to warrant their own files;
-//! everything else lives here.
+//! [`workflow`] and [`skills`] own the workflow and harness-skill verbs, which
+//! are large enough to warrant their own files; everything else lives here.
 
 pub(crate) mod hook;
 pub(crate) mod login_screen;
@@ -18,7 +16,6 @@ pub(crate) mod mcp;
 pub(crate) mod skills;
 #[cfg(feature = "workflows")]
 pub(crate) mod workflow;
-pub(crate) mod workspace;
 
 pub(crate) use hook::run_hook_cmd;
 pub(crate) use login_screen::run_login_screen;
@@ -28,12 +25,11 @@ pub(crate) use mcp::run_mcp_cmd;
 pub(crate) use skills::run_skills_cmd;
 #[cfg(feature = "workflows")]
 pub(crate) use workflow::run_workflow_cmd;
-pub(crate) use workspace::run_workspace;
 
 use medulla::auth::{open_browser, run_login_flow, Credentials, LoopbackConfig};
 use medulla::client::MedullaClient;
 use medulla::config::load_config;
-use medulla_tui::cli::{parse_init_args, parse_login_args, LoginArgs};
+use medulla_tui::cli::{parse_login_args, LoginArgs};
 
 /// `medulla login`: obtain a JWT (loopback OAuth or a one-time token), verify it
 /// with `/auth/me`, and store it as the app session via `medulla::auth::store`.
@@ -391,53 +387,4 @@ async fn adopt_legacy_credentials(
     for path in medulla::auth::adopt_legacy(env, backend).await {
         println!("Removed a retired credential file at {}.", path.display());
     }
-}
-
-/// `medulla hub`: run the orchestrator hub — bridge the hosted backend brain to
-/// host-link worker daemons. Takes the backend JWT from the stored app session
-/// and the worker roster from `MEDULLA_LINK_PEER` / `MEDULLA_HUB_WORKERS`.
-pub(crate) async fn run_hub(_args: &[String]) -> anyhow::Result<()> {
-    let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-    let home = medulla::home::medulla_home(&env);
-    let loaded = load_config(None, &env, &home)?;
-    let session = session_credentials(&env, &loaded.config.backend);
-    // The standalone `medulla hub` owns its terminal, so stderr is right there.
-    match crate::hub_relay::build_hub_config_with_log(
-        &env,
-        &home,
-        medulla::hub::stderr_log(),
-        session.as_ref(),
-    ) {
-        Some(config) => medulla::hub::run_hub(config).await,
-        None => anyhow::bail!(
-            "hub: nothing to run — set MEDULLA_LINK_PEER (or MEDULLA_HUB_WORKERS) and run \
-             `medulla login` first"
-        ),
-    }
-}
-
-/// `medulla init [dir]` — author a `MEDULLA.md` workspace profile.
-///
-/// Reads the directory's `AGENTS.md` / `CLAUDE.md` / `README.md`, scans its file
-/// layout, and writes an editable stub profile for the operator to fill in. The
-/// model-drafted body went out with the memory layer that owned the provider
-/// seam, so `--offline` is now the only behaviour there is.
-///
-/// This authors the file and stops there. `medulla workspace add` does the same
-/// *and* enrols the directory in the registry, which is what the orchestrator
-/// reads — see [`run_workspace`].
-pub(crate) async fn run_init(args: &[String]) -> anyhow::Result<()> {
-    let parsed = parse_init_args(args);
-    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let dir = parsed
-        .dir
-        .as_ref()
-        .map_or_else(|| cwd.clone(), |d| cwd.join(d));
-
-    let outcome = medulla::init::init_workspace(&dir, parsed.force).await?;
-    workspace::report_profile(&outcome);
-    println!(
-        "Not registered — run `medulla workspace add` to let the orchestrator place work here."
-    );
-    Ok(())
 }
