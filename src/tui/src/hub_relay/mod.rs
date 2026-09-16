@@ -164,6 +164,7 @@ fn hub_enabled(env: &HashMap<String, String>) -> bool {
 
 /// Build a [`HubConfig`] from the environment, or `None` when the hub should
 /// not run ([`hub_enabled`]).
+#[cfg(test)]
 pub(crate) fn build_hub_config_with_log(
     env: &HashMap<String, String>,
     home: &Path,

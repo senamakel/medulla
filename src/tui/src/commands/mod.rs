@@ -26,7 +26,7 @@ pub(crate) use skills::run_skills_cmd;
 #[cfg(feature = "workflows")]
 pub(crate) use workflow::run_workflow_cmd;
 
-use medulla::auth::{open_browser, run_login_flow, Credentials, LoopbackConfig};
+use medulla::auth::{open_browser, run_login_flow, LoopbackConfig};
 use medulla::client::MedullaClient;
 use medulla::config::load_config;
 use medulla_tui::cli::{parse_login_args, LoginArgs};
@@ -286,28 +286,6 @@ pub(crate) fn adopt_account(
         eprintln!("{notice}");
     }
     Ok(())
-}
-
-/// The stored app session as a `(base_url, jwt)` pair, or `None` when signed out.
-///
-/// The URL comes from the loaded config rather than from the stored record: the
-/// record's own `baseUrl` is diagnostic, and the config is what the rest of this
-/// process addresses. Nothing resolvable reads as signed out — every caller
-/// degrades to "no backend" rather than failing outright.
-fn session_credentials(
-    env: &std::collections::HashMap<String, String>,
-    backend: &medulla::config::BackendConfig,
-) -> Option<Credentials> {
-    // The whole precedence chain, not the store alone. `medulla hub` reads a
-    // bearer the same way every other backend surface does, or an operator
-    // running on `MEDULLA_TOKEN` is told to `medulla login` while that token is
-    // already authenticating the TUI and the runtime beside it.
-    let session = medulla::auth::session_token(env);
-    let jwt = medulla::auth::resolve_backend_token(env, backend, session.as_deref())?;
-    Some(Credentials {
-        base_url: backend.base_url.clone(),
-        jwt,
-    })
 }
 
 /// `medulla logout`: forget the stored app session.
