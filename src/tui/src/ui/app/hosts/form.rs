@@ -70,6 +70,12 @@ impl App {
                 .unwrap_or_default(),
             None => RemoteHostSection::default(),
         };
+        // Captured before the possible overwrite below: a paired entry's
+        // client and the remote host's `pairing.json` both name the *old*
+        // port, so changing it here without re-pairing would leave the
+        // client dialling a port nothing listens on and the host still
+        // bound to the one it was told.
+        let previously_paired_port = section.paired().then_some(section.udp_port);
         section.name = form.name.clone();
         section.host = form.host.clone();
         section.user = form.user.clone();
