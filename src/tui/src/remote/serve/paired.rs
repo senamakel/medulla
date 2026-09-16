@@ -221,6 +221,17 @@ pub fn pair(home: &Path, key: &HostKey) -> anyhow::Result<Pairing> {
     let dir = client_dir(home, key.client);
     let link = link_dir(&dir);
     std::fs::create_dir_all(&link)?;
+    // Owner-only, whatever the umask: the control socket for this client's
+    // sessions is bound in here, and `control::start` refuses a directory
+    // other users could replace it in — so a permissive umask on the host
+    // would otherwise cost every remote coding agent its tools.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for path in [&dir, &link] {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
+        }
+    }
     let path = keys::node_path(&link);
     let fresh = || NodeState {
         version: 2,
