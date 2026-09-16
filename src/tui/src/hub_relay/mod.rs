@@ -33,6 +33,7 @@ fn roster_path(home: &Path) -> PathBuf {
 /// Read straight from the file rather than a `LoadedConfig`, because this module
 /// is reached before (and independently of) the TUI's config load, and because
 /// the file it writes is the file it must read back.
+#[allow(dead_code)]
 fn workers_from_config(home: &Path) -> Vec<WorkerSpec> {
     let Ok(text) = std::fs::read_to_string(roster_path(home)) else {
         return Vec::new();
@@ -108,6 +109,7 @@ fn roster_sink(
 /// `MEDULLA_HUB_WORKERS="id=addr,…"`, else a single `MEDULLA_LINK_PEER`
 /// (id == address). Empty is fine — the hub starts from this device's hosts
 /// and workers are added live from the Hosts tab.
+#[allow(dead_code)]
 fn workers_from_env(env: &HashMap<String, String>) -> Vec<WorkerSpec> {
     let provider = env
         .get("MEDULLA_WORKER_PROVIDER")
@@ -179,12 +181,11 @@ pub(crate) fn build_hub_config_with_host(
     if !hub_enabled(env) {
         return None;
     }
-    // Environment first: an explicitly exported roster is a deliberate override
-    // for this run, and should not be quietly merged with a remembered one.
-    let mut workers = workers_from_env(env);
-    if workers.is_empty() {
-        workers = workers_from_config(home);
-    }
+    // This bridge only has the device-local bus. Do not seed remembered or
+    // environment-provided peers: advertising an address without a bound local
+    // host would let the dispatcher select work that `RoutingBridge` cannot
+    // deliver. Remote hosts are served by the remote-session client instead.
+    let mut workers: Vec<WorkerSpec> = Vec::new();
     // The device-local host is injected fresh, never inherited. Remembered
     // entries at its address are dropped first — including when no host is
     // running now, which is the case that mattered: a roster saved while

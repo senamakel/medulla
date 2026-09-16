@@ -1,6 +1,48 @@
 //! Appearance and status-line integration behaviors for Settings.
 
-use super::*;
+use std::sync::Arc;
+
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::backend::TestBackend;
+use ratatui::buffer::Buffer;
+use ratatui::style::Color;
+use ratatui::Terminal;
+
+use medulla::backend::MockBackend;
+use medulla::config::{AppearanceConfig, LinkConfig, LoadedConfig, ResourceDisplay};
+use medulla_tui::ui::app::{App, Cmd, TABS};
+use medulla_tui::ui::resources::DeviceSnapshot;
+
+fn loaded() -> LoadedConfig {
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.config.link = Some(LinkConfig::default());
+    loaded
+}
+
+fn settings_app() -> App {
+    let runtime = Arc::new(MockBackend::new());
+    let mut app = App::new(runtime, loaded());
+    app.tab_index = TABS.iter().position(|tab| *tab == "Settings").unwrap();
+    app
+}
+
+fn key(app: &mut App, code: KeyCode) -> Option<Cmd> {
+    app.on_event(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)))
+}
+
+fn draw(app: &mut App, width: u16, height: u16) -> Buffer {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    terminal.draw(|frame| app.draw(frame)).unwrap();
+    terminal.backend().buffer().clone()
+}
+
+fn text_of(buffer: &Buffer) -> String {
+    buffer.content().iter().map(|cell| cell.symbol()).collect()
+}
+
+fn any_cell_with_bg(buffer: &Buffer, background: Color) -> bool {
+    buffer.content().iter().any(|cell| cell.bg == background)
+}
 
 fn device_sample() -> DeviceSnapshot {
     DeviceSnapshot {

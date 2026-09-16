@@ -42,9 +42,11 @@ impl CloudBackend {
     /// empty surface or an error.
     fn client(backend: &BackendConfig) -> Option<MedullaClient> {
         let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-        let session = crate::auth::session_token(&env);
-        let jwt = crate::auth::resolve_backend_token(&env, backend, session.as_deref());
-        jwt.map(|jwt| MedullaClient::new(backend.base_url.clone(), jwt))
+        // Keep this surface on the same construction path as sign-in. In
+        // particular, `client_from_config` admits a stored bearer only when
+        // its issuing origin matches this deployment; a programmatic config
+        // must not be able to redirect that bearer elsewhere.
+        crate::backend::connect::client_from_config(&env, backend)
     }
 
     /// The client a *mutation* needs, or the error explaining its absence.
