@@ -265,7 +265,7 @@ jobs:
 
       - uses: ./.github/actions/sccache
 
-      # No bun/opencode leg here: the core-socket runtime and the `/bin/sh`
+      # No bun/opencode leg here: the local-host and the `/bin/sh`
       # e2e suites are unix-only (gated `#[cfg(unix)]`), so Windows just needs
       # the crate to compile and its cross-platform lib tests to pass.
       - name: Check
