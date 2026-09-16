@@ -114,9 +114,7 @@ impl App {
                 id
             }
         };
-        if let Err(error) = self.persist_remote_hosts() {
-            self.set_status(format!("Saved for this run only: {error}"));
-        }
+        let persisted = self.persist_remote_hosts();
         self.rebuild_host_entries();
         if let Some(index) = self.hosts.entries.iter().position(|entry| entry.id == id) {
             self.hosts.index = index;
@@ -126,10 +124,19 @@ impl App {
         // fresh key rather than leave the entry silently unreachable.
         let repair_for_new_port =
             previously_paired_port.is_some_and(|old| udp_port != 0 && udp_port != old);
-        match editing {
-            Some(_) if repair_for_new_port => self.issue_host_key(&id),
-            Some(_) => self.set_status(format!("Saved {id}")),
-            None => self.issue_host_key(&id),
+        match (editing, persisted) {
+            (Some(_), _) if repair_for_new_port => self.issue_host_key(&id),
+            (Some(_), Ok(())) => self.set_status(format!("Saved {id}")),
+            (Some(_), Err(error)) => {
+                self.set_status(format!("Saved {id} for this run only: {error}"))
+            }
+            (None, Err(error)) => {
+                // The key is still issued — the pairing lives on disk, not in
+                // the config — but the row itself will not survive a restart.
+                self.issue_host_key(&id);
+                self.set_status(format!("Key issued; host saved for this run only: {error}"));
+            }
+            (None, Ok(())) => self.issue_host_key(&id),
         }
         None
     }

@@ -235,6 +235,15 @@ impl App {
                 // work at all.
                 if count == 0 && confirmed {
                     self.wf.creating = true;
+                } else if count > 0
+                    && self.wf.creating
+                    && self.workflow_source() != WorkflowSource::Local
+                {
+                    // Switching from an empty scope to a host with a
+                    // catalogue: the New row was the only row there, not a
+                    // choice, so it must not follow the operator here and
+                    // leave the cursor refusing every real workflow.
+                    self.wf.creating = false;
                 }
                 self.reload_workflow_runs();
                 self.reload_workflow_graph();

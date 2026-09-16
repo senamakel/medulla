@@ -341,7 +341,9 @@ impl App {
                     &host_id,
                     RemoteWorkflowIntent::Run(id.clone()),
                     "workflow_run",
-                    serde_json::json!({ "id": id, "input": inputs, "wait": "no" }),
+                    // `inputs` is the declared-input map the dispatcher
+                    // validates; `input` would be the trigger payload.
+                    serde_json::json!({ "id": id, "inputs": inputs, "wait": "no" }),
                 );
                 None
             }
