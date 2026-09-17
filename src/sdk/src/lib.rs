@@ -5,6 +5,7 @@
 
 pub mod access;
 pub mod agent;
+pub mod analytics;
 pub mod attribution;
 pub mod auth;
 pub mod bridge;

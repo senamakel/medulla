@@ -76,6 +76,12 @@ pub(super) fn run_cmd(
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
     local_hosts: Option<&crate::local_host::LocalHostHarnesses>,
 ) {
+    // This is the single dispatch point for actions initiated by mouse clicks
+    // and keyboard shortcuts. Never serialize `cmd`: its payload can contain
+    // prompts, paths, or identifiers.
+    tokio::spawn(async {
+        let _ = medulla::analytics::record_ui_action("command_dispatched").await;
+    });
     let cmd = match feedback::run_feedback_cmd(cmd, runtime, msg_tx) {
         Some(cmd) => *cmd,
         None => return,

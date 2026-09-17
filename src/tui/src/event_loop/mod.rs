@@ -84,6 +84,7 @@ pub(crate) async fn run(
     let mut tick = tokio::time::interval(Duration::from_millis(medulla_tui::ui::theme::FRAME_MS));
     let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel::<AppMsg>();
     let mut mouse_on = true;
+    let mut analytics_screen = app.tab();
     // Once the runtime's broadcast sender is gone, `sub.recv()` returns
     // `Closed` immediately forever. Guarding the arm off keeps that from
     // becoming a busy-loop: the select would otherwise always pick a ready
@@ -117,6 +118,13 @@ pub(crate) async fn run(
                             &msg_tx,
                             local_hosts.as_ref(),
                         );
+                    }
+                    let screen = app.tab();
+                    if screen != analytics_screen {
+                        analytics_screen = screen;
+                        tokio::spawn(async move {
+                            let _ = medulla::analytics::record_screen_view(screen).await;
+                        });
                     }
                 }
             }

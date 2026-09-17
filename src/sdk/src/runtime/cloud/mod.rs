@@ -351,6 +351,7 @@ impl CloudRuntime {
         if events.is_empty() {
             return 0;
         }
+        crate::analytics::observe_runtime_events(&events);
 
         // Advance the cursor BEFORE folding, so a panic mid-fold cannot leave
         // the cursor behind and replay the same batch forever.
@@ -645,6 +646,13 @@ impl Runtime for CloudRuntime {
         // signed in is the failure mode logging out exists to prevent.
         Box::pin(async move {
             let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+            // The profile id lives in the session being removed, so capture the
+            // lifecycle event while it is still available. Telemetry has its
+            // own short timeout and a failed request never changes logout's
+            // security semantics.
+            if let Some(user_id) = crate::auth::state(&env).user_id {
+                let _ = crate::analytics::record_sign_out(&user_id).await;
+            }
             crate::auth::clear(&env)
                 .map_err(|e| anyhow::anyhow!("the stored session could not be removed: {e}"))?;
             // Resolved against the *real* config, with `session` deliberately
