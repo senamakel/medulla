@@ -58,6 +58,8 @@ pub enum Command {
     /// Generate harness-native skills that trigger saved workflows
     /// (`list`/`install`/`sync`/`uninstall`).
     Skills,
+    /// Inspect bundled coding-CLI adapters and their local health.
+    Integrations,
     /// Report one harness lifecycle event (`hook <Event>`).
     ///
     /// Not for a human to run either. Medulla installs this as a hook into the
@@ -65,6 +67,13 @@ pub enum Command {
     /// to it, and it files a one-line report on the control socket the same
     /// spawn was handed.
     Hook,
+}
+
+/// Parsed `medulla integrations doctor` flags.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct IntegrationsArgs {
+    /// Emit the stable secret-free report as JSON.
+    pub json: bool,
 }
 
 /// The `medulla skills` action.

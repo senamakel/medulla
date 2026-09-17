@@ -250,6 +250,7 @@ fn a_connected_host_advances_the_picker_it_left_waiting() {
             workspace: "/work".to_string(),
             workspaces: Vec::new(),
             host_name: "tower".to_string(),
+            integrations: Vec::new(),
         },
     );
     app.resume_picker_host("tower-local");
@@ -357,6 +358,7 @@ fn capabilities_with_shell() -> medulla::protocol::RemoteCapabilities {
         workspace: "/work".to_string(),
         workspaces: Vec::new(),
         host_name: "tower".to_string(),
+        integrations: Vec::new(),
     }
 }
 

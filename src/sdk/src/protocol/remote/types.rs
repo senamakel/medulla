@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::integrations::IntegrationReport;
+
 /// Wire version tag carried by every [`RemoteEnvelope`].
 pub const REMOTE_PROTO: &str = "medulla.remote.v1";
 
@@ -151,6 +153,14 @@ pub struct RemoteCapabilities {
     /// The host's own name for itself, for the rail when config named none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub host_name: String,
+    /// Bundled-provider diagnostics collected by this host.
+    ///
+    /// Optional for wire compatibility with hosts older than the integration
+    /// registry. The schema is intentionally the same report emitted by the
+    /// local doctor command, so a picker never needs a second representation
+    /// for a remote machine.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub integrations: Vec<IntegrationReport>,
 }
 
 /// Everything that crosses `medulla.remote.v1`, in both directions.
