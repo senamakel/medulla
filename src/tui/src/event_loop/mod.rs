@@ -85,6 +85,9 @@ pub(crate) async fn run(
     let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel::<AppMsg>();
     let mut mouse_on = true;
     let mut analytics_screen = app.tab();
+    tokio::spawn(async move {
+        let _ = medulla::analytics::record_screen_view(analytics_screen).await;
+    });
 
     // Background release-update checker ("automated cron"): first probe ~10s
     // after startup, then every 6h. A newer version surfaces as a persistent

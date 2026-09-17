@@ -63,12 +63,13 @@ pub async fn record_sign_in(user_id: &str) -> Result<(), AnalyticsError> {
 
 /// Record a sign-out before the local credential is removed.
 pub async fn record_sign_out(user_id: &str) -> Result<(), AnalyticsError> {
+    // Clear before the request so a disabled or failed transport never leaves
+    // the old account available to subsequent process-local events.
+    clear_profile();
     let Some(tracker) = Tracker::from_environment() else {
         return Ok(());
     };
-    let result = tracker.track("signed_out", user_id).await;
-    clear_profile();
-    result
+    tracker.track("signed_out", user_id).await
 }
 
 /// Record a top-level TUI screen view for the current authenticated profile.

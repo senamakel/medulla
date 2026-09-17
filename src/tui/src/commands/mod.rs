@@ -304,7 +304,9 @@ pub(crate) async fn run_logout() -> anyhow::Result<()> {
     // Read the profile before deleting the session that names it. An analytics
     // failure never prevents the security action that follows.
     if let Some(user_id) = medulla::auth::state(&env).user_id {
-        let _ = medulla::analytics::record_sign_out(&user_id).await;
+        tokio::spawn(async move {
+            let _ = medulla::analytics::record_sign_out(&user_id).await;
+        });
     }
 
     medulla::auth::clear(&env)

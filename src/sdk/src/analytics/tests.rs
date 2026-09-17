@@ -1,6 +1,8 @@
 //! Unit tests for OpenPanel payload and opt-out behavior.
 
-use super::{identify_payload, is_truthy, track_payload};
+use super::{
+    clear_profile, current_profile, identify_payload, is_truthy, set_profile, track_payload,
+};
 
 #[test]
 fn identify_uses_the_authenticated_account_as_the_profile_id() {
@@ -26,4 +28,11 @@ fn analytics_opt_out_accepts_common_truthy_values() {
         assert!(is_truthy(value), "{value}");
     }
     assert!(!is_truthy("off"));
+}
+
+#[test]
+fn clearing_the_profile_removes_the_authenticated_identity() {
+    set_profile("user-42");
+    clear_profile();
+    assert_eq!(current_profile(), None);
 }
