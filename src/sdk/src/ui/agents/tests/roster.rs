@@ -7,7 +7,7 @@
 
 use serde_json::{json, Map};
 
-use crate::runtime::{AgentDescriptor, WorkerInfo};
+use crate::fleet::{AgentDescriptor, WorkerInfo};
 use crate::ui::agents::{host_descriptor, merge_host_roster};
 
 /// A registry worker at `address`, identified by `id`.

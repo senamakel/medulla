@@ -18,13 +18,12 @@ mod tests;
 #[cfg(feature = "workflows")]
 pub use parse::parse_skills_args;
 pub use parse::{
-    help_text, parse_command, parse_init_args, parse_integrations_args, parse_login_args,
-    parse_run_args, parse_tui_args, parse_update_args, parse_workflow_args, parse_workspace_args,
+    help_text, parse_command, parse_integrations_args, parse_login_args, parse_tui_args,
+    parse_update_args, parse_workflow_args,
 };
 pub use plan::sessions_json;
 pub use types::{
-    Command, InitArgs, IntegrationsArgs, LoginArgs, RunArgs, TuiArgs, UpdateArgs, WorkflowAction,
-    WorkflowArgs, WorkspaceAction, WorkspaceArgs,
+    Command, IntegrationsArgs, LoginArgs, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs,
 };
 #[cfg(feature = "workflows")]
 pub use types::{SkillsAction, SkillsArgs};

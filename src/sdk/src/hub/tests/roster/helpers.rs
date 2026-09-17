@@ -5,12 +5,6 @@
 
 use super::super::super::roster::HubWorker;
 
-/// No liveness opinion — what a bridge with no presence signal reports, and
-/// what most of these tests want, since they are about payload shape.
-pub(super) fn no_presence() -> std::collections::HashMap<String, bool> {
-    std::collections::HashMap::new()
-}
-
 /// A plain advertised worker: an id, an address, and the default harness.
 pub(super) fn worker(id: &str, addr: &str) -> HubWorker {
     HubWorker {
@@ -27,23 +21,4 @@ pub(super) fn worker(id: &str, addr: &str) -> HubWorker {
 /// The same shape as [`worker`], under the name the dedupe tests use.
 pub(super) fn hw(id: &str, address: &str) -> HubWorker {
     worker(id, address)
-}
-
-/// One declared local host, as `local_hosts` resolves one.
-pub(super) fn declared(id: &str, name: &str) -> crate::config::LocalHostRef {
-    crate::config::LocalHostRef {
-        id: id.to_string(),
-        name: name.to_string(),
-        workspace: String::new(),
-        primary: false,
-    }
-}
-
-/// A worker placed on `host_id`, reached at that host's address.
-pub(super) fn placed(id: &str, host_id: &str) -> HubWorker {
-    HubWorker {
-        host_id: host_id.to_string(),
-        address: host_id.to_string(),
-        ..worker(id, host_id)
-    }
 }

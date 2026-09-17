@@ -1,6 +1,6 @@
 //! The one line-sink type every subsystem narrates through.
 //!
-//! The daemon, the orchestrator hub and the contact desk all need a way to emit
+//! The daemon, the dispatcher hub and the contact desk all need a way to emit
 //! diagnostics without assuming a terminal — because the processes that host
 //! them own a ratatui screen, and anything written to stdout or stderr under one
 //! lands on top of the UI and never clears.
@@ -21,7 +21,7 @@ pub const PREVIEW_CHARS: usize = 240;
 /// One line of `text`, clipped for a log.
 ///
 /// Payload previews exist so the answer a worker produced and the answer the
-/// orchestrator received can be compared without attaching a debugger. They are
+/// dispatcher received can be compared without attaching a debugger. They are
 /// clipped and flattened deliberately: a harness reply runs to kilobytes and
 /// carries newlines, and a log that reproduces it whole is one nobody reads.
 /// The character count is kept because a truncated preview cannot tell you a

@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use medulla::runtime::Runtime;
+use medulla::backend::Backend;
 use medulla_tui::ui::app::Cmd;
 
 use super::super::AppMsg;
@@ -15,12 +15,12 @@ use super::super::AppMsg;
 /// Spawn a feedback command, returning non-feedback commands to the caller.
 pub(super) fn run_feedback_cmd(
     cmd: Cmd,
-    runtime: &Arc<dyn Runtime>,
+    backend: &Arc<dyn Backend>,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
 ) -> Option<Box<Cmd>> {
     match cmd {
         Cmd::LoadFeedback(query) => {
-            let rt = runtime.clone();
+            let rt = backend.clone();
             let tx = msg_tx.clone();
             // The query rides back with the answer: filter and sort changes can
             // overtake each other, and a response is only worth applying while
@@ -38,7 +38,7 @@ pub(super) fn run_feedback_cmd(
             });
         }
         Cmd::LoadFeedbackDetail(id) => {
-            let rt = runtime.clone();
+            let rt = backend.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let msg = match rt.feedback_detail(id.clone()).await {
@@ -52,7 +52,7 @@ pub(super) fn run_feedback_cmd(
             });
         }
         Cmd::VoteFeedback { id, value } => {
-            let rt = runtime.clone();
+            let rt = backend.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let msg = match rt.vote_feedback(id, value).await {
@@ -63,7 +63,7 @@ pub(super) fn run_feedback_cmd(
             });
         }
         Cmd::CommentFeedback { id, body } => {
-            let rt = runtime.clone();
+            let rt = backend.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let msg = match rt.comment_feedback(id, body).await {
@@ -74,7 +74,7 @@ pub(super) fn run_feedback_cmd(
             });
         }
         Cmd::SubmitFeedback { kind, title, body } => {
-            let rt = runtime.clone();
+            let rt = backend.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let msg = match rt.submit_feedback(kind, title, body).await {

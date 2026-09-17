@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 use medulla::bridge::LocalBridgeNetwork;
 use medulla::config::HostSection;
+use medulla::fleet::{AgentDeclaration, WorkspaceStrategy};
 use medulla::hub::WorkerSpec;
-use medulla::runtime::{AgentDeclaration, WorkspaceStrategy};
 use medulla_tui::worker::pty::PtyManager;
 
 use crate::local_host::{options_from_config, start};
@@ -117,7 +117,7 @@ async fn an_agent_that_declares_no_workspace_takes_its_hosts() {
 }
 
 /// Declarations for another machine are that machine's business — advertising
-/// them here would tell the orchestrator this host can serve work it cannot.
+/// them here would tell the dispatcher this host can serve work it cannot.
 #[tokio::test]
 async fn a_host_advertises_only_the_agents_declared_on_it() {
     let specs = advertised(&[

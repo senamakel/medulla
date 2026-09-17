@@ -1,6 +1,6 @@
 //! What the hub's workers are actually doing, recorded as it happens.
 //!
-//! The orchestrator's Agents view derives per-worker activity from the render
+//! The sender's Agents view derives per-worker activity from the render
 //! snapshot's event log, and that log is filled from the *backend's* SSE stream
 //! — whose vocabulary (`user`, `assistant`, `cycle_*`, the deltas) contains
 //! nothing about delegated tasks. So a worker could be dispatched to, stream

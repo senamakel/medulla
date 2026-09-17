@@ -1,7 +1,7 @@
 //! The handoff brief: what an operator hands back along with a harness.
 //!
 //! Handing a harness back used to be the *absence of a veto* — one process-local
-//! flag flipped, and the orchestrator was told nothing. It found out only if a
+//! flag flipped, and the dispatcher was told nothing. It found out only if a
 //! task frame happened to arrive for the same conversation later, and it arrived
 //! with no idea what the person had been doing. This module is the other half:
 //! the brief that turns a handback into a transfer of *work*.

@@ -181,7 +181,7 @@ pub struct WorkerApp {
     pub(super) workspace_index: usize,
     /// Public master records persisted in `[link].peers`.
     pub(super) masters: Vec<Peer>,
-    /// Workspace roots this worker advertises to its orchestrator.
+    /// Workspace roots this worker advertises to its owner.
     pub(super) workspaces: Vec<String>,
     /// Primary working directory where inbound tasks execute.
     pub(super) primary_workspace: String,

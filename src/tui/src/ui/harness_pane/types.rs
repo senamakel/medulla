@@ -241,7 +241,7 @@ impl LocalSessions {
 
 /// Where the operator's keystrokes are going.
 ///
-/// The orchestrator TUI is a chrome *around* a real terminal, so at any moment
+/// The dispatcher TUI is a chrome *around* a real terminal, so at any moment
 /// exactly one of the two owns the keyboard. Leaving that implicit is what makes
 /// embedded terminals infuriating: the operator types `q` meaning "quit the
 /// harness" and quits the wrapper instead, or presses Escape expecting to get

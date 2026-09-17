@@ -12,7 +12,7 @@
 //! future rather than asking the engine to wind down. That is less tidy but
 //! costs nothing here, because a workflow's real work is a harness session, and
 //! those are aborted directly: every dispatched task carries the run id as its
-//! `abort_id`, so the orchestrator's ordinary abort path stops the node in
+//! `abort_id`, so the sender's ordinary abort path stops the node in
 //! flight whether or not this process is still waiting on it.
 //!
 //! **The run record is reconciled on drop.** A run that is cancelled, panics, or

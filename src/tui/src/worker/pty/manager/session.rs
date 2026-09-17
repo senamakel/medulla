@@ -28,7 +28,7 @@ impl PtyManager {
     /// A session the operator holds is never returned, however idle it looks.
     /// That is the whole of the unmanaged-harness feature and the whole of
     /// takeover: [`SessionControl`] is the gate, and this is where it bites.
-    /// Without it, attaching to a pane and typing does not stop the orchestrator
+    /// Without it, attaching to a pane and typing does not stop the dispatcher
     /// pasting a task prompt into the same composer — the exact two-writers
     /// collision the `busy` flag above exists to prevent, reachable by an
     /// operator simply focusing a harness.
@@ -64,7 +64,7 @@ impl PtyManager {
     ///
     /// What remains true is that sessions sharing one *checkout* share one
     /// working tree, so how many of them may write at once is a property of the
-    /// agent's [`WorkspaceStrategy`](medulla::runtime::WorkspaceStrategy) — a
+    /// agent's [`WorkspaceStrategy`](medulla::fleet::WorkspaceStrategy) — a
     /// separate rule, applied by the executor, that this only supplies the facts
     /// for. Under `worktree` (phase G) sessions in one declared workspace get
     /// their own trees and the rule changes without this query changing at all.
@@ -106,7 +106,7 @@ impl PtyManager {
     /// axis, and deliberately not the same thing: naming a session says nothing
     /// about who may drive it, and it never touches
     /// [`origin`](super::super::types::SessionOrigin) — a dispatched session an
-    /// operator names is still one the orchestrator started.
+    /// operator names is still one the dispatcher started.
     ///
     /// Passing `None` (or blank) clears the name; the session then falls back to
     /// whatever the UI derives for it.
@@ -242,9 +242,9 @@ impl PtyManager {
     }
 
     /// Interrupt and close a session only if the operator has not taken it.
-    pub fn stop_if_orchestrator(&self, id: &str) -> bool {
+    pub fn stop_if_dispatch(&self, id: &str) -> bool {
         self.handle(id)
-            .is_some_and(|session| session.stop_if_orchestrator())
+            .is_some_and(|session| session.stop_if_dispatch())
     }
 
     /// Close a settled turn's session only if the operator has not taken it,
@@ -252,15 +252,15 @@ impl PtyManager {
     /// close and lose.
     ///
     /// Three outcomes, not two: the handle can be missing outright, which
-    /// [`SessionHandle::close_if_orchestrator`] cannot itself express (it
+    /// [`SessionHandle::close_if_dispatch`] cannot itself express (it
     /// already has a live handle by construction) but a caller that only has
     /// an id needs to tell apart from a real takeover — the two used to
     /// collapse into the same `false` and get treated identically, which is
     /// wrong for a caller that only wants to preserve state for the
     /// `UserOwned` case.
-    pub fn close_if_orchestrator(&self, id: &str) -> CloseAttempt {
+    pub fn close_if_dispatch(&self, id: &str) -> CloseAttempt {
         match self.handle(id) {
-            Some(session) if session.close_if_orchestrator() => CloseAttempt::Closed,
+            Some(session) if session.close_if_dispatch() => CloseAttempt::Closed,
             Some(_) => CloseAttempt::UserOwned,
             None => CloseAttempt::Missing,
         }
@@ -310,7 +310,7 @@ impl PtyManager {
 ///
 /// String equality is not enough here because the two sides arrive by different
 /// routes: a harness the operator started ran its path through `expand_home`,
-/// while a task frame's `cwd` is used verbatim as the orchestrator wrote it. So
+/// while a task frame's `cwd` is used verbatim as the dispatcher wrote it. So
 /// `~/work/repo` and `/Users/e/work/repo` are one workspace that compares as
 /// two — and exclusivity that can be defeated by how a path was spelled is not
 /// exclusivity.

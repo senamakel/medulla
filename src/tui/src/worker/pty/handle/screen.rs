@@ -133,7 +133,7 @@ impl SessionHandle {
     /// The last `max` non-blank lines of the screen, oldest first.
     ///
     /// What a handoff brief carries: enough of what the operator was doing for
-    /// the orchestrator to continue the thread rather than restart it. Plain
+    /// the dispatcher to continue the thread rather than restart it. Plain
     /// text, not cells — nobody downstream renders it, they read it.
     ///
     /// Reads at scrollback offset 0 and puts the operator's offset back

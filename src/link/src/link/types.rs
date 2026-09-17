@@ -15,7 +15,7 @@ pub(super) const SCREEN_FRAME_HEADER: usize = 12;
 
 /// A peer this endpoint can talk to, and the key it is talked to with.
 ///
-/// The pair key is per peer by construction (§7.1): an orchestrator generates
+/// The pair key is per peer by construction (§7.1): an owner generates
 /// one key per host, so compromising one host's key tells an attacker nothing
 /// about any other host.
 #[derive(Debug, Clone)]
@@ -268,7 +268,7 @@ impl LinkHandle {
 
     /// Every peer this link opened a session with.
     ///
-    /// The host case has exactly one — the orchestrator recorded in `node.json`
+    /// The host case has exactly one — the owner recorded in `node.json`
     /// — and a caller that must map a name onto a node id has no other source
     /// for it, since the name lives only in the backend registry (§2).
     pub fn peers(&self) -> &[NodeId] {

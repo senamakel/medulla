@@ -4,7 +4,7 @@
 //! two settings are turned.
 
 use medulla::config::{SidebarGrouping, SidebarSort};
-use medulla::runtime::AgentDeclaration;
+use medulla::fleet::AgentDeclaration;
 use medulla::ui::hosts::HostAgentRow;
 
 use super::super::tests::{app, stub_session};

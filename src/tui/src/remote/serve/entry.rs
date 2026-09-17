@@ -210,6 +210,14 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
     }
 
     let mut server = RemoteServer::new(sessions, bridge, host_name).with_workspaces(workspaces);
+    #[cfg(feature = "workflows")]
+    {
+        server = server.with_workflows(super::WorkflowHost::from_config(
+            &env,
+            loaded.clone(),
+            std::path::Path::new(&cwd),
+        ));
+    }
     server.run().await;
     Ok(())
 }
@@ -272,7 +280,7 @@ pub(super) fn local_sessions(
         runtimes: Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(daemon, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: medulla::hub::DEFAULT_LOCAL_HUB_ADDRESS.to_string(),
         env: env.clone(),
         workspace: workspace.to_string(),
         providers,
@@ -283,7 +291,7 @@ pub(super) fn local_sessions(
 }
 
 /// This machine's name, for the client's rail.
-fn hostname_of(env: &HashMap<String, String>) -> Option<String> {
+pub(super) fn hostname_of(env: &HashMap<String, String>) -> Option<String> {
     env.get("HOSTNAME")
         .filter(|name| !name.trim().is_empty())
         .cloned()
@@ -296,7 +304,7 @@ fn hostname_of(env: &HashMap<String, String>) -> Option<String> {
 }
 
 /// Read `--name value` or `--name=value`.
-fn flag(args: &[String], name: &str) -> Option<String> {
+pub(super) fn flag(args: &[String], name: &str) -> Option<String> {
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         if arg == name {

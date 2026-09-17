@@ -231,7 +231,7 @@ impl App {
         TLine::from(Span::styled(label, style))
     }
 
-    /// Format the row for a session the orchestrator dispatched.
+    /// Format the row for a session the dispatcher dispatched.
     ///
     /// Such a session reaches the rail as a folded task rather than as a live
     /// pty — the two are one harness, but only the task side has a status and a

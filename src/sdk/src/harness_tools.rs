@@ -11,7 +11,7 @@
 //! without the loop bound, the approval gates, or the concurrency budget the
 //! engine applies to its own nodes — and handing it the `fleet_*` verbs lets it
 //! dispatch to the very worker pool the run it belongs to is competing for. The
-//! node was given an instruction and a workspace; orchestration is the graph's
+//! node was given an instruction and a workspace; dispatch is the graph's
 //! job, not its steps'.
 //!
 //! # Two withholdings, because a node is launched two ways

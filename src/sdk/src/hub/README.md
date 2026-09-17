@@ -11,7 +11,7 @@ The task-sender hub — the outbound half of the harness plane.
 - [`roster/`](./roster/) — The hub's worker-roster data: the shared roster type, the `AgentDescriptor` payload the hub advertises, and the address resolution the socket layer uses to target a task. Pure and offline-testable; the live control handle that mutates the roster over the Socket.IO uplink lives in `handle`.
 - [`runner/`](./runner/) — The bridge-independent task sender — the outbound half of the harness plane.
 - [`screens/`](./screens/) — What the hub currently sees of its workers' screens.
-- [`tests/`](./tests/) — Unit tests for the orchestrator hub, split by surface so no file exceeds the repo's 500-line ceiling: `activity` covers the in-memory activity ring and its attribution; `roster` covers advertising, addressing and dedupe; `dispatch` the sender-runner's full dispatch/route/settle path against a fake worker.
+- [`tests/`](./tests/) — Unit tests for the hub, split by surface so no file exceeds the repo's 500-line ceiling: `activity` covers the in-memory activity ring and its attribution; `roster` covers advertising, addressing and dedupe; `dispatch` the sender-runner's full dispatch/route/settle path against a fake worker.
 - [`mod.rs`](./mod.rs) — The task-sender hub — the outbound half of the harness plane.
 - [`relay.rs`](./relay.rs) — Compatibility name for the hub's shared local-or-remote bridge contract.
 - [`socket.rs`](./socket.rs) — The Socket.IO harness client — the hub's uplink to the hosted backend brain.

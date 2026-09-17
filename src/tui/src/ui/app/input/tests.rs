@@ -4,11 +4,11 @@
 use std::sync::Arc;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use medulla::backend::{Backend, MockBackend};
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
-use medulla::ui::agents::AgentRow;
-use medulla::ui::events::{EventEnvelope, TuiEvent};
+use medulla::fleet::AgentDescriptor;
+use medulla::hub::WorkerActivity;
+use medulla::ui::agents::{merge_host_activity, roster_lanes, AgentLane, AgentRow};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
@@ -16,33 +16,57 @@ use super::super::rail::RailRow;
 use super::super::types::{tab_pos, App, Cmd};
 use super::nav::SUBTASK_PAGE;
 
-/// An app whose event stream is only the tasks these tests are about, so the
-/// demo runtime's own lanes cannot shift the rows out from under an assertion.
+/// An app whose lanes are only the tasks these tests are about, so nothing
+/// else can shift the rows out from under an assertion.
 fn app_with_tasks(agent: &str, tasks: usize) -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
-    let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
-    app.snapshot.events.clear();
+    let backend: Arc<dyn Backend> = Arc::new(MockBackend::new());
+    let mut app = App::new(backend, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.inject_lanes(Vec::new());
     push_tasks(&mut app, agent, tasks);
     app
 }
 
-/// Append `tasks` started tasks for `agent`, continuing the event sequence.
+/// Append `tasks` running tasks for `agent`, adding its lane when it is new.
 fn push_tasks(app: &mut App, agent: &str, tasks: usize) {
-    let base = app.snapshot.events.len() as u64;
-    for i in 0..tasks {
-        let seq = base + i as u64;
-        app.snapshot.events.push(EventEnvelope {
-            seq,
-            at: seq as i64 * 1000,
-            event: TuiEvent::TaskStart {
-                task_id: format!("{agent}-t{i}"),
-                instruction: "x".into(),
-                depth: 2,
-                agent_id: Some(agent.to_string()),
-                contract: None,
-            },
-        });
+    let mut lanes = app.lanes();
+    if !lanes
+        .iter()
+        .any(|lane| lane.agent_id.as_deref() == Some(agent))
+    {
+        lanes.extend(roster_lanes(&[AgentDescriptor {
+            id: agent.into(),
+            name: agent.into(),
+            ..Default::default()
+        }]));
     }
+    let existing: Vec<WorkerActivity> = lanes
+        .iter()
+        .flat_map(|lane: &AgentLane| {
+            lane.tasks.iter().map(move |task| WorkerActivity {
+                agent_id: lane.agent_id.clone().unwrap_or_default(),
+                task_id: task.task_id.clone(),
+                kind: "status".into(),
+                content: "x".into(),
+                at: task.last_at,
+                work: None,
+            })
+        })
+        .collect();
+    let base = existing.len();
+    let fresh = (0..tasks).map(|i| WorkerActivity {
+        agent_id: agent.into(),
+        task_id: format!("{agent}-t{i}"),
+        kind: "status".into(),
+        content: "x".into(),
+        at: (base + i) as i64 * 1000,
+        work: None,
+    });
+    let activity: Vec<WorkerActivity> = existing.into_iter().chain(fresh).collect();
+    for lane in &mut lanes {
+        lane.tasks.clear();
+    }
+    merge_host_activity(&mut lanes, &activity);
+    app.inject_lanes(lanes);
 }
 
 /// How many task sublanes the rail is currently drawing.
@@ -141,7 +165,7 @@ fn enter_on_the_overflow_row_pages_it_open() {
     select_overflow_row(&mut app);
 
     // Through the real key path, not the helper underneath it: the row is not
-    // the orchestrator lane, so no composer is drawn and the rail has focus.
+    // the dispatch lane, so no composer is drawn and the rail has focus.
     app.on_event(Event::Key(KeyEvent::new(
         KeyCode::Enter,
         KeyModifiers::NONE,
@@ -202,7 +226,7 @@ fn clicking_an_action_row_stops_a_task_stream_it_left_behind() {
     app.set_local_sessions(super::super::rail::tests::shell_harnesses(
         crate::worker::pty::PtyManager::new(),
     ));
-    app.loaded.config.fleet.agent_declarations = vec![medulla::runtime::AgentDeclaration::new(
+    app.loaded.config.fleet.agent_declarations = vec![medulla::fleet::AgentDeclaration::new(
         "dev",
         "",
         "codex",

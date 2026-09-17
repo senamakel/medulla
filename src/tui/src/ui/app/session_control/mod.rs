@@ -4,7 +4,6 @@
 //! and close behavior.
 
 mod close;
-mod focus;
 mod picker;
 mod select;
 

@@ -1,7 +1,7 @@
 //! The worker-daemon TUI — `medulla daemon --tui`.
 //!
-//! A separate surface from the orchestrator TUI, and deliberately so: the
-//! orchestrator's Workers tab is about remote peers this machine delegates
+//! A separate surface from the TUI, and deliberately so: the
+//! dispatcher's Workers tab is about remote peers this machine delegates
 //! *to*, whereas this is the machine *doing* the work. What it shows is the
 //! daemon's own state — the harness sessions running on it, the peers allowed to
 //! reach it, and the requests waiting on a decision.

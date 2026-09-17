@@ -10,8 +10,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use super::relay::Relay;
-use super::roster::{addresses_of, register_payload, remove_conflicting, HubWorker, SharedRoster};
-use rust_socketio::asynchronous::Client;
+use super::roster::{remove_conflicting, HubWorker, SharedRoster};
 
 /// Whether `address` is a directory alias rather than a cryptoId.
 pub(super) fn is_handle(address: &str) -> bool {
@@ -146,10 +145,8 @@ impl HubHandle {
     pub(super) fn new(wiring: HandleWiring) -> Self {
         HubHandle {
             roster: wiring.roster,
-            socket: wiring.socket,
             address: wiring.address,
             relay: wiring.relay,
-            local_hosts: wiring.local_hosts,
             runner: wiring.runner,
             system_info: Arc::new(Mutex::new(HashMap::new())),
             log: wiring.log,
@@ -176,7 +173,7 @@ impl HubHandle {
 
     /// The hub's own link node name. This is the value an operator sets as a
     /// worker's `MEDULLA_LINK_OWNER`, because a worker only accepts a task from
-    /// the orchestrator it enrolled with.
+    /// the dispatcher it enrolled with.
     pub fn address(&self) -> &str {
         &self.address
     }
@@ -274,7 +271,7 @@ impl HubHandle {
         let replaced_ids = {
             let mut r = self.roster.lock().expect("roster lock");
             let replaced_ids = remove_conflicting(&mut r, &worker);
-            // Give it an id the orchestrator can actually reproduce. Done after
+            // Give it an id a dispatcher can actually reproduce. Done after
             // conflict removal so a re-add reuses the freed name rather than
             // colliding with the entry it is replacing.
             if worker.id.trim().is_empty() || worker.id == worker.address {
@@ -293,10 +290,10 @@ impl HubHandle {
         }
         (self.log)(&format!("hub: worker {address} added"));
         self.save();
-        self.reregister().await
+        Ok(())
     }
 
-    /// Remove a worker by id and re-register.
+    /// Remove a worker by id.
     ///
     /// Reports whether anything was actually removed: an operator chasing a
     /// worker that keeps answering needs to know the id never matched, and
@@ -319,11 +316,10 @@ impl HubHandle {
             (self.log)(&format!("hub: no worker {id} to remove"));
         }
         self.save();
-        self.reregister().await
+        Ok(())
     }
 
-    /// Set a worker's label (no re-register needed — labels are display-only,
-    /// but we re-advertise so the backend roster's `name` stays in sync).
+    /// Set a worker's label. Labels are display-only.
     pub async fn set_label(&self, id: &str, label: Option<String>) -> anyhow::Result<()> {
         {
             let mut r = self.roster.lock().expect("roster lock");
@@ -332,7 +328,7 @@ impl HubHandle {
             }
         }
         self.save();
-        self.reregister().await
+        Ok(())
     }
 
     /// Mark a worker as the selected default (local display state only).
@@ -344,27 +340,6 @@ impl HubHandle {
             }
         }
         self.save();
-    }
-
-    /// Re-emit `medulla:register_agents` for the current roster.
-    ///
-    /// Re-asks the relay who is up rather than reusing the last answer: this
-    /// runs on every roster mutation, and presence expires on a TTL, so a
-    /// worker that died since the last advertisement is caught here.
-    async fn reregister(&self) -> anyhow::Result<()> {
-        let workers = self.list();
-        let online = self.relay.presence(&addresses_of(&workers)).await;
-        // Read here rather than captured at build time: a host started since
-        // this handle was made must register as `local`, not as a remote host
-        // the hub happens to front.
-        let payload = {
-            let local_hosts = self.local_hosts.lock().expect("local hosts lock");
-            register_payload(&workers, &online, &local_hosts)
-        };
-        self.socket
-            .emit("medulla:register_agents", payload)
-            .await
-            .map_err(|e| anyhow::anyhow!("re-register failed: {e}"))
     }
 }
 

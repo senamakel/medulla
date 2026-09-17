@@ -1,7 +1,7 @@
 //! The `Host → Agent` projection the Sessions rail places its lanes onto.
 //!
 //! This used to back the Hosts tab, which drew the tree directly and let an
-//! operator edit it. That tab is gone — its pages managed an orchestration
+//! operator edit it. That tab is gone — its pages managed a fleet
 //! engine that no longer exists — but the projection is not a management
 //! surface: it is what gives a session its lane, hence its transcript and its
 //! place in the rail's order. So the three reads the rail needs live here, and
@@ -45,7 +45,6 @@ impl App {
                     || (host.primary && hosting)
                     || self.declares_agent_on(&host.id)
                     || self
-                        .runtime
                         .workers()
                         .iter()
                         .any(|worker| worker.address.trim() == host.id)
@@ -71,12 +70,12 @@ impl App {
     /// nobody says otherwise, so it leads.
     pub(in crate::ui::app) fn host_tree(&self) -> Vec<HostRow> {
         let mut rows = host_rows(
-            &self.runtime.workers(),
+            &self.workers(),
             &self.loaded.config.fleet.agent_declarations,
             &self.local_host_refs(),
         );
         rows.extend(self.remote_host_rows());
-        rows
+        self.scope_host_tree(rows)
     }
 }
 

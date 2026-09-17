@@ -1,7 +1,5 @@
 //! Data exchanged by the interactive event loop and its background tasks.
 
-use medulla::runtime::ContextItem;
-
 /// One harness progress frame's place in the sink's backlog.
 ///
 /// `AppMsg` is delivered over an unbounded channel, which is right for the
@@ -65,8 +63,6 @@ impl Drop for PendingFrame {
 pub(super) enum AppMsg {
     /// A status-line update.
     Status(String),
-    /// Fresh context-inspection rows.
-    Contexts(Vec<ContextItem>),
     /// A remote host answered, and this is what it can do.
     RemoteHostConnected {
         /// Which `[[remoteHosts]]` entry.
@@ -132,13 +128,32 @@ pub(super) enum AppMsg {
         /// What the host said went wrong.
         reason: String,
     },
-    /// Chats to display in the resume picker.
-    OpenResume(Vec<medulla::ui::chat_store::MainChatSummary>),
-    /// Confirmation that a chat was resumed.
-    Resumed(String),
+    /// A remote host answered a workflow call.
+    RemoteWorkflowResult {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// Echoes the request the App issued.
+        request_id: String,
+        /// The tool's JSON, or the host's reason.
+        result: Result<serde_json::Value, String>,
+    },
+    /// The pairing command was run over ssh, and this is how it went.
+    HostPairingRun {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// `Ok` when ssh exited cleanly; otherwise what it said.
+        result: Result<(), String>,
+    },
+    /// How recently a remote host was heard from changed.
+    RemoteHostLiveness {
+        /// Which `[[remoteHosts]]` entry.
+        host_id: String,
+        /// The link's advisory verdict.
+        liveness: medulla::bridge::BridgeLiveness,
+    },
     /// The session was cleared; quit back to the login screen.
     LoggedOut,
-    /// Account usage returned by the runtime, or the fetch failure.
+    /// Account usage returned by the backend, or the fetch failure.
     ///
     /// Failure stays in this message rather than arriving as a separate status
     /// so a subscription refresh waiting on usage is always released exactly
@@ -157,7 +172,7 @@ pub(super) enum AppMsg {
         /// The synthetic user turn shown in its transcript.
         instruction: String,
     },
-    /// A page of the feedback board. `None` = this runtime has no board.
+    /// A page of the feedback board. `None` = this backend has no board.
     FeedbackLoaded {
         /// The query that produced it, so a superseded load can be dropped.
         query: medulla::client::FeedbackQuery,
@@ -262,12 +277,14 @@ pub(crate) enum SessionExit {
     Relogin,
 }
 
-/// Everything a session needs besides the terminal and the runtime.
+/// Everything a session needs besides the terminal, the backend, and the hub.
 ///
 /// Bundled rather than passed positionally: these are all "wire this into the
 /// app" values, and a session is started afresh on every relogin, so the call
 /// site reads better as one named record than as eight arguments.
 pub(crate) struct SessionWiring {
+    /// Whether this is the hermetic `--mock` demo, which seeds scripted lanes.
+    pub offline_demo: bool,
     /// The loaded configuration for this session.
     pub loaded: medulla::config::LoadedConfig,
     /// The custom harnesses this device's primary host declares, for a
@@ -297,13 +314,8 @@ pub(crate) struct SessionWiring {
         Option<tokio::sync::mpsc::UnboundedReceiver<medulla_tui::ui::welcome::WelcomeEvent>>,
     /// Where to record onboarding once a backgrounded share settles.
     pub onboarding_path: std::path::PathBuf,
-    /// The background host-link service's shared observation: this endpoint's
-    /// identity, its peer roster and per-peer presence, merged into every
-    /// snapshot refresh. `None` when no link is configured.
-    pub link_obs:
-        Option<std::sync::Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>>,
     /// A read-only view of the host running on this device, when one is. `None`
-    /// means this machine orchestrates but does not run the work itself.
+    /// means this machine dispatches but does not run the work itself.
     pub host: Option<medulla::daemon::embedded::HostObservation>,
     /// The live sessions this device is running, and the state machine
     /// that says which task each one serves.

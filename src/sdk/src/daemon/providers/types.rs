@@ -146,7 +146,7 @@ pub struct RunTaskOptions {
     /// daemon sets `conversation` to the *authenticated sender* for every
     /// inbound run, so it is never empty in practice. Every task frame therefore
     /// classified as unbound and reclaimed the sender's idle session, and two
-    /// unrelated delegated tasks from one orchestrator ran in the same harness,
+    /// unrelated delegated tasks from one dispatcher ran in the same harness,
     /// each able to see and act on the other's prompt and tool context.
     ///
     /// A task frame is discrete work and gets [`SessionClass::Bounded`]; a
@@ -218,7 +218,7 @@ pub enum RunTaskOrigin {
 impl RunTaskOrigin {
     /// Whether a person asked for this run and may come looking at what it did.
     ///
-    /// Not "did a human type it" — an orchestrator relaying a delegated task is
+    /// Not "did a human type it" — a dispatcher relaying a delegated task is
     /// acting for somebody, and that somebody can attach to the session it runs
     /// in. The question is whether *anyone* is in the loop at all, because a
     /// surface that holds a finished session open for a reader is holding it for

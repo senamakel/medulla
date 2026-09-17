@@ -27,6 +27,12 @@ pub(in crate::ui::app) enum RemoteHostStatus {
     Connecting,
     /// Answered, and its capabilities are known.
     Live,
+    /// Answered once, but not heard from for a while. The link is still
+    /// retransmitting; nothing has been given up on.
+    Degraded,
+    /// Answered once, and silent for a long while. Still advisory (protocol
+    /// §6.2): a host that comes back resumes with no reconnect.
+    Offline,
     /// The bootstrap failed. Terminal until the operator asks again, and it
     /// carries the reason because "could not connect" on its own is never enough
     /// to act on — the useful cases are an unknown host key, a missing binary
@@ -112,6 +118,14 @@ impl RemoteHostState {
         )
     }
 
+    /// Whether the host has answered `Hello`, whatever the link has heard since.
+    pub(in crate::ui::app) fn answered(&self) -> bool {
+        matches!(
+            self.status,
+            RemoteHostStatus::Live | RemoteHostStatus::Degraded | RemoteHostStatus::Offline
+        )
+    }
+
     /// A short phrase for the rail and the picker.
     pub(in crate::ui::app) fn summary(&self) -> String {
         match &self.status {
@@ -122,6 +136,8 @@ impl RemoteHostState {
                 1 => "1 session".to_string(),
                 n => format!("{n} sessions"),
             },
+            RemoteHostStatus::Degraded => "not responding".to_string(),
+            RemoteHostStatus::Offline => "offline".to_string(),
             RemoteHostStatus::Failed(reason) => reason.clone(),
         }
     }
@@ -179,10 +195,68 @@ impl App {
     }
 
     /// Fold in what a host answered with.
+    ///
+    /// A Workflows tab already pointed at this host has been waiting on
+    /// exactly this: its catalogue could not be asked for before there was a
+    /// connection to ask on, so it is asked for now.
     pub fn remote_host_connected(&mut self, host_id: &str, capabilities: RemoteCapabilities) {
         let state = self.remote_hosts.entry(host_id.to_string()).or_default();
         state.status = RemoteHostStatus::Live;
         state.capabilities = capabilities;
+        // Any workflow request still marked pending was sent on the
+        // connection that just ended — this one starts with nothing in
+        // flight, so nothing will ever answer it. Left alone, its intent
+        // would permanently deduplicate a fresh ask for the same thing after
+        // every reconnect.
+        #[cfg(feature = "workflows")]
+        {
+            if let Some(cache) = self.remote_workflows.get(host_id) {
+                cache.lock().expect("remote workflow cache").pending.clear();
+            }
+            if self.current_host.host_id() == Some(host_id) && self.tab() == "Workflows" {
+                self.reload_workflows();
+            }
+        }
+    }
+
+    /// Fold in the link's verdict on how recently the host was heard from.
+    ///
+    /// Only moves between the answered states: a host that never answered is
+    /// still `Connecting`, and one that failed stays failed until re-dialled.
+    pub fn remote_host_liveness(
+        &mut self,
+        host_id: &str,
+        liveness: medulla::bridge::BridgeLiveness,
+    ) {
+        let Some(state) = self.remote_hosts.get_mut(host_id) else {
+            return;
+        };
+        if matches!(
+            state.status,
+            RemoteHostStatus::Live | RemoteHostStatus::Degraded | RemoteHostStatus::Offline
+        ) {
+            state.status = match liveness {
+                medulla::bridge::BridgeLiveness::Live => RemoteHostStatus::Live,
+                medulla::bridge::BridgeLiveness::Degraded => RemoteHostStatus::Degraded,
+                medulla::bridge::BridgeLiveness::Offline => RemoteHostStatus::Offline,
+            };
+        }
+    }
+
+    /// Fold in a host's answer to a workflow call.
+    ///
+    /// Routed to the Workflows tab's remote store; a host with no cache for
+    /// it (the tab was never opened on that host) is ignored.
+    pub fn remote_workflow_result(
+        &mut self,
+        host_id: &str,
+        request_id: &str,
+        result: Result<serde_json::Value, String>,
+    ) {
+        #[cfg(feature = "workflows")]
+        self.fold_remote_workflow_result(host_id, request_id, result);
+        #[cfg(not(feature = "workflows"))]
+        let _ = (host_id, request_id, result);
     }
 
     /// Record that a host could not be reached, and why.

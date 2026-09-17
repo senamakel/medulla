@@ -5,7 +5,7 @@ use super::*;
 /// Operator-declared capacity: the `Host → Harness → Workspace → Agent`
 /// containment chain plus the agent templates that may be provisioned into it.
 ///
-/// Declared, never probed — this is what the client *offers* the orchestrator
+/// Declared, never probed — this is what the client *offers* the dispatcher
 /// when it attaches to `medulla-serve`, and what the TUI's Fleet page renders
 /// when no backend supplies a fleet of its own. The default declares only the
 /// built-in coding template catalog; it provisions no agents and advertises no

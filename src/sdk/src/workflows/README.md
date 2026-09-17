@@ -11,7 +11,7 @@ Authored, durable, multi-step work: workflow definitions and their runs.
 - [`store/`](./store/) — Medulla's half of the store: the home layout, and the harness rule for a `defaults` block. The store itself is `tinyflows::store`.
 - [`authoring_tests.rs`](./authoring_tests.rs) — The one patch-editing test that needs this host's own operations.
 - [`dispatch_error.rs`](./dispatch_error.rs) — Turning a hub dispatch failure into a workflow failure.
-- [`local.rs`](./local.rs) — Running workflows on this machine, with no orchestrator involved.
+- [`local.rs`](./local.rs) — Running workflows on this machine, with no remote dispatcher involved.
 - [`mod.rs`](./mod.rs) — Authored, durable, multi-step work: workflow definitions and their runs.
 - [`node_contracts_tests.rs`](./node_contracts_tests.rs) — Tests for the host overlay on the node-kind catalogue.
 - [`node_contracts.rs`](./node_contracts.rs) — The node-kind catalogue, with this host's facts layered on.

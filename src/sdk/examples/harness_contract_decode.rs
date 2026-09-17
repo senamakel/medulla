@@ -1,9 +1,9 @@
 //! Decode one `TrackedTask` JSON value through medulla's Rust harness mirror.
 //!
-//! This deliberately tiny example is the executable seam used by the
-//! integration umbrella's cross-repository contract test. It reads one JSON
-//! value from stdin, fails non-zero if serde rejects it, and writes the
-//! canonical re-serialized value to stdout.
+//! This deliberately tiny example is an executable seam for checking a
+//! harness's task JSON against the contract from outside the crate. It reads
+//! one JSON value from stdin, fails non-zero if serde rejects it, and writes
+//! the canonical re-serialized value to stdout.
 
 use std::io::{self, Read};
 

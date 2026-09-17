@@ -96,7 +96,7 @@ pub fn session_row(host_id: &str, remote: &RemoteSessionRow, since: i64) -> Sess
         busy: remote.busy,
         // Always the operator's. A remote session exists because somebody asked
         // for it in the picker, and nothing dispatches into one — so the
-        // orchestrator must never see it as available.
+        // dispatcher must never see it as available.
         control: SessionControl::User,
         origin: SessionOrigin::User,
         retained: false,

@@ -24,7 +24,7 @@ impl App {
     /// nothing to confirm, because there is no work left to lose.
     ///
     /// Routed by [`SessionRef`] like every other session action: a remote id
-    /// (`host/w_1`) has no orchestrator control to check — a remote session is
+    /// (`host/w_1`) has no dispatcher control to check — a remote session is
     /// always [`SessionControl::User`](crate::worker::pty::SessionControl::User),
     /// see [`session_row`](super::super::remote_sessions::session_row) — so only
     /// whether it is still running is worth asking about.
@@ -48,7 +48,7 @@ impl App {
                 .local_sessions
                 .as_ref()
                 .and_then(|harnesses| harnesses.control(id))
-                == Some(crate::worker::pty::SessionControl::Orchestrator)
+                == Some(crate::worker::pty::SessionControl::Dispatch)
             {
                 self.set_status("Task sessions are view-only while they are running");
                 return;
@@ -136,7 +136,7 @@ impl App {
                 // Control may have changed while the confirmation was open.
                 // Re-check at the destructive boundary so a stale prompt cannot
                 // kill active work.
-                if harnesses.control(id) == Some(crate::worker::pty::SessionControl::Orchestrator) {
+                if harnesses.control(id) == Some(crate::worker::pty::SessionControl::Dispatch) {
                     self.set_status("Task sessions are view-only while they are running");
                     return;
                 }

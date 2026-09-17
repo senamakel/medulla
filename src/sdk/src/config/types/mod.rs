@@ -14,12 +14,12 @@ use serde_json::Value;
 use super::urls::PROD_BACKEND_BASE_URL;
 use super::AppearanceConfig;
 use super::SubscriptionsConfig;
-use crate::harness_hooks::HooksConfig;
-use crate::protocol::{BudgetWindow, HarnessProvider};
-use crate::runtime::fleet::{
+use crate::fleet::AgentDescriptor;
+use crate::fleet::{
     AgentDeclaration, CapacitySnapshot, HarnessDescriptor, HostDescriptor, WorkspaceDescriptor,
 };
-use crate::runtime::AgentDescriptor;
+use crate::harness_hooks::HooksConfig;
+use crate::protocol::{BudgetWindow, HarnessProvider};
 
 // --- serde default helpers -------------------------------------------------
 
@@ -68,10 +68,10 @@ fn d_task_protocol() -> String {
 mod connections;
 mod document;
 mod fleet;
+mod hosting;
 mod mcp;
 #[cfg(test)]
 mod mcp_tests;
-mod orchestration;
 mod presentation;
 mod remote_hosts;
 mod status_line;
@@ -81,8 +81,8 @@ mod tests;
 pub use connections::*;
 pub use document::*;
 pub use fleet::*;
+pub use hosting::*;
 pub use mcp::*;
-pub use orchestration::*;
 pub use presentation::*;
 pub use remote_hosts::*;
 pub use status_line::*;

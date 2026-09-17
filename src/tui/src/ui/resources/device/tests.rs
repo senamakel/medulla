@@ -277,7 +277,7 @@ fn the_width_hint_reserves_room_for_a_configured_bar() {
         ..AppearanceConfig::default()
     };
     // "Device CPU ████ 100%" — the rail must be sized to this, not to the 18
-    // columns the orchestrator row alone would ask for, or the bar would
+    // columns the dispatcher row alone would ask for, or the bar would
     // degrade to a percentage on every frame and the setting would look broken.
     assert_eq!(device_width_hint(&config, sample()), 20);
 

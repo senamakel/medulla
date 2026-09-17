@@ -230,7 +230,7 @@ PY
 
   # ── 5. the crashed daemon recovers ────────────────────────────────────────
   scenario "restarting beta restores service under the same identity"
-  # The orchestrator's side of a dead host has to be torn down before the
+  # The owner's side of a dead host has to be torn down before the
   # replacement starts: the link's SSP state is per process, so a frame the old
   # session is still retransmitting would reach a host that is numbering from
   # zero. `reset_owner_link` does that while nothing is listening.

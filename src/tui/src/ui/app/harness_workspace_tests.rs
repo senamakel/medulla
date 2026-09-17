@@ -113,7 +113,7 @@ fn picker_on_workspace_step(workspace: &std::path::Path) -> super::types::App {
     let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.link = Some(medulla::config::LinkConfig::default());
     let mut app = App::new(
-        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::empty()),
+        std::sync::Arc::new(medulla::backend::MockBackend::new()),
         loaded,
     );
     app.set_local_sessions(crate::ui::harness_pane::LocalSessions {
@@ -121,7 +121,7 @@ fn picker_on_workspace_step(workspace: &std::path::Path) -> super::types::App {
         log: None,
         sessions: crate::worker::pty::PtyManager::new(),
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env: std::collections::HashMap::new(),
         workspace: workspace.to_string_lossy().into_owned(),
         providers: vec![medulla::protocol::HarnessProvider::Codex],
@@ -540,7 +540,7 @@ fn saving_a_favorite_without_hosting_is_rejected() {
     let mut loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
     loaded.config.link = Some(medulla::config::LinkConfig::default());
     let mut app = super::types::App::new(
-        std::sync::Arc::new(medulla::runtime::mock::MockRuntime::empty()),
+        std::sync::Arc::new(medulla::backend::MockBackend::new()),
         loaded,
     );
 

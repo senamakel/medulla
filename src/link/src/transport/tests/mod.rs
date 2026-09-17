@@ -9,23 +9,23 @@ mod recovery;
 
 /// A pair of sessions that share a pair key, plus their sequence sources.
 struct Pair {
-    orchestrator: Session,
+    owner: Session,
     host: Session,
-    orchestrator_seq: MemorySeq,
+    owner_seq: MemorySeq,
     host_seq: MemorySeq,
 }
 
 impl Pair {
     fn new() -> Self {
         let pair_key = PairKey::from_bytes([5u8; 16]);
-        let orchestrator_id = NodeId([1u8; 16]);
+        let owner_id = NodeId([1u8; 16]);
         let host_id = NodeId([2u8; 16]);
         Pair {
-            orchestrator: Session::new(
+            owner: Session::new(
                 SessionConfig::new(
-                    orchestrator_id,
+                    owner_id,
                     host_id,
-                    Role::Orchestrator,
+                    Role::Owner,
                     pair_key.clone(),
                     ForwarderKey([9u8; 32]),
                 ),
@@ -34,14 +34,14 @@ impl Pair {
             host: Session::new(
                 SessionConfig::new(
                     host_id,
-                    orchestrator_id,
+                    owner_id,
                     Role::Host,
                     pair_key,
                     ForwarderKey([8u8; 32]),
                 ),
                 0,
             ),
-            orchestrator_seq: MemorySeq::default(),
+            owner_seq: MemorySeq::default(),
             host_seq: MemorySeq::default(),
         }
     }
@@ -53,11 +53,8 @@ impl Pair {
 fn applying_the_same_instruction_twice_equals_applying_it_once() {
     // The §9 conformance requirement, and the whole reason duplication is free.
     let mut pair = Pair::new();
-    pair.orchestrator.queue_message(b"frame".to_vec()).unwrap();
-    let datagrams = pair
-        .orchestrator
-        .outgoing(100, &mut pair.orchestrator_seq)
-        .unwrap();
+    pair.owner.queue_message(b"frame".to_vec()).unwrap();
+    let datagrams = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     assert_eq!(datagrams.len(), 1);
 
     assert!(pair.host.handle_datagram(&datagrams[0], 110).unwrap());
@@ -72,16 +69,10 @@ fn applying_the_same_instruction_twice_equals_applying_it_once() {
 #[test]
 fn an_instruction_whose_old_num_does_not_match_is_refused() {
     let mut pair = Pair::new();
-    pair.orchestrator.queue_message(b"one".to_vec()).unwrap();
-    let first = pair
-        .orchestrator
-        .outgoing(100, &mut pair.orchestrator_seq)
-        .unwrap();
-    pair.orchestrator.queue_message(b"two".to_vec()).unwrap();
-    let second = pair
-        .orchestrator
-        .outgoing(200, &mut pair.orchestrator_seq)
-        .unwrap();
+    pair.owner.queue_message(b"one".to_vec()).unwrap();
+    let first = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
+    pair.owner.queue_message(b"two".to_vec()).unwrap();
+    let second = pair.owner.outgoing(200, &mut pair.owner_seq).unwrap();
 
     // The second datagram diffs from state 0 as well (nothing was acked), so
     // deliver it first and then the stale one.
@@ -98,26 +89,18 @@ fn an_instruction_whose_old_num_does_not_match_is_refused() {
 #[test]
 fn a_stale_instruction_leaves_the_held_state_byte_for_byte_unchanged() {
     let mut pair = Pair::new();
-    pair.orchestrator
-        .set_screen(vec![b"row 0".to_vec()])
-        .unwrap();
-    let first = pair
-        .orchestrator
-        .outgoing(100, &mut pair.orchestrator_seq)
-        .unwrap();
+    pair.owner.set_screen(vec![b"row 0".to_vec()]).unwrap();
+    let first = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&first[0], 110).unwrap();
     // Acknowledge, so the next diff starts from state 1 and the replay of the
     // first datagram is genuinely stale.
     let ack = pair.host.outgoing(130, &mut pair.host_seq).unwrap();
-    pair.orchestrator.handle_datagram(&ack[0], 140).unwrap();
+    pair.owner.handle_datagram(&ack[0], 140).unwrap();
 
-    pair.orchestrator
+    pair.owner
         .set_screen(vec![b"row 0".to_vec(), b"row 1".to_vec()])
         .unwrap();
-    let second = pair
-        .orchestrator
-        .outgoing(200, &mut pair.orchestrator_seq)
-        .unwrap();
+    let second = pair.owner.outgoing(200, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&second[0], 210).unwrap();
     let after = pair.host.screen().clone();
 
@@ -130,14 +113,11 @@ fn a_stale_instruction_leaves_the_held_state_byte_for_byte_unchanged() {
 #[test]
 fn a_datagram_for_another_node_is_refused() {
     let mut pair = Pair::new();
-    pair.orchestrator.queue_message(b"frame".to_vec()).unwrap();
-    let datagrams = pair
-        .orchestrator
-        .outgoing(100, &mut pair.orchestrator_seq)
-        .unwrap();
+    pair.owner.queue_message(b"frame".to_vec()).unwrap();
+    let datagrams = pair.owner.outgoing(100, &mut pair.owner_seq).unwrap();
     // The host's own session must not accept its own datagram back.
     assert!(matches!(
-        pair.orchestrator.handle_datagram(&datagrams[0], 110),
+        pair.owner.handle_datagram(&datagrams[0], 110),
         Err(TransportError::Misaddressed(_))
     ));
 }
@@ -145,10 +125,10 @@ fn a_datagram_for_another_node_is_refused() {
 #[test]
 fn a_tampered_payload_is_refused() {
     let mut pair = Pair::new();
-    pair.orchestrator.queue_message(b"frame".to_vec()).unwrap();
+    pair.owner.queue_message(b"frame".to_vec()).unwrap();
     let mut datagram = pair
-        .orchestrator
-        .outgoing(100, &mut pair.orchestrator_seq)
+        .owner
+        .outgoing(100, &mut pair.owner_seq)
         .unwrap()
         .remove(0);
     let last = datagram.len() - 1;
@@ -163,10 +143,10 @@ fn a_tampered_payload_is_refused() {
 fn an_unknown_channel_is_ignored_rather_than_failing_the_datagram() {
     // Forward compatibility: a later dialect must not break this endpoint.
     let mut pair = Pair::new();
-    pair.orchestrator.queue_message(b"frame".to_vec()).unwrap();
+    pair.owner.queue_message(b"frame".to_vec()).unwrap();
     let datagram = pair
-        .orchestrator
-        .outgoing(100, &mut pair.orchestrator_seq)
+        .owner
+        .outgoing(100, &mut pair.owner_seq)
         .unwrap()
         .remove(0);
     // Re-seal the same datagram with the channel byte changed to 7.
@@ -227,19 +207,16 @@ fn rto_never_leaves_its_clamp() {
 #[test]
 fn a_round_trip_produces_a_sample() {
     let mut pair = Pair::new();
-    pair.orchestrator.queue_message(b"frame".to_vec()).unwrap();
-    let out = pair
-        .orchestrator
-        .outgoing(1_000, &mut pair.orchestrator_seq)
-        .unwrap();
-    assert!(pair.orchestrator.rtt().srtt().is_none());
+    pair.owner.queue_message(b"frame".to_vec()).unwrap();
+    let out = pair.owner.outgoing(1_000, &mut pair.owner_seq).unwrap();
+    assert!(pair.owner.rtt().srtt().is_none());
 
     pair.host.handle_datagram(&out[0], 1_040).unwrap();
     let back = pair.host.outgoing(1_060, &mut pair.host_seq).unwrap();
-    pair.orchestrator.handle_datagram(&back[0], 1_080).unwrap();
+    pair.owner.handle_datagram(&back[0], 1_080).unwrap();
 
     // 80 ms of round trip, minus the 20 ms the host sat on the timestamp.
-    assert_eq!(pair.orchestrator.rtt().srtt(), Some(60.0));
+    assert_eq!(pair.owner.rtt().srtt(), Some(60.0));
 }
 
 #[test]
@@ -343,20 +320,17 @@ fn an_unacknowledged_state_is_retransmitted_after_the_rto() {
 #[test]
 fn an_acknowledgement_stops_the_retransmission() {
     let mut pair = Pair::new();
-    pair.orchestrator.queue_message(b"frame".to_vec()).unwrap();
-    let out = pair
-        .orchestrator
-        .outgoing(0, &mut pair.orchestrator_seq)
-        .unwrap();
+    pair.owner.queue_message(b"frame".to_vec()).unwrap();
+    let out = pair.owner.outgoing(0, &mut pair.owner_seq).unwrap();
     pair.host.handle_datagram(&out[0], 10).unwrap();
     let ack = pair.host.outgoing(30, &mut pair.host_seq).unwrap();
     assert_eq!(ack.len(), 1, "the host owes an acknowledgement");
-    pair.orchestrator.handle_datagram(&ack[0], 40).unwrap();
+    pair.owner.handle_datagram(&ack[0], 40).unwrap();
 
-    assert!(!pair.orchestrator.has_pending_state());
+    assert!(!pair.owner.has_pending_state());
     assert!(pair
-        .orchestrator
-        .outgoing(1_000, &mut pair.orchestrator_seq)
+        .owner
+        .outgoing(1_000, &mut pair.owner_seq)
         .unwrap()
         .is_empty());
 }
@@ -365,12 +339,9 @@ fn an_acknowledgement_stops_the_retransmission() {
 fn each_channel_is_acknowledged_on_its_own() {
     // §4.4: an Instruction on channel 0 says nothing about channel 1.
     let mut pair = Pair::new();
-    pair.orchestrator.queue_message(b"frame".to_vec()).unwrap();
-    pair.orchestrator.set_screen(vec![b"row".to_vec()]).unwrap();
-    let out = pair
-        .orchestrator
-        .outgoing(0, &mut pair.orchestrator_seq)
-        .unwrap();
+    pair.owner.queue_message(b"frame".to_vec()).unwrap();
+    pair.owner.set_screen(vec![b"row".to_vec()]).unwrap();
+    let out = pair.owner.outgoing(0, &mut pair.owner_seq).unwrap();
     assert_eq!(out.len(), 2, "both channels had work");
 
     for datagram in &out {
@@ -382,9 +353,9 @@ fn each_channel_is_acknowledged_on_its_own() {
     assert_eq!(first.len(), 1);
     assert_eq!(second.len(), 1);
     for datagram in first.iter().chain(second.iter()) {
-        pair.orchestrator.handle_datagram(datagram, 80).unwrap();
+        pair.owner.handle_datagram(datagram, 80).unwrap();
     }
-    assert!(!pair.orchestrator.has_pending_state());
+    assert!(!pair.owner.has_pending_state());
     assert_eq!(pair.host.screen().rows(), [b"row".to_vec()]);
 }
 
@@ -441,36 +412,27 @@ fn queue_overflow_is_reported_as_retryable() {
 fn history_is_freed_as_the_peer_acknowledges() {
     let mut pair = Pair::new();
     for index in 0..8u8 {
-        pair.orchestrator.queue_message(vec![index]).unwrap();
+        pair.owner.queue_message(vec![index]).unwrap();
     }
-    assert_eq!(pair.orchestrator.messages_channel().history_len(), 9);
+    assert_eq!(pair.owner.messages_channel().history_len(), 9);
 
     let mut now = 0;
     for _ in 0..8 {
-        for datagram in pair
-            .orchestrator
-            .outgoing(now, &mut pair.orchestrator_seq)
-            .unwrap()
-        {
+        for datagram in pair.owner.outgoing(now, &mut pair.owner_seq).unwrap() {
             pair.host.handle_datagram(&datagram, now + 5).unwrap();
         }
         now += 100;
         for datagram in pair.host.outgoing(now, &mut pair.host_seq).unwrap() {
-            pair.orchestrator
-                .handle_datagram(&datagram, now + 5)
-                .unwrap();
+            pair.owner.handle_datagram(&datagram, now + 5).unwrap();
         }
         now += 100;
     }
     assert_eq!(
-        pair.orchestrator.messages_channel().history_len(),
+        pair.owner.messages_channel().history_len(),
         1,
         "only the assumed receiver state should remain"
     );
-    assert_eq!(
-        pair.orchestrator.messages_channel().assumed_receiver_num(),
-        8
-    );
+    assert_eq!(pair.owner.messages_channel().assumed_receiver_num(), 8);
     assert_eq!(pair.host.take_messages().len(), 8);
 }
 

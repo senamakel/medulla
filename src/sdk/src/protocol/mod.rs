@@ -6,12 +6,11 @@
 //!   over encrypted DMs).
 //! - [`control`] — owner→machine harness control frames (session-targeted input).
 //! - [`screen`] — the `medulla.screen.v1` protocol, streaming a worker's live
-//!   terminal to a watching orchestrator as mosh-style synchronised state.
+//!   terminal to a watching dispatcher as mosh-style synchronised state.
 //! - [`envelope`] — the harness session-envelope wire model (v1 and v2).
 //! - [`consumer`] — receiver-side fold of the v2 harness stream into a live
 //!   [`consumer::SessionView`].
 //! - [`status`] — the derived session-status state machine over harness events.
-//! - [`service`] — the background host-link observation the TUI renders.
 
 pub mod consumer;
 pub mod control;
@@ -20,7 +19,6 @@ pub mod envelope;
 pub mod frames;
 pub mod remote;
 pub mod screen;
-pub mod service;
 pub mod status;
 pub mod system_info;
 

@@ -38,7 +38,7 @@ impl PtySessionExecutor {
     /// `Send` but not `Sync`: a borrow of it held across this await would make
     /// the whole run future un-spawnable.
     ///
-    /// **Candidacy (spec §4.1).** Only *orchestrator-owned* sessions are ever
+    /// **Candidacy (spec §4.1).** Only *dispatch-owned* sessions are ever
     /// candidates. A user-owned session — born that way as an unmanaged spawn,
     /// or taken at runtime — is not one, so a person working in a session never
     /// makes a dispatch fail: it is simply not among the things the dispatch can
@@ -171,15 +171,15 @@ impl PtySessionExecutor {
             label,
             model: options.model.clone(),
             session_id: None,
-            // Opened to serve a task frame, so the orchestrator holds it. An
+            // Opened to serve a task frame, so the dispatcher holds it. An
             // operator can still take it over later; that is what stops the
             // next frame landing in a composer they are typing in.
-            control: SessionControl::Orchestrator,
+            control: SessionControl::Dispatch,
             // …and that later takeover does *not* touch this: the session was
             // auto-created by a dispatch (§4.1), which is true for the rest of
             // its life however many times control changes hands. Unnamed on
             // purpose — the UI labels it from the task it was created for.
-            origin: SessionOrigin::Orchestrator,
+            origin: SessionOrigin::Task,
             name: None,
             mcp_grant_session,
         })))

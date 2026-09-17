@@ -256,7 +256,7 @@ impl App {
     ///
     /// Handed to [`CopilotState::progress`] rather than `status` so a frame
     /// announcing a tool call becomes a tool line — the same `⏺` the
-    /// orchestrator's transcript draws — instead of dim chatter that ages out.
+    /// dispatcher's transcript draws — instead of dim chatter that ages out.
     pub fn copilot_status(&mut self, workflow: &str, line: String) {
         if let Some(thread) = self.wf.copilots.get_mut(workflow) {
             thread.progress(&line);

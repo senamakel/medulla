@@ -19,7 +19,9 @@
 use medulla::ui::hosts::HostAgentRow;
 
 use crate::ui::agents::TaskState;
-use crate::worker::pty::{SessionOrigin, SessionRow};
+#[cfg(test)]
+use crate::worker::pty::SessionOrigin;
+use crate::worker::pty::SessionRow;
 
 /// A stable identity for a selectable Sessions-rail row.
 ///
@@ -164,7 +166,7 @@ impl AgentRailRow {
 
 /// One session of an agent — **one row type, whatever started it**.
 ///
-/// An orchestrator dispatch arrives as a [`TaskState`] folded from the event
+/// A dispatcher dispatch arrives as a [`TaskState`] folded from the event
 /// stream; an operator-started session arrives as a live [`SessionRow`] from the
 /// local PTY manager. They are the same thing seen through the two surfaces that
 /// can see it, so one row carries either (or, for a dispatch this machine is
@@ -176,7 +178,7 @@ pub struct SessionRailRow {
     pub agent_id: Option<String>,
     /// The lane the owning agent folded to, for the transcript behind the row.
     pub lane_index: Option<usize>,
-    /// The dispatched task, when the orchestrator started this session.
+    /// The dispatched task, when the dispatcher started this session.
     pub task: Option<TaskState>,
     /// The live PTY session, when this device is the one running it.
     pub local: Option<SessionRow>,
@@ -193,13 +195,14 @@ impl SessionRailRow {
 
     /// Who started this session.
     ///
-    /// A row backed by a task is an orchestrator dispatch by construction; a
-    /// local-only row reports what the PTY manager recorded at launch.
+    /// A row backed by a task is a dispatch by construction; a local-only row
+    /// reports what the PTY manager recorded at launch.
+    #[cfg(test)]
     pub fn origin(&self) -> SessionOrigin {
         match (&self.task, &self.local) {
-            (Some(_), _) => SessionOrigin::Orchestrator,
+            (Some(_), _) => SessionOrigin::Task,
             (None, Some(row)) => row.origin,
-            (None, None) => SessionOrigin::Orchestrator,
+            (None, None) => SessionOrigin::Task,
         }
     }
 

@@ -1,44 +1,9 @@
-//! Data model for the Agents view-model: the lane/task/turn structs, the role
-//! and status enums with their trivial classification impls, the pre-styled
-//! display [`Line`], and the [`AgentRow`] list-row enum. All behaviour lives in
-//! the sibling logic modules; this file holds only the shapes and their trivial
-//! accessors.
+//! Data model for the agent lanes: the lane/task/turn structs, the status enum
+//! with its trivial classification impls, the pre-styled display [`Line`], and
+//! the [`AgentRow`] list-row enum. All behaviour lives in the sibling logic
+//! modules; this file holds only the shapes and their trivial accessors.
 
-use crate::runtime::AgentDescriptor;
-
-/// What a lane represents. Drives the lane colour and whether the lane is a
-/// delegatable agent or a graph-invoked function.
-///
-/// [`Reasoning`](AgentRole::Reasoning) and [`Compress`](AgentRole::Compress) are
-/// no longer produced by the fold — the manager tier and the compress function
-/// are hidden from this view — and are kept so a runtime that starts streaming
-/// them again has a role to land on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AgentRole {
-    /// The orchestrator tier: the only tier the operator sees.
-    Orchestrator,
-    /// The reasoning (manager) tier. Not currently rendered.
-    Reasoning,
-    /// The compress/summarizer function tier. Not currently rendered.
-    Compress,
-    /// A roster agent, an anonymous delegated task, or a peer session.
-    Agent,
-}
-
-impl AgentRole {
-    /// The display colour for this role.
-    pub fn color(self) -> &'static str {
-        match self {
-            AgentRole::Orchestrator | AgentRole::Reasoning => "yellow",
-            AgentRole::Compress => "blue",
-            AgentRole::Agent => "magenta",
-        }
-    }
-    /// A real (delegatable) agent, or a graph-invoked function (`compress`).
-    pub fn is_function(self) -> bool {
-        matches!(self, AgentRole::Compress)
-    }
-}
+use crate::fleet::AgentDescriptor;
 
 /// Terminal-or-running status of a delegated task lane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,27 +97,19 @@ pub struct TaskState {
     pub work: Option<Box<crate::harness_work::WorkSnapshot>>,
 }
 
-/// One lane in the Agents view: the orchestrator tier, a roster agent, an
-/// anonymous task, or a peer session.
+/// One lane in the Sessions view: a roster agent and the tasks dispatched to it.
 #[derive(Debug, Clone)]
 pub struct AgentLane {
     /// The lane-unique key.
     pub key: String,
     /// The display label.
     pub label: String,
-    /// The lane's role/classification.
-    pub role: AgentRole,
     /// The lane-level transcript turns.
     pub turns: Vec<TurnBlock>,
     /// Timestamp (ms) of the last activity.
     pub last_at: i64,
     /// Per-task state for agent-identity lanes.
     pub tasks: Vec<TaskState>,
-    /// Last-known context token count, if reported.
-    pub context_tokens: Option<i64>,
-    /// Token usage accumulated for this lane: the current prompt, the output
-    /// summed over its life, and the cache share when the provider reports one.
-    pub usage: crate::ui::meters::LaneUsage,
     /// A harness label tag, if learned.
     pub harness_label: Option<String>,
     /// The backing agent id, if any.
@@ -181,11 +138,9 @@ pub struct Line {
     pub dim: bool,
 }
 
-/// One printed row of the Agents list.
+/// One printed row of the agent list.
 #[derive(Debug, Clone)]
 pub enum AgentRow {
-    /// The `── functions ──` divider before the first function lane.
-    Separator,
     /// A lane header row.
     Lane {
         /// Index into the lanes slice.
@@ -220,18 +175,13 @@ impl AgentRow {
             AgentRow::Lane { lane_index }
             | AgentRow::Sub { lane_index, .. }
             | AgentRow::More { lane_index, .. } => Some(*lane_index),
-            AgentRow::Separator => None,
         }
     }
     /// Whether this row is selectable in the list.
     ///
-    /// The overflow row is included: it is the control that pages a lane's
-    /// sublanes open and shut, so the cursor has to be able to reach it. The
-    /// `── functions ──` divider is a label and stays unreachable.
+    /// Every row is: the overflow row is the control that pages a lane's
+    /// sublanes open and shut, so the cursor has to be able to reach it.
     pub fn selectable(&self) -> bool {
-        matches!(
-            self,
-            AgentRow::Lane { .. } | AgentRow::Sub { .. } | AgentRow::More { .. }
-        )
+        true
     }
 }

@@ -4,7 +4,7 @@
 //! it can hand a harness a tool is to offer it an MCP server — and that server
 //! runs as a separate subprocess spawned by the ACP agent, not by Medulla. A
 //! fresh process has no hub, no roster, and no `TaskRunner`. This module is the
-//! bridge back: the orchestrator binds a unix socket, and the MCP shim proxies
+//! bridge back: the dispatcher binds a unix socket, and the MCP shim proxies
 //! its fleet tools over it.
 //!
 //! # Why a grant rather than file permissions

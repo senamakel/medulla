@@ -535,7 +535,7 @@ impl DaemonRuntime {
             env: run_env,
             timeout_ms: self.inner.config.task_timeout_ms,
             // Per-task model hint (parallels the per-task `provider`): honor the
-            // orchestrator's requested model, falling back to the daemon default
+            // dispatcher's requested model, falling back to the daemon default
             // — but only when the frame named no harness of its own at all.
             // `frame.model` is deliberately `None` (not merely absent) when a
             // caller's paired harness/model resolution named a harness without

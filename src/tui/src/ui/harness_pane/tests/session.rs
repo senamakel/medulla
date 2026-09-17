@@ -50,8 +50,8 @@ fn sh_for(provider: HarnessProvider, script: &str) -> LaunchSpec {
         label: "test".to_string(),
         session_id: None,
         model: None,
-        control: SessionControl::Orchestrator,
-        origin: crate::worker::pty::SessionOrigin::Orchestrator,
+        control: SessionControl::Dispatch,
+        origin: crate::worker::pty::SessionOrigin::Task,
         name: None,
         mcp_grant_session: None,
     }
@@ -96,7 +96,7 @@ pub(super) fn harnesses(sessions: PtyManager) -> LocalSessions {
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env: HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],

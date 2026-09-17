@@ -1,7 +1,7 @@
 //! The chat composer: a bordered, focus-aware input with a real caret.
 //!
 //! Free functions over a [`Draft`] and a [`Theme`] rather than a method on
-//! `App`, so the two surfaces that draw one — the orchestrator and the workflow
+//! `App`, so the two surfaces that draw one — the dispatcher and the workflow
 //! copilot — get the same widget instead of the same idea implemented twice.
 //!
 //! The border is the focus affordance. Its colour answers "is this thing

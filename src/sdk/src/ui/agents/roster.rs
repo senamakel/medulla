@@ -3,7 +3,7 @@
 //! [`derive_agent_lanes`](super::derive_agent_lanes) seeds one lane per
 //! [`AgentDescriptor`] in the render snapshot, and that roster only ever carries
 //! what a *backend* advertises. A host-link worker added at runtime lives in
-//! the orchestrator hub's own roster instead — the very list that resolves a
+//! the dispatcher hub's own roster instead — the very list that resolves a
 //! delegated task's address — so it was reachable, dispatchable, and completely
 //! absent from the TUI until a task happened to be running on it.
 //!
@@ -13,7 +13,7 @@
 
 use serde_json::{Map, Value};
 
-use crate::runtime::{AgentDescriptor, WorkerInfo};
+use crate::fleet::{AgentDescriptor, WorkerInfo};
 
 /// The metadata key marking a descriptor that came from the local registry
 /// rather than the backend roster.
@@ -64,7 +64,7 @@ pub fn host_descriptor(worker: &WorkerInfo) -> AgentDescriptor {
     }
     // The directory the worker runs tasks in. Published here so the Agents pane
     // can name it immediately: the capacity chain only learns a workspace from a
-    // capability probe, which does not happen until the orchestrator asks for
+    // capability probe, which does not happen until the dispatcher asks for
     // one, so a freshly-opened lane would otherwise show no working directory
     // at all.
     if let Some(workspace) = worker.workspace.as_deref().filter(|w| !w.trim().is_empty()) {

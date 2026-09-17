@@ -27,7 +27,7 @@ use crate::worker::pty::{LaunchSpec, PtyManager, PtyState, SessionControl, Sessi
 /// load, and a tight deadline turns "the box was busy" into a red test.
 const PATIENCE: Duration = Duration::from_secs(20);
 
-/// A spec that runs `sh -c <script>` on a pty, as an orchestrator dispatch.
+/// A spec that runs `sh -c <script>` on a pty, as a dispatcher dispatch.
 ///
 /// Codex rather than Claude: claude's interactive argv carries a minted
 /// `--session-id`, which `/bin/sh` would reject as an unknown option. Codex
@@ -49,8 +49,8 @@ fn sh(script: &str) -> LaunchSpec {
         label: "t1#0".to_string(),
         session_id: None,
         model: None,
-        control: SessionControl::Orchestrator,
-        origin: SessionOrigin::Orchestrator,
+        control: SessionControl::Dispatch,
+        origin: SessionOrigin::Task,
         name: None,
         mcp_grant_session: None,
     }
@@ -158,7 +158,7 @@ async fn a_failed_backing_session_draws_the_task_row_red_with_the_explanation() 
         "nothing asked this session to close"
     );
 
-    let from = "medulla-orchestrator";
+    let from = "medulla-hub";
     let task_id = "t1#0";
     let runtime = runtime_serving(id.clone());
     start_task(&runtime, from, task_id, &id).await;

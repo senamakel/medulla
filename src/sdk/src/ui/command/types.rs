@@ -1,13 +1,4 @@
-//! The parsed slash-command vocabulary and the clipboard scope it can carry.
-
-/// Which part of the chat transcript a `/copy` command targets.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CopyScope {
-    /// The whole conversation transcript.
-    All,
-    /// Only the most recent assistant reply.
-    Last,
-}
+//! The parsed slash-command vocabulary.
 
 /// A parsed slash command entered on the composer line.
 ///
@@ -18,10 +9,6 @@ pub enum CopyScope {
 pub enum SlashCommand {
     /// `/quit`, `/exit`, `/q` — exit the application.
     Quit,
-    /// `/new` — start a fresh conversation session.
-    NewSession,
-    /// `/resume` — open the saved-chat picker.
-    Resume,
     /// `/session [harness] [path]` — start a local session.
     ///
     /// Both arguments are optional: with neither, the front end opens its
@@ -34,10 +21,6 @@ pub enum SlashCommand {
         /// The working directory to start it in, when one was given.
         path: Option<String>,
     },
-    /// `/abort` — request cancellation of the running cycle.
-    Abort,
-    /// `/clear` — reset the view (runtime history is retained).
-    ClearView,
     /// `/help` — show the help subpage.
     Help,
     /// `/config` — show the config subpage.
@@ -50,8 +33,6 @@ pub enum SlashCommand {
     Feedback,
     /// `/mouse` — toggle mouse capture.
     ToggleMouse,
-    /// `/copy [all|last]` — copy the transcript at the given scope.
-    Copy(CopyScope),
     /// A recognized command invoked with an invalid argument; carries the usage
     /// hint to surface.
     BadUsage(&'static str),

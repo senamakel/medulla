@@ -1,7 +1,7 @@
 //! Stable cursor identity tests for the Sessions rail.
 
 use super::{rail_anchor, resolve_rail_cursor, RailAnchor, RailRow, SessionRailRow};
-use crate::ui::agents::{AgentLane, AgentRole, TaskState, TaskStatus};
+use crate::ui::agents::{AgentLane, TaskState, TaskStatus};
 
 /// A local session row, keyed by the PTY id its anchor is built from.
 fn session(id: &str) -> RailRow {
@@ -18,12 +18,9 @@ fn lane(key: &str) -> AgentLane {
     AgentLane {
         key: key.to_string(),
         label: String::new(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: None,
         session_id: None,

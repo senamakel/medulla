@@ -224,6 +224,41 @@ pub enum RemoteMessage {
         /// Every session on the host, in the daemon's own order.
         rows: Vec<RemoteSessionRow>,
     },
+    /// Client → daemon: run one workflow operation against the host's own
+    /// workflow store.
+    ///
+    /// Two tool namespaces share this message, told apart by name. `store_*`
+    /// tools (`store_list`, `store_get`, `store_list_runs`, `store_get_run`,
+    /// `store_list_revisions`, `store_list_notes`, `store_list_proposals`) read
+    /// the store directly and answer with the store's own record types, because
+    /// the client's canvas and rail draw those records and not the summaries the
+    /// MCP tools project. Every other name is a `workflow_*` MCP tool, forwarded
+    /// to the same dispatcher a harness calls, so running or deleting a workflow
+    /// remotely goes through exactly the policy a local call would.
+    WorkflowCall {
+        /// Correlates the answer.
+        request_id: String,
+        /// The tool name.
+        tool: String,
+        /// The tool's arguments, as the tool would receive them.
+        #[serde(default)]
+        args: serde_json::Value,
+    },
+    /// Daemon → client: the answer to a [`WorkflowCall`](Self::WorkflowCall).
+    ///
+    /// Exactly one of `result` and `error` is set. A slim daemon built without
+    /// the workflow engine answers every call with an error rather than
+    /// silence, so the client can say so instead of waiting.
+    WorkflowResult {
+        /// Echoes the request.
+        request_id: String,
+        /// The tool's JSON result.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        result: Option<serde_json::Value>,
+        /// Why it failed, operator-facing.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
 }
 
 /// A remote message with its version tag, as it appears on the wire.

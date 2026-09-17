@@ -90,7 +90,7 @@ async fn a_peer_is_shown_progress_while_its_task_runs() {
 #[tokio::test]
 async fn a_second_turn_on_a_reused_session_gets_its_own_answer() {
     // Regression, seen in the field: the first task on a peer's session
-    // succeeded and the reply reached the orchestrator; the next one died with
+    // succeeded and the reply reached the dispatcher; the next one died with
     // "claude never started a turn".
     //
     // The tailer is built for a session about to start — it ignores every
@@ -152,7 +152,7 @@ async fn a_second_turn_on_a_reused_session_gets_its_own_answer() {
 
 #[tokio::test]
 async fn concurrent_tasks_from_one_peer_do_not_share_a_session() {
-    // Reproduced from the field. The orchestrator fans out — its prompt calls
+    // Reproduced from the field. The dispatcher fans out — its prompt calls
     // delegation its DEFAULT path — so three tasks arrived from the same peer at
     // once. All three found the same running session, were pasted into the same
     // composer, and all three tails settled on the same completion:
@@ -289,7 +289,7 @@ async fn sequential_task_frames_from_one_sender_do_not_share_a_session() {
     // it and inherits A's whole conversation.
     //
     // It was reachable for every locally dispatched task. `DaemonRuntime` sets
-    // `conversation` to the authenticated sender, which for an orchestrator's
+    // `conversation` to the authenticated sender, which for a sender's
     // own host is always the hub address, so the old
     // `conversation.is_empty() => Bounded` inference never fired: every task
     // frame classified as unbound and reused the sender's session. Two
@@ -383,13 +383,32 @@ fn the_session_probe_runs_off_the_runtime_thread() {
     // beside it would not have run by the time it returns.
     let dir = tempfile::tempdir().unwrap();
     let cwd = dir.path().to_string_lossy().into_owned();
-    let (executor, _env) = harness(dir.path(), &cwd);
+    let rollout = dir.path().join("rollout-probe.jsonl");
+    let script = fake_harness_script(&rollout.to_string_lossy(), &cwd, "ready");
+    let (executor, env) = harness(dir.path(), &cwd);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     runtime.block_on(async move {
+        // Leave an idle session with a just-completed turn. `claim_idle`
+        // observes the completion-chime grace period, so the blocking part of
+        // the probe is guaranteed to remain in flight while the runtime gets a
+        // chance to poll the sibling task below. Without this setup the fresh-
+        // session path can finish before that task is scheduled, which makes
+        // this test flaky under coverage instrumentation even when the probe
+        // is correctly offloaded.
+        tokio::time::timeout(
+            Duration::from_secs(30),
+            executor
+                .clone()
+                .run_for_test(options(&env, "peer-bob", &script, &cwd)),
+        )
+        .await
+        .expect("the setup turn must settle")
+        .expect("the setup turn must succeed");
+
         let ran_beside = Arc::new(AtomicBool::new(false));
         let flag = ran_beside.clone();
         tokio::spawn(async move { flag.store(true, Ordering::SeqCst) });
@@ -405,13 +424,14 @@ fn the_session_probe_runs_off_the_runtime_thread() {
             .expect("the probe completes");
 
         assert!(
-            matches!(probe, SessionProbe::Fresh),
-            "nothing to reuse and nobody in the checkout"
+            matches!(probe, SessionProbe::Reuse(_)),
+            "the idle setup session should be reused"
         );
         assert!(
             ran_beside.load(Ordering::SeqCst),
             "the runtime kept serving other tasks while the probe was in flight"
         );
+        executor.sessions_for_test().shutdown();
     });
 }
 

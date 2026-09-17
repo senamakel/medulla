@@ -1,7 +1,7 @@
 //! Paste onto a tab with no text field, and into the one single-line overlay
 //! that still takes one.
 //!
-//! The Agents composer this file was written for is gone with the orchestrator
+//! The Agents composer this file was written for is gone with the dispatcher
 //! it submitted to, and with it every case about multi-line drafts, the command
 //! peek, and moving focus in on a paste. What is left is the rule those cases
 //! existed to protect: a payload never lands anywhere the operator cannot see
@@ -12,7 +12,7 @@ use crate::helpers::*;
 
 #[test]
 fn an_open_prompt_overlay_takes_the_paste_flattened_to_one_line() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     app.tab_index = tab_index("Settings");
     app.focus_settings_subpage("Feedback");
     // `n` opens the new-feedback title prompt, which is the single-line field here.
@@ -31,7 +31,7 @@ fn an_open_prompt_overlay_takes_the_paste_flattened_to_one_line() {
 
 #[test]
 fn a_paste_outside_a_text_field_is_ignored() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded());
+    let mut app = App::new(Arc::new(MockBackend::new()), loaded());
     app.tab_index = tab_index("Settings");
 
     assert!(paste(&mut app, "stray text").is_none());

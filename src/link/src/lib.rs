@@ -1,4 +1,4 @@
-//! `medulla-link` — the transport between a medulla orchestrator and its remote
+//! `medulla-link` — the transport between a medulla owner and its remote
 //! hosts, implementing `docs/host-link-protocol.md`.
 //!
 //! It replaces the tiny.place mailbox. Instead of Signal-encrypting a frame,
@@ -7,7 +7,7 @@
 //! that forwards bytes it cannot read.
 //!
 //! ```text
-//!   orchestrator ──┐                          ┌── host A
+//!   owner ──┐                          ┌── host A
 //!    (endpoint)    ├─►  backend forwarder  ◄──┤
 //!                  │    (blind, UDP)          └── host B
 //!                  └──────────────────────────────┘

@@ -8,7 +8,7 @@ Medulla's own wire protocol for the medulla TUI/daemon.
 - [`control/`](./control/) — Owner-to-machine control frames for the harness session bus.
 - [`frames/`](./frames/) — The `medulla-task/1` task wire protocol.
 - [`envelope/`](./envelope/) — The harness session-envelope wire model (v1 and v2).
-- [`screen/`](./screen/) — The `medulla.screen.v1` protocol: streaming a worker's live terminal to a watching orchestrator as synchronised *state* rather than a byte stream.
+- [`screen/`](./screen/) — The `medulla.screen.v1` protocol: streaming a worker's live terminal to the medulla watching it as synchronised *state* rather than a byte stream.
 - [`service/`](./service/) — Background host-link observation service for the TUI process.
 - [`status/`](./status/) — Derived session-status state machine for the v2 harness stream.
 - [`system_info/`](./system_info/) — Cheap, local worker capacity discovery.

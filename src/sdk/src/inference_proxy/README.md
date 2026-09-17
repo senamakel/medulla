@@ -6,7 +6,7 @@ A loopback HTTP proxy that owns Medulla's OpenRouter attribution.
 
 OpenRouter credits an application by reading the `HTTP-Referer` and `X-Title`
 request headers. Claude Code, Codex and OpenCode each send their own, so a run
-Medulla orchestrated and paid for is credited to the harness. Pointing the child
+Medulla dispatched and paid for is credited to the harness. Pointing the child
 at a proxy Medulla controls is what reverses that: the harness's attribution
 headers are stripped and Medulla's are substituted on the way out.
 

@@ -61,7 +61,7 @@ impl App {
             ComposerChrome {
                 focused: true,
                 busy,
-                // Unlike the orchestrator's, this composer has no caption row
+                // Unlike the sender's, this composer has no caption row
                 // naming its target, so the placeholder is where it says what
                 // asking here does.
                 placeholder: Some(if self.wf.creating {

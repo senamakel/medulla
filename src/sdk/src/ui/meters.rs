@@ -98,7 +98,7 @@ pub fn tokens(value: i64) -> String {
 ///
 /// Reported as *used* rather than free: pressure is what the colour encodes, and
 /// a bar that empties as a machine fills up would invert that.
-pub fn memory_meter(resources: &crate::runtime::HostResources) -> Option<Line> {
+pub fn memory_meter(resources: &crate::fleet::HostResources) -> Option<Line> {
     let total = resources.total_memory_bytes.filter(|t| *t > 0)?;
     let available = resources.available_memory_bytes?;
     let used = total.saturating_sub(available);
@@ -116,7 +116,7 @@ pub fn memory_meter(resources: &crate::runtime::HostResources) -> Option<Line> {
 /// cores". Without a load reading there is nothing to fill a bar with — cores
 /// are capacity, not usage — so the row states the capacity instead of drawing a
 /// meter that would have to invent a number.
-pub fn cpu_meter(resources: &crate::runtime::HostResources) -> Option<Line> {
+pub fn cpu_meter(resources: &crate::fleet::HostResources) -> Option<Line> {
     let cores = resources.cpu_cores.filter(|c| *c > 0.0);
     match (resources.load_average_1m, cores) {
         (Some(load), Some(cores)) => Some(meter(
@@ -137,75 +137,10 @@ pub fn cpu_meter(resources: &crate::runtime::HostResources) -> Option<Line> {
 ///
 /// Free space alone has no denominator to divide by, so this states the figure
 /// rather than drawing a fraction it cannot compute.
-pub fn disk_line(resources: &crate::runtime::HostResources) -> Option<Line> {
+pub fn disk_line(resources: &crate::fleet::HostResources) -> Option<Line> {
     resources.disk_free_bytes.map(|free| Line {
         text: format!("disk · {} free", bytes(free)),
         color: None,
         dim: true,
     })
-}
-
-/// The context meter for one lane: the prompt against the window, the window's
-/// size, and the `(in / out / cached)` breakdown.
-///
-/// The bar is input-against-window because that is the ceiling that actually
-/// stops a turn. The window is named rather than left implicit — a bar at 4%
-/// means nothing without knowing 4% of what, and the difference between a 32k
-/// and a 1M window is the difference between "nearly out of room" and "barely
-/// started". Output sits in the breakdown rather than the bar because it does
-/// not consume the same budget.
-///
-/// `cached` is a dash when the provider reported no cache figure. Omitting the
-/// field entirely would make the row change shape between providers; inventing a
-/// zero would claim a cache miss we never observed.
-pub fn context_meter(usage: &LaneUsage, window: i64) -> Option<Line> {
-    if usage.input == 0 && usage.output == 0 {
-        return None;
-    }
-    let window = window.max(1);
-    let fraction = usage.input as f64 / window as f64;
-    let cached = match usage.cache_hit_rate() {
-        Some(rate) => format!("{}%", (rate * 100.0).round() as i64),
-        None => "—".to_string(),
-    };
-    let detail = format!(
-        "{} window · (in {} / out {} / cached {cached})",
-        tokens(window),
-        tokens(usage.input),
-        tokens(usage.output),
-    );
-    Some(meter("ctx", fraction, detail))
-}
-
-/// A lane's accumulated token usage.
-///
-/// Latest-wins for the prompt, running total for output: the prompt is the
-/// current context size (each turn resends it, so summing would multiply-count
-/// the same tokens), while output and cache genuinely accumulate over the lane's
-/// life.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct LaneUsage {
-    /// Prompt tokens on the most recent reported turn.
-    pub input: i64,
-    /// Output tokens summed across the lane.
-    pub output: i64,
-    /// Cache-read tokens on the most recent reported turn, when reported.
-    pub cache_read: Option<i64>,
-}
-
-impl LaneUsage {
-    /// Fold one reported usage into the running totals.
-    pub fn accumulate(&mut self, usage: &crate::ui::events::Usage) {
-        self.input = usage.input_tokens;
-        self.output += usage.output_tokens;
-        if usage.cache_read_tokens.is_some() {
-            self.cache_read = usage.cache_read_tokens;
-        }
-    }
-
-    /// The share of the current prompt served from cache, when known.
-    pub fn cache_hit_rate(&self) -> Option<f64> {
-        let cached = self.cache_read? as f64;
-        (self.input > 0).then(|| (cached / self.input as f64).clamp(0.0, 1.0))
-    }
 }

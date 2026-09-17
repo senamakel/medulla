@@ -10,7 +10,7 @@
 #                            operator's terminal exactly as if they had run it
 #                            themselves, while tailing the harness's own
 #                            transcript underneath and forwarding it to the
-#                            orchestrator over the host link.
+#                            owner over the host link.
 #   `medulla daemon --tui`   the operator screen: sessions, log, requests.
 #
 # These break in ways headless tests cannot see. A harness TUI refuses to start
@@ -26,7 +26,7 @@
 #                             Medulla is in the middle of that terminal and must
 #                             be invisible in it.
 #   2. wrapper bridging     — the same wrapper, this time enrolled on the link,
-#                             forwards the session to its orchestrator: the blind
+#                             forwards the session to its owner: the blind
 #                             forwarder shows datagrams leaving the wrapper's own
 #                             node. (Claude and Codex only — the wrapper does not
 #                             tail OpenCode's transcript; see wrapper/mod.rs.)
@@ -91,7 +91,7 @@ launch_wrapper() {
 $(harness_env "$RUN_DIR/wraphome-$window")
 export MEDULLA_HOME=$(printf %q "$home")
 export MEDULLA_USER=e2e
-export MEDULLA_LINK_OWNER=$(printf %q "orchestrator-wrapper")
+export MEDULLA_LINK_OWNER=$(printf %q "owner-wrapper")
 cd $(printf %q "$work")
 $(harness_wrapper_launch "$extra")
 EOF
@@ -176,7 +176,7 @@ boot_screen_daemon() {
 $(harness_env "$RUN_DIR/ochome-$name")
 export MEDULLA_HOME=$(printf %q "$RUN_DIR/mhome-$name")
 export MEDULLA_USER=e2e
-export MEDULLA_LINK_OWNER=$(printf %q "orchestrator-$name")
+export MEDULLA_LINK_OWNER=$(printf %q "owner-$name")
 exec $(printf %q "$MEDULLA_BIN") daemon --tui --providers $(printf %q "$HARNESS") --no-pair \\
   --name $(printf %q "worker-$name") --workspace $(printf %q "$work") --poll-ms 500 $daemon_flags
 EOF
@@ -322,7 +322,7 @@ scenario_wrapper_transparency() {
   ok "wrapper transparency"
 }
 
-# ── 2. the wrapper forwards the session to its orchestrator ─────────────────
+# ── 2. the wrapper forwards the session to its owner ─────────────────
 #
 # Asserted at the forwarder, not inside Medulla: the forwarder logs one line per
 # datagram it moved, carrying only source, destination, sequence and size. Seeing
@@ -331,7 +331,7 @@ scenario_wrapper_transparency() {
 # forwarder cannot tell a session event from an acknowledgement, which is the
 # property the transport design rests on.
 scenario_wrapper_bridging() {
-  scenario "an enrolled wrapper session reaches its orchestrator over the link"
+  scenario "an enrolled wrapper session reaches its owner over the link"
   if ! harness_wrapper_bridges; then
     skip "the wrapper does not tail $HARNESS transcripts (passthrough only)"
     return

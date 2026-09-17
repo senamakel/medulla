@@ -10,37 +10,31 @@ use std::sync::Arc;
 
 use super::types::PaneView;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use medulla::backend::{Backend, MockBackend};
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+/// An app over the mock backend with the demo lanes standing in for a hub:
+/// one agent mid-task, one that has finished.
 fn app() -> App {
-    let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let backend: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let loaded = {
         let mut l = LoadedConfig::defaults("medulla.tui.json".into());
         l.config.link = Some(medulla::config::LinkConfig::default());
         l
     };
-    App::new(rt, loaded)
+    let mut app = App::new(backend, loaded);
+    app.inject_lanes(crate::ui::agents::demo_lanes());
+    app
 }
 
+/// [`app`], with only the running task on the rail.
 fn app_with_running_task() -> App {
-    let rt = MockRuntime::demo();
-    let loaded = {
-        let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
-        loaded.config.link = Some(medulla::config::LinkConfig::default());
-        loaded
-    };
-    let mut app = App::new(Arc::new(rt), loaded);
-    app.snapshot.events.retain(|envelope| {
-        !matches!(
-            &envelope.event,
-            crate::ui::events::TuiEvent::TaskComplete { digest }
-                if digest.task_id == "task-1"
-        )
-    });
+    let mut app = app();
+    let mut lanes = crate::ui::agents::demo_lanes();
+    lanes.retain(|lane| lane.agent_id.as_deref() == Some(crate::ui::agents::DEMO_BUSY_AGENT));
+    app.inject_lanes(lanes);
     app
 }
 
@@ -249,104 +243,6 @@ fn enter_applies_the_open_diff_baseline_picker() {
     );
 }
 
-#[test]
-fn clicking_a_context_chunk_selects_it() {
-    // Context is a Settings *subpage*, not a top-level tab, so the click router
-    // has to match on the subpage — matching on the tab made this branch
-    // unreachable and clicking a chunk silently did nothing.
-    let mut a = app();
-    let _ = a.focus_settings_subpage("Context");
-    assert_eq!(a.settings_subpage(), "Context");
-
-    a.contexts = vec![
-        medulla::runtime::ContextItem {
-            ref_: "a".into(),
-            kind: "file".into(),
-            bytes: 10,
-            content: "alpha".into(),
-        },
-        medulla::runtime::ContextItem {
-            ref_: "b".into(),
-            kind: "file".into(),
-            bytes: 20,
-            content: "bravo".into(),
-        },
-    ];
-    a.hit_context = Some(ratatui::layout::Rect::new(0, 5, 40, 10));
-
-    // Second row inside the hit rect selects the second chunk.
-    let _ = a.handle_click(3, 6);
-    assert_eq!(a.context_index, 1);
-
-    // A click past the last chunk leaves the selection alone.
-    let _ = a.handle_click(3, 9);
-    assert_eq!(a.context_index, 1);
-
-    // A click outside the rect is ignored entirely.
-    let _ = a.handle_click(3, 40);
-    assert_eq!(a.context_index, 1);
-}
-
-/// Forty chunks, more than any Context viewport shows at once.
-fn many_contexts() -> Vec<medulla::runtime::ContextItem> {
-    (0..40)
-        .map(|index| medulla::runtime::ContextItem {
-            ref_: format!("chunk-{index:02}"),
-            kind: "file".into(),
-            bytes: index,
-            content: format!("body {index}"),
-        })
-        .collect()
-}
-
-#[test]
-fn the_context_list_scrolls_to_keep_the_selection_visible() {
-    // Regression: the list always drew from index 0, while the keyboard and the
-    // wheel clamp `context_index` to the last chunk. Past the first page the
-    // selection was off-screen — no row highlighted, and the chunks below the
-    // fold impossible to read.
-    let mut a = app();
-    let _ = a.focus_settings_subpage("Context");
-    a.contexts = many_contexts();
-    a.context_index = 39;
-
-    let screen = render(&mut a);
-
-    assert!(screen.contains("chunk-39"), "the selection is drawn");
-    assert!(
-        !screen.contains("chunk-00"),
-        "and the list has scrolled past the first page"
-    );
-}
-
-#[test]
-fn clicking_a_windowed_context_row_selects_the_chunk_that_is_drawn() {
-    // The click path maps a pane-relative row onto the list, so it has to apply
-    // the same viewport offset the draw did — otherwise clicking the top row of
-    // a scrolled list jumped back to the first chunk.
-    let mut a = app();
-    let _ = a.focus_settings_subpage("Context");
-    a.contexts = many_contexts();
-    a.context_index = 39;
-    // Ten visible rows, so the draw starts at 40 - 10 = 30.
-    a.hit_context = Some(ratatui::layout::Rect::new(0, 5, 40, 10));
-
-    let _ = a.handle_click(3, 5);
-    assert_eq!(a.context_index, 30, "the first drawn row is chunk 30");
-
-    // An unscrolled list still maps a row straight onto its index.
-    a.context_index = 0;
-    let _ = a.handle_click(3, 14);
-    assert_eq!(
-        a.context_index, 9,
-        "the tenth drawn row of an unscrolled list"
-    );
-
-    // A click outside the list rect changes nothing.
-    let _ = a.handle_click(3, 40);
-    assert_eq!(a.context_index, 9);
-}
-
 #[cfg(feature = "workflows")]
 #[test]
 fn the_wheel_scrolls_the_workflow_preview_only_when_the_pointer_is_over_it() {
@@ -488,7 +384,7 @@ fn leaving_the_agents_tab_releases_the_subscription() {
     // advance and a send every tick.
     let mut app = app();
     select_first_task(&mut app).expect("a task to select");
-    app.tab_index = tab("Subconscious");
+    app.tab_index = tab("Feedback");
 
     let Some(Cmd::WatchTask { stop, start }) = app.retarget_watch() else {
         panic!("leaving the tab should release the watch");

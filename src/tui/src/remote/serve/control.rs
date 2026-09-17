@@ -15,7 +15,7 @@
 //! # What is deliberately *not* served here
 //!
 //! Fleet dispatch. [`HubFleetOps`] reads its hub from a slot, and this daemon's
-//! slot is empty and stays empty: there is no orchestrator on a remote host, and
+//! slot is empty and stays empty: there is no dispatcher on a remote host, and
 //! nothing over there to dispatch to. The ops answer hook reports fully and
 //! decline fleet requests, which is the same hub-less shape a login-less TUI
 //! already has — so this is an existing, documented state rather than a new one.
@@ -74,7 +74,7 @@ pub async fn start(
         None => client_dir.join("control.sock"),
     };
     // An empty hub slot, permanently. See the module doc: a remote host has no
-    // orchestrator, so fleet ops are declined while hook reporting — which
+    // dispatcher, so fleet ops are declined while hook reporting — which
     // carries no authority over a hub at all — works fully.
     let hub = Arc::new(std::sync::Mutex::new(None));
     let ops: Arc<dyn FleetOps> = Arc::new(HubFleetOps::new(

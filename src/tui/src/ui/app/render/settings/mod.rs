@@ -17,14 +17,13 @@ use ratatui::Frame;
 use crate::ui::multi_pane;
 
 use super::super::types::{
-    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK, SP_STATUS_LINE,
-    SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
+    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_FEEDBACK, SP_STATUS_LINE, SP_SUBSCRIPTIONS,
+    SP_USAGE,
 };
 
 mod account;
 mod appearance;
 mod config;
-mod debug;
 mod help;
 mod nav;
 mod status_line;
@@ -59,8 +58,6 @@ impl App {
             SP_STATUS_LINE => self.draw_status_line_settings(f, content),
             SP_CONFIG => self.draw_config(f, content),
             SP_FEEDBACK => self.draw_feedback(f, content),
-            SP_TRACE => self.draw_trace(f, content),
-            SP_CONTEXT => self.draw_context(f, content),
             SP_ACCOUNT => self.draw_account(f, content),
             _ => self.draw_help(f, content),
         }

@@ -18,7 +18,7 @@
 //! repository's size ceiling.
 
 use medulla::config::{SidebarGrouping, SidebarSort};
-use medulla::runtime::AgentDeclaration;
+use medulla::fleet::AgentDeclaration;
 
 use super::{AgentGroup, GroupRailRow, HostGroup, SessionRailRow};
 

@@ -16,10 +16,10 @@ use crossterm::event::{
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 use medulla_tui::ui::app::{App, TABS};
 use medulla_tui::ui::harness_pane::LocalSessions;
 use medulla_tui::worker::pty::{LaunchSpec, PtyManager, SessionControl};
@@ -35,7 +35,7 @@ pub fn app_with_harnesses(sessions: PtyManager) -> App {
 
 /// Variant whose picker and shell child use an isolated workspace.
 pub fn app_with_workspace(sessions: PtyManager, workspace: &str) -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.tab_index = TABS.iter().position(|t| *t == "Sessions").unwrap();
 
@@ -82,7 +82,7 @@ pub fn app_with_workspace(sessions: PtyManager, workspace: &str) -> App {
         runtimes: std::sync::Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: workspace.to_string(),
         providers: vec![HarnessProvider::Codex],
@@ -178,14 +178,11 @@ pub fn user_session(sessions: &PtyManager) -> String {
 
 /// The same session, but created by dispatch rather than by a person.
 ///
-/// Origin is immutable and is what decides whether the orchestrator has a claim
+/// Origin is immutable and is what decides whether the dispatcher has a claim
 /// on a session, so a test about the release question has to be able to open one
 /// of each — the two differ in nothing else.
-pub fn orchestrator_session(sessions: &PtyManager) -> String {
-    session_with_origin(
-        sessions,
-        medulla_tui::worker::pty::SessionOrigin::Orchestrator,
-    )
+pub fn dispatched_session(sessions: &PtyManager) -> String {
+    session_with_origin(sessions, medulla_tui::worker::pty::SessionOrigin::Task)
 }
 
 fn session_with_origin(

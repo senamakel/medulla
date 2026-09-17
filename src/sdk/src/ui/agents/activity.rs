@@ -1,23 +1,15 @@
-//! Fold locally-observed worker activity into the Agents-view lanes.
+//! Fold the hub's observed worker activity into the agent lanes.
 //!
-//! [`derive_agent_lanes`](super::derive_agent_lanes) fills a lane's tasks and
-//! turns from the render snapshot's event log — which is filled from the
-//! *backend's* SSE stream. That stream carries `user`, `assistant`, `cycle_*`
-//! and the token deltas, and nothing at all about delegated tasks. So against a
-//! real backend a worker lane is structurally guaranteed to render idle, no
-//! matter how much work is running: the only events that could say otherwise are
-//! produced solely by the scripted mock runtime.
-//!
-//! The orchestrator hub has the truth in-process — it dispatched the task and
-//! every frame comes back through its inbox. This module projects that onto the
-//! lanes it belongs to, the same way [`merge_host_roster`](super::roster) puts
+//! The hub has the truth in-process — it dispatched the task and every frame
+//! comes back through its inbox. This module projects that onto the lanes it
+//! belongs to, the same way [`merge_host_roster`](super::roster) puts
 //! locally-registered workers on the tab in the first place.
 
 use std::collections::HashMap;
 
 use crate::hub::WorkerActivity;
 
-use super::types::{AgentLane, AgentRole, TaskState, TaskStatus, TurnBlock};
+use super::types::{AgentLane, TaskState, TaskStatus, TurnBlock};
 
 /// Fold `activity` into the worker lanes of `lanes`, in place.
 ///
@@ -37,9 +29,6 @@ pub fn merge_host_activity(lanes: &mut [AgentLane], activity: &[WorkerActivity])
     }
 
     for lane in lanes.iter_mut() {
-        if lane.role != AgentRole::Agent {
-            continue;
-        }
         let Some(agent_id) = lane.agent_id.clone() else {
             continue;
         };

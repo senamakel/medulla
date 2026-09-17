@@ -7,7 +7,7 @@
 
 use super::{HostAgentRow, HostKind, HostRow};
 use crate::config::LocalHostRef;
-use crate::runtime::{AgentDeclaration, WorkerInfo};
+use crate::fleet::{AgentDeclaration, WorkerInfo};
 
 /// Build the `Host → Agents` tree.
 ///

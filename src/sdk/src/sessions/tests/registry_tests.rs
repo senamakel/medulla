@@ -165,15 +165,15 @@ async fn only_unbound_turns_take_the_conversation_chain() {
 // ---------------------------------------------------------------- identity ---
 
 #[test]
-fn an_unrecorded_conversation_plans_as_an_unnamed_orchestrator_session() {
+fn an_unrecorded_conversation_plans_as_an_unnamed_task_session() {
     // The auto-creation default (§4.1): a turn nobody opened by hand is serving
     // a dispatch, and only a person supplies a name.
     let registry = SessionRegistry::default();
     let alice = key("alice", HarnessProvider::Claude);
 
     let plan = registry.plan(&alice, SessionClass::Unbound);
-    assert_eq!(plan.identity, SessionIdentity::orchestrator());
-    assert!(plan.identity.origin().is_orchestrator());
+    assert_eq!(plan.identity, SessionIdentity::task());
+    assert!(plan.identity.origin().is_dispatch());
     assert_eq!(plan.identity.name, None);
     assert_eq!(registry.identity(&alice), None, "nothing is bound yet");
 }
@@ -234,10 +234,7 @@ fn identity_is_per_conversation_like_every_other_binding_field() {
     registry.record(&bob, "sess-2");
     registry.record_identity(&alice, SessionIdentity::user(Some("mine".into())));
 
-    assert_eq!(
-        registry.identity(&bob),
-        Some(SessionIdentity::orchestrator())
-    );
+    assert_eq!(registry.identity(&bob), Some(SessionIdentity::task()));
 }
 
 #[test]
@@ -253,7 +250,7 @@ fn a_bound_sessions_origin_cannot_be_flipped_by_recording_another_identity() {
     registry.record_identity(&alice, SessionIdentity::user(Some("debug login".into())));
 
     // The flip attempt, in both directions from both ends.
-    assert!(registry.record_identity(&alice, SessionIdentity::orchestrator()));
+    assert!(registry.record_identity(&alice, SessionIdentity::task()));
     let held = registry
         .identity(&alice)
         .expect("the binding is still there");
@@ -271,10 +268,10 @@ fn a_bound_sessions_origin_cannot_be_flipped_by_recording_another_identity() {
     // person's by asserting a user identity over it.
     let bob = key("bob", HarnessProvider::Claude);
     registry.record(&bob, "sess-2");
-    registry.record_identity(&bob, SessionIdentity::orchestrator());
+    registry.record_identity(&bob, SessionIdentity::task());
     registry.record_identity(&bob, SessionIdentity::user(Some("mine now".into())));
     let held = registry.identity(&bob).expect("the binding is still there");
-    assert_eq!(held.origin(), SessionOrigin::Orchestrator);
+    assert_eq!(held.origin(), SessionOrigin::Task);
 }
 
 #[test]

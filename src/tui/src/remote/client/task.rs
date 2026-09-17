@@ -26,6 +26,17 @@ use crate::worker::pty::ScreenSnapshot;
 /// frame that has arrived is folded on the next tick.
 const TICK: Duration = Duration::from_millis(50);
 
+/// How often the task says `Hello` again.
+///
+/// The link survives the daemon restarting — the transport rebases and keeps
+/// going — but a restarted daemon has a fresh, empty session list and no idea
+/// this client exists until it hears from it. A periodic `Hello` is answered
+/// with the host's capabilities and its current sessions, so a restart on the
+/// far side is noticed and the rail corrected within one interval, and a
+/// paired host that was down when the TUI started is picked up when it comes
+/// back. Cheap: two small messages on the reliable channel.
+const HELLO_EVERY: Duration = Duration::from_secs(5);
+
 /// What the App asks of a connected host.
 #[derive(Debug)]
 pub enum RemoteRequest {
@@ -57,6 +68,15 @@ pub enum RemoteRequest {
     },
     /// End a session.
     Close(String),
+    /// Run one workflow operation on the host's own store.
+    WorkflowCall {
+        /// Correlates the answer.
+        request_id: String,
+        /// The tool name — a `store_*` read or a `workflow_*` MCP tool.
+        tool: String,
+        /// The tool's arguments.
+        args: serde_json::Value,
+    },
 }
 
 /// What a connected host tells the App.
@@ -84,6 +104,18 @@ pub enum RemoteUpdate {
         /// The screen, ready for the ordinary renderer.
         snapshot: Box<ScreenSnapshot>,
     },
+    /// The host answered a workflow call.
+    WorkflowResult {
+        /// Echoes the request.
+        request_id: String,
+        /// The tool's JSON, or the host's reason.
+        result: Result<serde_json::Value, String>,
+    },
+    /// How recently the host was heard from changed.
+    ///
+    /// Advisory (protocol §6.2): the link keeps retransmitting, so `Offline`
+    /// is a hint for the rail, never a reason to drop the connection.
+    Liveness(medulla::bridge::BridgeLiveness),
 }
 
 /// Bring `section` up and serve it until the request channel closes.
@@ -100,7 +132,14 @@ pub async fn run(
     mut requests: tokio::sync::mpsc::UnboundedReceiver<RemoteRequest>,
     updates: tokio::sync::mpsc::UnboundedSender<(String, RemoteUpdate)>,
 ) {
-    let mut host = match RemoteHost::connect(&host_id, &section, &state_dir, &workspace).await {
+    // A paired host is dialled straight at the port its key named; an entry
+    // with only SSH details is bootstrapped the older way.
+    let connected = if section.paired() {
+        RemoteHost::dial(&host_id, &section, &state_dir).await
+    } else {
+        RemoteHost::connect(&host_id, &section, &state_dir, &workspace).await
+    };
+    let mut host = match connected {
         Ok(host) => host,
         Err(reason) => {
             let _ = updates.send((host_id, RemoteUpdate::Failed(reason)));
@@ -124,8 +163,17 @@ pub async fn run(
     // holds the previous session's, and an equal grid looks like "nothing
     // changed".
     let mut last_screen: Option<(String, ScreenSnapshot)> = None;
+    let mut last_liveness: Option<medulla::bridge::BridgeLiveness> = None;
+    let mut last_hello = std::time::Instant::now();
+    let mut last_capabilities: Option<RemoteCapabilities> = None;
 
     loop {
+        if last_hello.elapsed() >= HELLO_EVERY {
+            last_hello = std::time::Instant::now();
+            // A failed send here is the link's queue being full, which the
+            // next request will report properly; a missed hello is not news.
+            let _ = host.hello().await;
+        }
         // Requests first, so a keystroke is not held behind a tick.
         while let Ok(request) = requests.try_recv() {
             let _ = serve(&mut host, request, &host_id, &updates).await;
@@ -150,12 +198,19 @@ pub async fn run(
                     session_id,
                 },
                 super::PumpEvent::OpenFailed(reason) => RemoteUpdate::OpenFailed(reason),
+                super::PumpEvent::WorkflowResult { request_id, result } => {
+                    RemoteUpdate::WorkflowResult { request_id, result }
+                }
             };
             let _ = updates.send((host_id.clone(), update));
         }
 
-        if answered && !announced {
+        // Announced on the first answer, and again whenever a later `Hello`
+        // answers differently: a daemon restarted with another harness set
+        // or version must not leave the picker offering the old one.
+        if answered && (!announced || last_capabilities.as_ref() != Some(host.capabilities())) {
             announced = true;
+            last_capabilities = Some(host.capabilities().clone());
             let _ = updates.send((
                 host_id.clone(),
                 RemoteUpdate::Connected(Box::new(host.capabilities().clone())),
@@ -176,6 +231,16 @@ pub async fn run(
                     snapshot: Box::new(update.1),
                 },
             ));
+        }
+
+        // Reported on change only, and only once the host has answered: a
+        // link that has not heard anything yet is "connecting", not "offline".
+        if answered {
+            let liveness = host.liveness().await;
+            if last_liveness != Some(liveness) {
+                last_liveness = Some(liveness);
+                let _ = updates.send((host_id.clone(), RemoteUpdate::Liveness(liveness)));
+            }
         }
 
         if requests.is_closed() && requests.is_empty() {
@@ -241,6 +306,11 @@ async fn serve(
         RemoteRequest::Input(bytes) => host.input(&bytes).await,
         RemoteRequest::Resize { cols, rows } => host.resize(cols, rows).await,
         RemoteRequest::Close(session_id) => host.close(&session_id).await,
+        RemoteRequest::WorkflowCall {
+            request_id,
+            tool,
+            args,
+        } => host.workflow_call(&request_id, &tool, args).await,
     };
     if let Err(reason) = &result {
         // Surfaced rather than swallowed: a request that silently does nothing

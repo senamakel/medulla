@@ -57,7 +57,7 @@ fn shell_sessions(workspace: &str) -> LocalSessions {
         runtimes: Arc::new(std::sync::Mutex::new(vec![
             medulla::daemon::DaemonRuntime::new(config, run_task, send),
         ])),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env,
         workspace: workspace.to_string(),
         providers: Vec::new(),
@@ -200,7 +200,9 @@ async fn watching_a_second_session_moves_the_stream() {
                     .into_iter()
                     .filter_map(|event| match event {
                         PumpEvent::Opened(id) => Some(id),
-                        PumpEvent::Connected | PumpEvent::OpenFailed(_) => None,
+                        PumpEvent::Connected
+                        | PumpEvent::OpenFailed(_)
+                        | PumpEvent::WorkflowResult { .. } => None,
                     }),
             );
             tokio::time::sleep(Duration::from_millis(20)).await;

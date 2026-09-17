@@ -2,7 +2,7 @@
 //! subscriber may watch, and starting or stopping the stream that answers.
 //!
 //! This is the half of the protocol the worker *receives*, and its subscribers
-//! are **watchers**: an orchestrator observing the tasks it dispatched. The
+//! are **watchers**: a dispatcher observing the tasks it dispatched. The
 //! vocabulary is deliberately tiny — subscribe, unsubscribe, acknowledge, and an
 //! explicit kill. Kill is resolved through the same task ownership check as
 //! subscribe, so a controller can stop only a harness running work that

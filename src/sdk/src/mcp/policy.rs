@@ -4,7 +4,7 @@
 ///
 /// Presets assigned to another host must neither be advertised by
 /// `workflow_host` nor used by the local daemon that `workflow_run` starts.
-pub(super) fn policy_from_loaded(
+pub fn policy_from_loaded(
     loaded: crate::config::LoadedConfig,
 ) -> crate::workflows::ops::HostPolicy {
     let local_host_id = loaded.config.host.effective_address();

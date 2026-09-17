@@ -95,7 +95,7 @@ async fn a_started_host_advertises_this_machine_to_the_hub() {
     );
     // Structured, not only prose: the backend places the agent from
     // `metadata.workspace`, and a path buried in the description does not
-    // reach it — the orchestrator would see a host with no workspace at all.
+    // reach it — the dispatcher would see a host with no workspace at all.
     assert_eq!(
         spec.workspace.as_ref().map(|w| w.path.as_str()),
         Some(host.workspace())

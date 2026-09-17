@@ -15,12 +15,12 @@
 
 use super::*;
 
-/// The default re-entry depth: the orchestrator dispatches, and the agents it
+/// The default re-entry depth: the dispatcher dispatches, and the agents it
 /// dispatched may each dispatch once more.
 ///
 /// Two rather than one because a single level makes the fleet tools nearly
-/// pointless — the orchestrator can already fan out, and the reason to give an
-/// agent these tools is that it has context the orchestrator lacks. Two rather
+/// pointless — the dispatcher can already fan out, and the reason to give an
+/// agent these tools is that it has context the dispatcher lacks. Two rather
 /// than unbounded because every level is a real harness session costing real
 /// money, and a tree nobody chose the shape of is a tree nobody can reason
 /// about.
@@ -43,7 +43,7 @@ pub struct McpSection {
     /// withheld.
     ///
     /// Counted from the operator's own turn: at `0` no spawned harness may
-    /// dispatch, at `1` only those the orchestrator spawned directly, and so on.
+    /// dispatch, at `1` only those the dispatcher spawned directly, and so on.
     /// The limit is enforced against the grant the server minted, not against
     /// anything the harness reports about itself, so a model cannot talk its way
     /// past it.
