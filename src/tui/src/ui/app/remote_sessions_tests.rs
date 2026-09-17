@@ -5,7 +5,9 @@
 //! already used, so a mistake in the parsing would not fail loudly — it would
 //! quietly send a local keystroke nowhere.
 
+use crossterm::event::{Event, KeyModifiers, MouseEvent, MouseEventKind};
 use medulla::protocol::{RemoteAttention, RemoteSessionRow, RemoteSessionState};
+use ratatui::layout::Rect;
 
 use super::remote_sessions::{qualify, session_row, SessionRef};
 
@@ -213,6 +215,52 @@ fn writing_to_a_disconnected_host_says_so_rather_than_appearing_to_work() {
         .session_write_for_test("tower/w_1", b"ls\r")
         .expect_err("a host with no connection cannot accept input");
     assert!(error.contains("not connected"), "unhelpful error: {error}");
+}
+
+#[test]
+fn a_wheel_over_a_remote_codex_pane_reaches_its_body_with_relative_coordinates() {
+    // The prompt already uses `session_write`, which resolves a qualified id to
+    // the host link. The wheel used to bypass that seam and ask the local PTY
+    // manager for `tower/w_1`; that manager cannot own a remote id, so it
+    // silently lost the event. Exercise the whole pointer route from its
+    // absolute terminal position to the input request the host receives.
+    let mut codex = remote_row("w_1");
+    codex.provider = "codex".to_string();
+    let mut app = app_with_host(vec![codex]);
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    app.remote_host_dialling("tower", tx);
+    app.hit_session = Some((Rect::new(20, 4, 80, 30), "tower/w_1".to_string()));
+
+    let _ = app.on_event(Event::Mouse(MouseEvent {
+        kind: MouseEventKind::ScrollUp,
+        column: 27,
+        row: 13,
+        modifiers: KeyModifiers::NONE,
+    }));
+
+    let sent = rx
+        .try_recv()
+        .expect("the remote Codex host receives the wheel");
+    assert!(
+        matches!(sent, crate::remote::client::RemoteRequest::Input(bytes)
+            if bytes == b"\x1b[<64;8;10M"),
+        "the SGR event must retain the pointer location inside the Codex pane"
+    );
+
+    let _ = app.on_event(Event::Mouse(MouseEvent {
+        kind: MouseEventKind::ScrollDown,
+        column: 27,
+        row: 13,
+        modifiers: KeyModifiers::NONE,
+    }));
+    let sent = rx
+        .try_recv()
+        .expect("the remote Codex host receives downward scrolling too");
+    assert!(
+        matches!(sent, crate::remote::client::RemoteRequest::Input(bytes)
+            if bytes == b"\x1b[<65;8;10M"),
+        "a downward wheel must preserve the same body location"
+    );
 }
 
 /// A 1×1 blank screen, enough to stand in for a frame.

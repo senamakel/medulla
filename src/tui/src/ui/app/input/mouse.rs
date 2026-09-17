@@ -342,12 +342,12 @@ impl App {
         // be the wrapper getting in the way.
         if let Some((rect, session)) = self.hit_session.clone() {
             if rect.contains((x, y).into()) {
-                if let Some(harnesses) = self.local_sessions.clone() {
-                    // Pane-relative: the child believes its screen starts at its
-                    // own origin, and reporting our absolute position would put
-                    // the event somewhere else entirely on it.
-                    harnesses.scroll(&session, x - rect.x, y - rect.y, up, SCROLL_ROWS);
-                }
+                // Pane-relative: the child believes its screen starts at its
+                // own origin, and reporting our absolute position would put
+                // the event somewhere else entirely on it. `session_scroll`
+                // then sends it to either this machine's PTY or the remote
+                // host that owns the rendered screen.
+                self.session_scroll(&session, x - rect.x, y - rect.y, up, SCROLL_ROWS);
                 return;
             }
         }
