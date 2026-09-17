@@ -2,9 +2,9 @@
 //!
 //! The terminal application has no browser SDK, so this module sends the
 //! documented OpenPanel HTTP payload directly. It deliberately records only
-//! lifecycle events and the authenticated account id: prompts, tokens,
-//! workspace paths, configuration, and command arguments never enter this
-//! boundary. Set [`DISABLED_ENV`] to opt out before Medulla starts.
+//! lifecycle events, aggregate token counts, and the authenticated account id:
+//! prompts, workspace paths, configuration, and command arguments never enter
+//! this boundary. Set [`DISABLED_ENV`] to opt out before Medulla starts.
 
 mod types;
 
@@ -39,7 +39,16 @@ pub async fn record_application_started(user_id: &str) -> Result<(), AnalyticsEr
         return Ok(());
     };
     tracker.identify(user_id).await?;
-    tracker.track("application_started", user_id).await
+    tracker
+        .track_with_properties(
+            "application_started",
+            user_id,
+            json!({
+                "os": std::env::consts::OS,
+                "architecture": std::env::consts::ARCH,
+            }),
+        )
+        .await
 }
 
 /// Identify an account and record a completed sign-in.
@@ -70,6 +79,23 @@ pub async fn record_screen_view(screen: &str) -> Result<(), AnalyticsError> {
 /// Record a normalized TUI interaction name for the current profile.
 pub async fn record_ui_action(action: &str) -> Result<(), AnalyticsError> {
     record_current("ui_action", json!({ "action": action })).await
+}
+
+/// Record provider-reported aggregate token counters for the current profile.
+///
+/// Counts are emitted only after the harness parsed them from its own protocol;
+/// no prompt or completion text crosses this boundary.
+pub fn record_token_usage(input_tokens: i64, output_tokens: i64) {
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    runtime.spawn(async move {
+        let _ = record_current(
+            "token_usage_reported",
+            json!({ "input_tokens": input_tokens, "output_tokens": output_tokens }),
+        )
+        .await;
+    });
 }
 
 /// A narrow OpenPanel HTTP client used only for Medulla lifecycle events.

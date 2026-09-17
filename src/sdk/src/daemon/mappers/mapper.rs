@@ -82,6 +82,7 @@ impl HarnessLineMapper {
             if let Ok(value) = serde_json::from_str::<Value>(raw) {
                 if let Some(usage) = scan_usage(&value, 0) {
                     self.usage = Some(usage);
+                    crate::analytics::record_token_usage(usage.input_tokens, usage.output_tokens);
                 }
             }
         }
