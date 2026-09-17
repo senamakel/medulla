@@ -150,7 +150,7 @@ fn sgr(button: u8, col: u16, row: u16, press: bool) -> Vec<u8> {
 /// to enable mouse reporting. The provider-specific fallback uses this after
 /// its input layer is known to be ready, preserving the pointer coordinates
 /// that cursor-key emulation necessarily loses.
-pub(super) fn sgr_wheel(col: u16, row: u16, up: bool) -> Vec<u8> {
+pub(crate) fn sgr_wheel(col: u16, row: u16, up: bool) -> Vec<u8> {
     let button = if up {
         BUTTON_WHEEL_UP
     } else {

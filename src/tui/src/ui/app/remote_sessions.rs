@@ -226,6 +226,54 @@ impl App {
         }
     }
 
+    /// Forward a wheel notch to the session under the pointer.
+    ///
+    /// Local sessions can inspect their PTY's negotiated mouse modes, so their
+    /// full fallback policy remains in [`LocalSessions::scroll`]. A remote PTY
+    /// is opaque to this client; its advertised provider and bracketed-paste
+    /// mode are the capability surface that crosses the host link. Codex uses
+    /// that ready mode while accepting SGR mouse events without negotiating
+    /// DECSET mouse reporting, so preserve the pane-relative coordinates and
+    /// send the same event through the remote input channel.
+    pub(in crate::ui::app) fn session_scroll(
+        &mut self,
+        id: &str,
+        col: u16,
+        row: u16,
+        up: bool,
+        rows: usize,
+    ) {
+        match SessionRef::parse(id) {
+            SessionRef::Local(id) => {
+                if let Some(local) = self.local_sessions.as_ref() {
+                    local.scroll(id, col, row, up, rows);
+                }
+            }
+            SessionRef::Remote { host, session } => {
+                let Some(state) = self.remote_hosts.get_mut(host) else {
+                    return;
+                };
+                let codex_ready = state
+                    .rows
+                    .iter()
+                    .find(|item| item.id == session)
+                    .is_some_and(|item| {
+                        item.provider == "codex"
+                            && item.bracketed_paste
+                            && matches!(item.state, RemoteSessionState::Running)
+                    });
+                if codex_ready {
+                    let bytes = crate::ui::harness_pane::mouse::sgr_wheel(col, row, up);
+                    // Wheel notches are best-effort just like the local PTY
+                    // path: the host may disconnect after the screen was
+                    // drawn, and a single lost notch is not a reason to detach
+                    // a session whose keyboard input can still recover.
+                    let _ = state.request(crate::remote::client::RemoteRequest::Input(bytes));
+                }
+            }
+        }
+    }
+
     /// Stream a remote session's screen, so the pane has something to draw.
     ///
     /// A no-op for a local session, which needs no subscription — its emulator
