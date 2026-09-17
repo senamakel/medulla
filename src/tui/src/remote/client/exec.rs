@@ -153,6 +153,8 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
                 super::PumpEvent::OpenFailed(reason) => {
                     anyhow::bail!("{host_id} could not start it: {reason}");
                 }
+                // Nothing here asked a workflow question.
+                super::PumpEvent::WorkflowResult { .. } => {}
             }
         }
         tokio::time::sleep(Duration::from_millis(50)).await;

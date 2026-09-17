@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use medulla::bridge::LocalBridgeNetwork;
 use medulla::config::HostSection;
 use medulla::daemon::providers::{Abort, RunTaskOptions};
+use medulla::fleet::AgentDeclaration;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::AgentDeclaration;
 use medulla_tui::worker::executor::PtySessionExecutor;
 use medulla_tui::worker::pty::PtyManager;
 
@@ -109,7 +109,7 @@ async fn claude_and_codex_still_reach_the_pty_executor() {
 /// it started in its own workspace; a task frame names a task, a prompt and at
 /// most a harness, never which agent was selected. So two agents declared on one
 /// host for two different repositories would both run in the host's directory
-/// while advertising two — and the orchestrator's placement, the operator's
+/// while advertising two — and the sender's placement, the operator's
 /// mental model, and the files that actually change would all disagree.
 ///
 /// Until the wire carries the selected agent's id, the second declaration is

@@ -5,7 +5,7 @@
 use crate::ui::util::wrap;
 
 use super::rows::ordered_tasks;
-use super::types::{AgentLane, AgentRole, Line, TaskState, TurnBlock};
+use super::types::{AgentLane, Line, TaskState, TurnBlock};
 
 /// Render a run of turn blocks into styled, pre-wrapped display rows.
 fn blocks_to_lines(turns: &[TurnBlock], cols: usize) -> Vec<Line> {
@@ -72,12 +72,12 @@ fn blocks_to_lines(turns: &[TurnBlock], cols: usize) -> Vec<Line> {
     lines
 }
 
-/// Flatten a lane's turns into pre-wrapped, styled rows. Agent-identity lanes
-/// group turns under each task; others render their flat transcript.
+/// Flatten a lane's turns into pre-wrapped, styled rows. A lane with tasks
+/// groups turns under each task; one without renders its flat transcript.
 pub fn lane_lines(lane: Option<&AgentLane>, width: usize) -> Vec<Line> {
     let Some(lane) = lane else { return Vec::new() };
     let cols = width.max(20);
-    if lane.role == AgentRole::Agent && lane.key.starts_with("agent:") && !lane.tasks.is_empty() {
+    if !lane.tasks.is_empty() {
         let mut lines = Vec::new();
         for task in ordered_tasks(&lane.tasks) {
             lines.push(Line {

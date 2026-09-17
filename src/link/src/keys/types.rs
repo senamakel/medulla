@@ -46,8 +46,10 @@ pub type KeyResult<T> = Result<T, KeyError>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
-    /// The medulla orchestrator. Sets the direction bit.
-    Orchestrator,
+    /// The owner side: the `medulla` that dispatches over the link. Sets the
+    /// direction bit.
+    #[serde(alias = "orchestrator")]
+    Owner,
     /// A remote host. Clears the direction bit.
     Host,
 }
@@ -56,7 +58,7 @@ impl Role {
     /// The §4.2 direction bit for datagrams **sent** by a node in this role.
     pub fn direction_bit(self) -> u64 {
         match self {
-            Role::Orchestrator => crate::crypto::DIRECTION_MASK,
+            Role::Owner => crate::crypto::DIRECTION_MASK,
             Role::Host => 0,
         }
     }
@@ -64,8 +66,8 @@ impl Role {
     /// The role at the other end of the link.
     pub fn peer(self) -> Role {
         match self {
-            Role::Orchestrator => Role::Host,
-            Role::Host => Role::Orchestrator,
+            Role::Owner => Role::Host,
+            Role::Host => Role::Owner,
         }
     }
 }
@@ -175,11 +177,16 @@ impl<'de> Deserialize<'de> for ForwarderKey {
 /// its `Debug` is redacted.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodeState {
-    /// Schema version of this file. `1`.
+    /// Schema version of this file.
+    ///
+    /// `1` files predate the `peers` list: their single peer lives in
+    /// [`peer_node_id`](Self::peer_node_id) and [`pair_key`](Self::pair_key).
+    /// `2` files keep every peer in [`peers`](Self::peers), and an empty list
+    /// there means *no peers* rather than "look at the legacy fields".
     pub version: u32,
     /// This node's wire identifier.
     pub node_id: NodeId,
-    /// Orchestrator or host — fixes the direction bit.
+    /// Owner or host — fixes the direction bit.
     pub role: Role,
     /// The end-to-end key. Never leaves this file and the user's hands.
     pub pair_key: PairKey,
@@ -187,7 +194,7 @@ pub struct NodeState {
     pub forwarder_key: ForwarderKey,
     /// `host:port` of the forwarder to send datagrams to.
     pub forwarder_endpoint: String,
-    /// The node id of the peer this link talks to (the orchestrator, for a host).
+    /// The node id of the peer this link talks to (the owner, for a host).
     pub peer_node_id: NodeId,
     /// Every enrolled peer and its distinct pair key. Empty in version-1 files,
     /// which fall back to `peer_node_id` and `pair_key` above.
@@ -209,8 +216,13 @@ pub struct EnrolledPeer {
 
 impl NodeState {
     /// Return every enrolled peer, including the legacy single-peer fields.
+    ///
+    /// The legacy fallback applies to version-1 files only. A version-2 client
+    /// identity is minted before its first host is paired, so an empty `peers`
+    /// list is a real state there; falling back would open a session to
+    /// whatever placeholder `peer_node_id` holds.
     pub fn enrolled_peers(&self) -> Vec<EnrolledPeer> {
-        if self.peers.is_empty() {
+        if self.peers.is_empty() && self.version <= 1 {
             vec![EnrolledPeer {
                 node_id: self.peer_node_id,
                 pair_key: self.pair_key.clone(),

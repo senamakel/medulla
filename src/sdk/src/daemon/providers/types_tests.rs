@@ -17,7 +17,7 @@ use super::RunTaskOrigin;
 
 #[test]
 fn work_somebody_asked_for_has_an_operator_in_the_loop() {
-    // Not "a human typed it": an orchestrator relaying a delegated task is
+    // Not "a human typed it": a dispatcher relaying a delegated task is
     // acting for somebody, and that somebody can attach to the session.
     assert!(RunTaskOrigin::DelegatedTask.has_operator_in_the_loop());
     assert!(RunTaskOrigin::Conversation.has_operator_in_the_loop());

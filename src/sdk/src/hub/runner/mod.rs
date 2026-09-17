@@ -8,7 +8,7 @@
 //! out to the right waiter.
 //!
 //! The inbound routing lives in [`pump`]; this module owns dispatch, the liveness
-//! bounds, and orchestrator-driven abort.
+//! bounds, and dispatcher-driven abort.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -41,7 +41,7 @@ const ACK_WINDOW: Duration = Duration::from_secs(12);
 /// as dead, reaps the correlation entry, and gives up. Reset by every frame, so a
 /// worker that keeps emitting `status` is never given up on however long it runs.
 ///
-/// This is a liveness bound, NOT a task deadline. The orchestrator owns the
+/// This is a liveness bound, NOT a task deadline. The dispatcher owns the
 /// deadline — "how long may this task take" — and aborts a running task in sync
 /// mode via `medulla:task_abort`. The hub's only job here is to make sure a
 /// crashed or vanished worker (which stops sending frames) cannot pin its
@@ -105,7 +105,7 @@ const LIVENESS_TICK: Duration = Duration::from_millis(100);
 /// disabled.
 ///
 /// The gate is evaluated for `peer`, never for the link as a whole (§6.3): an
-/// orchestrator holds sessions with many hosts, and one laptop going to sleep
+/// dispatcher holds sessions with many hosts, and one laptop going to sleep
 /// must not stop every other host's clock.
 ///
 /// A bridge with no notion of reachability (the in-memory bus, every test fake)
@@ -266,7 +266,7 @@ impl TaskRunner {
         }
     }
 
-    /// Cancel the in-flight dispatch for `task_id` (the orchestrator-facing id the
+    /// Cancel the in-flight dispatch for `task_id` (the sender-facing id the
     /// backend aborts by, `medulla:task_abort.taskId`).
     ///
     /// Wakes that dispatch's [`run`](Self::run) so it tells the worker to stop,
@@ -426,7 +426,7 @@ impl TaskRunner {
         // Register this dispatch's abort signal FIRST, so a `task_abort` that
         // arrives before the first frame goes out is honored rather than silently
         // dropped by finding nothing in the registry. Keyed by the
-        // orchestrator-facing id the backend aborts by, and held for the whole
+        // sender-facing id the backend aborts by, and held for the whole
         // call (spanning any reset+resend retries). The guard removes it on every
         // return path, so a settled dispatch leaves nothing for a later
         // `task_abort` to match.
@@ -508,7 +508,7 @@ impl TaskRunner {
                 }
             }
 
-            // Ack window: first sign of life, an early terminal, an orchestrator
+            // Ack window: first sign of life, an early terminal, a dispatcher
             // abort, or silence.
             tokio::select! {
                 biased;

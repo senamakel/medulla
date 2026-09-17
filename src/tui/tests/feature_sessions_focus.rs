@@ -1,10 +1,10 @@
 //! Feature tests for Agents-tab navigation: the rail holds the keyboard, bare
 //! arrows walk it, and a click selects the row under the pointer.
 //!
-//! This file used to pin a focus *split* — the tab merged the orchestrator's
+//! This file used to pin a focus *split* — the tab merged the sender's
 //! composer with the rail, one terminal keyboard drove both, and which of them
 //! had it was a state the operator could neither see nor reliably move. There is
-//! no composer here any more: the orchestrator is a subconscious layer rather
+//! no composer here any more: the dispatcher is a background layer rather
 //! than something typed at, so the rail is the only thing on the tab that takes
 //! keys. What is left to pin is that it always does, including on the rows that
 //! used to hand the keyboard away.
@@ -17,9 +17,9 @@ use crossterm::event::{
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
 use medulla::protocol::HarnessProvider;
-use medulla::runtime::mock::MockRuntime;
 use medulla_tui::ui::app::App;
 use medulla_tui::ui::harness_pane::LocalSessions;
 use medulla_tui::worker::pty::PtyManager;
@@ -30,8 +30,9 @@ use medulla_tui::worker::pty::PtyManager;
 /// can start one, and without it the demo fixture's single dispatched session is
 /// the whole rail — one row, which no arrow can move off.
 fn agents_app() -> App {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let mut app = App::new(rt, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.inject_lanes(medulla_tui::ui::agents::demo_lanes());
     app.tab_index = medulla_tui::ui::app::TABS
         .iter()
         .position(|t| *t == "Sessions")
@@ -41,7 +42,7 @@ fn agents_app() -> App {
         log: None,
         sessions: PtyManager::new(),
         runtimes: Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env: std::collections::HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],
@@ -49,7 +50,6 @@ fn agents_app() -> App {
         router: None,
         attribution: true,
     });
-    app.refresh_snapshot();
     app
 }
 
@@ -131,7 +131,7 @@ fn bare_arrows_walk_the_rail() {
 
 #[test]
 fn the_rail_keeps_the_keyboard_on_every_row() {
-    // Printable keys used to hop the cursor to the orchestrator's lane and type
+    // Printable keys used to hop the cursor to the dispatch lane and type
     // there. With no composer to type into, a character must leave the cursor
     // exactly where it was rather than moving it somewhere invisible.
     let mut app = agents_app();

@@ -2,18 +2,18 @@
 
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::{
     AppearanceConfig, ControlStyle, FieldPlacement, HarnessNameStyle, LoadedConfig, PathStyle,
     StatusLineConfig, TuiConfig,
 };
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 
 use super::{StatusLineField, STATUS_LINE_ROWS};
 use crate::ui::app::App;
 
 fn app(path: &std::path::Path) -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults(path.display().to_string()));
     app.set_config_path(path.to_path_buf());
     app
@@ -95,7 +95,7 @@ fn styles_cycle_and_persist_separately_from_placement() {
 
 #[test]
 fn a_change_without_a_config_path_still_applies_live() {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("unused.toml".into()));
     app.status_line_index = row_of(StatusLineField::Branch);
 
@@ -137,7 +137,7 @@ fn first_edit_persists_the_complete_legacy_derived_layout() {
     )
     .unwrap();
 
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults(path.display().to_string());
     loaded.config.appearance.show_harness_branch = false;
     loaded.config.appearance.show_harness_path = false;
@@ -163,7 +163,7 @@ fn failed_legacy_promotion_retries_the_complete_section() {
     )
     .unwrap();
 
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut loaded = LoadedConfig::defaults(path.display().to_string());
     loaded.config.appearance.show_harness_branch = false;
     loaded.config.appearance.show_harness_path = false;

@@ -9,7 +9,7 @@
 //! That leaves the interesting half of a turn's progress indistinguishable from
 //! the chatter around it: `running workflow_apply_ops: …` arrived looking
 //! exactly like `thinking`, so the copilot drew both as dim `·` lines while the
-//! orchestrator beside it drew its tool calls as `⏺` with a summary. This module
+//! dispatcher beside it drew its tool calls as `⏺` with a summary. This module
 //! recovers the distinction.
 //!
 //! The parse is deliberately anchored on [`crate::daemon::TOOL_PREFIX`],

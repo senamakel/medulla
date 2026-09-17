@@ -1,10 +1,10 @@
 # Pairing
 
-Pairing hand-off: getting a worker's address from the machine it runs on to the orchestrator that will delegate to it.
+Pairing hand-off: getting a worker's address from the machine it runs on to the medulla that will dispatch to it.
 
 ## Contents
 
-- [`mod.rs`](./mod.rs) — Pairing hand-off: getting a worker's address from the machine it runs on to the orchestrator that will delegate to it.
+- [`mod.rs`](./mod.rs) — Pairing hand-off: getting a worker's address from the machine it runs on to the medulla that will dispatch to it.
 - [`tests.rs`](./tests.rs) — Tests for the pairing hand-off.
 
 ## Maintenance

@@ -25,7 +25,7 @@ fn picker_app() -> App {
         log: None,
         sessions: PtyManager::new(),
         runtimes: Arc::new(std::sync::Mutex::new(Vec::new())),
-        hub_address: "medulla-orchestrator".to_string(),
+        hub_address: "medulla-hub".to_string(),
         env: HashMap::new(),
         workspace: "/".to_string(),
         providers: vec![HarnessProvider::Codex],

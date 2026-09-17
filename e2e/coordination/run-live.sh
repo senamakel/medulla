@@ -38,7 +38,7 @@
 #   MEDULLA_LINK_FORWARDER=h:p     required; the deployed forwarder (see above)
 #   MEDULLA_LINK_HOME_<name>       required; a pre-enrolled MEDULLA_HOME per
 #                                  daemon (alpha, beta) holding link/node.json
-#   MEDULLA_LINK_OWNER_DIR_<name>  required; the matching orchestrator identity
+#   MEDULLA_LINK_OWNER_DIR_<name>  required; the matching owner identity
 #                                  directory (its own node.json)
 #   E2E_ALLOW_PROD=1               required; the binary's endpoint is pinned to
 #                                  production, so this suite can only ever run
@@ -88,7 +88,7 @@ unavailable() {
     "      named by MEDULLA_LINK_FORWARDER=<host:port>. None is deployed." \
     "    * per-endpoint identities from §7.2 enrollment. This repository has no" \
     "      client for the invite/enroll endpoints, so node.json must already" \
-    "      exist for each daemon and each orchestrator, and be passed in via" \
+    "      exist for each daemon and each owner, and be passed in via" \
     "      MEDULLA_LINK_HOME_<name> / MEDULLA_LINK_OWNER_DIR_<name>." \
     "" \
     "  Until then the mocked fleet (tests_multi.sh) is the coverage that runs." >&2
@@ -135,7 +135,7 @@ preflight() {
     [ -n "${!home_var:-}" ] && [ -d "${!home_var:-}/link" ] \
       || unavailable "$home_var does not name an enrolled MEDULLA_HOME."
     [ -n "${!owner_var:-}" ] && [ -f "${!owner_var:-}/node.json" ] \
-      || unavailable "$owner_var does not name an enrolled orchestrator identity."
+      || unavailable "$owner_var does not name an enrolled owner identity."
   done
   FORWARDER_ADDR="$MEDULLA_LINK_FORWARDER"
 

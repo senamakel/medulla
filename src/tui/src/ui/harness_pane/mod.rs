@@ -1,4 +1,4 @@
-//! The embedded harness terminal in the orchestrator's Sessions tab.
+//! The embedded harness terminal in the sender's Sessions tab.
 //!
 //! An agent lane used to show a transcript we reconstructed from the harness's
 //! JSON stream. That reconstruction only ever existed because the harness was
@@ -16,8 +16,8 @@
 //! - [`LocalSessions`] — resolving "what is the cursor on" to a live session;
 //! - [`HarnessFocus`] — which of the TUI and the harness owns the keyboard;
 //! - [`keys`] — encoding a crossterm key back into the bytes a terminal sends;
-//! - [`spawn`] — starting a harness the orchestrator will not dispatch into,
-//!   and handing one between the operator and the orchestrator;
+//! - [`spawn`] — starting a harness the dispatcher will not dispatch into,
+//!   and handing one between the operator and the dispatcher;
 //! - [`shells`] — the plain `bash`/`zsh` sessions the picker offers beside the
 //!   coding agents, for the work that is a command rather than a prompt.
 //!

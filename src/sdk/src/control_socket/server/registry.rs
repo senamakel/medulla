@@ -12,7 +12,7 @@
 //! [`abort_task`](crate::hub::TaskRunner::abort_task) keys on an id we must have
 //! handed back.
 //!
-//! Everything here is bounded. An orchestrator session runs for days, so an
+//! Everything here is bounded. A dispatched session runs for days, so an
 //! unbounded map of finished tasks and their status transcripts is a slow leak.
 
 use std::collections::{HashMap, VecDeque};

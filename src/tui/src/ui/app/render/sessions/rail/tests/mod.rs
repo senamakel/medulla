@@ -5,10 +5,10 @@ mod wrap_tests;
 
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
-use medulla::ui::agents::{AgentLane, AgentRole};
+use medulla::ui::agents::AgentLane;
 use ratatui::style::{Color, Modifier};
 use unicode_width::UnicodeWidthStr;
 
@@ -19,7 +19,7 @@ use crate::worker::pty::{AttentionKind, HarnessAttention, PtyState, SessionContr
 use super::rows::{display_session_title, lane_title};
 
 pub(super) fn app() -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()))
 }
 
@@ -55,12 +55,9 @@ pub(super) fn lane() -> AgentLane {
     AgentLane {
         key: "k".into(),
         label: "worker".into(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: None,
         session_id: None,
@@ -193,7 +190,7 @@ fn viewport_keeps_all_three_lines_of_the_selected_harness_visible() {
 }
 
 #[test]
-fn an_operator_harness_uses_one_compact_line_like_the_orchestrator() {
+fn an_operator_harness_uses_one_compact_line_like_a_dispatched_one() {
     let app = app();
     let lines = app.own_session_lines(&harness_row("/workspace/medulla"), false, 48, NOW);
 

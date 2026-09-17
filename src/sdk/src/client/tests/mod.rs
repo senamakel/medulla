@@ -1,6 +1,5 @@
 //! Unit and integration tests for the Medulla client, split by surface:
-//! [`decode_tests`] covers envelope/error/run-result JSON decoding;
-//! [`sse_tests`] covers the SSE parser, dedupe cursor, and streaming;
+//! [`decode_tests`] covers envelope/error JSON decoding;
 //! [`integration_tests`] covers the HTTP endpoint surface against a TCP stub.
 //!
 //! Shared TCP-stub helpers used by more than one child module live here.
@@ -10,7 +9,6 @@ use tokio::net::TcpListener;
 
 mod decode_tests;
 mod integration_tests;
-mod sse_tests;
 
 /// Bind a stub server that handles one connection: drain the request, then
 /// write `response` verbatim and close. Returns the bound address.

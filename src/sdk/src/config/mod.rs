@@ -6,12 +6,10 @@
 //! constants and their env-aware resolvers, `types` the config data model,
 //! `load` the layered discovery/parse/merge that produces a [`LoadedConfig`],
 //! `persist` writes back the few sections the app owns as state, and
-//! `core_socket` resolves and validates the core (`medulla-serve`) socket path.
 //! All public items are re-exported here so callers use `medulla::config::*`.
 
 mod agent_declarations;
 mod appearance;
-mod core_socket;
 mod custom_harnesses;
 mod load;
 mod local_hosts;
@@ -24,15 +22,11 @@ mod urls;
 #[cfg(test)]
 mod agent_declarations_tests;
 #[cfg(test)]
-mod core_socket_tests;
-#[cfg(test)]
 mod custom_harnesses_tests;
 #[cfg(test)]
 mod load_tests;
 #[cfg(test)]
 mod local_hosts_tests;
-#[cfg(test)]
-mod persist_tests;
 #[cfg(test)]
 mod remote_hosts_tests;
 #[cfg(test)]
@@ -45,7 +39,6 @@ pub use agent_declarations::{
     load_agent_declarations, remove_agent_declaration, undeclare_agent, upsert_agent_declaration,
 };
 pub use appearance::{AppearanceConfig, ResourceDisplay, SidebarGrouping, SidebarSort};
-pub use core_socket::{validate_core_socket, CoreSocketError, CoreSocketSource};
 pub use custom_harnesses::{
     load_custom_harnesses, load_layered_custom_harnesses, CustomHarnessConfig,
     OPENROUTER_ANTHROPIC_URL, OPENROUTER_API_KEY_ENV, OPENROUTER_OPENAI_URL,
@@ -55,8 +48,8 @@ pub use local_hosts::{local_host_address, local_host_name, local_hosts, LocalHos
 pub use persist::{
     clear_setting, persist_agent_declarations, persist_custom_harnesses, persist_hook_defaults,
     persist_hooks, persist_host_workspaces, persist_hub_workers, persist_link_peers,
-    persist_local_hosts, persist_root_setting, persist_section, persist_setting,
-    persist_welcome_completed, persist_workflow_workspaces,
+    persist_local_hosts, persist_remote_hosts, persist_root_setting, persist_section,
+    persist_setting, persist_welcome_completed, persist_workflow_workspaces,
 };
 pub use remote_hosts::{
     remote_host_id, remote_host_name, remote_host_section, remote_hosts, RemoteHostRef,
@@ -66,12 +59,11 @@ pub use subscriptions::{
     MIN_SUBSCRIPTION_REFRESH_SECONDS,
 };
 pub use types::{
-    wire_value, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle, CoreConfig,
-    EvolveSettings, FavoriteWorkspace, FieldPlacement, FieldVisibility, FleetConfig,
-    HarnessNameStyle, HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig,
-    LinkConfig, LoadedConfig, McpSection, MedullaConfig, OnboardingConfig, OpencodeConfig,
-    PathStyle, Peer, ProviderBudgetConfig, RemoteHostSection, RouterConfig, RouterProviderConfig,
-    StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
-    DEFAULT_CONTEXT_WINDOW_TOKENS,
+    wire_value, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle, EvolveSettings,
+    FavoriteWorkspace, FieldPlacement, FieldVisibility, FleetConfig, HarnessNameStyle,
+    HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig, LinkConfig,
+    LoadedConfig, McpSection, OnboardingConfig, OpencodeConfig, PathStyle, Peer,
+    ProviderBudgetConfig, RemoteHostSection, RouterConfig, RouterProviderConfig, StatusLineConfig,
+    ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
 };
 pub use urls::{backend_base_url, display_host, resolve_forwarder_base_url, PROD_BACKEND_BASE_URL};

@@ -186,7 +186,7 @@ impl DaemonRuntime {
         }
     }
 
-    /// Replace the workspace roots advertised to orchestrators.
+    /// Replace the workspace roots advertised to owners.
     ///
     /// Clears the cached capability probe so the next request observes the
     /// change immediately. The task working directory itself is unchanged.

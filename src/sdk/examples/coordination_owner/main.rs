@@ -1,4 +1,4 @@
-//! The orchestrator side of the coordination e2e chain, ported to the host link
+//! The dispatcher side of the coordination e2e chain, ported to the host link
 //! (`docs/host-link-protocol.md`).
 //!
 //! Its job is unchanged: send a `medulla-task/1` frame to a worker daemon, wait
@@ -11,7 +11,7 @@
 //!
 //! # Modes
 //!
-//! - **enroll** (`--enroll`) — mint one orchestrator/host pair: a pair key, two
+//! - **enroll** (`--enroll`) — mint one owner/host pair: a pair key, two
 //!   node ids and two forwarder keys, written as `node.json` into two identity
 //!   directories (§7.3). This stands in for the backend's enrollment endpoints
 //!   (§7.2) plus the human who carries the pair key to the host (§7.1). The two
@@ -22,7 +22,7 @@
 //!   dropped into `<dir>`. This is not a convenience: the link's SSP state lives
 //!   in memory, so an endpoint that exits and restarts comes back at state 0
 //!   while its peer still holds state *n*, and neither side's diffs apply until
-//!   both restart. A long-lived orchestrator process is what the protocol
+//!   both restart. A long-lived dispatcher process is what the protocol
 //!   assumes, so the harness gets one instead of a process per leg.
 //! - **one-shot** (neither flag) — connect, run a single leg, print the JSON,
 //!   exit. Correct only against a freshly started daemon, for the reason above.

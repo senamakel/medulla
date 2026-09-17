@@ -1,13 +1,13 @@
 //! Translate a [`Cmd`] into a spawned async task whose result is reported back
-//! over the [`AppMsg`] channel. Memory queries touch SQLite so they run on
-//! `spawn_blocking` off the UI thread.
+//! over the [`AppMsg`] channel.
 //!
 //! Extracted from the main [`super::event_loop`] module so it stays under the
 //! repository's 500-line ceiling.
 
 use std::sync::Arc;
 
-use medulla::runtime::Runtime;
+use medulla::backend::Backend;
+use medulla::hub::{apply_worker_op, hub_in, HubHandle, HubSlot};
 use medulla_tui::ui::app::Cmd;
 
 use super::AppMsg;
@@ -57,8 +57,12 @@ pub(crate) fn clear_copilot_hosts() {}
 mod tests;
 
 /// Translate a [`Cmd`] emitted by the app into a spawned async task whose result
-/// is reported back over the [`AppMsg`] channel. Memory queries touch SQLite so
-/// they run on `spawn_blocking` off the UI thread.
+/// is reported back over the [`AppMsg`] channel.
+///
+/// `hub` is read per command rather than captured: the slot is filled after
+/// startup and refilled by nothing, but a command issued before the hub is up
+/// has to be told so rather than silently succeed at a mutation that did not
+/// happen.
 ///
 /// `config` is the app's already-loaded configuration, threaded in for the
 /// commands that dispatch a harness off-thread ([`Cmd::RunWorkflow`],
@@ -71,18 +75,19 @@ mod tests;
 /// feature has no arm that reads it.
 pub(super) fn run_cmd(
     cmd: Cmd,
-    runtime: &Arc<dyn Runtime>,
+    backend: &Arc<dyn Backend>,
+    hub: &HubSlot,
     _config: &medulla::config::TuiConfig,
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
     local_hosts: Option<&crate::local_host::LocalHostHarnesses>,
 ) {
-    // This is the single dispatch point for actions initiated by mouse clicks
-    // and keyboard shortcuts. Never serialize `cmd`: its payload can contain
-    // prompts, paths, or identifiers.
+    // This is the shared endpoint for mouse clicks and keyboard shortcuts.
+    // Command payloads are deliberately excluded because they may contain text,
+    // paths, or identifiers.
     tokio::spawn(async {
         let _ = medulla::analytics::record_ui_action("command_dispatched").await;
     });
-    let cmd = match feedback::run_feedback_cmd(cmd, runtime, msg_tx) {
+    let cmd = match feedback::run_feedback_cmd(cmd, backend, msg_tx) {
         Some(cmd) => *cmd,
         None => return,
     };
@@ -95,24 +100,8 @@ pub(super) fn run_cmd(
         | Cmd::SubmitFeedback { .. } => {
             unreachable!("feedback commands return before main dispatch")
         }
-        Cmd::Submit(input) => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            // What a resolved submit means is the runtime's to say: a blocking
-            // wire has finished the cycle, a non-blocking one has only accepted
-            // the message and is still producing.
-            let settles = rt.submit_settles_cycle();
-            tokio::spawn(async move {
-                let status = match rt.submit(input).await {
-                    Ok(()) if settles => "Cycle complete".to_string(),
-                    Ok(()) => "Sent — waiting for the reply".to_string(),
-                    Err(e) => e.to_string(),
-                };
-                let _ = tx.send(AppMsg::Status(status));
-            });
-        }
         Cmd::Logout => {
-            let rt = runtime.clone();
+            let rt = backend.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 // Only a clear that actually landed ends the session: reporting
@@ -125,32 +114,16 @@ pub(super) fn run_cmd(
                 let _ = tx.send(msg);
             });
         }
-        Cmd::Resume(id) => {
-            let rt = runtime.clone();
+        Cmd::RunPairingOverSsh {
+            host_id,
+            section,
+            command,
+        } => {
             let tx = msg_tx.clone();
             tokio::spawn(async move {
-                match rt.resume_chat(id).await {
-                    Ok(()) => {
-                        let _ = tx.send(AppMsg::Resumed("Resumed chat".into()));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(AppMsg::Status(e.to_string()));
-                    }
-                }
-            });
-        }
-        Cmd::ListChats => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                match rt.list_main_chats().await {
-                    Ok(chats) => {
-                        let _ = tx.send(AppMsg::OpenResume(chats));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(AppMsg::Status(e.to_string()));
-                    }
-                }
+                let result =
+                    medulla_tui::remote::client::autorun::run_pairing(&section, &command).await;
+                let _ = tx.send(AppMsg::HostPairingRun { host_id, result });
             });
         }
         Cmd::ConnectRemoteHost { host_id } => {
@@ -161,43 +134,42 @@ pub(super) fn run_cmd(
                 let _ = msg_tx.send(AppMsg::RemoteHostDialling { host_id, requests });
             }
         }
-        Cmd::InspectContext => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                match rt.inspect_context().await {
-                    Ok(items) => {
-                        let _ = tx.send(AppMsg::Contexts(items));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(AppMsg::Status(e.to_string()));
-                    }
-                }
-            });
-        }
         Cmd::WatchTask { stop, start } => {
-            let rt = runtime.clone();
+            let hub = hub_in(hub);
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 // Stop first: a worker streaming a task nobody is looking at
                 // spends a sample, a ratchet advance and a send every tick.
-                if let Some((worker, task_id)) = stop {
-                    let _ = rt.watch_task(worker, task_id, false).await;
+                // Stopping with no hub is a no-op — there is genuinely nothing
+                // to stop — so only the request to *start* one is an error
+                // worth surfacing.
+                if let (Some(hub), Some((worker, task_id))) = (&hub, stop) {
+                    let _ = hub.unwatch(&worker, &task_id).await;
                 }
                 if let Some((worker, task_id)) = start {
-                    if let Err(e) = rt.watch_task(worker, task_id.clone(), true).await {
-                        // Worth saying: the pane would otherwise just stay
-                        // empty, which reads as a worker doing nothing.
+                    // Reported rather than swallowed. A silent success here is
+                    // the worst version of this failure: the pane stays empty,
+                    // the worker is never asked for anything, and nothing
+                    // anywhere says why.
+                    let result = match &hub {
+                        Some(hub) => hub.watch(&worker, &task_id).await,
+                        None => Err(no_hub("this worker cannot be asked to stream its screen")),
+                    };
+                    if let Err(e) = result {
                         let _ = tx.send(AppMsg::Status(format!("Cannot watch {task_id}: {e}")));
                     }
                 }
             });
         }
         Cmd::KillTask { worker, task_id } => {
-            let rt = runtime.clone();
+            let hub = hub_in(hub);
             let tx = msg_tx.clone();
             tokio::spawn(async move {
-                let status = match rt.kill_task(worker, task_id.clone()).await {
+                let result = match &hub {
+                    Some(hub) => hub.kill(&worker, &task_id).await,
+                    None => Err(no_hub("nothing can be killed")),
+                };
+                let status = match result {
                     Ok(()) => format!("Kill requested for {task_id}"),
                     Err(e) => format!("Cannot kill {task_id}: {e}"),
                 };
@@ -205,10 +177,10 @@ pub(super) fn run_cmd(
             });
         }
         Cmd::WorkerOp(op) => {
-            let rt = runtime.clone();
+            let hub = hub_in(hub);
             let tx = msg_tx.clone();
             tokio::spawn(async move {
-                let status = match rt.worker_op(op).await {
+                let status = match worker_op(hub.as_ref(), op).await {
                     Ok(()) => "Worker registry updated".to_string(),
                     Err(e) => e.to_string(),
                 };
@@ -216,7 +188,7 @@ pub(super) fn run_cmd(
             });
         }
         Cmd::WorkerOps(ops) => {
-            let rt = runtime.clone();
+            let hub = hub_in(hub);
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let total = ops.len();
@@ -228,7 +200,7 @@ pub(super) fn run_cmd(
                     // refusal would half-remove a host — some agents gone, the
                     // rest still routed to — which is the state hardest to
                     // reason about from the screen.
-                    match rt.worker_op(op).await {
+                    match worker_op(hub.as_ref(), op).await {
                         Ok(()) => applied += 1,
                         Err(e) => {
                             failure = Some(e.to_string());
@@ -332,17 +304,6 @@ pub(super) fn run_cmd(
             medulla::harness_hooks::LaunchPolicy::from_config(_config),
             msg_tx,
         ),
-        Cmd::RefreshFleet => {
-            let rt = runtime.clone();
-            let tx = msg_tx.clone();
-            tokio::spawn(async move {
-                // A failed refresh keeps the previous fleet on screen; the
-                // status line is where the failure belongs, not the tree.
-                if let Err(e) = rt.refresh_fleet().await {
-                    let _ = tx.send(AppMsg::Status(format!("fleet refresh failed: {e}")));
-                }
-            });
-        }
         Cmd::LoadSubscriptions(account) => {
             let config = _config.subscriptions.clone();
             let tx = msg_tx.clone();
@@ -352,7 +313,7 @@ pub(super) fn run_cmd(
             });
         }
         Cmd::LoadUsage => {
-            let rt = runtime.clone();
+            let rt = backend.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let result = rt.team_usage().await.map_err(|error| error.to_string());
@@ -360,4 +321,24 @@ pub(super) fn run_cmd(
             });
         }
     }
+}
+
+/// Apply a worker mutation on the hub, or explain why it cannot be applied.
+///
+/// Reading an empty roster is honest; silently succeeding at a *mutation* that
+/// did not happen is not. Without a hub there is nothing to add a worker to,
+/// and reporting "updated" leaves the operator watching for a peer that was
+/// never registered.
+async fn worker_op(hub: Option<&HubHandle>, op: medulla::fleet::WorkerOp) -> anyhow::Result<()> {
+    match hub {
+        Some(hub) => apply_worker_op(hub, op).await,
+        None => Err(anyhow::anyhow!(
+            "no hub is running — restart, or unset MEDULLA_HUB=0"
+        )),
+    }
+}
+
+/// The error a hub-side command reports when the hub never started.
+fn no_hub(consequence: &str) -> String {
+    format!("no hub is running, so {consequence}")
 }

@@ -54,26 +54,26 @@ tokenEnv = "MEDULLA_TOKEN"
 # token = "eyJ..."
 
 # ---------------------------------------------------------------------------
-# host — run the work on this machine, not only orchestrate it
+# host — run the work on this machine
 # ---------------------------------------------------------------------------
-# A plain `medulla` is both halves of the system: the orchestrator that decides
-# what work to hand out, and a host that runs it. The host binds an address on
-# an in-process bus the orchestrator dispatches over, so a task for this machine
-# never touches the network — no link identity, no enrollment, no second
-# `medulla daemon` process. Remote workers still go over the host link, and the
-# orchestrator picks per address.
+# A plain `medulla` is both halves of the system: the hub that hands work out
+# (a workflow run, a `fleet_dispatch` from a harness), and a host that runs it.
+# The host binds an address on an in-process bus the hub dispatches over, so a
+# task for this machine never touches the network — no link identity, no
+# enrollment, no second `medulla daemon` process. Remote machines are reached
+# from the Hosts tab instead.
 #
 # It is on by default and needs no configuration: it serves whichever coding
 # agent CLIs it finds (claude / codex / opencode), in the directory you launched
-# from. The Overview tab's "This device" panel shows what it is doing.
+# from. The Sessions rail's footer shows what it is doing.
 #
 # Env override: MEDULLA_HOST=0 turns hosting off for one run (MEDULLA_HOST=1
-# forces it on). This mirrors MEDULLA_HUB=0, which turns the orchestrator half
-# off — set both and you have a plain chat client.
+# forces it on). This mirrors MEDULLA_HUB=0, which turns the hub off — set both
+# and nothing on this machine runs or dispatches work.
 # [host]
 # Whether this device hosts tasks. Default: true
 # enabled = true
-# The address the orchestrator dispatches to. Local to this process; it never
+# The address the hub dispatches to. Local to this process; it never
 # goes on a wire, so it is a readable name rather than a key. Default: this-device
 # address = "this-device"
 # Where tasks run. Empty (the default) means the directory `medulla` was
@@ -102,7 +102,7 @@ tokenEnv = "MEDULLA_TOKEN"
 # One laptop routinely holds several unrelated repos, and [host] can only name
 # one working directory — its `workspaces` list is advisory, so a task still
 # runs in the primary one. Each [[hosts]] entry binds its own device-local
-# address and registers as its own agent, so the orchestrator can be told
+# address and registers as its own agent, so a dispatch can be told
 # *which project* to work in, not only *which machine*. Additive: [host] keeps
 # its own meaning, and a config with no [[hosts]] behaves exactly as before.
 # Every field below is the same one documented under [host] above.
@@ -119,20 +119,32 @@ tokenEnv = "MEDULLA_TOKEN"
 # skipPermissions = true
 
 # ---------------------------------------------------------------------------
-# [[remoteHosts]] — other machines, reached over SSH (optional)
+# [[remoteHosts]] — other machines (optional)
 # ---------------------------------------------------------------------------
 # The other axis from [[hosts]] above. Those are several hosts on *this*
-# machine, told apart by working directory; these are other machines entirely,
-# told apart by login. A local host has a bus address and no login, a remote
-# host has login details and no bus address — which is why they are separate
-# sections rather than one with half its fields blank.
+# machine, told apart by working directory; these are other machines entirely.
+# A local host has a bus address and no login, a remote host has an address
+# to dial — which is why they are separate sections rather than one with half
+# its fields blank.
 #
-# How a connection is made, and when: SSH is only the bootstrap. It starts a
-# medulla daemon on the far side and carries its key back inside the SSH
-# channel, after which datagrams go straight to the machine over UDP, mosh-style
-# — so the session survives a suspended laptop or a change of network with no
-# reconnect. One connection is shared by every session on that host, and it is
-# opened the first time you actually start a session there, not at startup.
+# The Hosts tab writes this section for you; the fields are documented here
+# for hand-editing. Two ways a machine is reached:
+#
+# * Paired (udpPort set): the Hosts tab minted a key, you ran
+#   `medulla daemon <key>` once on the machine, and it listens on that UDP
+#   port. The TUI dials `host:udpPort` directly — no SSH, no relay — and the
+#   session survives a suspended laptop or a change of network with no
+#   reconnect, mosh-style. The SSH fields are then only used when you ask the
+#   Hosts tab to run the pairing command for you (`s`). The machine has to be
+#   reachable on that UDP port from wherever the TUI runs: a LAN, a VPN such
+#   as Tailscale, or a public address with the port open.
+# * SSH-bootstrapped (no udpPort): the older way, still supported. SSH starts
+#   a daemon on the far side on every connection and carries its key back
+#   inside the SSH channel; datagrams then go direct as above.
+#
+# Either way one connection is shared by every session on that host, and it
+# is opened the first time you actually use the host, not at startup. `H` in
+# the TUI switches which host the Sessions and Workflows tabs are about.
 #
 # SECURITY: this whole section is ignored in a project-local config file
 # (./medulla.toml or ./.medulla/config.toml) and honoured only in your global
@@ -146,6 +158,9 @@ tokenEnv = "MEDULLA_TOKEN"
 # name = "Tower"                # display name; defaults to `host`
 # id = "tower"                  # stable id for sessions and the rail lane;
 #                               # defaults to a slug of `name`, then of `host`
+# udpPort = 62001               # the paired daemon's port; set by the Hosts
+#                               # tab when it issues a key. 0/omitted = not
+#                               # paired, bootstrap over SSH instead
 # user = "steven"               # omit to let ssh and ~/.ssh/config decide
 # port = 22                     # 0 or omitted leaves ssh's own default
 # identityFile = "~/.ssh/id_ed25519"
@@ -173,8 +188,8 @@ tokenEnv = "MEDULLA_TOKEN"
 # harness — how harnesses the operator starts themselves behave (optional)
 # ---------------------------------------------------------------------------
 # Distinct from [host]/[[hosts]] above, which are about harnesses the
-# *orchestrator* starts to serve tasks. These are the ones an operator opens by
-# hand from the manual launcher, and the orchestrator never touches them.
+# *hub* starts to serve tasks. These are the ones an operator opens by hand
+# from the manual launcher, and no dispatch ever touches them.
 # [harness]
 # Whether an operator-started harness launches with its provider's
 # permission-bypass flag. Off by default — deliberately the opposite of
@@ -182,7 +197,7 @@ tokenEnv = "MEDULLA_TOKEN"
 # there is always someone to answer a prompt. Default: false
 # skipPermissions = false
 # Recently chosen directories in the manual harness launcher, newest first.
-# Picker history only; it never changes where orchestrated tasks may run.
+# Picker history only; it never changes where dispatched tasks may run.
 # Default: []
 # recentWorkspaces = ["/absolute/path/to/repo"]
 # Saved directory shortcuts for the manual harness launcher. A favorite is an
@@ -302,7 +317,7 @@ tokenEnv = "MEDULLA_TOKEN"
 # Absent entirely (the default) means every installed, usable harness
 # advertises a best-effort estimate with no invented numbers. An entry here
 # promotes that provider's advertised descriptor to a configured source with
-# your exact numbers, so a hosted orchestrator can size tasks against a real
+# your exact numbers, so a dispatcher can size tasks against a real
 # allowance. Keyed by provider id, mirroring [router.providers.<p>].
 # [budget.providers.claude]
 # Opaque seat/subscription label you recorded (never a credential).
@@ -316,16 +331,6 @@ tokenEnv = "MEDULLA_TOKEN"
 # remainingTokens = 760000
 # Unix seconds until which the seat is parked.
 # cooldownUntil = 1735689600
-
-# ---------------------------------------------------------------------------
-# core — the medulla-serve NDJSON orchestration socket (optional)
-# ---------------------------------------------------------------------------
-# [core]
-# Explicit NDJSON Unix socket path. When unset the socket is resolved from
-# $XDG_RUNTIME_DIR/medulla/serve.sock, then <stateDir>/serve.sock.
-# The core runtime is attach-only and unix-only; on Windows a --core / [core]
-# request logs a note and falls through to the backend→mock chain.
-# socketPath = "/run/user/1000/medulla/serve.sock"
 
 # ---------------------------------------------------------------------------
 # update — background release-update check (optional)
@@ -417,7 +422,7 @@ tokenEnv = "MEDULLA_TOKEN"
 # fleetTools = true
 # How deep a dispatch tree may go before fleet_dispatch is withheld, counted
 # from the operator's own turn. 0 lets no spawned harness dispatch; 1 lets only
-# those the orchestrator spawned directly. Enforced against the grant Medulla
+# those the hub spawned directly. Enforced against the grant Medulla
 # minted, not against anything the harness claims about itself.
 # maxDepth = 2
 # Most concurrent MCP-dispatched tasks one grant may hold. Absent follows
@@ -442,7 +447,7 @@ tokenEnv = "MEDULLA_TOKEN"
 # docs/host-link-protocol.md.
 #
 # The pair key is deliberately absent and must stay absent. It is generated on
-# the orchestrator, carried to the host by hand, and lives only in
+# the owning medulla, carried to the host by hand, and lives only in
 # <stateDir>/node.json — never in a config file, which gets copied, shared and
 # pasted into issues.
 # [link]
@@ -451,7 +456,7 @@ tokenEnv = "MEDULLA_TOKEN"
 # moving one moves the other. Set this only for a deliberately split deployment.
 # forwarderUrl = "https://api.tinyhumans.ai"
 # This endpoint's node name, as issued at enrollment.
-# nodeName = "my-orchestrator"
+# nodeName = "my-laptop"
 # Link identity directory. Default: <home>/link
 # stateDir = "/absolute/path/to/link"
 # The enrolled peers. `nodeId` is the 16-byte wire id, hex, issued at enrollment.
@@ -466,17 +471,6 @@ tokenEnv = "MEDULLA_TOKEN"
 # agent = "build"
 # workspace = "."
 # maxConcurrency = 4
-
-# ---------------------------------------------------------------------------
-# medulla — orchestration knobs (all optional)
-# ---------------------------------------------------------------------------
-# [medulla]
-# maxPasses = 8
-# maxSteps = 24
-# maxDepth = 2
-# maxTasksPerDelegate = 8
-# maxTokens = 4096
-# contextWindowTokens = 32000
 
 # ---------------------------------------------------------------------------
 # theme — TUI colors (optional). Values are ratatui color names
@@ -524,7 +518,7 @@ tokenEnv = "MEDULLA_TOKEN"
 # `false` means that field is hidden. Settings › Status line writes
 # [statusLine] and takes over.
 #
-# showSessionTitles toggles whether orchestrator-managed harness titles appear
+# showSessionTitles toggles whether dispatched sessions' titles appear
 # in the Agents sidebar at all.
 #
 # The six resource fields choose how one local-process or whole-device
@@ -635,9 +629,7 @@ tokenEnv = "MEDULLA_TOKEN"
 
 # ---------------------------------------------------------------------------
 # fleet — operator-declared capacity: the Host → Harness → Workspace → Agent
-# containment chain. Declared, never probed. The terminal app declares this to
-# a local orchestration server at handshake time, and the Agents rail renders
-# it whenever the runtime itself reports no capacity of its own.
+# containment chain. Declared, never probed. The Hosts tab renders it.
 #
 # Every level names exactly one parent (hostId on a harness, harnessId on a
 # workspace, workspaceId on an agent). An agent with no workspaceId is a local
@@ -679,7 +671,7 @@ tokenEnv = "MEDULLA_TOKEN"
 # agentDeclarations — the agents *you* declare on your own machines, and the
 # source of this client's roster. One per (harness × workspace): a machine with
 # claude and codex in two checkouts declares four, and each is separately
-# addressable by the orchestrator. Distinct from [[fleet.agents]] above, which
+# addressable by a dispatch. Distinct from [[fleet.agents]] above, which
 # describes a fleet somebody else published.
 #
 # hostId matches the local bus address of the [host] / [[hosts]] entry that runs

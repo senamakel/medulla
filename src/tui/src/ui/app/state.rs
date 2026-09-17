@@ -1,45 +1,47 @@
-//! Construction, state accessors, snapshot refresh, and tab/lane helpers for
-//! [`App`], including inspection seams and event-loop mutators.
+//! Construction, state accessors, and tab/lane helpers for [`App`], including
+//! inspection seams and event-loop mutators.
 
 use std::sync::Arc;
 
 use ratatui::layout::Rect;
 
-use crate::ui::agents::{derive_agent_lanes, merge_host_activity, merge_host_roster, AgentLane};
+use crate::ui::agents::{merge_host_activity, merge_host_roster, roster_lanes, AgentLane};
 use crate::ui::command::CommandSpec;
 use crate::ui::composer::Draft;
 use crate::ui::fleet::{merge_capacity, registry_capacity};
 use crate::ui::theme::Theme;
+use medulla::backend::Backend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::{ContextItem, Runtime};
+use medulla::hub::HubSlot;
 
 use super::types::{
-    App, Cmd, PaneView, ResumePicker, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_SUBSCRIPTIONS,
-    SP_USAGE, TABS,
+    App, Cmd, PaneView, SETTINGS_SUBPAGES, SP_FEEDBACK, SP_SUBSCRIPTIONS, SP_USAGE, TABS,
 };
 
 impl App {
-    /// Build a fresh screen bound to `runtime` and `loaded`, starting on the
-    /// Sessions tab with an empty composer and the config-derived theme.
-    pub fn new(runtime: Arc<dyn Runtime>, loaded: LoadedConfig) -> Self {
-        let snapshot = runtime.snapshot();
+    /// Build a fresh screen over `backend` and `loaded`, with no hub yet,
+    /// starting on the Sessions tab with an empty composer and the
+    /// config-derived theme.
+    pub fn new(backend: Arc<dyn Backend>, loaded: LoadedConfig) -> Self {
+        Self::with_hub(backend, HubSlot::default(), loaded)
+    }
+
+    /// [`App::new`], sharing the slot the in-process hub fills once it is up.
+    pub fn with_hub(backend: Arc<dyn Backend>, hub: HubSlot, loaded: LoadedConfig) -> Self {
         let theme = Theme::from_config(&loaded.config.theme);
         let harness_skip_permissions = loaded.config.harness.skip_permissions;
         let status_line_promotion_pending = loaded.config.status_line.is_none();
         App {
-            runtime,
+            backend,
+            hub,
             loaded,
-            snapshot,
             tab_index: 0,
             changes: super::changes::GitChangesState::capture(),
             draft: Draft::new(),
             selected: 0,
             frame: 0,
-            graph: Default::default(),
             status: "Ready".into(),
             update_notice: None,
-            contexts: Vec::new(),
-            context_index: 0,
             rail_index: 0,
             agent_anchor: None,
             subtask_pages: std::collections::HashMap::new(),
@@ -65,12 +67,14 @@ impl App {
             wf: Default::default(),
             #[cfg(feature = "workflows")]
             workflow_store_override: None,
+            hosts: Default::default(),
+            current_host: Default::default(),
+            host_switcher: None,
+            #[cfg(feature = "workflows")]
+            remote_workflows: Default::default(),
             tokenmaxxing_index: 0,
             tokenmaxxing_focused: false,
             feedback: Default::default(),
-            decision_open: false,
-            decision_index: 0,
-            dismissed_decisions: Default::default(),
             prompt: None,
             mouse_capture: true,
             account_usage: None,
@@ -99,24 +103,18 @@ impl App {
             theme,
             config_path: None,
             hooks_config_path: None,
-            resume_picker: None,
             should_quit: false,
             area: Rect::new(0, 0, 80, 24),
             hit_tabs: Vec::new(),
             hit_tabs_row: 0,
             hit_agents: None,
             hit_session: None,
-            hit_threads: None,
-            hit_started_sessions: None,
-            hit_context: None,
             hit_workflow_preview: None,
             hit_nav: Default::default(),
             panes: Vec::new(),
             drag_anchor: None,
             selection: None,
             copy_selection: false,
-            last_events_len: 0,
-            link_obs: None,
             host_obs: None,
             local_sessions: None,
             remote_hosts: std::collections::HashMap::new(),
@@ -137,6 +135,8 @@ impl App {
             help_scroll: 0,
             harness_skip_permissions,
             copy_capture: None,
+            lane_override: None,
+            worker_override: None,
         }
     }
 
@@ -260,11 +260,6 @@ impl App {
         self.agent_scroll
     }
 
-    /// Whether the resume-picker modal is open. Test/inspection seam.
-    pub fn resume_open(&self) -> bool {
-        self.resume_picker.is_some()
-    }
-
     /// Whether an inline prompt overlay (Workers add/edit, task answer) is open,
     /// and its current draft text. Test/inspection seam.
     pub fn prompt_state(&self) -> Option<(String, String)> {
@@ -279,22 +274,12 @@ impl App {
         self.selected_agent_task().map(|t| t.task_id)
     }
 
-    /// Route `copy_chat` into a captured sink instead of the OS clipboard, and
+    /// Route clipboard copies into a captured sink instead of the OS clipboard, and
     /// return that sink. Test-only: keeps `pbcopy`/OSC 52 out of the test run.
     pub fn capture_clipboard(&mut self) -> Arc<std::sync::Mutex<Vec<String>>> {
         let sink = Arc::new(std::sync::Mutex::new(Vec::new()));
         self.copy_capture = Some(sink.clone());
         sink
-    }
-
-    /// Attach the background host-link service's shared observation. Its
-    /// identity, roster, and presence are merged into every snapshot refresh.
-    pub fn set_link_observation(
-        &mut self,
-        obs: Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>,
-    ) {
-        self.link_obs = Some(obs);
-        self.refresh_snapshot();
     }
 
     /// Attach the read-only view of the host running on this device, so the
@@ -381,16 +366,6 @@ impl App {
     /// able to read it rather than hardcode a layout it does not control.
     pub fn harness_pane_rect_for_test(&self) -> Option<(Rect, String)> {
         self.hit_session.clone()
-    }
-
-    /// Re-read the runtime snapshot and merge in the host-link observation.
-    pub fn refresh_snapshot(&mut self) {
-        self.snapshot = self.runtime.snapshot();
-        if let Some(obs) = &self.link_obs {
-            if let Ok(obs) = obs.lock() {
-                obs.merge_into(&mut self.snapshot);
-            }
-        }
     }
 
     /// Deliver the fetched account usage payload (None = backend unavailable).
@@ -544,22 +519,6 @@ impl App {
         self.harness_close_armed = Some(session);
     }
 
-    /// Replace the Context-tab chunks.
-    pub fn set_contexts(&mut self, c: Vec<ContextItem>) {
-        self.contexts = c;
-    }
-
-    /// Open the resume picker with `chats`, or report that there is nothing to
-    /// resume.
-    pub fn open_resume(&mut self, chats: Vec<crate::ui::chat_store::MainChatSummary>) {
-        if chats.is_empty() {
-            self.set_status("No saved chats to resume.");
-        } else {
-            self.resume_picker = Some(ResumePicker { chats, index: 0 });
-            self.set_status("Resume: ↑/↓ select · Enter load · Esc cancel");
-        }
-    }
-
     /// The active tab name.
     pub fn tab(&self) -> &'static str {
         TABS[self.tab_index]
@@ -567,15 +526,16 @@ impl App {
 
     /// The lazy-load command a freshly entered tab (or Settings subpage) needs.
     ///
-    /// Context, Feedback, and Usage all fetch on entry; since they are now
-    /// Settings subpages rather than tabs, the Settings arm dispatches on the
-    /// active subpage.
+    /// Feedback and Usage both fetch on entry; since they are now Settings
+    /// subpages rather than tabs, the Settings arm dispatches on the active
+    /// subpage.
     pub(super) fn tab_enter_cmd(&mut self) -> Option<Cmd> {
         // No tab needs a focus nudge on entry: the rail forwards typing, so a
         // printable key moves focus to the composer and lands the character
         // there, and nothing is lost by not starting in it.
         match self.tab() {
             "Feedback" => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
+            "Hosts" => self.hosts_tab_enter(),
             // The diff pane is the Changes surface now, so entering the tab
             // re-loads its git data the way the removed Changes tab did on
             // entry: a repo that changed while the operator was on another tab
@@ -587,8 +547,8 @@ impl App {
                 None
             }
             // The workflow store is files on this machine, so entering the tab
-            // reads them rather than asking the runtime for anything — which is
-            // why this arm returns no command and does the work here.
+            // reads them rather than asking anything remote — which is why this
+            // arm returns no command and does the work here.
             #[cfg(feature = "workflows")]
             "Workflows" => {
                 self.reload_workflows();
@@ -597,7 +557,6 @@ impl App {
             "Settings" => match self.settings_index {
                 SP_USAGE => Some(Cmd::LoadUsage),
                 SP_SUBSCRIPTIONS => self.refresh_subscriptions(),
-                SP_CONTEXT => Some(Cmd::InspectContext),
                 SP_FEEDBACK => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
                 _ => None,
             },
@@ -605,20 +564,48 @@ impl App {
         }
     }
 
-    /// Derive the current agent lanes from the snapshot, harness, and roster.
+    /// Stand in a fixed worker roster for the hub's. Test seam.
+    pub fn inject_workers(&mut self, workers: Vec<medulla::fleet::WorkerInfo>) {
+        self.worker_override = Some(workers);
+    }
+
+    /// The hub's worker roster, as the surfaces read it. Empty until the hub
+    /// is up; an injected roster wins outright.
+    pub(super) fn workers(&self) -> Vec<medulla::fleet::WorkerInfo> {
+        if let Some(workers) = &self.worker_override {
+            return workers.clone();
+        }
+        medulla::hub::workers_of(&self.hub)
+    }
+
+    /// What the hub has observed each worker doing.
+    pub(super) fn worker_activity(&self) -> Vec<medulla::hub::WorkerActivity> {
+        medulla::hub::hub_in(&self.hub)
+            .map(|hub| hub.activity().snapshot())
+            .unwrap_or_default()
+    }
+
+    /// Stand in a fixed lane set for the hub's.
     ///
-    /// The roster is the snapshot's (what the backend advertises, plus any
-    /// host-link peers the observation overlays) merged with the runtime's own
-    /// worker registry. Both are needed: a worker added at runtime lives only in
-    /// the registry — which is what resolves a delegated task's address — so
-    /// reading the snapshot alone left a live, dispatchable worker off this tab.
+    /// What the offline demo and the test suites use to put dispatched tasks
+    /// on the rail without a hub: [`medulla::ui::agents::demo_lanes`] is the
+    /// usual argument.
+    pub fn inject_lanes(&mut self, lanes: Vec<AgentLane>) {
+        self.lane_override = Some(lanes);
+    }
+
+    /// Derive the current agent lanes from the roster and the hub's activity.
+    ///
+    /// One lane per roster agent — the stand-in roster when the demo fleet is
+    /// requested, merged with the hub's own worker registry — filled with the
+    /// tasks the hub has dispatched to it. An injected set wins outright.
     pub(super) fn lanes(&self) -> Vec<AgentLane> {
-        let roster = merge_host_roster(&self.fleet_roster(), &self.runtime.workers());
-        let mut lanes = derive_agent_lanes(&self.snapshot.events, &self.loaded.harness(), &roster);
-        // The snapshot's events come from the backend, whose vocabulary says
-        // nothing about delegated tasks — so a busy agent renders idle unless
-        // the activity the hub observed locally is folded in.
-        merge_host_activity(&mut lanes, &self.runtime.worker_activity());
+        if let Some(lanes) = &self.lane_override {
+            return lanes.clone();
+        }
+        let roster = merge_host_roster(&self.fleet_roster(), &self.workers());
+        let mut lanes = roster_lanes(&roster);
+        merge_host_activity(&mut lanes, &self.worker_activity());
         lanes
     }
 
@@ -661,59 +648,36 @@ impl App {
 
     /// The capacity the fleet surfaces render.
     ///
-    /// The runtime's own declaration wins; the operator's `[fleet]` config is
-    /// the fallback, so a declared chain is still visible on a runtime that
-    /// reports none (the mock, or a backend that has not answered yet). They are
-    /// not merged: two half-descriptions of one fleet interleaved would be
-    /// harder to trust than whichever one is authoritative.
-    ///
-    pub(super) fn fleet_capacity(&self) -> medulla::runtime::CapacitySnapshot {
-        let mut declared = if self.snapshot.capacity.is_empty() {
-            self.loaded.config.fleet.capacity()
-        } else {
-            self.snapshot.capacity.clone()
-        };
+    /// The operator's `[fleet]` config is the declaration. It is not merged
+    /// with anything probed: two half-descriptions of one fleet interleaved
+    /// would be harder to trust than the one the operator wrote.
+    pub(super) fn fleet_capacity(&self) -> medulla::fleet::CapacitySnapshot {
+        let mut declared = self.loaded.config.fleet.capacity();
         // Last resort, and opt-in only: with `MEDULLA_DEMO_FLEET` set and nothing
         // real declared, stand in a small fake fleet so the surfaces can be
         // exercised without a backend. It never overrides a real reading.
-        if declared.is_empty() && medulla::runtime::demo_fleet_requested() {
-            declared = medulla::runtime::demo_capacity();
+        if declared.is_empty() && medulla::fleet::demo_fleet_requested() {
+            declared = medulla::fleet::demo_capacity();
         }
         // The locally registered peers are hosts too, and they are frequently
         // the only capacity a hub-backed session has. Declared records win on a
         // collision; the registry only ever adds machines nothing else named.
-        merge_capacity(&declared, &registry_capacity(&self.runtime.workers()))
+        merge_capacity(&declared, &registry_capacity(&self.workers()))
     }
 
     /// The agent identities the fleet surfaces place.
     ///
-    /// The snapshot roster, or the stand-in one when `MEDULLA_DEMO_FLEET` is set
-    /// and the runtime has none. Locally registered peers are deliberately *not*
-    /// merged in here: a peer is a *host*, and it reaches these surfaces through
-    /// [`fleet_capacity`](App::fleet_capacity) as one. Listing it here too would
-    /// show the same machine twice — once as capacity, once as an agent with
-    /// nowhere to live.
-    pub(super) fn fleet_roster(&self) -> Vec<medulla::runtime::AgentDescriptor> {
-        if self.snapshot.roster.is_empty() && medulla::runtime::demo_fleet_requested() {
-            return medulla::runtime::demo_agents();
+    /// The stand-in roster when `MEDULLA_DEMO_FLEET` is set, and nothing
+    /// otherwise: the real agents come from the hub's worker registry, which
+    /// [`lanes`](App::lanes) merges in. Locally registered peers are
+    /// deliberately *not* listed here: a peer is a *host*, and it reaches these
+    /// surfaces through [`fleet_capacity`](App::fleet_capacity) as one. Listing
+    /// it here too would show the same machine twice — once as capacity, once
+    /// as an agent with nowhere to live.
+    pub(super) fn fleet_roster(&self) -> Vec<medulla::fleet::AgentDescriptor> {
+        if medulla::fleet::demo_fleet_requested() {
+            return medulla::fleet::demo_agents();
         }
-        self.snapshot.roster.clone()
-    }
-
-    /// The index of the active thread in the snapshot's thread list.
-    pub(super) fn active_thread_idx(&self) -> usize {
-        self.snapshot
-            .threads
-            .iter()
-            .position(|t| t.id == self.snapshot.active_thread_id)
-            .unwrap_or(0)
-    }
-
-    /// Events-length change signal, so the loop can re-inspect context.
-    pub fn events_changed(&mut self) -> bool {
-        let n = self.snapshot.events.len();
-        let changed = n != self.last_events_len;
-        self.last_events_len = n;
-        changed
+        Vec::new()
     }
 }

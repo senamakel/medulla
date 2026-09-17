@@ -1,6 +1,6 @@
 //! Rendering a remote worker's synchronised screen into a ratatui pane.
 //!
-//! The orchestrator's counterpart to [`crate::worker::screen`], which does the
+//! The sender's counterpart to [`crate::worker::screen`], which does the
 //! same job for a session running locally. The two differ only in what they
 //! start from: the worker has emulator cells, the hub has the wire model those
 //! cells were coalesced into. They must agree about what a screen *looks* like,

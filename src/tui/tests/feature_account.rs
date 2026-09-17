@@ -13,13 +13,13 @@ use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
 use medulla::auth::AuthState;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
 use medulla_tui::ui::app::{App, Cmd};
 
 /// An app parked on the Account subpage with `home` as its Medulla home.
 fn account_app(home: &std::path::Path) -> App {
-    let rt = Arc::new(MockRuntime::demo());
+    let rt = Arc::new(MockBackend::new());
     let mut l = LoadedConfig::defaults("medulla.tui.json".into());
     l.config.backend.base_url = "https://api.tinyhumans.ai".into();
     let mut app = App::new(rt, l);
@@ -187,8 +187,8 @@ fn navigating_away_disarms_the_logout() {
     key(&mut app, KeyCode::Esc);
     key(&mut app, KeyCode::Esc);
     assert!(!app.settings_focused(), "back on the nav");
-    key(&mut app, KeyCode::Up); // move to Context
-    assert_eq!(app.settings_subpage(), "Context");
+    key(&mut app, KeyCode::Up); // move to Feedback
+    assert_eq!(app.settings_subpage(), "Feedback");
     key(&mut app, KeyCode::Down); // back to Account
     key(&mut app, KeyCode::Enter); // re-enter the pane
 

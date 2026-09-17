@@ -1,8 +1,8 @@
-//! Agents-list row derivation: ordering a lane's tasks and flattening the lanes
-//! into the printable [`AgentRow`] sequence (lane headers, the functions divider,
-//! and capped per-task sublanes).
+//! Agent-list row derivation: ordering a lane's tasks and flattening the lanes
+//! into the printable [`AgentRow`] sequence (lane headers and capped per-task
+//! sublanes).
 
-use super::types::{AgentLane, AgentRole, AgentRow, TaskState, TaskStatus};
+use super::types::{AgentLane, AgentRow, TaskState, TaskStatus};
 
 /// Running tasks first, then most-recently-active.
 pub fn ordered_tasks(tasks: &[TaskState]) -> Vec<TaskState> {
@@ -20,9 +20,8 @@ pub fn ordered_tasks(tasks: &[TaskState]) -> Vec<TaskState> {
     v
 }
 
-/// Build the ordered Agents-list rows: each lane, the `── functions ──` divider
-/// before the first function lane, and per-task sublanes (running first, capped
-/// at `max_subtasks`).
+/// Build the ordered agent-list rows: each lane and its per-task sublanes
+/// (running first, capped at `max_subtasks`).
 ///
 /// The fixed-cap form of [`agent_row_model_paged`], for callers that have no
 /// per-lane expansion state to consult.
@@ -30,7 +29,7 @@ pub fn agent_row_model(lanes: &[AgentLane], max_subtasks: usize) -> Vec<AgentRow
     agent_row_model_paged(lanes, max_subtasks, |_| 0)
 }
 
-/// Build the ordered Agents-list rows, revealing a lane's sublanes a page at a
+/// Build the ordered agent-list rows, revealing a lane's sublanes a page at a
 /// time.
 ///
 /// A lane shows `page` sublanes plus `page` more for each extra page
@@ -50,14 +49,9 @@ pub fn agent_row_model_paged(
     extra_pages: impl Fn(&AgentLane) -> usize,
 ) -> Vec<AgentRow> {
     let mut rows = Vec::new();
-    let first_fn = lanes.iter().position(|l| l.role.is_function());
     for (lane_index, lane) in lanes.iter().enumerate() {
-        if Some(lane_index) == first_fn {
-            rows.push(AgentRow::Separator);
-        }
         rows.push(AgentRow::Lane { lane_index });
-        if lane.role == AgentRole::Agent && lane.key.starts_with("agent:") && !lane.tasks.is_empty()
-        {
+        if !lane.tasks.is_empty() {
             let ordered = ordered_tasks(&lane.tasks);
             let cap = page.saturating_mul(extra_pages(lane).saturating_add(1));
             let shown = ordered.len().min(cap);

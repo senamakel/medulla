@@ -1,14 +1,14 @@
 //! Data types for the `hub_relay` module.
 #[allow(unused_imports)]
 use super::*;
-/// The shared slot the runtime reads for its live worker roster; filled once the
-/// hub connects.
+/// The shared slot the app reads for its live worker roster; filled once the
+/// hub is up.
 ///
-/// Re-exported from the SDK rather than declared again here: the runtime and the
-/// relay have to name the *same* type for the handle to reach the Workers tab,
+/// Re-exported from the SDK rather than declared again here: the app and the
+/// relay have to name the *same* type for the handle to reach the Hosts tab,
 /// and two structurally-identical aliases in two crates is exactly how it ended
 /// up unattached.
-pub(crate) use medulla::runtime::cloud::HubSlot;
+pub(crate) use medulla::hub::HubSlot;
 
 /// The device-local half of a hub's dispatch: the in-process bus, the address
 /// the hub binds on it, and the host (if any) already listening there.
@@ -34,10 +34,8 @@ pub(crate) struct LocalDispatch {
     /// absent from a captured list and got written into the remembered roster —
     /// a device-local entry that survives to a run where nothing binds it.
     ///
-    /// One list, two readers. The hub also advertises it as the `hosts[]` block
-    /// of `medulla:register_agents`, which is what marks its agents `local`;
-    /// keeping a second list for that would let "device-local for saving" and
-    /// "device-local on the wire" drift apart.
+    /// One list, two readers: the roster sink and the hub, which uses it to
+    /// tell its own hosts from remote peers.
     pub(crate) local_hosts: medulla::hub::SharedLocalHosts,
     /// The hosts running on this device, as roster entries. Empty when hosting
     /// is switched off — the bus is still shared, so hosts can appear later.

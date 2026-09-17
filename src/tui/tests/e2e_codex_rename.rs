@@ -99,7 +99,7 @@ done
         agent: None,
         extra_args: vec!["-c".to_string(), script],
         skip_permissions: false,
-        conversation: "medulla-orchestrator".to_string(),
+        conversation: "medulla-hub".to_string(),
         session_class: SessionClass::Bounded,
         resume_session_id: None,
         workspace_context: Default::default(),

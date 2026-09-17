@@ -145,7 +145,7 @@ fn bytes(value: u64) -> String {
 /// Columns the enabled device readings need to render in their configured form.
 ///
 /// The rail is sized from its rows, but the footer lives in the same rail: with
-/// only the orchestrator row present the sidebar came out at 18 columns, so a
+/// only the dispatcher row present the sidebar came out at 18 columns, so a
 /// configured bar (19–20 columns) silently degraded to a percentage and the
 /// `Bar` setting looked broken until unrelated rows widened the rail.
 ///

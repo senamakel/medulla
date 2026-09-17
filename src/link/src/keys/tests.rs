@@ -58,6 +58,11 @@ fn enrolled_peers_keep_their_distinct_pair_keys() {
     assert_eq!(legacy.len(), 1);
     assert_eq!(legacy[0].node_id, node.peer_node_id);
     assert_eq!(legacy[0].pair_key, node.pair_key);
+
+    // A version-2 file with no peers has no peers: the legacy fields are a
+    // placeholder there, not a host to dial.
+    node.version = 2;
+    assert!(node.enrolled_peers().is_empty());
 }
 
 #[test]
@@ -142,6 +147,15 @@ fn a_pair_key_never_prints_itself() {
 }
 
 // ------------------------------------------------------------- identity file
+
+#[test]
+fn legacy_orchestrator_roles_load_as_owners_but_write_as_owners() {
+    assert_eq!(
+        serde_json::from_str::<Role>("\"orchestrator\"").unwrap(),
+        Role::Owner
+    );
+    assert_eq!(serde_json::to_string(&Role::Owner).unwrap(), "\"owner\"");
+}
 
 #[test]
 fn an_identity_is_created_then_loaded_unchanged() {

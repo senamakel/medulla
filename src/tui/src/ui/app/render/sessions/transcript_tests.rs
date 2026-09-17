@@ -3,11 +3,12 @@
 
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
+use medulla::fleet::AgentDeclaration;
 use medulla::harness_work::{HarnessSessionInfo, WorkSnapshot};
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::{AgentDeclaration, Runtime};
-use medulla::ui::agents::{AgentLane, AgentRole, TurnBlock};
+use medulla::ui::agents::{AgentLane, TurnBlock};
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::Terminal;
@@ -19,17 +20,14 @@ use super::types::Selection;
 
 #[test]
 fn descriptorless_lanes_still_show_their_pull_request_context() {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     let lane = AgentLane {
         key: "worker".into(),
         label: "worker".into(),
-        role: AgentRole::Agent,
         turns: Vec::new(),
         last_at: 0,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: Some("worker".into()),
         session_id: None,
@@ -89,27 +87,24 @@ fn descriptorless_lanes_still_show_their_pull_request_context() {
     assert!(!output_without_pr.contains("PR 42"));
 }
 
-/// A marker only the orchestrator's lane ever renders.
-const ORCHESTRATOR_ONLY: &str = "ORCHESTRATORTHINKING";
+/// A marker only lane 0 ever renders.
+const OTHER_LANE_ONLY: &str = "OTHERLANETHINKING";
 
-/// Lane 0 — the orchestrator's — with a body no other row may show.
-fn orchestrator_lane() -> AgentLane {
+/// Lane 0 — some other agent's — with a body no other row may show.
+fn other_lane() -> AgentLane {
     AgentLane {
-        key: "orchestrator".into(),
-        label: "orchestrator".into(),
-        role: AgentRole::Orchestrator,
+        key: "agent:other".into(),
+        label: "other".into(),
         turns: vec![TurnBlock {
             at: 1,
-            header: ORCHESTRATOR_ONLY.into(),
+            header: OTHER_LANE_ONLY.into(),
             header_color: None,
-            reasoning: Some(ORCHESTRATOR_ONLY.into()),
-            content: Some(ORCHESTRATOR_ONLY.into()),
+            reasoning: Some(OTHER_LANE_ONLY.into()),
+            content: Some(OTHER_LANE_ONLY.into()),
             tools: Vec::new(),
         }],
         last_at: 1,
         tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
         harness_label: None,
         agent_id: None,
         session_id: None,
@@ -127,7 +122,7 @@ fn pane_for(row: RailRow) -> String {
 
 /// Draw one rail row's pane at a particular terminal size.
 fn pane_for_size(row: RailRow, width: u16, height: u16) -> String {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     // Derived from the row rather than defaulted, exactly as `sessions_selection`
     // does it: the pane chooses what to draw from this field, so a fixture that
@@ -136,7 +131,7 @@ fn pane_for_size(row: RailRow, width: u16, height: u16) -> String {
     let selection = Selection {
         rows: vec![row],
         active: 0,
-        lanes: vec![orchestrator_lane()],
+        lanes: vec![other_lane()],
         // What the fix makes representable: a row with no lane of its own. It
         // used to be `0`, which is this lane.
         lane_index: None,
@@ -160,10 +155,10 @@ fn pane_for_size(row: RailRow, width: u16, height: u16) -> String {
 /// A declared agent with nothing dispatched to it: a row, and no lane.
 
 #[test]
-fn a_row_with_no_lane_never_renders_the_orchestrators_stream() {
-    // The bug: `selection.lane()` fell back to lane 0 — the orchestrator's — so
-    // selecting the action row or a host header showed the orchestrator
-    // thinking, attributed to a row that had not thought anything.
+fn a_row_with_no_lane_never_renders_another_lanes_stream() {
+    // The bug: `selection.lane()` fell back to lane 0 — some other agent's — so
+    // selecting the action row or a host header showed that agent thinking,
+    // attributed to a row that had not thought anything.
     for (what, row) in [
         ("the create action", RailRow::NewSession),
         (
@@ -177,7 +172,7 @@ fn a_row_with_no_lane_never_renders_the_orchestrators_stream() {
     ] {
         let output = pane_for(row);
         assert!(
-            !output.contains(ORCHESTRATOR_ONLY),
+            !output.contains(OTHER_LANE_ONLY),
             "{what} showed lane 0's stream: {output}"
         );
     }
@@ -261,7 +256,7 @@ fn a_run_row_draws_the_run_rather_than_the_session_that_started_it() {
     assert!(pane.contains("test suite"), "{pane}");
     // The session is named as provenance, not drawn as a terminal.
     assert!(pane.contains("abcdef01"), "{pane}");
-    assert!(!pane.contains(ORCHESTRATOR_ONLY), "{pane}");
+    assert!(!pane.contains(OTHER_LANE_ONLY), "{pane}");
 }
 
 #[test]
@@ -322,7 +317,7 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     // The mirror is what lets the Sessions pane reuse the Workflows tab's canvas:
     // that canvas reads the overlay out of the workflow state, so selecting a
     // run here has to move it.
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.workflows = vec![medulla::workflows::WorkflowSummary {
         id: "release-train".into(),
@@ -337,7 +332,7 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     let mut selection = Selection {
         rows: vec![reported_run()],
         active: 0,
-        lanes: vec![orchestrator_lane()],
+        lanes: vec![other_lane()],
         lane_index: None,
         task: None,
         session: None,
@@ -374,7 +369,7 @@ fn selecting_a_run_points_the_workflow_state_at_it() {
     let empty = Selection {
         rows: Vec::new(),
         active: 0,
-        lanes: vec![orchestrator_lane()],
+        lanes: vec![other_lane()],
         lane_index: None,
         task: None,
         session: None,
@@ -395,7 +390,7 @@ fn the_pane_diff_says_which_checkout_it_is_reading() {
     use crate::ui::app::changes::types::ChangedFile;
     use crate::ui::app::types::PaneView;
 
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.changes.root = Some(std::path::PathBuf::from("/repo"));
     app.changes.baseline = Some("baseline".to_owned());
@@ -450,7 +445,7 @@ fn the_pane_diff_takes_the_harness_screens_real_estate() {
     use crate::ui::app::changes::types::ChangedFile;
     use crate::ui::app::types::PaneView;
 
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::empty());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.changes.root = Some(std::path::PathBuf::from("/repo"));
     // The app-start capture read this process's own checkout; the root above

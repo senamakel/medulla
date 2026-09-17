@@ -124,7 +124,7 @@ impl PtySessionExecutor {
         // rather than inferred from `conversation`: the daemon sets that field
         // to the authenticated sender for *every* inbound run, so it is never
         // empty, and the old `is_empty()` test therefore classified every task
-        // frame as unbound. Two unrelated delegated tasks from one orchestrator
+        // frame as unbound. Two unrelated delegated tasks from one dispatcher
         // then shared a harness, each able to read the other's prompt and tool
         // context — the exact opposite of what the comment above promises.
         let class = options.session_class;
@@ -297,7 +297,7 @@ impl PtySessionExecutor {
     /// actually did rather than falling through to the transcript the moment it
     /// finishes — which read as a finished task vanishing.
     ///
-    /// Retention is not takeover. The session stays the orchestrator's, because
+    /// Retention is not takeover. The session stays the sender's, because
     /// [`checkout_writer`](Self::checkout_writer) counts any user-held session
     /// in a directory as the writer holding that checkout: marking these `User`
     /// would make the first task to finish in a workspace queue every task
@@ -325,7 +325,7 @@ impl PtySessionExecutor {
             .row(id)
             .is_some_and(|row| row.state.is_running());
         let retain = retains_finished_session(class, control, settled, origin);
-        let bounded_for_the_orchestrator =
+        let bounded_for_dispatch =
             class == SessionClass::Bounded && control != Some(SessionControl::User);
         if retain {
             // A retained session can serve the operator a later turn, so its
@@ -340,7 +340,7 @@ impl PtySessionExecutor {
             // Freed as well as retained: the turn is over, and a session left
             // busy would read as working forever in every surface that asks.
             self.sessions.release(id);
-        } else if bounded_for_the_orchestrator {
+        } else if bounded_for_dispatch {
             // A bounded turn with nothing to keep standing: it never answered,
             // or it answered for nobody. Either way this is a close, exactly as
             // the bounded path was before retention existed.
@@ -359,7 +359,7 @@ impl PtySessionExecutor {
             // process and a rail row for the life of the daemon, since nothing
             // ends retention but a person taking or closing the session.
             //
-            // `close_if_orchestrator`, not a plain `close`: the `control`
+            // `close_if_dispatch`, not a plain `close`: the `control`
             // snapshot above and this call are not otherwise atomic with a
             // concurrent takeover, and the whole point of the `User` guard is
             // that adoption must win that race, not lose it silently.
@@ -384,7 +384,7 @@ impl PtySessionExecutor {
             // `busy` clears and `try_claim` can reuse it after handback, with
             // its mapper state left alone rather than torn down for a close
             // that never happened.
-            match self.sessions.close_if_orchestrator(id) {
+            match self.sessions.close_if_dispatch(id) {
                 CloseAttempt::Closed | CloseAttempt::Missing => {
                     self.workspace_context
                         .lock()
@@ -450,7 +450,7 @@ impl PtySessionExecutor {
     /// composer, which is the failure that produces confidently wrong answers
     /// rather than an error.
     pub(super) fn stop_turn(&self, id: &str) {
-        let stopped = self.sessions.stop_if_orchestrator(id);
+        let stopped = self.sessions.stop_if_dispatch(id);
         retire_stopped_workspace_context(
             &mut self
                 .workspace_context
@@ -498,7 +498,7 @@ pub(super) fn retains_workspace_context(
     running && (class == SessionClass::Unbound || control == Some(SessionControl::User))
 }
 
-/// Forget mapper state only when the orchestrator actually won the stop race.
+/// Forget mapper state only when the dispatcher actually won the stop race.
 pub(super) fn retire_stopped_workspace_context(
     context: &mut HashMap<String, WorkspaceContext>,
     id: &str,

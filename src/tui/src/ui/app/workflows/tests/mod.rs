@@ -7,9 +7,9 @@
 
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 use medulla::ui::workflows::Move;
 use medulla::workflows::{WorkflowRecord, WorkflowStore};
 use serde_json::json;
@@ -66,7 +66,7 @@ pub(super) fn app_with(workflows: &[WorkflowRecord]) -> (tempfile::TempDir, App)
 /// first one wrote is what the next `medulla` invocation does, so anything the
 /// second one can see came off disk rather than out of the first's memory.
 pub(super) fn app_with_home(home: &std::path::Path, workflows: &[WorkflowRecord]) -> App {
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.set_medulla_home(home.to_path_buf());
     // Only the temp directory, so the catalogue is exactly what this test

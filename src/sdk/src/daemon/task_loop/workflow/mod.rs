@@ -5,10 +5,10 @@
 //! the saved graph instead — dispatching each of its `agent` nodes to its own
 //! harness, in the order and with the parallelism the graph declares.
 //!
-//! That is the whole of "the orchestrator can execute workflows": one extra
+//! That is the whole of "the dispatcher can execute workflows": one extra
 //! field on a frame it already sends, over the transport it already uses. The
 //! admission check, the ack, and the reply are the same ones an ordinary task
-//! gets, so an orchestrator that knows nothing about workflows still sees a
+//! gets, so a dispatcher that knows nothing about workflows still sees a
 //! task it dispatched and a task that answered.
 //!
 //! Split by responsibility to stay under the repo's 500-line ceiling:

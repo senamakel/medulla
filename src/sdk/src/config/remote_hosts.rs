@@ -24,6 +24,9 @@ pub struct RemoteHostRef {
     /// The directory sessions there start in, as configured. Blank means the
     /// remote daemon's own default, which only that daemon can resolve.
     pub workspace: String,
+    /// Whether the host is paired (dialled directly) rather than bootstrapped
+    /// over SSH — see [`RemoteHostSection::paired`].
+    pub paired: bool,
 }
 
 /// Every remote host worth offering, in declaration order.
@@ -44,6 +47,7 @@ pub fn remote_hosts(sections: &[RemoteHostSection]) -> Vec<RemoteHostRef> {
             name: remote_host_name(section),
             host: section.host.trim().to_string(),
             workspace: section.workspace.trim().to_string(),
+            paired: section.paired(),
             id,
         })
         .collect()

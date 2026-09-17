@@ -1,8 +1,8 @@
-//! Starting a harness the orchestrator will not dispatch into.
+//! Starting a harness the dispatcher will not dispatch into.
 //!
 //! Every other harness on this device exists because a task frame needed one.
 //! This is the other door: the operator asks for a `claude` in a folder, gets a
-//! real terminal, and the orchestrator never touches it. Mechanically it is the
+//! real terminal, and the dispatcher never touches it. Mechanically it is the
 //! same [`PtyManager::open`](crate::worker::pty::PtyManager::open) call the
 //! executor makes — the difference is entirely in who the session says it
 //! belongs to, which is what [`claim_idle`] reads before reusing anything.
@@ -123,7 +123,7 @@ impl LocalSessions {
             control: SessionControl::User,
             // A person asked for this one, so it is theirs by origin as well as
             // by control — and it stays user-originated even after they hand it
-            // to the orchestrator, which is the case the two fields exist to
+            // to the dispatcher, which is the case the two fields exist to
             // tell apart.
             origin: SessionOrigin::User,
             name,

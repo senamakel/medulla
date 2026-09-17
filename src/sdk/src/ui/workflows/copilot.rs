@@ -30,7 +30,7 @@ pub enum TurnRole {
     /// Separate from [`Self::Status`] because it is the substantive half of a
     /// turn's progress: "read the graph, then patched two nodes" is the record
     /// of what happened, while "thinking" is chatter that ages out. The
-    /// orchestrator's transcript has drawn tool calls this way since it existed;
+    /// dispatcher's transcript has drawn tool calls this way since it existed;
     /// this is the copilot reading the same.
     Tool,
     /// A tool call that completed successfully.

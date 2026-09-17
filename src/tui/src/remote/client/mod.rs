@@ -11,8 +11,10 @@
 //! time. [`RemoteHost::watch`] moves that stream. Every other session stays live
 //! and keeps appearing in the session list, which rides the reliable channel.
 
+pub mod autorun;
 mod bootstrap;
 pub mod exec;
+pub mod pairing;
 pub mod task;
 
 // Unix only, and not for want of portability: these drive a **real pty running
@@ -61,6 +63,13 @@ pub enum PumpEvent {
     /// The host refused to start one, and this is why — the directory did not
     /// exist, the harness failed to launch, and so on.
     OpenFailed(String),
+    /// The host answered a workflow call.
+    WorkflowResult {
+        /// Echoes the request.
+        request_id: String,
+        /// The tool's JSON, or the host's reason for refusing.
+        result: Result<serde_json::Value, String>,
+    },
 }
 
 /// One connected remote machine.
@@ -150,6 +159,73 @@ impl RemoteHost {
                 peers: vec![LinkPeer {
                     name: HOST_ADDRESS.to_string(),
                     node_id: started.connect.node_id,
+                }],
+            },
+        ));
+        Ok(RemoteHost {
+            id: id.to_string(),
+            bridge,
+            capabilities: RemoteCapabilities::default(),
+            rows: Vec::new(),
+            watching: None,
+            _ssh: None,
+        })
+    }
+
+    /// Dial a paired host: no SSH, straight to the port its key named.
+    ///
+    /// `state_dir` is the client identity the Hosts tab minted when it issued
+    /// the key — this device's node id, with the host as its one enrolled
+    /// peer. Nothing is written here; a host that was never paired has no
+    /// identity and is reported as such rather than dialled blind.
+    ///
+    /// # Errors
+    ///
+    /// When the host is not paired, its identity is missing or holds no peer,
+    /// or the link cannot be brought up.
+    pub async fn dial(
+        id: &str,
+        host: &RemoteHostSection,
+        state_dir: &std::path::Path,
+    ) -> Result<Self, String> {
+        if !host.paired() {
+            return Err("this host is not paired yet — press i on the Hosts tab".to_string());
+        }
+        let state = keys::read_node_state(&keys::node_path(state_dir)).map_err(|error| {
+            format!("no pairing on this device for {id} ({error}); re-issue its key")
+        })?;
+        let peer = state
+            .enrolled_peers()
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("the pairing for {id} names no host; re-issue its key"))?;
+        let destination = match host.udp_host.trim() {
+            "" => host.host.trim(),
+            other => other,
+        };
+        let endpoint = crate::remote::serve::join_endpoint(destination, host.udp_port);
+
+        let mut config = LinkConfig::new(state_dir);
+        if let Some(bind) = bind_for(&endpoint) {
+            config.bind = bind;
+        }
+        config.path = LinkPath::Direct {
+            endpoint: endpoint.clone(),
+        };
+        config.peers = vec![PeerConfig {
+            node_id: peer.node_id,
+            pair_key: peer.pair_key,
+        }];
+        let link = Link::connect(config)
+            .await
+            .map_err(|e| format!("could not bring up the link to {endpoint}: {e}"))?;
+        let bridge = Arc::new(LinkBridge::new(
+            Arc::new(link),
+            LinkBridgeConfig {
+                node_name: "medulla-client".to_string(),
+                peers: vec![LinkPeer {
+                    name: HOST_ADDRESS.to_string(),
+                    node_id: peer.node_id,
                 }],
             },
         ));
@@ -288,6 +364,28 @@ impl RemoteHost {
         .await
     }
 
+    /// Ask the host to run one workflow operation against its own store.
+    pub async fn workflow_call(
+        &self,
+        request_id: &str,
+        tool: &str,
+        args: serde_json::Value,
+    ) -> Result<(), String> {
+        self.send(&encode_remote_message(&RemoteMessage::WorkflowCall {
+            request_id: request_id.to_string(),
+            tool: tool.to_string(),
+            args,
+        }))
+        .await
+    }
+
+    /// How recently the host was heard from. Advisory: the link keeps
+    /// retransmitting through every state, so `Offline` is "not lately", never
+    /// "gone".
+    pub async fn liveness(&self) -> medulla::bridge::BridgeLiveness {
+        self.bridge.liveness(HOST_ADDRESS).await
+    }
+
     /// End a session on the host.
     pub async fn close(&self, session_id: &str) -> Result<(), String> {
         self.send(&encode_remote_message(&RemoteMessage::Close {
@@ -321,8 +419,21 @@ impl RemoteHost {
                     RemoteMessage::OpenFailed { reason, .. } => {
                         events.push(PumpEvent::OpenFailed(reason));
                     }
+                    RemoteMessage::WorkflowResult {
+                        request_id,
+                        result,
+                        error,
+                    } => {
+                        let result = match (result, error) {
+                            (_, Some(error)) => Err(error),
+                            (Some(value), None) => Ok(value),
+                            (None, None) => Err("the host answered with nothing".to_string()),
+                        };
+                        events.push(PumpEvent::WorkflowResult { request_id, result });
+                    }
                     RemoteMessage::Hello { .. }
                     | RemoteMessage::Open { .. }
+                    | RemoteMessage::WorkflowCall { .. }
                     | RemoteMessage::Close { .. } => {}
                 }
                 continue;
@@ -372,10 +483,10 @@ fn mint_identity(dir: &std::path::Path) -> Result<NodeId, String> {
     let node = keys::acquire_or_create(dir, || NodeState {
         version: 1,
         node_id: NodeId::generate(),
-        // The orchestrator half of the direction bit (§4.2): this end dialled
+        // The dispatcher half of the direction bit (§4.2): this end dialled
         // in, the daemon is the host. The two halves must disagree, or both
         // would draw nonces from the same space under one key.
-        role: Role::Orchestrator,
+        role: Role::Owner,
         pair_key: PairKey::generate(),
         forwarder_key: ForwarderKey::generate(),
         forwarder_endpoint: String::new(),

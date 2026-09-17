@@ -78,7 +78,7 @@ async fn device_local_workflow_node_keeps_workflow_origin() {
     let runtime = DaemonRuntime::new(base_config(), origin_runner(seen.clone()), send);
 
     // The embedded drain (LocalWorkflowHost's loopback) answers `is_device_local`
-    // with `true` for the in-process orchestrator and forwards that verdict here.
+    // with `true` for the in-process dispatcher and forwards that verdict here.
     runtime.handle_message_from(
         "ident-this-device".into(),
         String::new(),

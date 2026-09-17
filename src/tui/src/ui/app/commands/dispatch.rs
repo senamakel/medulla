@@ -1,9 +1,7 @@
-//! Runtime, prompt, and clipboard command dispatch.
+//! Task, prompt, and clipboard command dispatch.
 
 use crate::ui::agents::TaskState;
-use crate::ui::clipboard::{copy_for_operator, copy_to_clipboard, current_platform};
-use crate::ui::command::{self, CopyScope};
-use crate::ui::composer::Draft;
+use crate::ui::clipboard::{copy_for_operator, current_platform};
 
 use super::super::types::{tab_pos, App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES};
 
@@ -22,53 +20,22 @@ impl App {
     }
 
     /// Request cancellation of the selected running task, or note why it cannot.
+    ///
+    /// A dispatched task is cancelled on the hub's own runner, which admitted
+    /// it: the runner sends the abort frame to the worker and settles the task.
     pub(in crate::ui::app) fn cancel_selected_task(&mut self) {
         match self.selected_agent_task() {
             Some(t) => {
-                let (cycle, task) = crate::ui::agents::parse_task_key(&t.task_id);
-                match cycle {
-                    Some(c) => {
-                        // MCP tasks run on CloudRuntime's local task runner,
-                        // not its backend steering API. Their cycle prefix is
-                        // the capability marker for that separate cancel path.
-                        if !c.starts_with("mcp:") && !self.runtime.steering_reaches_backend() {
-                            self.set_status("Cancelling a task is not wired to this runtime yet");
-                            return;
-                        }
-                        self.runtime.cancel_task(c.to_string(), task.to_string());
+                let (_, task) = crate::ui::agents::parse_task_key(&t.task_id);
+                match medulla::hub::hub_in(&self.hub) {
+                    Some(hub) => {
+                        hub.task_runner().abort_task(task);
                         self.set_status(format!("Cancel requested · {task}"));
                     }
-                    None => self.set_status("Selected task has no cycle to cancel"),
+                    None => self.set_status("No hub is running, so nothing can be cancelled"),
                 }
             }
             None => self.set_status("Select a running task (↑↓) to cancel with X"),
-        }
-    }
-
-    pub(in crate::ui::app) fn answer_selected_task(&mut self) {
-        match self.selected_agent_task() {
-            Some(t) => match (
-                t.question_id.clone(),
-                crate::ui::agents::parse_task_key(&t.task_id).0,
-            ) {
-                (Some(qid), Some(cycle)) => {
-                    self.prompt = Some(Prompt {
-                        kind: PromptKind::AnswerQuestion {
-                            cycle_id: cycle.to_string(),
-                            question_id: qid,
-                        },
-                        title: t
-                            .attention
-                            .clone()
-                            .map(|a| format!("Answer — {a}"))
-                            .unwrap_or_else(|| "Answer the pending question".into()),
-                        draft: Draft::new(),
-                    });
-                    self.set_status("Type an answer · Enter send · Esc cancel");
-                }
-                _ => self.set_status("Selected task has no pending question"),
-            },
-            None => self.set_status("Select a task (↑↓) with a pending question to answer"),
         }
     }
 
@@ -108,40 +75,7 @@ impl App {
                     reason: text,
                 })
             }
-            PromptKind::AnswerQuestion {
-                cycle_id,
-                question_id,
-            } => {
-                if text.is_empty() {
-                    self.set_status("Answer cancelled (empty)");
-                    return None;
-                }
-                if !self.runtime.steering_reaches_backend() {
-                    self.set_status("Answering a question is not wired to this runtime yet");
-                    return None;
-                }
-                self.runtime.answer_question(cycle_id, question_id, text);
-                self.set_status("Answer sent");
-                None
-            }
-            PromptKind::DecisionAnswer {
-                decision_id,
-                cycle_id,
-                question_id,
-            } => {
-                if text.is_empty() {
-                    self.set_status("Answer cancelled (empty)");
-                    return None;
-                }
-                if !self.runtime.steering_reaches_backend() {
-                    self.set_status("Answering a question is not wired to this runtime yet");
-                    return None;
-                }
-                self.runtime.answer_question(cycle_id, question_id, text);
-                self.dismissed_decisions.insert(decision_id);
-                self.set_status("Decision answered");
-                None
-            }
+            PromptKind::HostField { form, field } => self.submit_host_field(*form, field, text),
             PromptKind::FeedbackComment { id } => {
                 if text.is_empty() {
                     self.set_status("Comment cancelled (empty)");
@@ -201,19 +135,20 @@ impl App {
                     self.open_workflow_input_prompt(workflow_id, dry_run, remaining, collected);
                     return None;
                 }
-                if dry_run {
+                let cmd = if dry_run {
                     self.set_status("Simulating…");
-                    Some(Cmd::DryRunWorkflow {
+                    Cmd::DryRunWorkflow {
                         id: workflow_id,
                         inputs: collected,
-                    })
+                    }
                 } else {
                     self.set_status("Running…");
-                    Some(Cmd::RunWorkflow {
+                    Cmd::RunWorkflow {
                         id: workflow_id,
                         inputs: collected,
-                    })
-                }
+                    }
+                };
+                self.scope_workflow_cmd(Some(cmd))
             }
         }
     }
@@ -259,64 +194,16 @@ impl App {
         ));
     }
 
-    /// Copy the requested chat scope to the clipboard (or the test capture sink),
-    /// reporting the result in the status line.
-    pub(in crate::ui::app) fn copy_chat(&mut self, scope: CopyScope) {
-        let text = command::copy_text(&self.snapshot.chat_events, scope);
-        if text.trim().is_empty() {
-            self.set_status(match scope {
-                CopyScope::Last => "No assistant reply to copy yet.",
-                CopyScope::All => "Nothing to copy yet.",
-            });
-            return;
-        }
-        if let Some(sink) = &self.copy_capture {
-            sink.lock().expect("copy sink").push(text.clone());
-            let rows = text.split('\n').count();
-            let what = match scope {
-                CopyScope::Last => "last reply",
-                CopyScope::All => "chat",
-            };
-            self.set_status(format!(
-                "Copied {what} · {rows} line{} · {} chars (captured)",
-                if rows == 1 { "" } else { "s" },
-                text.len()
-            ));
-            return;
-        }
-        let report = copy_to_clipboard(&text, current_platform(), |osc| {
-            use std::io::Write;
-            let _ = std::io::stdout().write_all(osc.as_bytes());
-            let _ = std::io::stdout().flush();
-        });
-        let rows = text.split('\n').count();
-        let what = match scope {
-            CopyScope::Last => "last reply",
-            CopyScope::All => "chat",
-        };
-        let size = format!(
-            "{rows} line{} · {} chars",
-            if rows == 1 { "" } else { "s" },
-            text.len()
-        );
-        self.set_status(if report.confirmed() {
-            format!("Copied {what} · {size} → clipboard ({})", report.describe())
-        } else {
-            format!("Sent {what} · {size} → terminal (OSC 52); check your clipboard")
-        });
-    }
-
     /// Copy one short line — a command, an address — to the clipboard, naming it
     /// in the status line.
     ///
-    /// Kept apart from [`App::copy_chat`] in two ways. It reports *what* was
-    /// copied rather than a size, because for one line the size says nothing.
-    /// And it goes to the terminal first
-    /// ([`copy_for_operator`](medulla::clipboard::copy_for_operator)): the
-    /// orchestrator itself may be running over SSH, and a short line is exactly
-    /// what an operator then pastes somewhere else. A transcript keeps the
-    /// local-writer-first path, since terminals cap how much an OSC 52 escape
-    /// may carry and a long chat would be truncated or dropped outright.
+    /// It reports *what* was copied rather than a size, because for one line
+    /// the size says nothing. And it goes to the terminal first
+    /// ([`copy_for_operator`](medulla::clipboard::copy_for_operator)): this
+    /// `medulla` may itself be running over SSH, and a short line is exactly
+    /// what an operator then pastes somewhere else. The pointer selection keeps
+    /// the local-writer-first path, since terminals cap how much an OSC 52
+    /// escape may carry and a long block would be truncated or dropped outright.
     pub(in crate::ui::app) fn copy_line(&mut self, what: &str, text: &str) {
         if let Some(sink) = &self.copy_capture {
             sink.lock().expect("copy sink").push(text.to_string());

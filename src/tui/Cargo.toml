@@ -1,6 +1,6 @@
 [package]
 name = "medulla-tui"
-description = "Medulla terminal UI: chat with the orchestrator, watch agent lanes, drive the daemon and wrappers"
+description = "Medulla terminal UI: run coding-agent sessions across surfaces, remote hosts, and instances"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

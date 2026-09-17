@@ -27,7 +27,7 @@
 //! # Naming warning
 //!
 //! **`Bounded`/`Unbound` here are the inverse of the JavaScript prior art's
-//! vocabulary.** The former `core-js` orchestrator (since removed from this
+//! vocabulary.** The former `core-js` dispatcher (since removed from this
 //! repo) and host-link daemon call the long-lived session
 //! "bound" (bound to a thread) and the throwaway one "pool"/"unbound". Here the
 //! adjective describes the *lifetime*. When reading that prior art, translate:

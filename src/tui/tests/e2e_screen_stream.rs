@@ -58,8 +58,8 @@ fn sh(script: &str, label: &str) -> LaunchSpec {
         label: label.to_string(),
         session_id: None,
         model: None,
-        control: SessionControl::Orchestrator,
-        origin: medulla_tui::worker::pty::SessionOrigin::Orchestrator,
+        control: SessionControl::Dispatch,
+        origin: medulla_tui::worker::pty::SessionOrigin::Task,
         name: None,
         mcp_grant_session: None,
     }

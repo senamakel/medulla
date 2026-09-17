@@ -113,7 +113,7 @@ impl SessionManager {
         // resumed conversation's identity lives. A closed session keeps its
         // binding, so the next turn on that key opens a new record — and
         // deciding its identity from the turn alone would hand a person's named
-        // session back as an unnamed orchestrator one the moment a task frame
+        // session back as an unnamed dispatcher one the moment a task frame
         // touched it.
         let plan = self.inner.registry.plan(&request.key, request.class);
         let id = self.ensure_session(&request, &plan);
@@ -146,7 +146,7 @@ impl SessionManager {
                         // turn resumes — so the session's identity is copied
                         // onto it the moment there is a binding to hold it.
                         // Skipping this would let a resumed conversation come
-                        // back as an unnamed orchestrator session.
+                        // back as an unnamed dispatched session.
                         if let Some(record) = self.record(&id) {
                             self.inner.registry.record_identity(
                                 &request.key,
@@ -197,7 +197,7 @@ impl SessionManager {
             //
             // Auto-creation (§4.1) is the other branch: with no binding to
             // continue, a session made to serve a task frame is the
-            // orchestrator's and one made for a typed prompt is the person's,
+            // dispatcher's and one made for a typed prompt is the person's,
             // and the turn's own provenance is the only thing that can say.
             let identity = match plan.resume_session_id {
                 Some(_) => plan.identity.clone(),

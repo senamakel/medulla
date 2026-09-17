@@ -88,7 +88,7 @@ pub struct TrackedTask {
     pub created_at: String,
     /// ISO-8601 timestamp of the last update.
     pub updated_at: String,
-    /// The originating orchestrator instruction / cycle, when recorded.
+    /// The originating dispatcher instruction / cycle, when recorded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instruction_id: Option<String>,
     /// Delegation-ledger keys this task fanned out to.

@@ -51,7 +51,7 @@ fn a_task_frame_naming_a_shell_falls_back_to_the_host_default() {
 
 /// A peer's advertised provider list is its claim about what it will run. One
 /// naming a shell is offering to take delegated work on a terminal, so the
-/// entry is dropped rather than becoming a candidate the orchestrator can pick.
+/// entry is dropped rather than becoming a candidate the dispatcher can pick.
 #[test]
 fn an_advertised_shell_provider_is_dropped() {
     let capabilities =

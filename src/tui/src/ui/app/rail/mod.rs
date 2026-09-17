@@ -5,7 +5,7 @@
 //! + New session             ← the one action, when this device hosts
 //! ▸ this device             ← host row, only when a remote host exists
 //!   ├ /workspace            ← optional path or harness group heading
-//!   │ ├ t_41 · running      ← a session the orchestrator dispatched
+//!   │ ├ t_41 · running      ← a session the dispatcher dispatched
 //!   │ └ debug login         ← a session the operator started
 //!   │   └ wf run · deploy   ← a workflow run that session started
 //!   └ +3 more               ← the fold's paging control
@@ -37,11 +37,11 @@
 //! module is the assembly.
 
 use medulla::config::agent_declarations_for_host;
-use medulla::runtime::AgentDeclaration;
+use medulla::fleet::AgentDeclaration;
 use medulla::ui::hosts::{HostAgentRow, HostKind, HostRow};
 
 use super::types::App;
-use crate::ui::agents::{ordered_tasks, AgentLane, AgentRole};
+use crate::ui::agents::{ordered_tasks, AgentLane};
 use crate::worker::pty::SessionRow;
 
 mod cleanup;
@@ -54,6 +54,7 @@ mod hosts;
 mod organize;
 mod paging;
 pub(in crate::ui::app) mod resolve;
+mod scope;
 // Kept apart from `tests` rather than nested inside it: the assembly rules and
 // the served-dispatch merge are separate responsibilities, and one file for
 // both had already grown past this repository's line ceiling.
@@ -113,7 +114,7 @@ impl App {
     /// The rail's rows: the conversation, the create action, and the tree.
     ///
     /// Assembled in three passes so each one answers a single question. First the
-    /// fold is split — the orchestrator and the function lanes keep their rows,
+    /// fold is split — the dispatcher and the function lanes keep their rows,
     /// the agent lanes become groups keyed by agent id. Then the shared
     /// `Host → Agent` projection places those groups, adding every agent that has
     /// no traffic and every host that holds one. Last the live PTY sessions are
@@ -131,9 +132,16 @@ impl App {
     /// snapshot: lane indexes in fold rows are meaningful only to the lanes
     /// that produced them.
     pub(super) fn rail_rows_in(&self, lanes: &[AgentLane]) -> Vec<RailRow> {
-        let folded = self.split_fold(lanes);
+        // The folded lanes are this device's dispatches — tasks
+        // and the workers serving them. Scoped to one remote host, none of
+        // that is on the machine in view, so the tree is built without it.
+        let folded = match self.current_host.host_id() {
+            Some(_) => Vec::new(),
+            None => self.split_fold(lanes),
+        };
         let mut hosts = place_agents(&self.host_tree(), folded);
-        let mut orphans = self.attach_sessions(&mut hosts);
+        let orphans = self.attach_sessions(&mut hosts);
+        let mut orphans = self.fold_orphans_by_host(&mut hosts, orphans);
         let appearance = &self.loaded.config.appearance;
         let sections = organize::organize(
             hosts,
@@ -145,17 +153,12 @@ impl App {
         self.flatten(sections, orphans, lanes)
     }
 
-    /// Fold the lane rows into per-agent groups.
-    ///
-    /// Only agent-role lanes produce anything. The orchestrator's own lane, the
-    /// `── functions ──` divider and the function lanes beneath it used to be
-    /// carried through as rows of their own; the rail lists sessions now, and
-    /// none of those is one.
+    /// Fold the lane rows into per-agent groups: one group per roster agent,
+    /// holding the tasks dispatched to it.
     fn split_fold(&self, lanes: &[AgentLane]) -> Vec<AgentGroup> {
         lanes
             .iter()
             .enumerate()
-            .filter(|(_, lane)| lane.role == AgentRole::Agent)
             .map(|(lane_index, lane)| {
                 let mut group = self.group_for_lane(lane, lane_index);
                 group.sessions = ordered_tasks(&lane.tasks)
@@ -293,8 +296,9 @@ impl App {
     ) -> Vec<RailRow> {
         let mut rows: Vec<RailRow> = Vec::new();
         // A device that hosts nothing has nowhere to start a session, so the
-        // action is absent there rather than present and refusing.
-        if self.local_sessions.is_some() {
+        // action is absent there rather than present and refusing. A remote
+        // host in scope is somewhere to start one, whatever this device does.
+        if self.local_sessions.is_some() || self.current_host.host_id().is_some() {
             rows.push(RailRow::NewSession);
         }
         // Progressive disclosure: one host is the common case, and a permanent
@@ -334,7 +338,7 @@ impl App {
     /// How many local harnesses are waiting on the operator right now.
     ///
     /// Counts every live session on this device, not only the rows on the rail:
-    /// a session the orchestrator started and then got stuck on a permission
+    /// a session the dispatcher started and then got stuck on a permission
     /// prompt is exactly the case an operator needs told about, and it may have
     /// no row of its own.
     ///
@@ -369,7 +373,7 @@ impl App {
     /// A dispatched session reaches the rail through its task while that task is
     /// running, folded from the event stream, so listing it here as well would
     /// show one session twice. What is left is the operator's own — started by
-    /// them, or taken from the orchestrator — plus the *retained* ones, which
+    /// them, or taken from the dispatcher — plus the *retained* ones, which
     /// are dispatched sessions whose task has finished.
     ///
     /// Retained sessions have to be here, and the task row is not a substitute.
@@ -391,7 +395,7 @@ impl App {
     ///
     /// And a dispatched session that started a workflow run is listed too, task
     /// row or not. The task row carries `local: None`, so it has no grant to key
-    /// runs by ([`run_rows_under`]) — which meant the runs an orchestrator's own
+    /// runs by ([`run_rows_under`]) — which meant the runs a sender's own
     /// harnesses start, the majority of them, were the ones the rail could not
     /// show. A run is minutes-to-hours of work in another process; leaving it
     /// invisible is the same failure retention exists to prevent. That does not
@@ -403,12 +407,21 @@ impl App {
         // when it hosts nothing at all: they run somewhere else, so the local
         // host's absence says nothing about them. This is why they are collected
         // before the early return rather than after it.
-        let remote = self.remote_session_rows();
+        let remote: Vec<SessionRow> = self
+            .remote_session_rows()
+            .into_iter()
+            .filter(|row| self.session_in_scope(row))
+            .collect();
         let Some(harnesses) = self.local_sessions.as_ref() else {
             let mut rows = remote;
             rows.sort_by_key(|row| row.started_at);
             return rows;
         };
+        if !self.current_host.includes("") {
+            let mut rows = remote;
+            rows.sort_by_key(|row| row.started_at);
+            return rows;
+        }
         let mut rows: Vec<SessionRow> = harnesses
             .sessions
             .rows()

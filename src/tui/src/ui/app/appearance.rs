@@ -176,7 +176,7 @@ pub(super) const APPEARANCE_TABLE: [AppearanceRow; 16] = [
     row(
         Some("Sessions sidebar"),
         "Session titles",
-        "Whether an orchestrator-run agent shows the title taken from its work.",
+        "Whether a dispatched session shows the title taken from its work.",
         AppearanceControl::SessionTitles,
     ),
     row(
@@ -369,7 +369,7 @@ impl App {
         self.persist_theme_value_now("Attention blink rate", blink_rate_label(next));
     }
 
-    /// Toggle extracted harness titles on orchestrator-managed agent rows.
+    /// Toggle extracted harness titles on dispatcher-managed agent rows.
     fn toggle_session_titles(&mut self) {
         let appearance = &mut self.loaded.config.appearance;
         appearance.show_session_titles = !appearance.show_session_titles;

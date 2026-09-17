@@ -72,54 +72,6 @@ pub async fn record_ui_action(action: &str) -> Result<(), AnalyticsError> {
     record_current("ui_action", json!({ "action": action })).await
 }
 
-/// Observe safe metadata emitted by the backend event stream.
-///
-/// This records model names, harness names, and provider-reported token counts;
-/// it deliberately does not retain inference output, task instructions, tool
-/// arguments, or any other event content.
-pub fn observe_runtime_events(events: &[crate::ui::events::EventEnvelope]) {
-    for event in events {
-        match &event.event {
-            crate::ui::events::TuiEvent::InferenceEnd { model, usage, .. } => {
-                let model = model.clone();
-                let usage = usage.clone();
-                tokio::spawn(async move {
-                    let properties = json!({
-                        "model": model,
-                        "input_tokens": usage.as_ref().map(|u| u.input_tokens),
-                        "output_tokens": usage.as_ref().map(|u| u.output_tokens),
-                        "cache_read_tokens": usage.as_ref().and_then(|u| u.cache_read_tokens),
-                        "cache_creation_tokens": usage.as_ref().and_then(|u| u.cache_creation_tokens),
-                    });
-                    let _ = record_current("inference_completed", properties).await;
-                });
-            }
-            crate::ui::events::TuiEvent::TaskEvent {
-                harness: Some(harness),
-                ..
-            } => {
-                let harness = harness.clone();
-                tokio::spawn(async move {
-                    let _ = record_current("harness_used", json!({ "harness": harness })).await;
-                });
-            }
-            crate::ui::events::TuiEvent::TaskComplete { digest } => {
-                let usage = digest.usage.clone();
-                tokio::spawn(async move {
-                    let properties = json!({
-                        "input_tokens": usage.as_ref().map(|u| u.input_tokens),
-                        "output_tokens": usage.as_ref().map(|u| u.output_tokens),
-                        "cache_read_tokens": usage.as_ref().and_then(|u| u.cache_read_tokens),
-                        "cache_creation_tokens": usage.as_ref().and_then(|u| u.cache_creation_tokens),
-                    });
-                    let _ = record_current("task_completed", properties).await;
-                });
-            }
-            _ => {}
-        }
-    }
-}
-
 /// A narrow OpenPanel HTTP client used only for Medulla lifecycle events.
 #[derive(Clone)]
 struct Tracker {

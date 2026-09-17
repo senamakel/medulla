@@ -83,11 +83,11 @@ fn enter_on_an_exited_hosted_harness_is_consumed_without_attaching() {
 }
 
 #[test]
-fn orchestrator_session_refuses_attachment_and_remains_running() {
+fn dispatched_session_refuses_attachment_and_remains_running() {
     let mut app = app();
     app.tab_index = tab("Sessions");
     let sessions = host(&mut app);
-    let session = open_session(&sessions, SessionControl::Orchestrator);
+    let session = open_session(&sessions, SessionControl::Dispatch);
     app.pane_session = Some(session.clone());
 
     let cmd = app.on_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -102,12 +102,12 @@ fn orchestrator_session_refuses_attachment_and_remains_running() {
 }
 
 #[test]
-fn stale_close_prompt_cannot_kill_an_orchestrator_session() {
+fn stale_close_prompt_cannot_kill_a_dispatched_session() {
     let mut app = app();
     let sessions = host(&mut app);
     let session = open_session(&sessions, SessionControl::User);
     app.arm_harness_close(session.clone());
-    assert!(sessions.set_control(&session, SessionControl::Orchestrator));
+    assert!(sessions.set_control(&session, SessionControl::Dispatch));
 
     app.close_session(&session);
 
@@ -197,14 +197,14 @@ fn dismissing_an_exited_session_with_an_active_run_is_refused() {
 }
 
 #[test]
-fn a_settled_task_session_is_dismissable_despite_orchestrator_control() {
+fn a_settled_task_session_is_dismissable_despite_dispatch_control() {
     // The view-only refusal speaks of task sessions that are *running*. Applied
     // to one that has exited it pinned the row exactly as the old
     // already-exited refusal did, from the branch above it.
     let mut app = app();
     app.tab_index = tab("Sessions");
     let sessions = host(&mut app);
-    let session = open_session(&sessions, SessionControl::Orchestrator);
+    let session = open_session(&sessions, SessionControl::Dispatch);
     assert!(sessions.close(&session));
     app.pane_session = Some(session.clone());
 

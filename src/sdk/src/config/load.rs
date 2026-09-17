@@ -26,7 +26,7 @@ use super::urls::{backend_base_url, resolve_forwarder_base_url};
 /// `link.forwarderUrl` can still move the forwarder off it.
 ///
 /// That divergence is not cosmetic: a host pointed at one forwarder and an
-/// orchestrator pointed at another both start cleanly and report healthy — they
+/// dispatcher pointed at another both start cleanly and report healthy — they
 /// simply never hear from each other, because the forwarder is what moves the
 /// datagram and neither one's is the other's. Use this instead of
 /// `Default::default()` anywhere a missing section is filled in, so running

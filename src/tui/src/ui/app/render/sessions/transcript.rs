@@ -2,10 +2,9 @@
 //! names one, its task transcript when it is a dispatch, and a description of
 //! the row itself when it is neither.
 //!
-//! Above whichever it is sits the header — the harness task board, the seat
-//! budget, where the lane runs, and the compact meters for that machine and
-//! this lane's context window. The header is built first because it decides how
-//! many rows are left for the body to scroll through.
+//! Above whichever it is sits the header — the seat budget, where the lane
+//! runs, and the compact meters for that machine. The header is built first
+//! because it decides how many rows are left for the body to scroll through.
 
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -14,7 +13,7 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::ui::agents::{lane_lines, task_lines, Line as StyledLine};
-use crate::ui::harness::{budget_note, task_board_lines};
+use crate::ui::harness::budget_note;
 use crate::ui::meters;
 use medulla::harness_contract::AgentBudgetMetadata;
 
@@ -106,13 +105,6 @@ impl App {
                 Style::default().fg(Color::Magenta),
             )));
         }
-        // Harness task board: session-wide, shown only when the backend surfaces a
-        // `HarnessStatus`. Degrades to nothing (empty vec) when absent or empty.
-        if let Some(status) = &self.snapshot.harness {
-            for line in task_board_lines(status, pane_width) {
-                header.push(styled_to_tline(&line));
-            }
-        }
         // Read-only seat budget for the selected lane, when its descriptor carries
         // a `metadata.budget` stamp. Seat CRUD stays a backend REST concern.
         if let Some(budget) = lane
@@ -150,7 +142,7 @@ impl App {
                 // in the capacity snapshot until it answers a capability probe.
                 // Falling back to what the descriptor itself carries means the
                 // machine and the working directory show from the first frame
-                // rather than only after the orchestrator happens to probe.
+                // rather than only after the dispatcher happens to probe.
                 let meta = |key: &str| {
                     descriptor
                         .metadata
@@ -230,12 +222,6 @@ impl App {
                     }
                 }
             }
-            if let Some(lane) = lane {
-                let window = self.loaded.config.medulla.context_window() as i64;
-                if let Some(line) = meters::context_meter(&lane.usage, window) {
-                    header.push(styled_to_tline(&line));
-                }
-            }
         }
         // Reserve the last row for the status line (scroll notice or spinner),
         // or a below-fold notice would itself fall below the fold.
@@ -277,8 +263,9 @@ impl App {
         selection: &Selection,
     ) -> Option<medulla::hub::WatchedScreen> {
         let task = selection.task.as_ref()?;
-        self.runtime
-            .worker_screens()
+        medulla::hub::hub_in(&self.hub)?
+            .screens()
+            .snapshot()
             .into_iter()
             .find(|held| held.task_id == task.task_id)
     }

@@ -1,4 +1,4 @@
-//! Process orchestration for a wrapped session: the [`run_wrapper`] entry point,
+//! Process dispatch for a wrapped session: the [`run_wrapper`] entry point,
 //! the [`run_wrapper_with`] core loop that drives the child CLI and the
 //! the [`Bridge`](super::bridge::Bridge), and the exit-code / signal
 //! plumbing around it.

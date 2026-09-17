@@ -1,7 +1,7 @@
 //! Address-routing bridge: one endpoint that speaks to device-local peers over
 //! the in-memory bus and to everyone else over the host link.
 //!
-//! This is what lets a single process be both orchestrator and host. The hub
+//! This is what lets a single process be both dispatcher and host. The hub
 //! dispatches through one [`Bridge`], the embedded daemon binds a local address
 //! on the same [`LocalBridgeNetwork`](super::LocalBridgeNetwork), and work for
 //! this machine never leaves it — no relay round-trip, no contact graph, no
@@ -43,7 +43,7 @@ impl RoutingBridge {
 
     /// Route local addresses only.
     ///
-    /// Used when this device has no link identity: the orchestrator still
+    /// Used when this device has no link identity: the dispatcher still
     /// reaches its own host, and a remote address reports that plainly rather
     /// than being accepted and dropped.
     pub fn local_only(local: LocalBridge) -> Self {

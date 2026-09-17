@@ -32,7 +32,7 @@ fn a_session_the_operator_holds_is_never_dispatched_into() {
     assert_eq!(
         manager.claim_idle("test", HarnessProvider::Codex),
         None,
-        "an operator-held session was offered to the orchestrator"
+        "an operator-held session was offered to the dispatcher"
     );
 
     manager.close(&id);
@@ -47,10 +47,10 @@ fn handing_a_session_back_makes_it_claimable() {
     });
     assert!(manager.claim_idle("test", HarnessProvider::Codex).is_none());
 
-    assert!(manager.set_control(&id, SessionControl::Orchestrator));
+    assert!(manager.set_control(&id, SessionControl::Dispatch));
     let claimed = manager
         .claim_idle("test", HarnessProvider::Codex)
-        .expect("a handed-back session is the orchestrator's to use");
+        .expect("a handed-back session is the sender's to use");
     assert_eq!(claimed.id, id);
 
     manager.close(&id);
@@ -80,7 +80,7 @@ fn a_retained_session_is_never_dispatched_into() {
     assert_eq!(
         manager.claim_idle("test", HarnessProvider::Codex),
         None,
-        "a retained session was offered to the orchestrator"
+        "a retained session was offered to the dispatcher"
     );
 
     manager.close(&id);
@@ -102,7 +102,7 @@ fn a_retained_session_says_so_on_its_row() {
     assert!(row.retained);
     assert_eq!(
         row.control,
-        SessionControl::Orchestrator,
+        SessionControl::Dispatch,
         "retention must not read as a takeover — `checkout_writer` counts \
          user-held sessions as holding the checkout, and one that never lets go \
          would queue every task dispatched into that directory afterwards"
@@ -148,7 +148,7 @@ fn handed_back_operator_session_adopts_the_first_real_conversation() {
         manager.row(&id).is_some_and(|r| r.state.is_running())
     });
 
-    assert!(manager.set_control(&id, SessionControl::Orchestrator));
+    assert!(manager.set_control(&id, SessionControl::Dispatch));
     let claimed = manager
         .claim_idle("peer@example", HarnessProvider::Codex)
         .expect("a handed-back session must be eligible for real dispatch");
@@ -172,7 +172,7 @@ fn handed_back_operator_session_adopts_the_first_real_conversation() {
 #[test]
 fn taking_over_a_running_session_stops_further_dispatch() {
     let manager = PtyManager::new();
-    // Opened the way a task frame opens one: orchestrator-held.
+    // Opened the way a task frame opens one: dispatch-held.
     let id = manager.open(sh("sleep 30")).unwrap();
     wait_for("session running", || {
         manager.row(&id).is_some_and(|r| r.state.is_running())
@@ -182,7 +182,7 @@ fn taking_over_a_running_session_stops_further_dispatch() {
     manager.release(&id);
     assert!(
         manager.claim_idle("test", HarnessProvider::Codex).is_some(),
-        "an idle orchestrator session should be reusable"
+        "an idle dispatched session should be reusable"
     );
     manager.release(&id);
 
@@ -228,7 +228,7 @@ fn handover_leaves_a_running_turn_marked_busy() {
 
     assert!(manager.set_control(&id, SessionControl::User));
     assert!(manager.row(&id).unwrap().busy);
-    assert!(manager.set_control(&id, SessionControl::Orchestrator));
+    assert!(manager.set_control(&id, SessionControl::Dispatch));
     assert!(
         manager.row(&id).unwrap().busy,
         "handback must not free a session whose turn is still running"
@@ -272,11 +272,11 @@ fn sessions_in_reports_what_is_running_in_a_directory_and_who_holds_it() {
 }
 
 #[test]
-fn sessions_in_lists_an_orchestrator_session_too() {
+fn sessions_in_lists_a_dispatched_session_too() {
     // The old query dropped these, because it was really asking "may anything
     // start here". This one reports them, so the caller applying the checkout's
     // one-writer rule can see every writer rather than only the human one — the
-    // seam F3 needs to serialize orchestrator sessions without a new query.
+    // seam F3 needs to serialize dispatched sessions without a new query.
     let dir = tempfile::tempdir().unwrap();
     let manager = PtyManager::new();
     let spec = LaunchSpec {
@@ -290,7 +290,7 @@ fn sessions_in_lists_an_orchestrator_session_too() {
 
     let running = manager.sessions_in(&dir.path().to_string_lossy());
     assert_eq!(running.len(), 1);
-    assert_eq!(running[0].control, SessionControl::Orchestrator);
+    assert_eq!(running[0].control, SessionControl::Dispatch);
 
     manager.close(&id);
 }

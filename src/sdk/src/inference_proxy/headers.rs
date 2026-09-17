@@ -3,7 +3,7 @@
 //! OpenRouter credits an application by reading two request headers,
 //! `HTTP-Referer` and `X-Title`. Every coding harness sets its own — Claude Code
 //! names itself, so does Codex, so does OpenCode — which means a run Medulla
-//! orchestrated and paid for is credited to the harness instead. This module is
+//! dispatched and paid for is credited to the harness instead. This module is
 //! the single place that decision is reversed: whatever the child sent is
 //! discarded and Medulla's own attribution is substituted.
 //!

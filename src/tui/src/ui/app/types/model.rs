@@ -15,10 +15,12 @@ use ratatui::layout::Rect;
 
 use crate::ui::composer::Draft;
 use crate::ui::theme::Theme;
-use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery, FeedbackType};
+use medulla::backend::Backend;
+use medulla::client::{FeedbackComment, FeedbackItem, FeedbackQuery};
 use medulla::config::LoadedConfig;
-use medulla::runtime::{ContextItem, Runtime, RuntimeSnapshot, WorkerOp};
+use medulla::hub::HubSlot;
 
+use super::cmd::Cmd;
 use super::picker::*;
 use super::rail_hit::RailHit;
 
@@ -28,11 +30,9 @@ use super::rail_hit::RailHit;
 /// two of them diagnostic — so they now sit under Settings, keeping the tab bar
 /// to the views a session is actually driven from.
 ///
-/// Chat used to live here too, and is now the Sessions tab: talking to the
-/// orchestrator *is* selecting its lane and typing. Splitting them meant reading
-/// what an operation was doing on one tab and steering it on another, with two
-/// scroll positions and no way to answer an agent's question from where the
-/// question was visible.
+/// Chat used to live here too, back when a cloud dispatcher model sat above
+/// the fleet. That model is gone: the Sessions tab is the whole conversation
+/// now — pick a session's lane and type into it.
 ///
 /// Workflows is a tab because it is *work* — a plan an operator reads, edits,
 /// and runs, with a graph to navigate and a copilot to edit it by. Three panes'
@@ -41,20 +41,20 @@ use super::rail_hit::RailHit;
 /// `Hosts` is gone. It was the fleet's management surface — the hosts registered
 /// on it, the harness types and their credentials, the hook declarations, the
 /// agent-template catalog, host onboarding, and the routing strategies — and all
-/// of it existed to feed an orchestration engine that no longer exists. Most of
+/// of it existed to feed an dispatch engine that no longer exists. Most of
 /// it survives as config: `[[hosts]]`, `[[harnesses]]` and `[[hooks]]` are still
 /// read at load, so the runtime behaves exactly as before for those; there is
 /// simply no page that edits them by hand any more. The agent-template catalog
 /// did not survive — the `.medulla/agents` store and its loader are gone with
 /// the tab, so any templates it held are no longer read.
-/// Subconscious sits after Workflows because it is the tier *under* the work
-/// rather than another view of it: what gets filtered on the way in, what is
-/// learned from the difference between expectation and outcome, and what is
-/// escalated for a human to approve. It is a tab and not a Settings subpage for
-/// the same reason Workflows is — approvals are work an operator acts on, not a
-/// setting they configure. It draws a placeholder for now, and is listed anyway,
-/// because an operator who can see where approvals will surface knows the layer
-/// is not going to act behind their back.
+/// `Hosts` is back, in a different shape. The old page managed an
+/// dispatch engine's fleet; this one manages the *machines* — the
+/// `[[remoteHosts]]` a session can run on, paired to this device with a
+/// one-shot key. It sits after Workflows because it is what the two tabs before
+/// it are scoped by: `H` picks the current host, and Sessions and Workflows
+/// follow it. `Subconscious` was in this slot; it was a placeholder for an
+/// approvals layer that never grew past a demo signal field, and it went
+/// together with the prepared-decisions overlay only it could open.
 ///
 /// `Tasks` and `Memory` are commented out rather than deleted: the code behind
 /// both still builds and their render paths are intact, so restoring either is
@@ -68,22 +68,16 @@ use super::rail_hit::RailHit;
 /// bindings stay in `app::changes`; only the top-level tab and its `D` shortcut
 /// were removed.
 #[cfg(feature = "workflows")]
-pub const TABS: [&str; 5] = [
-    "Sessions",
-    "Workflows",
-    "Subconscious",
-    "Feedback",
-    "Settings",
-];
+pub const TABS: [&str; 5] = ["Sessions", "Workflows", "Hosts", "Feedback", "Settings"];
 
 /// Without the workflow engine. A slim build must not offer a tab that cannot
 /// draw anything.
 ///
 /// This is the workflow-enabled list minus `Workflows`: every remaining tab —
-/// the Sessions rail with its `d` diff pane, the live Subconscious signal
-/// field, Feedback, and Settings — renders without the workflow engine.
+/// the Sessions rail with its `d` diff pane, Hosts, Feedback, and Settings —
+/// renders without the workflow engine.
 #[cfg(not(feature = "workflows"))]
-pub const TABS: [&str; 4] = ["Sessions", "Subconscious", "Feedback", "Settings"];
+pub const TABS: [&str; 4] = ["Sessions", "Hosts", "Feedback", "Settings"];
 
 /// The TokenMaxxxing tab's sidebar pages.
 pub(in crate::ui::app) const TOKENMAXXING_SUBPAGES: [&str; 3] =
@@ -97,15 +91,13 @@ pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 10] = [
+pub const SETTINGS_SUBPAGES: [&str; 8] = [
     "Usage",
     "Appearance",
     "Subscriptions",
     "Status line",
     "Config",
     "Feedback",
-    "Trace",
-    "Context",
     "Account",
     "Help",
 ];
@@ -113,13 +105,9 @@ pub const SETTINGS_SUBPAGES: [&str; 10] = [
 /// The left-nav group headings, as `(heading, first subpage index)`.
 ///
 /// Headings are rendered dim and are not selectable — they exist to separate the
-/// everyday settings from the diagnostic ones. Each group runs until the next
+/// everyday settings from the account pages. Each group runs until the next
 /// group's start index.
-pub const SETTINGS_GROUPS: [(&str, usize); 3] = [
-    ("GENERAL", SP_USAGE),
-    ("DEBUG", SP_TRACE),
-    ("ABOUT", SP_ACCOUNT),
-];
+pub const SETTINGS_GROUPS: [(&str, usize); 2] = [("GENERAL", SP_USAGE), ("ABOUT", SP_ACCOUNT)];
 
 // Settings subpage indices.
 pub(in crate::ui::app) const SP_USAGE: usize = 0;
@@ -128,10 +116,8 @@ pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 2;
 pub(in crate::ui::app) const SP_STATUS_LINE: usize = 3;
 pub(in crate::ui::app) const SP_CONFIG: usize = 4;
 pub(in crate::ui::app) const SP_FEEDBACK: usize = 5;
-pub(in crate::ui::app) const SP_TRACE: usize = 6;
-pub(in crate::ui::app) const SP_CONTEXT: usize = 7;
-pub(in crate::ui::app) const SP_ACCOUNT: usize = 8;
-pub(in crate::ui::app) const SP_HELP: usize = 9;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 6;
+pub(in crate::ui::app) const SP_HELP: usize = 7;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
@@ -303,216 +289,6 @@ pub struct WorkflowsState {
     pub(in crate::ui::app) copilot_scroll: usize,
 }
 
-/// An async action the event loop must run on the app's behalf.
-#[derive(Debug)]
-pub enum Cmd {
-    /// Exit the application.
-    Quit,
-    /// Submit a composer line as a new conversational turn.
-    Submit(String),
-    /// Resume a previously saved chat by session id.
-    Resume(String),
-    /// Fetch the list of resumable chats for the resume picker.
-    ListChats,
-    /// Bootstrap a `[[remoteHosts]]` machine and learn what it can do.
-    ///
-    /// Runs `ssh`, so it must never be on the render path. Issued the first time
-    /// an operator picks the host, not at startup — a configured machine that is
-    /// switched off should cost nothing until somebody asks for it.
-    ConnectRemoteHost {
-        /// The `[[remoteHosts]]` id to dial.
-        host_id: String,
-    },
-    /// Re-inspect the runtime's context chunks for the Context tab.
-    InspectContext,
-    /// Clear the session this host is signed in with.
-    Logout,
-    /// Apply a worker fleet mutation.
-    WorkerOp(WorkerOp),
-    /// Apply several fleet mutations as one operator action.
-    ///
-    /// Removing a *host* is the case this exists for: a host is a group of
-    /// roster entries sharing an address, and the registry has no host-level
-    /// op — so taking one out means taking each of its agents out. Carrying
-    /// them together keeps that one keypress one status line, rather than N
-    /// racing "Worker registry updated" messages for what the operator did
-    /// once. They are applied in order, and a failure reports the op it
-    /// stopped on instead of being swallowed by the next success.
-    WorkerOps(Vec<WorkerOp>),
-    /// Retarget the live screen subscription: stop watching one task, start
-    /// watching another. Both halves ride one command so the change is atomic
-    /// from the loop's point of view — a stop that landed without its start
-    /// would leave the pane blank with nothing on the way.
-    WatchTask {
-        /// The `(worker address, task id)` to stop streaming, if any.
-        stop: Option<(String, String)>,
-        /// The `(worker address, task id)` to start streaming, if any.
-        start: Option<(String, String)>,
-    },
-    /// Kill the session serving a watched task after UI confirmation.
-    KillTask {
-        /// The worker address that owns the session.
-        worker: String,
-        /// The dispatched task whose session should be killed.
-        task_id: String,
-    },
-    /// Fetch account-level usage from the backend for the Usage tab.
-    LoadUsage,
-    /// Re-sample the subscription-usage meters that are switched on.
-    ///
-    /// Carries the account-usage document the Usage page loaded, since the
-    /// portal meter reads its balance from that rather than issuing a second
-    /// request; `None` when it has not been fetched yet.
-    LoadSubscriptions(Option<serde_json::Value>),
-    /// Load a page of the feedback board for the Feedback surface.
-    LoadFeedback(FeedbackQuery),
-    /// Load one board item's comments for the detail pane.
-    LoadFeedbackDetail(String),
-    /// Cast, change, or retract a vote on a board item.
-    VoteFeedback {
-        /// The item being voted on.
-        id: String,
-        /// `1` upvote, `-1` downvote, `0` retract.
-        value: i8,
-    },
-    /// Post a comment on a board item.
-    CommentFeedback {
-        /// The item being commented on.
-        id: String,
-        /// The comment text.
-        body: String,
-    },
-    /// Submit new feedback to the board.
-    SubmitFeedback {
-        /// Feature request or bug report.
-        kind: FeedbackType,
-        /// The submission's title.
-        title: String,
-        /// The submission's body.
-        body: String,
-    },
-    /// Re-read the declared fleet (roster + capacity) from the runtime.
-    RefreshFleet,
-    /// Run an installed workflow on this machine.
-    ///
-    /// Off-thread like every other filesystem/process command: a workflow run
-    /// dispatches real agent sessions and takes minutes, so doing it on the
-    /// render thread would freeze the app for the whole run.
-    #[cfg(feature = "workflows")]
-    RunWorkflow {
-        /// The workflow to run.
-        id: String,
-        /// Values for the workflow's declared inputs, collected from the
-        /// operator before this command was emitted. Empty when the workflow
-        /// declares none.
-        inputs: serde_json::Map<String, serde_json::Value>,
-    },
-    /// Permanently remove an installed workflow after the operator confirms it.
-    #[cfg(feature = "workflows")]
-    DeleteWorkflow {
-        /// The workflow to remove.
-        id: String,
-    },
-    /// Ask the copilot to change or explain a workflow.
-    ///
-    /// Off-thread for the same reason a run is: the turn starts a real agent
-    /// session, and the pane it reports into has to keep repainting while it
-    /// does.
-    #[cfg(feature = "workflows")]
-    CopilotTurn {
-        /// The workflow the turn is scoped to.
-        workflow: String,
-        /// The operator's instruction, verbatim.
-        instruction: String,
-    },
-    /// Ask the copilot to build a workflow that does not exist yet.
-    ///
-    /// Separate from [`Cmd::CopilotTurn`] because it has no workflow to name:
-    /// the agent is told to call `workflow_create`, and which workflow appeared
-    /// is worked out from the store afterwards.
-    #[cfg(feature = "workflows")]
-    CreateWorkflow {
-        /// Which copilot thread the turn's progress and result belong to.
-        ///
-        /// Carried rather than assumed: the thread for a workflow that does not
-        /// exist is keyed by a sentinel the app owns, and an event loop that
-        /// had to know that sentinel would be a second place it is spelled.
-        thread: String,
-        /// The operator's description of what they want, verbatim.
-        instruction: String,
-    },
-    /// Simulate a workflow without dispatching anything, and report the result.
-    #[cfg(feature = "workflows")]
-    DryRunWorkflow {
-        /// The workflow to simulate.
-        id: String,
-        /// Values for the workflow's declared inputs — a simulation resolves
-        /// `=inputs.<name>` bindings like a real run, so it needs them too.
-        inputs: serde_json::Map<String, serde_json::Value>,
-    },
-    /// Take back a workflow's most recent edit.
-    ///
-    /// Off-thread with the rest: it reads the history directory and writes a
-    /// definition, and the store's methods are synchronous by contract.
-    #[cfg(feature = "workflows")]
-    UndoWorkflow {
-        /// The workflow to restore.
-        id: String,
-    },
-    /// Stop the copilot turn running on a thread.
-    #[cfg(feature = "workflows")]
-    AbortCopilot {
-        /// Which copilot thread to stop.
-        thread: String,
-    },
-    /// Ask the copilot to diagnose a failed run and fix its cause.
-    ///
-    /// Separate from [`Cmd::CopilotTurn`] because it carries the failure: the
-    /// run, its error, and the nodes implicated. All three are on screen when
-    /// the operator presses the key, and a turn that had to rediscover them
-    /// would start a step behind.
-    #[cfg(feature = "workflows")]
-    RepairWorkflow {
-        /// The workflow the run belongs to.
-        workflow: String,
-        /// The operator's words, if they typed any.
-        instruction: String,
-        /// The run to diagnose.
-        run_id: String,
-    },
-    /// Review a workflow against its own history.
-    ///
-    /// Unlike [`Cmd::RepairWorkflow`], this turn may not edit: it records what
-    /// it learns and proposes changes for the operator to accept. The two are
-    /// separate commands rather than one with a flag because they are different
-    /// asks — repair is "fix this now", review is "what should change".
-    #[cfg(feature = "workflows")]
-    EvolveWorkflow {
-        /// The workflow to review.
-        workflow: String,
-        /// The failed run to lead with, when the review was triggered by one.
-        run_id: Option<String>,
-    },
-    /// Apply a proposed change to the saved graph.
-    #[cfg(feature = "workflows")]
-    AcceptProposal {
-        /// The workflow being changed, so the pane can be refreshed.
-        workflow: String,
-        /// The proposal to apply.
-        proposal_id: String,
-    },
-    /// Turn a proposed change down.
-    #[cfg(feature = "workflows")]
-    RejectProposal {
-        /// The workflow the proposal was for.
-        workflow: String,
-        /// The proposal to decline.
-        proposal_id: String,
-        /// Why, recorded as a note so a later review does not propose it again.
-        reason: String,
-    },
-}
-
 /// The Feedback surface's state: the loaded page, the selected row, that row's
 /// comments, and the active query.
 pub(in crate::ui::app) struct FeedbackState {
@@ -555,37 +331,32 @@ impl Default for FeedbackState {
 
 /// The interactive TUI screen: all tab state, input focus, and render geometry.
 pub struct App {
-    /// The runtime this screen drives.
-    pub runtime: Arc<dyn Runtime>,
+    /// The backend this screen asks for account usage and the feedback board.
+    pub backend: Arc<dyn Backend>,
+    /// The in-process hub, once it is up: the worker roster and what each
+    /// worker is doing. Read on the render path, never awaited.
+    pub hub: HubSlot,
     /// The loaded configuration (for the Config and settings surfaces).
     pub loaded: LoadedConfig,
-    /// The most recent runtime snapshot, refreshed each loop tick.
-    pub snapshot: RuntimeSnapshot,
     /// The active top-level tab index (into [`TABS`]).
     pub tab_index: usize,
     /// Git changes from the selected session or operator-chosen commit.
     pub(in crate::ui::app) changes: super::super::changes::GitChangesState,
     pub(in crate::ui::app) draft: Draft,
     pub(in crate::ui::app) selected: usize,
-    /// The Subconscious tab's animated signal graph. Held on the app because its
-    /// simulation has to survive between frames; it is advanced by the draw
-    /// path, which is the only thing that looks at it.
-    pub(in crate::ui::app) graph: super::super::render::graph::Graph,
     pub(in crate::ui::app) status: String,
     /// A persistent "update vX.Y.Z available" banner, set by the background
     /// update checker; shown in the header until the app exits.
     pub(in crate::ui::app) update_notice: Option<String>,
-    pub(in crate::ui::app) contexts: Vec<ContextItem>,
-    pub(in crate::ui::app) context_index: usize,
     pub(in crate::ui::app) rail_index: usize,
     /// Which selectable rail row remains selected while the live rail is rebuilt.
     pub(in crate::ui::app) agent_anchor: Option<super::super::rail::RailAnchor>,
     /// Extra pages of sublanes revealed under an agent lane, keyed by lane key.
     ///
     /// Keyed by [`AgentLane::key`](crate::ui::agents::AgentLane::key) rather than
-    /// by the lane's rail position, because lanes are re-folded from events every
-    /// tick and a lane that appears or ends shifts every index below it — an
-    /// expansion tied to a position would silently jump to a different agent.
+    /// by the lane's rail position, because lanes are rebuilt from the roster
+    /// every tick and a lane that appears or ends shifts every index below it —
+    /// an expansion tied to a position would silently jump to a different agent.
     /// Absent means the lane shows its first page, which is the default every
     /// lane starts at.
     pub(in crate::ui::app) subtask_pages: std::collections::HashMap<String, usize>,
@@ -653,12 +424,6 @@ pub struct App {
     /// Feedback-board state (lazily loaded on entry / refresh).
     pub(in crate::ui::app) feedback: FeedbackState,
     /// Feedback-board tab state (lazily loaded on tab entry / refresh).
-    /// Whether the prepared-decision modal is visible.
-    pub(in crate::ui::app) decision_open: bool,
-    /// Highlighted decision row.
-    pub(in crate::ui::app) decision_index: usize,
-    /// Session-local ids intentionally hidden by the operator.
-    pub(in crate::ui::app) dismissed_decisions: std::collections::BTreeSet<String>,
     pub(in crate::ui::app) prompt: Option<Prompt>,
     /// The animation frame counter: one per event-loop tick (~90ms).
     ///
@@ -761,7 +526,6 @@ pub struct App {
     /// [`Self::set_hooks_config_path`] whenever the caller knows the two must
     /// differ — see `app_loop::run_tui` in the `medulla-tui` crate.
     pub(in crate::ui::app) hooks_config_path: Option<std::path::PathBuf>,
-    pub(in crate::ui::app) resume_picker: Option<ResumePicker>,
     /// Whether the event loop should exit after this tick.
     pub should_quit: bool,
 
@@ -778,22 +542,6 @@ pub struct App {
     // wheel event can be routed to the terminal under the pointer and given
     // coordinates relative to *its* origin rather than the screen's.
     pub(in crate::ui::app) hit_session: Option<(Rect, String)>,
-    /// The threads strip's hit box and its first visible row, for click-to-switch.
-    pub(in crate::ui::app) hit_threads: Option<(Rect, usize)>,
-    /// Where the orchestrator's conversation drew, and the task each of its
-    /// visible lines opens (§A7) — `None` for the lines that are transcript
-    /// rather than a session entry.
-    ///
-    /// One slot per drawn row rather than a dense list, because the entries are
-    /// interleaved with the conversation: each one sits under the turn that
-    /// started it, so the block is no longer contiguous and an offset from its
-    /// top no longer identifies an entry.
-    ///
-    /// Tasks rather than row indices: the rail is rebuilt every frame, so an
-    /// index recorded during the draw can name a different row by the time the
-    /// click lands. A task id either still has a session or does not.
-    pub(in crate::ui::app) hit_started_sessions: Option<(Rect, Vec<Option<String>>)>,
-    pub(in crate::ui::app) hit_context: Option<Rect>,
     /// The selected workflow step's preview, for pointer-wheel scrolling.
     pub(in crate::ui::app) hit_workflow_preview: Option<Rect>,
     /// Where the active tab's subpage nav drew its page rows. Only one nav is on
@@ -812,22 +560,18 @@ pub struct App {
     /// Set when the button is released over a live selection: the next draw
     /// copies what the selection covers, since only then is the buffer readable.
     pub(in crate::ui::app) copy_selection: bool,
-    pub(in crate::ui::app) last_events_len: usize,
 
-    // Test-only clipboard capture: when set, `copy_chat` records the copied text
-    // here and skips the platform writers (no `pbcopy`/OSC subprocess in tests).
+    // Test-only clipboard capture: when set, the selection copier records the
+    // copied text here and skips the platform writers (no `pbcopy`/OSC
+    // subprocess in tests).
     pub(in crate::ui::app) copy_capture: Option<Arc<std::sync::Mutex<Vec<String>>>>,
-
-    // Optional observational overlay from the background host-link service:
-    // this endpoint's own identity, its peer roster, and peer presence. Merged
-    // into the snapshot on every refresh so the routing and Agents lanes
-    // light up without the runtime having to know about the link.
-    pub(in crate::ui::app) link_obs:
-        Option<Arc<std::sync::Mutex<medulla::protocol::service::LinkObservation>>>,
+    /// Lanes standing in for the hub's, when a test or the offline demo
+    /// injected some. `None` derives them from the hub on every read.
+    pub(in crate::ui::app) lane_override: Option<Vec<crate::ui::agents::AgentLane>>,
+    /// A worker roster standing in for the hub's, when a test injected one.
+    pub(in crate::ui::app) worker_override: Option<Vec<medulla::fleet::WorkerInfo>>,
     // A read-only view of the task host running on this device, when one is.
-    // Read live at render rather than merged into the snapshot: its counters
-    // move on the host's own schedule, and the snapshot is the *runtime's*
-    // picture of the world — the host is a peer to it, not part of it.
+    // Read live at render: its counters move on the host's own schedule.
     pub(in crate::ui::app) host_obs: Option<medulla::daemon::embedded::HostObservation>,
     // The live sessions this device is running. `None` when this machine
     // does not host, in which case the Sessions tab has no local screen to show
@@ -841,6 +585,23 @@ pub struct App {
     /// [`remote_hosts`](crate::ui::app::remote_hosts).
     pub(in crate::ui::app) remote_hosts:
         std::collections::HashMap<String, crate::ui::app::remote_hosts::RemoteHostState>,
+    /// The Hosts tab: the list, its cursor, and the key it is showing.
+    pub(in crate::ui::app) hosts: crate::ui::app::hosts::HostsState,
+    /// Which machine Sessions and Workflows are scoped to. See
+    /// [`hosts`](crate::ui::app::hosts).
+    pub(in crate::ui::app) current_host: crate::ui::app::hosts::HostSelection,
+    /// The `H` overlay, while it is open.
+    pub(in crate::ui::app) host_switcher: Option<crate::ui::app::hosts::HostSwitcher>,
+    /// What each remote host's workflow store has answered so far, by host id.
+    ///
+    /// The Workflows tab reads a remote host through a store over this cache,
+    /// so its render path is unchanged: the cache is filled by answers to
+    /// `WorkflowCall`s the tab issues when it is scoped to that host.
+    #[cfg(feature = "workflows")]
+    pub(in crate::ui::app) remote_workflows: std::collections::HashMap<
+        String,
+        Arc<std::sync::Mutex<crate::ui::app::workflows::RemoteWorkflowCache>>,
+    >,
     /// Commands left by a handler that had no way to return one.
     ///
     /// The mouse path answers `bool` and the picker's key path answers nothing,

@@ -84,7 +84,7 @@ fn install(home: &std::path::Path, id: &str, document: serde_json::Value) {
     store.save(&record).expect("installs");
 }
 
-/// Fingerprint the exact installed record a simulated orchestrator selected.
+/// Fingerprint the exact installed record a simulated dispatcher selected.
 fn installed_fingerprint(home: &std::path::Path, id: &str) -> String {
     let home = home.join("local");
     let store = FileWorkflowStore::new(

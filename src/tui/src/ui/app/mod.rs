@@ -14,11 +14,11 @@ mod account;
 mod appearance;
 mod changes;
 mod commands;
-mod decisions;
 mod feedback;
 mod harness_workspace;
 #[cfg(test)]
 mod harness_workspace_tests;
+pub(crate) mod hosts;
 mod input;
 mod keys;
 mod overlays;

@@ -179,7 +179,7 @@ pub struct ScreenFrame {
 /// Everything that can cross this protocol, in both directions.
 ///
 /// Two kinds of viewer live here, and they differ in exactly one way. A
-/// *watcher* — an orchestrator peeking at a fan-out of running tasks — only
+/// *watcher* — a dispatcher peeking at a fan-out of running tasks — only
 /// looks: it holds no keyboard and must not resize a harness under whoever is
 /// actually using it. An *attached* viewer is a remote session's terminal, and
 /// its pane genuinely is that session's terminal.

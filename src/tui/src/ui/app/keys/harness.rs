@@ -1,6 +1,6 @@
 //! Handing the keyboard to an embedded harness, and taking it back.
 //!
-//! While attached, the orchestrator's own bindings are *gone*: `q` does not
+//! While attached, the sender's own bindings are *gone*: `q` does not
 //! quit, Tab does not change tabs, Escape does not close anything. That is the
 //! point — the operator is typing into Claude Code or Codex, and a wrapper that
 //! kept a handful of keys for itself would be a wrapper that intercepts exactly
@@ -152,7 +152,7 @@ impl App {
             self.set_status("That session has exited — its last screen is all that is left");
             return;
         }
-        if row.control == SessionControl::Orchestrator {
+        if row.control == SessionControl::Dispatch {
             self.set_status("Task sessions are view-only while they are running");
             return;
         }

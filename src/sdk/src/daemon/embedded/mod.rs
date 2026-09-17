@@ -3,13 +3,13 @@
 //!
 //! [`super::entry::run_daemon`] is the standalone `medulla daemon` — it owns a
 //! host-link identity, publishes pre-keys, registers a directory card, and
-//! blocks until a signal. None of that is wanted when the orchestrator TUI wants
+//! blocks until a signal. None of that is wanted when the TUI wants
 //! to *be* a host as well: it already has a process, and the peer it serves is
 //! itself. [`EmbeddedDaemon::start`] is that path — hand it a bridge address and
 //! it drains, dispatches, and replies exactly like the standalone daemon does,
 //! with the transport left entirely to the caller.
 //!
-//! The result is that a plain `medulla` run is both orchestrator and host: the
+//! The result is that a plain `medulla` run is both dispatcher and host: the
 //! hub dispatches to a device-local address, this module executes it against the
 //! agent CLIs on this machine, and the reply comes back over the in-memory bus.
 //! Pointing the same host at a remote bridge instead is a caller-side
@@ -42,7 +42,7 @@ impl EmbeddedDaemon {
     /// Start hosting tasks addressed to `bridge` on this machine.
     ///
     /// `bridge` must already be bound to the address peers reach this host at;
-    /// `address` is that address, recorded so an orchestrator can put it on a
+    /// `address` is that address, recorded so a dispatcher can put it on a
     /// roster. The drain loop is spawned before returning, so the host is live
     /// the moment this call succeeds.
     ///
@@ -252,7 +252,7 @@ pub fn resolve_workspace(configured: &str) -> String {
 /// The directories this host advertises, primary first.
 ///
 /// The primary workspace always leads: it is where tasks actually run, and an
-/// orchestrator reading the list top-down should see the default before the
+/// dispatcher reading the list top-down should see the default before the
 /// alternatives. Each extra is canonicalized so `~/../repo` and `/Users/me/repo`
 /// do not both appear, blanks are dropped, and duplicates collapse — a list that
 /// names one directory twice reads as two places to work.

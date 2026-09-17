@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::runtime::{AgentDeclaration, WorkspaceStrategy};
+use crate::fleet::{AgentDeclaration, WorkspaceStrategy};
 
 /// A config file in a scratch directory, plus the directory keeping it alive.
 fn scratch(name: &str) -> (tempfile::TempDir, PathBuf) {

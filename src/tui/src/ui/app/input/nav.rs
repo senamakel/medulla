@@ -8,9 +8,9 @@
 
 use super::super::rail::RailRow;
 use super::super::types::{App, Cmd};
+use crate::ui::agents::TaskStatus;
 #[cfg(test)]
 use crate::ui::agents::{agent_row_model_paged, AgentRow};
-use crate::ui::agents::{AgentRole, TaskStatus};
 
 /// How many of a lane's task sublanes one page reveals.
 ///
@@ -153,28 +153,6 @@ impl App {
         self.sync_selected_workflow_run();
     }
 
-    /// Open a new thread and focus the conversation.
-    ///
-    /// A thread is opened, not reset: several conversations can be in flight at
-    /// once, and clearing the one you were in would throw away the transcript
-    /// you were keeping. Nothing is inherited from the current thread — that is
-    /// the whole difference from the fork this replaced.
-    pub(in crate::ui::app) fn new_thread(&mut self) {
-        self.runtime.new_session();
-        self.draft = crate::ui::composer::Draft::new();
-        self.agent_scroll = 0;
-        self.reset_rail_cursor();
-        self.tab_index = super::super::types::tab_pos("Sessions");
-        self.refresh_snapshot();
-        let name = self
-            .snapshot
-            .threads
-            .get(self.active_thread_idx())
-            .map(|t| t.name.clone())
-            .unwrap_or_else(|| "main".into());
-        self.set_status(format!("Opened {name} · ^↑↓ switches threads"));
-    }
-
     /// Toggle mouse capture and note the new mode in the status line.
     pub(in crate::ui::app) fn toggle_mouse(&mut self) {
         self.mouse_capture = !self.mouse_capture;
@@ -231,18 +209,11 @@ impl App {
         };
         let task = session.task.as_ref()?;
         let lane = lanes.get(session.lane_index?)?;
-        // `Agent` is main's name for a roster agent / delegated task / peer
-        // session — the tiers above it (orchestrator, reasoning, compress) run
-        // no watchable harness.
-        if lane.role != AgentRole::Agent {
-            return None;
-        }
         let agent_id = lane.agent_id.as_deref()?;
         // Streams are addressed to the worker's link address; a lane
         // carries its roster id. A worker added by address is registered under
         // it, so that is the fallback.
         let address = self
-            .runtime
             .workers()
             .into_iter()
             .find(|w| w.id == agent_id)

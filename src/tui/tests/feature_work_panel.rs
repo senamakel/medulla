@@ -7,8 +7,8 @@
 
 use std::sync::Arc;
 
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
 use medulla_tui::ui::app::{App, TABS};
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
@@ -27,19 +27,20 @@ fn render(app: &mut App, w: u16, h: u16) -> String {
         .collect()
 }
 
-/// The demo runtime on the Agents tab, with the cursor moved off the
-/// orchestrator and onto the worker that is doing the work.
+/// The demo lanes on the Sessions tab, with the cursor on the worker that is
+/// doing the work.
 fn worker_app() -> App {
     let mut app = App::new(
-        Arc::new(MockRuntime::demo()),
+        Arc::new(MockBackend::new()),
         LoadedConfig::defaults("medulla.tui.json".into()),
     );
+    let mut lanes = medulla_tui::ui::agents::demo_lanes();
+    lanes.retain(|lane| lane.agent_id.as_deref() == Some(medulla_tui::ui::agents::DEMO_BUSY_AGENT));
+    app.inject_lanes(lanes);
     app.tab_index = TABS.iter().position(|t| *t == "Sessions").unwrap();
-    // Walk the rail the way an operator does: focus it, then step down onto the
-    // worker lane under the orchestrator.
-    for code in [KeyCode::Esc, KeyCode::Down] {
-        app.on_event(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)));
-    }
+    // Focus the rail the way an operator does; its one session is the first
+    // row, so the cursor is already on it.
+    app.on_event(Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)));
     app
 }
 

@@ -122,7 +122,7 @@ impl FleetOps for HubFleetOps {
                 .map(|worker| {
                     let running = running.get(&worker.id).cloned().unwrap_or_default();
                     // `control` reports who holds the harness, and it is only
-                    // set when a *person* does — the orchestrator holding it is
+                    // set when a *person* does — the dispatcher holding it is
                     // the unmarked common case.
                     let held = worker.control.is_operator();
                     // The path only: this surface renders a directory, and the
@@ -186,7 +186,7 @@ impl FleetOps for HubFleetOps {
             ));
         };
 
-        // Recorded into the same activity log the orchestrator's own dispatches
+        // Recorded into the same activity log the hub's own dispatches
         // use, so a task a harness started appears in the Agents view beside the
         // ones an operator started. Work running on somebody's machine that
         // their UI does not show is work they cannot see, cannot attribute, and

@@ -4,7 +4,7 @@
 //!
 //! Only the data lives here; the runtime's behaviour is implemented beside the
 //! logic that uses it in [`super::runtime`] (construction/dispatch/reply) and
-//! [`super::task_loop`] (frame + task orchestration).
+//! [`super::task_loop`] (frame + task dispatch).
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -80,7 +80,7 @@ pub const SESSION_HELD_STATUS_PREFIX: &str = "session held by operator";
 
 /// The leading text of the `status` frame that ends a hold.
 ///
-/// Sent when control returns to the orchestrator and the hand-back turn starts,
+/// Sent when control returns to the dispatcher and the hand-back turn starts,
 /// so the watchdog resumes on exactly the frame that says work has restarted.
 pub const SESSION_RESUMED_STATUS_PREFIX: &str = "session handed back";
 

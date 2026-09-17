@@ -19,12 +19,22 @@ impl App {
     ///
     /// Each entry pairs a variant with the condition that puts it on screen, so
     /// "is it drawn?" and "does it own input?" cannot be answered differently.
-    /// One subtlety is encoded here rather than at the call sites: the resume
-    /// picker and the inline prompt share the row below the content, and the
-    /// prompt wins, so the picker is only on screen when no prompt is.
+    /// Whether a bare letter would land in a text field right now.
+    ///
+    /// The prompt and an attached harness are routed before any global
+    /// letter binding; this covers the one composer that is not — the
+    /// Workflows copilot — so `H` typed into it stays a letter.
+    pub(super) fn text_input_focused(&self) -> bool {
+        #[cfg(feature = "workflows")]
+        if self.tab() == "Workflows" && self.wf.focus == super::types::WorkflowFocus::Copilot {
+            return true;
+        }
+        false
+    }
+
     pub(super) fn visible_overlays(&self) -> Vec<Overlay> {
         [
-            (Overlay::Decisions, self.decision_open),
+            (Overlay::HostSwitcher, self.host_switcher.is_some()),
             (Overlay::SessionPicker, self.session_picker.is_some()),
             (
                 Overlay::SessionKill,
@@ -35,10 +45,6 @@ impl App {
                 self.workflow_delete_armed.is_some(),
             ),
             (Overlay::InlinePrompt, self.prompt.is_some()),
-            (
-                Overlay::ResumePicker,
-                self.resume_picker.is_some() && self.prompt.is_none(),
-            ),
         ]
         .into_iter()
         .filter_map(|(overlay, shown)| shown.then_some(overlay))

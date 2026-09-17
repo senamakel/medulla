@@ -213,7 +213,7 @@ impl SessionRegistry {
     /// The identity attached to `key`'s binding, if it has one.
     ///
     /// A binding whose creating path recorded nothing reads as the
-    /// auto-creation default — an unnamed orchestrator session — which is what
+    /// auto-creation default — an unnamed dispatched session — which is what
     /// it is: the registry binds for a dispatch before anybody claims it.
     pub fn identity(&self, key: &SessionKey) -> Option<SessionIdentity> {
         self.inner

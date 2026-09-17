@@ -24,7 +24,7 @@ pub struct CommandSpec {
 }
 
 impl CommandSpec {
-    /// The command as typed, including its argument hint: `/copy [all|last]`.
+    /// The command as typed, including its argument hint: `/session [harness] [path]`.
     pub fn usage(&self) -> String {
         if self.args.is_empty() {
             format!("/{}", self.name)
@@ -59,40 +59,10 @@ impl CommandSpec {
 /// Every command the composer accepts, in offer order.
 pub const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
-        name: "new",
-        aliases: &[],
-        args: "",
-        description: "Open a new thread beside this one",
-    },
-    CommandSpec {
-        name: "resume",
-        aliases: &[],
-        args: "",
-        description: "Pick up an earlier saved session",
-    },
-    CommandSpec {
         name: "session",
         aliases: &["harness"],
         args: "[harness] [path]",
         description: "Start a local session",
-    },
-    CommandSpec {
-        name: "abort",
-        aliases: &[],
-        args: "",
-        description: "Stop the running cycle",
-    },
-    CommandSpec {
-        name: "clear",
-        aliases: &[],
-        args: "",
-        description: "Reset the view (history is kept)",
-    },
-    CommandSpec {
-        name: "copy",
-        aliases: &[],
-        args: "[all|last]",
-        description: "Copy the transcript to the clipboard",
     },
     CommandSpec {
         name: "usage",
@@ -142,7 +112,7 @@ pub const COMMANDS: &[CommandSpec] = &[
 /// command being typed.
 ///
 /// The peek is for *choosing* a command, so it closes as soon as one has been
-/// chosen: a line with an argument (`/copy last`) has moved on to the
+/// chosen: a line with an argument (`/session codex`) has moved on to the
 /// argument, and a bare exact match still offers itself so the description
 /// stays readable until Enter. An unmatched prefix yields an empty list rather
 /// than `None` — "no such command" is worth showing, and silently hiding the

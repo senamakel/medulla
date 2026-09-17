@@ -273,23 +273,23 @@ fn the_door_a_session_came_through_decides_its_origin() {
 
     // A dispatch asked for this one, and dispatches do not name sessions — the
     // UI labels them from the task instead.
-    let dispatched = manager.open(OpenSession::orchestrator("bob"));
+    let dispatched = manager.open(OpenSession::task("bob"));
     let dispatched = manager.record(&dispatched).expect("the session exists");
-    assert_eq!(dispatched.origin, SessionOrigin::Orchestrator);
+    assert_eq!(dispatched.origin, SessionOrigin::Task);
     assert_eq!(dispatched.name, None);
 }
 
 #[test]
 fn a_turns_provenance_decides_the_origin_of_the_session_it_auto_creates() {
     // §4.1: a task frame with no session id creates one, and that session is
-    // the orchestrator's for the rest of its life.
+    // the sender's for the rest of its life.
     assert_eq!(
         TurnOrigin::Frame {
             task_id: "t1".into(),
             correlation_id: None,
         }
         .session_origin(),
-        SessionOrigin::Orchestrator
+        SessionOrigin::Task
     );
     // Anything a person drives — directly, or through a wrapper this daemon only
     // observes — is theirs.
@@ -305,7 +305,7 @@ fn a_turns_provenance_decides_the_origin_of_the_session_it_auto_creates() {
 }
 
 #[tokio::test]
-async fn a_task_frame_auto_creates_an_orchestrator_originated_session() {
+async fn a_task_frame_auto_creates_a_task_originated_session() {
     let (run, _) = recording_executor("done", Some("thread-abc"));
     let manager = manager(run);
     let request = TurnRequest {
@@ -322,20 +322,20 @@ async fn a_task_frame_auto_creates_an_orchestrator_originated_session() {
 
     let records = manager.records();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].origin, SessionOrigin::Orchestrator);
+    assert_eq!(records[0].origin, SessionOrigin::Task);
     assert_eq!(records[0].name, None);
     // …and the binding the next turn resumes carries the same provenance, so a
     // resumed conversation does not come back as somebody else's session.
     assert_eq!(
         manager.registry().identity(&records[0].key),
-        Some(SessionIdentity::orchestrator())
+        Some(SessionIdentity::task())
     );
 }
 
 #[test]
-fn an_observed_wrapper_session_is_never_the_orchestrators() {
+fn an_observed_wrapper_session_is_never_task_originated() {
     // It was started somewhere this daemon never dispatched to, so counting it
-    // as orchestrator-originated would make it a dispatch candidate in the rail.
+    // as task-originated would make it a dispatch candidate in the rail.
     let (run, _) = recording_executor("ok", None);
     let manager = manager(run);
     let envelope = prompt_envelope("wrap-1", "harn-1", "hello");
@@ -354,7 +354,7 @@ async fn a_closed_user_session_resumed_by_a_task_frame_is_still_theirs() {
     // Closing a session keeps its binding — that is what makes it resumable —
     // but drops the record, so the next turn on that key opens a new one. Read
     // the origin off *that* turn and a person's named session comes back as an
-    // unnamed orchestrator session the first time a dispatch touches it: their
+    // unnamed dispatched session the first time a dispatch touches it: their
     // name is gone from the rail, and a session they own is now a dispatch
     // candidate. The binding's identity is the only thing that survives the
     // gap, so it is what decides.
@@ -401,7 +401,7 @@ async fn a_closed_user_session_resumed_by_a_task_frame_is_still_theirs() {
     assert_eq!(
         resumed.origin,
         SessionOrigin::User,
-        "resuming a person's binding does not make the session the orchestrator's"
+        "resuming a person's binding does not make the session the sender's"
     );
     assert_eq!(resumed.name.as_deref(), Some("payments bug"));
     assert_eq!(
@@ -412,10 +412,10 @@ async fn a_closed_user_session_resumed_by_a_task_frame_is_still_theirs() {
 }
 
 #[tokio::test]
-async fn a_frame_turn_with_no_binding_to_resume_is_still_the_orchestrators() {
+async fn a_frame_turn_with_no_binding_to_resume_is_still_task_originated() {
     // The other branch of the same decision: with nothing bound, the turn's own
     // provenance is the only thing that can answer, and §4.1 says a session made
-    // to serve a task frame is the orchestrator's.
+    // to serve a task frame is the sender's.
     let (run, _) = recording_executor("done", Some("thread-abc"));
     let manager = manager(run);
 
@@ -435,6 +435,6 @@ async fn a_frame_turn_with_no_binding_to_resume_is_still_the_orchestrators() {
 
     let records = manager.records();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].origin, SessionOrigin::Orchestrator);
+    assert_eq!(records[0].origin, SessionOrigin::Task);
     assert_eq!(records[0].name, None);
 }

@@ -1,8 +1,7 @@
 //! Feature-level tests: drive the `App` like a user via synthetic crossterm
 //! events and assert on observable state and the rendered `TestBackend` buffer.
 //! These complement the crate's inline unit tests — here we exercise whole flows
-//! (typing + submit, slash commands, tab nav, scrolling, working indicator,
-//! resume picker, threads/fork, abort/new-session, copy, config rendering).
+//! (tab nav, transcript scrolling, the update banner, config rendering).
 
 use std::sync::Arc;
 
@@ -12,8 +11,9 @@ use crossterm::event::{
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+use medulla::backend::MockBackend;
 use medulla::config::{LinkConfig, LoadedConfig};
-use medulla::runtime::mock::MockRuntime;
+use medulla_tui::ui::agents::demo_lanes;
 use medulla_tui::ui::app::{App, TABS};
 
 // --- harness helpers --------------------------------------------------------
@@ -24,19 +24,21 @@ fn loaded() -> LoadedConfig {
     l
 }
 
-/// App over a populated demo runtime; returns the app and the concrete handle so
-/// tests can script events / read recorded calls.
-fn demo_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockRuntime::demo());
-    let app = App::new(rt.clone(), loaded());
-    (app, rt)
+/// App over the mock backend with the demo lanes standing in for a hub;
+/// returns the app and the backend handle.
+fn demo_app() -> (App, Arc<MockBackend>) {
+    let backend = Arc::new(MockBackend::new());
+    let mut app = App::new(backend.clone(), loaded());
+    app.inject_lanes(demo_lanes());
+    (app, backend)
 }
 
-/// App over a bare runtime (no roster, empty chat).
-fn empty_app() -> (App, Arc<MockRuntime>) {
-    let rt = Arc::new(MockRuntime::empty());
-    let app = App::new(rt.clone(), loaded());
-    (app, rt)
+/// App over the mock backend with no lanes at all.
+fn empty_app() -> (App, Arc<MockBackend>) {
+    let backend = Arc::new(MockBackend::new());
+    let mut app = App::new(backend.clone(), loaded());
+    app.inject_lanes(Vec::new());
+    (app, backend)
 }
 
 fn key_mod(code: KeyCode, mods: KeyModifiers) -> Event {
@@ -92,9 +94,9 @@ fn tab_and_backtab_cycle_tabs() {
     assert_eq!(app.tab(), "Sessions");
     let _ = app.on_event(key(KeyCode::Tab));
     assert_eq!(app.tab(), "Workflows");
-    // Workflows is followed by the live Subconscious surface.
+    // Workflows is followed by the Hosts page.
     let _ = app.on_event(key(KeyCode::Tab));
-    assert_eq!(app.tab(), "Subconscious");
+    assert_eq!(app.tab(), "Hosts");
     let _ = app.on_event(key_mod(KeyCode::BackTab, KeyModifiers::SHIFT));
     assert_eq!(app.tab(), "Workflows");
     // Wrap backwards from Sessions to the last tab (Settings).
@@ -117,7 +119,7 @@ fn each_tab_renders_its_signature() {
     let signatures = [
         ("Sessions", "Sessions ·"),
         ("Workflows", "Workflows"),
-        ("Subconscious", "Signal field · demo"),
+        ("Hosts", "Hosts"),
         ("Settings", "Settings"),
     ];
     for (name, sig) in signatures {
@@ -139,7 +141,6 @@ fn app_on_a_task_transcript() -> App {
         .iter()
         .position(|tab| *tab == "Sessions")
         .expect("Sessions tab is listed");
-    app.refresh_snapshot();
     app
 }
 
@@ -215,4 +216,21 @@ fn config_tab_annotates_token_env_presence() {
     let _ = app.focus_settings_subpage("Config");
     let out = render(&mut app, 200, 50);
     assert!(out.contains("(missing)"), "expected (missing) annotation");
+}
+
+// --- 4. event routing --------------------------------------------------------
+
+#[test]
+fn non_key_non_mouse_events_are_ignored() {
+    let (mut app, _rt) = demo_app();
+    assert!(app.on_event(Event::FocusGained).is_none());
+    assert!(app.on_event(Event::Resize(10, 10)).is_none());
+    // A key *release* is not a press and must not act.
+    assert!(app
+        .on_event(Event::Key(KeyEvent::new_with_kind(
+            KeyCode::Char('q'),
+            KeyModifiers::NONE,
+            crossterm::event::KeyEventKind::Release,
+        )))
+        .is_none());
 }

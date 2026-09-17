@@ -195,14 +195,14 @@ pub async fn run_daemon(
         }
         Err(_) => medulla_link::keys::link_dir(&home),
     };
-    // The orchestrator this host serves. A host enrolls against exactly one
+    // The owner this host serves. A host enrolls against exactly one
     // (protocol §7.3), so this is also the link's single peer.
     let owner = crate::onboarding::env_owner(&env)
         .or_else(|| {
             let owner = worker_profile.owner.clone()?;
             (!owner.trim().is_empty()).then_some(owner)
         })
-        .unwrap_or_else(|| "orchestrator".to_string());
+        .unwrap_or_else(|| "owner".to_string());
     let node_name = if !worker_profile.address.trim().is_empty() {
         worker_profile.address.trim().to_string()
     } else {
@@ -220,7 +220,7 @@ pub async fn run_daemon(
         .map_err(|e| anyhow::anyhow!("host link is misconfigured: {e}"))?;
     let agent_id = transport.address().to_string();
 
-    // Pairing hand-off. Adding this worker to an orchestrator needs exactly one
+    // Pairing hand-off. Adding this worker to an owning medulla needs exactly one
     // string to travel — this address — and the machine printing it is usually
     // one the operator reached over SSH, where selecting it by hand is the step
     // that makes people give up. So it goes to their terminal's clipboard and

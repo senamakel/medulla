@@ -7,9 +7,9 @@
 
 use std::sync::Arc;
 
+use medulla::backend::Backend;
+use medulla::backend::MockBackend;
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
-use medulla::runtime::Runtime;
 use medulla::workflows::{WorkflowRecord, WorkflowStore};
 use serde_json::json;
 
@@ -83,7 +83,7 @@ fn disabled(id: &str) -> WorkflowRecord {
 /// An app pointed at a temporary home holding `workflows`, already loaded.
 fn app_with(workflows: &[WorkflowRecord]) -> (tempfile::TempDir, App) {
     let home = tempfile::tempdir().expect("tempdir");
-    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let runtime: Arc<dyn Backend> = Arc::new(MockBackend::new());
     let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
     app.set_medulla_home(home.path().to_path_buf());
     let store: Arc<dyn WorkflowStore> = Arc::new(medulla::workflows::FileWorkflowStore::new(

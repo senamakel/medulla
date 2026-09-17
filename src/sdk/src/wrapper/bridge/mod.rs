@@ -4,7 +4,7 @@
 //! envelope/status/tailer state; [`build_bridge`] constructs it (or returns
 //! `None` for a plain passthrough). The free functions here fold transcript lines
 //! into events ([`pump_tailer`]) and route inbound owner DMs into the child
-//! ([`drain_and_inject`] / [`classify_inbound`]). The process orchestration that
+//! ([`drain_and_inject`] / [`classify_inbound`]). The process coordination that
 //! drives these lives in [`run`](super::run).
 
 use std::collections::HashMap;
@@ -270,7 +270,7 @@ pub(super) async fn build_bridge(
         }
     };
     // The owner is the link's single peer: a host enrolls against exactly one
-    // orchestrator (protocol §7.3), and the recipient env var names it.
+    // dispatcher (protocol §7.3), and the recipient env var names it.
     let owner = recipient.clone().or_else(|| receive_from.clone())?;
     let transport = match LinkBridge::single_peer(Arc::new(link), owner.clone(), owner) {
         Ok(bridge) => bridge,

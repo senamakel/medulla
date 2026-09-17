@@ -3,8 +3,8 @@
 //! A host header and the action row both name something real, and neither is a
 //! conversation. The pane used to fall back to
 //! [`lane_lines`](crate::ui::agents::lane_lines) for them — with a lane index
-//! that had itself fallen back to **0**, the orchestrator's — so selecting an
-//! action row showed the orchestrator thinking, attributed to a row that had not
+//! that had itself fallen back to **0**, the sender's — so selecting an
+//! action row showed the dispatcher thinking, attributed to a row that had not
 //! thought anything.
 //!
 //! So each row describes itself instead: the host says where it is and how many
@@ -73,8 +73,8 @@ fn new_session_panel() -> RowPanel {
             note("directory it works in. Nothing else is asked — the session names"),
             note("itself from your first prompt."),
             StyledLine::default(),
-            note("It is yours at birth: the orchestrator will not dispatch into it"),
-            note("until you hand it over with ^G."),
+            note("It is yours at birth: no task is dispatched into it until you"),
+            note("hand it over with ^G."),
             StyledLine::default(),
             note("⏎ or ^T opens the picker."),
         ],

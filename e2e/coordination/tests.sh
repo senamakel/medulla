@@ -12,7 +12,7 @@
 #                      different frame kind, on the running daemon).
 #   2. token-usage   — a task reply carries propagated child token usage
 #                      (regression guard for the `tokens:{input,output}` shape
-#                      the daemon must surface to the orchestrator).
+#                      the daemon must surface to the owner).
 #   3. second-round  — a second delegation succeeds on the same running daemon
 #                      (daemon is not single-shot, and the link keeps its state
 #                      across legs rather than needing a fresh session per task).
