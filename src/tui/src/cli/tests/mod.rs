@@ -2,6 +2,7 @@
 //! [`subcommands`] covers dispatch and the long-standing flag parsers,
 //! [`skills`] the `medulla skills` parser. Both share the `argv` helper below.
 
+mod integrations;
 #[cfg(feature = "workflows")]
 mod skills;
 mod subcommands;

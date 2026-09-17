@@ -109,6 +109,7 @@ impl RemoteServer {
             workspace: sessions.workspace.clone(),
             workspaces: Vec::new(),
             host_name,
+            integrations: medulla::integrations::diagnose(),
         };
         RemoteServer {
             sessions,

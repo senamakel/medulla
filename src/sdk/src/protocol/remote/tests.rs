@@ -19,6 +19,7 @@ fn capabilities() -> RemoteCapabilities {
         workspace: "/home/steven/src".to_string(),
         workspaces: vec!["/home/steven/other".to_string()],
         host_name: "tower".to_string(),
+        integrations: Vec::new(),
     }
 }
 

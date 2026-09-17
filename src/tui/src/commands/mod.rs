@@ -11,6 +11,7 @@
 //! everything else lives here.
 
 pub(crate) mod hook;
+pub(crate) mod integrations;
 pub(crate) mod login_screen;
 #[cfg(feature = "workflows")]
 pub(crate) mod mcp;
@@ -21,6 +22,7 @@ pub(crate) mod workflow;
 pub(crate) mod workspace;
 
 pub(crate) use hook::run_hook_cmd;
+pub(crate) use integrations::run_integrations;
 pub(crate) use login_screen::run_login_screen;
 #[cfg(feature = "workflows")]
 pub(crate) use mcp::run_mcp_cmd;

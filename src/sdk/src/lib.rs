@@ -28,6 +28,8 @@ pub mod home;
 pub mod hub;
 pub mod inference_proxy;
 pub mod init;
+/// Reviewed, built-in descriptions and health checks for supported coding CLIs.
+pub mod integrations;
 pub mod logging;
 /// Medulla's own MCP server, offered to the harnesses it spawns.
 ///

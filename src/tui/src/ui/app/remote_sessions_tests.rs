@@ -269,6 +269,7 @@ fn a_remote_harness_keeps_the_name_and_id_its_host_gave_it() {
             workspace: "/work".to_string(),
             workspaces: Vec::new(),
             host_name: "tower".to_string(),
+            integrations: Vec::new(),
         },
     );
 

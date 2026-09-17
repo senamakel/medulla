@@ -6,8 +6,8 @@
 use medulla::protocol::HarnessProvider;
 
 use super::types::{
-    Command, InitArgs, RunArgs, TuiArgs, UpdateArgs, WorkflowAction, WorkflowArgs, WorkspaceAction,
-    WorkspaceArgs,
+    Command, InitArgs, IntegrationsArgs, RunArgs, TuiArgs, UpdateArgs, WorkflowAction,
+    WorkflowArgs, WorkspaceAction, WorkspaceArgs,
 };
 #[cfg(feature = "workflows")]
 use super::types::{SkillsAction, SkillsArgs};
@@ -42,6 +42,7 @@ pub fn parse_command(args: &[String]) -> Command {
         Some("remote") => Command::Remote,
         Some("workflow") | Some("workflows") => Command::Workflow,
         Some("skills") | Some("skill") => Command::Skills,
+        Some("integrations") | Some("integration") => Command::Integrations,
         Some("mcp") => Command::Mcp,
         Some("hook") => Command::Hook,
         Some("codex") => Command::Wrapper(HarnessProvider::Codex),
@@ -49,6 +50,20 @@ pub fn parse_command(args: &[String]) -> Command {
         Some("opencode") => Command::Wrapper(HarnessProvider::Opencode),
         _ => Command::Tui,
     }
+}
+
+/// Parse the read-only `medulla integrations doctor` flags.
+pub fn parse_integrations_args(args: &[String]) -> Result<IntegrationsArgs, String> {
+    let mut parsed = IntegrationsArgs::default();
+    for argument in args {
+        match argument.as_str() {
+            "doctor" => {}
+            "--json" => parsed.json = true,
+            "--help" | "-h" => return Err("usage: medulla integrations doctor [--json]".into()),
+            other => return Err(format!("integrations: unknown argument `{other}`")),
+        }
+    }
+    Ok(parsed)
 }
 
 /// Parse the flags following `medulla update`.
@@ -541,6 +556,7 @@ medulla init [dir]      Write a MEDULLA.md workspace profile for a directory\n  
 medulla workspace <cmd> Workspace registry: add [dir]|list|remove <dir|id>\n  \
 medulla workflow <cmd>  Workflows: list|get|create|apply-ops|validate|dry-run|run|resume|cancel|catalog\n  \
 medulla skills <cmd>    Harness skills for workflows: list|install|sync|uninstall\n  \
+medulla integrations doctor [--json]  Check bundled coding-CLI adapters\n  \
 medulla mcp             Serve Medulla's tools over MCP (spawned for harnesses)\n  \
 medulla workflow mcp    Alias for `medulla mcp`, workflow tools only\n  \
 medulla update [--check] Update to the latest release (--check only reports)\n  \
