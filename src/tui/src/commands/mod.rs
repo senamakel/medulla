@@ -132,6 +132,10 @@ pub(crate) async fn run_login(args: &[String]) -> anyhow::Result<()> {
                 medulla::home::user::MEDULLA_USER_ENV,
             );
         }
+        // The account id is verified by `/auth/me` and the session is durable.
+        // Analytics is best-effort and never turns a successful login into an
+        // error for the operator.
+        let _ = medulla::analytics::record_sign_in(&account).await;
     }
 
     adopt_legacy_credentials(&env, &loaded.config.backend).await;
@@ -296,6 +300,14 @@ pub(crate) async fn run_logout() -> anyhow::Result<()> {
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
     let home = medulla::home::medulla_home(&env);
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+    // Read the profile before deleting the session that names it. An analytics
+    // failure never prevents the security action that follows.
+    if let Some(user_id) = medulla::auth::state(&env).user_id {
+        tokio::spawn(async move {
+            let _ = medulla::analytics::record_sign_out(&user_id).await;
+        });
+    }
 
     medulla::auth::clear(&env)
         .map_err(|e| anyhow::anyhow!("the stored session could not be removed: {e}"))?;

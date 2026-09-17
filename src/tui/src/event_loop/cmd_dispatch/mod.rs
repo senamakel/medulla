@@ -81,6 +81,12 @@ pub(super) fn run_cmd(
     msg_tx: &tokio::sync::mpsc::UnboundedSender<AppMsg>,
     local_hosts: Option<&crate::local_host::LocalHostHarnesses>,
 ) {
+    // This is the shared endpoint for mouse clicks and keyboard shortcuts.
+    // Command payloads are deliberately excluded because they may contain text,
+    // paths, or identifiers.
+    tokio::spawn(async {
+        let _ = medulla::analytics::record_ui_action("command_dispatched").await;
+    });
     let cmd = match feedback::run_feedback_cmd(cmd, backend, msg_tx) {
         Some(cmd) => *cmd,
         None => return,

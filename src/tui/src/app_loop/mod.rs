@@ -292,6 +292,12 @@ pub(crate) async fn run_tui(raw: &[String]) -> anyhow::Result<()> {
         }
     }
 
+    if let Some(user_id) = account.as_ref().and_then(|state| state.user_id.clone()) {
+        tokio::spawn(async move {
+            let _ = medulla::analytics::record_application_started(&user_id).await;
+        });
+    }
+
     let backend = backend.expect("a backend is always selected");
 
     // Entitlement gate. Placed here because this is where both boot paths meet —
