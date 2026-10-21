@@ -79,7 +79,11 @@ impl App {
                         "Net" => 3,
                         _ => 4,
                     };
-                    if title == "Mem" { format!(" Mem [{key}] [d] [i] ") } else { format!(" {title} [{key}] ") }
+                    if title == "Mem" {
+                        format!(" Mem [{key}] [d] [i] ")
+                    } else {
+                        format!(" {title} [{key}] ")
+                    }
                 };
                 if title.starts_with(" CPU ") {
                     state.hits.cpu_toggle = Rect::new(rect.x + 6, rect.y, 3, 1);
@@ -113,9 +117,16 @@ impl App {
                         self.theme.resources.temp,
                     );
                 } else {
+                    let inner = block.inner(rect);
                     f.render_widget(Paragraph::new(Line::default()).block(block), rect);
                     if title.contains("Mem") {
-                        draw_mem_panel(f, block.inner(rect), &self.resource_snapshot, state.show_disks, state.io_mode);
+                        draw_mem_panel(
+                            f,
+                            inner,
+                            &self.resource_snapshot,
+                            state.show_disks,
+                            state.io_mode,
+                        );
                         state.hits.disks_toggle = Rect::new(rect.x + 9, rect.y, 3, 1);
                         state.hits.io_toggle = Rect::new(rect.x + 13, rect.y, 3, 1);
                     }
@@ -229,25 +240,69 @@ fn draw_mem_panel(
     show_disks: bool,
     io_mode: bool,
 ) {
-    if area.is_empty() { return; }
+    if area.is_empty() {
+        return;
+    }
     let bytes = |value: u64| {
-        if value >= 1 << 30 { format!("{:.1}G", value as f64 / (1 << 30) as f64) }
-        else if value >= 1 << 20 { format!("{:.0}M", value as f64 / (1 << 20) as f64) }
-        else { format!("{:.0}K", value as f64 / 1024.0) }
+        if value >= 1 << 30 {
+            format!("{:.1}G", value as f64 / (1 << 30) as f64)
+        } else if value >= 1 << 20 {
+            format!("{:.0}M", value as f64 / (1 << 20) as f64)
+        } else {
+            format!("{:.0}K", value as f64 / 1024.0)
+        }
     };
     let total = snapshot.memory_total_bytes;
-    let mut lines = vec![Line::from(format!("RAM {} / {}   avail {} cached {} free {}", bytes(snapshot.memory_used_bytes), bytes(total), bytes(snapshot.memory_available_bytes), bytes(snapshot.memory_cached_bytes), bytes(snapshot.memory_free_bytes)))];
+    let mut lines = vec![Line::from(format!(
+        "RAM {} / {}   avail {} cached {} free {}",
+        bytes(snapshot.memory_used_bytes),
+        bytes(total),
+        bytes(snapshot.memory_available_bytes),
+        bytes(snapshot.memory_cached_bytes),
+        bytes(snapshot.memory_free_bytes)
+    ))];
     if snapshot.swap_total_bytes > 0 {
-        lines.push(Line::from(format!("Swap {} / {}", bytes(snapshot.swap_used_bytes), bytes(snapshot.swap_total_bytes))));
+        lines.push(Line::from(format!(
+            "Swap {} / {}",
+            bytes(snapshot.swap_used_bytes),
+            bytes(snapshot.swap_total_bytes)
+        )));
     }
     if show_disks {
-        for disk in snapshot.disks.iter().take(area.height.saturating_sub(lines.len() as u16) as usize) {
-            let used = if disk.total_bytes == 0 { 0 } else { disk.used_bytes.saturating_mul(100) / disk.total_bytes };
-            let io = if io_mode { format!(" R{} W{}", bytes(disk.read_bytes_per_second as u64), bytes(disk.write_bytes_per_second as u64)) } else { disk.busy_percent.map_or(String::new(), |busy| format!(" IO{busy:.0}%")) };
-            lines.push(Line::from(format!("{:<8} {:>3}% {} / {}{}", disk.mount, used, bytes(disk.used_bytes), bytes(disk.total_bytes), io)));
+        for disk in snapshot
+            .disks
+            .iter()
+            .take(area.height.saturating_sub(lines.len() as u16) as usize)
+        {
+            let used = if disk.total_bytes == 0 {
+                0
+            } else {
+                disk.used_bytes.saturating_mul(100) / disk.total_bytes
+            };
+            let io = if io_mode {
+                format!(
+                    " R{} W{}",
+                    bytes(disk.read_bytes_per_second as u64),
+                    bytes(disk.write_bytes_per_second as u64)
+                )
+            } else {
+                disk.busy_percent
+                    .map_or(String::new(), |busy| format!(" IO{busy:.0}%"))
+            };
+            lines.push(Line::from(format!(
+                "{:<8} {:>3}% {} / {}{}",
+                disk.mount,
+                used,
+                bytes(disk.used_bytes),
+                bytes(disk.total_bytes),
+                io
+            )));
         }
     }
-    frame.render_widget(Paragraph::new(lines).style(Style::default().fg(Color::White)), area);
+    frame.render_widget(
+        Paragraph::new(lines).style(Style::default().fg(Color::White)),
+        area,
+    );
 }
 
 fn draw_cpu_panel(

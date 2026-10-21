@@ -282,21 +282,54 @@ impl ResourceSource for SystemResourceSource {
                 .map(|cpu| f64::from(cpu.cpu_usage()))
                 .collect(),
             memory_total_bytes: {
-                #[cfg(target_os = "linux")] { linux.memory.total }
-                #[cfg(not(target_os = "linux"))] { self.system.total_memory() }
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.total
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    self.system.total_memory()
+                }
             },
             memory_used_bytes: {
-                #[cfg(target_os = "linux")] { linux.memory.total.saturating_sub(linux.memory.available) }
-                #[cfg(not(target_os = "linux"))] { self.system.used_memory() }
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.total.saturating_sub(linux.memory.available)
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    self.system.used_memory()
+                }
             },
             memory_available_bytes: {
-                #[cfg(target_os = "linux")] { linux.memory.available }
-                #[cfg(not(target_os = "linux"))] { self.system.available_memory() }
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.available
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    self.system.available_memory()
+                }
             },
-            memory_cached_bytes: { #[cfg(target_os = "linux")] { linux.memory.cached } #[cfg(not(target_os = "linux"))] { 0 } },
+            memory_cached_bytes: {
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.cached
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    0
+                }
+            },
             memory_free_bytes: {
-                #[cfg(target_os = "linux")] { linux.memory.free }
-                #[cfg(not(target_os = "linux"))] { self.system.free_memory() }
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.free
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    self.system.free_memory()
+                }
             },
             swap_total_bytes: self.system.total_swap(),
             swap_used_bytes: self.system.used_swap(),
@@ -310,15 +343,42 @@ impl ResourceSource for SystemResourceSource {
                     total_bytes: disk.total_space(),
                     used_bytes: disk.total_space().saturating_sub(disk.available_space()),
                     #[cfg(target_os = "linux")]
-                    read_bytes_per_second: linux.io.get(&disk.name().to_string_lossy().trim_start_matches("/dev/").to_string()).map_or(0.0, |io| io.read_rate),
+                    read_bytes_per_second: linux
+                        .io
+                        .get(
+                            &disk
+                                .name()
+                                .to_string_lossy()
+                                .trim_start_matches("/dev/")
+                                .to_string(),
+                        )
+                        .map_or(0.0, |io| io.read_rate),
                     #[cfg(not(target_os = "linux"))]
                     read_bytes_per_second: disk.usage().read_bytes as f64 / elapsed.max(0.001),
                     #[cfg(target_os = "linux")]
-                    write_bytes_per_second: linux.io.get(&disk.name().to_string_lossy().trim_start_matches("/dev/").to_string()).map_or(0.0, |io| io.write_rate),
+                    write_bytes_per_second: linux
+                        .io
+                        .get(
+                            &disk
+                                .name()
+                                .to_string_lossy()
+                                .trim_start_matches("/dev/")
+                                .to_string(),
+                        )
+                        .map_or(0.0, |io| io.write_rate),
                     #[cfg(not(target_os = "linux"))]
                     write_bytes_per_second: disk.usage().written_bytes as f64 / elapsed.max(0.001),
                     #[cfg(target_os = "linux")]
-                    busy_percent: linux.io.get(&disk.name().to_string_lossy().trim_start_matches("/dev/").to_string()).map(|io| io.busy),
+                    busy_percent: linux
+                        .io
+                        .get(
+                            &disk
+                                .name()
+                                .to_string_lossy()
+                                .trim_start_matches("/dev/")
+                                .to_string(),
+                        )
+                        .map(|io| io.busy),
                     #[cfg(not(target_os = "linux"))]
                     busy_percent: None,
                 })
@@ -343,15 +403,30 @@ struct LinuxSample {
 
 #[cfg(target_os = "linux")]
 #[derive(Default)]
-struct MemoryReading { total: u64, available: u64, free: u64, cached: u64 }
+struct MemoryReading {
+    total: u64,
+    available: u64,
+    free: u64,
+    cached: u64,
+}
 
 #[cfg(target_os = "linux")]
 #[derive(Clone, Copy)]
-struct IoReading { read_rate: f64, write_rate: f64, busy: f64 }
+struct IoReading {
+    read_rate: f64,
+    write_rate: f64,
+    busy: f64,
+}
 
 #[cfg(target_os = "linux")]
 impl Default for LinuxResourceMonitor {
-    fn default() -> Self { Self { root: "/".into(), previous: Default::default(), previous_uptime: None } }
+    fn default() -> Self {
+        Self {
+            root: "/".into(),
+            previous: Default::default(),
+            previous_uptime: None,
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -363,30 +438,69 @@ impl LinuxResourceMonitor {
         for line in mem.lines() {
             let mut p = line.split_whitespace();
             if let (Some(key), Some(value)) = (p.next(), p.next()) {
-                if let Ok(kb) = value.parse::<u64>() { fields.insert(key.trim_end_matches(':'), kb.saturating_mul(1024)); }
+                if let Ok(kb) = value.parse::<u64>() {
+                    fields.insert(key.trim_end_matches(':'), kb.saturating_mul(1024));
+                }
             }
         }
         let total = fields.get("MemTotal").copied().unwrap_or(0);
         let free = fields.get("MemFree").copied().unwrap_or(0);
         let cached = fields.get("Cached").copied().unwrap_or(0);
-        let available = fields.get("MemAvailable").copied().unwrap_or_else(|| free.saturating_add(cached)).min(total);
-        let uptime = fs::read_to_string(self.root.join("proc/uptime")).ok().and_then(|s| s.split_whitespace().next()?.parse::<f64>().ok()).unwrap_or(0.0);
-        let seconds = self.previous_uptime.replace(uptime).map(|old| (uptime - old).max(0.001)).unwrap_or(elapsed.max(0.001));
+        let available = fields
+            .get("MemAvailable")
+            .copied()
+            .unwrap_or_else(|| free.saturating_add(cached))
+            .min(total);
+        let uptime = fs::read_to_string(self.root.join("proc/uptime"))
+            .ok()
+            .and_then(|s| s.split_whitespace().next()?.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let seconds = self
+            .previous_uptime
+            .replace(uptime)
+            .map(|old| (uptime - old).max(0.001))
+            .unwrap_or(elapsed.max(0.001));
         let mut io = std::collections::HashMap::new();
         for disk in disks.list() {
-            let name = disk.name().to_string_lossy().trim_start_matches("/dev/").to_owned();
+            let name = disk
+                .name()
+                .to_string_lossy()
+                .trim_start_matches("/dev/")
+                .to_owned();
             let stat_path = self.root.join("sys/block").join(&name).join("stat");
-            let Ok(stat) = fs::read_to_string(stat_path) else { continue };
-            let v: Vec<u64> = stat.split_whitespace().filter_map(|v| v.parse().ok()).collect();
-            if v.len() < 10 { continue; }
+            let Ok(stat) = fs::read_to_string(stat_path) else {
+                continue;
+            };
+            let v: Vec<u64> = stat
+                .split_whitespace()
+                .filter_map(|v| v.parse().ok())
+                .collect();
+            if v.len() < 10 {
+                continue;
+            }
             let now = (v[2], v[6], v[9]);
             if let Some(old) = self.previous.insert(name.clone(), now) {
                 let read = now.0.saturating_sub(old.0).saturating_mul(512);
                 let write = now.1.saturating_sub(old.1).saturating_mul(512);
                 let busy = now.2.saturating_sub(old.2) as f64 / seconds / 10.0;
-                io.insert(name, IoReading { read_rate: read as f64 / seconds, write_rate: write as f64 / seconds, busy: busy.clamp(0.0, 100.0) });
+                io.insert(
+                    name,
+                    IoReading {
+                        read_rate: read as f64 / seconds,
+                        write_rate: write as f64 / seconds,
+                        busy: busy.clamp(0.0, 100.0),
+                    },
+                );
             }
         }
-        LinuxSample { memory: MemoryReading { total, available, free, cached }, io }
+        LinuxSample {
+            memory: MemoryReading {
+                total,
+                available,
+                free,
+                cached,
+            },
+            io,
+        }
     }
 }

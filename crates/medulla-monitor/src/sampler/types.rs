@@ -220,12 +220,28 @@ impl ResourceHistory {
         self.cpu.push(snapshot.cpu.clone(), capacity);
         self.memory_used_bytes
             .push(snapshot.memory_used_bytes, capacity);
-        self.memory_available_bytes.push(snapshot.memory_available_bytes, capacity);
-        self.memory_cached_bytes.push(snapshot.memory_cached_bytes, capacity);
+        self.memory_available_bytes
+            .push(snapshot.memory_available_bytes, capacity);
+        self.memory_cached_bytes
+            .push(snapshot.memory_cached_bytes, capacity);
         self.swap_used_bytes
             .push(snapshot.swap_used_bytes, capacity);
-        self.disk_read_bytes_per_second.push(snapshot.disks.iter().map(|disk| disk.read_bytes_per_second).sum(), capacity);
-        self.disk_write_bytes_per_second.push(snapshot.disks.iter().map(|disk| disk.write_bytes_per_second).sum(), capacity);
+        self.disk_read_bytes_per_second.push(
+            snapshot
+                .disks
+                .iter()
+                .map(|disk| disk.read_bytes_per_second)
+                .sum(),
+            capacity,
+        );
+        self.disk_write_bytes_per_second.push(
+            snapshot
+                .disks
+                .iter()
+                .map(|disk| disk.write_bytes_per_second)
+                .sum(),
+            capacity,
+        );
         self.process_count.push(snapshot.processes.len(), capacity);
     }
 }
