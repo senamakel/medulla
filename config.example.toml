@@ -42,6 +42,14 @@
 # environment — this is the usual way to set `MEDULLA_DEV=1` for local dev.
 
 # ---------------------------------------------------------------------------
+# resources — background resource sampler
+# ---------------------------------------------------------------------------
+# Samples CPU, memory, disks, and processes on a background task. Default: 2000 ms.
+# The accepted range is 100–10000 ms.
+# [resources]
+# updateMs = 2000
+
+# ---------------------------------------------------------------------------
 # backend — the Medulla HTTP API
 # ---------------------------------------------------------------------------
 [backend]
