@@ -228,6 +228,12 @@ impl ResourceSource for SystemResourceSource {
             })
         });
         let mut cpu = self.cpu_monitor.sample();
+        cpu.model = self
+            .system
+            .cpus()
+            .first()
+            .map(|cpu| cpu.brand().trim().to_owned())
+            .filter(|brand| !brand.is_empty());
         if cpu.cores.is_empty() {
             cpu.total.total = self.system.global_cpu_usage();
             cpu.cores = self

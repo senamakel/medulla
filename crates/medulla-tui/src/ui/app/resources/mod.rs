@@ -110,6 +110,7 @@ impl App {
                         &self.resource_snapshot,
                         &self.loaded.config.resources,
                         self.theme.resources.cpu,
+                        self.theme.resources.temp,
                     );
                 } else {
                     f.render_widget(Paragraph::new(Line::default()).block(block), rect);
@@ -216,6 +217,7 @@ fn draw_cpu_panel(
     snapshot: &crate::ui::resources::sampler::ResourceSnapshot,
     config: &medulla::config::ResourcesConfig,
     colors: crate::ui::theme::Gradient,
+    temp_colors: crate::ui::theme::Gradient,
 ) {
     if area.is_empty() {
         return;
@@ -237,6 +239,11 @@ fn draw_cpu_panel(
         colors.start,
         colors.mid.unwrap_or(colors.start),
         colors.end.unwrap_or(colors.start),
+    ]);
+    let temp_gradient = crate::ui::plot::Gradient::new(vec![
+        temp_colors.start,
+        temp_colors.mid.unwrap_or(temp_colors.start),
+        temp_colors.end.unwrap_or(temp_colors.start),
     ]);
     let values: Vec<f32> = history
         .iter()
@@ -260,6 +267,9 @@ fn draw_cpu_panel(
     }
     let mut lines = Vec::new();
     let mut details = Vec::new();
+    if let Some(model) = snapshot.cpu.model.as_deref().filter(|model| !model.is_empty()) {
+        details.push(model.to_owned());
+    }
     if !snapshot.cpu.frequencies_mhz.is_empty() {
         let average = snapshot.cpu.frequencies_mhz.iter().sum::<u64>()
             / snapshot.cpu.frequencies_mhz.len() as u64;
@@ -354,6 +364,42 @@ fn draw_cpu_panel(
             .collect::<Vec<_>>()
             .join("  ");
         lines.push(ratatui::text::Line::from(text));
+        if area.width >= 100 && per_row == 1 {
+            let y = area.y + graph_rows + lines.len() as u16 - 1;
+            let graph_x = area.x + (area.width * 2 / 3).max(20);
+            let graph_width = area.right().saturating_sub(graph_x);
+            if let Some((core_index, _)) = group.first() {
+                let usage: Vec<f32> = history
+                    .iter()
+                    .filter_map(|sample| sample.cores.get(*core_index).map(|core| core.total))
+                    .collect();
+                if graph_width > 3 {
+                    let usage_width = graph_width / 2;
+                    frame.render_widget(
+                        crate::ui::plot::Graph::new(&usage).gradient(&chart_gradient),
+                        Rect::new(graph_x, y, usage_width, 1),
+                    );
+                    let temps: Vec<f32> = history
+                        .iter()
+                        .filter_map(|sample| {
+                            sample
+                                .core_temperatures_c
+                                .iter()
+                                .find(|(index, _, _)| index == core_index)
+                                .map(|(_, temp, crit)| {
+                                    if *crit > 0.0 { temp * 100.0 / crit } else { temp }
+                                })
+                        })
+                        .collect();
+                    if !temps.is_empty() {
+                        frame.render_widget(
+                            crate::ui::plot::Graph::new(&temps).gradient(&temp_gradient),
+                            Rect::new(graph_x + usage_width, y, graph_width - usage_width, 1),
+                        );
+                    }
+                }
+            }
+        }
     }
     let text_area = Rect::new(
         area.x,

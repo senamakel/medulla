@@ -81,6 +81,7 @@ impl CpuReading {
 /// Immutable whole-machine CPU data.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CpuSnapshot {
+    pub model: Option<String>,
     pub total: CpuReading,
     pub cores: Vec<CpuReading>,
     pub frequencies_mhz: Vec<u64>,
