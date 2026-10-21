@@ -522,8 +522,9 @@ tokenEnv = "MEDULLA_TOKEN"
 # attentionBlinkSeconds = 1.0   # one full pulse; clamped to 0.2–10.0
 
 # Resource panel colors follow btop's palette. Values accept named colors or
-# #rrggbb. Each gradient uses start/mid/end; omit mid for a two-color ramp, or
-# omit both mid and end for a solid color. Percentages are precomputed 0–100.
+# #rrggbb. Each gradient uses start/mid/end. Set mid = "" for a two-color ramp,
+# or set both mid = "" and end = "" for a solid color. Unset keys keep defaults.
+# Percentages are precomputed 0–100.
 # [theme.resources]
 # cpuBox = "#556d59"
 # memBox = "#6c6c4b"
