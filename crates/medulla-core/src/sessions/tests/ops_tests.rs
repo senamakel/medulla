@@ -270,18 +270,23 @@ async fn applying_interrupt_to_a_running_turn_reports_success_and_aborts_it() {
         };
         tokio::spawn(async move { mgr.apply(op).await })
     };
-    // Wait until the turn is in flight, then let it stream a fragment. A
-    // wall-clock budget: under a loaded test run the stub's spawn alone can
-    // outlast a fixed count of one-ms sleeps, and falling through early would
-    // interrupt a turn that has not started.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-    while mgr.record(&id).map(|r| r.phase) != Some(SessionPhase::Turn) {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "session {id} never reached Turn"
-        );
+    // Wait until the turn is in flight, then let it stream a fragment. Falling
+    // through without it would interrupt a turn that never started and fail on
+    // a misleading status, so say what the session did instead.
+    let mut reached = false;
+    for _ in 0..2_000 {
+        if mgr.record(&id).map(|r| r.phase) == Some(SessionPhase::Turn) {
+            reached = true;
+            break;
+        }
         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
     }
+    assert!(
+        reached,
+        "session {id} never reached Turn; it is {:?} with transcript {:?}",
+        mgr.record(&id).map(|r| r.phase),
+        mgr.transcript(&id),
+    );
     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     let sent = mgr
         .apply(SessionOp::Interrupt { id: id.clone() })
