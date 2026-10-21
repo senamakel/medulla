@@ -304,7 +304,7 @@ fn cpu_panel_renders_sixteen_cores_without_clipping_at_common_sizes() {
                 ..Default::default()
             })
             .collect(),
-        frequencies_mhz: vec![Some(2400); 16],
+        frequencies_mhz: (0..16).map(|index| (index != 0).then_some(2400)).collect(),
         load_average: [0.5, 0.25, 0.1],
         uptime_seconds: Some(1234),
         ..Default::default()
@@ -344,6 +344,16 @@ fn cpu_panel_renders_sixteen_cores_without_clipping_at_common_sizes() {
         if width >= 100 {
             assert!(text.contains("Test CPU"));
             assert!(text.contains("Load 0.50 0.25 0.10"));
+            let graph_row = cpu_rect.y + 1 + 2 + 1;
+            let first_cpu_text = (cpu_rect.x + 1..cpu_rect.x + 100)
+                .map(|x| buffer[(x, graph_row)].symbol())
+                .collect::<String>();
+            assert!(first_cpu_text.contains("C0   0% C1   1% 2.4GHz"));
+            assert!(
+                (cpu_rect.x + 100..cpu_rect.right() - 1)
+                    .any(|x| buffer[(x, graph_row)].symbol() != " "),
+                "missing per-core graphs at {width}x{height}"
+            );
         } else {
             assert!(
                 text.contains("Load 0.5"),
