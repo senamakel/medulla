@@ -4,9 +4,12 @@
 
 use std::collections::HashMap;
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
-use super::types::ExistsOnPath;
+use crate::{can_resume, env::provider_bin as resolve_provider_bin};
+
+/// Injectable PATH lookup predicate.
+pub type ExistsOnPath = Box<dyn Fn(&str) -> bool + Send + Sync>;
 
 /// Every daemon-supported provider.
 pub const DAEMON_PROVIDERS: [HarnessProvider; 3] = [
@@ -19,7 +22,7 @@ pub const DAEMON_PROVIDERS: [HarnessProvider; 3] = [
 /// the central resolver ([`crate::protocol::env::provider_bin`]) so the
 /// daemon and wrapper share one bin-override contract.
 pub fn provider_bin(provider: HarnessProvider, env: &HashMap<String, String>) -> String {
-    crate::protocol::env::provider_bin(provider, env)
+    resolve_provider_bin(provider, env)
 }
 
 /// Default lookup: a path-ish name is probed directly for `X_OK`, a bare name is
@@ -260,7 +263,7 @@ pub fn build_resumed_run_args(
 /// Re-exported from [`crate::sessions::routing`] so the argv builder can gate on
 /// it without the providers module depending on the sessions module.
 fn can_resume(provider: HarnessProvider) -> bool {
-    matches!(provider, HarnessProvider::Claude | HarnessProvider::Codex)
+    can_resume(provider)
 }
 
 /// The stream field a provider announces its own session id on.

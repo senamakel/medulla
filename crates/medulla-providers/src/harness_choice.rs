@@ -26,7 +26,7 @@
 
 use serde_json::Value;
 
-use crate::protocol::{dispatchable_flavors, HarnessProvider, HarnessTransport};
+use medulla_types::{dispatchable_flavors, HarnessProvider, HarnessTransport};
 
 /// The config keys an `agent` node states a harness under, in the order they
 /// are consulted. `provider` is accepted because that is what the wire frame
