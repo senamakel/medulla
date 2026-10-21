@@ -20,7 +20,7 @@ use bytes::Bytes;
 /// million-token context serializes well under it — while bounding what a
 /// single request can pin in memory. A pinned request whose body exceeds this
 /// is forwarded without the pin rather than buffered (see
-/// [`crate::inference_proxy::serve`]).
+/// [`crate::proxy::serve`]).
 pub const MAX_REWRITE_BYTES: usize = 32 * 1024 * 1024;
 
 /// Merge `provider.only` into a JSON request body.

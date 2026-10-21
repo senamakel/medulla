@@ -152,7 +152,7 @@ fn resolve_embedded_key(
 /// * **OpenRouter.** The core is pointed at a loopback mount of the shared
 ///   proxy and presents a machine-local token, so the traffic is re-headed on
 ///   the way out and the OpenRouter key never reaches the turn. This is the
-///   attribution story [`crate::inference_proxy`] exists for.
+///   attribution story this proxy exists for.
 /// * **Anything else** — a local router, a self-hosted gateway, a vendor's own
 ///   OpenAI-compatible endpoint. There is nothing to re-head and no third
 ///   party to credit, so the endpoint and its key are handed to the core
