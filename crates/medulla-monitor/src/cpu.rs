@@ -41,6 +41,7 @@ pub struct CpuSnapshot {
     pub cores: Vec<CpuReading>,
     pub frequencies_mhz: Vec<u64>,
     pub package_temperature_c: Option<f32>,
+    pub package_temperature_crit_c: Option<f32>,
     pub core_temperatures_c: Vec<(usize, f32, f32)>,
     pub load_average: [f64; 3],
     pub uptime_seconds: Option<u64>,
@@ -91,8 +92,9 @@ impl CpuMonitor {
         }
         let total = readings.iter().find(|(name, _)| name == "cpu").map(|(_, reading)| reading.clone()).unwrap_or_default();
         let cores = readings.into_iter().filter(|(name, _)| name != "cpu").map(|(_, reading)| reading).collect();
-        CpuSnapshot { total, cores, frequencies_mhz: read_frequencies(&root), package_temperature_c: read_temperatures(&root).0,
-            core_temperatures_c: read_temperatures(&root).1, load_average: read_load(&root), uptime_seconds: read_uptime(&root), battery_percent: read_battery(&root), }
+        let (package_temperature_c, package_temperature_crit_c, core_temperatures_c) = read_temperatures(&root);
+        CpuSnapshot { total, cores, frequencies_mhz: read_frequencies(&root), package_temperature_c,
+            package_temperature_crit_c, core_temperatures_c, load_average: read_load(&root), uptime_seconds: read_uptime(&root), battery_percent: read_battery(&root), }
     }
 }
 
@@ -119,9 +121,9 @@ fn read_frequencies(root: &Path) -> Vec<u64> {
 }
 
 #[cfg(target_os = "linux")]
-fn read_temperatures(root: &Path) -> (Option<f32>, Vec<(usize, f32, f32)>) {
-    let mut package = None; let mut cores = Vec::new();
-    let Ok(devices) = fs::read_dir(root.join("sys/class/hwmon")) else { return (package, cores) };
+fn read_temperatures(root: &Path) -> (Option<f32>, Option<f32>, Vec<(usize, f32, f32)>) {
+    let mut package = None; let mut package_crit = None; let mut cores = Vec::new();
+    let Ok(devices) = fs::read_dir(root.join("sys/class/hwmon")) else { return (package, package_crit, cores) };
     for device in devices.flatten() {
         let path = fs::canonicalize(device.path()).unwrap_or_else(|_| device.path());
         let Ok(entries) = fs::read_dir(&path) else { continue };
@@ -134,11 +136,11 @@ fn read_temperatures(root: &Path) -> (Option<f32>, Vec<(usize, f32, f32)>) {
             let temp = milli as f32 / 1000.0;
             let crit = fs::read_to_string(path.join(format!("{prefix}_crit"))).ok().and_then(|s| s.trim().parse::<f32>().ok()).map(|v| v / 1000.0).unwrap_or(90.0);
             let lower = label.to_ascii_lowercase();
-            if lower.starts_with("package id") || lower.starts_with("tdie") || lower.starts_with("soc temperature") { package.get_or_insert(temp); }
+            if lower.starts_with("package id") || lower.starts_with("tdie") || lower.starts_with("soc temperature") { if package.is_none() { package = Some(temp); package_crit = Some(crit); } }
             else if let Some(core) = lower.strip_prefix("core").and_then(|s| s.trim().parse::<usize>().ok()) { cores.push((core, temp, crit)); }
         }
     }
-    cores.sort_by_key(|(core, _, _)| *core); (package, cores)
+    cores.sort_by_key(|(core, _, _)| *core); (package, package_crit, cores)
 }
 
 #[cfg(target_os = "linux")]
@@ -148,7 +150,7 @@ fn read_uptime(root: &Path) -> Option<u64> { fs::read_to_string(root.join("proc/
 #[cfg(target_os = "linux")]
 fn read_battery(root: &Path) -> Option<f32> {
     for entry in fs::read_dir(root.join("sys/class/power_supply")).ok()?.flatten() {
-        let path = entry.path(); if fs::read_to_string(path.join("type")).ok()?.trim() != "Battery" { continue; }
+        let path = entry.path(); if fs::read_to_string(path.join("type")).ok().as_deref().map(str::trim) != Some("Battery") { continue; }
         if let Ok(capacity) = fs::read_to_string(path.join("capacity")) { return capacity.trim().parse().ok(); }
         let now = fs::read_to_string(path.join("energy_now")).or_else(|_| fs::read_to_string(path.join("charge_now"))).ok()?.trim().parse::<f32>().ok()?;
         let full = fs::read_to_string(path.join("energy_full")).or_else(|_| fs::read_to_string(path.join("charge_full"))).ok()?.trim().parse::<f32>().ok()?;
@@ -197,6 +199,7 @@ mod tests {
         assert!((second.total.total - 33.333_332).abs() < 0.001);
         assert_eq!(second.cores.len(), 1);
         assert_eq!(second.package_temperature_c, Some(65.0));
+        assert_eq!(second.package_temperature_crit_c, Some(100.0));
         assert_eq!(second.core_temperatures_c, [(0, 60.0, 90.0)]);
         assert_eq!(second.load_average, [0.5, 0.25, 0.1]);
         assert_eq!(second.uptime_seconds, Some(1234));

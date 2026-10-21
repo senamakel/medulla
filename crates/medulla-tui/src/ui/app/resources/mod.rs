@@ -247,7 +247,15 @@ fn draw_cpu_panel(
     let cores = &snapshot.cpu.cores;
     let per_row = if cores.len() <= remaining.max(1) { 1 } else { cores.len().div_ceil(remaining.max(1)) };
     for group in cores.iter().enumerate().collect::<Vec<_>>().chunks(per_row.max(1)) {
-        let text = group.iter().map(|(index, cpu)| format!("C{index} {:>3.0}%", cpu.total)).collect::<Vec<_>>().join("  ");
+        let text = group.iter().map(|(index, cpu)| {
+            let mut row = format!("C{index} {:>3.0}%", cpu.total);
+            if let Some(freq) = snapshot.cpu.frequencies_mhz.get(*index) { row.push_str(&format!(" {freq}MHz")); }
+            if let Some((_, temp, _)) = snapshot.cpu.core_temperatures_c.iter().find(|(core, _, _)| core == index) {
+                let temp = if config.temp_scale == "fahrenheit" { temp * 1.8 + 32.0 } else { *temp };
+                row.push_str(&format!(" {temp:.0}°{}", if config.temp_scale == "fahrenheit" { "F" } else { "C" }));
+            }
+            row
+        }).collect::<Vec<_>>().join("  ");
         lines.push(ratatui::text::Line::from(text));
     }
     let text_area = Rect::new(area.x, area.y + graph_rows, area.width, area.height - graph_rows);
