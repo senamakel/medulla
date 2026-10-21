@@ -447,7 +447,9 @@ fn draw_mem_panel(
                 area.height - graph_rows,
             ),
         );
-        if !config.io_mode {
+        if config.io_mode {
+            draw_disk_io_graphs(frame, area, snapshot, &disks, graph_rows, disk_start, config);
+        } else {
             draw_disk_busy_graphs(frame, area, snapshot, &disks, graph_rows, disk_start);
         }
         return;
@@ -456,7 +458,10 @@ fn draw_mem_panel(
         Paragraph::new(lines).style(Style::default().fg(Color::White)),
         area,
     );
-    if !config.io_mode {
+    if config.io_mode {
+        let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 { 2 } else { 1 };
+        draw_disk_io_graphs(frame, area, snapshot, &disks, 0, disk_start, config);
+    } else {
         let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
             2
         } else {
@@ -501,6 +506,55 @@ fn draw_disk_busy_graphs(
                 crate::ui::plot::Graph::new(&history),
                 Rect::new(x, y, width, 1),
             );
+        }
+    }
+}
+
+fn draw_disk_io_graphs(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &crate::ui::resources::sampler::ResourceSnapshot,
+    disks: &[crate::ui::resources::sampler::DiskSnapshot],
+    graph_rows: u16,
+    disk_start: usize,
+    config: &medulla::config::ResourcesConfig,
+) {
+    let x = area.x + area.width / 2;
+    let width = area.right().saturating_sub(x);
+    if width < 6 {
+        return;
+    }
+    for (index, disk) in disks.iter().enumerate() {
+        let y = area.y + graph_rows + disk_start as u16 + index as u16;
+        if y >= area.bottom() {
+            break;
+        }
+        let limit = io_graph_speed(config, &disk.mount) * 1024.0 * 1024.0;
+        let read: Vec<f32> = snapshot
+            .history
+            .disk_io
+            .iter()
+            .filter_map(|sample| {
+                sample.iter().find(|entry| entry.device == disk.device)
+                    .map(|entry| (entry.read_bytes_per_second * 100.0 / limit) as f32)
+            })
+            .collect();
+        let write: Vec<f32> = snapshot
+            .history
+            .disk_io
+            .iter()
+            .filter_map(|sample| {
+                sample.iter().find(|entry| entry.device == disk.device)
+                    .map(|entry| (entry.write_bytes_per_second * 100.0 / limit) as f32)
+            })
+            .collect();
+        if config.io_graph_combined {
+            let combined: Vec<f32> = read.iter().zip(&write).map(|(r, w)| r + w).collect();
+            frame.render_widget(crate::ui::plot::Graph::new(&combined), Rect::new(x, y, width, 1));
+        } else {
+            let half = width / 2;
+            frame.render_widget(crate::ui::plot::Graph::new(&read), Rect::new(x, y, half, 1));
+            frame.render_widget(crate::ui::plot::Graph::new(&write), Rect::new(x + half, y, width - half, 1));
         }
     }
 }
