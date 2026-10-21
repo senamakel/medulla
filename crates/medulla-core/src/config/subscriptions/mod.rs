@@ -9,3 +9,6 @@ pub use medulla_tokens::config::{
     DEFAULT_REFRESH_SECONDS as DEFAULT_SUBSCRIPTION_REFRESH_SECONDS,
     MIN_REFRESH_SECONDS as MIN_SUBSCRIPTION_REFRESH_SECONDS,
 };
+
+#[cfg(test)]
+mod tests;
