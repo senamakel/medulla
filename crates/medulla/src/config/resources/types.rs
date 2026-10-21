@@ -26,19 +26,25 @@ where
 #[serde(default, rename_all = "camelCase")]
 pub struct ResourcesConfig {
     /// Milliseconds between system resource samples.
-    #[serde(default = "default_update_ms", deserialize_with = "deserialize_update_ms")]
+    #[serde(
+        default = "default_update_ms",
+        deserialize_with = "deserialize_update_ms"
+    )]
     pub update_ms: u64,
 }
 
 impl Default for ResourcesConfig {
     fn default() -> Self {
-        Self { update_ms: DEFAULT_RESOURCES_UPDATE_MS }
+        Self {
+            update_ms: DEFAULT_RESOURCES_UPDATE_MS,
+        }
     }
 }
 
 impl ResourcesConfig {
     /// Return the supported interval, clamping programmatic values as well.
     pub fn update_interval_ms(self) -> u64 {
-        self.update_ms.clamp(MIN_RESOURCES_UPDATE_MS, MAX_RESOURCES_UPDATE_MS)
+        self.update_ms
+            .clamp(MIN_RESOURCES_UPDATE_MS, MAX_RESOURCES_UPDATE_MS)
     }
 }

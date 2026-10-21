@@ -721,6 +721,9 @@ pub struct App {
     pub(in crate::ui::app) device_monitor: crate::ui::resources::DeviceMonitor,
     /// Throttled sampler backing the per-session usage shown in pane titles.
     pub(in crate::ui::app) session_monitor: crate::ui::resources::SessionMonitor,
+    /// Latest immutable host snapshot from the background sampler.
+    pub(in crate::ui::app) resource_snapshot:
+        std::sync::Arc<crate::ui::resources::sampler::ResourceSnapshot>,
     /// The selected field row on the Status line subpage.
     pub(in crate::ui::app) status_line_index: usize,
     /// Whether the next persisted status-line edit must write the complete

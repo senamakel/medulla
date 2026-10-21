@@ -23,6 +23,7 @@ pub use types::{DeviceSnapshot, ResourceMonitor, ResourceSnapshot};
 
 mod device;
 mod process_monitor;
+pub mod sampler;
 mod session;
 mod types;
 

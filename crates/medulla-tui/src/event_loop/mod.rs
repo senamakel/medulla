@@ -95,6 +95,15 @@ pub(crate) async fn run(
     // header banner. Disabled via `[update] check = false` or
     // `MEDULLA_NO_UPDATE_CHECK`.
     spawn_update_checker(&app.loaded, &msg_tx);
+    let (resource_interval_tx, resource_interval_rx) = tokio::sync::watch::channel(
+        Duration::from_millis(app.loaded.config.resources.update_interval_ms()),
+    );
+    let _resource_interval_tx = resource_interval_tx;
+    crate::ui::resources::sampler::spawn_sampler(
+        crate::ui::resources::sampler::SystemResourceSource::default(),
+        resource_interval_rx,
+        msg_tx.clone(),
+    );
 
     // Product analytics: the top-level screen on entry and on every change.
     let mut analytics_screen = app.tab();
@@ -144,6 +153,7 @@ pub(crate) async fn run(
             }
             Some(msg) = msg_rx.recv() => {
                 match msg {
+                    AppMsg::Resources(snapshot) => app.set_resource_snapshot(snapshot),
                     AppMsg::Status(s) => { app.set_status(s); app.refresh_snapshot(); }
                     AppMsg::Contexts(c) => app.set_contexts(c),
                     AppMsg::RemoteHostConnected {
