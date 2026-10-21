@@ -17,35 +17,19 @@
 
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
-pub use device::{device_lines, device_width_hint, DeviceMonitor};
-pub use session::{session_segments, session_usage, SessionMonitor, SessionSnapshot};
-pub use types::{DeviceSnapshot, ResourceMonitor, ResourceSnapshot};
+pub use device::{device_lines, device_width_hint};
+pub use session::{session_segments, session_usage};
+pub use medulla_monitor::{
+    DeviceMonitor, DeviceSnapshot, ResourceMonitor, ResourceSnapshot, SessionMonitor,
+    SessionSnapshot,
+};
 
 mod device;
-mod process_monitor;
 pub mod sampler;
 mod session;
-mod types;
 
 #[cfg(test)]
 mod tests;
-
-/// Convert sysinfo's deltas to rates only after an initial counter baseline.
-///
-/// A process's first refresh can report accumulated startup I/O as its delta.
-/// Ignoring that reading prevents it from inflating the decaying peak used by
-/// subsequent disk bars.
-fn disk_rates(
-    read_bytes: u64,
-    written_bytes: u64,
-    elapsed: f64,
-    baseline_ready: bool,
-) -> (f64, f64) {
-    if !baseline_ready {
-        return (0.0, 0.0);
-    }
-    (read_bytes as f64 / elapsed, written_bytes as f64 / elapsed)
-}
 
 /// Format every enabled resource as compact status-line segments.
 pub fn segments(config: &AppearanceConfig, sample: ResourceSnapshot) -> Vec<String> {

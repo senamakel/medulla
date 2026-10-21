@@ -12,7 +12,7 @@ use medulla::config::{AppearanceConfig, ResourceDisplay};
 
 use crate::ui::gauge::{bar_value, percent, Gauge};
 
-use super::super::types::DeviceSnapshot;
+use medulla_monitor::DeviceSnapshot;
 
 /// Shown in place of a reading the platform could not supply.
 const UNAVAILABLE: &str = "—";

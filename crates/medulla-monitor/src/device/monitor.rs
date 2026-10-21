@@ -4,8 +4,7 @@ use std::time::{Duration, Instant};
 
 use sysinfo::Disks;
 
-use crate::ui::resources::types::DeviceSnapshot;
-
+use crate::DeviceSnapshot;
 use super::types::DeviceMonitor;
 
 /// How long a sample is reused before the device is polled again.
