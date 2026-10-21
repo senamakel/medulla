@@ -285,6 +285,25 @@ mod bind {
     }
 
     #[tokio::test]
+    async fn every_directory_created_for_the_socket_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Only the leaf used to be chmodded. Under a group-writable umask (002,
+        // the default for user-private groups) the intermediate directories came
+        // out 0775, and the ancestor check then refused the very path it built.
+        let dir = crate::control_socket::private_tempdir();
+        let account = dir.path().join("account");
+        let path = account.join("run").join("control.sock");
+
+        drop(prepare_bind(&path).await.unwrap());
+
+        for created in [&account, &account.join("run")] {
+            let mode = std::fs::metadata(created).unwrap().permissions().mode();
+            assert_eq!(mode & 0o077, 0, "{} should be owner-only", created.display());
+        }
+    }
+
+    #[tokio::test]
     async fn an_explicit_paths_existing_parent_keeps_its_permissions() {
         use std::os::unix::fs::PermissionsExt;
 
