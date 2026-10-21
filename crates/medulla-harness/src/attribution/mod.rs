@@ -120,7 +120,7 @@ fn claude_settings_json() -> String {
 /// The hook is gated at runtime by `MEDULLA_ATTRIBUTION`.
 ///
 /// `enabled` is the resolved `attribution.commit` config value — see
-/// [`crate::config::AttributionConfig`].
+/// core's resolved `[attribution] commit` config value.
 ///
 /// The hook directory is shared process-wide and outlives every child, so this
 /// is safe to call for concurrent spawns and needs no cleanup from the caller

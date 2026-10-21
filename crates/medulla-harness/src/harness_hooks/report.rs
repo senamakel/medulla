@@ -34,7 +34,7 @@ pub struct HookReport {
     /// key [`LaunchSpec::mcp_grant_session`] carries, which is what ties a
     /// report back to the pane showing that harness.
     ///
-    /// [`LaunchSpec::mcp_grant_session`]: crate::control_socket::grants::Grant
+    /// `LaunchSpec::mcp_grant_session` in core's control socket grants.
     pub session: String,
     /// The lifecycle moment that fired.
     pub event: HookEvent,
