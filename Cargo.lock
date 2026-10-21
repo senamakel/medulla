@@ -2531,14 +2531,9 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.22.1",
- "bytes",
  "dirs 6.0.0",
  "fs2",
  "futures",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
  "libc",
  "medulla-link",
  "medulla-providers",
@@ -2601,11 +2596,21 @@ name = "medulla-providers"
 version = "0.13.0"
 dependencies = [
  "anyhow",
+ "bytes",
+ "futures",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "medulla-types",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
  "toml 0.8.23",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
