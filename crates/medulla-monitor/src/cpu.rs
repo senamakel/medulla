@@ -162,12 +162,12 @@ mod tests {
     #[test]
     fn linux_cpu_percent_uses_guest_adjusted_totals_and_field_deltas() {
         let reading = cpu_delta(Times([10, 0, 10, 60, 0, 0, 0, 0, 0, 0]), Times([30, 0, 20, 110, 10, 0, 0, 0, 5, 0]));
-        assert_eq!(reading.total, 40.0);
-        assert_eq!(reading.user, 30.0);
-        assert_eq!(reading.system, 10.0);
-        assert_eq!(reading.idle, 50.0);
-        assert_eq!(reading.iowait, 10.0);
-        assert_eq!(reading.guest, 5.0);
+        assert!((reading.total - 33.333_332).abs() < 0.001);
+        assert!((reading.user - 22.222_223).abs() < 0.001);
+        assert!((reading.system - 11.111_111).abs() < 0.001);
+        assert!((reading.idle - 55.555_557).abs() < 0.001);
+        assert!((reading.iowait - 11.111_111).abs() < 0.001);
+        assert!((reading.guest - 5.555_556).abs() < 0.001);
     }
 
     #[cfg(target_os = "linux")]
@@ -194,7 +194,7 @@ mod tests {
         assert_eq!(first.total, CpuReading::default());
         write("proc/stat", "cpu 50 0 30 160 20 0 0 0 10 0\ncpu0 30 0 20 70 10 0 0 0 10 0\n");
         let second = monitor.sample();
-        assert_eq!(second.total.total, 40.0);
+        assert!((second.total.total - 33.333_332).abs() < 0.001);
         assert_eq!(second.cores.len(), 1);
         assert_eq!(second.package_temperature_c, Some(65.0));
         assert_eq!(second.core_temperatures_c, [(0, 60.0, 90.0)]);
