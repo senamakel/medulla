@@ -15,6 +15,10 @@ fn render_graph(values: &[f32], width: u16, height: u16, symbol: Symbol, invert:
     buffer
 }
 
+fn glyph(buffer: &Buffer, x: u16, y: u16) -> char {
+    buffer[(x, y)].symbol().chars().next().unwrap_or(' ')
+}
+
 #[test]
 fn paired_samples_match_btop_glyphs_for_each_symbol_table() {
     let expected = [
@@ -25,8 +29,8 @@ fn paired_samples_match_btop_glyphs_for_each_symbol_table() {
     for (symbol, up, down) in expected {
         let graph = render_graph(&[25.0, 75.0], 1, 1, symbol, false);
         let inverted = render_graph(&[25.0, 75.0], 1, 1, symbol, true);
-        assert_eq!(graph[(0, 0)].symbol(), up);
-        assert_eq!(inverted[(0, 0)].symbol(), down);
+        assert_eq!(glyph(&graph, 0, 0), up);
+        assert_eq!(glyph(&inverted, 0, 0), down);
     }
 }
 
@@ -35,12 +39,12 @@ fn percentage_rows_fill_from_the_bottom_and_invert_to_the_top() {
     let up = render_graph(&[0.0, 37.5], 1, 4, Symbol::Braille, false);
     let down = render_graph(&[0.0, 37.5], 1, 4, Symbol::Braille, true);
 
-    assert_eq!(up[(0, 0)].symbol(), ' ');
-    assert_eq!(up[(0, 1)].symbol(), ' ');
-    assert_eq!(up[(0, 2)].symbol(), '⢠');
-    assert_eq!(up[(0, 3)].symbol(), '⢸');
-    assert_eq!(down[(0, 2)].symbol(), '⠘');
-    assert_eq!(down[(0, 3)].symbol(), '⢸');
+    assert_eq!(glyph(&up, 0, 0), ' ');
+    assert_eq!(glyph(&up, 0, 1), ' ');
+    assert_eq!(glyph(&up, 0, 2), '⢠');
+    assert_eq!(glyph(&up, 0, 3), '⢸');
+    assert_eq!(glyph(&down, 0, 2), '⠘');
+    assert_eq!(glyph(&down, 0, 3), '⢸');
     // The lower dot in the up table becomes an upper dot with the down table.
     assert_ne!(
         Symbol::Braille.glyph(false, 1, 0),
@@ -51,10 +55,10 @@ fn percentage_rows_fill_from_the_bottom_and_invert_to_the_top() {
 #[test]
 fn no_zero_keeps_a_baseline_mark_for_zero_values() {
     let graph = render_graph(&[0.0, 0.0], 1, 4, Symbol::Braille, false);
-    assert_eq!(graph[(0, 0)].symbol(), ' ');
-    assert_eq!(graph[(0, 1)].symbol(), ' ');
-    assert_eq!(graph[(0, 2)].symbol(), ' ');
-    assert_eq!(graph[(0, 3)].symbol(), '⣀');
+    assert_eq!(glyph(&graph, 0, 0), ' ');
+    assert_eq!(glyph(&graph, 0, 1), ' ');
+    assert_eq!(glyph(&graph, 0, 2), ' ');
+    assert_eq!(glyph(&graph, 0, 3), '⣀');
 }
 
 #[test]
@@ -68,7 +72,7 @@ fn meter_fills_zero_half_and_all_of_ten_cells() {
             .filter(|x| buffer[(*x, 0)].style().fg == Some(Color::Rgb(1, 2, 3)))
             .count();
         assert_eq!(actual, filled);
-        assert!(buffer.content().iter().all(|cell| cell.symbol() == '■'));
+        assert!(buffer.content().iter().all(|cell| cell.symbol() == "■"));
     }
 }
 
@@ -76,7 +80,7 @@ fn meter_fills_zero_half_and_all_of_ten_cells() {
 fn braille_glyphs_are_single_terminal_cells() {
     assert_eq!(UnicodeWidthChar::width('⣿'), Some(1));
     let graph = render_graph(&[0.0, 100.0], 1, 1, Symbol::Braille, false);
-    assert_eq!(graph[(0, 0)].symbol(), '⢸');
+    assert_eq!(glyph(&graph, 0, 0), '⢸');
 }
 
 #[test]
