@@ -7,10 +7,34 @@ use serde_json::Value;
 /// object. Provider-specific total counters are preferred when the complete
 /// record is supplied (notably Codex's cumulative `total_token_usage`).
 pub fn scan_usage(provider: HarnessProvider, value: &Value) -> Option<TokenUsage> {
-    if provider == HarnessProvider::Codex {
-        if let Some(total) = value.pointer("/payload/info/total_token_usage") {
-            return scan_usage_object(total, 0);
+    match provider {
+        HarnessProvider::Claude => {
+            if let Some(usage) = value
+                .pointer("/message/usage")
+                .or_else(|| value.pointer("/usage"))
+                .and_then(|usage| scan_usage_object(usage, 0))
+            {
+                return Some(usage);
+            }
         }
+        HarnessProvider::Codex => {
+            // The total is cumulative and must win over its per-call sibling.
+            // A present but invalid total is deliberately not replaced by the
+            // last-call value on the same record.
+            if let Some(total) = value.pointer("/payload/info/total_token_usage") {
+                return scan_usage_object(total, 0);
+            }
+        }
+        HarnessProvider::Opencode => {
+            if let Some(usage) = value
+                .pointer("/part/tokens")
+                .or_else(|| value.pointer("/tokens"))
+                .and_then(|usage| scan_usage_object(usage, 0))
+            {
+                return Some(usage);
+            }
+        }
+        HarnessProvider::Openhuman | HarnessProvider::Shell => {}
     }
     scan_usage_object(value, 0)
 }
