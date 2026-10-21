@@ -50,6 +50,20 @@ pub mod server;
 #[cfg(test)]
 mod tests;
 
+/// An owner-only temporary directory to host a test's control socket.
+///
+/// `tempfile::tempdir` honours the caller's umask, and under a group-writable
+/// one (002) its directory is rightly refused as an insecure socket parent.
+#[cfg(all(test, unix))]
+pub(crate) fn private_tempdir() -> tempfile::TempDir {
+    use std::os::unix::fs::PermissionsExt;
+
+    tempfile::Builder::new()
+        .permissions(std::fs::Permissions::from_mode(0o700))
+        .tempdir()
+        .expect("create a private temp dir")
+}
+
 pub use active::{active, install, ActiveControlPlane};
 pub use grants::{Grant, GrantRegistry};
 pub use path::{control_socket_path, ControlSocketError, CONTROL_SOCKET_ENV};
