@@ -110,6 +110,9 @@ impl PtyManager {
     /// worker for up to half a second per launch, which under a burst starved
     /// the runtime the inbox drain and the screen samplers also live on.
     pub fn open(&self, spec: LaunchSpec) -> Result<String, String> {
+        // Reserve the id before any failure path can invoke lifecycle cleanup,
+        // so on_close always identifies the launch it belongs to.
+        let id = format!("w_{}", self.inner.next_id.fetch_add(1, Ordering::SeqCst));
         // Constructed before the *first* fallible call in this function, not
         // just before `spawn_command`: `spec.mcp_grant_session` was already
         // minted by the caller before `open` was ever reached, so even
@@ -119,6 +122,7 @@ impl PtyManager {
         let close = Arc::new(SessionClose::new(
             self.inner.lifecycle.clone(),
             LifecycleSession {
+                id: id.clone(),
                 session_id: spec.session_id.clone(),
                 cwd: spec.cwd.clone(),
                 env: spec.env.clone(),
@@ -192,7 +196,6 @@ impl PtyManager {
         let (writes, queued) = channel::<Vec<u8>>();
         let queued_bytes = Arc::new(AtomicUsize::new(0));
         let now = self.now();
-        let id = format!("w_{}", self.inner.next_id.fetch_add(1, Ordering::SeqCst));
         let handle = Arc::new(SessionHandle::new(
             SessionMeta {
                 id: id.clone(),
