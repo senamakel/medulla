@@ -13,6 +13,8 @@ mod detect;
 mod env;
 mod harness_choice;
 mod routing;
+#[cfg(test)]
+mod provider_logic_tests;
 
 pub use budget::{ConfiguredBudget, ProviderProbeInput};
 pub use config::{
