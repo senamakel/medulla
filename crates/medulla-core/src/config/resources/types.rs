@@ -45,8 +45,6 @@ pub struct ResourcesConfig {
     pub presets: String,
     /// Index of the selected preset in `presets`.
     pub preset: usize,
-    /// Selected preset index, zero based.
-    pub preset: usize,
     /// Explicit CPU placement override. When absent, the selected preset wins.
     pub cpu_bottom: Option<bool>,
     /// Explicit Mem/Net placement override. When absent, the selected preset wins.
@@ -61,7 +59,6 @@ impl Default for ResourcesConfig {
             update_ms: DEFAULT_RESOURCES_UPDATE_MS,
             shown_boxes: default_shown_boxes(),
             presets: default_presets(),
-            preset: 0,
             preset: 0,
             cpu_bottom: None,
             mem_below_net: None,
