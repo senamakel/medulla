@@ -36,10 +36,11 @@ fn test_close(session: &str) -> Arc<SessionClose> {
 
 #[test]
 fn reaping_a_closed_session_calls_lifecycle_once() {
-    struct RecordingLifecycle(Arc<AtomicUsize>);
+    struct RecordingLifecycle(Arc<AtomicUsize>, Arc<std::sync::Mutex<Option<String>>>);
     impl SessionLifecycle for RecordingLifecycle {
-        fn on_close(&self, _session: &LifecycleSession) {
+        fn on_close(&self, session: &LifecycleSession) {
             self.0.fetch_add(1, Ordering::SeqCst);
+            *self.1.lock().unwrap() = Some(session.id.clone());
         }
 
         fn thread_label(&self, _session: &LifecycleSession) -> Option<String> {
@@ -48,10 +49,14 @@ fn reaping_a_closed_session_calls_lifecycle_once() {
     }
 
     let closes = Arc::new(AtomicUsize::new(0));
+    let closed_id = Arc::new(std::sync::Mutex::new(None));
     let manager = PtyManager::with_now_clipboard_and_lifecycle(
         Arc::new(|| 1),
         Arc::new(|_| {}),
-        Arc::new(RecordingLifecycle(Arc::clone(&closes))),
+        Arc::new(RecordingLifecycle(
+            Arc::clone(&closes),
+            Arc::clone(&closed_id),
+        )),
     );
     let mut env = HashMap::new();
     env.insert("PATH".to_owned(), std::env::var("PATH").unwrap_or_default());
@@ -84,6 +89,7 @@ fn reaping_a_closed_session_calls_lifecycle_once() {
     }
 
     assert_eq!(closes.load(Ordering::SeqCst), 1);
+    assert_eq!(closed_id.lock().unwrap().as_deref(), Some(id.as_str()));
 }
 
 #[test]
