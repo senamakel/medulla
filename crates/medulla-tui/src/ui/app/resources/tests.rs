@@ -295,6 +295,60 @@ fn cpu_title_controls_have_distinct_click_actions() {
 }
 
 #[test]
+fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
+    let mut cpu = medulla_monitor::CpuSnapshot {
+        cores: (0..16)
+            .map(|index| medulla_monitor::CpuReading {
+                total: index as f32,
+                ..Default::default()
+            })
+            .collect(),
+        frequencies_mhz: vec![2400; 16],
+        load_average: [0.5, 0.25, 0.1],
+        uptime_seconds: Some(1234),
+        ..Default::default()
+    };
+    let mut history = crate::ui::resources::sampler::ResourceHistory::default();
+    history.push(
+        &crate::ui::resources::sampler::ResourceSnapshot {
+            cpu: cpu.clone(),
+            ..Default::default()
+        },
+        20,
+    );
+    let snapshot = crate::ui::resources::sampler::ResourceSnapshot {
+        cpu: std::mem::take(&mut cpu),
+        history: Arc::new(history),
+        ..Default::default()
+    };
+    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
+    terminal
+        .draw(|frame| {
+            super::draw_cpu_panel(
+                frame,
+                Rect::new(0, 0, 170, 40),
+                &snapshot,
+                &medulla::config::ResourcesConfig::default(),
+                crate::ui::theme::Theme::default().resources.cpu,
+            )
+        })
+        .unwrap();
+    let text = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(text.contains("C0 0%"));
+    assert!(text.contains("C15 15%"));
+    assert!(text.contains("2400MHz"));
+    assert!(text.contains("Load 0.50 0.25 0.10"));
+    assert!(!text.contains("Pkg"));
+    assert!(!text.contains("°C"));
+}
+
+#[test]
 fn each_panel_title_button_toggles_only_its_box() {
     let mut app = App::new(
         Arc::new(MockRuntime::empty()),
