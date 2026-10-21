@@ -7,6 +7,7 @@
 
 pub mod cell_text;
 pub mod clipboard;
+pub mod attention;
 pub mod convert;
 pub mod lifecycle;
 #[cfg(test)]
@@ -16,6 +17,7 @@ pub mod sync;
 
 pub use cell_text::CellText;
 pub use clipboard::ClipboardSink;
+pub use attention::{AttentionKind, HarnessAttention};
 pub use convert::{ScreenCell, ScreenSnapshot};
 pub use lifecycle::{LifecycleSession, SessionClose, SessionLifecycle};
 
