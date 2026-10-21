@@ -61,14 +61,28 @@ fn reaping_a_closed_session_calls_lifecycle_once() {
     let mut env = HashMap::new();
     env.insert("PATH".to_owned(), std::env::var("PATH").unwrap_or_default());
     env.insert("TERM".to_owned(), "xterm-256color".to_owned());
+    #[cfg(unix)]
+    let (bin, args) = (
+        "/bin/sh".to_owned(),
+        vec!["-c".to_owned(), "sleep 30".to_owned()],
+    );
+    #[cfg(windows)]
+    let (bin, args) = (
+        std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_owned()),
+        vec!["/C".to_owned(), "ping 127.0.0.1 -n 31 >nul".to_owned()],
+    );
+    let cwd = std::env::current_dir()
+        .expect("test has a current directory")
+        .to_string_lossy()
+        .into_owned();
     let id = manager
         .open(LaunchSpec {
             provider: HarnessProvider::Codex,
             preset: None,
-            bin: "/bin/sh".to_owned(),
-            cwd: "/".to_owned(),
+            bin,
+            cwd,
             env,
-            args: vec!["-c".to_owned(), "sleep 30".to_owned()],
+            args,
             label: "lifecycle-test".to_owned(),
             session_id: None,
             control: SessionControl::Orchestrator,
