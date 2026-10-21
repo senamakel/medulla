@@ -1,6 +1,7 @@
 //! Core implementation of the harness crate's hook grant seam.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use medulla_harness::{HookGrant, HookGrantMinter};
 
@@ -31,31 +32,11 @@ impl HookGrantMinter for CoreHookGrantMinter {
 pub fn seed_hook_grant(
     session: impl Into<String>,
     env: &mut HashMap<String, String>,
-) -> HookGrantGuard {
-    let session = session.into();
-    match CoreHookGrantMinter.mint(&session) {
-        Some(grant) => {
-            env.insert(
-                medulla_harness::HOOK_SOCKET_ENV.to_string(),
-                grant.socket.to_string_lossy().into_owned(),
-            );
-            env.insert(medulla_harness::HOOK_GRANT_ENV.to_string(), grant.token);
-            HookGrantGuard(Some(session))
-        }
-        None => HookGrantGuard(None),
-    }
+) -> medulla_harness::HookGrantGuard {
+    medulla_harness::seed_hook_grant(session, env, Arc::new(CoreHookGrantMinter))
 }
 
-/// Revokes a minted grant when the owning spawn ends.
-pub struct HookGrantGuard(Option<String>);
-
-impl Drop for HookGrantGuard {
-    fn drop(&mut self) {
-        if let Some(session) = self.0.take() {
-            CoreHookGrantMinter.revoke(&session);
-        }
-    }
-}
+pub use medulla_harness::HookGrantGuard;
 
 #[cfg(test)]
 #[path = "grant_tests.rs"]

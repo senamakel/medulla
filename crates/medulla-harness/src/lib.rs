@@ -5,4 +5,6 @@ pub mod codex_overrides;
 mod grants;
 pub mod harness_hooks;
 
-pub use grants::{HookGrant, HookGrantMinter, HOOK_GRANT_ENV, HOOK_SOCKET_ENV};
+pub use grants::{
+    seed_hook_grant, HookGrant, HookGrantGuard, HookGrantMinter, HOOK_GRANT_ENV, HOOK_SOCKET_ENV,
+};
