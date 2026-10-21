@@ -183,23 +183,29 @@ fn cpu_title_controls_have_distinct_click_actions() {
         .iter()
         .position(|tab| *tab == "Resources")
         .unwrap();
-    app.resources.rects = calc_sizes(Rect::new(20, 5, 170, 42), all(), &LayoutOptions::default());
-    let cpu = app.resources.rects.cpu;
-    // The menu hit target is separate from the CPU visibility button.
-    app.resources.hits.menu = Rect::new(cpu.x + 24, cpu.y, 4, 1);
-    app.handle_click(cpu.x + 24, cpu.y);
+    let mut terminal = Terminal::new(TestBackend::new(190, 52)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(20, 5, 170, 42)))
+        .unwrap();
+    let menu = app.resources.hits.menu;
+    let cpu_toggle = app.resources.hits.cpu_toggle;
+    assert!(menu.width > 0);
+    assert!(cpu_toggle.width > 0);
+    assert!(!menu.intersects(cpu_toggle));
+    app.handle_click(menu.x, menu.y);
     assert!(app.resources.menu_open);
     assert!(app.resources.shown.cpu);
+    app.handle_click(cpu_toggle.x, cpu_toggle.y);
+    assert!(!app.resources.shown.cpu);
 }
 
 #[test]
 fn resources_keyboard_changes_persist_and_reload() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("config.toml");
-    let mut app = App::new(
-        Arc::new(MockRuntime::empty()),
-        LoadedConfig::defaults(path.display().to_string()),
-    );
+    let mut loaded = LoadedConfig::defaults(path.display().to_string());
+    loaded.config.resources.presets = "cpu:0:default,mem:0:default,net:0:default,agents:1:default cpu:1:block,mem:1:block,net:0:block,agents:0:tty".into();
+    let mut app = App::new(Arc::new(MockRuntime::empty()), loaded);
     app.set_config_path(path.clone());
     app.tab_index = crate::ui::app::TABS
         .iter()
@@ -215,6 +221,9 @@ fn resources_keyboard_changes_persist_and_reload() {
     assert_eq!(loaded.config.resources.update_ms, 2_100);
     assert_eq!(loaded.config.resources.preset, 1);
     assert_eq!(loaded.config.resources.shown_boxes, "mem,net,agents");
+    assert_eq!(loaded.config.resources.cpu_bottom, Some(true));
+    assert_eq!(loaded.config.resources.mem_below_net, Some(true));
+    assert_eq!(loaded.config.resources.agents_left, Some(true));
 }
 
 #[test]
