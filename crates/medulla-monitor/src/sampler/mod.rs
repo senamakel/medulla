@@ -517,23 +517,7 @@ impl LinuxResourceMonitor {
     fn sample(&mut self, disks: &Disks, elapsed: f64) -> LinuxSample {
         use std::fs;
         let mem = fs::read_to_string(self.root.join("proc/meminfo")).unwrap_or_default();
-        let mut fields = std::collections::HashMap::new();
-        for line in mem.lines() {
-            let mut p = line.split_whitespace();
-            if let (Some(key), Some(value)) = (p.next(), p.next()) {
-                if let Ok(kb) = value.parse::<u64>() {
-                    fields.insert(key.trim_end_matches(':'), kb.saturating_mul(1024));
-                }
-            }
-        }
-        let total = fields.get("MemTotal").copied().unwrap_or(0);
-        let free = fields.get("MemFree").copied().unwrap_or(0);
-        let cached = fields.get("Cached").copied().unwrap_or(0);
-        let available = fields
-            .get("MemAvailable")
-            .copied()
-            .unwrap_or_else(|| free.saturating_add(cached))
-            .min(total);
+        let memory = parse_memory(&mem);
         let uptime = fs::read_to_string(self.root.join("proc/uptime"))
             .ok()
             .and_then(|s| s.split_whitespace().next()?.parse::<f64>().ok())
@@ -563,27 +547,45 @@ impl LinuxResourceMonitor {
             }
             let now = (v[2], v[6], v[9]);
             if let Some(old) = self.previous.insert(name.clone(), now) {
-                let read = now.0.saturating_sub(old.0).saturating_mul(512);
-                let write = now.1.saturating_sub(old.1).saturating_mul(512);
-                let busy = now.2.saturating_sub(old.2) as f64 / seconds / 10.0;
-                io.insert(
-                    name,
-                    IoReading {
-                        read_rate: read as f64 / seconds,
-                        write_rate: write as f64 / seconds,
-                        busy: busy.clamp(0.0, 100.0),
-                    },
-                );
+                io.insert(name, io_delta(old, now, seconds));
             }
         }
-        LinuxSample {
-            memory: MemoryReading {
-                total,
-                available,
-                free,
-                cached,
-            },
-            io,
-        }
+        LinuxSample { memory, io }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn parse_memory(contents: &str) -> MemoryReading {
+    let fields: std::collections::HashMap<&str, u64> = contents
+        .lines()
+        .filter_map(|line| {
+            let mut p = line.split_whitespace();
+            let (key, value) = (p.next()?, p.next()?.parse::<u64>().ok()?);
+            Some((key.trim_end_matches(':'), value.saturating_mul(1024)))
+        })
+        .collect();
+    let total = fields.get("MemTotal").copied().unwrap_or(0);
+    let free = fields.get("MemFree").copied().unwrap_or(0);
+    let cached = fields.get("Cached").copied().unwrap_or(0);
+    let available = fields
+        .get("MemAvailable")
+        .copied()
+        .unwrap_or_else(|| free.saturating_add(cached))
+        .min(total);
+    MemoryReading {
+        total,
+        available,
+        free,
+        cached,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn io_delta(old: (u64, u64, u64), new: (u64, u64, u64), seconds: f64) -> IoReading {
+    let seconds = seconds.max(0.001);
+    IoReading {
+        read_rate: new.0.saturating_sub(old.0).saturating_mul(512) as f64 / seconds,
+        write_rate: new.1.saturating_sub(old.1).saturating_mul(512) as f64 / seconds,
+        busy: (new.2.saturating_sub(old.2) as f64 / seconds / 10.0).clamp(0.0, 100.0),
     }
 }

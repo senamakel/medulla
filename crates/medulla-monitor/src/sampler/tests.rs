@@ -248,3 +248,25 @@ fn fstab_mode_keeps_only_configured_mounts() {
         fstab
     ));
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_meminfo_reports_available_and_cached_with_legacy_fallback() {
+    let memory = super::parse_memory("MemTotal: 1000 kB\nMemFree: 100 kB\nCached: 300 kB\nMemAvailable: 700 kB\nSwapTotal: 50 kB\n");
+    assert_eq!(
+        (memory.total, memory.available, memory.cached),
+        (1_024_000, 716_800, 307_200)
+    );
+    let fallback = super::parse_memory("MemTotal: 1000 kB\nMemFree: 100 kB\nCached: 300 kB\n");
+    assert_eq!(fallback.available, 409_600);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_block_stat_deltas_report_read_write_rates_and_busy_percent() {
+    let reading = super::io_delta((100, 200, 300), (110, 220, 450), 2.0);
+    assert_eq!(reading.read_rate, 2_560.0);
+    assert_eq!(reading.write_rate, 5_120.0);
+    assert_eq!(reading.busy, 7.5);
+    assert_eq!(super::io_delta((0, 0, 0), (0, 0, 10_000), 1.0).busy, 100.0);
+}
