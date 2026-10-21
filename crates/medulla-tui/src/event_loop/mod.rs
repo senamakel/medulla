@@ -99,8 +99,8 @@ pub(crate) async fn run(
         Duration::from_millis(app.loaded.config.resources.update_interval_ms()),
     );
     let _resource_interval_tx = resource_interval_tx;
-    crate::ui::resources::sampler::spawn_sampler(
-        crate::ui::resources::sampler::SystemResourceSource::default(),
+    medulla_tui::ui::resources::sampler::spawn_sampler(
+        medulla_tui::ui::resources::sampler::SystemResourceSource::default(),
         resource_interval_rx,
         msg_tx.clone(),
     );
