@@ -123,4 +123,3 @@ fn acp_env_is_empty_without_the_opt_in_or_for_another_harness() {
     .unwrap()
     .is_empty());
 }
-
