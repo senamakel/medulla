@@ -1,7 +1,7 @@
 use ratatui::layout::Rect;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct ShownBoxes {
+pub(in crate::ui::app) struct ShownBoxes {
     pub cpu: bool,
     pub mem: bool,
     pub net: bool,
@@ -9,7 +9,7 @@ pub(super) struct ShownBoxes {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct LayoutOptions {
+pub(in crate::ui::app) struct LayoutOptions {
     pub cpu_bottom: bool,
     pub mem_below_net: bool,
     pub agents_left: bool,

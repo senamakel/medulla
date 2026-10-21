@@ -8,6 +8,10 @@ pub(super) fn calc_sizes(area: Rect, shown: ShownBoxes, opts: &LayoutOptions) ->
         out.too_small = Some(60);
         return out;
     }
+    if shown.cpu && !shown.mem && !shown.net && !shown.agents {
+        out.cpu = area;
+        return out;
+    }
     let rest = if shown.cpu {
         let h = ((u32::from(area.height) * 32 + 99) / 100).max(8).min(u32::from(area.height)) as u16;
         let cpu_y = if opts.cpu_bottom { area.bottom() - h } else { area.y };

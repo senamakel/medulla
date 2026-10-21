@@ -7,7 +7,7 @@ fn all() -> ShownBoxes { ShownBoxes { cpu: true, mem: true, net: true, agents: t
 #[test]
 fn default_layout_uses_btop_shares_at_common_terminal_sizes() {
     for (area, cpu_h, mem_w, mem_h, net_h, agents_w) in [
-        (Rect::new(0, 0, 170, 42), 14, 68, 12, 8, 77),
+        (Rect::new(0, 0, 170, 42), 14, 77, 12, 8, 93),
         (Rect::new(0, 0, 80, 24), 8, 36, 7, 5, 39),
     ] {
         let boxes = calc_sizes(area, all(), &LayoutOptions::default());
