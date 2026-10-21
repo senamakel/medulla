@@ -154,6 +154,10 @@ impl App {
 
         let tab = self.tab();
 
+        if tab == "Resources" && self.resources.key(k.code) {
+            return None;
+        }
+
         // Global control chords.
         if ctrl {
             match k.code {

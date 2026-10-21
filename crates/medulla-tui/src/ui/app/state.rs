@@ -601,6 +601,7 @@ impl App {
         // there, and nothing is lost by not starting in it.
         match self.tab() {
             "Feedback" => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
+            "Resources" => None,
             // The diff pane is the Changes surface now, so entering the tab
             // re-loads its git data the way the removed Changes tab did on
             // entry: a repo that changed while the operator was on another tab

@@ -340,6 +340,7 @@ impl App {
             // Not feature-gated: the tab exists in the slim build too, and a
             // placeholder has nothing to draw that the workflow engine provides.
             "Subconscious" => self.draw_subconscious(f, area),
+            "Resources" => self.draw_resources(f, area),
             "TokenMaxxxing" => self.draw_points(f, area),
             "Feedback" => self.draw_feedback(f, area),
             // Trace, Context, and Feedback are Settings subpages, not tabs.
@@ -377,6 +378,7 @@ fn compact_tab_label(name: &str, compact: bool) -> &str {
         "Sessions" => "Sess",
         "Workflows" => "Flows",
         "Subconscious" => "Sub",
+        "Resources" => "Res",
         "Feedback" => "Feed",
         "Settings" => "Set",
         _ => name,
