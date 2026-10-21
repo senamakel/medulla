@@ -45,7 +45,7 @@ use std::sync::{Arc, RwLock};
 
 use super::handle::SessionHandle;
 use medulla_pty::sync::{read, write};
-use medulla_pty::{LifecycleSession, SessionClose, SessionLifecycle};
+use medulla_pty::{LifecycleSession, SessionLifecycle};
 
 /// Read buffer for the PTY master.
 ///
