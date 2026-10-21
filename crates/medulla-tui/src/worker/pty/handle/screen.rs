@@ -1,7 +1,7 @@
 //! One session's emulator surface: what the UI renders, and the cheap text
 //! projections the injector matches against.
 
-use super::super::cell_text::CellText;
+use medulla_pty::CellText;
 use super::super::manager::{ScreenCell, ScreenSnapshot};
 use medulla_pty::sync::lock;
 use super::SessionHandle;

@@ -19,8 +19,8 @@
 //!   what makes its row blink.
 //! - [`handle`] — [`SessionHandle`], one session's own state and its own locks.
 //! - [`manager`] — [`PtyManager`], the registry of those handles.
-//! - [`cell_text`] — the inline string one screen cell's text is stored in.
-//! - [`sync`] — poison-tolerant lock helpers.
+//! - [`medulla_pty::cell_text`] — the inline string one screen cell's text is stored in.
+//! - [`medulla_pty::sync`] — poison-tolerant lock helpers.
 //! - [`types`] — the data model.
 //!
 //! The split between [`handle`] and [`manager`] is what makes this survive a
