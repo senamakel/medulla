@@ -30,24 +30,16 @@
 //! is read-mostly and every session owns its own state; see the two modules'
 //! docs for the details.
 
-pub mod attention;
-pub(crate) mod checkout;
-pub mod dialog;
+pub(crate) mod attention;
 pub mod handle;
-pub mod inject;
-pub mod launch;
 pub mod manager;
 pub mod types;
 
 // Unix-only: every test here drives a real child on a real pseudo-terminal
 // via `/bin/sh`, which Windows has no equivalent of. The pty layer itself is
 // portable; its tests are not.
-#[cfg(all(test, unix))]
-mod tests;
-
-pub use attention::{lifecycle_cue, row_cue, AttentionKind, HarnessAttention, ATTENTION_GLYPH};
+pub use medulla_pty::attention::{AttentionKind, HarnessAttention};
 pub use handle::SessionHandle;
-pub use inject::inject_prompt;
 pub use manager::PtyManager;
 pub use medulla_pty::cell_text;
 pub use medulla_pty::{CellText, ScreenCell, ScreenSnapshot};

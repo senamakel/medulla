@@ -1,8 +1,9 @@
 //! Data model for PTY-backed harness sessions: how one is launched, what the
 //! operator watches about it, and the handle the UI holds.
 
-use medulla::protocol::HarnessProvider;
-pub use medulla::sessions::SessionOrigin;
+use medulla_types::HarnessProvider;
+pub use medulla_types::SessionOrigin;
+use medulla_pty::OpaqueOrigin;
 
 use super::attention::HarnessAttention;
 
@@ -161,12 +162,8 @@ pub struct LaunchSpec {
     /// Environment for the child.
     pub env: std::collections::HashMap<String, String>,
     /// Extra argv appended after the provider's interactive base args.
-    pub extra_args: Vec<String>,
-    /// Whether to launch with the provider's permission-bypass flag.
-    ///
-    /// A watched session is still unattended: nobody is sitting in the pane to
-    /// answer "allow this command?", so a task that stops on one has hung.
-    pub skip_permissions: bool,
+    /// Fully resolved interactive argv. Launch policy remains in the TUI.
+    pub args: Vec<String>,
     /// A label for the session list — the peer's id.
     pub label: String,
     /// An operator- or peer-configured model override, when set.
@@ -175,7 +172,6 @@ pub struct LaunchSpec {
     /// it to its one-shot invocation: without this, a `[host].model` or a
     /// task's own model hint silently reached the harness's own default
     /// instead, changing which model actually ran.
-    pub model: Option<String>,
     /// A session id to hand the harness, when it accepts one.
     ///
     /// Claude does (`--session-id`), and the transcript is then written under
@@ -195,7 +191,7 @@ pub struct LaunchSpec {
     /// gate; this is what lets a session be shown under its agent as "started
     /// by you" rather than the less useful "orchestrator-spawned, currently
     /// yours". It is fixed here for the session's whole life.
-    pub origin: SessionOrigin,
+    pub origin: OpaqueOrigin,
     /// The display name the operator gave this session as they spun it up.
     ///
     /// `None` for a dispatched session, which is labelled from its task
@@ -235,7 +231,7 @@ pub struct SessionRow {
     /// agent whose first act is to cut a branch spends the rest of its life on
     /// one the launch snapshot had never heard of, and several worktrees of one
     /// repository are otherwise told apart only by a path segment.
-    pub checkout: medulla::ui::checkout::Checkout,
+    pub checkout: medulla_types::Checkout,
     /// Repository root captured immediately before launch.
     pub launch_root: Option<String>,
     /// Commit checked out in the working directory immediately before launch.
