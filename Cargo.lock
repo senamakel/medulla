@@ -2541,6 +2541,7 @@ dependencies = [
  "hyper-util",
  "libc",
  "medulla-link",
+ "medulla-pty",
  "medulla-types",
  "openhuman-embed",
  "regex",
@@ -2582,6 +2583,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "medulla-pty"
+version = "0.13.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "unicode-segmentation",
+ "vt100",
+]
+
+[[package]]
 name = "medulla-tui"
 version = "0.13.0"
 dependencies = [
@@ -2594,6 +2605,7 @@ dependencies = [
  "libc",
  "medulla",
  "medulla-link",
+ "medulla-pty",
  "portable-pty",
  "ratatui",
  "rustls",
