@@ -160,6 +160,18 @@ fn resource_keys_toggle_boxes_cycle_presets_and_clamp_interval() {
 }
 
 #[test]
+fn disks_and_io_keys_toggle_the_memory_panel_modes() {
+    let mut state = ResourcesState::default();
+    assert!(state.show_disks && !state.io_mode);
+    assert!(state.key(KeyCode::Char('d')));
+    assert!(!state.show_disks);
+    assert!(state.key(KeyCode::Char('i')));
+    assert!(state.io_mode);
+    assert!(state.key(KeyCode::Char('i')));
+    assert!(!state.io_mode);
+}
+
+#[test]
 fn selecting_a_preset_shows_only_the_boxes_named_by_its_entries() {
     let mut state = ResourcesState {
         presets: vec![
