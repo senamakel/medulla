@@ -145,8 +145,8 @@ fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
     // Asserted against the source rather than at runtime: the failure is a
     // stray write from a background task, which no unit test would observe.
     // Paths, not globs: each of these became a directory module after the test
-    // was written, and a stale path silently asserts nothing (the read below
-    // skips what it cannot find).
+    // was written, and a stale path would assert nothing, so a missing file
+    // fails the test rather than being skipped.
     for path in [
         "crates/medulla/src/hub/boot/mod.rs",
         "crates/medulla/src/hub/socket/mod.rs",
