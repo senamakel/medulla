@@ -34,6 +34,7 @@ fn process(
 #[test]
 fn claude_under_pty_is_session_owned_with_nested_children_and_aggregates() {
     let processes = vec![
+        process(10, Some(1), "/usr/bin/pty-host", &["pty-host"], 5),
         process(100, Some(10), "/usr/bin/claude", &["claude"], 20),
         process(101, Some(100), "/usr/bin/git", &["git", "status"], 21),
     ];
@@ -61,7 +62,7 @@ fn env_npx_node_acp_chain_is_one_claude_acp_agent() {
     let processes = vec![
         process(
             20,
-            Some(1),
+            Some(999),
             "/usr/bin/env",
             &[
                 "env",
@@ -88,7 +89,7 @@ fn env_npx_node_acp_chain_is_one_claude_acp_agent() {
         ),
     ];
 
-    let agents = discover_agents(&processes, &[], 1, 50);
+    let agents = discover_agents(&processes, &[], 999, 50);
 
     assert_eq!(agents.len(), 1);
     assert_eq!(agents[0].pid, 22);
@@ -113,10 +114,13 @@ fn external_claude_is_classified_and_unrelated_node_is_ignored() {
 
 #[test]
 fn root_pid_reuse_does_not_attribute_agent_to_stale_session() {
-    let processes = vec![process(40, Some(10), "/usr/bin/claude", &["claude"], 20)];
+    let processes = vec![
+        process(10, Some(7), "/usr/bin/pty-host", &["pty-host"], 20),
+        process(40, Some(10), "/usr/bin/claude", &["claude"], 30),
+    ];
     let roots = [KnownProcessRoot {
         pid: 10,
-        started_at_secs: 5,
+        started_at_secs: 10,
         origin: AgentOrigin::Session {
             id: "w_stale".into(),
         },
@@ -144,7 +148,7 @@ fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
     let processes = vec![
         process(
             50,
-            Some(1),
+            Some(999),
             "/usr/bin/npx",
             &["npx", "@agentclientprotocol/codex-acp@latest"],
             1,
@@ -152,7 +156,7 @@ fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
         process(51, Some(50), "/usr/bin/node", &["node", "codex-acp"], 2),
     ];
 
-    let agents = discover_agents(&processes, &[], 1, 50);
+    let agents = discover_agents(&processes, &[], 999, 50);
 
     assert_eq!(agents.len(), 1);
     assert_eq!(agents[0].pid, 51);
@@ -162,11 +166,11 @@ fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
 #[test]
 fn app_server_and_opencode_acp_have_distinct_kinds() {
     let processes = vec![
-        process(60, Some(1), "/usr/bin/codex", &["codex", "app-server"], 1),
-        process(61, Some(1), "/usr/bin/opencode", &["opencode", "acp"], 1),
+        process(60, Some(999), "/usr/bin/codex", &["codex", "app-server"], 1),
+        process(61, Some(999), "/usr/bin/opencode", &["opencode", "acp"], 1),
     ];
 
-    let agents = discover_agents(&processes, &[], 1, 50);
+    let agents = discover_agents(&processes, &[], 999, 50);
 
     assert_eq!(agents.len(), 2);
     assert!(agents

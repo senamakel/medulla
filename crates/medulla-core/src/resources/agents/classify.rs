@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::types::{
-    AgentKind, AgentOrigin, AgentProcess, IoCounters, KnownProcessRoot, ProcessNode, ProcessRecord,
+    AgentKind, AgentOrigin, AgentProcess, KnownProcessRoot, ProcessNode, ProcessRecord,
     ProcessUsage,
 };
 
