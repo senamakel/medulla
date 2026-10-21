@@ -71,8 +71,9 @@ pub(super) fn spawn(
             // Two workers rather than one: several harnesses stream concurrently,
             // and a current-thread runtime would serialize their TLS handshakes
             // behind whichever connection is mid-negotiation.
-            let runtime = match openhuman_embed::process::tokio_runtime_builder()
+            let runtime = match tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(2)
+                .enable_all()
                 .build()
             {
                 Ok(runtime) => runtime,

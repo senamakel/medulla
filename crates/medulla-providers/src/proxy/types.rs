@@ -9,8 +9,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::config::RouterConfig;
-use crate::protocol::HarnessProvider;
+use crate::RouterConfig;
+use medulla_types::HarnessProvider;
 
 /// The child environment variable naming the loopback token.
 ///
@@ -27,7 +27,7 @@ pub const UPSTREAM_URL_ENV: &str = "MEDULLA_OPENROUTER_URL";
 
 /// OpenRouter's API root — the Anthropic-shaped base, with the OpenAI-shaped one
 /// a `/v1` below it. Mirrors the constants in
-/// [`crate::config::custom_harnesses`], which describe the same two endpoints
+/// [`crate::custom_harnesses`], which describe the same two endpoints
 /// from the configuration side.
 pub const OPENROUTER_ROOT: &str = "https://openrouter.ai/api";
 
@@ -103,7 +103,7 @@ pub enum UpstreamShape {
 impl UpstreamShape {
     /// The dialect a harness speaks when routed.
     ///
-    /// Matches [`crate::protocol::env::router_env`]'s own provider split: Claude
+    /// Matches Medulla's router environment injection provider split: Claude
     /// Code is given an `ANTHROPIC_BASE_URL`, Codex and OpenCode an
     /// `OPENAI_BASE_URL`. Keeping the two in agreement is what makes a mount
     /// reachable at all.

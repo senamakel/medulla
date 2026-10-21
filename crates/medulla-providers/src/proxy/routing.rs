@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use crate::config::{RouterConfig, RouterProviderConfig, OPENROUTER_API_KEY_ENV};
-use crate::protocol::HarnessProvider;
+use crate::{RouterConfig, RouterProviderConfig, OPENROUTER_API_KEY_ENV};
+use medulla_types::HarnessProvider;
 
 use super::lifecycle::shared;
 use super::types::{EmbeddedRouting, ProxyEndpoint, ProxyRouting, UpstreamShape, PROXY_TOKEN_ENV};
