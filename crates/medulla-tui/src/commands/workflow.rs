@@ -251,7 +251,7 @@ fn local_context(
     // operator's nor Medulla's own reporting ones — and attributed their
     // commits regardless of `[attribution] commit`.
     let launch =
-        medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config).without_builtin_hooks();
+        medulla::harness_hooks::launch_policy(&loaded.config).without_builtin_hooks();
     let host = LocalWorkflowHost::start(
         EmbeddedDaemonOptions {
             workspace: workspace.clone(),
@@ -463,7 +463,7 @@ fn load_workflows_config(
 )> {
     let loaded = medulla::config::load_config(parsed.config.as_deref(), env, cwd)?;
     let launch =
-        medulla::harness_hooks::LaunchPolicy::from_config(&loaded.config).without_builtin_hooks();
+        medulla::harness_hooks::launch_policy(&loaded.config).without_builtin_hooks();
     Ok((loaded.config.workflows, launch))
 }
 
