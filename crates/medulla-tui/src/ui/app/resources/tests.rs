@@ -358,7 +358,7 @@ fn cpu_panel_renders_sixteen_cores_without_clipping_at_common_sizes() {
             );
         } else {
             assert!(
-                text.contains("Load 0.5"),
+                text.contains("Load avg 0.5"),
                 "missing compact load at {width}x{height}: {text}"
             );
         }
