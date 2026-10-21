@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::appearance::ResourceDisplay;
+use super::ResourceDisplay;
 
 /// One usage meter Medulla can track and show in the Agents sidebar.
 ///

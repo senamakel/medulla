@@ -21,6 +21,7 @@ repository = "https://github.com/tinyhumansai/medulla"
 
 [workspace.dependencies]
 medulla-types = { path = "crates/medulla-types" }
+medulla-tokens = { path = "crates/medulla-tokens" }
 medulla = { path = "crates/medulla-core", default-features = false }
 # The host-link transport (docs/host-link-protocol.md). A plain path dep: it is
 # ours, has no registry coordinate, and is not vendored.
