@@ -38,4 +38,3 @@ fn an_idle_session_still_renders_every_segment() {
         "CPU 0% · RAM 0B · IO 0B/s"
     );
 }
-

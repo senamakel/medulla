@@ -5,8 +5,8 @@
 
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
-use medulla_monitor::DeviceSnapshot;
 use super::{device_lines, device_width_hint};
+use medulla_monitor::DeviceSnapshot;
 
 /// The line one reading renders to: label flush left, value flush right.
 ///

@@ -5,14 +5,14 @@
 //! monitor exposes [`inject`](ResourceMonitor::inject) or its corresponding
 //! method so callers can provide deterministic readings in tests.
 
-mod device;
 mod cpu;
+mod device;
 mod process_monitor;
 mod session;
 mod types;
 
-pub use device::DeviceMonitor;
 pub use cpu::{CpuField, CpuMonitor, CpuReading, CpuSnapshot};
+pub use device::DeviceMonitor;
 pub use session::{SessionMonitor, SessionSnapshot};
 pub use types::{DeviceSnapshot, ResourceMonitor, ResourceSnapshot};
 
