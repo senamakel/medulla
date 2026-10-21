@@ -25,6 +25,7 @@ async fn sampler_posts_injected_samples_in_order() {
     let task = spawn_sampler(
         SequenceSource(Arc::new(AtomicUsize::new(0))),
         interval_rx,
+        2,
         move |snapshot| {
             let _ = output_tx.send(snapshot);
         },
@@ -39,6 +40,7 @@ async fn sampler_posts_injected_samples_in_order() {
         .unwrap();
     assert_eq!(first.cpu_percent, 0.0);
     assert_eq!(second.cpu_percent, 1.0);
+    assert_eq!(second.history.cpu_percent.iter().copied().collect::<Vec<_>>(), [0.0, 1.0]);
     drop(interval_tx);
     task.abort();
 }
@@ -50,6 +52,7 @@ async fn changed_interval_controls_the_next_sample_tick() {
     let task = spawn_sampler(
         SequenceSource(Arc::new(AtomicUsize::new(0))),
         interval_rx,
+        2,
         move |snapshot| {
             let _ = output_tx.send(snapshot);
         },

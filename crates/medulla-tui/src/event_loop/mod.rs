@@ -100,6 +100,7 @@ pub(crate) async fn run(
     medulla_tui::ui::resources::sampler::spawn_sampler(
         medulla_tui::ui::resources::sampler::SystemResourceSource::default(),
         resource_interval_rx,
+        120,
         {
             let msg_tx = msg_tx.clone();
             move |snapshot| {
