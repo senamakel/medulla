@@ -135,18 +135,3 @@ impl PtyManager {
     }
 }
 
-/// Consume completion debt and advance the bell watermark together.
-#[cfg(test)]
-pub(super) fn bell_accounting(
-    deferring: bool,
-    unseen: usize,
-    pending: usize,
-    seen: usize,
-    sampled: usize,
-) -> (usize, usize) {
-    if deferring {
-        (0, seen)
-    } else {
-        (unseen.min(pending), seen.max(sampled))
-    }
-}
