@@ -2540,6 +2540,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "libc",
+ "medulla-harness",
  "medulla-link",
  "medulla-providers",
  "medulla-pty",
@@ -2564,6 +2565,24 @@ dependencies = [
  "tracing",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "medulla-harness"
+version = "0.13.0"
+dependencies = [
+ "dirs 6.0.0",
+ "fs2",
+ "medulla-providers",
+ "medulla-types",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml 0.8.23",
+ "toml_edit",
+ "tracing",
 ]
 
 [[package]]
