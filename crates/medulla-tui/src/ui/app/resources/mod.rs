@@ -395,7 +395,7 @@ fn draw_cpu_panel(
                                     if *crit > 0.0 {
                                         temp * 100.0 / crit
                                     } else {
-                                        temp
+                                        *temp
                                     }
                                 })
                         })
