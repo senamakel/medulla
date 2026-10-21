@@ -289,12 +289,9 @@ impl PtyManager {
         // this lock, and holding one lock across another is how the freeze in
         // `SessionHandle::reap` got written in the first place.
         drop(sessions);
-        #[cfg(feature = "workflows")]
         if let Some(session) = forgotten.grant_session() {
             self.inner.lifecycle.on_forget(session);
         }
-        #[cfg(not(feature = "workflows"))]
-        let _ = forgotten;
         true
     }
 

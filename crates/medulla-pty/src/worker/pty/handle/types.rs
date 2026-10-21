@@ -6,7 +6,7 @@ use medulla_types::HarnessProvider;
 use medulla_pty::SessionClose;
 use portable_pty::{Child, MasterPty};
 
-use super::super::attention::HarnessAttention;
+use crate::attention::HarnessAttention;
 use super::super::types::SessionOrigin;
 
 /// [`SessionHandle::state`] discriminants. Kept as a `u8` so the whole liveness

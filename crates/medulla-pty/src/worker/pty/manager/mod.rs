@@ -222,7 +222,6 @@ fn now_millis() -> i64 {
         .unwrap_or_default().as_millis() as i64
 }
 
-mod clipboard;
 mod labels;
 mod open;
 mod screen;
