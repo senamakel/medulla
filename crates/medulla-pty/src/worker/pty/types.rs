@@ -1,9 +1,9 @@
 //! Data model for PTY-backed harness sessions: how one is launched, what the
 //! operator watches about it, and the handle the UI holds.
 
+use medulla_pty::OpaqueOrigin;
 use medulla_types::HarnessProvider;
 pub use medulla_types::SessionOrigin;
-use medulla_pty::OpaqueOrigin;
 
 use crate::attention::HarnessAttention;
 

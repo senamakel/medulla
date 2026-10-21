@@ -2,12 +2,12 @@
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicU8, AtomicUsize};
 use std::sync::{Arc, Mutex};
 
-use medulla_types::HarnessProvider;
 use medulla_pty::{SessionClose, SessionLifecycle};
+use medulla_types::HarnessProvider;
 use portable_pty::{Child, MasterPty};
 
-use crate::attention::HarnessAttention;
 use super::super::types::SessionOrigin;
+use crate::attention::HarnessAttention;
 
 /// [`SessionHandle::state`] discriminants. Kept as a `u8` so the whole liveness
 /// question is one relaxed atomic load rather than a lock.

@@ -38,8 +38,8 @@ pub mod types;
 // via `/bin/sh`, which Windows has no equivalent of. The pty layer itself is
 // portable; its tests are not.
 pub use crate::attention::{AttentionKind, HarnessAttention};
-pub use handle::SessionHandle;
-pub use manager::PtyManager;
 pub use crate::cell_text;
 pub use crate::{CellText, ScreenCell, ScreenSnapshot};
+pub use handle::SessionHandle;
+pub use manager::PtyManager;
 pub use types::{CloseAttempt, LaunchSpec, PtyState, SessionControl, SessionOrigin, SessionRow};

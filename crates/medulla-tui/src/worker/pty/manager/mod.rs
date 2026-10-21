@@ -6,7 +6,9 @@ use std::sync::{Arc, OnceLock};
 use medulla::harness_hooks::HookEventLog;
 use medulla_pty::worker::pty::manager::PtyManager as PortablePtyManager;
 use medulla_pty::worker::pty::types::LaunchSpec as PortableLaunchSpec;
-use medulla_pty::{AttentionStatus, LaunchCheckout, LifecycleSession, OpaqueOrigin, SessionLifecycle};
+use medulla_pty::{
+    AttentionStatus, LaunchCheckout, LifecycleSession, OpaqueOrigin, SessionLifecycle,
+};
 
 use super::types::LaunchSpec;
 use super::{attention, launch};
@@ -23,16 +25,22 @@ pub struct PtyManager {
 
 impl Deref for PtyManager {
     type Target = PortablePtyManager;
-    fn deref(&self) -> &Self::Target { &self.inner }
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl Default for PtyManager {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PtyManager {
     /// Build an empty manager with TUI callbacks.
-    pub fn new() -> Self { Self::with_now(Arc::new(medulla::clock::now_millis)) }
+    pub fn new() -> Self {
+        Self::with_now(Arc::new(medulla::clock::now_millis))
+    }
 
     /// Override the clock while keeping TUI callbacks.
     pub fn with_now(now: medulla_pty::worker::pty::manager::NowFn) -> Self {
@@ -45,8 +53,12 @@ impl PtyManager {
         clipboard: medulla_pty::ClipboardSink,
     ) -> Self {
         let lifecycle = Arc::new(TuiSessionLifecycle::default());
-        let inner = PortablePtyManager::with_now_clipboard_and_lifecycle(now, clipboard, lifecycle.clone());
-        Self { inner, lifecycle: Some(lifecycle) }
+        let inner =
+            PortablePtyManager::with_now_clipboard_and_lifecycle(now, clipboard, lifecycle.clone());
+        Self {
+            inner,
+            lifecycle: Some(lifecycle),
+        }
     }
 
     /// Construct a manager with a caller-supplied lifecycle, mainly for tests.
@@ -70,27 +82,44 @@ impl PtyManager {
 
     /// Resolve provider-specific argv in the TUI, then open a portable session.
     pub fn open(&self, spec: LaunchSpec) -> Result<String, String> {
-        let session_id = spec.session_id.or_else(|| launch::mint_session_id(spec.provider));
+        let session_id = spec
+            .session_id
+            .or_else(|| launch::mint_session_id(spec.provider));
         let args = launch::interactive_args(
-            spec.provider, session_id.as_deref(), spec.skip_permissions,
-            spec.model.as_deref(), &spec.extra_args,
+            spec.provider,
+            session_id.as_deref(),
+            spec.skip_permissions,
+            spec.model.as_deref(),
+            &spec.extra_args,
         );
         self.inner.open(PortableLaunchSpec {
-            provider: spec.provider, preset: spec.preset, bin: spec.bin, cwd: spec.cwd,
-            env: spec.env, args, label: spec.label, session_id, control: spec.control,
-            origin: OpaqueOrigin::from(spec.origin), name: spec.name,
+            provider: spec.provider,
+            preset: spec.preset,
+            bin: spec.bin,
+            cwd: spec.cwd,
+            env: spec.env,
+            args,
+            label: spec.label,
+            session_id,
+            control: spec.control,
+            origin: OpaqueOrigin::from(spec.origin),
+            name: spec.name,
             mcp_grant_session: spec.mcp_grant_session,
         })
     }
 }
 
 #[derive(Default)]
-struct TuiSessionLifecycle { hook_log: OnceLock<HookEventLog> }
+struct TuiSessionLifecycle {
+    hook_log: OnceLock<HookEventLog>,
+}
 
 impl SessionLifecycle for TuiSessionLifecycle {
     fn on_close(&self, session: &LifecycleSession) {
         #[cfg(feature = "workflows")]
-        if let Some(grant) = &session.grant_session { medulla::mcp::revoke_session(grant); }
+        if let Some(grant) = &session.grant_session {
+            medulla::mcp::revoke_session(grant);
+        }
         #[cfg(not(feature = "workflows"))]
         let _ = session;
     }
@@ -105,7 +134,9 @@ impl SessionLifecycle for TuiSessionLifecycle {
     fn thread_label(&self, session: &LifecycleSession) -> Option<String> {
         match session.session_id.as_deref() {
             Some(id) => medulla::session_history::codex_thread_label(&session.env, id),
-            None => medulla::session_history::codex_thread_label_for_cwd(&session.env, &session.cwd),
+            None => {
+                medulla::session_history::codex_thread_label_for_cwd(&session.env, &session.cwd)
+            }
         }
     }
 
@@ -123,7 +154,9 @@ impl SessionLifecycle for TuiSessionLifecycle {
         }
     }
 
-    fn is_working(&self, screen: &str) -> bool { attention::is_working(screen) }
+    fn is_working(&self, screen: &str) -> bool {
+        attention::is_working(screen)
+    }
 
     fn attention_status(
         &self,
@@ -136,23 +169,37 @@ impl SessionLifecycle for TuiSessionLifecycle {
         const OPEN_ENDED_ABANDON_MS: i64 = 10 * 60_000;
         let screen_working = attention::is_working(screen);
         let report = self.hook_log.get().and_then(|log| {
-            log.recent_for(session.grant_session.as_deref()?, 1).into_iter().next()
+            log.recent_for(session.grant_session.as_deref()?, 1)
+                .into_iter()
+                .next()
         });
-        let hook_active = report.as_ref().map(|r| attention::hook_event_marks_active_turn(r.event));
+        let hook_active = report
+            .as_ref()
+            .map(|r| attention::hook_event_marks_active_turn(r.event));
         let report_age = report.as_ref().map(|r| now.saturating_sub(r.at_ms));
-        let open_ended = report.as_ref().is_some_and(|r| attention::hook_report_is_open_ended(r.event));
-        let working = screen_working || match (hook_active, report_age) {
-            (Some(true), Some(age)) if open_ended => {
-                age < STALE_GRACE_MS || output_quiet_ms < OPEN_ENDED_ABANDON_MS
-            }
-            (Some(true), Some(age)) => age < STALE_GRACE_MS || output_quiet_ms < STALE_GRACE_MS,
-            _ => false,
-        };
-        let cue = attention::detect(session.provider, screen).or_else(|| {
-            self.hook_log.get().and_then(|log| attention::hook_attention(
-                session.provider, session.grant_session.as_deref(), working, log,
-            ))
-        }).map(|(kind, what)| medulla_pty::HarnessAttention::new(kind, what, now));
+        let open_ended = report
+            .as_ref()
+            .is_some_and(|r| attention::hook_report_is_open_ended(r.event));
+        let working = screen_working
+            || match (hook_active, report_age) {
+                (Some(true), Some(age)) if open_ended => {
+                    age < STALE_GRACE_MS || output_quiet_ms < OPEN_ENDED_ABANDON_MS
+                }
+                (Some(true), Some(age)) => age < STALE_GRACE_MS || output_quiet_ms < STALE_GRACE_MS,
+                _ => false,
+            };
+        let cue = attention::detect(session.provider, screen)
+            .or_else(|| {
+                self.hook_log.get().and_then(|log| {
+                    attention::hook_attention(
+                        session.provider,
+                        session.grant_session.as_deref(),
+                        working,
+                        log,
+                    )
+                })
+            })
+            .map(|(kind, what)| medulla_pty::HarnessAttention::new(kind, what, now));
         AttentionStatus {
             screen_working,
             working: working && cue.is_none(),
@@ -168,9 +215,13 @@ fn git_value(cwd: &std::path::Path, args: &[&str]) -> Option<String> {
         .args(args)
         .output()
         .ok()?;
-    output.status.success().then(|| {
-        String::from_utf8_lossy(&output.stdout)
-            .trim_end_matches(['\r', '\n'])
-            .to_owned()
-    }).filter(|value| !value.is_empty())
+    output
+        .status
+        .success()
+        .then(|| {
+            String::from_utf8_lossy(&output.stdout)
+                .trim_end_matches(['\r', '\n'])
+                .to_owned()
+        })
+        .filter(|value| !value.is_empty())
 }

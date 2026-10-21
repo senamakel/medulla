@@ -1,10 +1,10 @@
 //! Application callbacks at the edge of a PTY session's lifetime.
 
+use crate::attention::HarnessAttention;
+use medulla_types::HarnessProvider;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use crate::attention::HarnessAttention;
-use medulla_types::HarnessProvider;
 
 /// Portable facts about a harness session passed to application callbacks.
 #[derive(Debug, Clone)]
@@ -68,14 +68,20 @@ pub struct OpaqueOrigin(String);
 
 impl OpaqueOrigin {
     /// Store an application-defined origin key.
-    pub fn new(value: impl Into<String>) -> Self { Self(value.into()) }
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
 
     /// Read the application-defined origin key.
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl From<medulla_types::SessionOrigin> for OpaqueOrigin {
-    fn from(origin: medulla_types::SessionOrigin) -> Self { Self::new(origin.as_str()) }
+    fn from(origin: medulla_types::SessionOrigin) -> Self {
+        Self::new(origin.as_str())
+    }
 }
 
 /// Application-owned behavior that cannot live in the portable PTY crate.
@@ -93,7 +99,9 @@ pub trait SessionLifecycle: Send + Sync + 'static {
     fn on_forget(&self, _session: &str) {}
 
     /// Whether the current screen shows a harness still doing visible work.
-    fn is_working(&self, _screen: &str) -> bool { false }
+    fn is_working(&self, _screen: &str) -> bool {
+        false
+    }
 
     /// Classify a screen into a UI cue. The portable manager owns polling and
     /// cue lifetime; the TUI owns provider-specific recognition.
@@ -102,7 +110,9 @@ pub trait SessionLifecycle: Send + Sync + 'static {
         _session: &LifecycleSession,
         _screen: &str,
         _now: i64,
-    ) -> Option<HarnessAttention> { None }
+    ) -> Option<HarnessAttention> {
+        None
+    }
 
     /// Combine provider-specific screen parsing and hook state for one sample.
     fn attention_status(

@@ -35,7 +35,10 @@ impl PtyManager {
             if now.saturating_sub(state.checked_at) < INTERVAL.as_millis() as i64 * 3 / 4 {
                 continue;
             }
-            if state.completion_deadline.is_some_and(|deadline| deadline <= std::time::Instant::now()) {
+            if state
+                .completion_deadline
+                .is_some_and(|deadline| deadline <= std::time::Instant::now())
+            {
                 state.pending_completion_bells = 0;
                 state.completion_deadline = None;
                 state.generation = state.generation.wrapping_add(1);
@@ -56,7 +59,11 @@ impl PtyManager {
             let eligible = unseen.saturating_sub(pending);
             let mut cue = status.cue;
             if eligible > 0 && !status.working && cue.is_none() {
-                cue = Some(HarnessAttention::new(AttentionKind::Bell, "harness rang", now));
+                cue = Some(HarnessAttention::new(
+                    AttentionKind::Bell,
+                    "harness rang",
+                    now,
+                ));
             }
             let working = status.working && cue.is_none();
             let deferring = working && !status.screen_working && !status.open_ended;
@@ -134,4 +141,3 @@ impl PtyManager {
             .collect()
     }
 }
-

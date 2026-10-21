@@ -214,17 +214,21 @@ struct NoopLifecycle;
 
 impl SessionLifecycle for NoopLifecycle {
     fn on_close(&self, _session: &LifecycleSession) {}
-    fn thread_label(&self, _session: &LifecycleSession) -> Option<String> { None }
+    fn thread_label(&self, _session: &LifecycleSession) -> Option<String> {
+        None
+    }
 }
 
 fn now_millis() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default().as_millis() as i64
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
 }
 
-mod labels;
 mod attention;
 mod checkout;
+mod labels;
 mod open;
 mod screen;
 mod session;

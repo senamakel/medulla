@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Weak};
 
-use medulla_types::HarnessProvider;
 use medulla_pty::{LifecycleSession, SessionClose};
+use medulla_types::HarnessProvider;
 use portable_pty::{native_pty_system, Child, CommandBuilder, PtyPair, PtySize};
 
 use super::super::handle::{release_queued, SessionHandle, SessionMeta};
@@ -138,7 +138,8 @@ impl PtyManager {
         // the poller keeps it current, because a harness can move it.
         let launch = self.inner.lifecycle.launch_checkout(&LifecycleSession {
             id: id.clone(),
-            cwd: spec.cwd.clone(), env: spec.env.clone(),
+            cwd: spec.cwd.clone(),
+            env: spec.env.clone(),
             provider: spec.provider,
             ..LifecycleSession::default()
         });
@@ -355,10 +356,7 @@ impl PtyManager {
             } else {
                 String::new()
             };
-            handle.record_error(
-                format!("{}: {err}{lost}", handle.id()),
-                super::now_millis(),
-            );
+            handle.record_error(format!("{}: {err}{lost}", handle.id()), super::now_millis());
         });
     }
 }
