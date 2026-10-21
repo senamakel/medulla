@@ -235,7 +235,7 @@ async fn open_rejects_a_binary_that_is_not_on_the_sessions_path() {
 
 /// Wrap `body` as a `/bin/sh` script in `dir` and build a spec pointing at it.
 #[cfg(unix)]
-fn fake_harness(dir: &std::path::Path, body: &str) -> InteractiveSpec {
+pub(super) fn fake_harness(dir: &std::path::Path, body: &str) -> InteractiveSpec {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join("fake-claude");
     let staging_path = dir.join("fake-claude.tmp");
