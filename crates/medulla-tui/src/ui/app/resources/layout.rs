@@ -30,6 +30,21 @@ pub(super) fn calc_sizes(area: Rect, shown: ShownBoxes, opts: &LayoutOptions) ->
     } else {
         area
     };
+    if shown.agents && (rest.width < 44 || rest.height < 16) {
+        if rest.width >= 44 && rest.height >= 16 {
+            out.agents = rest;
+            return out;
+        }
+        out.too_small = Some(44);
+        return out;
+    }
+    if shown.agents && (u32::from(rest.width) * 55 / 100 < 44 || rest.height < 16) {
+        // Agents has priority over Mem and Net. When the normal split would
+        // make its panel unusable, retain it and suppress the lower-priority
+        // panels as complete boxes.
+        out.agents = rest;
+        return out;
+    }
     if shown.agents && shown.mem && shown.net {
         let left_w = (u32::from(rest.width) * 45).div_ceil(100) as u16;
         let right_w = rest.width.saturating_sub(left_w);

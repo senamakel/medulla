@@ -57,6 +57,14 @@ fn undersized_terminal_requests_too_small_message() {
 }
 
 #[test]
+fn agents_take_the_full_remaining_area_before_mem_and_net_are_suppressed() {
+    let boxes = calc_sizes(Rect::new(0, 0, 70, 24), all(), &LayoutOptions::default());
+    assert_eq!(boxes.agents.width, 70);
+    assert_eq!(boxes.mem.width, 0);
+    assert_eq!(boxes.net.width, 0);
+}
+
+#[test]
 fn resource_keys_toggle_boxes_cycle_presets_and_clamp_interval() {
     let mut state = ResourcesState::default();
     for (key, expected) in [
