@@ -42,7 +42,7 @@ pub struct ProcessSnapshot {
 #[derive(Debug, Clone, Default)]
 pub struct ResourceSnapshot {
     /// Whole-machine CPU details and Linux-only hardware readings.
-    pub cpu: medulla_monitor::CpuSnapshot,
+    pub cpu: crate::CpuSnapshot,
     /// Current process metrics used by the status line.
     pub current_process: Option<crate::ResourceSnapshot>,
     /// Recent readings accumulated by the sampler for graph rendering.
@@ -174,7 +174,7 @@ pub struct ResourceHistory {
     /// Whole-device CPU utilization percentages.
     pub cpu_percent: super::History<f64>,
     /// CPU field readings over time.
-    pub cpu: super::History<medulla_monitor::CpuSnapshot>,
+    pub cpu: super::History<crate::CpuSnapshot>,
     /// Physical memory currently used, in bytes.
     pub memory_used_bytes: super::History<u64>,
     /// Swap currently used, in bytes.

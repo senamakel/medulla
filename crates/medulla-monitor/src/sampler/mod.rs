@@ -91,7 +91,7 @@ pub struct SystemResourceSource {
     disks: Disks,
     last_sample: Option<Instant>,
     disk_peak_bytes_per_second: f64,
-    cpu_monitor: medulla_monitor::CpuMonitor,
+    cpu_monitor: crate::CpuMonitor,
 }
 
 impl Default for SystemResourceSource {
@@ -101,7 +101,7 @@ impl Default for SystemResourceSource {
             disks: Disks::new(),
             last_sample: None,
             disk_peak_bytes_per_second: 1.0,
-            cpu_monitor: medulla_monitor::CpuMonitor::default(),
+            cpu_monitor: crate::CpuMonitor::default(),
         }
     }
 }
@@ -218,7 +218,7 @@ impl ResourceSource for SystemResourceSource {
                 0.0
             };
             let disk_peak = self.update_disk_peak(read_rate, write_rate);
-            Some(medulla_monitor::ResourceSnapshot {
+            Some(crate::ResourceSnapshot {
                 cpu_fraction: (cpu_percent / (cores * 100.0)).clamp(0.0, 1.0),
                 memory_bytes,
                 total_memory_bytes,
@@ -234,7 +234,7 @@ impl ResourceSource for SystemResourceSource {
                 .system
                 .cpus()
                 .iter()
-                .map(|cpu| medulla_monitor::CpuReading {
+                .map(|cpu| crate::CpuReading {
                     total: f32::from(cpu.cpu_usage()),
                     ..Default::default()
                 })
