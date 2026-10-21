@@ -35,24 +35,57 @@ impl PtyManager {
             if now.saturating_sub(state.checked_at) < INTERVAL.as_millis() as i64 * 3 / 4 {
                 continue;
             }
+            if state.completion_deadline.is_some_and(|deadline| deadline <= std::time::Instant::now()) {
+                state.pending_completion_bells = 0;
+                state.completion_deadline = None;
+                state.generation = state.generation.wrapping_add(1);
+            }
             state.checked_at = now;
-            let mut cue = inner.lifecycle.classify_attention(&lifecycle_session, &screen, now);
-            if bells > state.seen_bells && cue.is_none() {
+            let generation = state.generation;
+            let seen_bells = state.seen_bells;
+            let pending = state.pending_completion_bells;
+            drop(state);
+
+            let status = inner.lifecycle.attention_status(
+                &lifecycle_session,
+                &screen,
+                now,
+                now.saturating_sub(handle.last_output_at()),
+            );
+            let unseen = bells.saturating_sub(seen_bells);
+            let eligible = unseen.saturating_sub(pending);
+            let mut cue = status.cue;
+            if eligible > 0 && !status.working && cue.is_none() {
                 cue = Some(HarnessAttention::new(AttentionKind::Bell, "harness rang", now));
             }
-            state.seen_bells = bells;
+            let working = status.working && cue.is_none();
+            let deferring = working && !status.screen_working && !status.open_ended;
+            let mut state = lock(&handle.attention);
+            if state.generation != generation {
+                continue;
+            }
+            if !deferring {
+                let consumed = unseen.min(state.pending_completion_bells);
+                state.pending_completion_bells -= consumed;
+                if state.pending_completion_bells == 0 {
+                    state.completion_deadline = None;
+                }
+                state.seen_bells = state.seen_bells.max(bells);
+            }
+            state.working = working;
             match cue {
                 Some(mut next) => {
                     if let Some(current) = &state.cue {
                         if current.kind == next.kind && current.what == next.what {
                             next.since = current.since;
-                        } else if !next.supersedes(current) {
-                            continue;
+                        } else if !next.supersedes(current) && !deferring {
+                            next = current.clone();
                         }
                     }
                     state.cue = Some(next);
                 }
-                None => state.cue = None,
+                None if !deferring => state.cue = None,
+                None => {}
             }
         });
     }
@@ -94,5 +127,21 @@ impl PtyManager {
                 waits.then(|| session.id().to_owned())
             })
             .collect()
+    }
+}
+
+/// Consume completion debt and advance the bell watermark together.
+#[cfg(test)]
+pub(super) fn bell_accounting(
+    deferring: bool,
+    unseen: usize,
+    pending: usize,
+    seen: usize,
+    sampled: usize,
+) -> (usize, usize) {
+    if deferring {
+        (0, seen)
+    } else {
+        (unseen.min(pending), seen.max(sampled))
     }
 }

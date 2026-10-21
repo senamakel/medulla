@@ -6,7 +6,7 @@ use std::sync::{Arc, OnceLock};
 use medulla::harness_hooks::HookEventLog;
 use medulla_pty::worker::pty::manager::PtyManager as PortablePtyManager;
 use medulla_pty::worker::pty::types::LaunchSpec as PortableLaunchSpec;
-use medulla_pty::{HarnessAttention, LaunchCheckout, LifecycleSession, OpaqueOrigin, SessionLifecycle};
+use medulla_pty::{AttentionStatus, LaunchCheckout, LifecycleSession, OpaqueOrigin, SessionLifecycle};
 
 use super::types::LaunchSpec;
 use super::{attention, launch};
@@ -125,14 +125,40 @@ impl SessionLifecycle for TuiSessionLifecycle {
 
     fn is_working(&self, screen: &str) -> bool { attention::is_working(screen) }
 
-    fn classify_attention(&self, session: &LifecycleSession, screen: &str, now: i64) -> Option<HarnessAttention> {
-        let working = attention::is_working(screen);
+    fn attention_status(
+        &self,
+        session: &LifecycleSession,
+        screen: &str,
+        now: i64,
+        output_quiet_ms: i64,
+    ) -> AttentionStatus {
+        const STALE_GRACE_MS: i64 = 30_000;
+        const OPEN_ENDED_ABANDON_MS: i64 = 10 * 60_000;
+        let screen_working = attention::is_working(screen);
+        let report = self.hook_log.get().and_then(|log| {
+            log.recent_for(session.grant_session.as_deref()?, 1).into_iter().next()
+        });
+        let hook_active = report.as_ref().map(|r| attention::hook_event_marks_active_turn(r.event));
+        let report_age = report.as_ref().map(|r| now.saturating_sub(r.at_ms));
+        let open_ended = report.as_ref().is_some_and(|r| attention::hook_report_is_open_ended(r.event));
+        let working = screen_working || match (hook_active, report_age) {
+            (Some(true), Some(age)) if open_ended => {
+                age < STALE_GRACE_MS || output_quiet_ms < OPEN_ENDED_ABANDON_MS
+            }
+            (Some(true), Some(age)) => age < STALE_GRACE_MS || output_quiet_ms < STALE_GRACE_MS,
+            _ => false,
+        };
         let cue = attention::detect(session.provider, screen).or_else(|| {
             self.hook_log.get().and_then(|log| attention::hook_attention(
                 session.provider, session.grant_session.as_deref(), working, log,
             ))
-        });
-        cue.map(|(kind, what)| HarnessAttention::new(kind, what, now))
+        }).map(|(kind, what)| medulla_pty::HarnessAttention::new(kind, what, now));
+        AttentionStatus {
+            screen_working,
+            working: working && cue.is_none(),
+            open_ended,
+            cue,
+        }
     }
 }
 

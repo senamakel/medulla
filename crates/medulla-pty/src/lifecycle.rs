@@ -36,6 +36,19 @@ pub struct LaunchCheckout {
     pub identity: Option<String>,
 }
 
+/// TUI-derived screen and lifecycle state consumed by the portable poller.
+#[derive(Debug, Clone, Default)]
+pub struct AttentionStatus {
+    /// The screen itself shows active work.
+    pub screen_working: bool,
+    /// Hook and screen evidence combined says a turn is active.
+    pub working: bool,
+    /// An open-ended hook operation is being trusted as active.
+    pub open_ended: bool,
+    /// Named prompt cue from screen or hook classification.
+    pub cue: Option<crate::attention::HarnessAttention>,
+}
+
 impl Default for LifecycleSession {
     fn default() -> Self {
         Self {
@@ -90,6 +103,23 @@ pub trait SessionLifecycle: Send + Sync + 'static {
         _screen: &str,
         _now: i64,
     ) -> Option<HarnessAttention> { None }
+
+    /// Combine provider-specific screen parsing and hook state for one sample.
+    fn attention_status(
+        &self,
+        session: &LifecycleSession,
+        screen: &str,
+        now: i64,
+        _output_quiet_ms: i64,
+    ) -> AttentionStatus {
+        let cue = self.classify_attention(session, screen, now);
+        AttentionStatus {
+            screen_working: self.is_working(screen),
+            working: cue.is_none() && self.is_working(screen),
+            open_ended: false,
+            cue,
+        }
+    }
 
     /// Inspect a session's current checkout. The TUI owns the Git inspection
     /// policy; the manager only stores the resulting value.
