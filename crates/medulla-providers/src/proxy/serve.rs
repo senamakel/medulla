@@ -33,8 +33,8 @@ use super::types::{CredentialRegistry, UpstreamShape};
 // owned by medulla-providers, which cannot depend on openhuman-embed; its
 // accept/forward tasks still need the same deep-future stack and bounded
 // blocking pool as the agent runtime.
-const PROXY_WORKER_STACK_BYTES: usize = 20 * 1024 * 1024;
-const PROXY_MAX_BLOCKING_THREADS: usize = 64;
+pub(super) const PROXY_WORKER_STACK_BYTES: usize = 20 * 1024 * 1024;
+pub(super) const PROXY_MAX_BLOCKING_THREADS: usize = 64;
 
 /// The body type both proxied and locally-generated responses use.
 type ProxyBody = BoxBody<Bytes, std::io::Error>;
