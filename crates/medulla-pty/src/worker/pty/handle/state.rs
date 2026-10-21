@@ -157,7 +157,7 @@ impl SessionHandle {
     /// may have produced no output for minutes before its writer failed — without
     /// the stamp the brand-new failure would claim it had been waiting that whole
     /// idle period, forever, if the child stayed alive.
-    pub(in super::super) fn record_error(&self, error: String, now: i64) {
+    pub fn record_error(&self, error: String, now: i64) {
         lock(&self.cold).last_error = Some(error);
         self.last_output_at.store(now, Ordering::Release);
     }
