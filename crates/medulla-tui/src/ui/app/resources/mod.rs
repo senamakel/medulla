@@ -307,9 +307,9 @@ fn draw_cpu_panel(
             }
         ));
     }
-    if snapshot.cpu.load_average.iter().any(|value| *value > 0.0) {
+    {
         details.push(format!(
-            "Load {} {} {}",
+            "Load avg {} {} {}",
             if compact {
                 format!("{:.1}", snapshot.cpu.load_average[0])
             } else {

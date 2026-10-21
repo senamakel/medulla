@@ -343,7 +343,7 @@ fn cpu_panel_renders_sixteen_cores_without_clipping_at_common_sizes() {
         assert!(text.contains("2.4GHz"));
         if width >= 100 {
             assert!(text.contains("Test CPU"));
-            assert!(text.contains("Load 0.50 0.25 0.10"));
+            assert!(text.contains("Load avg 0.50 0.25 0.10"));
             let graph_row = cpu_rect.y + 1 + 2 + 1;
             let first_cpu_text = (cpu_rect.x + 1..cpu_rect.x + 100)
                 .map(|x| buffer[(x, graph_row)].symbol())
@@ -365,6 +365,31 @@ fn cpu_panel_renders_sixteen_cores_without_clipping_at_common_sizes() {
         assert!(!text.contains("Pkg"));
         assert!(!text.contains("°C"));
     }
+}
+
+#[test]
+fn cpu_panel_shows_zero_load_average_with_required_label() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    let snapshot = crate::ui::resources::sampler::ResourceSnapshot::default().with_cpu(
+        medulla_monitor::CpuSnapshot {
+            load_average: [0.0; 3],
+            ..Default::default()
+        },
+    );
+    app.set_resource_snapshot(Arc::new(snapshot));
+    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
+        .unwrap();
+    let cpu = app.resources.rects.cpu;
+    let buffer = terminal.backend().buffer();
+    let text = (cpu.y..cpu.bottom())
+        .flat_map(|y| (cpu.x..cpu.right()).map(move |x| buffer[(x, y)].symbol()))
+        .collect::<String>();
+    assert!(text.contains("Load avg 0.00 0.00 0.00"));
 }
 
 #[test]
