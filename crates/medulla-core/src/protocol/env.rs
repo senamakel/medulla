@@ -16,10 +16,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::protocol::HarnessProvider;
 #[cfg(test)]
 use medulla_providers::RouterConfig;
-pub use medulla_providers::{bin_is_overridden, model_override, provider_args, provider_bin, router_env, RouterInjection};
-use crate::protocol::HarnessProvider;
+pub use medulla_providers::{
+    bin_is_overridden, model_override, provider_args, provider_bin, router_env, RouterInjection,
+};
 
 /// Default wrapper session-file poll interval (ms).
 pub const DEFAULT_SESSION_POLL_MS: u64 = 500;

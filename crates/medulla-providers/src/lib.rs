@@ -12,30 +12,23 @@ mod custom_harnesses_tests;
 mod detect;
 mod env;
 mod harness_choice;
-mod routing;
 #[cfg(test)]
 mod provider_logic_tests;
+mod routing;
 
 pub use budget::{ConfiguredBudget, ProviderProbeInput};
-pub use config::{
-    BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig,
-};
+pub use config::{BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig};
 pub use custom_harnesses::{
     load_custom_harnesses, load_layered_custom_harnesses, CustomHarnessConfig,
     CODEX_CONTEXT_WINDOW_ENV, CODEX_DISPLAY_NAME_ENV, CODEX_EFFORT_ENV, CODEX_OVERRIDES_ENV,
-    EDITOR_LINE_FORMAT, OPENROUTER_ANTHROPIC_URL, OPENROUTER_API_KEY_ENV,
-    OPENROUTER_OPENAI_URL,
+    EDITOR_LINE_FORMAT, OPENROUTER_ANTHROPIC_URL, OPENROUTER_API_KEY_ENV, OPENROUTER_OPENAI_URL,
 };
 pub use detect::{
     build_resumed_run_args, build_run_args, detect_providers, extract_session_id, make_path_lookup,
-    provider_name, session_id_field, supports_stdin,
-    ExistsOnPath, DAEMON_PROVIDERS,
+    provider_name, session_id_field, supports_stdin, ExistsOnPath, DAEMON_PROVIDERS,
 };
 pub use env::{
-    bin_is_overridden, model_override, provider_args, provider_bin, router_env,
-    RouterInjection,
+    bin_is_overridden, model_override, provider_args, provider_bin, router_env, RouterInjection,
 };
 pub use harness_choice::{HarnessChoice, HarnessPreference, HarnessSelector};
-pub use routing::{
-    can_resume,
-};
+pub use routing::can_resume;

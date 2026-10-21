@@ -53,14 +53,8 @@ fn a_codex_preset_publishes_its_knobs_only_when_it_opts_in() {
     let preset = preset.normalize().unwrap();
     let env: HashMap<String, String> = preset.harness_env().into_iter().collect();
     assert_eq!(env.get(crate::CODEX_OVERRIDES_ENV).unwrap(), "1");
-    assert_eq!(
-        env.get(crate::CODEX_EFFORT_ENV).unwrap(),
-        "medium"
-    );
-    assert_eq!(
-        env.get(crate::CODEX_CONTEXT_WINDOW_ENV).unwrap(),
-        "128000"
-    );
+    assert_eq!(env.get(crate::CODEX_EFFORT_ENV).unwrap(), "medium");
+    assert_eq!(env.get(crate::CODEX_CONTEXT_WINDOW_ENV).unwrap(), "128000");
     assert_eq!(
         env.get(crate::CODEX_DISPLAY_NAME_ENV).unwrap(),
         "DeepSeek via Codex"

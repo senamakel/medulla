@@ -11,7 +11,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub use medulla_providers::{BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig};
+pub use medulla_providers::{
+    BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig,
+};
 
 use super::urls::PROD_BACKEND_BASE_URL;
 use super::AppearanceConfig;

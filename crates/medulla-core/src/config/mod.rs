@@ -43,13 +43,12 @@ pub use agent_declarations::{
 };
 pub use appearance::{AppearanceConfig, ResourceDisplay, SidebarGrouping, SidebarSort};
 pub use core_socket::{validate_core_socket, CoreSocketError, CoreSocketSource};
-pub use medulla_providers::{
-    load_custom_harnesses, load_layered_custom_harnesses, CustomHarnessConfig,
-    OPENROUTER_ANTHROPIC_URL,
-    OPENROUTER_API_KEY_ENV, OPENROUTER_OPENAI_URL,
-};
 pub use load::{default_link_config, explicit_config_from_env, load_config, CONFIG_PATH_ENV};
 pub use local_hosts::{local_host_address, local_host_name, local_hosts, LocalHostRef};
+pub use medulla_providers::{
+    load_custom_harnesses, load_layered_custom_harnesses, CustomHarnessConfig,
+    OPENROUTER_ANTHROPIC_URL, OPENROUTER_API_KEY_ENV, OPENROUTER_OPENAI_URL,
+};
 pub use persist::{
     clear_setting, persist_agent_declarations, persist_custom_harnesses, persist_hook_defaults,
     persist_hooks, persist_host_workspaces, persist_hub_workers, persist_link_peers,
@@ -64,13 +63,12 @@ pub use subscriptions::{
     MIN_SUBSCRIPTION_REFRESH_SECONDS,
 };
 pub use types::{
-    wire_value, AttributionConfig, BackendConfig, ControlStyle, CoreConfig,
+    wire_value, AttributionConfig, BackendConfig, BudgetConfig, ControlStyle, CoreConfig,
     EvolveSettings, FavoriteWorkspace, FieldPlacement, FieldVisibility, FleetConfig,
     HarnessNameStyle, HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig,
     LinkConfig, LoadedConfig, McpSection, MedullaConfig, OnboardingConfig, OpencodeConfig,
-    PathStyle, Peer, RemoteHostSection,
+    PathStyle, Peer, ProviderBudgetConfig, RemoteHostSection, RouterConfig, RouterProviderConfig,
     StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
-    DEFAULT_CONTEXT_WINDOW_TOKENS, BudgetConfig, ProviderBudgetConfig, RouterConfig,
-    RouterProviderConfig,
+    DEFAULT_CONTEXT_WINDOW_TOKENS,
 };
 pub use urls::{backend_base_url, display_host, resolve_forwarder_base_url, PROD_BACKEND_BASE_URL};

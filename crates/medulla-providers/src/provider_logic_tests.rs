@@ -17,7 +17,10 @@ fn provider_binary_and_model_overrides_keep_the_existing_precedence() {
     ]);
     assert_eq!(provider_bin(HarnessProvider::Claude, &env), "/opt/claude");
     assert!(bin_is_overridden(HarnessProvider::Claude, "/opt/claude"));
-    assert_eq!(model_override(HarnessProvider::Claude, &env).as_deref(), Some("opus"));
+    assert_eq!(
+        model_override(HarnessProvider::Claude, &env).as_deref(),
+        Some("opus")
+    );
 }
 
 #[test]
@@ -28,8 +31,14 @@ fn router_environment_only_contains_endpoint_and_secret_name() {
         ..RouterConfig::default()
     };
     let injected = router_env(HarnessProvider::Codex, &router);
-    assert_eq!(injected.env, vec![("OPENAI_BASE_URL".into(), "https://router.example/v1".into())]);
-    assert_eq!(injected.secret_env, vec![("OPENAI_API_KEY".into(), "ROUTER_KEY".into())]);
+    assert_eq!(
+        injected.env,
+        vec![("OPENAI_BASE_URL".into(), "https://router.example/v1".into())]
+    );
+    assert_eq!(
+        injected.secret_env,
+        vec![("OPENAI_API_KEY".into(), "ROUTER_KEY".into())]
+    );
     assert!(router_env(HarnessProvider::Openhuman, &router).is_empty());
 }
 

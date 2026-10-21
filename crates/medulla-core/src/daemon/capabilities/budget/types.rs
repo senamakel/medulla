@@ -1,7 +1,7 @@
 //! Injectable environment seams for the budget probe.
 
-use medulla_types::HarnessProvider;
 use medulla_providers::ConfiguredBudget;
+use medulla_types::HarnessProvider;
 
 /// Injectable machine and clock access used by the capability probe.
 pub struct BudgetSeams {

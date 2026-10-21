@@ -262,10 +262,7 @@ impl CustomHarnessConfig {
         }
         let mut env = vec![
             (CODEX_OVERRIDES_ENV.into(), "1".into()),
-            (
-                CODEX_DISPLAY_NAME_ENV.into(),
-                self.name.clone(),
-            ),
+            (CODEX_DISPLAY_NAME_ENV.into(), self.name.clone()),
         ];
         if let Some(effort) = self
             .reasoning_effort
@@ -273,16 +270,10 @@ impl CustomHarnessConfig {
             .map(str::trim)
             .filter(|effort| !effort.is_empty())
         {
-            env.push((
-                CODEX_EFFORT_ENV.into(),
-                effort.to_string(),
-            ));
+            env.push((CODEX_EFFORT_ENV.into(), effort.to_string()));
         }
         if let Some(window) = self.context_window {
-            env.push((
-                CODEX_CONTEXT_WINDOW_ENV.into(),
-                window.to_string(),
-            ));
+            env.push((CODEX_CONTEXT_WINDOW_ENV.into(), window.to_string()));
         }
         env
     }

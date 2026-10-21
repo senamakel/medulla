@@ -39,7 +39,6 @@ fn harness_keys(suffix: &str) -> [String; 2] {
     ]
 }
 
-
 fn bin_keys(provider: HarnessProvider) -> &'static [&'static str] {
     match provider {
         HarnessProvider::Claude => &[
@@ -61,7 +60,6 @@ fn bin_keys(provider: HarnessProvider) -> &'static [&'static str] {
         HarnessProvider::Shell => &["MEDULLA_SHELL_BIN", "SHELL"],
     }
 }
-
 
 /// The model this provider's turn should run on, when the environment names
 /// one. Order: `MEDULLA_<P>_MODEL` > `MEDULLA_HARNESS_MODEL`, with the
@@ -174,7 +172,6 @@ pub fn provider_args(provider: HarnessProvider, env: &HashMap<String, String>) -
     }
 }
 
-
 /// What the router injects into one provider's spawn environment.
 ///
 /// Produced by [`router_env`] as a pure function of the [`RouterConfig`] and the
@@ -269,4 +266,3 @@ pub fn router_env(provider: HarnessProvider, router: &RouterConfig) -> RouterInj
     }
     injection
 }
-

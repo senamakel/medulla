@@ -32,6 +32,6 @@ pub use detect::{
 pub use embed::{run_local_task, uses_local_harness, EmbedHost};
 pub use execute::{is_transient_lock, run_provider_task, with_auth_hint};
 pub use types::{
-    Abort, OnEvent, OnStdin, OnWorkspaceContext, RunTaskFn, RunTaskOptions,
-    RunTaskOrigin, RunTaskResult,
+    Abort, OnEvent, OnStdin, OnWorkspaceContext, RunTaskFn, RunTaskOptions, RunTaskOrigin,
+    RunTaskResult,
 };
