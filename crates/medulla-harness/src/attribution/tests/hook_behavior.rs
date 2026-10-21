@@ -198,7 +198,7 @@ fn fixture_commit_message_matches_the_attribution_hook_snapshot() {
 
     assert_eq!(
         repo.head_message(),
-        "fixture subject\n\nfixture body\n\nCo-authored-by: Codex <noreply@openai.com>\nCo-authored-by: Test <test@example.com>\n"
+        "fixture subject\n\nfixture body\n\nCo-authored-by: Codex <noreply@openai.com>\nCo-authored-by: Test <test@example.com>\n\n"
     );
 }
 
