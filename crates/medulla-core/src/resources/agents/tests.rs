@@ -89,7 +89,7 @@ fn env_npx_node_acp_chain_is_one_claude_acp_agent() {
         ),
     ];
 
-    let agents = discover_agents(&processes, &[], 999, 50);
+    let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 1);
     assert_eq!(agents[0].pid, 22);
@@ -156,7 +156,7 @@ fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
         process(51, Some(50), "/usr/bin/node", &["node", "codex-acp"], 2),
     ];
 
-    let agents = discover_agents(&processes, &[], 999, 50);
+    let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 1);
     assert_eq!(agents[0].pid, 51);
@@ -170,7 +170,7 @@ fn app_server_and_opencode_acp_have_distinct_kinds() {
         process(61, Some(999), "/usr/bin/opencode", &["opencode", "acp"], 1),
     ];
 
-    let agents = discover_agents(&processes, &[], 999, 50);
+    let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 2);
     assert!(agents
