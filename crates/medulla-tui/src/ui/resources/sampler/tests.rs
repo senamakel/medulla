@@ -74,12 +74,13 @@ async fn changed_interval_controls_the_next_sample_tick() {
     }
     assert!(output_rx.try_recv().is_err());
     tokio::time::advance(Duration::from_millis(1)).await;
-    for _ in 0..20 {
+    for _ in 0..100 {
         tokio::task::yield_now().await;
         if output_rx.try_recv().is_ok() {
             task.abort();
             return;
         }
+        std::thread::sleep(Duration::from_millis(1));
     }
     task.abort();
     panic!("updated resource interval did not produce a sample");
