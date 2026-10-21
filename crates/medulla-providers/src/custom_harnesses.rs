@@ -46,10 +46,10 @@ use serde::{Deserialize, Serialize};
 use super::RouterConfig;
 use medulla_types::HarnessProvider;
 
-const CODEX_OVERRIDES_ENV: &str = "MEDULLA_CODEX_OVERRIDES";
-const CODEX_DISPLAY_NAME_ENV: &str = "MEDULLA_CODEX_DISPLAY_NAME";
-const CODEX_EFFORT_ENV: &str = "MEDULLA_CODEX_REASONING_EFFORT";
-const CODEX_CONTEXT_WINDOW_ENV: &str = "MEDULLA_CODEX_CONTEXT_WINDOW";
+pub const CODEX_OVERRIDES_ENV: &str = "MEDULLA_CODEX_OVERRIDES";
+pub const CODEX_DISPLAY_NAME_ENV: &str = "MEDULLA_CODEX_DISPLAY_NAME";
+pub const CODEX_EFFORT_ENV: &str = "MEDULLA_CODEX_REASONING_EFFORT";
+pub const CODEX_CONTEXT_WINDOW_ENV: &str = "MEDULLA_CODEX_CONTEXT_WINDOW";
 
 /// The default environment variable containing an OpenRouter API key.
 pub const OPENROUTER_API_KEY_ENV: &str = "OPENROUTER_API_KEY";
