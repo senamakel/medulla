@@ -4,12 +4,32 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use portable_pty::{Child, ChildKiller, ExitStatus};
+use medulla_pty::{LifecycleSession, SessionClose, SessionLifecycle};
 
 use super::attention::{
     bell_accounting, bells_are_deferred, working_state, HOOK_STALE_GRACE_MS, OPEN_ENDED_ABANDON_MS,
 };
 use super::open::LaunchGuard;
 use super::session::consumed_bell_count;
+
+fn test_close(session: &str) -> Arc<SessionClose> {
+    struct NoopLifecycle;
+    impl SessionLifecycle for NoopLifecycle {
+        fn on_close(&self, _session: &LifecycleSession) {}
+
+        fn thread_label(&self, _session: &LifecycleSession) -> Option<String> {
+            None
+        }
+    }
+
+    Arc::new(SessionClose::new(
+        Arc::new(NoopLifecycle),
+        LifecycleSession {
+            grant_session: Some(session.to_owned()),
+            ..LifecycleSession::default()
+        },
+    ))
+}
 
 #[test]
 fn a_stale_bell_sample_cannot_move_the_watermark_backwards() {
