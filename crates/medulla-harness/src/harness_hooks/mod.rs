@@ -79,6 +79,11 @@ pub use types::{
     DroppedHook, HookEvent, HookHandler, HookInjection, HookSpec, HooksConfig, LaunchPolicy,
 };
 
+/// Render the canonical native hook document used by non-CLI transports.
+pub fn native_hook_document(hooks: &[HookSpec]) -> serde_json::Value {
+    native::hook_document(hooks)
+}
+
 /// Build the per-spawn injection that installs `hooks` into `provider`.
 ///
 /// Returns an empty injection when no declared hook applies. Hooks the harness

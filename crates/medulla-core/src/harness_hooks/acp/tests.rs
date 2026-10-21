@@ -9,8 +9,8 @@
 
 use serde_json::{json, Value};
 
-use crate::harness_hooks::types::{HookEvent, HookHandler, HookSpec, HooksConfig};
-use crate::protocol::HarnessProvider;
+use crate::harness_hooks::{HookEvent, HookHandler, HookSpec, HooksConfig};
+use medulla_types::HarnessProvider;
 
 use super::delivery;
 use super::runner::{matches_tool, normalized_input, tool_matcher_candidates};
@@ -93,7 +93,7 @@ fn claude_settings_carry_hooks_only() {
 
 /// Several hooks on one event arrive as one document, in config order — the
 /// same folding the CLI path does, since both build it from
-/// [`super::super::native::hook_document`].
+/// [`medulla_harness::harness_hooks::native_hook_document`].
 #[test]
 fn claude_settings_carry_every_applicable_hook() {
     let hooks = HooksConfig {
