@@ -22,8 +22,8 @@ fn app() -> App {
 
 #[test]
 fn status_line_renders_the_injected_process_snapshot() {
-    use medulla::config::ResourceDisplay;
     use crate::ui::resources::ResourceSnapshot;
+    use medulla::config::ResourceDisplay;
 
     let mut app = app();
     app.loaded.config.appearance.cpu = ResourceDisplay::Percent;
