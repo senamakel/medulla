@@ -84,6 +84,24 @@ fn resource_config_override_keeps_other_btop_defaults() {
 }
 
 #[test]
+fn empty_gradient_controls_select_two_color_and_solid_forms() {
+    let theme = Theme::from_config(&ThemeConfig {
+        resources: Some(ResourcesThemeConfig {
+            cpu_start: Some("#000000".into()),
+            cpu_mid: Some(String::new()),
+            cpu_end: Some("#ffffff".into()),
+            temp_start: Some("#123456".into()),
+            temp_mid: Some(String::new()),
+            temp_end: Some(String::new()),
+            ..ResourcesThemeConfig::default()
+        }),
+        ..ThemeConfig::default()
+    });
+    assert_eq!(theme.resources.cpu.at(50), Color::Rgb(127, 127, 127));
+    assert_eq!(theme.resources.temp.at(100), Color::Rgb(0x12, 0x34, 0x56));
+}
+
+#[test]
 fn parses_hex_colors() {
     assert_eq!(parse_color("#ff8800"), Some(Color::Rgb(255, 136, 0)));
     assert_eq!(parse_color("#000000"), Some(Color::Rgb(0, 0, 0)));

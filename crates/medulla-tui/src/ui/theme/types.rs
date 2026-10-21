@@ -1,6 +1,14 @@
 //! Data types for the `theme` module.
 #[allow(unused_imports)]
 use super::*;
+
+fn pick_gradient_color(value: &Option<String>, fallback: Option<Color>) -> Option<Color> {
+    match value {
+        None => fallback,
+        Some(value) if value.trim().is_empty() => None,
+        Some(value) => parse_color(value).or(fallback),
+    }
+}
 /// The resolved color roles used across the TUI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Theme {
@@ -127,102 +135,48 @@ impl ResourcesTheme {
             inactive_fg: pick(&cfg.inactive_fg, defaults.inactive_fg),
             cpu: Gradient::new(
                 pick(&cfg.cpu_start, defaults.cpu.start),
-                cfg.cpu_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.cpu.mid),
-                cfg.cpu_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.cpu.end),
+                pick_gradient_color(&cfg.cpu_mid, defaults.cpu.mid),
+                pick_gradient_color(&cfg.cpu_end, defaults.cpu.end),
             ),
             temp: Gradient::new(
                 pick(&cfg.temp_start, defaults.temp.start),
-                cfg.temp_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.temp.mid),
-                cfg.temp_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.temp.end),
+                pick_gradient_color(&cfg.temp_mid, defaults.temp.mid),
+                pick_gradient_color(&cfg.temp_end, defaults.temp.end),
             ),
             used: Gradient::new(
                 pick(&cfg.used_start, defaults.used.start),
-                cfg.used_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.used.mid),
-                cfg.used_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.used.end),
+                pick_gradient_color(&cfg.used_mid, defaults.used.mid),
+                pick_gradient_color(&cfg.used_end, defaults.used.end),
             ),
             free: Gradient::new(
                 pick(&cfg.free_start, defaults.free.start),
-                cfg.free_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.free.mid),
-                cfg.free_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.free.end),
+                pick_gradient_color(&cfg.free_mid, defaults.free.mid),
+                pick_gradient_color(&cfg.free_end, defaults.free.end),
             ),
             cached: Gradient::new(
                 pick(&cfg.cached_start, defaults.cached.start),
-                cfg.cached_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.cached.mid),
-                cfg.cached_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.cached.end),
+                pick_gradient_color(&cfg.cached_mid, defaults.cached.mid),
+                pick_gradient_color(&cfg.cached_end, defaults.cached.end),
             ),
             available: Gradient::new(
                 pick(&cfg.available_start, defaults.available.start),
-                cfg.available_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.available.mid),
-                cfg.available_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.available.end),
+                pick_gradient_color(&cfg.available_mid, defaults.available.mid),
+                pick_gradient_color(&cfg.available_end, defaults.available.end),
             ),
             download: Gradient::new(
                 pick(&cfg.download_start, defaults.download.start),
-                cfg.download_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.download.mid),
-                cfg.download_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.download.end),
+                pick_gradient_color(&cfg.download_mid, defaults.download.mid),
+                pick_gradient_color(&cfg.download_end, defaults.download.end),
             ),
             upload: Gradient::new(
                 pick(&cfg.upload_start, defaults.upload.start),
-                cfg.upload_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.upload.mid),
-                cfg.upload_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.upload.end),
+                pick_gradient_color(&cfg.upload_mid, defaults.upload.mid),
+                pick_gradient_color(&cfg.upload_end, defaults.upload.end),
             ),
             process: Gradient::new(
                 pick(&cfg.process_start, defaults.process.start),
-                cfg.process_mid
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.process.mid),
-                cfg.process_end
-                    .as_deref()
-                    .and_then(parse_color)
-                    .or(defaults.process.end),
+                pick_gradient_color(&cfg.process_mid, defaults.process.mid),
+                pick_gradient_color(&cfg.process_end, defaults.process.end),
             ),
         }
     }
