@@ -87,6 +87,7 @@ impl App {
             status_line_preview: false,
             status_line_split: false,
             resource_snapshot: Default::default(),
+            device_snapshot_override: None,
             status_line_index: 0,
             status_line_promotion_pending,
             config_index: 0,
@@ -191,6 +192,17 @@ impl App {
         snapshot: Arc<crate::ui::resources::sampler::ResourceSnapshot>,
     ) {
         self.resource_snapshot = snapshot;
+    }
+
+    /// Pin a device reading for a settings preview or test.
+    pub fn set_device_snapshot(&mut self, snapshot: crate::ui::resources::DeviceSnapshot) {
+        self.device_snapshot_override = Some(snapshot);
+    }
+
+    /// The cached device reading, or the explicitly injected preview value.
+    pub(crate) fn device_snapshot(&self) -> crate::ui::resources::DeviceSnapshot {
+        self.device_snapshot_override
+            .unwrap_or_else(|| self.resource_snapshot.device_snapshot())
     }
 
     /// Configure Account logout with a testable home; without it, logout reports no writable location.

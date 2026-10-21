@@ -48,9 +48,9 @@ impl DeviceFooter {
         let disk_visible =
             appearance.device_disk != ResourceDisplay::Off && device_budget > metrics_before_disk;
         let snapshot = if enabled && disk_visible {
-            app.resource_snapshot.device_snapshot()
+            app.device_snapshot()
         } else {
-            let mut snapshot = app.resource_snapshot.device_snapshot();
+            let mut snapshot = app.device_snapshot();
             if !enabled {
                 snapshot = Default::default();
             }

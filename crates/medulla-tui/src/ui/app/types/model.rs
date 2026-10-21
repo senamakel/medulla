@@ -718,6 +718,8 @@ pub struct App {
     /// Latest immutable host snapshot from the background sampler.
     pub(in crate::ui::app) resource_snapshot:
         std::sync::Arc<crate::ui::resources::sampler::ResourceSnapshot>,
+    /// Optional fixed device reading used by settings previews and tests.
+    pub(in crate::ui::app) device_snapshot_override: Option<crate::ui::resources::DeviceSnapshot>,
     /// The selected field row on the Status line subpage.
     pub(in crate::ui::app) status_line_index: usize,
     /// Whether the next persisted status-line edit must write the complete
