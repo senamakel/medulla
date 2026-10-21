@@ -36,7 +36,7 @@ impl PtyManager {
         let inner = Arc::downgrade(&self.inner);
         std::thread::spawn(move || loop {
             std::thread::sleep(CHECKOUT_INTERVAL);
-            let (Some(handle), true) = (handle.upgrade(), inner.upgrade().is_some()) else {
+            let (Some(handle), Some(inner)) = (handle.upgrade(), inner.upgrade()) else {
                 return;
             };
             // An exited session's checkout is frozen at whatever it last was:

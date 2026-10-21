@@ -239,7 +239,7 @@ pub(crate) struct SessionMeta {
 /// registry lock immediately — so no caller ever holds the registry while doing
 /// work.
 pub struct SessionHandle {
-    pub(super) meta: SessionMeta,
+    pub(in crate::worker::pty) meta: SessionMeta,
     /// One of the `STATE_*` discriminants.
     pub(super) state: AtomicU8,
     /// The exit status, or [`NO_EXIT_CODE`].
