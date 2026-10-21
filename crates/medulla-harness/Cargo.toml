@@ -1,0 +1,21 @@
+[package]
+name = "medulla-harness"
+description = "Harness launch customization and attribution primitives"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+medulla-types = { workspace = true }
+medulla-providers = { path = "../medulla-providers" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+toml_edit = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
