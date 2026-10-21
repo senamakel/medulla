@@ -27,11 +27,13 @@ use std::path::PathBuf;
 use crate::protocol::{
     BudgetSource, BudgetWindow, HarnessBudget, HarnessProvider, HarnessReadiness,
 };
+use medulla_providers::ProviderProbeInput;
 
 use super::super::providers::{make_path_lookup, provider_bin};
 
 mod types;
-pub use types::{BudgetSeams, ConfiguredBudget, ProviderProbeInput};
+pub use medulla_providers::ConfiguredBudget;
+pub use types::BudgetSeams;
 
 #[cfg(test)]
 mod tests;

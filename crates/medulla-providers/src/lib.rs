@@ -4,13 +4,17 @@
 //! decisions, harness preferences, custom harness presets, and budget/router
 //! configuration types. It performs no provider execution or capability probe.
 
+mod budget;
 mod config;
 mod custom_harnesses;
+#[cfg(test)]
+mod custom_harnesses_tests;
 mod detect;
 mod env;
 mod harness_choice;
 mod routing;
 
+pub use budget::{ConfiguredBudget, ProviderProbeInput};
 pub use config::{
     BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig,
 };
@@ -22,7 +26,7 @@ pub use custom_harnesses::{
 };
 pub use detect::{
     build_resumed_run_args, build_run_args, detect_providers, extract_session_id, make_path_lookup,
-    provider_name, provider_bin as detected_provider_bin, session_id_field, supports_stdin,
+    provider_name, session_id_field, supports_stdin,
     ExistsOnPath, DAEMON_PROVIDERS,
 };
 pub use env::{

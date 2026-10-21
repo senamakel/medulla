@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+#[cfg(test)]
 use medulla_providers::RouterConfig;
 pub use medulla_providers::{bin_is_overridden, model_override, provider_args, provider_bin, router_env, RouterInjection};
 use crate::protocol::HarnessProvider;
@@ -138,28 +139,6 @@ pub fn receive_enabled(provider: HarnessProvider, env: &HashMap<String, String>)
 /// ([`crate::daemon::providers::embed`]) spawns nothing. It says nothing
 /// about which model an in-process turn runs on — that is
 /// [`model_override`].
-fn bin_keys(provider: HarnessProvider) -> &'static [&'static str] {
-    match provider {
-        HarnessProvider::Claude => &[
-            "MEDULLA_CLAUDE_BIN",
-            "TINYVERSE_CLAUDE_BIN",
-            "TINYPLACE_CLAUDE_BIN",
-        ],
-        HarnessProvider::Codex => &["MEDULLA_CODEX_BIN", "TINYPLACE_CODEX_BIN"],
-        HarnessProvider::Opencode => &["MEDULLA_OPENCODE_BIN", "TINYPLACE_OPENCODE_BIN"],
-        HarnessProvider::Openhuman => &[
-            "MEDULLA_OPENHUMAN_BIN",
-            "TINYPLACE_OPENHUMAN_BIN",
-            "OPENHUMAN_BIN",
-        ],
-        // `SHELL` is listed as an override key rather than special-cased below
-        // because that is exactly what it is: the operator's own statement of
-        // which shell they use. It sits behind the namespaced key so a host can
-        // still pin one shell for Medulla without changing the login shell.
-        HarnessProvider::Shell => &["MEDULLA_SHELL_BIN", "SHELL"],
-    }
-}
-
 /// The provider's default session-transcript directory.
 fn default_sessions_dir(provider: HarnessProvider) -> PathBuf {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
