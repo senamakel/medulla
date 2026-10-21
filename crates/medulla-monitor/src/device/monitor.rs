@@ -29,7 +29,7 @@ impl DeviceMonitor {
 
     /// Return a recent sample, discovering mounts only when disk capacity will
     /// actually be displayed.
-    pub(crate) fn sample_for(&mut self, include_disk: bool) -> DeviceSnapshot {
+    pub fn sample_for(&mut self, include_disk: bool) -> DeviceSnapshot {
         if let Some(injected) = self.injected {
             return injected;
         }
