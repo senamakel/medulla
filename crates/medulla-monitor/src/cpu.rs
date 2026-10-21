@@ -234,26 +234,29 @@ fn cpu_delta(old: Times, new: Times) -> CpuReading {
 }
 
 #[cfg(target_os = "linux")]
-fn read_frequencies(root: &Path) -> Vec<u64> {
+fn read_frequencies(root: &Path) -> Vec<Option<u64>> {
     let base = root.join("sys/devices/system/cpu");
     let Ok(entries) = fs::read_dir(base) else {
         return Vec::new();
     };
-    let mut out: Vec<_> = entries
-        .flatten()
-        .filter_map(|entry| {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let index = name.strip_prefix("cpu")?.parse::<usize>().ok()?;
-            let value = fs::read_to_string(entry.path().join("cpufreq/scaling_cur_freq"))
-                .ok()?
-                .trim()
-                .parse::<u64>()
-                .ok()?;
-            Some((index, value / 1000))
-        })
-        .collect();
-    out.sort_by_key(|(i, _)| *i);
-    out.into_iter().map(|(_, hz)| hz).collect()
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(index) = name
+            .strip_prefix("cpu")
+            .and_then(|s| s.parse::<usize>().ok())
+        else {
+            continue;
+        };
+        if out.len() <= index {
+            out.resize(index + 1, None);
+        }
+        out[index] = fs::read_to_string(entry.path().join("cpufreq/scaling_cur_freq"))
+            .ok()
+            .and_then(|s| s.trim().parse::<u64>().ok())
+            .map(|hz| hz / 1000);
+    }
+    out
 }
 
 #[cfg(target_os = "linux")]
@@ -261,11 +264,25 @@ fn read_temperatures(root: &Path) -> TemperatureReadings {
     let mut package = None;
     let mut package_crit = None;
     let mut cores = Vec::new();
+    let topology = read_cpu_topology(root);
     let Ok(devices) = fs::read_dir(root.join("sys/class/hwmon")) else {
         return (package, package_crit, cores);
     };
     for device in devices.flatten() {
-        let path = fs::canonicalize(device.path()).unwrap_or_else(|_| device.path());
+        let hwmon_path = device.path();
+        let path = fs::canonicalize(&hwmon_path).unwrap_or_else(|_| hwmon_path.clone());
+        let package_id = [hwmon_path.join("device"), path.join("device")]
+            .into_iter()
+            .filter_map(|device| fs::canonicalize(device).ok())
+            .chain(std::iter::once(path.clone()))
+            .flat_map(|device| {
+                std::iter::successors(Some(device), |path| path.parent().map(Path::to_path_buf))
+            })
+            .find_map(|device| {
+                fs::read_to_string(device.join("physical_package_id"))
+                    .ok()
+                    .and_then(|s| s.trim().parse::<usize>().ok())
+            });
         let Ok(entries) = fs::read_dir(&path) else {
             continue;
         };
@@ -305,16 +322,55 @@ fn read_temperatures(root: &Path) -> TemperatureReadings {
                     package = Some(temp);
                     package_crit = Some(crit);
                 }
-            } else if let Some(core) = lower
+            } else if let Some(core_id) = lower
                 .strip_prefix("core")
                 .and_then(|s| s.trim().parse::<usize>().ok())
             {
-                cores.push((core, temp, crit));
+                let logical = package_id
+                    .and_then(|package| topology.get(&(package, core_id)).copied())
+                    .or_else(|| {
+                        let matches: Vec<_> = topology
+                            .iter()
+                            .filter_map(|(&(package, core), &logical)| {
+                                (core == core_id).then_some((package, logical))
+                            })
+                            .collect();
+                        (matches.len() == 1).then(|| matches[0].1)
+                    });
+                if let Some(logical) = logical {
+                    cores.push((logical, temp, crit));
+                }
             }
         }
     }
     cores.sort_by_key(|(core, _, _)| *core);
     (package, package_crit, cores)
+}
+
+#[cfg(target_os = "linux")]
+fn read_cpu_topology(root: &Path) -> BTreeMap<(usize, usize), usize> {
+    let Ok(cpuinfo) = fs::read_to_string(root.join("proc/cpuinfo")) else {
+        return BTreeMap::new();
+    };
+    let mut topology = BTreeMap::new();
+    for processor in cpuinfo.split("\n\n") {
+        let fields: BTreeMap<_, _> = processor
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .map(|(key, value)| (key.trim(), value.trim()))
+            .collect();
+        let (Some(logical), Some(package), Some(core)) = (
+            fields.get("processor").and_then(|value| value.parse().ok()),
+            fields
+                .get("physical id")
+                .and_then(|value| value.parse().ok()),
+            fields.get("core id").and_then(|value| value.parse().ok()),
+        ) else {
+            continue;
+        };
+        topology.entry((package, core)).or_insert(logical);
+    }
+    topology
 }
 
 #[cfg(target_os = "linux")]
@@ -418,9 +474,7 @@ mod tests {
                 .join(format!("sys/devices/platform/coretemp.{hwmon}"));
             fs::create_dir_all(&device).unwrap();
             fs::write(device.join("physical_package_id"), package.to_string()).unwrap();
-            let hwmon_path = temp
-                .path()
-                .join(format!("sys/class/hwmon/hwmon{hwmon}"));
+            let hwmon_path = temp.path().join(format!("sys/class/hwmon/hwmon{hwmon}"));
             fs::create_dir_all(&hwmon_path).unwrap();
             #[cfg(unix)]
             std::os::unix::fs::symlink(&device, hwmon_path.join("device")).unwrap();
@@ -446,6 +500,10 @@ mod tests {
         write(
             "proc/stat",
             "cpu 30 0 20 110 10 0 0 0 5 0\ncpu0 20 0 10 50 5 0 0 0 5 0\n",
+        );
+        write(
+            "proc/cpuinfo",
+            "processor : 0\nphysical id : 0\ncore id : 0\n",
         );
         write("proc/loadavg", "0.50 0.25 0.10 1/20 100\n");
         write("proc/uptime", "1234.5 0\n");

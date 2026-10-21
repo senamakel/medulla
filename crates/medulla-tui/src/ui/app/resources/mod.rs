@@ -229,7 +229,8 @@ fn draw_cpu_panel(
     let lower = medulla_monitor::CpuField::parse(&config.cpu_graph_lower)
         .unwrap_or(medulla_monitor::CpuField::Iowait);
     let rows = if config.cpu_single_graph { 1 } else { 2 };
-    let graph_rows = rows.min(area.height);
+    let compact = area.width < 100;
+    let graph_rows = if compact { 1 } else { rows.min(area.height) };
     let chunks = Layout::vertical(std::iter::repeat_n(
         Constraint::Length(1),
         graph_rows as usize,
@@ -267,17 +268,25 @@ fn draw_cpu_panel(
     }
     let mut lines = Vec::new();
     let mut details = Vec::new();
-    if let Some(model) = snapshot
-        .cpu
-        .model
-        .as_deref()
-        .filter(|model| !model.is_empty())
-    {
-        details.push(model.to_owned());
+    if !compact {
+        if let Some(model) = snapshot
+            .cpu
+            .model
+            .as_deref()
+            .filter(|model| !model.is_empty())
+        {
+            details.push(model.to_owned());
+        }
     }
-    if !snapshot.cpu.frequencies_mhz.is_empty() {
-        let average = snapshot.cpu.frequencies_mhz.iter().sum::<u64>()
-            / snapshot.cpu.frequencies_mhz.len() as u64;
+    let frequencies: Vec<u64> = snapshot
+        .cpu
+        .frequencies_mhz
+        .iter()
+        .flatten()
+        .copied()
+        .collect();
+    if !frequencies.is_empty() {
+        let average = frequencies.iter().sum::<u64>() / frequencies.len() as u64;
         details.push(format!(
             "Freq {}",
             format_frequency(average, &config.freq_mode)
@@ -300,10 +309,22 @@ fn draw_cpu_panel(
     }
     if snapshot.cpu.load_average.iter().any(|value| *value > 0.0) {
         details.push(format!(
-            "Load {:.2} {:.2} {:.2}",
-            snapshot.cpu.load_average[0],
-            snapshot.cpu.load_average[1],
-            snapshot.cpu.load_average[2]
+            "Load {} {} {}",
+            if compact {
+                format!("{:.1}", snapshot.cpu.load_average[0])
+            } else {
+                format!("{:.2}", snapshot.cpu.load_average[0])
+            },
+            if compact {
+                format!("{:.1}", snapshot.cpu.load_average[1])
+            } else {
+                format!("{:.2}", snapshot.cpu.load_average[1])
+            },
+            if compact {
+                format!("{:.1}", snapshot.cpu.load_average[2])
+            } else {
+                format!("{:.2}", snapshot.cpu.load_average[2])
+            }
         ));
     }
     if let Some(uptime) = snapshot.cpu.uptime_seconds {
@@ -326,11 +347,14 @@ fn draw_cpu_panel(
         .saturating_sub(graph_rows)
         .saturating_sub(lines.len() as u16) as usize;
     let cores = &snapshot.cpu.cores;
+    let rows_per_core = if compact { 15 } else { 1 };
+    let max_per_row = (area.width as usize / rows_per_core).max(1);
     let per_row = if cores.len() <= remaining.max(1) {
         1
     } else {
         cores.len().div_ceil(remaining.max(1))
-    };
+    }
+    .min(max_per_row);
     for group in cores
         .iter()
         .enumerate()
@@ -341,48 +365,52 @@ fn draw_cpu_panel(
             .iter()
             .map(|(index, cpu)| {
                 let mut row = format!("C{index} {:>3.0}%", cpu.total);
-                if let Some(freq) = snapshot.cpu.frequencies_mhz.get(*index) {
+                if let Some(Some(freq)) = snapshot.cpu.frequencies_mhz.get(*index) {
                     row.push_str(&format!(" {}", format_frequency(*freq, &config.freq_mode)));
                 }
-                if let Some((_, temp, _)) = snapshot
-                    .cpu
-                    .core_temperatures_c
-                    .iter()
-                    .find(|(core, _, _)| core == index)
-                {
-                    let temp = if config.temp_scale == "fahrenheit" {
-                        temp * 1.8 + 32.0
-                    } else {
-                        *temp
-                    };
-                    row.push_str(&format!(
-                        " {temp:.0}°{}",
-                        if config.temp_scale == "fahrenheit" {
-                            "F"
+                if !compact {
+                    if let Some((_, temp, _)) = snapshot
+                        .cpu
+                        .core_temperatures_c
+                        .iter()
+                        .find(|(core, _, _)| core == index)
+                    {
+                        let temp = if config.temp_scale == "fahrenheit" {
+                            temp * 1.8 + 32.0
                         } else {
-                            "C"
-                        }
-                    ));
+                            *temp
+                        };
+                        row.push_str(&format!(
+                            " {temp:.0}°{}",
+                            if config.temp_scale == "fahrenheit" {
+                                "F"
+                            } else {
+                                "C"
+                            }
+                        ));
+                    }
                 }
                 row
             })
             .collect::<Vec<_>>()
             .join("  ");
         lines.push(ratatui::text::Line::from(text));
-        if area.width >= 100 && per_row == 1 {
+        if area.width >= 100 {
             let y = area.y + graph_rows + lines.len() as u16 - 1;
             let graph_x = area.x + (area.width * 2 / 3).max(20);
             let graph_width = area.right().saturating_sub(graph_x);
-            if let Some((core_index, _)) = group.first() {
+            let segment_width = graph_width / group.len().max(1) as u16;
+            for (group_index, (core_index, _)) in group.iter().enumerate() {
+                let segment_x = graph_x + segment_width * group_index as u16;
                 let usage: Vec<f32> = history
                     .iter()
                     .filter_map(|sample| sample.cores.get(*core_index).map(|core| core.total))
                     .collect();
-                if graph_width > 3 {
-                    let usage_width = graph_width / 2;
+                if segment_width > 3 {
+                    let usage_width = segment_width / 2;
                     frame.render_widget(
                         crate::ui::plot::Graph::new(&usage).gradient(&chart_gradient),
-                        Rect::new(graph_x, y, usage_width, 1),
+                        Rect::new(segment_x, y, usage_width, 1),
                     );
                     let temps: Vec<f32> = history
                         .iter()
@@ -400,10 +428,10 @@ fn draw_cpu_panel(
                                 })
                         })
                         .collect();
-                    if !temps.is_empty() {
+                    if !temps.is_empty() && usage_width < segment_width {
                         frame.render_widget(
                             crate::ui::plot::Graph::new(&temps).gradient(&temp_gradient),
-                            Rect::new(graph_x + usage_width, y, graph_width - usage_width, 1),
+                            Rect::new(segment_x + usage_width, y, segment_width - usage_width, 1),
                         );
                     }
                 }

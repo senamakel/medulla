@@ -295,7 +295,7 @@ fn cpu_title_controls_have_distinct_click_actions() {
 }
 
 #[test]
-fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
+fn cpu_panel_renders_sixteen_cores_without_clipping_at_common_sizes() {
     let mut cpu = medulla_monitor::CpuSnapshot {
         model: Some("Test CPU".to_owned()),
         cores: (0..16)
@@ -304,7 +304,7 @@ fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
                 ..Default::default()
             })
             .collect(),
-        frequencies_mhz: vec![2400; 16],
+        frequencies_mhz: vec![Some(2400); 16],
         load_average: [0.5, 0.25, 0.1],
         uptime_seconds: Some(1234),
         ..Default::default()
@@ -319,37 +319,37 @@ fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
     let snapshot = crate::ui::resources::sampler::ResourceSnapshot::default()
         .with_cpu(std::mem::take(&mut cpu))
         .with_history(Arc::new(history));
-    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
-    terminal
-        .draw(|frame| {
-            super::draw_cpu_panel(
-                frame,
-                Rect::new(0, 0, 170, 40),
-                &snapshot,
-                &medulla::config::ResourcesConfig::default(),
-                crate::ui::theme::Theme::default().resources.cpu,
-                crate::ui::theme::Theme::default().resources.temp,
-            )
-        })
-        .unwrap();
-    let text = terminal
-        .backend()
-        .buffer()
-        .content()
-        .iter()
-        .map(|cell| cell.symbol())
-        .collect::<String>();
-    for core in 0..16 {
-        assert!(
-            text.contains(&format!("C{core}")),
-            "missing core row {core}"
+    for (width, height) in [(170, 42), (80, 24)] {
+        let mut app = App::new(
+            Arc::new(MockRuntime::empty()),
+            LoadedConfig::defaults("test.json".into()),
         );
+        app.set_resource_snapshot(Arc::new(snapshot.clone()));
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height)))
+            .unwrap();
+        let cpu_rect = app.resources.rects.cpu;
+        let buffer = terminal.backend().buffer();
+        let text = (cpu_rect.y..cpu_rect.bottom())
+            .flat_map(|y| (cpu_rect.x..cpu_rect.right()).map(move |x| buffer[(x, y)].symbol()))
+            .collect::<String>();
+        for core in 0..16 {
+            assert!(
+                text.contains(&format!("C{core} ")),
+                "missing core {core} at {width}x{height}: {text}"
+            );
+        }
+        assert!(text.contains("2.4GHz"));
+        if width >= 100 {
+            assert!(text.contains("Test CPU"));
+            assert!(text.contains("Load 0.50 0.25 0.10"));
+        } else {
+            assert!(text.contains("Load 0.5 0.3 0.1"));
+        }
+        assert!(!text.contains("Pkg"));
+        assert!(!text.contains("°C"));
     }
-    assert!(text.contains("2.4GHz"));
-    assert!(text.contains("Test CPU"));
-    assert!(text.contains("Load 0.50 0.25 0.10"));
-    assert!(!text.contains("Pkg"));
-    assert!(!text.contains("°C"));
 }
 
 #[test]

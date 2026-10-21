@@ -246,12 +246,12 @@ impl ResourceSource for SystemResourceSource {
                 })
                 .collect();
         }
-        if cpu.frequencies_mhz.is_empty() {
+        if cpu.frequencies_mhz.iter().all(Option::is_none) {
             cpu.frequencies_mhz = self
                 .system
                 .cpus()
                 .iter()
-                .map(|cpu| cpu.frequency())
+                .map(|cpu| Some(cpu.frequency()))
                 .collect();
         }
         if cpu.load_average == [0.0; 3] {
