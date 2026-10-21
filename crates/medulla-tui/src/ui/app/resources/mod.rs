@@ -124,8 +124,7 @@ impl App {
                             f,
                             inner,
                             &self.resource_snapshot,
-                            state.show_disks,
-                            state.io_mode,
+                            &self.loaded.config.resources,
                         );
                         state.hits.disks_toggle = Rect::new(rect.x + 9, rect.y, 3, 1);
                         state.hits.io_toggle = Rect::new(rect.x + 13, rect.y, 3, 1);
@@ -237,8 +236,7 @@ fn draw_mem_panel(
     frame: &mut Frame,
     area: Rect,
     snapshot: &crate::ui::resources::sampler::ResourceSnapshot,
-    show_disks: bool,
-    io_mode: bool,
+    config: &medulla::config::ResourcesConfig,
 ) {
     if area.is_empty() {
         return;
@@ -261,14 +259,118 @@ fn draw_mem_panel(
         bytes(snapshot.memory_cached_bytes),
         bytes(snapshot.memory_free_bytes)
     ))];
-    if snapshot.swap_total_bytes > 0 {
+    if config.show_swap && snapshot.swap_total_bytes > 0 {
         lines.push(Line::from(format!(
             "Swap {} / {}",
             bytes(snapshot.swap_used_bytes),
             bytes(snapshot.swap_total_bytes)
         )));
     }
-    if show_disks {
+    let graph_rows = if config.io_mode {
+        if config.io_graph_combined {
+            1
+        } else {
+            2
+        }
+    } else if config.mem_graphs {
+        2
+    } else {
+        0
+    };
+    if graph_rows > 0 && area.height > graph_rows {
+        let graph_area = Rect::new(area.x, area.y, area.width, graph_rows);
+        if config.io_mode {
+            let read_samples: Vec<f64> = snapshot
+                .history
+                .disk_read_bytes_per_second
+                .iter()
+                .copied()
+                .collect();
+            let write_samples: Vec<f64> = snapshot
+                .history
+                .disk_write_bytes_per_second
+                .iter()
+                .copied()
+                .collect();
+            let peak = read_samples
+                .iter()
+                .chain(&write_samples)
+                .copied()
+                .fold(1.0_f64, f64::max);
+            let scale = if config.io_graph_speeds {
+                peak
+            } else {
+                1_000_000_000.0
+            };
+            let reads: Vec<f32> = read_samples
+                .iter()
+                .map(|v| (v * 100.0 / scale) as f32)
+                .collect();
+            let writes: Vec<f32> = write_samples
+                .iter()
+                .map(|v| (v * 100.0 / scale) as f32)
+                .collect();
+            if config.io_graph_combined {
+                let combined: Vec<f32> = reads.iter().zip(&writes).map(|(r, w)| r + w).collect();
+                frame.render_widget(crate::ui::plot::Graph::new(&combined), graph_area);
+            } else {
+                frame.render_widget(
+                    crate::ui::plot::Graph::new(&reads),
+                    Rect::new(area.x, area.y, area.width, 1),
+                );
+                frame.render_widget(
+                    crate::ui::plot::Graph::new(&writes),
+                    Rect::new(area.x, area.y + 1, area.width, 1),
+                );
+            }
+        } else {
+            let used: Vec<f32> = snapshot
+                .history
+                .memory_used_bytes
+                .iter()
+                .map(|v| {
+                    if total == 0 {
+                        0.0
+                    } else {
+                        *v as f32 * 100.0 / total as f32
+                    }
+                })
+                .collect();
+            let swap: Vec<f32> = snapshot
+                .history
+                .swap_used_bytes
+                .iter()
+                .map(|v| {
+                    if snapshot.swap_total_bytes == 0 {
+                        0.0
+                    } else {
+                        *v as f32 * 100.0 / snapshot.swap_total_bytes as f32
+                    }
+                })
+                .collect();
+            frame.render_widget(
+                crate::ui::plot::Graph::new(&used),
+                Rect::new(area.x, area.y, area.width, 1),
+            );
+            frame.render_widget(
+                crate::ui::plot::Graph::new(&swap),
+                Rect::new(area.x, area.y + 1, area.width, 1),
+            );
+        }
+        lines.insert(0, Line::from("MEMORY HISTORY / IO READ-WRITE"));
+        lines.truncate(area.height.saturating_sub(graph_rows) as usize);
+        frame.render_widget(
+            Paragraph::new(lines).style(Style::default().fg(Color::White)),
+            Rect::new(
+                area.x,
+                area.y + graph_rows,
+                area.width,
+                area.height - graph_rows,
+            ),
+        );
+        return;
+    }
+    if config.show_disks {
         for disk in snapshot
             .disks
             .iter()
@@ -279,7 +381,7 @@ fn draw_mem_panel(
             } else {
                 disk.used_bytes.saturating_mul(100) / disk.total_bytes
             };
-            let io = if io_mode {
+            let io = if config.io_mode {
                 format!(
                     " R{} W{}",
                     bytes(disk.read_bytes_per_second as u64),
