@@ -21,4 +21,4 @@ Reproducing that surface here would mean a second implementation of every mapper
 
 ## Maintenance
 
-Keep this index synchronized when responsibilities move. The pooled client itself is [`crate::codex_app_server`](../../../codex_app_server); end-to-end coverage lives in `crates/medulla/tests/e2e_codex_app_server.rs`.
+Keep this index synchronized when responsibilities move. The pooled client itself is [`crate::codex_app_server`](../../../codex_app_server); end-to-end coverage lives in `crates/medulla-core/tests/e2e_codex_app_server.rs`.

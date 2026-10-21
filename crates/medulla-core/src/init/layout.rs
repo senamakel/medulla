@@ -2,7 +2,7 @@
 //!
 //! A `MEDULLA.md` summary says what a repository *is*; the layout says what is
 //! actually in it. The orchestrator decomposes work against paths — "the client
-//! lives in `crates/medulla/`" is the difference between a routable instruction and a
+//! lives in `crates/medulla-core/`" is the difference between a routable instruction and a
 //! guess — so `init` records a bounded map of the tree beside the prose.
 //!
 //! The scan is deliberately shallow and cheap: top-level entries plus one level

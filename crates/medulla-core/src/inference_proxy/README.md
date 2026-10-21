@@ -68,7 +68,7 @@ OpenRouter and silently ignored, which is why the body is the only honest seam.
   mount-to-upstream mapping, and the bidirectional streaming forward.
 - [`tests.rs`](./tests.rs) — offline unit tests for the rewrite, host
   recognition, routing and token minting. Socket-level behaviour is covered by
-  `crates/medulla/tests/e2e_attribution_proxy.rs`.
+  `crates/medulla-core/tests/e2e_attribution_proxy.rs`.
 
 ## Integration
 

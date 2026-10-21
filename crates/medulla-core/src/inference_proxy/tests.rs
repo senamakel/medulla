@@ -3,7 +3,7 @@
 //! rewrite, and token minting.
 //!
 //! Everything here is offline. The socket-level behaviour (streaming, real
-//! forwarding, 401s) is covered by `crates/medulla/tests/e2e_attribution_proxy.rs`.
+//! forwarding, 401s) is covered by `crates/medulla-core/tests/e2e_attribution_proxy.rs`.
 
 use std::collections::HashMap;
 

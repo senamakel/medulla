@@ -395,8 +395,8 @@ fn every_spawn_seam_uses_the_merged_launch_builder() {
     // to be silently ignored on the interactive paths. Pin them: a new seam that
     // reaches for `attribution_args` instead of `launch_args` fails here.
     let seams = [
-        "crates/medulla/src/wrapper/run/mod.rs",
-        "crates/medulla/src/daemon/providers/execute.rs",
+        "crates/medulla-core/src/wrapper/run/mod.rs",
+        "crates/medulla-core/src/daemon/providers/execute.rs",
         "crates/medulla-tui/src/worker/executor/launch.rs",
         "crates/medulla-tui/src/ui/harness_pane/spawn.rs",
     ];
@@ -430,7 +430,7 @@ fn every_embedded_host_door_applies_a_launch_policy() {
     // everywhere else. Pin them: every options literal in these files must have
     // a `with_launch_policy` applied to it.
     let doors = [
-        "crates/medulla/src/workflows/local.rs",
+        "crates/medulla-core/src/workflows/local.rs",
         "crates/medulla-tui/src/commands/workflow.rs",
         "crates/medulla-tui/src/event_loop/cmd_dispatch/workflows.rs",
         "crates/medulla-tui/src/hub_relay/mod.rs",

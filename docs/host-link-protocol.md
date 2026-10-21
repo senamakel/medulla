@@ -205,7 +205,7 @@ must all arrive: channel 0 is an append-only queue and a peer that was away
 receives everything it missed. A terminal wants only the latest state: after a
 40-second outage the host should send the current screen rather than 40 seconds
 of scrollback. Channel 1 diffs the grid, so catching up costs one diff regardless
-of how long the link was down. `crates/medulla/src/protocol/screen/` already models
+of how long the link was down. `crates/medulla-core/src/protocol/screen/` already models
 exactly this (`build_frame`, `apply_frame`, `changed_rows`) and supplies the
 channel-1 diff directly.
 

@@ -32,7 +32,7 @@ fn a_long_tool_command_uses_at_most_two_rows() {
 fn a_settled_tool_keeps_its_action_and_shows_the_result() {
     let turn = CopilotTurn::new(
         TurnRole::ToolSuccess,
-        "Read · crates/medulla/Cargo.toml · 2.4 KiB output",
+        "Read · crates/medulla-core/Cargo.toml · 2.4 KiB output",
     );
 
     let visible = turn_lines(&turn, 80)
@@ -42,7 +42,7 @@ fn a_settled_tool_keeps_its_action_and_shows_the_result() {
         .join("\n");
 
     assert!(visible.contains("✓ Read"), "{visible}");
-    assert!(visible.contains("crates/medulla/Cargo.toml · 2.4 KiB output"));
+    assert!(visible.contains("crates/medulla-core/Cargo.toml · 2.4 KiB output"));
 }
 
 #[test]

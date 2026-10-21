@@ -5,7 +5,7 @@
 //! This is what an operator's own Claude Code or Codex session gets once a
 //! generated skill is installed: the real request handler, over a real store,
 //! in `MEDULLA_WORKFLOW_TOOLS=run` mode. The unit tests in
-//! `crates/medulla/src/mcp/tests/run_mode.rs` check the allow-list against the tool
+//! `crates/medulla-core/src/mcp/tests/run_mode.rs` check the allow-list against the tool
 //! table; this checks the two things a skill actually depends on — that
 //! `tools/list` shows exactly the read/run verbs, and that `workflow_run`
 //! reaches a run record, whether the skill follows the run id it is handed or

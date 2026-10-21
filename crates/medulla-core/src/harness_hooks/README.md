@@ -75,7 +75,7 @@ Every such door now names its policy with
 a new one forgets. The doors are `workflows::local` (run, author, evolve), the
 `medulla workflow` subcommand, the TUI's workflow/copilot/evolve commands, the
 hub relay's copilot bridge, and the TUI's own hosts.
-`crates/medulla/tests/feature_workflow_launch_policy.rs` drives the first of those
+`crates/medulla-core/tests/feature_workflow_launch_policy.rs` drives the first of those
 end-to-end and reads the argv the spawned process actually received.
 
 **ACP dispatch cannot inject hooks into the harness**: Medulla spawns an ACP
@@ -114,7 +114,7 @@ handler, so the shared document is built once and only its *delivery* differs.
 ## The operator's side
 
 `config.example.toml`'s `[[hooks]]` section is the reference an operator reads,
-and `crates/medulla/tests/feature_hooks_config.rs` pins it: the example blocks printed
+and `crates/medulla-core/tests/feature_hooks_config.rs` pins it: the example blocks printed
 there are parsed and asserted to reach the harness argv, so the documentation
 cannot drift from what actually loads.
 

@@ -116,7 +116,7 @@ preflight() {
   [ -n "${OPENROUTER_API_KEY:-}" ] \
     || die "OPENROUTER_API_KEY is unset — the live suite has no model to call"
 
-  # The endpoint is pinned into the binary (see crates/medulla/src/config/urls.rs), so
+  # The endpoint is pinned into the binary (see crates/medulla-core/src/config/urls.rs), so
   # there is no staging to fall back to: this suite now talks to production or
   # not at all. MEDULLA_STAGING is read by nobody and refusing on it is kinder
   # than letting a stale invocation believe it is safely on staging.
