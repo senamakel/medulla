@@ -125,7 +125,7 @@ impl ResourceSource for SystemResourceSource {
             .map(|last| now.duration_since(last).as_secs_f64())
             .unwrap_or(0.0);
         let baseline_ready = self.last_sample.replace(now).is_some();
-        self.system.refresh_cpu_usage();
+        self.system.refresh_cpu_all();
         self.system.refresh_memory();
         self.system.refresh_processes_specifics(
             ProcessesToUpdate::All,
@@ -245,7 +245,7 @@ impl ResourceSource for SystemResourceSource {
                 .system
                 .cpus()
                 .iter()
-                .map(|cpu| cpu.frequency() / 1000)
+                .map(|cpu| cpu.frequency())
                 .collect();
         }
         if cpu.load_average == [0.0; 3] {

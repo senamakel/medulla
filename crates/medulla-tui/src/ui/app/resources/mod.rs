@@ -263,7 +263,10 @@ fn draw_cpu_panel(
     if !snapshot.cpu.frequencies_mhz.is_empty() {
         let average = snapshot.cpu.frequencies_mhz.iter().sum::<u64>()
             / snapshot.cpu.frequencies_mhz.len() as u64;
-        details.push(format!("Freq {average} MHz"));
+        details.push(format!(
+            "Freq {}",
+            format_frequency(average, &config.freq_mode)
+        ));
     }
     if let Some(temp) = snapshot.cpu.package_temperature_c {
         let temp = if config.temp_scale == "fahrenheit" {
@@ -324,7 +327,7 @@ fn draw_cpu_panel(
             .map(|(index, cpu)| {
                 let mut row = format!("C{index} {:>3.0}%", cpu.total);
                 if let Some(freq) = snapshot.cpu.frequencies_mhz.get(*index) {
-                row.push_str(&format!(" {}", format_frequency(*freq, &config.freq_mode)));
+                    row.push_str(&format!(" {}", format_frequency(*freq, &config.freq_mode)));
                 }
                 if let Some((_, temp, _)) = snapshot
                     .cpu

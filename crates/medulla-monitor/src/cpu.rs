@@ -1,7 +1,11 @@
 //! Whole-machine CPU sampling, with Linux's `/proc/stat` as the precise source.
 
 #[cfg(target_os = "linux")]
-use std::{collections::BTreeMap, fs, path::{Path, PathBuf}};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 /// CPU time fields exposed by Linux `/proc/stat` and selectable in graphs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,6 +93,7 @@ pub struct CpuSnapshot {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+#[cfg(target_os = "linux")]
 struct Times([u64; 10]);
 
 /// Stateful CPU sampler. Linux files can be overridden to make it deterministic in tests.
@@ -190,6 +195,7 @@ impl CpuMonitor {
     }
 }
 
+#[cfg(target_os = "linux")]
 fn cpu_delta(old: Times, new: Times) -> CpuReading {
     let mut delta = [0f64; 10];
     for i in 0..10 {
