@@ -41,6 +41,10 @@ pub struct ProcessSnapshot {
 /// Immutable whole-device readings suitable for sharing with renderers.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ResourceSnapshot {
+    /// Current process metrics used by the status line.
+    pub current_process: Option<super::super::ResourceSnapshot>,
+    /// Seconds since the previous sample, used to scale process I/O deltas.
+    pub sample_interval_seconds: f64,
     /// Total CPU utilization as a percentage.
     pub cpu_percent: f64,
     /// Utilization percentages for each logical CPU.
@@ -61,4 +65,69 @@ pub struct ResourceSnapshot {
     pub disks: Vec<DiskSnapshot>,
     /// Process table in the order sysinfo supplied it.
     pub processes: Vec<ProcessSnapshot>,
+}
+
+impl ResourceSnapshot {
+    /// Adapt whole-device readings for the existing compact footer.
+    pub fn device_snapshot(&self) -> super::super::DeviceSnapshot {
+        let cwd = std::env::current_dir().ok();
+        let disk = self
+            .disks
+            .iter()
+            .filter_map(|disk| {
+                let mount = std::path::Path::new(&disk.mount);
+                let depth = cwd.as_ref()?.strip_prefix(mount).ok()?.components().count();
+                Some((depth, disk))
+            })
+            .max_by_key(|(depth, _)| *depth)
+            .map(|(_, disk)| disk);
+        super::super::DeviceSnapshot {
+            cpu_fraction: Some((self.cpu_percent / 100.0).clamp(0.0, 1.0)),
+            memory_used_bytes: Some(self.memory_used_bytes),
+            memory_total_bytes: Some(self.memory_total_bytes),
+            disk_used_bytes: disk.map(|disk| disk.used_bytes),
+            disk_total_bytes: disk.map(|disk| disk.total_bytes),
+        }
+    }
+
+    /// Aggregate the cached process table for a session, without touching the
+    /// host from the render path.
+    pub fn session_snapshot(&self, root_pid: u32) -> Option<super::super::SessionSnapshot> {
+        let root = self
+            .processes
+            .iter()
+            .find(|process| process.pid == root_pid)?;
+        let mut children = std::collections::HashMap::<u32, Vec<u32>>::new();
+        for process in &self.processes {
+            if let Some(parent) = process.ppid {
+                children.entry(parent).or_default().push(process.pid);
+            }
+        }
+        let core_count = self.cpu_cores_percent.len().max(1) as f64;
+        let mut result = super::super::SessionSnapshot {
+            total_memory_bytes: self.memory_total_bytes,
+            ..Default::default()
+        };
+        let mut pending = vec![root.pid];
+        let mut visited = std::collections::HashSet::new();
+        while let Some(pid) = pending.pop() {
+            if !visited.insert(pid) {
+                continue;
+            }
+            let Some(process) = self.processes.iter().find(|process| process.pid == pid) else {
+                continue;
+            };
+            result.processes += 1;
+            result.cpu_fraction += process.cpu_percent / (core_count * 100.0);
+            result.memory_bytes = result.memory_bytes.saturating_add(process.memory_bytes);
+            result.disk_bytes_per_second += (process.disk_read_bytes + process.disk_written_bytes)
+                as f64
+                / self.sample_interval_seconds.max(0.001);
+            if let Some(descendants) = children.get(&pid) {
+                pending.extend(descendants);
+            }
+        }
+        result.cpu_fraction = result.cpu_fraction.clamp(0.0, 1.0);
+        Some(result)
+    }
 }

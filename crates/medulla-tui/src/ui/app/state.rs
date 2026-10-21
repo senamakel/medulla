@@ -86,9 +86,6 @@ impl App {
             appearance_split: false,
             status_line_preview: false,
             status_line_split: false,
-            resource_monitor: Default::default(),
-            device_monitor: Default::default(),
-            session_monitor: Default::default(),
             resource_snapshot: Default::default(),
             status_line_index: 0,
             status_line_promotion_pending,
@@ -187,10 +184,6 @@ impl App {
     ///
     /// Render tests need the footer to say the same thing on every machine, so
     /// they inject a snapshot instead of letting the rail sample the host.
-    pub fn set_device_snapshot(&mut self, snapshot: crate::ui::resources::DeviceSnapshot) {
-        self.device_monitor.inject(snapshot);
-    }
-
     /// Replace the cached background resources reading without sampling on the
     /// caller, which may be the UI task.
     pub fn set_resource_snapshot(

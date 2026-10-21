@@ -10,7 +10,7 @@ pub use types::{DiskSnapshot, ProcessSnapshot, ResourceSnapshot};
 mod tests;
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use sysinfo::{Disks, ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::sync::watch;
@@ -61,6 +61,7 @@ where
 pub struct SystemResourceSource {
     system: System,
     disks: Disks,
+    last_sample: Option<Instant>,
 }
 
 impl Default for SystemResourceSource {
@@ -68,12 +69,19 @@ impl Default for SystemResourceSource {
         Self {
             system: System::new(),
             disks: Disks::new(),
+            last_sample: None,
         }
     }
 }
 
 impl ResourceSource for SystemResourceSource {
     fn sample(&mut self) -> ResourceSnapshot {
+        let now = Instant::now();
+        let elapsed = self
+            .last_sample
+            .replace(now)
+            .map(|last| now.duration_since(last).as_secs_f64())
+            .unwrap_or(0.0);
         self.system.refresh_cpu_usage();
         self.system.refresh_memory();
         self.system.refresh_processes_specifics(
@@ -112,7 +120,29 @@ impl ResourceSource for SystemResourceSource {
                 threads: process.tasks().map_or(0, |tasks| tasks.len()),
             })
             .collect();
+        let current_pid = sysinfo::get_current_pid().ok().map(|pid| pid.as_u32());
+        let current_process = current_pid.and_then(|pid| {
+            let process = self
+                .system
+                .processes()
+                .iter()
+                .find(|(candidate, _)| candidate.as_u32() == pid)
+                .map(|(_, process)| process)?;
+            let cores = self.system.cpus().len().max(1) as f64;
+            let disk = process.disk_usage();
+            let seconds = elapsed.max(0.001);
+            Some(super::super::ResourceSnapshot {
+                cpu_fraction: (f64::from(process.cpu_usage()) / (cores * 100.0)).clamp(0.0, 1.0),
+                memory_bytes: process.memory(),
+                total_memory_bytes: self.system.total_memory(),
+                disk_read_bytes_per_second: disk.read_bytes as f64 / seconds,
+                disk_write_bytes_per_second: disk.written_bytes as f64 / seconds,
+                disk_peak_bytes_per_second: (disk.read_bytes + disk.written_bytes) as f64 / seconds,
+            })
+        });
         ResourceSnapshot {
+            current_process,
+            sample_interval_seconds: elapsed,
             cpu_percent: f64::from(self.system.global_cpu_usage()),
             cpu_cores_percent: self
                 .system
