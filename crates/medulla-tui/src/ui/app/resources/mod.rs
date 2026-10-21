@@ -114,6 +114,11 @@ impl App {
                     );
                 } else {
                     f.render_widget(Paragraph::new(Line::default()).block(block), rect);
+                    if title.contains("Mem") {
+                        draw_mem_panel(f, block.inner(rect), &self.resource_snapshot, state.show_disks, state.io_mode);
+                        state.hits.disks_toggle = Rect::new(rect.x + 7, rect.y, 3, 1);
+                        state.hits.io_toggle = Rect::new(rect.x + 11, rect.y, 3, 1);
+                    }
                 }
             }
         }
@@ -154,6 +159,8 @@ impl App {
         config.cpu_bottom = Some(state.opts.cpu_bottom);
         config.mem_below_net = Some(state.opts.mem_below_net);
         config.agents_left = Some(state.opts.agents_left);
+        config.show_disks = state.show_disks;
+        config.io_mode = state.io_mode;
         if let Some(path) = self.config_path.as_deref() {
             let settings = [
                 ("updateMs", ratatui_toml_value_u64(config.update_ms)),
@@ -200,6 +207,8 @@ impl App {
             (hits.mem_toggle, '2'),
             (hits.net_toggle, '3'),
             (hits.agents_toggle, '4'),
+            (hits.disks_toggle, 'd'),
+            (hits.io_toggle, 'i'),
             (hits.preset_prev, 'p'),
             (hits.preset_next, 'P'),
             (hits.interval_down, '-'),

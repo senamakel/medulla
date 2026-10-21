@@ -34,6 +34,8 @@ pub(in crate::ui::app) struct ResourcesState {
     pub presets: Vec<String>,
     pub hits: ResourceHits,
     pub menu_open: bool,
+    pub show_disks: bool,
+    pub io_mode: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -42,6 +44,8 @@ pub(in crate::ui::app) struct ResourceHits {
     pub mem_toggle: Rect,
     pub net_toggle: Rect,
     pub agents_toggle: Rect,
+    pub disks_toggle: Rect,
+    pub io_toggle: Rect,
     pub menu: Rect,
     pub preset_prev: Rect,
     pub preset_next: Rect,
@@ -65,6 +69,8 @@ impl Default for ResourcesState {
             presets: vec!["cpu:0:default,mem:0:default,net:0:default,agents:1:default".into()],
             hits: ResourceHits::default(),
             menu_open: false,
+            show_disks: true,
+            io_mode: false,
         }
     }
 }
@@ -97,6 +103,8 @@ impl ResourcesState {
             },
             opts: LayoutOptions::default(),
             interval_ms: config.update_interval_ms(),
+            show_disks: config.show_disks,
+            io_mode: config.io_mode,
             presets,
             ..Self::default()
         };

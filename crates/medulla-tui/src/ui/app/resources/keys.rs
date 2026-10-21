@@ -8,6 +8,8 @@ impl ResourcesState {
             KeyCode::Char('2') => self.shown.mem = !self.shown.mem,
             KeyCode::Char('3') => self.shown.net = !self.shown.net,
             KeyCode::Char('4') => self.shown.agents = !self.shown.agents,
+            KeyCode::Char('d') => self.show_disks = !self.show_disks,
+            KeyCode::Char('i') => self.io_mode = !self.io_mode,
             KeyCode::Char('p') => self.preset = self.preset.saturating_sub(1),
             KeyCode::Char('P') => self.preset = (self.preset + 1) % self.presets.len().max(1),
             KeyCode::Char('+') | KeyCode::Char('=') => {
