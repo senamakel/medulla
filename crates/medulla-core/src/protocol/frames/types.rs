@@ -6,6 +6,7 @@
 
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+pub use medulla_types::{BudgetWindow, HarnessProvider, HarnessTransport, TokenUsage};
 use std::fmt;
 
 /// Wire version tag stamped on every task frame body.
