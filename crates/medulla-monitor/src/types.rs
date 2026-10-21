@@ -1,16 +1,12 @@
-//! Data types for resource sampling: the immutable readings passed from the
-//! samplers to formatting, and the sampler's own state.
-//!
-//! The behaviour-heavy sampling lives in [`process_monitor`](super::process_monitor)
-//! for the process scale and [`device`](super::device) for the device scale;
-//! only shape and construction are declared here.
+//! Snapshot values and state for the current-process sampler.
 
 use std::time::Instant;
 
+use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
 /// One current-process resource sample.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct ResourceSnapshot {
     /// CPU use as a fraction of the whole machine's logical CPU capacity.
     pub cpu_fraction: f64,
@@ -30,7 +26,7 @@ pub struct ResourceSnapshot {
 ///
 /// Every field is optional because platform support and permissions vary. A
 /// missing reading is rendered as unavailable without suppressing the others.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct DeviceSnapshot {
     /// CPU use as a fraction of the device's logical CPU capacity.
     pub cpu_fraction: Option<f64>,
@@ -56,6 +52,8 @@ pub struct ResourceMonitor {
     pub(super) disk_peak_bytes_per_second: f64,
     /// Most recent reading, handed back while inside the throttle interval.
     pub(super) snapshot: ResourceSnapshot,
+    /// Test-injected reading that bypasses all host sampling.
+    pub(super) injected: Option<ResourceSnapshot>,
 }
 
 impl Default for ResourceMonitor {
@@ -66,6 +64,7 @@ impl Default for ResourceMonitor {
             last_refresh: None,
             disk_peak_bytes_per_second: 1.0,
             snapshot: ResourceSnapshot::default(),
+            injected: None,
         }
     }
 }
