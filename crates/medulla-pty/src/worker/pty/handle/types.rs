@@ -209,6 +209,8 @@ pub(crate) struct SessionMeta {
     pub(crate) close: Arc<SessionClose>,
     /// UI-owned terminal classification callback.
     pub(crate) lifecycle: Arc<dyn SessionLifecycle>,
+    /// Launch environment supplied to TUI lifecycle callbacks.
+    pub(crate) env: std::collections::HashMap<String, String>,
 }
 
 /// One live PTY-backed harness session, and everything the manager knows about

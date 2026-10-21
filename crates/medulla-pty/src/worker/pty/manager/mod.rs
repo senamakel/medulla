@@ -223,6 +223,8 @@ fn now_millis() -> i64 {
 }
 
 mod labels;
+mod attention;
+mod checkout;
 mod open;
 mod screen;
 mod session;

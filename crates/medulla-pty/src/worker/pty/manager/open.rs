@@ -124,6 +124,7 @@ impl PtyManager {
                 cwd: spec.cwd.clone(),
                 env: spec.env.clone(),
                 grant_session: spec.mcp_grant_session.clone(),
+                provider: spec.provider,
                 ..LifecycleSession::default()
             },
         ));
@@ -212,6 +213,7 @@ impl PtyManager {
                 mcp_grant_session: spec.mcp_grant_session,
                 close,
                 lifecycle: Arc::clone(&self.inner.lifecycle),
+                env: spec.env.clone(),
             },
             spec.label,
             spec.name,
@@ -228,6 +230,8 @@ impl PtyManager {
         handle.set_checkout(checkout);
 
         write(&self.inner.sessions).push(handle.clone());
+        self.spawn_attention_poller(Arc::downgrade(&handle));
+        self.spawn_checkout_poller(Arc::downgrade(&handle));
 
         // Only now: the reader marks output on every read, and a child that
         // greets the pty immediately would otherwise have its first output land
