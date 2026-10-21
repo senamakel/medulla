@@ -34,7 +34,7 @@ pub type OnSession = Box<dyn FnOnce(String) + Send>;
 pub type OnWorkspaceContext = Box<dyn Fn(WorkspaceContext) + Send + Sync>;
 
 /// A PATH-lookup predicate (injectable for tests).
-pub type ExistsOnPath = Box<dyn Fn(&str) -> bool + Send + Sync>;
+pub use medulla_providers::detect::ExistsOnPath;
 
 /// A cooperative abort handle shared between the daemon and a running task.
 /// Aborting sets the flag and wakes any waiter; a task selects on
