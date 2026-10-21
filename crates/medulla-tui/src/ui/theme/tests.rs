@@ -34,8 +34,14 @@ fn gradients_support_two_colors_and_solid_fills() {
 #[test]
 fn truecolor_fallback_matches_btop_256_color_indices() {
     assert_eq!(truecolor_to_256(Color::Rgb(255, 0, 0)), Color::Indexed(196));
-    assert_eq!(truecolor_to_256(Color::Rgb(128, 128, 128)), Color::Indexed(244));
-    assert_eq!(truecolor_to_256(Color::Rgb(0, 255, 255)), Color::Indexed(51));
+    assert_eq!(
+        truecolor_to_256(Color::Rgb(128, 128, 128)),
+        Color::Indexed(244)
+    );
+    assert_eq!(
+        truecolor_to_256(Color::Rgb(0, 255, 255)),
+        Color::Indexed(51)
+    );
 }
 
 #[test]
@@ -75,6 +81,7 @@ fn from_config_falls_back_per_field() {
         attention: Some("lightyellow".into()),
         attention_blink: Some(false),
         attention_blink_seconds: None,
+        ..ThemeConfig::default()
     };
     let t = Theme::from_config(&cfg);
     assert_eq!(t.primary, Color::Rgb(0x12, 0x34, 0x56));
