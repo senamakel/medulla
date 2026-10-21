@@ -111,11 +111,13 @@ fn resource_keys_toggle_boxes_cycle_presets_and_clamp_interval() {
 
 #[test]
 fn selecting_a_preset_shows_only_the_boxes_named_by_its_entries() {
-    let mut state = ResourcesState::default();
-    state.presets = vec![
-        "cpu:0:default,mem:0:default,net:0:default,agents:1:default".into(),
-        "cpu:1:block,net:0:tty".into(),
-    ];
+    let mut state = ResourcesState {
+        presets: vec![
+            "cpu:0:default,mem:0:default,net:0:default,agents:1:default".into(),
+            "cpu:1:block,net:0:tty".into(),
+        ],
+        ..ResourcesState::default()
+    };
     assert!(state.key(KeyCode::Char('P')));
     assert_eq!(
         state.shown,
