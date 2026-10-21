@@ -7,7 +7,7 @@ pub type ClipboardSink = Arc<dyn Fn(&str) + Send + Sync>;
 
 /// Decode a valid OSC 52 clipboard write, accepting padded or unpadded base64.
 pub fn osc52_from_params(params: &[&[u8]]) -> Option<String> {
-    if params.first()? != &b"52"[..] || params.len() < 2 {
+    if *params.first()? != &b"52"[..] || params.len() < 2 {
         return None;
     }
     let payload = params.last()?;
