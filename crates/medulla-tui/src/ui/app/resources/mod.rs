@@ -29,16 +29,40 @@ impl App {
                     "Terminal too small for Resources (minimum {required}x8)"
                 ))
                 .alignment(ratatui::layout::Alignment::Center)
-                .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                .style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 area,
             );
             return;
         }
         for (shown, rect, title, color) in [
-            (state.shown.cpu, rects.cpu, "CPU", self.theme.resources.cpu_box),
-            (state.shown.mem, rects.mem, "Mem", self.theme.resources.mem_box),
-            (state.shown.net, rects.net, "Net", self.theme.resources.net_box),
-            (state.shown.agents, rects.agents, "Agents", self.theme.resources.agents_box),
+            (
+                state.shown.cpu,
+                rects.cpu,
+                "CPU",
+                self.theme.resources.cpu_box,
+            ),
+            (
+                state.shown.mem,
+                rects.mem,
+                "Mem",
+                self.theme.resources.mem_box,
+            ),
+            (
+                state.shown.net,
+                rects.net,
+                "Net",
+                self.theme.resources.net_box,
+            ),
+            (
+                state.shown.agents,
+                rects.agents,
+                "Agents",
+                self.theme.resources.agents_box,
+            ),
         ] {
             if shown && rect.width > 0 && rect.height > 0 {
                 let title = if title == "CPU" {

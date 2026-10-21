@@ -8,6 +8,7 @@ use crossterm::event::{KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 use ratatui::layout::Rect;
+use ratatui::{backend::TestBackend, Terminal};
 use std::sync::Arc;
 
 fn all() -> ShownBoxes {
@@ -109,6 +110,9 @@ fn tab_keys_still_cycle_all_tabs() {
     assert_eq!(app.tab(), "Resources");
     app.on_key(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE));
     assert!(!app.resources.shown.cpu);
+    assert_eq!(app.loaded.config.resources.update_ms, 2_000);
+    app.on_key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE));
+    assert_eq!(app.loaded.config.resources.update_ms, 2_100);
     app.on_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
     let resources_index = crate::ui::app::TABS
         .iter()
@@ -118,6 +122,30 @@ fn tab_keys_still_cycle_all_tabs() {
         app.tab(),
         crate::ui::app::TABS[(resources_index + 1) % crate::ui::app::TABS.len()]
     );
+}
+
+#[test]
+fn resources_draw_empty_titled_panels_until_data_views_land() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    let backend = TestBackend::new(170, 42);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
+        .unwrap();
+    let text = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(text.contains("CPU [1]"));
+    assert!(text.contains("Mem [2]"));
+    assert!(text.contains("Net [3]"));
+    assert!(text.contains("Agents [4]"));
 }
 
 #[test]
