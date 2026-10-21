@@ -13,6 +13,9 @@ use super::types::{ResourceMonitor, ResourceSnapshot};
 impl ResourceMonitor {
     /// Return a recent sample, refreshing at most once per second.
     pub fn sample(&mut self) -> ResourceSnapshot {
+        if let Some(injected) = self.injected {
+            return injected;
+        }
         let now = Instant::now();
         if self
             .last_refresh
@@ -62,5 +65,10 @@ impl ResourceMonitor {
             disk_peak_bytes_per_second: self.disk_peak_bytes_per_second,
         };
         self.snapshot
+    }
+
+    /// Replace live sampling with a fixed reading, for tests.
+    pub fn inject(&mut self, snapshot: ResourceSnapshot) {
+        self.injected = Some(snapshot);
     }
 }

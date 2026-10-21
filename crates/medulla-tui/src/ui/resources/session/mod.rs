@@ -11,11 +11,7 @@
 //! once, and each session's tree is then walked out of that one snapshot.
 
 mod format;
-mod monitor;
-mod types;
-
 #[cfg(test)]
 mod tests;
 
 pub use format::{session_segments, session_usage};
-pub use types::{SessionMonitor, SessionSnapshot};

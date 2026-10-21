@@ -41,8 +41,10 @@ pub struct ProcessSnapshot {
 /// Immutable whole-device readings suitable for sharing with renderers.
 #[derive(Debug, Clone, Default)]
 pub struct ResourceSnapshot {
+    /// Whole-machine CPU details and Linux-only hardware readings.
+    pub cpu: crate::CpuSnapshot,
     /// Current process metrics used by the status line.
-    pub current_process: Option<super::super::ResourceSnapshot>,
+    pub current_process: Option<crate::ResourceSnapshot>,
     /// Recent readings accumulated by the sampler for graph rendering.
     pub history: std::sync::Arc<ResourceHistory>,
     /// Seconds since the previous sample, used to scale process I/O deltas.
@@ -74,13 +76,25 @@ pub struct ResourceSnapshot {
 }
 
 impl ResourceSnapshot {
+    /// Attach whole-machine CPU readings to a snapshot.
+    pub fn with_cpu(mut self, cpu: crate::CpuSnapshot) -> Self {
+        self.cpu = cpu;
+        self
+    }
+
+    /// Attach the history accumulated by a background sampler.
+    pub fn with_history(mut self, history: std::sync::Arc<ResourceHistory>) -> Self {
+        self.history = history;
+        self
+    }
+
     /// Adapt whole-device readings for the existing compact footer.
-    pub fn device_snapshot(&self) -> super::super::DeviceSnapshot {
+    pub fn device_snapshot(&self) -> crate::DeviceSnapshot {
         let cwd = std::env::current_dir().ok();
         let disk = cwd
             .as_deref()
             .and_then(|cwd| most_specific_mount(&self.disks, cwd));
-        super::super::DeviceSnapshot {
+        crate::DeviceSnapshot {
             cpu_fraction: Some((self.cpu_percent / 100.0).clamp(0.0, 1.0)),
             memory_used_bytes: Some(self.memory_used_bytes),
             memory_total_bytes: Some(self.memory_total_bytes),
@@ -115,10 +129,10 @@ impl ResourceSnapshot {
 
     /// Aggregate the cached process table for a session, without touching the
     /// host from the render path.
-    pub fn session_snapshot(&self, root_pid: u32) -> Option<super::super::SessionSnapshot> {
+    pub fn session_snapshot(&self, root_pid: u32) -> Option<crate::SessionSnapshot> {
         let root = self.processes.get(*self.process_index.get(&root_pid)?)?;
         let core_count = self.cpu_cores_percent.len().max(1) as f64;
-        let mut result = super::super::SessionSnapshot {
+        let mut result = crate::SessionSnapshot {
             total_memory_bytes: self.memory_total_bytes,
             ..Default::default()
         };
@@ -171,6 +185,8 @@ pub(super) fn most_specific_mount<'a>(
 pub struct ResourceHistory {
     /// Whole-device CPU utilization percentages.
     pub cpu_percent: super::History<f64>,
+    /// CPU field readings over time.
+    pub cpu: super::History<crate::CpuSnapshot>,
     /// Physical memory currently used, in bytes.
     pub memory_used_bytes: super::History<u64>,
     /// Swap currently used, in bytes.
@@ -183,6 +199,7 @@ impl ResourceHistory {
     /// Append one snapshot and trim every series to the requested viewport size.
     pub fn push(&mut self, snapshot: &ResourceSnapshot, capacity: usize) {
         self.cpu_percent.push(snapshot.cpu_percent, capacity);
+        self.cpu.push(snapshot.cpu.clone(), capacity);
         self.memory_used_bytes
             .push(snapshot.memory_used_bytes, capacity);
         self.swap_used_bytes

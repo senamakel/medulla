@@ -91,6 +91,7 @@ pub struct SystemResourceSource {
     disks: Disks,
     last_sample: Option<Instant>,
     disk_peak_bytes_per_second: f64,
+    cpu_monitor: crate::CpuMonitor,
 }
 
 impl Default for SystemResourceSource {
@@ -100,6 +101,7 @@ impl Default for SystemResourceSource {
             disks: Disks::new(),
             last_sample: None,
             disk_peak_bytes_per_second: 1.0,
+            cpu_monitor: crate::CpuMonitor::default(),
         }
     }
 }
@@ -123,7 +125,7 @@ impl ResourceSource for SystemResourceSource {
             .map(|last| now.duration_since(last).as_secs_f64())
             .unwrap_or(0.0);
         let baseline_ready = self.last_sample.replace(now).is_some();
-        self.system.refresh_cpu_usage();
+        self.system.refresh_cpu_all();
         self.system.refresh_memory();
         self.system.refresh_processes_specifics(
             ProcessesToUpdate::All,
@@ -216,7 +218,7 @@ impl ResourceSource for SystemResourceSource {
                 0.0
             };
             let disk_peak = self.update_disk_peak(read_rate, write_rate);
-            Some(crate::ui::resources::types::ResourceSnapshot {
+            Some(crate::ResourceSnapshot {
                 cpu_fraction: (cpu_percent / (cores * 100.0)).clamp(0.0, 1.0),
                 memory_bytes,
                 total_memory_bytes,
@@ -225,7 +227,42 @@ impl ResourceSource for SystemResourceSource {
                 disk_peak_bytes_per_second: disk_peak,
             })
         });
+        let mut cpu = self.cpu_monitor.sample();
+        cpu.model = self
+            .system
+            .cpus()
+            .first()
+            .map(|cpu| cpu.brand().trim().to_owned())
+            .filter(|brand| !brand.is_empty());
+        if cpu.cores.is_empty() {
+            cpu.total.total = self.system.global_cpu_usage();
+            cpu.cores = self
+                .system
+                .cpus()
+                .iter()
+                .map(|cpu| crate::CpuReading {
+                    total: cpu.cpu_usage(),
+                    ..Default::default()
+                })
+                .collect();
+        }
+        if cpu.frequencies_mhz.iter().all(Option::is_none) {
+            cpu.frequencies_mhz = self
+                .system
+                .cpus()
+                .iter()
+                .map(|cpu| Some(cpu.frequency()))
+                .collect();
+        }
+        if cpu.load_average == [0.0; 3] {
+            let load = System::load_average();
+            cpu.load_average = [load.one, load.five, load.fifteen];
+        }
+        if cpu.uptime_seconds.is_none() {
+            cpu.uptime_seconds = Some(System::uptime());
+        }
         ResourceSnapshot {
+            cpu,
             current_process,
             history: Default::default(),
             process_index,

@@ -295,6 +295,112 @@ fn cpu_title_controls_have_distinct_click_actions() {
 }
 
 #[test]
+fn cpu_panel_renders_sixteen_cores_without_clipping_at_common_sizes() {
+    let mut cpu = medulla_monitor::CpuSnapshot {
+        model: Some("Test CPU".to_owned()),
+        cores: (0..16)
+            .map(|index| medulla_monitor::CpuReading {
+                total: index as f32,
+                ..Default::default()
+            })
+            .collect(),
+        frequencies_mhz: (0..16).map(|index| (index != 0).then_some(2400)).collect(),
+        load_average: [0.5, 0.25, 0.1],
+        uptime_seconds: Some(1234),
+        ..Default::default()
+    };
+    let mut history = crate::ui::resources::sampler::ResourceHistory::default();
+    let mut historical_cpu = cpu.clone();
+    historical_cpu.core_temperatures_c = (0..16).map(|index| (index, 50.0, 90.0)).collect();
+    history.push(
+        &crate::ui::resources::sampler::ResourceSnapshot::default().with_cpu(historical_cpu),
+        20,
+    );
+    let snapshot = crate::ui::resources::sampler::ResourceSnapshot::default()
+        .with_cpu(std::mem::take(&mut cpu))
+        .with_history(Arc::new(history));
+    for (width, height) in [(170, 42), (80, 24)] {
+        let mut app = App::new(
+            Arc::new(MockRuntime::empty()),
+            LoadedConfig::defaults("test.json".into()),
+        );
+        app.set_resource_snapshot(Arc::new(snapshot.clone()));
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height)))
+            .unwrap();
+        let cpu_rect = app.resources.rects.cpu;
+        let buffer = terminal.backend().buffer();
+        let text = (cpu_rect.y..cpu_rect.bottom())
+            .flat_map(|y| (cpu_rect.x..cpu_rect.right()).map(move |x| buffer[(x, y)].symbol()))
+            .collect::<String>();
+        for core in 0..16 {
+            assert!(
+                text.contains(&format!("C{core} ")),
+                "missing core {core} at {width}x{height}: {text}"
+            );
+        }
+        assert!(text.contains("2.4GHz"));
+        if width >= 100 {
+            assert!(text.contains("Test CPU"));
+            assert!(text.contains("Load avg 0.50 0.25 0.10"));
+            let graph_row = cpu_rect.y + 1 + 2 + 1;
+            let first_cpu_text = (cpu_rect.x + 1..cpu_rect.x + 100)
+                .map(|x| buffer[(x, graph_row)].symbol())
+                .collect::<String>();
+            assert!(first_cpu_text.contains("C0"));
+            assert!(first_cpu_text.contains("C1"));
+            assert!(first_cpu_text.contains("2.4GHz"));
+            assert!(
+                (cpu_rect.x + 100..cpu_rect.right() - 1)
+                    .any(|x| buffer[(x, graph_row)].symbol() != " "),
+                "missing per-core graphs at {width}x{height}"
+            );
+        } else {
+            assert!(
+                text.contains("Load avg 0.5"),
+                "missing compact load at {width}x{height}: {text}"
+            );
+        }
+        assert!(!text.contains("Pkg"));
+        assert!(!text.contains("°C"));
+    }
+}
+
+#[test]
+fn cpu_panel_shows_zero_load_average_with_required_label() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    let snapshot = crate::ui::resources::sampler::ResourceSnapshot::default().with_cpu(
+        medulla_monitor::CpuSnapshot {
+            load_average: [0.0; 3],
+            ..Default::default()
+        },
+    );
+    app.set_resource_snapshot(Arc::new(snapshot));
+    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
+        .unwrap();
+    let cpu = app.resources.rects.cpu;
+    let buffer = terminal.backend().buffer();
+    let text = (cpu.y..cpu.bottom())
+        .flat_map(|y| (cpu.x..cpu.right()).map(move |x| buffer[(x, y)].symbol()))
+        .collect::<String>();
+    assert!(text.contains("Load avg 0.00 0.00 0.00"));
+}
+
+#[test]
+fn cpu_frequency_mode_formats_mhz_ghz_and_auto() {
+    assert_eq!(super::format_frequency(800, "auto"), "800MHz");
+    assert_eq!(super::format_frequency(2400, "auto"), "2.4GHz");
+    assert_eq!(super::format_frequency(2400, "mhz"), "2400MHz");
+    assert_eq!(super::format_frequency(800, "ghz"), "0.8GHz");
+}
+
+#[test]
 fn each_panel_title_button_toggles_only_its_box() {
     let mut app = App::new(
         Arc::new(MockRuntime::empty()),

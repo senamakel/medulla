@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
+use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
 /// What one harness session is costing the machine right now.
@@ -17,7 +18,7 @@ use sysinfo::System;
 /// work, so charging the session only for its own root process would report
 /// near-zero for exactly the sessions an operator is watching because they are
 /// expensive.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct SessionSnapshot {
     /// CPU use of the whole process tree, as a fraction of the machine's total
     /// logical CPU capacity.
