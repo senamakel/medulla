@@ -39,6 +39,8 @@ Run all three before pushing:
 cargo test                              # unit + feature + e2e suites (all mocked, no network)
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check                       # run `cargo fmt` to apply
+scripts/check-crate-layering.sh         # enforce primitive and terminal UI boundaries
+scripts/tests/layering/run.sh           # verify the layering guard fixtures
 ```
 
 The e2e suites spin up in-process stand-ins so they are safe anywhere. They all
