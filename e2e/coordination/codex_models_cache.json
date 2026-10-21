@@ -1,5 +1,5 @@
 {
-  "_comment": "Fixture stand-in for the model catalog Codex normally fetches from its own API and caches at $CODEX_HOME/models_cache.json. The e2e stack runs with no network, so nothing would ever write this file — and without it a codexOverrides preset cannot derive its catalog entry (see crates/medulla/src/codex_overrides/catalog.rs) and the run fails before it reaches the mock LLM. Only the fields that derivation reads or Codex requires are present, and the instructions template is a deliberately short stand-in rather than a copy of the vendor's system prompt.",
+  "_comment": "Fixture stand-in for the model catalog Codex normally fetches from its own API and caches at $CODEX_HOME/models_cache.json. The e2e stack runs with no network, so nothing would ever write this file — and without it a codexOverrides preset cannot derive its catalog entry (see crates/medulla-core/src/codex_overrides/catalog.rs) and the run fails before it reaches the mock LLM. Only the fields that derivation reads or Codex requires are present, and the instructions template is a deliberately short stand-in rather than a copy of the vendor's system prompt.",
   "fetched_at": "2026-01-01T00:00:00Z",
   "client_version": "e2e-fixture",
   "models": [

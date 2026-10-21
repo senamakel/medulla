@@ -148,9 +148,9 @@ fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
     // was written, and a stale path would assert nothing, so a missing file
     // fails the test rather than being skipped.
     for path in [
-        "crates/medulla/src/hub/boot/mod.rs",
-        "crates/medulla/src/hub/socket/mod.rs",
-        "crates/medulla/src/hub/workflows.rs",
+        "crates/medulla-core/src/hub/boot/mod.rs",
+        "crates/medulla-core/src/hub/socket/mod.rs",
+        "crates/medulla-core/src/hub/workflows.rs",
         "crates/medulla-tui/src/hub_relay/mod.rs",
     ] {
         let full = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
