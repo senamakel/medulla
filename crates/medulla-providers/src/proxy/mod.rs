@@ -50,6 +50,9 @@ mod types;
 mod tests;
 
 #[cfg(test)]
+mod spawn_tests;
+
+#[cfg(test)]
 mod body_tests;
 
 #[cfg(test)]
