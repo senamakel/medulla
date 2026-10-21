@@ -82,6 +82,7 @@ fn resource_keys_toggle_boxes_cycle_presets_and_clamp_interval() {
             expected
         );
     }
+    state.presets.push("cpu:1:block,agents:0:tty".into());
     assert!(state.key(KeyCode::Char('P')));
     assert_eq!(state.preset, 1);
     state.interval_ms = 9_950;
@@ -98,14 +99,15 @@ fn tab_keys_still_cycle_all_tabs() {
         Arc::new(MockRuntime::empty()),
         LoadedConfig::defaults("test.json".into()),
     );
-    app.on_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
-    assert_eq!(app.tab(), "Subconscious");
-    app.on_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+    for _ in 0..crate::ui::app::TABS.iter().position(|tab| *tab == "Resources").unwrap() {
+        app.on_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+    }
     assert_eq!(app.tab(), "Resources");
     app.on_key(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE));
     assert!(!app.resources.shown.cpu);
     app.on_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
-    assert_eq!(app.tab(), "Feedback");
+    let resources_index = crate::ui::app::TABS.iter().position(|tab| *tab == "Resources").unwrap();
+    assert_eq!(app.tab(), crate::ui::app::TABS[(resources_index + 1) % crate::ui::app::TABS.len()]);
 }
 
 #[test]
@@ -114,7 +116,8 @@ fn clicking_a_panel_title_toggles_that_box() {
         Arc::new(MockRuntime::empty()),
         LoadedConfig::defaults("test.json".into()),
     );
-    app.resources.rects = calc_sizes(Rect::new(0, 0, 170, 42), all(), &LayoutOptions::default());
+    app.tab_index = crate::ui::app::TABS.iter().position(|tab| *tab == "Resources").unwrap();
+    app.resources.rects = calc_sizes(Rect::new(0, 5, 170, 42), all(), &LayoutOptions::default());
     let cpu = app.resources.rects.cpu;
     app.handle_click(cpu.x + 1, cpu.y);
     assert!(!app.resources.shown.cpu);
