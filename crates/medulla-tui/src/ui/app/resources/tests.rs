@@ -332,6 +332,25 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                     text.contains(if combined { "IO READ+WRITE" } else { "IO READ" }),
                     "IO graph labels missing at {width}x{height}: {text}"
                 );
+                let mem = app.resources.rects.mem;
+                let graph_y = mem.y + 1;
+                assert!(
+                    (mem.x + 1..mem.right() - 1)
+                        .any(|x| terminal.backend().buffer()[(x, graph_y)].symbol() != " "),
+                    "IO graph missing at {width}x{height}"
+                );
+            } else {
+                let mem = app.resources.rects.mem;
+                let inner_y = mem.y + 1;
+                let graph_rows = if mem_graphs { 2 } else { 0 };
+                let disk_start = if mem_graphs { 3 } else { 2 };
+                let disk_graph_y = inner_y + graph_rows + disk_start;
+                let graph_x = mem.x + 1 + (mem.width - 2) * 3 / 4;
+                assert!(
+                    (graph_x..mem.right() - 1)
+                        .any(|x| terminal.backend().buffer()[(x, disk_graph_y)].symbol() != " "),
+                    "per-disk busy graph missing at {width}x{height}"
+                );
             }
         }
     }

@@ -408,10 +408,18 @@ fn disk_is_visible(disk: &sysinfo::Disk, options: &DiskOptions) -> bool {
     let mount = disk.mount_point().to_string_lossy();
     let device = disk.name().to_string_lossy();
     let fs = disk.file_system().to_string_lossy();
+    #[cfg(target_os = "linux")]
     let fstab = if options.use_fstab {
         std::fs::read_to_string("/etc/fstab").unwrap_or_default()
     } else {
         String::new()
+    };
+    #[cfg(not(target_os = "linux"))]
+    let fstab = String::new();
+    #[cfg(not(target_os = "linux"))]
+    let options = &DiskOptions {
+        use_fstab: false,
+        ..options.clone()
     };
     mount_is_visible(&mount, &device, &fs, options, &fstab)
 }

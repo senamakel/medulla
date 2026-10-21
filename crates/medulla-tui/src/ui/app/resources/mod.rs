@@ -411,9 +411,31 @@ fn draw_mem_panel(
                 })
                 .collect();
             let swap: Vec<f32> = if config.show_swap {
-                snapshot.history.swap_used_bytes.iter().map(|v| if snapshot.swap_total_bytes == 0 { 0.0 } else { *v as f32 * 100.0 / snapshot.swap_total_bytes as f32 }).collect()
+                snapshot
+                    .history
+                    .swap_used_bytes
+                    .iter()
+                    .map(|v| {
+                        if snapshot.swap_total_bytes == 0 {
+                            0.0
+                        } else {
+                            *v as f32 * 100.0 / snapshot.swap_total_bytes as f32
+                        }
+                    })
+                    .collect()
             } else {
-                snapshot.history.memory_available_bytes.iter().map(|v| if total == 0 { 0.0 } else { *v as f32 * 100.0 / total as f32 }).collect()
+                snapshot
+                    .history
+                    .memory_available_bytes
+                    .iter()
+                    .map(|v| {
+                        if total == 0 {
+                            0.0
+                        } else {
+                            *v as f32 * 100.0 / total as f32
+                        }
+                    })
+                    .collect()
             };
             frame.render_widget(
                 crate::ui::plot::Graph::new(&used),
@@ -433,7 +455,11 @@ fn draw_mem_panel(
                     "IO READ            WRITE"
                 }
             } else {
-                if config.show_swap { "RAM / SWAP HISTORY" } else { "RAM / AVAILABLE HISTORY" }
+                if config.show_swap {
+                    "RAM / SWAP HISTORY"
+                } else {
+                    "RAM / AVAILABLE HISTORY"
+                }
             }),
         );
         let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
