@@ -72,6 +72,7 @@ pub const TABS: [&str; 5] = [
     "Sessions",
     "Workflows",
     "Subconscious",
+    "Resources",
     "Feedback",
     "Settings",
 ];
@@ -83,7 +84,7 @@ pub const TABS: [&str; 5] = [
 /// the Sessions rail with its `d` diff pane, the live Subconscious signal
 /// field, Feedback, and Settings — renders without the workflow engine.
 #[cfg(not(feature = "workflows"))]
-pub const TABS: [&str; 4] = ["Sessions", "Subconscious", "Feedback", "Settings"];
+pub const TABS: [&str; 5] = ["Sessions", "Subconscious", "Resources", "Feedback", "Settings"];
 
 /// The TokenMaxxxing tab's sidebar pages.
 pub(in crate::ui::app) const TOKENMAXXING_SUBPAGES: [&str; 3] =
@@ -563,6 +564,8 @@ pub struct App {
     pub snapshot: RuntimeSnapshot,
     /// The active top-level tab index (into [`TABS`]).
     pub tab_index: usize,
+    /// State owned by the Resources tab.
+    pub(in crate::ui::app) resources: super::super::resources::ResourcesState,
     /// Git changes from the selected session or operator-chosen commit.
     pub(in crate::ui::app) changes: super::super::changes::GitChangesState,
     pub(in crate::ui::app) draft: Draft,

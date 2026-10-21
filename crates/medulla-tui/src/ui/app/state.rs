@@ -32,6 +32,7 @@ impl App {
             loaded,
             snapshot,
             tab_index: 0,
+            resources: Default::default(),
             changes: super::changes::GitChangesState::capture(),
             draft: Draft::new(),
             selected: 0,
