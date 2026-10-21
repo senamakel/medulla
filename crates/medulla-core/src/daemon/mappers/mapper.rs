@@ -10,53 +10,10 @@ use super::claude::claude_events_from_line;
 use super::codex::codex_events_from_line;
 use super::opencode::opencode_events_from_line;
 use super::types::{HarnessLineMapper, HarnessSemanticEvent, Provider};
-use super::usage::scan_usage;
+use medulla_tokens::extract::{reported_usage_delta, scan_usage, usage_delta};
 
 /// Codex records each assistant message twice within this window; drop the repeat.
 const CODEX_DUPLICATE_WINDOW_MS: i64 = 2000;
-
-/// The usage to report for one Codex `token_count` record.
-///
-/// Codex's total is cumulative over the whole conversation, so on a mapper's
-/// first record it may already include turns this mapper never saw: a resumed
-/// conversation, or a PTY reused for a later turn. Subtracting a zero baseline
-/// would report all of that history again. The record's `last_token_usage`
-/// (`first_call`) is exactly what the latest call used, so it is reported for
-/// the first record, and the total becomes the baseline. For a new
-/// conversation the two are equal. Later records report the delta between
-/// totals; a record with no per-call usage falls back to that delta as well.
-pub(super) fn codex_reported_usage(
-    first_call: Option<TokenUsage>,
-    previous: TokenUsage,
-    total: TokenUsage,
-) -> (i64, i64) {
-    match first_call {
-        Some(call) => (call.input_tokens, call.output_tokens),
-        None => usage_delta(previous, total),
-    }
-}
-
-/// How much of `current` is new since `previous`, given a provider's
-/// cumulative input/output counters.
-///
-/// A decrease means the provider reset its counters (a new sub-session started
-/// from zero), not that usage went backwards. The two counters belong to one
-/// snapshot and reset together, so a decrease in *either* makes the whole new
-/// snapshot the delta. Judging each counter alone would undercount the one
-/// that had already climbed past its old value: a reset from `(1000, 10)` to
-/// `(50, 20)` is `(50, 20)` of new usage, not `(50, 10)`.
-pub(super) fn usage_delta(previous: TokenUsage, current: TokenUsage) -> (i64, i64) {
-    let reset = current.input_tokens < previous.input_tokens
-        || current.output_tokens < previous.output_tokens;
-    if reset {
-        (current.input_tokens.max(0), current.output_tokens.max(0))
-    } else {
-        (
-            current.input_tokens - previous.input_tokens,
-            current.output_tokens - previous.output_tokens,
-        )
-    }
-}
 
 impl HarnessLineMapper {
     /// Seed repository context retained by a reused interactive session.
@@ -129,18 +86,17 @@ impl HarnessLineMapper {
                 // cumulative, so it must read the total — and only the total:
                 // a record whose total is present but invalid is skipped,
                 // never re-read through its per-call sibling.
-                let codex_total = (self.provider == Provider::Codex)
-                    .then(|| value.pointer("/payload/info/total_token_usage"))
-                    .flatten();
-                let usage = match codex_total {
-                    Some(total) => scan_usage(total, 0),
-                    None => scan_usage(&value, 0),
+                let provider = match self.provider {
+                    Provider::Claude => crate::protocol::HarnessProvider::Claude,
+                    Provider::Codex => crate::protocol::HarnessProvider::Codex,
+                    Provider::Opencode => crate::protocol::HarnessProvider::Opencode,
                 };
+                let usage = scan_usage(provider, &value);
                 // The same record's per-call usage, for a first snapshot.
                 let codex_last = (self.provider == Provider::Codex)
                     .then(|| value.pointer("/payload/info/last_token_usage"))
                     .flatten()
-                    .and_then(|last| scan_usage(last, 0));
+                    .and_then(|last| scan_usage(provider, last));
                 if let Some(usage) = usage {
                     let record_type = value.get("type").and_then(Value::as_str);
                     let duplicate_claude_result = self.provider == Provider::Claude
@@ -184,7 +140,8 @@ impl HarnessLineMapper {
                                 },
                             ),
                             Provider::Codex => {
-                                let (input, output) = codex_reported_usage(
+                                let (input, output) = reported_usage_delta(
+                                    crate::protocol::HarnessProvider::Codex,
                                     first_snapshot.then_some(codex_last).flatten(),
                                     previous,
                                     usage,
