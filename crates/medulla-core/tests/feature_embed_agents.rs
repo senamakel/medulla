@@ -9,6 +9,21 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
+async fn wait_for_pid(path: &std::path::Path) -> u32 {
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            if let Ok(contents) = tokio::fs::read_to_string(path).await {
+                if let Ok(pid) = contents.trim().parse::<u32>() {
+                    return pid;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("PID file {} was not populated", path.display()))
+}
+
 #[tokio::test]
 async fn pid_reader_waits_until_an_existing_empty_file_is_populated() {
     let directory = tempfile::tempdir().unwrap();
