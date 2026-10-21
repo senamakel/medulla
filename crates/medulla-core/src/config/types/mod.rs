@@ -15,7 +15,7 @@ use super::urls::PROD_BACKEND_BASE_URL;
 use super::AppearanceConfig;
 use super::SubscriptionsConfig;
 use crate::harness_hooks::HooksConfig;
-use crate::protocol::{BudgetWindow, HarnessProvider};
+use crate::protocol::HarnessProvider;
 use crate::runtime::fleet::{
     AgentDeclaration, CapacitySnapshot, HarnessDescriptor, HostDescriptor, WorkspaceDescriptor,
 };
