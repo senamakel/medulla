@@ -2,6 +2,7 @@
 
 pub use medulla_harness::harness_hooks::*;
 pub mod acp;
+pub use acp::{delivery as acp_delivery, AcpDelivery};
 mod grant;
 
 pub use grant::{seed_hook_grant, HookGrantGuard};

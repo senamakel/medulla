@@ -28,7 +28,10 @@ impl HookGrantMinter for CoreHookGrantMinter {
 }
 
 /// Seed a spawned harness with a hook-only grant when this process serves a control plane.
-pub fn seed_hook_grant(session: impl Into<String>, env: &mut HashMap<String, String>) -> HookGrantGuard {
+pub fn seed_hook_grant(
+    session: impl Into<String>,
+    env: &mut HashMap<String, String>,
+) -> HookGrantGuard {
     let session = session.into();
     match CoreHookGrantMinter.mint(&session) {
         Some(grant) => {
