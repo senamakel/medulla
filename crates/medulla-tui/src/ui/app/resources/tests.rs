@@ -200,6 +200,68 @@ fn cpu_title_controls_have_distinct_click_actions() {
 }
 
 #[test]
+fn each_panel_title_button_toggles_only_its_box() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.tab_index = crate::ui::app::TABS
+        .iter()
+        .position(|tab| *tab == "Resources")
+        .unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(190, 52)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(20, 5, 170, 42)))
+        .unwrap();
+    let targets = [
+        (app.resources.hits.cpu_toggle, '1'),
+        (app.resources.hits.mem_toggle, '2'),
+        (app.resources.hits.net_toggle, '3'),
+        (app.resources.hits.agents_toggle, '4'),
+    ];
+    for (hit, key) in targets {
+        assert!(hit.width > 0);
+        app.handle_click(hit.x, hit.y);
+        let shown = match key {
+            '1' => app.resources.shown.cpu,
+            '2' => app.resources.shown.mem,
+            '3' => app.resources.shown.net,
+            _ => app.resources.shown.agents,
+        };
+        assert!(!shown, "clicking [{key}] should hide its own box");
+    }
+}
+
+#[test]
+fn cpu_title_preset_and_interval_buttons_are_clickable() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.tab_index = crate::ui::app::TABS
+        .iter()
+        .position(|tab| *tab == "Resources")
+        .unwrap();
+    app.resources.presets.push("cpu:1:block,mem:1:block,net:0:block,agents:0:tty".into());
+    let mut terminal = Terminal::new(TestBackend::new(190, 52)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(20, 5, 170, 42)))
+        .unwrap();
+    let hits = app.resources.hits;
+    for hit in [hits.preset_prev, hits.preset_next, hits.interval_down, hits.interval_up] {
+        assert!(hit.width > 0);
+    }
+    app.handle_click(hits.preset_next.x, hits.preset_next.y);
+    assert_eq!(app.resources.preset, 1);
+    app.handle_click(hits.preset_prev.x, hits.preset_prev.y);
+    assert_eq!(app.resources.preset, 0);
+    app.handle_click(hits.interval_up.x, hits.interval_up.y);
+    assert_eq!(app.resources.interval_ms, 2_100);
+    app.handle_click(hits.interval_down.x, hits.interval_down.y);
+    assert_eq!(app.resources.interval_ms, 2_000);
+}
+
+#[test]
 fn resources_keyboard_changes_persist_and_reload() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("config.toml");
@@ -229,12 +291,14 @@ fn resources_keyboard_changes_persist_and_reload() {
 #[test]
 fn explicit_layout_options_override_preset_zero() {
     let config = medulla::config::ResourcesConfig {
+        preset: 0,
         cpu_bottom: Some(true),
         mem_below_net: Some(true),
         agents_left: Some(true),
         ..Default::default()
     };
     let state = ResourcesState::from_config(&config);
+    assert_eq!(state.preset, 0);
     assert!(state.opts.cpu_bottom);
     assert!(state.opts.mem_below_net);
     assert!(state.opts.agents_left);
