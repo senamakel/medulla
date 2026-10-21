@@ -4,7 +4,7 @@
 //! other side of [`convert`](crate::convert), with no pty and no
 //! runtime.
 
-use medulla_pty::screen::{Color, ScreenRun, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
+use crate::screen::{Color, ScreenRun, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
 
 use crate::convert::{snapshot_from_grid, wire_color, wire_grid, wire_style};
 use crate::{CellText, ScreenCell, ScreenSnapshot};
@@ -176,7 +176,7 @@ fn a_grid_declaring_more_rows_than_it_carries_is_padded() {
 
 #[test]
 fn an_empty_grid_yields_an_empty_snapshot_rather_than_panicking() {
-    let restored = snapshot_from_grid(&medulla_pty::screen::ScreenGrid {
+    let restored = snapshot_from_grid(&crate::screen::ScreenGrid {
         cols: 0,
         rows: 0,
         lines: Vec::new(),
