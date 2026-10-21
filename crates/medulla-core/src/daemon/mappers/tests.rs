@@ -2,93 +2,15 @@
 //! folds (claude/codex/opencode), the codex dedupe, the shared tool helpers, and
 //! the RFC3339 timestamp parser.
 
-use serde_json::{json, Value};
+use serde_json::json;
 
 use crate::protocol::TokenUsage;
 
-use super::mapper::{codex_reported_usage, usage_delta};
 use super::shared::{
     bound_tool_input, normalize_tool_kind, tool_display, truncate, ELISION, INPUT_CAP, OUTPUT_CAP,
 };
 use super::timestamp::{parse_iso_to_ms, parse_timestamp_ms};
 use super::types::{HarnessLineMapper, HarnessSemanticEvent};
-use super::usage::scan_usage;
-
-#[test]
-fn scan_usage_finds_nested_counts_in_all_shapes() {
-    // claude: usage on an assistant/result record.
-    let v: Value = serde_json::from_str(
-        r#"{"type":"result","result":"ok","usage":{"input_tokens":10,"output_tokens":2}}"#,
-    )
-    .unwrap();
-    assert_eq!(
-        scan_usage(&v, 0),
-        Some(TokenUsage {
-            input_tokens: 10,
-            output_tokens: 2
-        })
-    );
-    // codex: token_count info nesting.
-    let v: Value = serde_json::from_str(
-        r#"{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":7,"output_tokens":3}}}}"#,
-    )
-    .unwrap();
-    assert_eq!(
-        scan_usage(&v, 0),
-        Some(TokenUsage {
-            input_tokens: 7,
-            output_tokens: 3
-        })
-    );
-    // camelCase variant.
-    let v: Value = serde_json::from_str(r#"{"usage":{"inputTokens":1,"outputTokens":9}}"#).unwrap();
-    assert_eq!(
-        scan_usage(&v, 0),
-        Some(TokenUsage {
-            input_tokens: 1,
-            output_tokens: 9
-        })
-    );
-    // opencode: nested `tokens: { input, output, … }` on a message part.
-    let v: Value = serde_json::from_str(
-        r#"{"type":"part","part":{"tokens":{"input":12,"output":4,"reasoning":0,"cache":{"write":0,"read":0}}}}"#,
-    )
-    .unwrap();
-    assert_eq!(
-        scan_usage(&v, 0),
-        Some(TokenUsage {
-            input_tokens: 12,
-            output_tokens: 4
-        })
-    );
-    // No counts → None; one-sided → None.
-    let v: Value = serde_json::from_str(r#"{"usage":{"input_tokens":1}}"#).unwrap();
-    assert_eq!(scan_usage(&v, 0), None);
-    let v: Value = serde_json::from_str(r#"{"tokens":{"input":1}}"#).unwrap();
-    assert_eq!(scan_usage(&v, 0), None);
-}
-
-#[test]
-fn scan_usage_skips_negative_match_and_continues_nested_scan() {
-    let value = json!({
-        "input_tokens": -1,
-        "output_tokens": 2,
-        "nested": { "input_tokens": 3, "output_tokens": 4 }
-    });
-    assert_eq!(
-        scan_usage(&value, 0),
-        Some(TokenUsage {
-            input_tokens: 3,
-            output_tokens: 4
-        })
-    );
-}
-
-#[test]
-fn scan_usage_rejects_fractional_token_counts() {
-    let value = json!({"input_tokens": -0.5, "output_tokens": 1});
-    assert_eq!(scan_usage(&value, 0), None);
-}
 
 #[test]
 fn mapper_accumulates_latest_usage() {
@@ -148,30 +70,6 @@ fn claude_assistant_call_usage_is_summed_and_result_total_is_not_counted_twice()
             output_tokens: 3100,
         })
     );
-}
-
-fn usage(input_tokens: i64, output_tokens: i64) -> TokenUsage {
-    TokenUsage {
-        input_tokens,
-        output_tokens,
-    }
-}
-
-#[test]
-fn usage_delta_reports_the_new_portion_of_cumulative_counters() {
-    assert_eq!(usage_delta(usage(10, 2), usage(50, 5)), (40, 3));
-    assert_eq!(usage_delta(usage(10, 2), usage(10, 2)), (0, 0));
-}
-
-#[test]
-fn a_counter_reset_makes_the_whole_new_snapshot_the_delta() {
-    // A provider that resets its cumulative counters (a fresh sub-session)
-    // reports values below the previous snapshot; the new snapshot is the
-    // delta, not zero.
-    assert_eq!(usage_delta(usage(1000, 10), usage(50, 5)), (50, 5));
-    // The pair resets together: one counter already past its old value is
-    // still all new usage, not just the excess.
-    assert_eq!(usage_delta(usage(1000, 10), usage(50, 20)), (50, 20));
 }
 
 fn map_all(provider: &str, lines: &[&str]) -> Vec<HarnessSemanticEvent> {
@@ -692,29 +590,4 @@ fn an_invalid_codex_total_is_skipped_not_replaced_by_the_last_call() {
         1,
     );
     assert_eq!(mapper.usage(), None);
-}
-
-#[test]
-fn a_resumed_codex_conversation_reports_only_the_new_call_first() {
-    let usage = |input, output| TokenUsage {
-        input_tokens: input,
-        output_tokens: output,
-    };
-    let none = usage(0, 0);
-    // Resumed: the first total carries 15,000 tokens of earlier turns, but this
-    // call used 400 of them.
-    assert_eq!(
-        codex_reported_usage(Some(usage(400, 20)), none, usage(15_400, 900)),
-        (400, 20)
-    );
-    // A new conversation: the first call is the whole total either way.
-    assert_eq!(
-        codex_reported_usage(Some(usage(7, 3)), none, usage(7, 3)),
-        (7, 3)
-    );
-    // Later records report the delta between totals.
-    assert_eq!(
-        codex_reported_usage(None, usage(15_400, 900), usage(16_000, 950)),
-        (600, 50)
-    );
 }

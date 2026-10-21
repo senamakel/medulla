@@ -29,7 +29,6 @@ mod opencode;
 mod shared;
 mod timestamp;
 mod types;
-mod usage;
 mod work;
 mod workspace;
 pub(crate) use workspace::{

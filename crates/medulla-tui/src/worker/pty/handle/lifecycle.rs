@@ -6,13 +6,13 @@ use std::sync::{Arc, Mutex};
 
 use portable_pty::{Child, MasterPty};
 
-use super::super::sync::lock;
 use super::super::types::SessionControl;
 use super::types::{
     AttentionState, ColdFields, SessionIo, SessionMeta, TerminalModes, NO_EXIT_CODE, STATE_EXITED,
     STATE_RUNNING,
 };
 use super::SessionHandle;
+use medulla_pty::sync::lock;
 
 impl SessionHandle {
     /// Build a handle for a child that has just been spawned.

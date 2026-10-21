@@ -22,7 +22,7 @@ use medulla::protocol::{
 };
 
 use super::super::pty::{PtyManager, ScreenSnapshot};
-use super::convert::wire_grid;
+use medulla_pty::convert::wire_grid;
 
 /// The slowest rate a subscription may request.
 const MIN_FPS: u8 = 1;

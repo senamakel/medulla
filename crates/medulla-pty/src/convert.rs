@@ -8,9 +8,39 @@
 //! It is a pure function of a [`ScreenSnapshot`], so it can be exercised against
 //! literal cells with no child process involved.
 
-use medulla::protocol::{coalesce_runs, Color, RunStyle, ScreenGrid, ScreenRun};
+use crate::screen::{coalesce_runs, Color, RunStyle, ScreenGrid, ScreenRun};
+use crate::CellText;
 
-use super::super::pty::{CellText, ScreenCell, ScreenSnapshot};
+/// One rendered terminal cell.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ScreenCell {
+    /// The cell's grapheme cluster, empty for a wide-glyph continuation.
+    pub text: CellText,
+    /// Foreground color.
+    pub fg: vt100::Color,
+    /// Background color.
+    pub bg: vt100::Color,
+    /// Whether the cell is bold.
+    pub bold: bool,
+    /// Whether the cell is italic.
+    pub italic: bool,
+    /// Whether the cell is underlined.
+    pub underline: bool,
+    /// Whether foreground/background are swapped.
+    pub inverse: bool,
+}
+
+/// An owned terminal screen snapshot, safe to render without holding the
+/// emulator's lock.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenSnapshot {
+    /// Rows of cells, top to bottom.
+    pub cells: Vec<Vec<ScreenCell>>,
+    /// The cursor's `(row, col)`.
+    pub cursor: (u16, u16),
+    /// Whether the harness has hidden its cursor.
+    pub hide_cursor: bool,
+}
 
 /// Map an emulator colour onto the wire's.
 ///
@@ -36,16 +66,16 @@ pub fn wire_color(color: vt100::Color) -> Color {
 pub fn wire_style(cell: &ScreenCell) -> RunStyle {
     let mut attrs = 0u8;
     if cell.bold {
-        attrs |= medulla::protocol::ATTR_BOLD;
+        attrs |= crate::screen::ATTR_BOLD;
     }
     if cell.italic {
-        attrs |= medulla::protocol::ATTR_ITALIC;
+        attrs |= crate::screen::ATTR_ITALIC;
     }
     if cell.underline {
-        attrs |= medulla::protocol::ATTR_UNDERLINE;
+        attrs |= crate::screen::ATTR_UNDERLINE;
     }
     if cell.inverse {
-        attrs |= medulla::protocol::ATTR_INVERSE;
+        attrs |= crate::screen::ATTR_INVERSE;
     }
     RunStyle {
         fg: wire_color(cell.fg),
@@ -99,7 +129,7 @@ pub fn cell_color(color: &Color) -> vt100::Color {
 ///
 /// A run's text is its cells concatenated, and the split back into cells is by
 /// **grapheme cluster** — which is what a terminal cell holds, as
-/// [`CellText`](crate::worker::pty::CellText)'s own docs state.
+/// [`CellText`]'s own docs state.
 ///
 /// Splitting by scalar is wrong in more ways than one: `e` followed by a
 /// combining acute is one cell that `chars()` yields twice, a ZWJ emoji is
@@ -119,10 +149,10 @@ fn cells_of_run(run: &ScreenRun, into: &mut Vec<ScreenCell>) {
             text: CellText::from(cluster),
             fg: cell_color(&style.fg),
             bg: cell_color(&style.bg),
-            bold: style.attrs & medulla::protocol::ATTR_BOLD != 0,
-            italic: style.attrs & medulla::protocol::ATTR_ITALIC != 0,
-            underline: style.attrs & medulla::protocol::ATTR_UNDERLINE != 0,
-            inverse: style.attrs & medulla::protocol::ATTR_INVERSE != 0,
+            bold: style.attrs & crate::screen::ATTR_BOLD != 0,
+            italic: style.attrs & crate::screen::ATTR_ITALIC != 0,
+            underline: style.attrs & crate::screen::ATTR_UNDERLINE != 0,
+            inverse: style.attrs & crate::screen::ATTR_INVERSE != 0,
         });
     }
 }

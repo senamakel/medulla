@@ -8,9 +8,9 @@ use std::sync::{Arc, Weak};
 
 use super::super::attention::{self, AttentionKind, HarnessAttention};
 use super::super::handle::SessionHandle;
-use super::super::sync::lock;
 use super::session::consumed_bell_count;
 use super::PtyManager;
+use medulla_pty::sync::lock;
 
 /// How often a session's screen is reclassified.
 const ATTENTION_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);

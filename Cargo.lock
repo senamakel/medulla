@@ -2542,6 +2542,8 @@ dependencies = [
  "libc",
  "medulla-link",
  "medulla-providers",
+ "medulla-pty",
+ "medulla-tokens",
  "medulla-types",
  "openhuman-embed",
  "regex",
@@ -2565,6 +2567,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "medulla-juice"
+version = "0.13.0"
+
+[[package]]
 name = "medulla-link"
 version = "0.13.0"
 dependencies = [
@@ -2583,6 +2589,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "medulla-monitor"
+version = "0.13.0"
+dependencies = [
+ "serde",
+ "sysinfo 0.37.2",
+]
+
+[[package]]
 name = "medulla-providers"
 version = "0.13.0"
 dependencies = [
@@ -2591,6 +2605,31 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "toml 0.8.23",
+]
+
+[[package]]
+name = "medulla-pty"
+version = "0.13.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "serde_json",
+ "unicode-segmentation",
+ "vt100",
+]
+
+[[package]]
+name = "medulla-tokens"
+version = "0.13.0"
+dependencies = [
+ "dirs 6.0.0",
+ "futures",
+ "medulla-types",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
  "toml 0.8.23",
 ]
 
@@ -2607,12 +2646,13 @@ dependencies = [
  "libc",
  "medulla",
  "medulla-link",
+ "medulla-monitor",
+ "medulla-pty",
  "portable-pty",
  "ratatui",
  "rustls",
  "serde",
  "serde_json",
- "sysinfo 0.37.2",
  "tempfile",
  "tokio",
  "toml 0.8.23",
