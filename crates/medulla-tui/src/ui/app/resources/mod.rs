@@ -380,7 +380,10 @@ fn draw_mem_panel(
                 .map(|v| (v * 100.0 / scale) as f32)
                 .collect();
             if config.io_graph_combined {
-                let combined: Vec<f32> = reads.iter().zip(&writes).map(|(r, w)| r + w).collect();
+                let combined_samples: Vec<f64> = read_samples.iter().zip(&write_samples).map(|(r, w)| r + w).collect();
+                let combined_peak = combined_samples.iter().copied().fold(1.0_f64, f64::max);
+                let combined_scale = if config.io_graph_speeds { combined_peak } else { 1_000_000_000.0 };
+                let combined: Vec<f32> = combined_samples.iter().map(|v| (v * 100.0 / combined_scale) as f32).collect();
                 frame.render_widget(crate::ui::plot::Graph::new(&combined), graph_area);
             } else {
                 frame.render_widget(
