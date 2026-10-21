@@ -59,19 +59,6 @@ impl ResourcesState {
             .split(',')
             .map(str::trim)
             .collect::<Vec<_>>();
-        let mut state = Self::default();
-        state.shown = ShownBoxes {
-            cpu: shown.contains(&"cpu"),
-            mem: shown.contains(&"mem"),
-            net: shown.contains(&"net"),
-            agents: shown.contains(&"agents"),
-        };
-        state.opts = LayoutOptions {
-            cpu_bottom: config.cpu_bottom,
-            mem_below_net: config.mem_below_net,
-            agents_left: config.agents_left,
-        };
-        state.interval_ms = config.update_interval_ms();
         let parsed = config
             .presets
             .split_whitespace()
@@ -79,9 +66,27 @@ impl ResourcesState {
             .map(str::to_owned)
             .take(10)
             .collect::<Vec<_>>();
-        if !parsed.is_empty() {
-            state.presets = parsed;
-        }
+        let presets = if parsed.is_empty() {
+            Self::default().presets
+        } else {
+            parsed
+        };
+        let mut state = Self {
+            shown: ShownBoxes {
+                cpu: shown.contains(&"cpu"),
+                mem: shown.contains(&"mem"),
+                net: shown.contains(&"net"),
+                agents: shown.contains(&"agents"),
+            },
+            opts: LayoutOptions {
+                cpu_bottom: config.cpu_bottom,
+                mem_below_net: config.mem_below_net,
+                agents_left: config.agents_left,
+            },
+            interval_ms: config.update_interval_ms(),
+            presets,
+            ..Self::default()
+        };
         state.apply_preset();
         state
     }
