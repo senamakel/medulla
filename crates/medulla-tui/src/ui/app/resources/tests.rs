@@ -359,10 +359,31 @@ fn resources_keyboard_changes_persist_and_reload() {
         medulla::config::load_config(Some(&path_text), &Default::default(), temp.path()).unwrap();
     assert_eq!(loaded.config.resources.update_ms, 2_100);
     assert_eq!(loaded.config.resources.preset, 1);
-    assert_eq!(loaded.config.resources.shown_boxes, "mem,net,agents");
+    assert_eq!(loaded.config.resources.shown_boxes, "cpu,mem,net,agents");
     assert_eq!(loaded.config.resources.cpu_bottom, Some(true));
     assert_eq!(loaded.config.resources.mem_below_net, Some(true));
     assert_eq!(loaded.config.resources.agents_left, Some(true));
+}
+
+#[test]
+fn box_visibility_changes_persist_and_reload_without_a_preset_change() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("config.toml");
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults(path.display().to_string()),
+    );
+    app.set_config_path(path.clone());
+    app.tab_index = crate::ui::app::TABS
+        .iter()
+        .position(|tab| *tab == "Resources")
+        .unwrap();
+    app.on_key(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE));
+
+    let path_text = path.to_str().unwrap().to_owned();
+    let loaded =
+        medulla::config::load_config(Some(&path_text), &Default::default(), temp.path()).unwrap();
+    assert_eq!(loaded.config.resources.shown_boxes, "mem,net,agents");
 }
 
 #[test]
