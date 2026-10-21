@@ -51,6 +51,20 @@ pub struct ResourcesConfig {
     pub mem_below_net: Option<bool>,
     /// Explicit Agents placement override. When absent, the selected preset wins.
     pub agents_left: Option<bool>,
+    /// CPU field drawn by the upper graph.
+    pub cpu_graph_upper: String,
+    /// CPU field drawn by the lower graph.
+    pub cpu_graph_lower: String,
+    /// Draw the lower CPU graph upside down.
+    pub cpu_invert_lower: bool,
+    /// Collapse CPU fields into one graph.
+    pub cpu_single_graph: bool,
+    /// Temperature scale (`celsius` or `fahrenheit`).
+    pub temp_scale: String,
+    /// Frequency presentation (`auto`, `mhz`, or `ghz`).
+    pub freq_mode: String,
+    /// Show battery percentage when the platform reports it.
+    pub show_battery: bool,
 }
 
 impl Default for ResourcesConfig {
@@ -63,6 +77,13 @@ impl Default for ResourcesConfig {
             cpu_bottom: None,
             mem_below_net: None,
             agents_left: None,
+            cpu_graph_upper: "total".into(),
+            cpu_graph_lower: "iowait".into(),
+            cpu_invert_lower: false,
+            cpu_single_graph: false,
+            temp_scale: "celsius".into(),
+            freq_mode: "auto".into(),
+            show_battery: true,
         }
     }
 }
