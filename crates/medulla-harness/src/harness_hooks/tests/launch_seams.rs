@@ -118,4 +118,3 @@ fn every_embedded_options_literal_needs_its_own_policy() {
         "one protected literal must not mask another missing policy",
     );
 }
-
