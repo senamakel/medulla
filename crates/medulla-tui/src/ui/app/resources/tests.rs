@@ -247,6 +247,61 @@ fn resources_draw_empty_titled_panels_until_data_views_land() {
 }
 
 #[test]
+fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
+    let mut loaded = LoadedConfig::defaults("test.json".into());
+    loaded.config.resources.shown_boxes = "mem".into();
+    let mut history = crate::ui::resources::sampler::ResourceHistory::default();
+    let sample = crate::ui::resources::sampler::ResourceSnapshot {
+        memory_total_bytes: 16_000,
+        memory_used_bytes: 8_000,
+        memory_available_bytes: 8_000,
+        memory_cached_bytes: 2_000,
+        memory_free_bytes: 1_000,
+        swap_total_bytes: 4_000,
+        swap_used_bytes: 500,
+        disks: vec![crate::ui::resources::sampler::DiskSnapshot {
+            device: "/dev/sda1".into(),
+            mount: "/mnt/data".into(),
+            total_bytes: 10_000,
+            used_bytes: 2_500,
+            read_bytes_per_second: 512.0,
+            write_bytes_per_second: 1024.0,
+            busy_percent: Some(15.0),
+        }],
+        ..Default::default()
+    };
+    history.push(&sample, 8);
+    let sample = sample.with_history(Arc::new(history));
+    for (width, height) in [(170, 42), (80, 24)] {
+        let mut app = App::new(Arc::new(MockRuntime::empty()), loaded.clone());
+        app.set_resource_snapshot(Arc::new(sample.clone()));
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height)))
+            .unwrap();
+        let text = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(
+            text.contains("RAM 8K / 16K"),
+            "RAM missing at {width}x{height}: {text}"
+        );
+        assert!(
+            text.contains("/mnt/data"),
+            "disk missing at {width}x{height}: {text}"
+        );
+        assert!(
+            text.contains("Swap 0K / 4K"),
+            "swap missing at {width}x{height}: {text}"
+        );
+    }
+}
+
+#[test]
 fn clicking_a_panel_title_toggles_that_box() {
     let mut app = App::new(
         Arc::new(MockRuntime::empty()),
