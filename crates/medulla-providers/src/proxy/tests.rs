@@ -394,7 +394,20 @@ fn route_spawn_scrubs_the_real_key_and_rewrites_the_router() {
     assert!(!env.contains_key("OPENROUTER_API_KEY"));
     let token = env.get(PROXY_TOKEN_ENV).expect("token exported");
     assert!(token.starts_with("mdl-"));
+    assert_eq!(token.len(), "mdl-".len() + 32);
     assert_eq!(env.get("PATH").map(String::as_str), Some("/usr/bin"));
+    assert_eq!(
+        env.get(UPSTREAM_URL_ENV).map(String::as_str),
+        Some("http://127.0.0.1:1/api")
+    );
+    assert_eq!(
+        env.keys()
+            .map(String::as_str)
+            .collect::<std::collections::HashSet<_>>(),
+        ["PATH", UPSTREAM_URL_ENV, PROXY_TOKEN_ENV]
+            .into_iter()
+            .collect()
+    );
 
     let router = router.expect("router kept");
     assert_eq!(router.api_key_env.as_deref(), Some(PROXY_TOKEN_ENV));
