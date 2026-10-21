@@ -186,6 +186,22 @@ fn trailer_joins_an_existing_trailer_block() {
     );
 }
 
+/// Pin the complete output for a fixture commit so relocating the generator
+/// cannot subtly change Git's trailer spacing or preserve less of the message.
+#[cfg(unix)]
+#[test]
+fn fixture_commit_message_matches_the_attribution_hook_snapshot() {
+    let trailer = "Co-authored-by: Test <test@example.com>";
+    let repo = HookRepo::new(trailer);
+    let original = "fixture subject\n\nfixture body\n\nCo-authored-by: Codex <noreply@openai.com>";
+    repo.commit("fixture.txt", original);
+
+    assert_eq!(
+        repo.head_message(),
+        "fixture subject\n\nfixture body\n\nCo-authored-by: Codex <noreply@openai.com>\nCo-authored-by: Test <test@example.com>\n"
+    );
+}
+
 /// `core.hooksPath` redirects every hook, so the generated hook must chain to
 /// whatever `prepare-commit-msg` the repository already had rather than
 /// silently disabling it.
