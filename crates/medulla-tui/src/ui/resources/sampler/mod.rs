@@ -181,6 +181,7 @@ impl ResourceSource for SystemResourceSource {
         });
         ResourceSnapshot {
             current_process,
+            history: Default::default(),
             sample_interval_seconds: elapsed,
             cpu_percent: f64::from(self.system.global_cpu_usage()),
             cpu_cores_percent: self
