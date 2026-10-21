@@ -107,7 +107,7 @@ impl InteractiveSession {
         let mut child = loop {
             match command.spawn() {
                 Ok(child) => break child,
-                Err(err) if err.raw_os_error() == Some(26) && spawn_tries < 50 => {
+                Err(err) if is_text_file_busy(&err) && spawn_tries < 50 => {
                     spawn_tries += 1;
                     tokio::time::sleep(Duration::from_millis(20)).await;
                 }
@@ -292,6 +292,16 @@ impl InteractiveSession {
             }
         }
     }
+}
+
+#[cfg(unix)]
+fn is_text_file_busy(err: &std::io::Error) -> bool {
+    err.raw_os_error() == Some(26)
+}
+
+#[cfg(not(unix))]
+fn is_text_file_busy(_err: &std::io::Error) -> bool {
+    false
 }
 
 mod types;
