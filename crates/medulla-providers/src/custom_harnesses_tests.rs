@@ -6,7 +6,7 @@ use super::{
     load_custom_harnesses, load_layered_custom_harnesses, CustomHarnessConfig,
     OPENROUTER_ANTHROPIC_URL, OPENROUTER_OPENAI_URL,
 };
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 #[test]
 fn editor_line_builds_a_claude_openrouter_preset() {
@@ -52,17 +52,11 @@ fn a_codex_preset_publishes_its_knobs_only_when_it_opts_in() {
     preset.context_window = Some(128_000);
     let preset = preset.normalize().unwrap();
     let env: HashMap<String, String> = preset.harness_env().into_iter().collect();
-    assert_eq!(env.get(crate::codex_overrides::OVERRIDES_ENV).unwrap(), "1");
+    assert_eq!(env.get(crate::CODEX_OVERRIDES_ENV).unwrap(), "1");
+    assert_eq!(env.get(crate::CODEX_EFFORT_ENV).unwrap(), "medium");
+    assert_eq!(env.get(crate::CODEX_CONTEXT_WINDOW_ENV).unwrap(), "128000");
     assert_eq!(
-        env.get(crate::codex_overrides::EFFORT_ENV).unwrap(),
-        "medium"
-    );
-    assert_eq!(
-        env.get(crate::codex_overrides::CONTEXT_WINDOW_ENV).unwrap(),
-        "128000"
-    );
-    assert_eq!(
-        env.get(crate::codex_overrides::DISPLAY_NAME_ENV).unwrap(),
+        env.get(crate::CODEX_DISPLAY_NAME_ENV).unwrap(),
         "DeepSeek via Codex"
     );
     // The Claude tier variables belong to Claude Code alone.
@@ -86,13 +80,13 @@ fn an_opted_in_preset_without_optional_knobs_publishes_only_activation_and_name(
     let preset = preset.normalize().unwrap();
 
     let env: HashMap<String, String> = preset.harness_env().into_iter().collect();
-    assert_eq!(env.get(crate::codex_overrides::OVERRIDES_ENV).unwrap(), "1");
+    assert_eq!(env.get(crate::CODEX_OVERRIDES_ENV).unwrap(), "1");
     assert_eq!(
-        env.get(crate::codex_overrides::DISPLAY_NAME_ENV).unwrap(),
+        env.get(crate::CODEX_DISPLAY_NAME_ENV).unwrap(),
         "DeepSeek via Codex"
     );
-    assert!(!env.contains_key(crate::codex_overrides::EFFORT_ENV));
-    assert!(!env.contains_key(crate::codex_overrides::CONTEXT_WINDOW_ENV));
+    assert!(!env.contains_key(crate::CODEX_EFFORT_ENV));
+    assert!(!env.contains_key(crate::CODEX_CONTEXT_WINDOW_ENV));
     assert_eq!(env.len(), 2, "{env:?}");
 }
 

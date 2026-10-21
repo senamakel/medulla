@@ -2541,6 +2541,7 @@ dependencies = [
  "hyper-util",
  "libc",
  "medulla-link",
+ "medulla-providers",
  "medulla-pty",
  "medulla-tokens",
  "medulla-types",
@@ -2593,6 +2594,18 @@ version = "0.13.0"
 dependencies = [
  "serde",
  "sysinfo 0.37.2",
+]
+
+[[package]]
+name = "medulla-providers"
+version = "0.13.0"
+dependencies = [
+ "anyhow",
+ "medulla-types",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml 0.8.23",
 ]
 
 [[package]]
