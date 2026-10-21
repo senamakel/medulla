@@ -361,16 +361,8 @@ fn draw_mem_panel(
                 .iter()
                 .copied()
                 .collect();
-            let peak = read_samples
-                .iter()
-                .chain(&write_samples)
-                .copied()
-                .fold(1.0_f64, f64::max);
-            let scale = if config.io_graph_speeds {
-                peak
-            } else {
-                1_000_000_000.0
-            };
+            let configured_speed = disks.iter().map(|disk| io_graph_speed(config, &disk.mount)).fold(100.0_f64, f64::max);
+            let scale = configured_speed * 1024.0 * 1024.0;
             let reads: Vec<f32> = read_samples
                 .iter()
                 .map(|v| (v * 100.0 / scale) as f32)
@@ -381,8 +373,7 @@ fn draw_mem_panel(
                 .collect();
             if config.io_graph_combined {
                 let combined_samples: Vec<f64> = read_samples.iter().zip(&write_samples).map(|(r, w)| r + w).collect();
-                let combined_peak = combined_samples.iter().copied().fold(1.0_f64, f64::max);
-                let combined_scale = if config.io_graph_speeds { combined_peak } else { 1_000_000_000.0 };
+                let combined_scale = scale;
                 let combined: Vec<f32> = combined_samples.iter().map(|v| (v * 100.0 / combined_scale) as f32).collect();
                 frame.render_widget(crate::ui::plot::Graph::new(&combined), graph_area);
             } else {
@@ -512,6 +503,13 @@ fn draw_disk_busy_graphs(
             );
         }
     }
+}
+
+fn io_graph_speed(config: &medulla::config::ResourcesConfig, mount: &str) -> f64 {
+    config.io_graph_speeds.split_whitespace().find_map(|entry| {
+        let (target, speed) = entry.split_once(':')?;
+        (target == mount).then(|| speed.parse::<u64>().ok()).flatten().map(|speed| speed as f64)
+    }).unwrap_or(100.0)
 }
 
 fn draw_cpu_panel(
