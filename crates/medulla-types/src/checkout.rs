@@ -15,9 +15,13 @@ pub struct Checkout {
 
 impl Checkout {
     /// Whether this directory is inside a repository.
-    pub fn is_repository(&self) -> bool { self.repo.is_some() }
+    pub fn is_repository(&self) -> bool {
+        self.repo.is_some()
+    }
     /// Whether this is a linked worktree.
-    pub fn is_worktree(&self) -> bool { self.worktree.is_some() }
+    pub fn is_worktree(&self) -> bool {
+        self.worktree.is_some()
+    }
     /// The branch label, using `@<head>` for detached checkouts.
     pub fn branch_label(&self) -> Option<String> {
         match (&self.branch, &self.head) {

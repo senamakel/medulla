@@ -5,9 +5,9 @@
 //! common single-cell text inline. Process handles and managers remain in the
 //! TUI crate.
 
+pub mod attention;
 pub mod cell_text;
 pub mod clipboard;
-pub mod attention;
 pub mod convert;
 pub mod lifecycle;
 #[cfg(test)]
@@ -15,9 +15,9 @@ mod lifecycle_tests;
 pub mod screen;
 pub mod sync;
 
+pub use attention::{AttentionKind, HarnessAttention};
 pub use cell_text::CellText;
 pub use clipboard::ClipboardSink;
-pub use attention::{AttentionKind, HarnessAttention};
 pub use convert::{ScreenCell, ScreenSnapshot};
 pub use lifecycle::{LifecycleSession, SessionClose, SessionLifecycle};
 

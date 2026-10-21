@@ -4,15 +4,15 @@
 //! tokio, keeping this crate suitable as a leaf dependency throughout the
 //! workspace.
 
-pub mod clock;
 mod checkout;
+pub mod clock;
 mod harness;
 pub mod harness_contract;
 mod session_origin;
 mod token_usage;
 
-pub use harness::{dispatchable_flavors, HarnessProvider, HarnessTransport, CODEX_SERVER_FLAVOR};
 pub use checkout::Checkout;
+pub use harness::{dispatchable_flavors, HarnessProvider, HarnessTransport, CODEX_SERVER_FLAVOR};
 pub use session_origin::SessionOrigin;
 pub use token_usage::{BudgetWindow, TokenUsage};
 

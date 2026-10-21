@@ -8,8 +8,8 @@
 
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
 pub use medulla_types::SessionOrigin;
+use serde::{Deserialize, Serialize};
 
 use crate::protocol::HarnessProvider;
 
