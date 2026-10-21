@@ -39,10 +39,12 @@ pub struct ProcessSnapshot {
 }
 
 /// Immutable whole-device readings suitable for sharing with renderers.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct ResourceSnapshot {
     /// Current process metrics used by the status line.
     pub current_process: Option<super::super::ResourceSnapshot>,
+    /// Recent readings accumulated by the sampler for graph rendering.
+    pub history: std::sync::Arc<ResourceHistory>,
     /// Seconds since the previous sample, used to scale process I/O deltas.
     pub sample_interval_seconds: f64,
     /// Total CPU utilization as a percentage.
@@ -93,10 +95,12 @@ impl ResourceSnapshot {
     /// Aggregate the cached process table for a session, without touching the
     /// host from the render path.
     pub fn session_snapshot(&self, root_pid: u32) -> Option<super::super::SessionSnapshot> {
-        let root = self
+        let process_by_pid: std::collections::HashMap<_, _> = self
             .processes
             .iter()
-            .find(|process| process.pid == root_pid)?;
+            .map(|process| (process.pid, process))
+            .collect();
+        let root = *process_by_pid.get(&root_pid)?;
         let mut children = std::collections::HashMap::<u32, Vec<u32>>::new();
         for process in &self.processes {
             if let Some(parent) = process.ppid {
@@ -114,7 +118,7 @@ impl ResourceSnapshot {
             if !visited.insert(pid) {
                 continue;
             }
-            let Some(process) = self.processes.iter().find(|process| process.pid == pid) else {
+            let Some(process) = process_by_pid.get(&pid).copied() else {
                 continue;
             };
             result.processes += 1;
@@ -129,5 +133,29 @@ impl ResourceSnapshot {
         }
         result.cpu_fraction = result.cpu_fraction.clamp(0.0, 1.0);
         Some(result)
+    }
+}
+
+/// Recent scalar series shared between the sampler and rendering views.
+#[derive(Debug, Clone, Default)]
+pub struct ResourceHistory {
+    /// Whole-device CPU utilization percentages.
+    pub cpu_percent: super::History<f64>,
+    /// Physical memory currently used, in bytes.
+    pub memory_used_bytes: super::History<u64>,
+    /// Swap currently used, in bytes.
+    pub swap_used_bytes: super::History<u64>,
+    /// Number of visible processes.
+    pub process_count: super::History<usize>,
+}
+
+impl ResourceHistory {
+    /// Append one snapshot and trim every series to the requested viewport size.
+    pub fn push(&mut self, snapshot: &ResourceSnapshot, capacity: usize) {
+        self.cpu_percent.push(snapshot.cpu_percent, capacity);
+        self.memory_used_bytes
+            .push(snapshot.memory_used_bytes, capacity);
+        self.swap_used_bytes.push(snapshot.swap_used_bytes, capacity);
+        self.process_count.push(snapshot.processes.len(), capacity);
     }
 }
