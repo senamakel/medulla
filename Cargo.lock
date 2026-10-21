@@ -2571,6 +2571,7 @@ dependencies = [
 name = "medulla-harness"
 version = "0.13.0"
 dependencies = [
+ "anyhow",
  "dirs 6.0.0",
  "fs2",
  "medulla-providers",
