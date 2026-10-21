@@ -1,0 +1,11 @@
+[subscriptions]
+claudeSession = "bar"
+claudeWeekly = "percent"
+claudeScoped = "off"
+claudeCredits = "value"
+codexSession = "bar"
+codexWeekly = "off"
+openRouterCredits = "percent"
+tinyhumansBalance = "value"
+refreshSeconds = 420
+openRouterKeyEnv = "OPENROUTER_TEST_KEY"
