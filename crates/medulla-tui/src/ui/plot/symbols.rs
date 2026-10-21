@@ -27,7 +27,7 @@ impl Symbol {
 }
 
 // Verbatim glyph tables from btop src/btop_draw.cpp Symbols::graph_symbols,
-// lines 62–117 at https://github.com/aristocratos/btop/blob/89fcdf4094e89f8ac215ee6c3ee74aeffb618e86/src/btop_draw.cpp
+// lines 89–132 at https://github.com/aristocratos/btop/blob/89fcdf4094e89f8ac215ee6c3ee74aeffb618e86/src/btop_draw.cpp
 // btop is licensed under Apache-2.0.
 const BRAILLE_UP: [char; 25] = [
     ' ', '⢀', '⢠', '⢰', '⢸', '⡀', '⣀', '⣠', '⣰', '⣸', '⡄', '⣄', '⣤', '⣴', '⣼', '⡆', '⣆', '⣦', '⣶',

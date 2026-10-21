@@ -114,11 +114,11 @@ fn level(value: f32, low: f32, high: f32, bias: f32, no_zero: bool) -> u8 {
         0.0
     };
     let minimum = u8::from(no_zero);
-    if value >= high {
+    if high <= low {
+        minimum
+    } else if value >= high {
         4
     } else if value <= low {
-        minimum
-    } else if high <= low {
         minimum
     } else {
         (((value - low) * 4.0 / (high - low) + bias).round() as i32).clamp(i32::from(minimum), 4)
