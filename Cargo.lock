@@ -2541,6 +2541,7 @@ dependencies = [
  "hyper-util",
  "libc",
  "medulla-link",
+ "medulla-types",
  "openhuman-embed",
  "regex",
  "reqwest 0.12.28",
@@ -2607,6 +2608,14 @@ dependencies = [
  "uuid",
  "vt100",
  "vte",
+]
+
+[[package]]
+name = "medulla-types"
+version = "0.13.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

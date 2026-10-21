@@ -13,12 +13,10 @@
 //!
 //! Field names match the documented JSON contract.
 
-mod types;
-
 #[cfg(test)]
 mod tests;
 
-pub use types::{
+pub use medulla_types::harness_contract::{
     AgentBudgetMetadata, HarnessEvent, HarnessState, HarnessStatus, HarnessUsage,
     InstructionReceipt, SeatHeadroom, TrackedTask, TrackedTaskStatus, VerificationEvidence,
     WindowHeadroom, WorkerContract,
