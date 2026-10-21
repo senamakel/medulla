@@ -218,7 +218,7 @@ impl ResourceSource for SystemResourceSource {
                 0.0
             };
             let disk_peak = self.update_disk_peak(read_rate, write_rate);
-            Some(crate::ui::resources::types::ResourceSnapshot {
+            Some(medulla_monitor::ResourceSnapshot {
                 cpu_fraction: (cpu_percent / (cores * 100.0)).clamp(0.0, 1.0),
                 memory_bytes,
                 total_memory_bytes,

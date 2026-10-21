@@ -213,7 +213,6 @@ fn draw_cpu_panel(
 ) {
     if area.is_empty() { return; }
     use ratatui::layout::{Constraint, Layout};
-    use ratatui::widgets::Widget;
     let history: Vec<_> = snapshot.history.cpu.iter().collect();
     let upper = medulla_monitor::CpuField::parse(&config.cpu_graph_upper).unwrap_or(medulla_monitor::CpuField::Total);
     let lower = medulla_monitor::CpuField::parse(&config.cpu_graph_lower).unwrap_or(medulla_monitor::CpuField::Iowait);
