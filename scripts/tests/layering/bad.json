@@ -1,0 +1,11 @@
+{
+  "packages": [
+    {
+      "name": "medulla-link",
+      "manifest_path": "/workspace/crates/medulla-link/Cargo.toml",
+      "dependencies": [
+        { "name": "medulla", "kind": null }
+      ]
+    }
+  ]
+}
