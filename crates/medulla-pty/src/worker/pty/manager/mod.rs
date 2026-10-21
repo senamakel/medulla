@@ -118,12 +118,12 @@ impl Default for PtyManager {
 impl PtyManager {
     /// Build an empty manager on the system clock.
     pub fn new() -> Self {
-        PtyManager::with_now(Arc::new(medulla::clock::now_millis))
+        PtyManager::with_now(Arc::new(now_millis))
     }
 
     /// Override the clock (tests).
     pub fn with_now(now: NowFn) -> Self {
-        PtyManager::with_now_and_clipboard(now, clipboard::default_sink())
+        PtyManager::with_now_and_clipboard(now, Arc::new(|_| {}))
     }
 
     /// Override the clock and where forwarded clipboard writes go (tests).
@@ -143,7 +143,7 @@ impl PtyManager {
     /// of growing a backlog of stale ones without bound while the worker sits
     /// blocked in `tmux`/`pbcopy`.
     pub fn with_now_and_clipboard(now: NowFn, clipboard: ClipboardSink) -> Self {
-        Self::with_now_clipboard_and_lifecycle(now, clipboard, Arc::new(TuiSessionLifecycle))
+        Self::with_now_clipboard_and_lifecycle(now, clipboard, Arc::new(NoopLifecycle))
     }
 
     /// Override the clock, clipboard destination, and app-specific callbacks.
@@ -166,22 +166,8 @@ impl PtyManager {
                 now,
                 clipboard: queue,
                 lifecycle,
-                hook_log: std::sync::OnceLock::new(),
             }),
         }
-    }
-
-    /// Hand the manager the lifecycle-report log the attention poller reads
-    /// `Notification` cues from.
-    ///
-    /// Set once, before the first session opens. The log is the same
-    /// [`HookEventLog`] the control plane records into and the Hooks page reads
-    /// out of; cloning it shares the one buffer. A second call is a no-op — the
-    /// poller has already taken the first — and is ignored so a relogin that
-    /// rebuilds the wiring cannot silently swap the log out from under live
-    /// sessions.
-    pub fn set_hook_log(&self, log: medulla::harness_hooks::HookEventLog) {
-        let _ = self.inner.hook_log.set(log);
     }
 
     fn now(&self) -> i64 {
@@ -224,29 +210,18 @@ impl PtyManager {
 }
 
 /// SDK services supplied to the portable PTY session layer.
-struct TuiSessionLifecycle;
+struct NoopLifecycle;
 
-impl SessionLifecycle for TuiSessionLifecycle {
-    fn on_close(&self, session: &LifecycleSession) {
-        #[cfg(feature = "workflows")]
-        if let Some(grant) = &session.grant_session {
-            medulla::mcp::revoke_session(grant);
-        }
-    }
-
-    fn thread_label(&self, session: &LifecycleSession) -> Option<String> {
-        let session_id = session.session_id.as_deref();
-        match session_id {
-            Some(id) => medulla::session_history::codex_thread_label(&session.env, id),
-            None => {
-                medulla::session_history::codex_thread_label_for_cwd(&session.env, &session.cwd)
-            }
-        }
-    }
+impl SessionLifecycle for NoopLifecycle {
+    fn on_close(&self, _session: &LifecycleSession) {}
+    fn thread_label(&self, _session: &LifecycleSession) -> Option<String> { None }
 }
 
-mod attention;
-mod checkout;
+fn now_millis() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default().as_millis() as i64
+}
+
 mod clipboard;
 mod labels;
 mod open;

@@ -1,7 +1,4 @@
 //! Data types for the worker PTY manager.
-use std::sync::OnceLock;
-
-use medulla::harness_hooks::HookEventLog;
 use medulla_pty::SessionLifecycle;
 
 #[allow(unused_imports)]
@@ -35,13 +32,6 @@ pub(super) struct Inner {
     pub(super) clipboard: Arc<ClipboardQueue>,
     /// Application-specific session cleanup and provider metadata callbacks.
     pub(super) lifecycle: Arc<dyn SessionLifecycle>,
-    /// The lifecycle-report log the attention poller reads a `Notification`
-    /// from. Set once, before any session opens, by
-    /// [`PtyManager::set_hook_log`](super::PtyManager::set_hook_log); a
-    /// [`OnceLock`] because the poller reads it on every tick and the value
-    /// never changes after startup. `None` until then, in which case the
-    /// hook-derived cue is simply absent.
-    pub(super) hook_log: OnceLock<HookEventLog>,
 }
 
 /// A single-slot, coalescing handoff to the clipboard worker thread.

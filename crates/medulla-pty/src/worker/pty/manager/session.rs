@@ -291,7 +291,7 @@ impl PtyManager {
         drop(sessions);
         #[cfg(feature = "workflows")]
         if let Some(session) = forgotten.grant_session() {
-            medulla::mcp::forget_session_runs(session);
+            self.inner.lifecycle.on_forget(session);
         }
         #[cfg(not(feature = "workflows"))]
         let _ = forgotten;

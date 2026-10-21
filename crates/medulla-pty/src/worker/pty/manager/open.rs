@@ -233,8 +233,6 @@ impl PtyManager {
         // before there is a session to record it against — losing the
         // `last_output_at` that idle detection reads.
         self.spawn_writer(Arc::downgrade(&handle), writer, queued, queued_bytes);
-        self.spawn_attention_poller(Arc::downgrade(&handle));
-        self.spawn_checkout_poller(Arc::downgrade(&handle));
         // Codex persists `/rename` in a file it never says anything about on the
         // wire, so the rail's only way to learn one while a session is held,
         // idle, or retained is to re-read that file on a timer until the
@@ -350,7 +348,7 @@ impl PtyManager {
             };
             handle.record_error(
                 format!("{}: {err}{lost}", handle.id()),
-                medulla::clock::now_millis(),
+                super::now_millis(),
             );
         });
     }

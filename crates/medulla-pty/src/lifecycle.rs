@@ -46,6 +46,9 @@ pub trait SessionLifecycle: Send + Sync + 'static {
     /// Return a provider-specific thread label for a harness session, if known.
     fn thread_label(&self, session: &LifecycleSession) -> Option<String>;
 
+    /// Remove application-owned records when a session is forgotten.
+    fn on_forget(&self, _session: &str) {}
+
     /// Inspect a session's current checkout. The TUI owns the Git inspection
     /// policy; the manager only stores the resulting value.
     fn checkout(&self, _session: &LifecycleSession) -> medulla_types::Checkout {
