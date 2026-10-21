@@ -170,8 +170,8 @@ fn app_server_and_opencode_acp_have_distinct_kinds() {
         process(
             62,
             Some(999),
-            "C:/Program Files/Codex/codex.exe",
-            &["codex", "app-server"],
+            "C:/Program Files/Codex/Codex.Exe",
+            &["Codex", "app-server"],
             1,
         ),
         process(61, Some(999), "/usr/bin/opencode", &["opencode", "acp"], 1),
