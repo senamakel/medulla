@@ -33,7 +33,6 @@ fn process_sample() -> ResourceSnapshot {
         disk_read_bytes_per_second: 4.0 * 1024.0 * 1024.0,
         disk_write_bytes_per_second: 2.0 * 1024.0 * 1024.0,
         disk_peak_bytes_per_second: 16.0 * 1024.0 * 1024.0,
-        ..Default::default()
     }
 }
 
