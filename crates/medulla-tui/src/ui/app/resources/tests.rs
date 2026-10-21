@@ -220,9 +220,9 @@ fn resources_keyboard_changes_persist_and_reload() {
 #[test]
 fn explicit_layout_options_override_preset_zero() {
     let config = medulla::config::ResourcesConfig {
-        cpu_bottom: true,
-        mem_below_net: true,
-        agents_left: true,
+        cpu_bottom: Some(true),
+        mem_below_net: Some(true),
+        agents_left: Some(true),
         ..Default::default()
     };
     let state = ResourcesState::from_config(&config);

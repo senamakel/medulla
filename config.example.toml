@@ -50,6 +50,7 @@
 # updateMs = 2000
 # shownBoxes = "cpu,mem,net,agents"
 # presets = "cpu:0:default,mem:0:default,net:0:default,agents:1:default"
+# preset = 0
 # cpuBottom = false
 # memBelowNet = false
 # agentsLeft = false

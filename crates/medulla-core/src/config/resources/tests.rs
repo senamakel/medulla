@@ -19,5 +19,7 @@ fn resources_layout_settings_deserialize_as_camel_case() {
     ).unwrap();
     assert_eq!(config.shown_boxes, "cpu,agents");
     assert_eq!(config.presets, "cpu:1:block");
-    assert!(config.cpu_bottom && config.mem_below_net && config.agents_left);
+    assert_eq!(config.cpu_bottom, Some(true));
+    assert_eq!(config.mem_below_net, Some(true));
+    assert_eq!(config.agents_left, Some(true));
 }

@@ -475,23 +475,7 @@ impl App {
         }
         let tab = self.tab();
         if tab == "Resources" {
-            let rects = self.resources.rects;
-            for (rect, key) in [
-                (rects.cpu, '1'),
-                (rects.mem, '2'),
-                (rects.net, '3'),
-                (rects.agents, '4'),
-            ] {
-                if rect.width > 0
-                    && rect.height > 0
-                    && rect.y == y
-                    && rect.x <= x
-                    && x < rect.right()
-                {
-                    self.resources.key(crossterm::event::KeyCode::Char(key));
-                    return None;
-                }
-            }
+            self.resources_click(x, y);
             return None;
         }
         // Subpage nav. Clicking a page both selects it and takes focus, which is

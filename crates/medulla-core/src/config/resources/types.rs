@@ -43,12 +43,16 @@ pub struct ResourcesConfig {
     /// Whitespace-separated btop-style box presets.
     #[serde(default = "default_presets")]
     pub presets: String,
-    /// Place CPU below the other resource boxes.
-    pub cpu_bottom: bool,
-    /// Place Net above Mem.
-    pub mem_below_net: bool,
-    /// Place Agents in the left column.
-    pub agents_left: bool,
+    /// Index of the selected preset in `presets`.
+    pub preset: usize,
+    /// Selected preset index, zero based.
+    pub preset: usize,
+    /// Explicit CPU placement override. When absent, the selected preset wins.
+    pub cpu_bottom: Option<bool>,
+    /// Explicit Mem/Net placement override. When absent, the selected preset wins.
+    pub mem_below_net: Option<bool>,
+    /// Explicit Agents placement override. When absent, the selected preset wins.
+    pub agents_left: Option<bool>,
 }
 
 impl Default for ResourcesConfig {
@@ -57,9 +61,11 @@ impl Default for ResourcesConfig {
             update_ms: DEFAULT_RESOURCES_UPDATE_MS,
             shown_boxes: default_shown_boxes(),
             presets: default_presets(),
-            cpu_bottom: false,
-            mem_below_net: false,
-            agents_left: false,
+            preset: 0,
+            preset: 0,
+            cpu_bottom: None,
+            mem_below_net: None,
+            agents_left: None,
         }
     }
 }

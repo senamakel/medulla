@@ -154,8 +154,11 @@ impl App {
 
         let tab = self.tab();
 
-        if tab == "Resources" && self.resources.key(k.code) {
-            self.loaded.config.resources.update_ms = self.resources.interval_ms;
+        if tab == "Resources" && self.resources.menu_open && k.code == KeyCode::Esc {
+            self.resources.menu_open = false;
+            return None;
+        }
+        if tab == "Resources" && self.resources_key(k.code) {
             return None;
         }
 

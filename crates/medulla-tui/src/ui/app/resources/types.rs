@@ -32,6 +32,21 @@ pub(in crate::ui::app) struct ResourcesState {
     pub interval_ms: u64,
     pub preset: usize,
     pub presets: Vec<String>,
+    pub hits: ResourceHits,
+    pub menu_open: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(in crate::ui::app) struct ResourceHits {
+    pub cpu_toggle: Rect,
+    pub mem_toggle: Rect,
+    pub net_toggle: Rect,
+    pub agents_toggle: Rect,
+    pub menu: Rect,
+    pub preset_prev: Rect,
+    pub preset_next: Rect,
+    pub interval_down: Rect,
+    pub interval_up: Rect,
 }
 
 impl Default for ResourcesState {
@@ -48,6 +63,8 @@ impl Default for ResourcesState {
             interval_ms: 2_000,
             preset: 0,
             presets: vec!["cpu:0:default,mem:0:default,net:0:default,agents:1:default".into()],
+            hits: ResourceHits::default(),
+            menu_open: false,
         }
     }
 }
@@ -78,16 +95,16 @@ impl ResourcesState {
                 net: shown.contains(&"net"),
                 agents: shown.contains(&"agents"),
             },
-            opts: LayoutOptions {
-                cpu_bottom: config.cpu_bottom,
-                mem_below_net: config.mem_below_net,
-                agents_left: config.agents_left,
-            },
+            opts: LayoutOptions::default(),
             interval_ms: config.update_interval_ms(),
             presets,
             ..Self::default()
         };
+        state.preset = config.preset.min(state.presets.len().saturating_sub(1));
         state.apply_preset();
+        if let Some(value) = config.cpu_bottom { state.opts.cpu_bottom = value; }
+        if let Some(value) = config.mem_below_net { state.opts.mem_below_net = value; }
+        if let Some(value) = config.agents_left { state.opts.agents_left = value; }
         state
     }
 
