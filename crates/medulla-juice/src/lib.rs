@@ -12,8 +12,8 @@
 //!   `crates/medulla-core/src/daemon/providers/embed/hooks.rs` and the vendored
 //!   OpenHuman `agent/hooks.rs`.
 //! - Claude and Codex use Medulla's report-only `PostToolUse` hook shim. It
-//!   writes no replacement content to stdout (`crates/medulla-tui/src/commands/
-//!   hook.rs`).
+//!   writes no replacement content to stdout. See
+//!   `crates/medulla-tui/src/commands/hook.rs`.
 //!
 //! These integration seams need host API changes before a compressor can
 //! replace tool results. This crate deliberately has no host or compressor
