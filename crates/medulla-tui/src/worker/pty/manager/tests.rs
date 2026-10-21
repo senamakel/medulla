@@ -1,5 +1,6 @@
 //! Unit tests for PTY manager bookkeeping rules.
 
+use std::collections::HashMap;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
