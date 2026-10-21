@@ -117,10 +117,10 @@ fn classify(process: &ProcessRecord) -> Option<AgentKind> {
         .as_ref()
         .and_then(|exe| exe.file_name())
         .and_then(|name| name.to_str())?;
-    let basename = raw_basename
+    let normalized_basename = raw_basename.to_ascii_lowercase();
+    let basename = normalized_basename
         .strip_suffix(".exe")
-        .or_else(|| raw_basename.strip_suffix(".EXE"))
-        .unwrap_or(raw_basename);
+        .unwrap_or(&normalized_basename);
     let argv = match &process.argv {
         Some(argv) => argv,
         None => {
