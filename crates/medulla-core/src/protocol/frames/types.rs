@@ -4,9 +4,9 @@
 //! construction and parsing logic lives in the sibling [`encode`](super::encode)
 //! and [`decode`](super::decode) modules.
 
+pub use medulla_types::{BudgetWindow, HarnessProvider, HarnessTransport, TokenUsage};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
-pub use medulla_types::{BudgetWindow, HarnessProvider, HarnessTransport, TokenUsage};
 use std::fmt;
 
 /// Wire version tag stamped on every task frame body.
