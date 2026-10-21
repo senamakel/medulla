@@ -5,7 +5,13 @@ use super::{
     ProcessUsage,
 };
 
-fn process(pid: u32, ppid: Option<u32>, exe: &str, argv: &[&str], started_at_secs: u64) -> ProcessRecord {
+fn process(
+    pid: u32,
+    ppid: Option<u32>,
+    exe: &str,
+    argv: &[&str],
+    started_at_secs: u64,
+) -> ProcessRecord {
     ProcessRecord {
         pid,
         ppid,
@@ -17,7 +23,10 @@ fn process(pid: u32, ppid: Option<u32>, exe: &str, argv: &[&str], started_at_sec
             cpu_percent: 1.0,
             rss_bytes: 100,
             threads: 2,
-            io: Some(IoCounters { read_bytes: 10, written_bytes: 20 }),
+            io: Some(IoCounters {
+                read_bytes: 10,
+                written_bytes: 20,
+            }),
         },
     }
 }
@@ -50,9 +59,33 @@ fn claude_under_pty_is_session_owned_with_nested_children_and_aggregates() {
 #[test]
 fn env_npx_node_acp_chain_is_one_claude_acp_agent() {
     let processes = vec![
-        process(20, Some(1), "/usr/bin/env", &["env", "NODE_OPTIONS=--x", "npx", "-y", "@agentclientprotocol/claude-agent-acp@latest"], 1),
-        process(21, Some(20), "/usr/bin/npx", &["npx", "-y", "@agentclientprotocol/claude-agent-acp@latest"], 2),
-        process(22, Some(21), "/usr/bin/node", &["node", "/home/user/.npm/claude-agent-acp/dist/index.js"], 3),
+        process(
+            20,
+            Some(1),
+            "/usr/bin/env",
+            &[
+                "env",
+                "NODE_OPTIONS=--x",
+                "npx",
+                "-y",
+                "@agentclientprotocol/claude-agent-acp@latest",
+            ],
+            1,
+        ),
+        process(
+            21,
+            Some(20),
+            "/usr/bin/npx",
+            &["npx", "-y", "@agentclientprotocol/claude-agent-acp@latest"],
+            2,
+        ),
+        process(
+            22,
+            Some(21),
+            "/usr/bin/node",
+            &["node", "/home/user/.npm/claude-agent-acp/dist/index.js"],
+            3,
+        ),
     ];
 
     let agents = discover_agents(&processes, &[], 1, 50);
@@ -84,7 +117,9 @@ fn root_pid_reuse_does_not_attribute_agent_to_stale_session() {
     let roots = [KnownProcessRoot {
         pid: 10,
         started_at_secs: 5,
-        origin: AgentOrigin::Session { id: "w_stale".into() },
+        origin: AgentOrigin::Session {
+            id: "w_stale".into(),
+        },
     }];
 
     let agents = discover_agents(&processes, &roots, 1, 50);
@@ -107,7 +142,13 @@ fn medulla_and_unowned_tool_descendants_are_not_external() {
 #[test]
 fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
     let processes = vec![
-        process(50, Some(1), "/usr/bin/npx", &["npx", "@agentclientprotocol/codex-acp@latest"], 1),
+        process(
+            50,
+            Some(1),
+            "/usr/bin/npx",
+            &["npx", "@agentclientprotocol/codex-acp@latest"],
+            1,
+        ),
         process(51, Some(50), "/usr/bin/node", &["node", "codex-acp"], 2),
     ];
 
@@ -128,6 +169,10 @@ fn app_server_and_opencode_acp_have_distinct_kinds() {
     let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 2);
-    assert!(agents.iter().any(|agent| agent.kind == AgentKind::CodexAppServer));
-    assert!(agents.iter().any(|agent| agent.kind == AgentKind::OpencodeAcp));
+    assert!(agents
+        .iter()
+        .any(|agent| agent.kind == AgentKind::CodexAppServer));
+    assert!(agents
+        .iter()
+        .any(|agent| agent.kind == AgentKind::OpencodeAcp));
 }
