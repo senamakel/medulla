@@ -7,7 +7,7 @@ use crate::attention::HarnessAttention;
 use medulla_types::HarnessProvider;
 
 /// Portable facts about a harness session passed to application callbacks.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LifecycleSession {
     /// Local PTY manager id.
     pub id: String,
@@ -21,6 +21,19 @@ pub struct LifecycleSession {
     pub grant_session: Option<String>,
     /// Harness provider for TUI-owned screen classifiers.
     pub provider: HarnessProvider,
+}
+
+impl Default for LifecycleSession {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            session_id: None,
+            cwd: String::new(),
+            env: HashMap::new(),
+            grant_session: None,
+            provider: HarnessProvider::Shell,
+        }
+    }
 }
 
 /// Application-defined launch origin carried without importing app enums.
