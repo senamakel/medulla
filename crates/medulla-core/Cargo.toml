@@ -68,6 +68,7 @@ sysinfo = { workspace = true }
 libc = "0.2"
 
 [dev-dependencies]
+bytes = { workspace = true }
 # `test-util` gives the tests a paused clock. The host-link timeout gate
 # (docs/host-link-protocol.md §6.3) is tested over multi-second windows, which
 # only stay a unit test because time can be advanced rather than waited out.
