@@ -44,8 +44,8 @@ pub use agent_declarations::{
 pub use appearance::{AppearanceConfig, ResourceDisplay, SidebarGrouping, SidebarSort};
 pub use core_socket::{validate_core_socket, CoreSocketError, CoreSocketSource};
 pub use medulla_providers::{
-    load_custom_harnesses, load_layered_custom_harnesses, BudgetConfig, CustomHarnessConfig,
-    ProviderBudgetConfig, RouterConfig, RouterProviderConfig, OPENROUTER_ANTHROPIC_URL,
+    load_custom_harnesses, load_layered_custom_harnesses, CustomHarnessConfig,
+    OPENROUTER_ANTHROPIC_URL,
     OPENROUTER_API_KEY_ENV, OPENROUTER_OPENAI_URL,
 };
 pub use load::{default_link_config, explicit_config_from_env, load_config, CONFIG_PATH_ENV};
