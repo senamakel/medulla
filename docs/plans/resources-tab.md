@@ -28,8 +28,8 @@ A cell names whether the implementation ships, is deferred, or is excluded on th
 
 | Box | Element | Linux | macOS | Windows |
 |---|---|---|---|---|
-| CPU | Upper graph; total/user/nice/system/idle/iowait/irq/softirq/steal/guest/guest_nice field selectors | ship (`/proc/stat` deltas) | later (sysinfo total only) | later (sysinfo total only) |
-| CPU | Lower graph and selectable fields | ship (same Linux field set; inverted by default) | later (total only) | later (total only) |
+| CPU | Upper and lower graphs of total CPU usage | ship | ship | ship |
+| CPU | Selectable upper/lower fields: total, user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice | ship (`/proc/stat` deltas) | later (sysinfo does not expose this field breakdown) | later (sysinfo does not expose this field breakdown) |
 | CPU | Per-core usage rows/mini-graphs | ship (sysinfo) | ship (sysinfo) | ship (sysinfo) |
 | CPU | Frequency and CPU brand | ship (sysinfo; Linux frequency where reported) | ship (sysinfo where reported; otherwise omit frequency) | ship (sysinfo where reported; otherwise omit frequency) |
 | CPU | Package temperature | ship (hwmon labels and sensors) | later (no verified portable mapping in this spec) | later (no verified portable mapping in this spec) |
