@@ -33,6 +33,7 @@
 mod acp;
 mod catalog;
 #[cfg(test)]
+#[path = "tests.rs"]
 mod tests;
 mod types;
 
