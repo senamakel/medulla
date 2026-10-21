@@ -20,7 +20,7 @@ pub use attention::{AttentionKind, HarnessAttention};
 pub use cell_text::CellText;
 pub use clipboard::ClipboardSink;
 pub use convert::{ScreenCell, ScreenSnapshot};
-pub use lifecycle::{LifecycleSession, SessionClose, SessionLifecycle};
+pub use lifecycle::{LifecycleSession, OpaqueOrigin, SessionClose, SessionLifecycle};
 
 #[cfg(test)]
 #[path = "conversion_tests.rs"]

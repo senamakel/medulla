@@ -19,6 +19,22 @@ pub struct LifecycleSession {
     pub grant_session: Option<String>,
 }
 
+/// Application-defined launch origin carried without importing app enums.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OpaqueOrigin(String);
+
+impl OpaqueOrigin {
+    /// Store an application-defined origin key.
+    pub fn new(value: impl Into<String>) -> Self { Self(value.into()) }
+
+    /// Read the application-defined origin key.
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+
+impl From<medulla_types::SessionOrigin> for OpaqueOrigin {
+    fn from(origin: medulla_types::SessionOrigin) -> Self { Self::new(origin.as_str()) }
+}
+
 /// Application-owned behavior that cannot live in the portable PTY crate.
 ///
 /// The TUI uses these callbacks to revoke session grants and resolve provider
@@ -29,6 +45,12 @@ pub trait SessionLifecycle: Send + Sync + 'static {
 
     /// Return a provider-specific thread label for a harness session, if known.
     fn thread_label(&self, session: &LifecycleSession) -> Option<String>;
+
+    /// Inspect a session's current checkout. The TUI owns the Git inspection
+    /// policy; the manager only stores the resulting value.
+    fn checkout(&self, _session: &LifecycleSession) -> medulla_types::Checkout {
+        medulla_types::Checkout::default()
+    }
 }
 
 /// A once-only notification for one external harness session.
