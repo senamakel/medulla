@@ -1,5 +1,6 @@
 //! Unit tests for the Codex config overrides and the derived model catalog.
 
+#[path = "tests/acp.rs"]
 mod acp;
 
 use std::collections::HashMap;
