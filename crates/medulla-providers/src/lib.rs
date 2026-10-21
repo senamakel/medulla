@@ -15,6 +15,8 @@ mod harness_choice;
 #[cfg(test)]
 mod provider_logic_tests;
 mod routing;
+#[cfg(feature = "proxy")]
+pub mod proxy;
 
 pub use budget::{ConfiguredBudget, ProviderProbeInput};
 pub use config::{BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig};
