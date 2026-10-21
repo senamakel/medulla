@@ -9,6 +9,20 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
+#[tokio::test]
+async fn pid_reader_waits_until_an_existing_empty_file_is_populated() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("child.pid");
+    std::fs::write(&path, "").unwrap();
+    let writer_path = path.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        std::fs::write(writer_path, "12345\n").unwrap();
+    });
+
+    assert_eq!(wait_for_pid(&path).await, 12_345);
+}
+
 #[derive(Clone)]
 struct Provider;
 impl Respond for Provider {
