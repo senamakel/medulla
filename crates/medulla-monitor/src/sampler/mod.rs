@@ -229,13 +229,13 @@ impl ResourceSource for SystemResourceSource {
         });
         let mut cpu = self.cpu_monitor.sample();
         if cpu.cores.is_empty() {
-            cpu.total.total = f32::from(self.system.global_cpu_usage());
+            cpu.total.total = self.system.global_cpu_usage();
             cpu.cores = self
                 .system
                 .cpus()
                 .iter()
                 .map(|cpu| crate::CpuReading {
-                    total: f32::from(cpu.cpu_usage()),
+                    total: cpu.cpu_usage(),
                     ..Default::default()
                 })
                 .collect();

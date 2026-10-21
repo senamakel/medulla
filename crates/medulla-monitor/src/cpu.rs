@@ -96,6 +96,11 @@ pub struct CpuSnapshot {
 #[cfg(target_os = "linux")]
 struct Times([u64; 10]);
 
+#[cfg(target_os = "linux")]
+type CoreTemperatureReading = (usize, f32, f32);
+#[cfg(target_os = "linux")]
+type TemperatureReadings = (Option<f32>, Option<f32>, Vec<CoreTemperatureReading>);
+
 /// Stateful CPU sampler. Linux files can be overridden to make it deterministic in tests.
 pub struct CpuMonitor {
     #[cfg(target_os = "linux")]
@@ -198,8 +203,8 @@ impl CpuMonitor {
 #[cfg(target_os = "linux")]
 fn cpu_delta(old: Times, new: Times) -> CpuReading {
     let mut delta = [0f64; 10];
-    for i in 0..10 {
-        delta[i] = new.0[i].saturating_sub(old.0[i]) as f64;
+    for (index, value) in delta.iter_mut().enumerate() {
+        *value = new.0[index].saturating_sub(old.0[index]) as f64;
     }
     // Linux reports guest time inside user/nice. Remove it from total and user/nice fields.
     let total = delta.iter().sum::<f64>() - delta[8] - delta[9];
@@ -250,7 +255,7 @@ fn read_frequencies(root: &Path) -> Vec<u64> {
 }
 
 #[cfg(target_os = "linux")]
-fn read_temperatures(root: &Path) -> (Option<f32>, Option<f32>, Vec<(usize, f32, f32)>) {
+fn read_temperatures(root: &Path) -> TemperatureReadings {
     let mut package = None;
     let mut package_crit = None;
     let mut cores = Vec::new();
