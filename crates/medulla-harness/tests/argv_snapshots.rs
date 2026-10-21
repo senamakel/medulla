@@ -27,7 +27,7 @@ fn claude_hook_and_attribution_argv_matches_the_pre_extraction_snapshot() {
         argv,
         [
             "--settings",
-            r#"{"attribution":{"commit":"Co-authored-by: Medulla <medulla@tinyhumans.ai>"},"hooks":{"SessionStart":[{"hooks":[{"command":"echo hi","type":"command"}],"matcher":"*"}]}}"#,
+            r#"{"attribution":{"commit":"Co-authored-by: Medulla <medulla@tinyhumans.ai>"},"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"echo hi"}]}]}}"#,
         ]
     );
 }
@@ -45,7 +45,7 @@ fn codex_hook_argv_matches_the_pre_extraction_snapshot() {
         argv,
         [
             "-c",
-            r#"hooks={"SessionStart"=[{"hooks"=[{"command"="echo hi","type"="command"}],"matcher"="*"}]}"#,
+            r#"hooks={"SessionStart"=[{"matcher"="*","hooks"=[{"type"="command","command"="echo hi"}]}]}"#,
         ]
     );
 }
