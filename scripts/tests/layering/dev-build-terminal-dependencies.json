@@ -1,0 +1,12 @@
+{
+  "packages": [
+    {
+      "name": "medulla-link",
+      "manifest_path": "/workspace/crates/medulla-link/Cargo.toml",
+      "dependencies": [
+        { "name": "ratatui", "kind": "dev" },
+        { "name": "crossterm", "kind": "build" }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 python3 - "$repo_root" "${1:-}" <<'PY'
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -25,7 +26,9 @@ else:
     metadata = json.loads(output.stdout)
 
 allowlist = set()
-allow_file = root / "scripts/crate-layering.allow"
+allow_file = pathlib.Path(
+    os.environ.get("CRATE_LAYERING_ALLOWLIST", root / "scripts/crate-layering.allow")
+)
 for line in allow_file.read_text(encoding="utf-8").splitlines():
     line = line.partition("#")[0].strip()
     if line:
