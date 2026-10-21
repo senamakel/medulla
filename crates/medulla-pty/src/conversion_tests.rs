@@ -6,8 +6,8 @@
 
 use medulla_pty::screen::{Color, ScreenRun, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
 
-use crate::{CellText, ScreenCell, ScreenSnapshot};
 use crate::convert::{snapshot_from_grid, wire_color, wire_grid, wire_style};
+use crate::{CellText, ScreenCell, ScreenSnapshot};
 
 /// A cell with text and no styling.
 pub(super) fn cell(text: &str) -> ScreenCell {
@@ -209,9 +209,7 @@ fn a_combining_sequence_stays_one_cell_across_the_wire() {
         hide_cursor: false,
     };
 
-    let restored = crate::convert::snapshot_from_grid(
-        &crate::convert::wire_grid(&original),
-    );
+    let restored = crate::convert::snapshot_from_grid(&crate::convert::wire_grid(&original));
     assert_eq!(
         restored.cells[0].len(),
         3,
@@ -245,9 +243,7 @@ fn a_wide_glyph_keeps_its_continuation_cell() {
         cursor: (0, 0),
         hide_cursor: false,
     };
-    let restored = crate::convert::snapshot_from_grid(
-        &crate::convert::wire_grid(&original),
-    );
+    let restored = crate::convert::snapshot_from_grid(&crate::convert::wire_grid(&original));
     assert_eq!(restored.cells[0].len(), 3);
     assert_eq!(restored.cells[0][0].text.as_str(), "私");
     assert_eq!(restored.cells[0][2].text.as_str(), "x");
@@ -278,9 +274,7 @@ fn a_joined_emoji_stays_one_cell() {
         cursor: (0, 0),
         hide_cursor: false,
     };
-    let restored = crate::convert::snapshot_from_grid(
-        &crate::convert::wire_grid(&original),
-    );
+    let restored = crate::convert::snapshot_from_grid(&crate::convert::wire_grid(&original));
     assert_eq!(
         restored.cells[0].len(),
         3,
@@ -314,9 +308,7 @@ fn a_flag_stays_one_cell() {
         cursor: (0, 0),
         hide_cursor: false,
     };
-    let restored = crate::convert::snapshot_from_grid(
-        &crate::convert::wire_grid(&original),
-    );
+    let restored = crate::convert::snapshot_from_grid(&crate::convert::wire_grid(&original));
     assert_eq!(restored.cells[0].len(), 3);
     assert_eq!(restored.cells[0][0].text.as_str(), flag);
     assert_eq!(restored, original);

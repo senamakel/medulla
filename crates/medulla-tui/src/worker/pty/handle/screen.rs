@@ -1,10 +1,10 @@
 //! One session's emulator surface: what the UI renders, and the cheap text
 //! projections the injector matches against.
 
-use medulla_pty::CellText;
 use super::super::manager::{ScreenCell, ScreenSnapshot};
-use medulla_pty::sync::lock;
 use super::SessionHandle;
+use medulla_pty::sync::lock;
+use medulla_pty::CellText;
 
 /// What an empty cell renders as. A `const` so the common case is a copy of a
 /// fixed 16-byte value rather than a fresh construction per cell.

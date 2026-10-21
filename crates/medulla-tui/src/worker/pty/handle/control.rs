@@ -3,10 +3,10 @@
 use std::sync::atomic::Ordering;
 
 use super::super::attention;
-use medulla_pty::sync::lock;
 use super::super::types::SessionControl;
 use super::super::AttentionKind;
 use super::SessionHandle;
+use medulla_pty::sync::lock;
 
 /// Maximum handoff delay allowed for a completion chime to reach the emulator.
 const COMPLETION_CHIME_GRACE: std::time::Duration = std::time::Duration::from_millis(300);

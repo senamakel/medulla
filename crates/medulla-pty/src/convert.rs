@@ -129,7 +129,7 @@ pub fn cell_color(color: &Color) -> vt100::Color {
 ///
 /// A run's text is its cells concatenated, and the split back into cells is by
 /// **grapheme cluster** — which is what a terminal cell holds, as
-/// [`CellText`](crate::worker::pty::CellText)'s own docs state.
+/// [`CellText`]'s own docs state.
 ///
 /// Splitting by scalar is wrong in more ways than one: `e` followed by a
 /// combining acute is one cell that `chars()` yields twice, a ZWJ emoji is

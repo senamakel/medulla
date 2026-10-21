@@ -4,9 +4,9 @@ use std::sync::atomic::Ordering;
 
 use portable_pty::PtySize;
 
-use medulla_pty::sync::lock;
 use super::types::{release_queued, MAX_QUEUED_WRITE_BYTES};
 use super::SessionHandle;
+use medulla_pty::sync::lock;
 
 impl SessionHandle {
     /// Queue raw bytes for the pty — the focused pane's keystrokes, and the

@@ -41,16 +41,16 @@ pub use frames::{
     HarnessTransport, TaskFrame, TaskFrameKind, TokenUsage, WorkflowAdvert, WorkflowInputAdvert,
     CODEX_SERVER_FLAVOR, MEDULLA_TASK_PROTO,
 };
-pub use remote::{
-    encode_remote_message, parse_remote_message, RemoteAttention, RemoteCapabilities,
-    RemoteEnvelope, RemoteHarnessChoice, RemoteMessage, RemoteSessionRow, RemoteSessionState,
-    REMOTE_PROTO,
-};
 pub use medulla_pty::screen::{
     apply_frame, build_frame, changed_rows, coalesce_runs, encode_screen_message,
     parse_screen_message, ApplyOutcome, Color, FrameDecision, RowUpdate, RunStyle, ScreenFrame,
     ScreenGrid, ScreenMessage, ScreenRun, ScreenView, ATTR_BOLD, ATTR_INVERSE, ATTR_ITALIC,
     ATTR_UNDERLINE, SCREEN_PROTO,
+};
+pub use remote::{
+    encode_remote_message, parse_remote_message, RemoteAttention, RemoteCapabilities,
+    RemoteEnvelope, RemoteHarnessChoice, RemoteMessage, RemoteSessionRow, RemoteSessionState,
+    REMOTE_PROTO,
 };
 pub use status::{
     initial_status, reduce_status, tick_status, SemanticEvent, SessionStatusState, StatusStep,
