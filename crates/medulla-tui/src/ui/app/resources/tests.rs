@@ -310,17 +310,12 @@ fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
     };
     let mut history = crate::ui::resources::sampler::ResourceHistory::default();
     history.push(
-        &crate::ui::resources::sampler::ResourceSnapshot {
-            cpu: cpu.clone(),
-            ..Default::default()
-        },
+        &crate::ui::resources::sampler::ResourceSnapshot::default().with_cpu(cpu.clone()),
         20,
     );
-    let snapshot = crate::ui::resources::sampler::ResourceSnapshot {
-        cpu: std::mem::take(&mut cpu),
-        history: Arc::new(history),
-        ..Default::default()
-    };
+    let snapshot = crate::ui::resources::sampler::ResourceSnapshot::default()
+        .with_cpu(std::mem::take(&mut cpu))
+        .with_history(Arc::new(history));
     let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
     terminal
         .draw(|frame| {

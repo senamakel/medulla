@@ -76,6 +76,12 @@ pub struct ResourceSnapshot {
 }
 
 impl ResourceSnapshot {
+    /// Attach whole-machine CPU readings to a snapshot.
+    pub fn with_cpu(mut self, cpu: crate::CpuSnapshot) -> Self {
+        self.cpu = cpu;
+        self
+    }
+
     /// Adapt whole-device readings for the existing compact footer.
     pub fn device_snapshot(&self) -> crate::DeviceSnapshot {
         let cwd = std::env::current_dir().ok();
