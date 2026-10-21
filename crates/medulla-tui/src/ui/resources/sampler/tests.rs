@@ -25,7 +25,9 @@ async fn sampler_posts_injected_samples_in_order() {
     let task = spawn_sampler(
         SequenceSource(Arc::new(AtomicUsize::new(0))),
         interval_rx,
-        output_tx,
+        move |snapshot| {
+            let _ = output_tx.send(snapshot);
+        },
     );
     let first = tokio::time::timeout(Duration::from_secs(1), output_rx.recv())
         .await

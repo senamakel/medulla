@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use sysinfo::{Disks, ProcessRefreshKind, ProcessesToUpdate, System};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 
 /// A source of resource snapshots, injectable to test task ordering without
 /// depending on the host machine.
@@ -24,11 +24,15 @@ pub trait ResourceSource: Send + 'static {
 
 /// Spawn a sampler task. Sampling runs on Tokio's blocking pool so a slow
 /// process walk cannot hold up the UI/event-loop worker.
-pub fn spawn_sampler<S: ResourceSource>(
+pub fn spawn_sampler<S, F>(
     mut source: S,
     mut interval: watch::Receiver<Duration>,
-    output: mpsc::UnboundedSender<Arc<ResourceSnapshot>>,
-) -> tokio::task::JoinHandle<()> {
+    output: F,
+) -> tokio::task::JoinHandle<()>
+where
+    S: ResourceSource,
+    F: Fn(Arc<ResourceSnapshot>) + Send + Sync + 'static,
+{
     tokio::spawn(async move {
         let mut timer = tokio::time::interval(*interval.borrow());
         timer.tick().await;
@@ -41,7 +45,7 @@ pub fn spawn_sampler<S: ResourceSource>(
                     }).await;
                     let Ok((next_source, snapshot)) = sampled else { break };
                     source = next_source;
-                    if output.send(Arc::new(snapshot)).is_err() { break; }
+                    output(Arc::new(snapshot));
                 }
                 changed = interval.changed() => {
                     if changed.is_err() { break; }

@@ -102,7 +102,12 @@ pub(crate) async fn run(
     medulla_tui::ui::resources::sampler::spawn_sampler(
         medulla_tui::ui::resources::sampler::SystemResourceSource::default(),
         resource_interval_rx,
-        msg_tx.clone(),
+        {
+            let msg_tx = msg_tx.clone();
+            move |snapshot| {
+                let _ = msg_tx.send(AppMsg::Resources(snapshot));
+            }
+        },
     );
 
     // Product analytics: the top-level screen on entry and on every change.
