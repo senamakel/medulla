@@ -14,10 +14,18 @@ pub struct Usage {
     #[serde(rename = "outputTokens")]
     pub output_tokens: i64,
     /// Prompt tokens served from the provider's cache, when reported.
-    #[serde(default, rename = "cacheReadTokens", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "cacheReadTokens",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cache_read_tokens: Option<i64>,
     /// Prompt tokens written into the provider's cache, when reported.
-    #[serde(default, rename = "cacheCreationTokens", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "cacheCreationTokens",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cache_creation_tokens: Option<i64>,
 }
 

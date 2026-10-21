@@ -12,7 +12,10 @@ fn subscriptions_fixture_round_trips_the_published_toml_shape() {
         .expect("subscriptions config parses");
     assert_eq!(config.claude_session, medulla_tokens::ResourceDisplay::Bar);
     assert_eq!(config.refresh_seconds, 420);
-    assert_eq!(config.open_router_key_env.as_deref(), Some("OPENROUTER_TEST_KEY"));
+    assert_eq!(
+        config.open_router_key_env.as_deref(),
+        Some("OPENROUTER_TEST_KEY")
+    );
     let serialized = toml::Value::try_from(config).expect("config serializes");
     assert_eq!(serialized, parsed["subscriptions"]);
 }

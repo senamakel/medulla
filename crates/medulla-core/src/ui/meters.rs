@@ -178,4 +178,3 @@ pub fn context_meter(usage: &LaneUsage, window: i64) -> Option<Line> {
     );
     Some(meter("ctx", fraction, detail))
 }
-

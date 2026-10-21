@@ -21,25 +21,35 @@ fn scan_usage_object(value: &Value, depth: usize) -> Option<TokenUsage> {
     }
     if let Some(obj) = value.as_object() {
         let num = |keys: [&str; 2]| {
-            keys.iter().find_map(|k| obj.get(*k)).and_then(Value::as_i64)
+            keys.iter()
+                .find_map(|k| obj.get(*k))
+                .and_then(Value::as_i64)
         };
         if let (Some(input_tokens), Some(output_tokens)) = (
             num(["input_tokens", "inputTokens"]),
             num(["output_tokens", "outputTokens"]),
         ) {
             if input_tokens >= 0 && output_tokens >= 0 {
-                return Some(TokenUsage { input_tokens, output_tokens });
+                return Some(TokenUsage {
+                    input_tokens,
+                    output_tokens,
+                });
             }
         }
         if let Some(tokens) = obj.get("tokens").and_then(Value::as_object) {
             let number = |key: &str| tokens.get(key).and_then(Value::as_i64);
             if let (Some(input_tokens), Some(output_tokens)) = (number("input"), number("output")) {
                 if input_tokens >= 0 && output_tokens >= 0 {
-                    return Some(TokenUsage { input_tokens, output_tokens });
+                    return Some(TokenUsage {
+                        input_tokens,
+                        output_tokens,
+                    });
                 }
             }
         }
-        return obj.values().find_map(|child| scan_usage_object(child, depth + 1));
+        return obj
+            .values()
+            .find_map(|child| scan_usage_object(child, depth + 1));
     }
     None
 }
@@ -47,10 +57,15 @@ fn scan_usage_object(value: &Value, depth: usize) -> Option<TokenUsage> {
 /// How much of `current` is new since `previous`, given cumulative counters.
 /// A decrease in either counter means the provider reset the pair.
 pub fn usage_delta(previous: TokenUsage, current: TokenUsage) -> (i64, i64) {
-    if current.input_tokens < previous.input_tokens || current.output_tokens < previous.output_tokens {
+    if current.input_tokens < previous.input_tokens
+        || current.output_tokens < previous.output_tokens
+    {
         (current.input_tokens.max(0), current.output_tokens.max(0))
     } else {
-        (current.input_tokens - previous.input_tokens, current.output_tokens - previous.output_tokens)
+        (
+            current.input_tokens - previous.input_tokens,
+            current.output_tokens - previous.output_tokens,
+        )
     }
 }
 

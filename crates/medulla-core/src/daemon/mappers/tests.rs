@@ -591,4 +591,3 @@ fn an_invalid_codex_total_is_skipped_not_replaced_by_the_last_call() {
     );
     assert_eq!(mapper.usage(), None);
 }
-
