@@ -397,7 +397,7 @@ fn draw_mem_panel(
                     Rect::new(area.x, area.y + 1, area.width, 1),
                 );
             }
-        } else {
+        } else if config.show_disks {
             let used: Vec<f32> = snapshot
                 .history
                 .memory_used_bytes
@@ -410,18 +410,11 @@ fn draw_mem_panel(
                     }
                 })
                 .collect();
-            let swap: Vec<f32> = snapshot
-                .history
-                .swap_used_bytes
-                .iter()
-                .map(|v| {
-                    if snapshot.swap_total_bytes == 0 {
-                        0.0
-                    } else {
-                        *v as f32 * 100.0 / snapshot.swap_total_bytes as f32
-                    }
-                })
-                .collect();
+            let swap: Vec<f32> = if config.show_swap {
+                snapshot.history.swap_used_bytes.iter().map(|v| if snapshot.swap_total_bytes == 0 { 0.0 } else { *v as f32 * 100.0 / snapshot.swap_total_bytes as f32 }).collect()
+            } else {
+                snapshot.history.memory_available_bytes.iter().map(|v| if total == 0 { 0.0 } else { *v as f32 * 100.0 / total as f32 }).collect()
+            };
             frame.render_widget(
                 crate::ui::plot::Graph::new(&used),
                 Rect::new(area.x, area.y, area.width, 1),
@@ -440,7 +433,7 @@ fn draw_mem_panel(
                     "IO READ            WRITE"
                 }
             } else {
-                "RAM / SWAP HISTORY"
+                if config.show_swap { "RAM / SWAP HISTORY" } else { "RAM / AVAILABLE HISTORY" }
             }),
         );
         let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
@@ -478,7 +471,7 @@ fn draw_mem_panel(
             1
         };
         draw_disk_io_graphs(frame, area, snapshot, &disks, 0, disk_start, config);
-    } else {
+    } else if config.show_disks {
         let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
             2
         } else {
