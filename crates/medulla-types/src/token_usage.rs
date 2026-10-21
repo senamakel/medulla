@@ -29,4 +29,3 @@ pub enum BudgetWindow {
     #[default]
     Unknown,
 }
-

@@ -263,4 +263,3 @@ mod tests {
         assert_eq!(epoch_millis_from_iso("1970-01-01T00:00:00Z"), Some(0));
     }
 }
-
