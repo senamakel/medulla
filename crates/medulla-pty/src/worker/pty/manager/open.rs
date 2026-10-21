@@ -134,13 +134,15 @@ impl PtyManager {
         // whole function belongs on a blocking thread. The checkout is read
         // once here so the row is right on its very first frame; from then on
         // the poller keeps it current, because a harness can move it.
-        let checkout = self.inner.lifecycle.checkout(&LifecycleSession {
+        let launch = self.inner.lifecycle.launch_checkout(&LifecycleSession {
             cwd: spec.cwd.clone(), env: spec.env.clone(),
+            provider: spec.provider,
             ..LifecycleSession::default()
         });
-        let launch_root = git_root(&spec.cwd);
-        let launch_commit = launch_root.as_deref().and_then(git_head);
-        let launch_checkout_identity = None;
+        let checkout = launch.checkout;
+        let launch_root = launch.root;
+        let launch_commit = launch.commit;
+        let launch_checkout_identity = launch.identity;
         let pty = open_pty()?;
 
         // Mint the id *before* spawning, so the transcript this session writes is
@@ -357,38 +359,6 @@ impl PtyManager {
             );
         });
     }
-}
-
-/// Snapshot the repository commit before the harness can mutate the checkout.
-fn git_head(cwd: &str) -> Option<String> {
-    let output = Command::new("git")
-        .current_dir(cwd)
-        .args(["rev-parse", "--verify", "HEAD"])
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-        .filter(|head| !head.is_empty())
-}
-
-/// Resolve the repository identity paired with the immutable launch commit.
-fn git_root(cwd: &str) -> Option<String> {
-    let output = Command::new("git")
-        .current_dir(cwd)
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| {
-            String::from_utf8_lossy(&output.stdout)
-                .trim_end_matches(['\r', '\n'])
-                .to_owned()
-        })
-        .filter(|root| !root.is_empty())
 }
 
 /// Allocate a pty, retrying only the failures that are actually transient.

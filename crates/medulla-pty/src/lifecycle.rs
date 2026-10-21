@@ -23,6 +23,19 @@ pub struct LifecycleSession {
     pub provider: HarnessProvider,
 }
 
+/// TUI-inspected checkout facts captured immediately before process launch.
+#[derive(Debug, Clone, Default)]
+pub struct LaunchCheckout {
+    /// Checkout shown on the initial row.
+    pub checkout: medulla_types::Checkout,
+    /// Repository root at launch.
+    pub root: Option<String>,
+    /// Commit at launch.
+    pub commit: Option<String>,
+    /// Filesystem identity used to detect checkout replacement.
+    pub identity: Option<String>,
+}
+
 impl Default for LifecycleSession {
     fn default() -> Self {
         Self {
@@ -82,6 +95,14 @@ pub trait SessionLifecycle: Send + Sync + 'static {
     /// policy; the manager only stores the resulting value.
     fn checkout(&self, _session: &LifecycleSession) -> medulla_types::Checkout {
         medulla_types::Checkout::default()
+    }
+
+    /// Capture the checkout snapshot before a harness can modify it.
+    fn launch_checkout(&self, session: &LifecycleSession) -> LaunchCheckout {
+        LaunchCheckout {
+            checkout: self.checkout(session),
+            ..LaunchCheckout::default()
+        }
     }
 }
 

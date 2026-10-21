@@ -6,7 +6,7 @@ use std::sync::{Arc, OnceLock};
 use medulla::harness_hooks::HookEventLog;
 use medulla_pty::worker::pty::manager::PtyManager as PortablePtyManager;
 use medulla_pty::worker::pty::types::LaunchSpec as PortableLaunchSpec;
-use medulla_pty::{HarnessAttention, LifecycleSession, OpaqueOrigin, SessionLifecycle};
+use medulla_pty::{HarnessAttention, LaunchCheckout, LifecycleSession, OpaqueOrigin, SessionLifecycle};
 
 use super::types::LaunchSpec;
 use super::{attention, launch};
@@ -113,6 +113,16 @@ impl SessionLifecycle for TuiSessionLifecycle {
         super::checkout::inspect::resolve(&session.cwd)
     }
 
+    fn launch_checkout(&self, session: &LifecycleSession) -> LaunchCheckout {
+        let cwd = std::path::Path::new(&session.cwd);
+        LaunchCheckout {
+            checkout: super::checkout::inspect::resolve(&session.cwd),
+            root: git_value(cwd, &["rev-parse", "--show-toplevel"]),
+            commit: git_value(cwd, &["rev-parse", "--verify", "HEAD"]),
+            identity: super::checkout::capture(cwd),
+        }
+    }
+
     fn is_working(&self, screen: &str) -> bool { attention::is_working(screen) }
 
     fn classify_attention(&self, session: &LifecycleSession, screen: &str, now: i64) -> Option<HarnessAttention> {
@@ -124,4 +134,17 @@ impl SessionLifecycle for TuiSessionLifecycle {
         });
         cue.map(|(kind, what)| HarnessAttention::new(kind, what, now))
     }
+}
+
+fn git_value(cwd: &std::path::Path, args: &[&str]) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .current_dir(cwd)
+        .args(args)
+        .output()
+        .ok()?;
+    output.status.success().then(|| {
+        String::from_utf8_lossy(&output.stdout)
+            .trim_end_matches(['\r', '\n'])
+            .to_owned()
+    }).filter(|value| !value.is_empty())
 }
