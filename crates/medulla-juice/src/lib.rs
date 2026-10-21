@@ -8,8 +8,9 @@
 //!
 //! - Embedded OpenHuman's `ToolHook::after_tool` returns `()`, and
 //!   `after_tool_context` can only append text. Neither can replace a tool
-//!   result with compressed content (`crates/medulla-core/src/daemon/providers/
-//!   embed/hooks.rs` and the vendored OpenHuman `agent/hooks.rs`).
+//!   result with compressed content. See
+//!   `crates/medulla-core/src/daemon/providers/embed/hooks.rs` and the vendored
+//!   OpenHuman `agent/hooks.rs`.
 //! - Claude and Codex use Medulla's report-only `PostToolUse` hook shim. It
 //!   writes no replacement content to stdout (`crates/medulla-tui/src/commands/
 //!   hook.rs`).
