@@ -74,9 +74,9 @@ OpenRouter and silently ignored, which is why the body is the only honest seam.
 
 Spawn seams call `route_spawn(provider, router, env)`, which atomically replaces
 an OpenRouter-bound provider's endpoint, injects its loopback token, and scrubs
-the upstream credential. Nothing downstream changes: `RouterConfig` and
-Medulla's router environment injection performs the same child injection, simply
-pointed at loopback.
+the upstream credential. Nothing downstream changes: `RouterConfig` plus
+Medulla's router environment injection still perform the same child injection,
+now pointed at loopback.
 
 `MEDULLA_OPENROUTER_URL` overrides the upstream so tests stay offline.
 

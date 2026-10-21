@@ -3,6 +3,12 @@
 use super::*;
 
 #[test]
+fn proxy_runtime_keeps_agent_stack_and_blocking_pool_limits() {
+    assert_eq!(super::serve::PROXY_WORKER_STACK_BYTES, 20 * 1024 * 1024);
+    assert_eq!(super::serve::PROXY_MAX_BLOCKING_THREADS, 64);
+}
+
+#[test]
 fn mounts_map_onto_their_upstream_dialects() {
     assert_eq!(
         UpstreamShape::Anthropic.upstream_base(OPENROUTER_ROOT),

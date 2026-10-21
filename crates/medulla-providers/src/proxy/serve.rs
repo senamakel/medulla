@@ -29,6 +29,13 @@ use tokio::net::TcpListener;
 use super::body;
 use super::types::{CredentialRegistry, UpstreamShape};
 
+// Keep these in sync with OpenHuman's process runtime policy. The proxy is
+// owned by medulla-providers, which cannot depend on openhuman-embed; its
+// accept/forward tasks still need the same deep-future stack and bounded
+// blocking pool as the agent runtime.
+const PROXY_WORKER_STACK_BYTES: usize = 20 * 1024 * 1024;
+const PROXY_MAX_BLOCKING_THREADS: usize = 64;
+
 /// The body type both proxied and locally-generated responses use.
 type ProxyBody = BoxBody<Bytes, std::io::Error>;
 
@@ -74,6 +81,8 @@ pub(super) fn spawn(
             let runtime = match tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(2)
                 .enable_all()
+                .thread_stack_size(PROXY_WORKER_STACK_BYTES)
+                .max_blocking_threads(PROXY_MAX_BLOCKING_THREADS)
                 .build()
             {
                 Ok(runtime) => runtime,
