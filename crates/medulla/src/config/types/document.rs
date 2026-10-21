@@ -130,6 +130,7 @@ impl Default for TuiConfig {
             theme: ThemeConfig::default(),
             appearance: AppearanceConfig::default(),
             subscriptions: SubscriptionsConfig::default(),
+            resources: ResourcesConfig::default(),
             status_line: None,
             onboarding: OnboardingConfig::default(),
             workflow: WorkflowConfig::default(),
