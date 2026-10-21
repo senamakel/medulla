@@ -2,7 +2,7 @@
 use std::sync::OnceLock;
 
 use medulla::harness_hooks::HookEventLog;
-use medulla_pty::{SessionLifecycle, SessionClose};
+use medulla_pty::SessionLifecycle;
 
 #[allow(unused_imports)]
 use super::*;
