@@ -125,4 +125,3 @@ fn level(value: f32, low: f32, high: f32, bias: f32, no_zero: bool) -> u8 {
             as u8
     }
 }
-
