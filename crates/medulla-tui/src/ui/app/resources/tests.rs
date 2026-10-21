@@ -251,25 +251,23 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
     let mut loaded = LoadedConfig::defaults("test.json".into());
     loaded.config.resources.shown_boxes = "mem".into();
     let mut history = crate::ui::resources::sampler::ResourceHistory::default();
-    let sample = crate::ui::resources::sampler::ResourceSnapshot {
-        memory_total_bytes: 16_000,
-        memory_used_bytes: 8_000,
-        memory_available_bytes: 8_000,
-        memory_cached_bytes: 2_000,
-        memory_free_bytes: 1_000,
-        swap_total_bytes: 4_000,
-        swap_used_bytes: 500,
-        disks: vec![crate::ui::resources::sampler::DiskSnapshot {
-            device: "/dev/sda1".into(),
-            mount: "/mnt/data".into(),
-            total_bytes: 10_000,
-            used_bytes: 2_500,
-            read_bytes_per_second: 512.0,
-            write_bytes_per_second: 1024.0,
-            busy_percent: Some(15.0),
-        }],
-        ..Default::default()
-    };
+    let mut sample = crate::ui::resources::sampler::ResourceSnapshot::default();
+    sample.memory_total_bytes = 16_000;
+    sample.memory_used_bytes = 8_000;
+    sample.memory_available_bytes = 8_000;
+    sample.memory_cached_bytes = 2_000;
+    sample.memory_free_bytes = 1_000;
+    sample.swap_total_bytes = 4_000;
+    sample.swap_used_bytes = 500;
+    sample.disks = vec![crate::ui::resources::sampler::DiskSnapshot {
+        device: "/dev/sda1".into(),
+        mount: "/mnt/data".into(),
+        total_bytes: 10_000,
+        used_bytes: 2_500,
+        read_bytes_per_second: 512.0,
+        write_bytes_per_second: 1024.0,
+        busy_percent: Some(15.0),
+    }];
     history.push(&sample, 8);
     let sample = sample.with_history(Arc::new(history));
     for (width, height) in [(170, 42), (80, 24)] {
