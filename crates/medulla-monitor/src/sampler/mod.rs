@@ -330,7 +330,6 @@ impl ResourceSource for SystemResourceSource {
 }
 
 #[cfg(target_os = "linux")]
-#[derive(Default)]
 struct LinuxResourceMonitor {
     root: std::path::PathBuf,
     previous: std::collections::HashMap<String, (u64, u64, u64)>,

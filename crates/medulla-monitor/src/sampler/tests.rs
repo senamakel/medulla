@@ -148,14 +148,18 @@ fn process_io_peak_decays_instead_of_resetting_to_each_sample() {
 fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
     let disks = [
         super::DiskSnapshot {
+            device: "sda1".into(),
             mount: "/".into(),
             total_bytes: 10_000,
             used_bytes: 9_000,
+            read_bytes_per_second: 0.0, write_bytes_per_second: 0.0, busy_percent: None,
         },
         super::DiskSnapshot {
+            device: "sdb1".into(),
             mount: "/mnt/data".into(),
             total_bytes: 1_000,
             used_bytes: 250,
+            read_bytes_per_second: 0.0, write_bytes_per_second: 0.0, busy_percent: None,
         },
     ];
 
