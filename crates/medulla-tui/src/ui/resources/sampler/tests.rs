@@ -143,3 +143,24 @@ fn process_io_peak_decays_instead_of_resetting_to_each_sample() {
     assert_eq!(source.update_disk_peak(100.0, 0.0), 100.0);
     assert_eq!(source.update_disk_peak(0.0, 0.0), 90.0);
 }
+
+#[test]
+fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
+    let disks = [
+        super::DiskSnapshot {
+            mount: "/".into(),
+            total_bytes: 10_000,
+            used_bytes: 9_000,
+        },
+        super::DiskSnapshot {
+            mount: "/mnt/data".into(),
+            total_bytes: 1_000,
+            used_bytes: 250,
+        },
+    ];
+
+    let selected =
+        super::types::most_specific_mount(&disks, std::path::Path::new("/mnt/data/project"))
+            .unwrap();
+    assert_eq!(selected.mount, "/mnt/data");
+}

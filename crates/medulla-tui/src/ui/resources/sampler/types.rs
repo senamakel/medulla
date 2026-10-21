@@ -77,16 +77,9 @@ impl ResourceSnapshot {
     /// Adapt whole-device readings for the existing compact footer.
     pub fn device_snapshot(&self) -> super::super::DeviceSnapshot {
         let cwd = std::env::current_dir().ok();
-        let disk = self
-            .disks
-            .iter()
-            .filter_map(|disk| {
-                let mount = std::path::Path::new(&disk.mount);
-                let depth = cwd.as_ref()?.strip_prefix(mount).ok()?.components().count();
-                Some((depth, disk))
-            })
-            .max_by_key(|(depth, _)| *depth)
-            .map(|(_, disk)| disk);
+        let disk = cwd
+            .as_deref()
+            .and_then(|cwd| most_specific_mount(&self.disks, cwd));
         super::super::DeviceSnapshot {
             cpu_fraction: Some((self.cpu_percent / 100.0).clamp(0.0, 1.0)),
             memory_used_bytes: Some(self.memory_used_bytes),
@@ -131,6 +124,22 @@ impl ResourceSnapshot {
         result.cpu_fraction = result.cpu_fraction.clamp(0.0, 1.0);
         Some(result)
     }
+}
+
+/// Pick the deepest mount containing `cwd`; ties prefer the larger capacity.
+pub(super) fn most_specific_mount<'a>(
+    disks: &'a [DiskSnapshot],
+    cwd: &std::path::Path,
+) -> Option<&'a DiskSnapshot> {
+    disks
+        .iter()
+        .filter(|disk| cwd.starts_with(std::path::Path::new(&disk.mount)))
+        .max_by_key(|disk| {
+            (
+                std::path::Path::new(&disk.mount).components().count(),
+                disk.total_bytes,
+            )
+        })
 }
 
 /// Recent scalar series shared between the sampler and rendering views.
