@@ -48,6 +48,7 @@ pub use medulla_providers::{
     OPENROUTER_ANTHROPIC_URL,
     OPENROUTER_API_KEY_ENV, OPENROUTER_OPENAI_URL,
 };
+pub use medulla_providers::{BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig};
 pub use load::{default_link_config, explicit_config_from_env, load_config, CONFIG_PATH_ENV};
 pub use local_hosts::{local_host_address, local_host_name, local_hosts, LocalHostRef};
 pub use persist::{
@@ -68,8 +69,7 @@ pub use types::{
     EvolveSettings, FavoriteWorkspace, FieldPlacement, FieldVisibility, FleetConfig,
     HarnessNameStyle, HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig,
     LinkConfig, LoadedConfig, McpSection, MedullaConfig, OnboardingConfig, OpencodeConfig,
-    PathStyle, Peer, RemoteHostSection, BudgetConfig, ProviderBudgetConfig, RouterConfig,
-    RouterProviderConfig,
+    PathStyle, Peer, RemoteHostSection,
     StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
     DEFAULT_CONTEXT_WINDOW_TOKENS,
 };
