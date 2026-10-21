@@ -13,6 +13,8 @@ pub enum AgentKind {
     OpenhumanCore,
     EmbeddedOpenhuman,
     Shell,
+    /// A supported executable whose command-line signature could not be read.
+    Unknown,
 }
 
 /// Ownership source for a discovered process tree.
@@ -85,7 +87,6 @@ pub struct AgentProcess {
     pub kind: AgentKind,
     pub origin: AgentOrigin,
     pub exe: Option<PathBuf>,
-    pub argv: Option<Vec<String>>,
     pub cwd: Option<PathBuf>,
     pub started_at_secs: u64,
     pub runtime_secs: u64,

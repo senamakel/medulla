@@ -180,3 +180,15 @@ fn app_server_and_opencode_acp_have_distinct_kinds() {
         .iter()
         .any(|agent| agent.kind == AgentKind::OpencodeAcp));
 }
+
+#[test]
+fn unreadable_argv_is_unknown_and_external_instead_of_guessing() {
+    let mut process = process(70, Some(7), "/opt/bin/claude", &["claude"], 10);
+    process.argv = None;
+
+    let agents = discover_agents(&[process], &[], 1, 50);
+
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].kind, AgentKind::Unknown);
+    assert_eq!(agents[0].origin, AgentOrigin::External);
+}

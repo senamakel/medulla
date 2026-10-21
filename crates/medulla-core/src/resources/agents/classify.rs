@@ -80,7 +80,6 @@ pub fn discover_agents(
             kind,
             origin,
             exe: process.exe.clone(),
-            argv: process.argv.clone(),
             cwd: process.cwd.clone(),
             started_at_secs: process.started_at_secs,
             runtime_secs: sampled_at_secs.saturating_sub(process.started_at_secs),
@@ -98,7 +97,25 @@ fn classify(process: &ProcessRecord) -> Option<AgentKind> {
         .as_ref()
         .and_then(|exe| exe.file_name())
         .and_then(|name| name.to_str())?;
-    let argv = process.argv.as_ref()?;
+    let argv = match &process.argv {
+        Some(argv) => argv,
+        None => {
+            return matches!(
+                basename,
+                "claude"
+                    | "codex"
+                    | "opencode"
+                    | "openhuman-core"
+                    | "sh"
+                    | "bash"
+                    | "zsh"
+                    | "fish"
+                    | "pwsh"
+                    | "powershell"
+            )
+            .then_some(AgentKind::Unknown);
+        }
+    };
     let args = argv.iter().map(String::as_str).collect::<Vec<_>>();
     let has = |needle: &str| args.iter().any(|arg| arg.contains(needle));
     let has_arg = |needle: &str| args.iter().any(|arg| *arg == needle);
