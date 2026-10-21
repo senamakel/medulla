@@ -474,7 +474,7 @@ fn workflows_accept_the_local_harness_as_a_default_provider() {
 
 #[test]
 fn toml_provider_string_still_parses_after_provider_extraction() {
-    let config: TuiConfig = toml::from_str("[workflows]\ndefault_provider = \"codex\"\")
+    let config: TuiConfig = toml::from_str("[workflows]\ndefault_provider = \"codex\"")
         .expect("the existing provider string remains a TOML enum value");
 
     assert_eq!(config.workflows.default_provider, Some(crate::protocol::HarnessProvider::Codex));
