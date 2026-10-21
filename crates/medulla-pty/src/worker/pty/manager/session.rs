@@ -12,6 +12,7 @@ use super::{read, write, PtyManager};
 
 /// Advance the consumed-bell watermark without allowing a stale screen sample
 /// to move it backwards.
+#[cfg(test)]
 pub(super) fn consumed_bell_count(seen: usize, sampled: usize) -> usize {
     seen.max(sampled)
 }
