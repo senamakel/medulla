@@ -112,11 +112,15 @@ pub fn discover_agents_with_options(
 }
 
 fn classify(process: &ProcessRecord) -> Option<AgentKind> {
-    let basename = process
+    let raw_basename = process
         .exe
         .as_ref()
         .and_then(|exe| exe.file_name())
         .and_then(|name| name.to_str())?;
+    let basename = raw_basename
+        .strip_suffix(".exe")
+        .or_else(|| raw_basename.strip_suffix(".EXE"))
+        .unwrap_or(raw_basename);
     let argv = match &process.argv {
         Some(argv) => argv,
         None => {

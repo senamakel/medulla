@@ -167,15 +167,26 @@ fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
 fn app_server_and_opencode_acp_have_distinct_kinds() {
     let processes = vec![
         process(60, Some(999), "/usr/bin/codex", &["codex", "app-server"], 1),
+        process(
+            62,
+            Some(999),
+            "C:/Program Files/Codex/codex.exe",
+            &["codex", "app-server"],
+            1,
+        ),
         process(61, Some(999), "/usr/bin/opencode", &["opencode", "acp"], 1),
     ];
 
     let agents = discover_agents(&processes, &[], 1, 50);
 
-    assert_eq!(agents.len(), 2);
-    assert!(agents
-        .iter()
-        .any(|agent| agent.kind == AgentKind::CodexAppServer));
+    assert_eq!(agents.len(), 3);
+    assert_eq!(
+        agents
+            .iter()
+            .filter(|agent| agent.kind == AgentKind::CodexAppServer)
+            .count(),
+        2
+    );
     assert!(agents
         .iter()
         .any(|agent| agent.kind == AgentKind::OpencodeAcp));
