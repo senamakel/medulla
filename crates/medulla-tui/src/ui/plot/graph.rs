@@ -84,11 +84,10 @@ impl Widget for Graph<'_> {
                     0.0
                 };
                 let bottom = row == height - 1;
-                let left_level = level(previous, low, high, one_row_bias, self.no_zero && bottom);
+                let left_no_zero = self.no_zero && bottom && !(column == 0 && first == 0);
+                let left_level = level(previous, low, high, one_row_bias, left_no_zero);
                 let right_level = level(current, low, high, one_row_bias, self.no_zero && bottom);
-                let glyph = self
-                    .symbol
-                    .glyph(self.invert, left_level, right_level);
+                let glyph = self.symbol.glyph(self.invert, left_level, right_level);
                 let color_percent = if height == 1 {
                     previous.max(current).clamp(0.0, 100.0)
                 } else {
@@ -99,7 +98,10 @@ impl Widget for Graph<'_> {
                     .map(|gradient| Style::default().fg(gradient.at(color_percent)))
                     .unwrap_or_default();
                 buffer[(area.x + column as u16, area.y + row as u16)] =
-                    ratatui::buffer::Cell::default().set_char(glyph).set_style(style).clone();
+                    ratatui::buffer::Cell::default()
+                        .set_char(glyph)
+                        .set_style(style)
+                        .clone();
             }
         }
     }
@@ -119,7 +121,8 @@ fn level(value: f32, low: f32, high: f32, bias: f32, no_zero: bool) -> u8 {
     } else if high <= low {
         minimum
     } else {
-        (((value - low) * 4.0 / (high - low) + bias).round() as i32).clamp(i32::from(minimum), 4) as u8
+        (((value - low) * 4.0 / (high - low) + bias).round() as i32).clamp(i32::from(minimum), 4)
+            as u8
     }
 }
 

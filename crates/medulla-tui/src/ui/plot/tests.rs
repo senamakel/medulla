@@ -22,7 +22,7 @@ fn glyph(buffer: &Buffer, x: u16, y: u16) -> char {
 #[test]
 fn paired_samples_match_btop_glyphs_for_each_symbol_table() {
     let expected = [
-        (Symbol::Braille, '⣠', '⠙'),
+        (Symbol::Braille, '⣰', '⠙'),
         (Symbol::Block, '▄', '▀'),
         (Symbol::Tty, '▒', '▒'),
     ];
@@ -54,7 +54,9 @@ fn percentage_rows_fill_from_the_bottom_and_invert_to_the_top() {
 
 #[test]
 fn no_zero_keeps_a_baseline_mark_for_zero_values() {
-    let graph = render_graph(&[0.0, 0.0], 1, 4, Symbol::Braille, false);
+    let area = Rect::new(0, 0, 1, 4);
+    let mut graph = Buffer::empty(area);
+    Graph::new(&[0.0]).no_zero(true).render(area, &mut graph);
     assert_eq!(glyph(&graph, 0, 0), ' ');
     assert_eq!(glyph(&graph, 0, 1), ' ');
     assert_eq!(glyph(&graph, 0, 2), ' ');

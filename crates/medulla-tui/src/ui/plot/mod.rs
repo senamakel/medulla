@@ -52,7 +52,13 @@ fn blend(from: Color, to: Color, amount: f32) -> Color {
             mix(g1, g2, amount),
             mix(b1, b2, amount),
         ),
-        (from, to) => if amount < 0.5 { from } else { to },
+        (from, to) => {
+            if amount < 0.5 {
+                from
+            } else {
+                to
+            }
+        }
     }
 }
 
