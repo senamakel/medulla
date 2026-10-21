@@ -192,7 +192,7 @@ impl crate::control_socket::FleetOps for NoFleet {
 #[cfg(all(feature = "workflows", unix))]
 #[tokio::test]
 async fn a_parent_handoff_is_exchanged_before_the_mcp_server_is_attached() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = crate::control_socket::private_tempdir();
     let path = dir.path().join("control.sock");
     let grants = crate::control_socket::GrantRegistry::new();
     let parent_token = grants.mint(crate::control_socket::Grant::new("parent", 1, 3));

@@ -184,7 +184,7 @@ mod bind {
 
     #[tokio::test]
     async fn a_free_path_is_bindable() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let path = dir.path().join("control.sock");
 
         assert!(prepare_bind(&path).await.is_ok());
@@ -194,7 +194,7 @@ mod bind {
     async fn a_regular_file_is_refused_and_never_deleted() {
         // Somebody's data. A control plane that unlinks unfamiliar files to get
         // its address is worse than one that declines to start.
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let path = dir.path().join("control.sock");
         std::fs::write(&path, b"not a socket").unwrap();
 
@@ -206,7 +206,7 @@ mod bind {
 
     #[tokio::test]
     async fn a_dead_socket_is_reaped() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let path = dir.path().join("control.sock");
         // Bind and drop: the file survives, but nothing answers on it.
         drop(tokio::net::UnixListener::bind(&path).unwrap());
@@ -218,7 +218,7 @@ mod bind {
 
     #[tokio::test]
     async fn bind_preparation_is_serialized_until_the_caller_binds() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let path = dir.path().join("control.sock");
         let first = prepare_bind(&path).await.unwrap();
         let competing_path = path.clone();
@@ -242,7 +242,7 @@ mod bind {
 
     #[tokio::test]
     async fn a_stuck_bind_lock_is_bounded_instead_of_hanging_startup() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let path = dir.path().join("control.sock");
         let _held = prepare_bind(&path).await.unwrap();
         let started = std::time::Instant::now();
@@ -258,7 +258,7 @@ mod bind {
 
     #[tokio::test]
     async fn a_live_socket_is_left_alone() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let path = dir.path().join("control.sock");
         let _listener = tokio::net::UnixListener::bind(&path).unwrap();
 
@@ -272,7 +272,7 @@ mod bind {
     async fn the_parent_directory_is_created_private() {
         use std::os::unix::fs::PermissionsExt;
 
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let path = dir.path().join("nested").join("control.sock");
 
         drop(prepare_bind(&path).await.unwrap());
@@ -307,7 +307,7 @@ mod bind {
     async fn an_explicit_paths_existing_parent_keeps_its_permissions() {
         use std::os::unix::fs::PermissionsExt;
 
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let shared = dir.path().join("shared");
         std::fs::create_dir(&shared).unwrap();
         std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o1777)).unwrap();
@@ -323,7 +323,7 @@ mod bind {
     async fn a_derived_paths_existing_symlinked_parent_is_never_chmodded() {
         use std::os::unix::fs::{symlink, PermissionsExt};
 
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let actual = dir.path().join("account-root");
         let linked = dir.path().join("linked-account-root");
         std::fs::create_dir(&actual).unwrap();
@@ -358,7 +358,7 @@ mod bind {
     async fn an_explicit_path_refuses_a_replaceable_parent_without_chmodding_it() {
         use std::os::unix::fs::PermissionsExt;
 
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let shared = dir.path().join("shared");
         std::fs::create_dir(&shared).unwrap();
         std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o777)).unwrap();
@@ -375,7 +375,7 @@ mod bind {
     async fn a_symlink_cannot_hide_a_replaceable_parent() {
         use std::os::unix::fs::{symlink, PermissionsExt};
 
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let actual_parent = dir.path().join("replaceable");
         let private_parent = dir.path().join("private");
         std::fs::create_dir(&actual_parent).unwrap();
@@ -397,7 +397,7 @@ mod bind {
     async fn an_explicit_path_refuses_a_private_parent_beneath_a_replaceable_ancestor() {
         use std::os::unix::fs::PermissionsExt;
 
-        let dir = tempfile::tempdir().unwrap();
+        let dir = crate::control_socket::private_tempdir();
         let shared = dir.path().join("shared");
         let private = shared.join("private");
         std::fs::create_dir_all(&private).unwrap();

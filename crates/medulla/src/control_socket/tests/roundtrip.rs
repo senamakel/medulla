@@ -16,7 +16,7 @@ use super::{FakeFleet, FakeOutcome};
 
 /// A bound server over `fleet`, plus a token for a grant that may dispatch.
 async fn serve(fleet: FakeFleet) -> (tempfile::TempDir, ControlServer, String) {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = crate::control_socket::private_tempdir();
     let path = dir.path().join("control.sock");
     let grants = GrantRegistry::new();
     let token = grants.mint(Grant::new("session", 0, 2));
@@ -193,7 +193,7 @@ async fn abort_immediately_after_dispatch_is_not_lost_before_registration() {
 async fn connecting_where_nothing_listens_is_no_instance_not_an_error() {
     // The ordinary case for a harness whose spawn carried no grant. It must be a
     // value the shim can turn into a readable refusal, never a reason to die.
-    let dir = tempfile::tempdir().unwrap();
+    let dir = crate::control_socket::private_tempdir();
     let path = dir.path().join("absent.sock");
 
     let result = ControlClient::connect(&path, "irrelevant").await;
@@ -218,7 +218,7 @@ async fn a_bad_grant_is_refused_at_the_handshake() {
 
 #[tokio::test]
 async fn a_revoked_grant_stops_working_for_new_connections() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = crate::control_socket::private_tempdir();
     let path = dir.path().join("control.sock");
     let grants = GrantRegistry::new();
     let token = grants.mint(Grant::new("ending", 0, 2));
@@ -238,7 +238,7 @@ async fn a_revoked_grant_stops_working_for_new_connections() {
 
 #[tokio::test]
 async fn a_revoked_grant_stops_working_on_an_open_connection() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = crate::control_socket::private_tempdir();
     let path = dir.path().join("control.sock");
     let grants = GrantRegistry::new();
     let token = grants.mint(Grant::new("ending", 0, 2));

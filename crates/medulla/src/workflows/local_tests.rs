@@ -33,7 +33,7 @@ impl crate::control_socket::FleetOps for NoFleet {
 #[cfg(unix)]
 #[tokio::test]
 async fn a_workflow_run_converts_its_parent_grant_into_a_verified_handoff() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = crate::control_socket::private_tempdir();
     let path = dir.path().join("control.sock");
     let grants = crate::control_socket::GrantRegistry::new();
     let token = grants.mint(crate::control_socket::Grant::new("parent", 1, 3));
