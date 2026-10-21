@@ -266,6 +266,37 @@ fn draw_mem_panel(
             bytes(snapshot.swap_total_bytes)
         )));
     }
+    if config.show_disks {
+        for disk in snapshot
+            .disks
+            .iter()
+            .take(area.height.saturating_sub(lines.len() as u16) as usize)
+        {
+            let used = if disk.total_bytes == 0 {
+                0
+            } else {
+                disk.used_bytes.saturating_mul(100) / disk.total_bytes
+            };
+            let io = if config.io_mode {
+                format!(
+                    " R{} W{}",
+                    bytes(disk.read_bytes_per_second as u64),
+                    bytes(disk.write_bytes_per_second as u64)
+                )
+            } else {
+                disk.busy_percent
+                    .map_or(String::new(), |busy| format!(" IO{busy:.0}%"))
+            };
+            lines.push(Line::from(format!(
+                "{:<8} {:>3}% {} / {}{}",
+                disk.mount,
+                used,
+                bytes(disk.used_bytes),
+                bytes(disk.total_bytes),
+                io
+            )));
+        }
+    }
     let graph_rows = if config.io_mode {
         if config.io_graph_combined {
             1
@@ -369,37 +400,6 @@ fn draw_mem_panel(
             ),
         );
         return;
-    }
-    if config.show_disks {
-        for disk in snapshot
-            .disks
-            .iter()
-            .take(area.height.saturating_sub(lines.len() as u16) as usize)
-        {
-            let used = if disk.total_bytes == 0 {
-                0
-            } else {
-                disk.used_bytes.saturating_mul(100) / disk.total_bytes
-            };
-            let io = if config.io_mode {
-                format!(
-                    " R{} W{}",
-                    bytes(disk.read_bytes_per_second as u64),
-                    bytes(disk.write_bytes_per_second as u64)
-                )
-            } else {
-                disk.busy_percent
-                    .map_or(String::new(), |busy| format!(" IO{busy:.0}%"))
-            };
-            lines.push(Line::from(format!(
-                "{:<8} {:>3}% {} / {}{}",
-                disk.mount,
-                used,
-                bytes(disk.used_bytes),
-                bytes(disk.total_bytes),
-                io
-            )));
-        }
     }
     frame.render_widget(
         Paragraph::new(lines).style(Style::default().fg(Color::White)),
