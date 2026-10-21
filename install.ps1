@@ -60,7 +60,7 @@ function Die        { param([string] $Message) Write-Host "error: $Message" -For
 
 # ---- Platform detection ------------------------------------------------------
 # Keys match the release build matrix's Rust target triples (see
-# crates/medulla/src/update/check.rs::platform_key). Only x86_64 ships today; arm64
+# crates/medulla-core/src/update/check.rs::platform_key). Only x86_64 ships today; arm64
 # Windows runs it through the x64 emulation layer.
 
 function Get-Target {

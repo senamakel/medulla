@@ -21,7 +21,7 @@ use ratatui::Terminal;
 use medulla::client::MedullaClient;
 use medulla_tui::ui::welcome::{drive_welcome_ui, WelcomeEvent, WelcomeOutcome, WelcomeSession};
 
-#[path = "../../medulla/tests/support/mod.rs"]
+#[path = "../../medulla-core/tests/support/mod.rs"]
 mod support;
 use support::mock_backend::MockBackend;
 

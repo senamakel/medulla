@@ -11,8 +11,8 @@ One end-to-end round trip over the **host link** (`docs/host-link-protocol.md`),
 with no real keys, no backend, and no network egress:
 
 ```
-owner driver (crates/medulla/examples/coordination_owner/main.rs; a real medulla-link endpoint)
-  → mock link relay (crates/medulla/examples/mock_link_forwarder.rs; blind UDP, appendix A)
+owner driver (crates/medulla-core/examples/coordination_owner/main.rs; a real medulla-link endpoint)
+  → mock link relay (crates/medulla-core/examples/mock_link_forwarder.rs; blind UDP, appendix A)
     → medulla daemon (real binary, `--providers <harness>`, the host end)
       → the real coding CLI (spawned by the daemon as its provider)
         → mock LLM (e2e/coordination/mock_llm.py)
@@ -58,8 +58,8 @@ routed at the mock and which wire dialect it lands on.
 | `e2e/coordination/Dockerfile` | the harness image: a rust build stage layered onto that base |
 | `e2e/coordination/build-image.sh` | build (and optionally push) either image |
 | `e2e/coordination/run-docker.sh` | build + run the whole harness in a container |
-| `crates/medulla/examples/mock_link_forwarder.rs` | blind UDP relay for the protocol's relayed route (appendix A) |
-| `crates/medulla/examples/coordination_owner/main.rs` | owner-side driver: provisions pairs, serves legs, prints terminal frame JSON |
+| `crates/medulla-core/examples/mock_link_forwarder.rs` | blind UDP relay for the protocol's relayed route (appendix A) |
+| `crates/medulla-core/examples/coordination_owner/main.rs` | owner-side driver: provisions pairs, serves legs, prints terminal frame JSON |
 
 ## Running
 

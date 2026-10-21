@@ -58,7 +58,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # The workspace's vendored path deps live under vendor/* (openhuman-embed, tinyflows,
-# tinyhumans-sdk). crates/ carries every member crate (crates/medulla, crates/medulla-tui, crates/medulla-link)
+# tinyhumans-sdk). crates/ carries every member crate (crates/medulla-core, crates/medulla-tui, crates/medulla-link)
 # including their tests/ and examples/ trees.
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
