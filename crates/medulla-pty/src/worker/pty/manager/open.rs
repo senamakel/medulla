@@ -6,12 +6,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Weak};
 
-use medulla::protocol::HarnessProvider;
-use medulla_pty::{LifecycleSession, SessionClose};
+use medulla_types::HarnessProvider;
+use medulla_pty::{LifecycleSession, OpaqueOrigin, SessionClose};
 use portable_pty::{native_pty_system, Child, CommandBuilder, PtyPair, PtySize};
 
 use super::super::handle::{release_queued, SessionHandle, SessionMeta};
-use super::super::launch::{interactive_args, mint_session_id};
 use super::super::types::{LaunchSpec, DEFAULT_COLS, DEFAULT_ROWS, SCROLLBACK};
 
 use super::{write, PtyManager, BUF_LEN, OPENPTY_ATTEMPTS, OPENPTY_RETRY_CAP, OPENPTY_RETRY_PAUSE};
@@ -134,27 +133,21 @@ impl PtyManager {
         // whole function belongs on a blocking thread. The checkout is read
         // once here so the row is right on its very first frame; from then on
         // the poller keeps it current, because a harness can move it.
-        let checkout = super::super::checkout::inspect::resolve(&spec.cwd);
+        let checkout = self.inner.lifecycle.checkout(&LifecycleSession {
+            cwd: spec.cwd.clone(), env: spec.env.clone(),
+            ..LifecycleSession::default()
+        });
         let launch_root = git_root(&spec.cwd);
         let launch_commit = launch_root.as_deref().and_then(git_head);
-        let launch_checkout_identity = super::super::checkout::capture(spec.cwd.as_ref());
+        let launch_checkout_identity = None;
         let pty = open_pty()?;
 
         // Mint the id *before* spawning, so the transcript this session writes is
         // findable by name rather than by guessing which file is newest.
-        let session_id = spec
-            .session_id
-            .clone()
-            .or_else(|| mint_session_id(spec.provider));
+        let session_id = spec.session_id.clone();
 
         let mut command = CommandBuilder::new(&spec.bin);
-        for arg in interactive_args(
-            spec.provider,
-            session_id.as_deref(),
-            spec.skip_permissions,
-            spec.model.as_deref(),
-            &spec.extra_args,
-        ) {
+        for arg in &spec.args {
             command.arg(arg);
         }
         command.cwd(&spec.cwd);
@@ -212,7 +205,10 @@ impl PtyManager {
                 // Whichever door this launch came through is this session's
                 // provenance from here on. The executor's task path stamps
                 // `Orchestrator`; the operator's picker stamps `User`.
-                origin: spec.origin,
+                origin: match spec.origin.as_str() {
+                    "user" => medulla_types::SessionOrigin::User,
+                    _ => medulla_types::SessionOrigin::Orchestrator,
+                },
                 mcp_grant_session: spec.mcp_grant_session,
                 close,
             },
