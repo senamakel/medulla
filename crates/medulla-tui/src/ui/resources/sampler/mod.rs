@@ -200,6 +200,9 @@ impl ResourceSource for SystemResourceSource {
                 .find(|(candidate, _)| candidate.as_u32() == pid)
                 .map(|(_, process)| process)?;
             let cores = self.system.cpus().len().max(1) as f64;
+            let cpu_percent = f64::from(process.cpu_usage());
+            let memory_bytes = process.memory();
+            let total_memory_bytes = self.system.total_memory();
             let disk = process.disk_usage();
             let seconds = elapsed.max(0.001);
             let read_rate = if baseline_ready {
@@ -214,9 +217,9 @@ impl ResourceSource for SystemResourceSource {
             };
             let disk_peak = self.update_disk_peak(read_rate, write_rate);
             Some(crate::ui::resources::types::ResourceSnapshot {
-                cpu_fraction: (f64::from(process.cpu_usage()) / (cores * 100.0)).clamp(0.0, 1.0),
-                memory_bytes: process.memory(),
-                total_memory_bytes: self.system.total_memory(),
+                cpu_fraction: (cpu_percent / (cores * 100.0)).clamp(0.0, 1.0),
+                memory_bytes,
+                total_memory_bytes,
                 disk_read_bytes_per_second: read_rate,
                 disk_write_bytes_per_second: write_rate,
                 disk_peak_bytes_per_second: disk_peak,
