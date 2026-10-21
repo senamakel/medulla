@@ -310,8 +310,10 @@ fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
         ..Default::default()
     };
     let mut history = crate::ui::resources::sampler::ResourceHistory::default();
+    let mut historical_cpu = cpu.clone();
+    historical_cpu.core_temperatures_c = (0..16).map(|index| (index, 50.0, 90.0)).collect();
     history.push(
-        &crate::ui::resources::sampler::ResourceSnapshot::default().with_cpu(cpu.clone()),
+        &crate::ui::resources::sampler::ResourceSnapshot::default().with_cpu(historical_cpu),
         20,
     );
     let snapshot = crate::ui::resources::sampler::ResourceSnapshot::default()
