@@ -5,8 +5,8 @@
 
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
-use super::super::types::DeviceSnapshot;
-use super::{device_lines, device_width_hint, DeviceMonitor};
+use super::{device_lines, device_width_hint};
+use medulla_monitor::DeviceSnapshot;
 
 /// The line one reading renders to: label flush left, value flush right.
 ///
@@ -136,63 +136,6 @@ fn small_filesystems_report_megabytes_rather_than_zero_gigabytes() {
         device_lines(&config, sample, 30, 3),
         [row("Device disk", "200M/512M", 30)]
     );
-}
-
-/// An injected reading short-circuits sampling entirely, which is what lets
-/// render tests assert on device output without touching the host.
-#[test]
-fn an_injected_reading_is_returned_verbatim() {
-    let mut monitor = DeviceMonitor::default();
-    monitor.inject(sample());
-    assert_eq!(monitor.sample(), sample());
-    assert_eq!(monitor.sample(), sample());
-}
-
-#[test]
-fn a_diskless_sample_can_be_upgraded_within_the_refresh_interval() {
-    let mut monitor = DeviceMonitor::default();
-    let without_disk = monitor.sample_for(false);
-    assert_eq!(without_disk.disk_used_bytes, None);
-    assert_eq!(without_disk.disk_total_bytes, None);
-
-    // Requesting disk immediately afterwards must not reuse the intentionally
-    // diskless cached sample.
-    let with_disk = monitor.sample_for(true);
-    assert_eq!(
-        with_disk.disk_used_bytes.is_some(),
-        with_disk.disk_total_bytes.is_some()
-    );
-}
-
-/// A smoke test over real sampling, asserting only invariants that hold on any
-/// host: nothing panics, CPU is withheld until there are two refreshes to
-/// compare, and any reported figures are internally consistent. Values are
-/// deliberately not asserted — that is what the injected cases above are for.
-#[test]
-fn live_sampling_is_self_consistent_and_withholds_cpu_on_the_first_reading() {
-    let mut monitor = DeviceMonitor::default();
-    let first = monitor.sample();
-    assert_eq!(first.cpu_fraction, None, "{first:?}");
-    // Within the refresh interval the same reading is handed back rather than
-    // re-polling the host on every redraw.
-    assert_eq!(monitor.sample(), first);
-
-    for snapshot in [first, monitor.sample()] {
-        if let Some(fraction) = snapshot.cpu_fraction {
-            assert!((0.0..=1.0).contains(&fraction), "{snapshot:?}");
-        }
-        // A used figure never appears without the total it is used out of, and
-        // never exceeds it.
-        for (used, total) in [
-            (snapshot.memory_used_bytes, snapshot.memory_total_bytes),
-            (snapshot.disk_used_bytes, snapshot.disk_total_bytes),
-        ] {
-            assert_eq!(used.is_some(), total.is_some(), "{snapshot:?}");
-            if let Some((used, total)) = used.zip(total) {
-                assert!(total > 0 && used <= total, "{snapshot:?}");
-            }
-        }
-    }
 }
 
 #[test]
