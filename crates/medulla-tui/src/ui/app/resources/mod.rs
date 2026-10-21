@@ -395,48 +395,6 @@ fn draw_cpu_panel(
             .collect::<Vec<_>>()
             .join("  ");
         lines.push(ratatui::text::Line::from(text));
-        if area.width >= 100 {
-            let y = area.y + graph_rows + lines.len() as u16 - 1;
-            let graph_x = area.x + (area.width * 2 / 3).max(20);
-            let graph_width = area.right().saturating_sub(graph_x);
-            let segment_width = graph_width / group.len().max(1) as u16;
-            for (group_index, (core_index, _)) in group.iter().enumerate() {
-                let segment_x = graph_x + segment_width * group_index as u16;
-                let usage: Vec<f32> = history
-                    .iter()
-                    .filter_map(|sample| sample.cores.get(*core_index).map(|core| core.total))
-                    .collect();
-                if segment_width > 3 {
-                    let usage_width = segment_width / 2;
-                    frame.render_widget(
-                        crate::ui::plot::Graph::new(&usage).gradient(&chart_gradient),
-                        Rect::new(segment_x, y, usage_width, 1),
-                    );
-                    let temps: Vec<f32> = history
-                        .iter()
-                        .filter_map(|sample| {
-                            sample
-                                .core_temperatures_c
-                                .iter()
-                                .find(|(index, _, _)| index == core_index)
-                                .map(|(_, temp, crit)| {
-                                    if *crit > 0.0 {
-                                        temp * 100.0 / crit
-                                    } else {
-                                        *temp
-                                    }
-                                })
-                        })
-                        .collect();
-                    if !temps.is_empty() && usage_width < segment_width {
-                        frame.render_widget(
-                            crate::ui::plot::Graph::new(&temps).gradient(&temp_gradient),
-                            Rect::new(segment_x + usage_width, y, segment_width - usage_width, 1),
-                        );
-                    }
-                }
-            }
-        }
     }
     let text_area = Rect::new(
         area.x,
@@ -448,6 +406,61 @@ fn draw_cpu_panel(
         Paragraph::new(lines).style(Style::default().fg(colors.start)),
         text_area,
     );
+    if area.width >= 100 {
+        let graph_x = area.x + (area.width * 2 / 3).max(20);
+        let graph_width = area.right().saturating_sub(graph_x);
+        let details_rows = u16::from(!details.is_empty());
+        for (row_index, group) in cores
+            .iter()
+            .enumerate()
+            .collect::<Vec<_>>()
+            .chunks(per_row.max(1))
+            .enumerate()
+        {
+            let y = area.y + graph_rows + details_rows + row_index as u16;
+            if y >= area.bottom() {
+                break;
+            }
+            let segment_width = graph_width / group.len().max(1) as u16;
+            for (group_index, (core_index, _)) in group.iter().enumerate() {
+                let segment_x = graph_x + segment_width * group_index as u16;
+                if segment_width <= 3 {
+                    continue;
+                }
+                let usage: Vec<f32> = history
+                    .iter()
+                    .filter_map(|sample| sample.cores.get(*core_index).map(|core| core.total))
+                    .collect();
+                let usage_width = segment_width / 2;
+                frame.render_widget(
+                    crate::ui::plot::Graph::new(&usage).gradient(&chart_gradient),
+                    Rect::new(segment_x, y, usage_width, 1),
+                );
+                let temps: Vec<f32> = history
+                    .iter()
+                    .filter_map(|sample| {
+                        sample
+                            .core_temperatures_c
+                            .iter()
+                            .find(|(index, _, _)| index == core_index)
+                            .map(|(_, temp, crit)| {
+                                if *crit > 0.0 {
+                                    temp * 100.0 / crit
+                                } else {
+                                    *temp
+                                }
+                            })
+                    })
+                    .collect();
+                if !temps.is_empty() && usage_width < segment_width {
+                    frame.render_widget(
+                        crate::ui::plot::Graph::new(&temps).gradient(&temp_gradient),
+                        Rect::new(segment_x + usage_width, y, segment_width - usage_width, 1),
+                    );
+                }
+            }
+        }
+    }
 }
 
 fn format_frequency(mhz: u64, mode: &str) -> String {
