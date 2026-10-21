@@ -8,12 +8,7 @@ use medulla_pty::SessionLifecycle;
 use super::*;
 /// A clock in epoch ms (injectable for tests).
 pub type NowFn = Arc<dyn Fn() -> i64 + Send + Sync>;
-/// Where a harness's own clipboard writes (OSC 52) are sent on to.
-///
-/// Injectable for the same reason the clock is: the real one writes escape
-/// sequences to this process's terminal and shells out to `tmux`/`pbcopy`, none
-/// of which a test can observe or should trigger.
-pub type ClipboardSink = Arc<dyn Fn(&str) + Send + Sync>;
+pub use medulla_pty::ClipboardSink;
 /// Owns the live harness sessions the worker TUI renders.
 ///
 /// Cheap to clone (an `Arc`), so the daemon's inbound-frame path and the render

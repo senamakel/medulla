@@ -6,6 +6,7 @@
 //! TUI crate.
 
 pub mod cell_text;
+pub mod clipboard;
 pub mod convert;
 pub mod lifecycle;
 #[cfg(test)]
@@ -14,6 +15,7 @@ pub mod screen;
 pub mod sync;
 
 pub use cell_text::CellText;
+pub use clipboard::ClipboardSink;
 pub use convert::{ScreenCell, ScreenSnapshot};
 pub use lifecycle::{LifecycleSession, SessionClose, SessionLifecycle};
 

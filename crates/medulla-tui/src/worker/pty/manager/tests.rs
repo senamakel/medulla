@@ -1,8 +1,11 @@
 //! Unit tests for PTY manager bookkeeping rules.
 
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
+use medulla::protocol::HarnessProvider;
 use medulla_pty::{LifecycleSession, SessionClose, SessionLifecycle};
 use portable_pty::{Child, ChildKiller, ExitStatus};
 
@@ -11,6 +14,8 @@ use super::attention::{
 };
 use super::open::LaunchGuard;
 use super::session::consumed_bell_count;
+use super::PtyManager;
+use crate::worker::pty::types::{LaunchSpec, SessionControl};
 
 fn test_close(session: &str) -> Arc<SessionClose> {
     struct NoopLifecycle;
@@ -29,6 +34,60 @@ fn test_close(session: &str) -> Arc<SessionClose> {
             ..LifecycleSession::default()
         },
     ))
+}
+
+#[test]
+fn reaping_a_closed_session_calls_lifecycle_once() {
+    struct RecordingLifecycle(Arc<AtomicUsize>);
+    impl SessionLifecycle for RecordingLifecycle {
+        fn on_close(&self, _session: &LifecycleSession) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+
+        fn thread_label(&self, _session: &LifecycleSession) -> Option<String> {
+            None
+        }
+    }
+
+    let closes = Arc::new(AtomicUsize::new(0));
+    let manager = PtyManager::with_now_clipboard_and_lifecycle(
+        Arc::new(|| 1),
+        Arc::new(|_| {}),
+        Arc::new(RecordingLifecycle(Arc::clone(&closes))),
+    );
+    let mut env = HashMap::new();
+    env.insert("PATH".to_owned(), std::env::var("PATH").unwrap_or_default());
+    env.insert("TERM".to_owned(), "xterm-256color".to_owned());
+    let id = manager
+        .open(LaunchSpec {
+            provider: HarnessProvider::Codex,
+            preset: None,
+            bin: "/bin/sh".to_owned(),
+            cwd: "/".to_owned(),
+            env,
+            extra_args: vec!["-c".to_owned(), "sleep 30".to_owned()],
+            skip_permissions: false,
+            label: "lifecycle-test".to_owned(),
+            model: None,
+            session_id: None,
+            control: SessionControl::Orchestrator,
+            origin: crate::worker::pty::SessionOrigin::Orchestrator,
+            name: None,
+            mcp_grant_session: Some("lifecycle-test-grant".to_owned()),
+        })
+        .expect("test child should start");
+
+    manager.close(&id);
+    let handle = manager
+        .handle(&id)
+        .expect("session handle remains registered");
+    handle.reap(2);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while closes.load(Ordering::SeqCst) == 0 && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    assert_eq!(closes.load(Ordering::SeqCst), 1);
 }
 
 #[test]
