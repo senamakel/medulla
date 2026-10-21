@@ -138,6 +138,7 @@ impl PtyManager {
         // once here so the row is right on its very first frame; from then on
         // the poller keeps it current, because a harness can move it.
         let launch = self.inner.lifecycle.launch_checkout(&LifecycleSession {
+            id: id.clone(),
             cwd: spec.cwd.clone(), env: spec.env.clone(),
             provider: spec.provider,
             ..LifecycleSession::default()
