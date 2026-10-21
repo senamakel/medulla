@@ -23,8 +23,8 @@ fn all() -> ShownBoxes {
 #[test]
 fn default_layout_uses_btop_shares_at_common_terminal_sizes() {
     for (area, cpu_h, mem_w, mem_h, net_h, agents_w) in [
-        (Rect::new(0, 0, 170, 42), 14, 77, 12, 8, 93),
-        (Rect::new(0, 0, 80, 24), 8, 36, 7, 5, 44),
+        (Rect::new(0, 0, 170, 42), 14, 77, 16, 12, 93),
+        (Rect::new(0, 0, 80, 24), 8, 36, 9, 7, 44),
     ] {
         let boxes = calc_sizes(area, all(), &LayoutOptions::default());
         assert_eq!(boxes.cpu.height, cpu_h);
@@ -32,6 +32,7 @@ fn default_layout_uses_btop_shares_at_common_terminal_sizes() {
         assert_eq!(boxes.mem.height, mem_h);
         assert_eq!(boxes.net.height, net_h);
         assert_eq!(boxes.agents.width, agents_w);
+        assert_eq!(boxes.mem.height + boxes.net.height, area.height - boxes.cpu.height);
     }
 }
 
@@ -42,6 +43,9 @@ fn hidden_agents_widens_memory_and_network_and_cpu_alone_fills_area() {
     let boxes = calc_sizes(Rect::new(0, 0, 170, 42), shown, &LayoutOptions::default());
     assert_eq!(boxes.mem.width, 170);
     assert_eq!(boxes.net.width, 170);
+    assert_eq!(boxes.mem.height, 16);
+    assert_eq!(boxes.net.height, 12);
+    assert_eq!(boxes.mem.height + boxes.net.height, 42 - boxes.cpu.height);
     shown = ShownBoxes {
         cpu: true,
         ..Default::default()
@@ -100,6 +104,25 @@ fn resource_keys_toggle_boxes_cycle_presets_and_clamp_interval() {
     state.interval_ms = 150;
     state.key(KeyCode::Char('-'));
     assert_eq!(state.interval_ms, 100);
+}
+
+#[test]
+fn selecting_a_preset_shows_only_the_boxes_named_by_its_entries() {
+    let mut state = ResourcesState::default();
+    state.presets = vec![
+        "cpu:0:default,mem:0:default,net:0:default,agents:1:default".into(),
+        "cpu:1:block,net:0:tty".into(),
+    ];
+    assert!(state.key(KeyCode::Char('P')));
+    assert_eq!(
+        state.shown,
+        ShownBoxes {
+            cpu: true,
+            mem: false,
+            net: true,
+            agents: false,
+        }
+    );
 }
 
 #[test]
