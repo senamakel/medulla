@@ -341,10 +341,18 @@ fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
             "missing core row {core}"
         );
     }
-    assert!(text.contains("2400MHz"));
+    assert!(text.contains("2.4GHz"));
     assert!(text.contains("Load 0.50 0.25 0.10"));
     assert!(!text.contains("Pkg"));
     assert!(!text.contains("°C"));
+}
+
+#[test]
+fn cpu_frequency_mode_formats_mhz_ghz_and_auto() {
+    assert_eq!(super::format_frequency(800, "auto"), "800MHz");
+    assert_eq!(super::format_frequency(2400, "auto"), "2.4GHz");
+    assert_eq!(super::format_frequency(2400, "mhz"), "2400MHz");
+    assert_eq!(super::format_frequency(800, "ghz"), "0.8GHz");
 }
 
 #[test]

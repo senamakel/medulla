@@ -364,6 +364,15 @@ fn draw_cpu_panel(
     );
 }
 
+fn format_frequency(mhz: u64, mode: &str) -> String {
+    match mode {
+        "mhz" => format!("{mhz}MHz"),
+        "ghz" => format!("{:.1}GHz", mhz as f64 / 1000.0),
+        _ if mhz >= 1000 => format!("{:.1}GHz", mhz as f64 / 1000.0),
+        _ => format!("{mhz}MHz"),
+    }
+}
+
 fn ratatui_toml_value_u64(value: u64) -> toml::Value {
     toml::Value::Integer(value.min(i64::MAX as u64) as i64)
 }
