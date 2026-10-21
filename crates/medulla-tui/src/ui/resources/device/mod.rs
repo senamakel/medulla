@@ -8,11 +8,7 @@
 //! the others.
 
 mod format;
-mod monitor;
-mod types;
-
 #[cfg(test)]
 mod tests;
 
 pub use format::{device_lines, device_width_hint};
-pub use types::DeviceMonitor;

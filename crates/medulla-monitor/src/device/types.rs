@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use sysinfo::{Disks, System};
 
-use crate::ui::resources::types::DeviceSnapshot;
+use crate::DeviceSnapshot;
 
 /// Stateful, low-overhead sampler for whole-device CPU, memory, and disk use.
 pub struct DeviceMonitor {
