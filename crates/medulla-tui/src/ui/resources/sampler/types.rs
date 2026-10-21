@@ -67,6 +67,10 @@ pub struct ResourceSnapshot {
     pub disks: Vec<DiskSnapshot>,
     /// Process table in the order sysinfo supplied it.
     pub processes: Vec<ProcessSnapshot>,
+    /// Lookup prepared off-thread for fast session rollups during rendering.
+    pub(crate) process_index: std::sync::Arc<std::collections::HashMap<u32, usize>>,
+    /// Parent-to-child map prepared off-thread with the process table.
+    pub(crate) children_index: std::sync::Arc<std::collections::HashMap<u32, Vec<u32>>>,
 }
 
 impl ResourceSnapshot {
@@ -95,18 +99,7 @@ impl ResourceSnapshot {
     /// Aggregate the cached process table for a session, without touching the
     /// host from the render path.
     pub fn session_snapshot(&self, root_pid: u32) -> Option<super::super::SessionSnapshot> {
-        let process_by_pid: std::collections::HashMap<_, _> = self
-            .processes
-            .iter()
-            .map(|process| (process.pid, process))
-            .collect();
-        let root = *process_by_pid.get(&root_pid)?;
-        let mut children = std::collections::HashMap::<u32, Vec<u32>>::new();
-        for process in &self.processes {
-            if let Some(parent) = process.ppid {
-                children.entry(parent).or_default().push(process.pid);
-            }
-        }
+        let root = *self.processes.get(*self.process_index.get(&root_pid)?)?;
         let core_count = self.cpu_cores_percent.len().max(1) as f64;
         let mut result = super::super::SessionSnapshot {
             total_memory_bytes: self.memory_total_bytes,
@@ -118,7 +111,12 @@ impl ResourceSnapshot {
             if !visited.insert(pid) {
                 continue;
             }
-            let Some(process) = process_by_pid.get(&pid).copied() else {
+            let Some(process) = self
+                .process_index
+                .get(&pid)
+                .and_then(|index| self.processes.get(*index))
+                .copied()
+            else {
                 continue;
             };
             result.processes += 1;
@@ -127,7 +125,7 @@ impl ResourceSnapshot {
             result.disk_bytes_per_second += (process.disk_read_bytes + process.disk_written_bytes)
                 as f64
                 / self.sample_interval_seconds.max(0.001);
-            if let Some(descendants) = children.get(&pid) {
+            if let Some(descendants) = self.children_index.get(&pid) {
                 pending.extend(descendants);
             }
         }
