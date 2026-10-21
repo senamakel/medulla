@@ -457,13 +457,14 @@ fn resource_sampling_period(app: &App) -> Option<Duration> {
     let status_line_needs_resources = [appearance.cpu, appearance.ram, appearance.disk_io]
         .into_iter()
         .any(|display| display != ResourceDisplay::Off);
-    let footer_needs_resources = [
-        appearance.device_cpu,
-        appearance.device_ram,
-        appearance.device_disk,
-    ]
-    .into_iter()
-    .any(|display| display != ResourceDisplay::Off);
+    let footer_needs_resources = app.tab() == "Sessions"
+        && [
+            appearance.device_cpu,
+            appearance.device_ram,
+            appearance.device_disk,
+        ]
+        .into_iter()
+        .any(|display| display != ResourceDisplay::Off);
     (status_line_needs_resources || footer_needs_resources || app.tab() == "Resources")
         .then(|| Duration::from_millis(app.loaded.config.resources.update_interval_ms()))
 }
