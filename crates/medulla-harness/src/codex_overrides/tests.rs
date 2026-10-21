@@ -382,7 +382,7 @@ fn a_quote_in_a_value_cannot_break_out_of_the_toml_string() {
     assert!(parsed.as_table().unwrap().get("evil").is_none());
 }
 
-// ── the ACP rendering of the same overrides ─────────────────────────────────
+// ── argv encoding regressions ───────────────────────────────────────────────
 
 /// `codex-acp` reads its configuration from the environment, so the overrides
 /// must arrive as a `CODEX_CONFIG` JSON document with the flat `-c` keys nested

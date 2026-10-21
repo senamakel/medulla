@@ -124,10 +124,3 @@ fn acp_env_is_empty_without_the_opt_in_or_for_another_harness() {
     .is_empty());
 }
 
-/// A value carrying backslashes survives the argv round trip unchanged.
-///
-/// The regression this pins was Windows-only and therefore invisible here: the
-/// catalog path is the one override whose value contains separators, so
-/// `-c model_catalog_json="C:\…"` renders them doubled and a comparison against
-/// the real path failed on Windows alone. Asserting the round trip with an
-/// explicit backslashed value makes that a failure on every platform.
