@@ -67,7 +67,7 @@ Any registered account can use Medulla free for its first 30 days. After that it
 
 ## Open source
 
-The open-source Rust workspace is in this repository: the [`medulla-link`](src/link) transport, [`medulla`](src/sdk) SDK, and [`medulla-tui`](src/tui) application that ships the binary. They are licensed under GPL-3.0-only. Build the client and run it offline with `medulla --mock`. Start with [Contributing](gitbooks/developers/contributing.md).
+The open-source Rust workspace is in this repository: the [`medulla-link`](crates/medulla-link) transport, [`medulla`](crates/medulla) SDK, and [`medulla-tui`](crates/medulla-tui) application that ships the binary. They are licensed under GPL-3.0-only. Build the client and run it offline with `medulla --mock`. Start with [Contributing](gitbooks/developers/contributing.md).
 
 ## What is in this repository
 

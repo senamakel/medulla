@@ -163,7 +163,7 @@ fn discarding_an_existing_file_removes_it() {
 /// A file that was never there was not removed by this call — the boolean
 /// reports what this call did, not whether anything is left to sign the
 /// operator back in with. A caller wanting the latter checks existence
-/// itself, as `sign_out` (`src/tui/src/access_gate.rs`) does.
+/// itself, as `sign_out` (`crates/medulla-tui/src/access_gate.rs`) does.
 #[test]
 fn discarding_a_missing_file_reports_it_removed_nothing() {
     let root = tempfile::tempdir().unwrap();

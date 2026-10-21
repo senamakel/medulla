@@ -64,7 +64,7 @@ fn shell_tool_steps_show_args_beyond_the_script_and_language() {
             "args": {
                 "language": "shell",
                 "script": "cargo test",
-                "cwd": "src/tui",
+                "cwd": "crates/medulla-tui",
                 "timeout_seconds": 120,
                 "env": { "RUST_LOG": "debug" }
             }
@@ -75,7 +75,7 @@ fn shell_tool_steps_show_args_beyond_the_script_and_language() {
 
     assert!(preview.contains("1 │ cargo test"), "{preview}");
     assert!(preview.contains("cwd"), "{preview}");
-    assert!(preview.contains("src/tui"), "{preview}");
+    assert!(preview.contains("crates/medulla-tui"), "{preview}");
     assert!(preview.contains("timeout_seconds"), "{preview}");
     assert!(preview.contains("RUST_LOG"), "{preview}");
 }

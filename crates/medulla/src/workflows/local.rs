@@ -581,7 +581,7 @@ impl LocalRun<'_> {
 /// the pane, so nothing outside a running terminal could prove the harness
 /// actually receives its `workflow_*` tools — and when it does not, the failure
 /// is a confident reply and an unchanged graph, which reads as success. This is
-/// what the live test in `src/sdk/tests/live_copilot.rs` drives, and what an
+/// what the live test in `crates/medulla/tests/live_copilot.rs` drives, and what an
 /// operator runs to find out whether authoring works on their machine at all.
 ///
 /// `target` names the workflow to revise; `None` is a create turn. `status`

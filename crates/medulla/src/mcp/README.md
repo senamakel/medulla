@@ -20,4 +20,4 @@ operations to spawned harnesses.
 Keep this index synchronized when responsibilities move. Put shared data
 structures in `types.rs`, focused unit tests in the owning directory module's
 `tests.rs`, and preserve module-level Rust documentation as the API source of
-truth. Cross-module MCP fleet behavior belongs in `src/sdk/tests/`.
+truth. Cross-module MCP fleet behavior belongs in `crates/medulla/tests/`.

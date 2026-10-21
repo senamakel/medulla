@@ -3,7 +3,7 @@
 //! The control plane is a process-wide `OnceLock`, so these tests never install
 //! one: they cover the decisions that hold with or without a fleet, and the
 //! grant-carrying paths are exercised end to end in
-//! `src/sdk/tests/feature_mcp_fleet.rs` where a real socket is bound.
+//! `crates/medulla/tests/feature_mcp_fleet.rs` where a real socket is bound.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -365,7 +365,7 @@ fn revoke_session_removes_the_config_file_it_named() {
 // *installed* plane — the two agree in production, where the sweep is handed
 // the socket that plane is about to be published with, and cannot agree in a
 // unit test, which must never install a plane (see this module's docs).
-// `src/sdk/tests/feature_mcp_sweep_scope.rs` covers it with a real plane
+// `crates/medulla/tests/feature_mcp_sweep_scope.rs` covers it with a real plane
 // installed, and asserts the stronger property besides: a sibling instance's
 // files survive this instance's sweep.
 
@@ -434,7 +434,7 @@ fn revoke_session_refuses_to_delete_for_an_unsafe_session_key() {
 }
 
 /// The end-to-end property `an_operator_started_claude_is_handed_medullas_own_tools`
-/// (`src/tui/src/ui/harness_pane/tests/session.rs`) cannot exercise on its own,
+/// (`crates/medulla-tui/src/ui/harness_pane/tests/session.rs`) cannot exercise on its own,
 /// because that test never installs a control plane: with a real grant,
 /// `attach_cli` must register through a file rather than the inline document,
 /// and must never touch the process environment it was handed.

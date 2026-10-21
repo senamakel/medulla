@@ -43,7 +43,7 @@ fn busy_snapshot() -> WorkSnapshot {
     );
     fold.apply(
         kinds::FILE_CHANGE,
-        &json!({ "path": "src/sdk/src/lib.rs", "change": "modified" }),
+        &json!({ "path": "crates/medulla/src/lib.rs", "change": "modified" }),
         4,
     );
     fold.into_snapshot()

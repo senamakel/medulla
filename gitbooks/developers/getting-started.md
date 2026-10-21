@@ -62,7 +62,7 @@ cd medulla
 make init                       # submodules, rustfmt/clippy, locked deps, pre-push hook
 cargo run                       # debug build, starts the TUI
 cargo run --release             # optimized build
-cargo install --path src/tui    # installs the `medulla` binary onto your PATH
+cargo install --path crates/medulla-tui    # installs the `medulla` binary onto your PATH
 ```
 
 `make init` initializes vendored submodules, installs the Rustfmt and Clippy components, fetches locked dependencies, and enables the repository's pre-push hook (which checks formatting and runs Clippy with warnings denied). See [Contributing](contributing.md) for the full development loop.
@@ -109,7 +109,7 @@ Add the SDK as a git dependency (the repo vendors its path deps, so no extra set
 medulla = { git = "https://github.com/tinyhumansai/medulla", tag = "v0.3.0" }
 ```
 
-The [`medulla` SDK crate](https://github.com/tinyhumansai/medulla/tree/main/src/sdk/) is a UI-free logic library: config, auth, the backend client, harness detection and launch, the clipboard writers, the inference proxy, workflows, and the daemon. See [Architecture](architecture.md) for how the pieces fit together.
+The [`medulla` SDK crate](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla/) is a UI-free logic library: config, auth, the backend client, harness detection and launch, the clipboard writers, the inference proxy, workflows, and the daemon. See [Architecture](architecture.md) for how the pieces fit together.
 
 ## Platform support
 

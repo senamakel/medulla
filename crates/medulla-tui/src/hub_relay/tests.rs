@@ -148,10 +148,10 @@ fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
     // was written, and a stale path silently asserts nothing (the read below
     // skips what it cannot find).
     for path in [
-        "src/sdk/src/hub/boot/mod.rs",
-        "src/sdk/src/hub/socket/mod.rs",
-        "src/sdk/src/hub/workflows.rs",
-        "src/tui/src/hub_relay/mod.rs",
+        "crates/medulla/src/hub/boot/mod.rs",
+        "crates/medulla/src/hub/socket/mod.rs",
+        "crates/medulla/src/hub/workflows.rs",
+        "crates/medulla-tui/src/hub_relay/mod.rs",
     ] {
         let full = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")

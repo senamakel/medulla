@@ -23,4 +23,4 @@ Everything per-task — cwd, model, sandbox, approval policy, the prompt — is 
 
 Keep this index synchronized when responsibilities move. Put shared data structures in `types.rs`, focused unit tests in `tests.rs` or a sibling `_tests.rs`, and preserve the module-level Rust documentation as the API source of truth.
 
-The process-driving halves are covered end-to-end by `src/sdk/tests/e2e_codex_app_server.rs` against a scripted fake server, so a protocol change should be reflected in `src/sdk/tests/support/fake_app_server.rs` as well.
+The process-driving halves are covered end-to-end by `crates/medulla/tests/e2e_codex_app_server.rs` against a scripted fake server, so a protocol change should be reflected in `crates/medulla/tests/support/fake_app_server.rs` as well.

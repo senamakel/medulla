@@ -395,10 +395,10 @@ fn every_spawn_seam_uses_the_merged_launch_builder() {
     // to be silently ignored on the interactive paths. Pin them: a new seam that
     // reaches for `attribution_args` instead of `launch_args` fails here.
     let seams = [
-        "src/sdk/src/wrapper/run/mod.rs",
-        "src/sdk/src/daemon/providers/execute.rs",
-        "src/tui/src/worker/executor/launch.rs",
-        "src/tui/src/ui/harness_pane/spawn.rs",
+        "crates/medulla/src/wrapper/run/mod.rs",
+        "crates/medulla/src/daemon/providers/execute.rs",
+        "crates/medulla-tui/src/worker/executor/launch.rs",
+        "crates/medulla-tui/src/ui/harness_pane/spawn.rs",
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -430,11 +430,11 @@ fn every_embedded_host_door_applies_a_launch_policy() {
     // everywhere else. Pin them: every options literal in these files must have
     // a `with_launch_policy` applied to it.
     let doors = [
-        "src/sdk/src/workflows/local.rs",
-        "src/tui/src/commands/workflow.rs",
-        "src/tui/src/event_loop/cmd_dispatch/workflows.rs",
-        "src/tui/src/hub_relay/mod.rs",
-        "src/tui/src/local_host/mod.rs",
+        "crates/medulla/src/workflows/local.rs",
+        "crates/medulla-tui/src/commands/workflow.rs",
+        "crates/medulla-tui/src/event_loop/cmd_dispatch/workflows.rs",
+        "crates/medulla-tui/src/hub_relay/mod.rs",
+        "crates/medulla-tui/src/local_host/mod.rs",
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()

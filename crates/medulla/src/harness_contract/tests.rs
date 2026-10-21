@@ -31,7 +31,7 @@ fn tracked_task_round_trips_with_camel_case() {
         "notes": ["kicked off", "half done"],
         "contract": {
             "outcome": "Decode the task",
-            "permittedPaths": ["src/sdk/**"],
+            "permittedPaths": ["crates/medulla/**"],
             "nonGoals": ["No TUI rendering"],
             "verifyCommands": ["cargo test -p medulla harness_contract"],
             "terminalCondition": "focused tests green"
@@ -51,7 +51,7 @@ fn tracked_task_round_trips_with_camel_case() {
             .permitted_paths
             .as_ref()
             .unwrap(),
-        &["src/sdk/**"]
+        &["crates/medulla/**"]
     );
     assert_eq!(task.evidence.as_ref().unwrap().len(), 2);
 }

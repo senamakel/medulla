@@ -1,7 +1,7 @@
 //! End-to-end tests for the loopback attribution proxy, observed from the far
 //! side.
 //!
-//! The unit tests in `src/sdk/src/inference_proxy/tests.rs` prove the header
+//! The unit tests in `crates/medulla/src/inference_proxy/tests.rs` prove the header
 //! rewrite is correct as a function. These prove it actually reaches OpenRouter:
 //! a real socket, a real forward, and assertions made on what the *upstream*
 //! received. A rewrite that were dropped during the forward would pass the unit

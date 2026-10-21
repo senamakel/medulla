@@ -92,7 +92,7 @@ fn the_countdown_names_the_subscription_it_ends_in() {
 /// `dirs::config_dir()`'s native location. Because nothing but a caller that
 /// means to redirect this specific lookup would ever set the dedicated key,
 /// setting it here isolates every sign-out test on every platform without
-/// touching production resolution at all. See `src/sdk/src/auth/migrate.rs`.
+/// touching production resolution at all. See `crates/medulla/src/auth/migrate.rs`.
 fn scratch_env(root: &std::path::Path) -> HashMap<String, String> {
     HashMap::from([
         ("MEDULLA_HOME".to_string(), root.display().to_string()),
