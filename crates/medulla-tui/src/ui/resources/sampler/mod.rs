@@ -26,7 +26,7 @@ pub trait ResourceSource: Send + 'static {
 /// process walk cannot hold up the UI/event-loop worker.
 pub fn spawn_sampler<S, F>(
     mut source: S,
-    mut interval: watch::Receiver<Duration>,
+    mut interval: watch::Receiver<Option<Duration>>,
     output: F,
 ) -> tokio::task::JoinHandle<()>
 where
@@ -34,9 +34,18 @@ where
     F: Fn(Arc<ResourceSnapshot>) + Send + Sync + 'static,
 {
     tokio::spawn(async move {
-        let mut timer = tokio::time::interval(*interval.borrow());
-        timer.tick().await;
         loop {
+            let period = match *interval.borrow() {
+                Some(period) => period.max(Duration::from_millis(1)),
+                None => {
+                    if interval.changed().await.is_err() {
+                        break;
+                    }
+                    continue;
+                }
+            };
+            let mut timer = tokio::time::interval(period);
+            timer.tick().await;
             tokio::select! {
                 _ = timer.tick() => {
                     let sampled = tokio::task::spawn_blocking(move || {
@@ -47,11 +56,7 @@ where
                     source = next_source;
                     output(Arc::new(snapshot));
                 }
-                changed = interval.changed() => {
-                    if changed.is_err() { break; }
-                    timer = tokio::time::interval((*interval.borrow()).max(Duration::from_millis(1)));
-                    timer.tick().await;
-                }
+                changed = interval.changed() => if changed.is_err() { break; },
             }
         }
     })

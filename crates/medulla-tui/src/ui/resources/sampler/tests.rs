@@ -20,7 +20,7 @@ impl ResourceSource for SequenceSource {
 
 #[tokio::test]
 async fn sampler_posts_injected_samples_in_order() {
-    let (interval_tx, interval_rx) = watch::channel(Duration::from_millis(5));
+    let (interval_tx, interval_rx) = watch::channel(Some(Duration::from_millis(5)));
     let (output_tx, mut output_rx) = mpsc::unbounded_channel();
     let task = spawn_sampler(
         SequenceSource(Arc::new(AtomicUsize::new(0))),
@@ -45,7 +45,7 @@ async fn sampler_posts_injected_samples_in_order() {
 
 #[tokio::test(start_paused = true)]
 async fn changed_interval_controls_the_next_sample_tick() {
-    let (interval_tx, interval_rx) = watch::channel(Duration::from_secs(5));
+    let (interval_tx, interval_rx) = watch::channel(Some(Duration::from_secs(5)));
     let (output_tx, mut output_rx) = mpsc::unbounded_channel();
     let task = spawn_sampler(
         SequenceSource(Arc::new(AtomicUsize::new(0))),
@@ -64,7 +64,7 @@ async fn changed_interval_controls_the_next_sample_tick() {
     }
     assert!(output_rx.try_recv().is_err());
 
-    interval_tx.send(Duration::from_millis(20)).unwrap();
+    interval_tx.send(Some(Duration::from_millis(20))).unwrap();
     for _ in 0..5 {
         tokio::task::yield_now().await;
     }
