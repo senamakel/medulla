@@ -22,14 +22,14 @@ Facts this plan rests on, each checked against the tree at `11351b34`:
 - **`medulla mcp` standalone works with no grant.** Driving `./target/debug/medulla mcp`
   with `initialize` + `tools/list` over stdio returns `protocolVersion 2024-11-05` and 19
   tools: `workflow_list … workflow_propose`, including `workflow_run`. No `fleet_*` — a
-  process with no hub mints no grant (`src/sdk/src/mcp/mod.rs`).
+  process with no hub mints no grant (`crates/medulla/src/mcp/mod.rs`).
 - **Declared inputs are already on the listing view.** `WorkflowSummary.inputs`
-  (`src/sdk/src/workflows/types/workflow.rs:176`) carries `Vec<WorkflowInput>` —
+  (`crates/medulla/src/workflows/types/workflow.rs:176`) carries `Vec<WorkflowInput>` —
   `name`, `type`, `description`, `required`, `default`
   (`vendor/tinyflows/src/model/inputs.rs:112`). Rendering a skill needs
   only `workflow_list`, not a graph fetch.
 - **Tool-surface gating already exists.** `ToolMode::{Full,Propose}` +
-  `MEDULLA_WORKFLOW_TOOLS` (`src/sdk/src/workflows/mcp/evolve.rs`) withhold verbs from
+  `MEDULLA_WORKFLOW_TOOLS` (`crates/medulla/src/workflows/mcp/evolve.rs`) withhold verbs from
   `tools/list` *and* `tools/call`, failing closed on an unknown value. A third mode is a
   small, idiomatic addition rather than a new mechanism.
 - **`workflow_run` blocks for the whole run.** `dispatch.rs:51-53` says runs "may take
@@ -44,7 +44,7 @@ Facts this plan rests on, each checked against the tree at `11351b34`:
 
 ### 1. One renderer, several targets
 
-New SDK module `src/sdk/src/workflows/skills/`:
+New SDK module `crates/medulla/src/workflows/skills/`:
 
 | file | responsibility |
 | --- | --- |
@@ -169,8 +169,8 @@ medulla skills sync    [same target flags] [--prune]
 medulla skills uninstall [<workflow-id>…] [same target flags]
 ```
 
-Parsed in `src/tui/src/cli/parse.rs` (new `Command::Skills`), implemented in
-`src/tui/src/commands/skills.rs`, all logic in the SDK so the future MCP verb and the TUI
+Parsed in `crates/medulla-tui/src/cli/parse.rs` (new `Command::Skills`), implemented in
+`crates/medulla-tui/src/commands/skills.rs`, all logic in the SDK so the future MCP verb and the TUI
 action reuse it. Follows the existing `workflow` command contract: JSON on stdout, errors
 on stderr, non-zero exit.
 
@@ -215,7 +215,7 @@ can be verified independently of it.
    I/O beyond a tempdir in tests.
 2. **Landed.** `medulla skills` CLI (`install`/`list`/`uninstall`/`sync`, `--dry-run`).
 3. **Landed.** `ToolMode::Run` + `--with-mcp` registration.
-4. **Landed.** Docs: `docs/workflows.md` section, `src/sdk/src/workflows/skills/README.md`.
+4. **Landed.** Docs: `docs/workflows.md` section, `crates/medulla/src/workflows/skills/README.md`.
 5. Phase 2 — `workflow_start` + polling, and regenerate bodies to use it.
 6. Phase 3 — TUI action, `autosync` config.
 
@@ -246,15 +246,15 @@ The plan above is left as written; this is what the implementation chose instead
   restricted mode", which is ambiguous now there are three. `Propose` is the one that can
   neither write a graph nor start a run; a typo resolving to `Run` would hand an
   unrecognised caller the ability to execute harness sessions and `code` nodes for real.
-- **Test layout.** Unit coverage lives in `src/sdk/src/workflows/skills/tests.rs`
+- **Test layout.** Unit coverage lives in `crates/medulla/src/workflows/skills/tests.rs`
   (rendering, target layout, idempotence, collisions, prune, dry run),
   `registration_tests.rs` (merge, preservation, manual and skipped outcomes),
-  `src/sdk/src/mcp/tests/run_mode.rs` (the allow-list from both directions, plus the
-  `tools/call` refusal), and `src/tui/src/cli/tests/skills.rs` (flag parsing). The two
+  `crates/medulla/src/mcp/tests/run_mode.rs` (the allow-list from both directions, plus the
+  `tools/call` refusal), and `crates/medulla-tui/src/cli/tests/skills.rs` (flag parsing). The two
   feature suites *Verification* asks for exist —
-  `src/sdk/tests/feature_workflow_skills.rs` drives `ops::create` → `FileWorkflowStore` →
+  `crates/medulla/tests/feature_workflow_skills.rs` drives `ops::create` → `FileWorkflowStore` →
   `store.list()` → `skills::install` over a tempdir, and
-  `src/sdk/tests/feature_workflow_run_mode.rs` covers the trigger-only surface. The
+  `crates/medulla/tests/feature_workflow_run_mode.rs` covers the trigger-only surface. The
   latter calls `handle_request` in-process rather than spawning `medulla mcp`: the
   spawning variant buys only the stdio framing, which `tests/e2e_cli.rs` already covers,
   at the cost of a test that depends on a built binary. Driving the real process in
@@ -285,7 +285,7 @@ The plan above is left as written; this is what the implementation chose instead
 
 **Automated** (all offline, per the repo's testing rules):
 
-- `src/sdk/src/workflows/skills/tests.rs`
+- `crates/medulla/src/workflows/skills/tests.rs`
   - slug and frontmatter rendering for a workflow with zero, optional-only, and required
     inputs; description non-empty even when the workflow's is;
   - `rev` changes iff the body changes;
@@ -296,15 +296,15 @@ The plan above is left as written; this is what the implementation chose instead
   - `sync --prune` deletes the marked skill of a deleted workflow and leaves an unmarked
     neighbour alone;
   - a disabled workflow gets no skill.
-- `src/sdk/src/workflows/mcp/` tests: `ToolMode::Run` serves exactly the six read/run verbs;
+- `crates/medulla/src/workflows/mcp/` tests: `ToolMode::Run` serves exactly the six read/run verbs;
   `tools/call` on a withheld verb is refused with the explanatory message; an unknown
   `MEDULLA_WORKFLOW_TOOLS` value resolves to the most restricted mode.
-- `src/tui/src/cli/tests.rs`: parse coverage for every flag, including repeated
+- `crates/medulla-tui/src/cli/tests.rs`: parse coverage for every flag, including repeated
   `--harness a,b` and `--scope`.
-- `src/sdk/tests/feature_workflow_skills.rs`: end-to-end over a tempdir `MEDULLA_HOME` —
+- `crates/medulla/tests/feature_workflow_skills.rs`: end-to-end over a tempdir `MEDULLA_HOME` —
   create two workflows through `ops`, install to a fake `$HOME`, assert the files, edit one
   workflow, `sync`, assert one file changed and one did not.
-- `src/sdk/tests/` MCP e2e: spawn `medulla mcp` with `MEDULLA_WORKFLOW_TOOLS=run` against a
+- `crates/medulla/tests/` MCP e2e: spawn `medulla mcp` with `MEDULLA_WORKFLOW_TOOLS=run` against a
   seeded store, assert the reduced `tools/list`, then `workflow_run` a trivial mock-harness
   workflow and assert a run record comes back.
 - Coverage stays above the 80% line gate; `cargo clippy --all-targets -- -D warnings` and

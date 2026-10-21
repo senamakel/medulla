@@ -7,7 +7,8 @@ its vendored dependency submodules, tests and e2e harnesses, documentation,
 GitBook sources, installers, and release workflows. The hosted orchestration
 service is operated separately; do not add service-side implementation here.
 
-- `src/` — the `medulla-link`, `medulla` SDK, and `medulla-tui` crates.
+- `crates/` — the workspace crates: `medulla-link`, the `medulla` SDK, and
+  `medulla-tui`. Each product primitive gets its own crate here.
 - `vendor/` — pinned source submodules used by the Rust workspace.
 - `docs/` and `gitbooks/` — engineering specs and published documentation.
 - `.github/`, `scripts/`, `e2e/`, and `examples/` — CI/release automation,
