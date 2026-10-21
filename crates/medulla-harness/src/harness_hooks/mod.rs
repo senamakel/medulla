@@ -62,9 +62,8 @@
 //! argv to add to and these two paths deliver nothing at all — see [`acp`],
 //! which carries the same document over that transport's own channels.
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
-pub mod acp;
 pub mod builtin;
 mod claude;
 mod codex;
@@ -76,8 +75,6 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use acp::{delivery as acp_delivery, AcpDelivery};
-pub use grant::{seed_hook_grant, HookGrantGuard};
 pub use report::{HookEventLog, HookReport};
 pub use types::{
     DroppedHook, HookEvent, HookHandler, HookInjection, HookSpec, HooksConfig, LaunchPolicy,

@@ -50,7 +50,7 @@
 
 use std::collections::HashMap;
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 #[cfg(test)]
 mod tests;

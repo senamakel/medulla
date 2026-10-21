@@ -6,7 +6,7 @@ use std::error::Error as _;
 use serde_json::{json, Value};
 
 use super::*;
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 /// An environment with a routed endpoint, the preset opt-in, and homes pointed
 /// at `dir` so nothing reads or writes the developer's own files.

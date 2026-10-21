@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 /// A lifecycle moment a Medulla hook can attach to.
 ///

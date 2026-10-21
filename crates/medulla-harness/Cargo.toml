@@ -16,6 +16,9 @@ toml_edit = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }
 tracing = { workspace = true }
+dirs = { workspace = true }
+fs2 = { workspace = true }
+tempfile = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

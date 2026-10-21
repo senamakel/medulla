@@ -42,7 +42,7 @@ pub use acp::{acp_env, CONFIG_ENV, MODEL_PROVIDER_ENV};
 pub use catalog::{catalog_path, write_catalog};
 pub use types::CodexOverridesError;
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 /// Set by a preset that wants this module's overrides. Anything but empty or
 /// `0` enables them.

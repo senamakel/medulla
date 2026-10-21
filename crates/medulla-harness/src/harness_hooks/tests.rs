@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 use super::native::{hook_document, to_inline_toml};
 use super::*;
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 /// An environment pointing Codex's config — and so its hook trust store — at a
 /// scratch directory.

@@ -38,7 +38,7 @@
 //! and a built-in Medulla installs everywhere must not be able to change what a
 //! session does. Reporting hooks can only be late, never wrong.
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 use super::types::{HookEvent, HookHandler, HookSpec};
 
