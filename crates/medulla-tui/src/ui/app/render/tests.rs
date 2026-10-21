@@ -21,6 +21,36 @@ fn app() -> App {
 }
 
 #[test]
+fn status_line_renders_the_injected_process_snapshot() {
+    use medulla::config::ResourceDisplay;
+    use crate::ui::resources::ResourceSnapshot;
+
+    let mut app = app();
+    app.loaded.config.appearance.cpu = ResourceDisplay::Percent;
+    app.resource_monitor.inject(ResourceSnapshot {
+        cpu_fraction: 0.25,
+        memory_bytes: 0,
+        total_memory_bytes: 0,
+        disk_read_bytes_per_second: 0.0,
+        disk_write_bytes_per_second: 0.0,
+        disk_peak_bytes_per_second: 1.0,
+    });
+    let mut terminal =
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 24)).expect("terminal");
+
+    terminal.draw(|f| app.draw(f)).expect("draw");
+    let output: String = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect();
+
+    assert!(output.contains("CPU 25%"), "{output}");
+}
+
+#[test]
 fn compact_tab_labels_shorten_the_current_wide_destinations() {
     assert_eq!(super::compact_tab_label("Sessions", true), "Sess");
     assert_eq!(super::compact_tab_label("Workflows", true), "Flows");
