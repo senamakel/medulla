@@ -114,7 +114,7 @@ impl ResourceSource for SystemResourceSource {
             .flatten()
             .map(|pid| pid.as_u32())
             .collect();
-        let processes = self
+        let processes: Vec<ProcessSnapshot> = self
             .system
             .processes()
             .iter()

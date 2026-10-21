@@ -99,7 +99,7 @@ impl ResourceSnapshot {
     /// Aggregate the cached process table for a session, without touching the
     /// host from the render path.
     pub fn session_snapshot(&self, root_pid: u32) -> Option<super::super::SessionSnapshot> {
-        let root = *self.processes.get(*self.process_index.get(&root_pid)?)?;
+        let root = self.processes.get(*self.process_index.get(&root_pid)?)?;
         let core_count = self.cpu_cores_percent.len().max(1) as f64;
         let mut result = super::super::SessionSnapshot {
             total_memory_bytes: self.memory_total_bytes,
@@ -115,7 +115,6 @@ impl ResourceSnapshot {
                 .process_index
                 .get(&pid)
                 .and_then(|index| self.processes.get(*index))
-                .copied()
             else {
                 continue;
             };
