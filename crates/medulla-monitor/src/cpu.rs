@@ -84,7 +84,7 @@ pub struct CpuSnapshot {
     pub model: Option<String>,
     pub total: CpuReading,
     pub cores: Vec<CpuReading>,
-    pub frequencies_mhz: Vec<u64>,
+    pub frequencies_mhz: Vec<Option<u64>>,
     pub package_temperature_c: Option<f32>,
     pub package_temperature_crit_c: Option<f32>,
     pub core_temperatures_c: Vec<(usize, f32, f32)>,
@@ -389,6 +389,49 @@ mod tests {
         assert!((reading.idle - 55.555_557).abs() < 0.001);
         assert!((reading.iowait - 11.111_111).abs() < 0.001);
         assert!((reading.guest - 5.555_556).abs() < 0.001);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn missing_cpu_frequency_keeps_logical_cpu_slot() {
+        let temp = tempfile::tempdir().unwrap();
+        let cpu1 = temp.path().join("sys/devices/system/cpu/cpu1/cpufreq");
+        fs::create_dir_all(&cpu1).unwrap();
+        fs::write(cpu1.join("scaling_cur_freq"), "1200000\n").unwrap();
+
+        assert_eq!(read_frequencies(temp.path()), [None, Some(1200)]);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn repeated_core_labels_map_to_distinct_packages() {
+        let temp = tempfile::tempdir().unwrap();
+        let write = |path: &str, value: &str| {
+            let path = temp.path().join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, value).unwrap();
+        };
+        write("proc/cpuinfo", "processor : 0\nphysical id : 0\ncore id : 0\n\nprocessor : 1\nphysical id : 0\ncore id : 1\n\nprocessor : 2\nphysical id : 1\ncore id : 0\n\nprocessor : 3\nphysical id : 1\ncore id : 1\n");
+        for (hwmon, package, temp_c) in [(0, 0, 51), (1, 1, 61)] {
+            let device = temp
+                .path()
+                .join(format!("sys/devices/platform/coretemp.{hwmon}"));
+            fs::create_dir_all(&device).unwrap();
+            fs::write(device.join("physical_package_id"), package.to_string()).unwrap();
+            let hwmon_path = temp
+                .path()
+                .join(format!("sys/class/hwmon/hwmon{hwmon}"));
+            fs::create_dir_all(&hwmon_path).unwrap();
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(&device, hwmon_path.join("device")).unwrap();
+            fs::write(hwmon_path.join("temp1_input"), format!("{}000\n", temp_c)).unwrap();
+            fs::write(hwmon_path.join("temp1_label"), "Core 0\n").unwrap();
+        }
+
+        assert_eq!(
+            read_temperatures(temp.path()).2,
+            [(0, 51.0, 90.0), (2, 61.0, 90.0)]
+        );
     }
 
     #[cfg(target_os = "linux")]
