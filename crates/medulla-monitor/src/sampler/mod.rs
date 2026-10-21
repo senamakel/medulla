@@ -92,6 +92,7 @@ pub struct SystemResourceSource {
     last_sample: Option<Instant>,
     disk_peak_bytes_per_second: f64,
     cpu_monitor: crate::CpuMonitor,
+    disk_options: DiskOptions,
     #[cfg(target_os = "linux")]
     linux: LinuxResourceMonitor,
 }
@@ -104,13 +105,27 @@ impl Default for SystemResourceSource {
             last_sample: None,
             disk_peak_bytes_per_second: 1.0,
             cpu_monitor: crate::CpuMonitor::default(),
+            disk_options: DiskOptions::default(),
             #[cfg(target_os = "linux")]
             linux: LinuxResourceMonitor::default(),
         }
     }
 }
 
+/// Optional disk list filtering, configured by the TUI without coupling this crate to its config type.
+#[derive(Debug, Clone, Default)]
+pub struct DiskOptions {
+    pub only_physical: bool,
+    pub use_fstab: bool,
+    pub filter: String,
+}
+
 impl SystemResourceSource {
+    /// Set mount filtering used when building each resource snapshot.
+    pub fn with_disk_options(mut self, options: DiskOptions) -> Self {
+        self.disk_options = options;
+        self
+    }
     /// Keep the IO bar scaled to recent activity instead of only this sample.
     fn update_disk_peak(&mut self, read_rate: f64, write_rate: f64) -> f64 {
         self.disk_peak_bytes_per_second = (self.disk_peak_bytes_per_second * 0.9)
@@ -337,6 +352,7 @@ impl ResourceSource for SystemResourceSource {
                 .disks
                 .list()
                 .iter()
+                .filter(|disk| disk_is_visible(disk, &self.disk_options))
                 .map(|disk| DiskSnapshot {
                     device: disk.name().to_string_lossy().into_owned(),
                     mount: disk.mount_point().to_string_lossy().into_owned(),
@@ -386,6 +402,58 @@ impl ResourceSource for SystemResourceSource {
             processes,
         }
     }
+}
+
+fn disk_is_visible(disk: &sysinfo::Disk, options: &DiskOptions) -> bool {
+    let mount = disk.mount_point().to_string_lossy();
+    let device = disk.name().to_string_lossy();
+    if options.only_physical {
+        let fs = disk.file_system().to_string_lossy().to_ascii_lowercase();
+        if [
+            "tmpfs", "devtmpfs", "overlay", "squashfs", "proc", "sysfs", "cgroup",
+        ]
+        .iter()
+        .any(|virtual_fs| fs == *virtual_fs)
+            || device.starts_with("/dev/loop")
+            || device.starts_with("/dev/ram")
+        {
+            return false;
+        }
+    }
+    if options.use_fstab {
+        let fstab = std::fs::read_to_string("/etc/fstab").unwrap_or_default();
+        let mounts: std::collections::HashSet<String> = fstab
+            .lines()
+            .filter_map(|line| {
+                let line = line.split('#').next()?.trim();
+                let fields: Vec<_> = line.split_whitespace().collect();
+                (fields.len() >= 2).then(|| fields[1].replace("\\040", " "))
+            })
+            .collect();
+        if !mounts.contains(mount.as_ref()) {
+            return false;
+        }
+    }
+    let filters: Vec<_> = options
+        .filter
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    for filter in filters.iter().filter_map(|s| s.strip_prefix("exclude=")) {
+        if mount == filter || mount.starts_with(&format!("{}/", filter.trim_end_matches('/'))) {
+            return false;
+        }
+    }
+    let includes: Vec<_> = filters
+        .iter()
+        .filter(|s| !s.starts_with("exclude="))
+        .copied()
+        .collect();
+    includes.is_empty()
+        || includes.iter().any(|prefix| {
+            mount == *prefix || mount.starts_with(&format!("{}/", prefix.trim_end_matches('/')))
+        })
 }
 
 #[cfg(target_os = "linux")]

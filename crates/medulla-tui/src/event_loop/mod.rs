@@ -99,7 +99,13 @@ pub(crate) async fn run(
         tokio::sync::watch::channel(resource_sampling_period(&app));
     let history_capacity = usize::from(terminal.size()?.width).saturating_mul(2);
     medulla_tui::ui::resources::sampler::spawn_sampler(
-        medulla_tui::ui::resources::sampler::SystemResourceSource::default(),
+        medulla_tui::ui::resources::sampler::SystemResourceSource::default().with_disk_options(
+            medulla_monitor::DiskOptions {
+                only_physical: app.loaded.config.resources.only_physical,
+                use_fstab: app.loaded.config.resources.use_fstab,
+                filter: app.loaded.config.resources.disks_filter.clone(),
+            },
+        ),
         resource_interval_rx,
         history_capacity,
         {
