@@ -109,7 +109,7 @@ Add the SDK as a git dependency (the repo vendors its path deps, so no extra set
 medulla = { git = "https://github.com/tinyhumansai/medulla", tag = "v0.3.0" }
 ```
 
-The [`medulla` SDK crate](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla/) is a UI-free logic library: config, auth, the backend client, harness detection and launch, the clipboard writers, the inference proxy, workflows, and the daemon. See [Architecture](architecture.md) for how the pieces fit together.
+The [`medulla` SDK crate](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-core/) is a UI-free logic library: config, auth, the backend client, harness detection and launch, the clipboard writers, the inference proxy, workflows, and the daemon. See [Architecture](architecture.md) for how the pieces fit together.
 
 ## Platform support
 

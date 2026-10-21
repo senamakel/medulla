@@ -42,7 +42,7 @@ cargo fmt --check                       # run `cargo fmt` to apply
 ```
 
 The e2e suites spin up in-process stand-ins so they are safe anywhere. They all
-live in `crates/medulla/tests/support/`:
+live in `crates/medulla-core/tests/support/`:
 
 | File | What it stands in for |
 | --- | --- |

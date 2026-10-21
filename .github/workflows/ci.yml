@@ -170,7 +170,7 @@ jobs:
           CARGO_PROFILE_TEST_DEBUG: none
         run: >-
           cargo llvm-cov --locked
-          --ignore-filename-regex '(^|/)vendor/|crates/medulla-tui/src/(app_loop|commands|main)(/.*)?\.rs|crates/medulla-tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|crates/medulla-tui/src/harness_pty/mod\.rs|crates/medulla-tui/src/ui/onboarding/run(/.*)?\.rs|crates/medulla-tui/src/worker/executor_tests/live\.rs|crates/medulla/src/daemon/(entry\.rs|transport/mod\.rs)|crates/medulla/src/wrapper/(run|bridge)/mod\.rs|crates/medulla/src/hub/(socket|relay)\.rs|crates/medulla/src/hub/(boot|handle)(/.*)?\.rs'
+          --ignore-filename-regex '(^|/)vendor/|crates/medulla-tui/src/(app_loop|commands|main)(/.*)?\.rs|crates/medulla-tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|crates/medulla-tui/src/harness_pty/mod\.rs|crates/medulla-tui/src/ui/onboarding/run(/.*)?\.rs|crates/medulla-tui/src/worker/executor_tests/live\.rs|crates/medulla-core/src/daemon/(entry\.rs|transport/mod\.rs)|crates/medulla-core/src/wrapper/(run|bridge)/mod\.rs|crates/medulla-core/src/hub/(socket|relay)\.rs|crates/medulla-core/src/hub/(boot|handle)(/.*)?\.rs'
           --fail-under-lines 80
           --summary-only
 

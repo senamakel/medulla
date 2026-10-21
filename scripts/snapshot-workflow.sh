@@ -23,7 +23,7 @@ resolve() {
   # A path is taken as given. An id is looked up in the live store first — the
   # store's own current definition, at `<home>/workflows/<id>.json` — because
   # the revisions directory holds only *superseded* graphs (see
-  # `crates/medulla/src/workflows/store/mod.rs`): the current graph after any edit is
+  # `crates/medulla-core/src/workflows/store/mod.rs`): the current graph after any edit is
   # the live definition, not a revision, and a workflow that has never been
   # edited has no revision at all. Only when there is no live definition does
   # this fall back to the newest revision, whose filenames sort lexicographically
