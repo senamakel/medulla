@@ -20,7 +20,7 @@ pub struct Gradient {
 }
 
 impl Gradient {
-    /// Build a gradient from at least one color stop.
+    /// Build a gradient from any number of color stops.
     ///
     /// Stops are spread evenly from 0 through 100. RGB stops are interpolated
     /// channel by channel; other Ratatui colors switch at the midpoint between

@@ -47,6 +47,23 @@ fn short_histories_right_align_and_odd_histories_start_with_an_empty_half() {
 }
 
 #[test]
+fn short_and_empty_histories_clear_stale_buffer_cells() {
+    let area = Rect::new(0, 0, 3, 1);
+    let mut buffer = Buffer::empty(area);
+    for cell in buffer.content_mut() {
+        cell.set_char('x');
+    }
+
+    Graph::new(&[25.0, 75.0]).render(area, &mut buffer);
+    assert_eq!(glyph(&buffer, 0, 0), ' ');
+    assert_eq!(glyph(&buffer, 1, 0), ' ');
+    assert_eq!(glyph(&buffer, 2, 0), '⣰');
+
+    Graph::new(&[]).render(area, &mut buffer);
+    assert!(buffer.content().iter().all(|cell| cell.symbol() == " "));
+}
+
+#[test]
 fn percentage_rows_fill_from_the_bottom_and_invert_to_the_top() {
     let up = render_graph(&[0.0, 37.5], 1, 4, Symbol::Braille, false);
     let down = render_graph(&[0.0, 37.5], 1, 4, Symbol::Braille, true);

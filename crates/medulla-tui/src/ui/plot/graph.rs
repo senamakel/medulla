@@ -57,7 +57,18 @@ impl<'a> Graph<'a> {
 
 impl Widget for Graph<'_> {
     fn render(self, area: Rect, buffer: &mut Buffer) {
-        if area.is_empty() || self.values.is_empty() {
+        if area.is_empty() {
+            return;
+        }
+        for y in area.y..area.bottom() {
+            for x in area.x..area.right() {
+                buffer[(x, y)] = ratatui::buffer::Cell::default()
+                    .set_char(' ')
+                    .set_style(Style::default())
+                    .clone();
+            }
+        }
+        if self.values.is_empty() {
             return;
         }
         let width = area.width as usize;
