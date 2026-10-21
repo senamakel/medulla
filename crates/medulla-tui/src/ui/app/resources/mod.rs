@@ -42,13 +42,18 @@ impl App {
             if shown && rect.width > 0 && rect.height > 0 {
                 let title = if title == "CPU" {
                     format!(
-                        " CPU · {} · preset {} · {}ms ",
+                        " CPU [1] · {} · preset {} · {}ms · +/- interval ",
                         clock_text(),
-                        state.preset + 1,
+                        state.preset,
                         state.interval_ms
                     )
                 } else {
-                    format!(" {title} ")
+                    let key = match title {
+                        "Mem" => 2,
+                        "Net" => 3,
+                        _ => 4,
+                    };
+                    format!(" {title} [{key}] ")
                 };
                 f.render_widget(
                     Paragraph::new(Line::from(Span::styled(title, Style::default().fg(color))))

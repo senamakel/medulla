@@ -31,6 +31,7 @@ pub(in crate::ui::app) struct ResourcesState {
     pub rects: BoxRects,
     pub interval_ms: u64,
     pub preset: usize,
+    pub presets: Vec<String>,
 }
 
 impl Default for ResourcesState {
@@ -46,6 +47,7 @@ impl Default for ResourcesState {
             rects: BoxRects::default(),
             interval_ms: 2_000,
             preset: 0,
+            presets: vec!["cpu:0:default,mem:0:default,net:0:default,agents:1:default".into()],
         }
     }
 }
@@ -70,6 +72,65 @@ impl ResourcesState {
             agents_left: config.agents_left,
         };
         state.interval_ms = config.update_interval_ms();
+        let parsed = config
+            .presets
+            .split_whitespace()
+            .filter(|preset| valid_preset(preset))
+            .map(str::to_owned)
+            .take(10)
+            .collect::<Vec<_>>();
+        if !parsed.is_empty() {
+            state.presets = parsed;
+        }
+        state.apply_preset();
         state
     }
+
+    pub fn apply_preset(&mut self) {
+        let Some(preset) = self.presets.get(self.preset) else {
+            return;
+        };
+        let (mut cpu_bottom, mut mem_below_net, mut agents_left) = (false, false, false);
+        for item in preset.split(',') {
+            let mut parts = item.split(':');
+            let (Some(name), Some(position), Some(_graph)) =
+                (parts.next(), parts.next(), parts.next())
+            else {
+                continue;
+            };
+            match name {
+                "cpu" => cpu_bottom = position == "1",
+                "mem" => mem_below_net = position == "1",
+                "agents" => agents_left = position == "0",
+                _ => {}
+            }
+        }
+        self.opts = LayoutOptions {
+            cpu_bottom,
+            mem_below_net,
+            agents_left,
+        };
+    }
+}
+
+fn valid_preset(preset: &str) -> bool {
+    let mut seen = std::collections::HashSet::new();
+    let mut any = false;
+    for item in preset.split(',') {
+        let mut parts = item.split(':');
+        let (Some(name), Some(position), Some(graph)) = (parts.next(), parts.next(), parts.next())
+        else {
+            return false;
+        };
+        if parts.next().is_some()
+            || !["cpu", "mem", "net", "agents"].contains(&name)
+            || !seen.insert(name)
+            || !["0", "1"].contains(&position)
+            || !["default", "braille", "block", "tty"].contains(&graph)
+        {
+            return false;
+        }
+        any = true;
+    }
+    any
 }

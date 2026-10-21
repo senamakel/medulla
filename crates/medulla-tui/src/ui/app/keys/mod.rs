@@ -155,6 +155,7 @@ impl App {
         let tab = self.tab();
 
         if tab == "Resources" && self.resources.key(k.code) {
+            self.loaded.config.resources.update_ms = self.resources.interval_ms;
             return None;
         }
 

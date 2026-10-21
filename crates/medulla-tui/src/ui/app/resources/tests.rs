@@ -2,13 +2,13 @@ use super::{
     layout::calc_sizes,
     types::{LayoutOptions, ResourcesState, ShownBoxes},
 };
+use crate::ui::app::App;
 use crossterm::event::KeyCode;
 use crossterm::event::{KeyEvent, KeyModifiers};
-use std::sync::Arc;
 use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
-use crate::ui::app::App;
 use ratatui::layout::Rect;
+use std::sync::Arc;
 
 fn all() -> ShownBoxes {
     ShownBoxes {
@@ -94,7 +94,10 @@ fn resource_keys_toggle_boxes_cycle_presets_and_clamp_interval() {
 
 #[test]
 fn tab_keys_still_cycle_all_tabs() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), LoadedConfig::defaults("test.json".into()));
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
     app.on_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
     assert_eq!(app.tab(), "Subconscious");
     app.on_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
@@ -107,7 +110,10 @@ fn tab_keys_still_cycle_all_tabs() {
 
 #[test]
 fn clicking_a_panel_title_toggles_that_box() {
-    let mut app = App::new(Arc::new(MockRuntime::empty()), LoadedConfig::defaults("test.json".into()));
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
     app.resources.rects = calc_sizes(Rect::new(0, 0, 170, 42), all(), &LayoutOptions::default());
     let cpu = app.resources.rects.cpu;
     app.handle_click(cpu.x + 1, cpu.y);
