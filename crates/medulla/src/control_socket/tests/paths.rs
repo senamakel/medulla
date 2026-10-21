@@ -299,7 +299,12 @@ mod bind {
 
         for created in [&account, &account.join("run")] {
             let mode = std::fs::metadata(created).unwrap().permissions().mode();
-            assert_eq!(mode & 0o077, 0, "{} should be owner-only", created.display());
+            assert_eq!(
+                mode & 0o077,
+                0,
+                "{} should be owner-only",
+                created.display()
+            );
         }
     }
 
