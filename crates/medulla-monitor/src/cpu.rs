@@ -169,4 +169,36 @@ mod tests {
         assert_eq!(reading.iowait, 10.0);
         assert_eq!(reading.guest, 5.0);
     }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_cpu_collector_reads_pair_deltas_and_hwmon_labels() {
+        let temp = tempfile::tempdir().unwrap();
+        let write = |path: &str, value: &str| {
+            let path = temp.path().join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, value).unwrap();
+        };
+        write("proc/stat", "cpu 30 0 20 110 10 0 0 0 5 0\ncpu0 20 0 10 50 5 0 0 0 5 0\n");
+        write("proc/loadavg", "0.50 0.25 0.10 1/20 100\n");
+        write("proc/uptime", "1234.5 0\n");
+        let hwmon = temp.path().join("sys/class/hwmon/hwmon0");
+        fs::create_dir_all(&hwmon).unwrap();
+        fs::write(hwmon.join("temp1_input"), "65000\n").unwrap();
+        fs::write(hwmon.join("temp1_label"), "Package id 0\n").unwrap();
+        fs::write(hwmon.join("temp1_crit"), "100000\n").unwrap();
+        fs::write(hwmon.join("temp2_input"), "60000\n").unwrap();
+        fs::write(hwmon.join("temp2_label"), "Core 0\n").unwrap();
+        let mut monitor = CpuMonitor::with_root(temp.path());
+        let first = monitor.sample();
+        assert_eq!(first.total, CpuReading::default());
+        write("proc/stat", "cpu 50 0 30 160 20 0 0 0 10 0\ncpu0 30 0 20 70 10 0 0 0 10 0\n");
+        let second = monitor.sample();
+        assert_eq!(second.total.total, 40.0);
+        assert_eq!(second.cores.len(), 1);
+        assert_eq!(second.package_temperature_c, Some(65.0));
+        assert_eq!(second.core_temperatures_c, [(0, 60.0, 90.0)]);
+        assert_eq!(second.load_average, [0.5, 0.25, 0.1]);
+        assert_eq!(second.uptime_seconds, Some(1234));
+    }
 }

@@ -2586,6 +2586,7 @@ version = "0.13.0"
 dependencies = [
  "serde",
  "sysinfo 0.37.2",
+ "tempfile",
 ]
 
 [[package]]
