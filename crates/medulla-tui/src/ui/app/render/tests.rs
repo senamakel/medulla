@@ -39,15 +39,17 @@ fn status_line_renders_the_injected_process_snapshot() {
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 24)).expect("terminal");
 
     terminal.draw(|f| app.draw(f)).expect("draw");
-    let output: String = terminal
-        .backend()
-        .buffer()
+    let buffer = terminal.backend().buffer();
+    let status_start = usize::from(buffer.area.width) * usize::from(buffer.area.height - 1);
+    let status_line: String = buffer
         .content()
         .iter()
+        .skip(status_start)
+        .take(usize::from(buffer.area.width))
         .map(|cell| cell.symbol())
         .collect();
 
-    assert!(output.contains("CPU 25%"), "{output}");
+    assert_eq!(status_line.trim_end(), "○ api.tinyhumans.ai    CPU 25%");
 }
 
 #[test]
