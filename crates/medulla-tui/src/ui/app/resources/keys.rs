@@ -2,7 +2,7 @@ use crossterm::event::KeyCode;
 use super::types::ResourcesState;
 
 impl ResourcesState {
-    pub(super) fn key(&mut self, key: KeyCode) -> bool {
+    pub(in crate::ui::app) fn key(&mut self, key: KeyCode) -> bool {
         match key {
             KeyCode::Char('1') => self.shown.cpu = !self.shown.cpu,
             KeyCode::Char('2') => self.shown.mem = !self.shown.mem,

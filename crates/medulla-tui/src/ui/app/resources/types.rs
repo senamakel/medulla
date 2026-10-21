@@ -16,7 +16,7 @@ pub(super) struct LayoutOptions {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct BoxRects {
+pub(in crate::ui::app) struct BoxRects {
     pub cpu: Rect,
     pub mem: Rect,
     pub net: Rect,
@@ -25,7 +25,7 @@ pub(super) struct BoxRects {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct ResourcesState {
+pub(in crate::ui::app) struct ResourcesState {
     pub shown: ShownBoxes,
     pub opts: LayoutOptions,
     pub rects: BoxRects,

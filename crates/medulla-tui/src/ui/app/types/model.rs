@@ -68,7 +68,7 @@ use super::rail_hit::RailHit;
 /// bindings stay in `app::changes`; only the top-level tab and its `D` shortcut
 /// were removed.
 #[cfg(feature = "workflows")]
-pub const TABS: [&str; 5] = [
+pub const TABS: [&str; 6] = [
     "Sessions",
     "Workflows",
     "Subconscious",

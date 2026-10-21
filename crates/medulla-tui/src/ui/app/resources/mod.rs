@@ -6,7 +6,7 @@ pub(super) mod layout;
 mod tests;
 mod types;
 
-pub(super) use types::{BoxRects, ResourcesState};
+pub(super) use types::ResourcesState;
 
 use ratatui::{
     layout::Rect,
