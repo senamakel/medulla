@@ -407,8 +407,24 @@ impl ResourceSource for SystemResourceSource {
 fn disk_is_visible(disk: &sysinfo::Disk, options: &DiskOptions) -> bool {
     let mount = disk.mount_point().to_string_lossy();
     let device = disk.name().to_string_lossy();
+    let fs = disk.file_system().to_string_lossy();
+    let fstab = if options.use_fstab {
+        std::fs::read_to_string("/etc/fstab").unwrap_or_default()
+    } else {
+        String::new()
+    };
+    mount_is_visible(&mount, &device, &fs, options, &fstab)
+}
+
+fn mount_is_visible(
+    mount: &str,
+    device: &str,
+    filesystem: &str,
+    options: &DiskOptions,
+    fstab: &str,
+) -> bool {
     if options.only_physical {
-        let fs = disk.file_system().to_string_lossy().to_ascii_lowercase();
+        let fs = filesystem.to_ascii_lowercase();
         if [
             "tmpfs", "devtmpfs", "overlay", "squashfs", "proc", "sysfs", "cgroup",
         ]
@@ -421,7 +437,6 @@ fn disk_is_visible(disk: &sysinfo::Disk, options: &DiskOptions) -> bool {
         }
     }
     if options.use_fstab {
-        let fstab = std::fs::read_to_string("/etc/fstab").unwrap_or_default();
         let mounts: std::collections::HashSet<String> = fstab
             .lines()
             .filter_map(|line| {
@@ -430,7 +445,7 @@ fn disk_is_visible(disk: &sysinfo::Disk, options: &DiskOptions) -> bool {
                 (fields.len() >= 2).then(|| fields[1].replace("\\040", " "))
             })
             .collect();
-        if !mounts.contains(mount.as_ref()) {
+        if !mounts.contains(mount) {
             return false;
         }
     }

@@ -172,3 +172,79 @@ fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
             .unwrap();
     assert_eq!(selected.mount, "/mnt/data");
 }
+
+#[test]
+fn disk_filters_exclude_mount_subtrees_and_virtual_filesystems() {
+    let options = super::DiskOptions {
+        filter: "exclude=/boot".into(),
+        ..Default::default()
+    };
+    assert!(!super::mount_is_visible(
+        "/boot",
+        "/dev/sda1",
+        "ext4",
+        &options,
+        ""
+    ));
+    assert!(!super::mount_is_visible(
+        "/boot/efi",
+        "/dev/sda2",
+        "vfat",
+        &options,
+        ""
+    ));
+    assert!(super::mount_is_visible(
+        "/",
+        "/dev/sda3",
+        "ext4",
+        &options,
+        ""
+    ));
+    let physical = super::DiskOptions {
+        only_physical: true,
+        ..Default::default()
+    };
+    assert!(!super::mount_is_visible(
+        "/run", "tmpfs", "tmpfs", &physical, ""
+    ));
+    assert!(!super::mount_is_visible(
+        "/app", "overlay", "overlay", &physical, ""
+    ));
+    assert!(super::mount_is_visible(
+        "/",
+        "/dev/sda3",
+        "ext4",
+        &physical,
+        ""
+    ));
+}
+
+#[test]
+fn fstab_mode_keeps_only_configured_mounts() {
+    let options = super::DiskOptions {
+        use_fstab: true,
+        ..Default::default()
+    };
+    let fstab = "/dev/root / ext4 defaults 0 1\n/dev/data /mnt/data\\040drive ext4 defaults 0 2\n";
+    assert!(super::mount_is_visible(
+        "/",
+        "/dev/root",
+        "ext4",
+        &options,
+        fstab
+    ));
+    assert!(super::mount_is_visible(
+        "/mnt/data drive",
+        "/dev/data",
+        "ext4",
+        &options,
+        fstab
+    ));
+    assert!(!super::mount_is_visible(
+        "/var",
+        "/dev/root",
+        "ext4",
+        &options,
+        fstab
+    ));
+}
