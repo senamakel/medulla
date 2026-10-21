@@ -91,6 +91,22 @@ fn settings_app(config: SubscriptionsConfig) -> App {
     app
 }
 
+#[test]
+fn render_with_enabled_resource_readings_does_not_wait_for_a_sampler_message() {
+    let mut config = loaded();
+    config.config.appearance = AppearanceConfig {
+        cpu: ResourceDisplay::Percent,
+        device_cpu: ResourceDisplay::Percent,
+        ..AppearanceConfig::default()
+    };
+    let mut app = App::new(Arc::new(MockRuntime::demo()), config);
+
+    // No resource snapshot has been delivered. The draw path must use the
+    // cached empty value and remain independent from the background task.
+    let buffer = draw(&mut app, 100, 40);
+    assert!(!text_of(&buffer).is_empty());
+}
+
 /// The Agents tab with `config` and the fixed sample already delivered.
 fn agents_app(config: SubscriptionsConfig) -> App {
     agents_app_with(config, AppearanceConfig::default())

@@ -23,7 +23,8 @@ impl App {
     /// Sessions tab with an empty composer and the config-derived theme.
     pub fn new(runtime: Arc<dyn Runtime>, loaded: LoadedConfig) -> Self {
         let snapshot = runtime.snapshot();
-        let theme = Theme::from_config(&loaded.config.theme);
+        let theme = Theme::from_config(&loaded.config.theme)
+            .with_depth(crate::ui::theme::ColorDepth::detect());
         let harness_skip_permissions = loaded.config.harness.skip_permissions;
         let status_line_promotion_pending = loaded.config.status_line.is_none();
         App {
@@ -86,9 +87,8 @@ impl App {
             appearance_split: false,
             status_line_preview: false,
             status_line_split: false,
-            resource_monitor: Default::default(),
-            device_monitor: Default::default(),
-            session_monitor: Default::default(),
+            resource_snapshot: Default::default(),
+            device_snapshot_override: None,
             status_line_index: 0,
             status_line_promotion_pending,
             config_index: 0,
@@ -186,8 +186,24 @@ impl App {
     ///
     /// Render tests need the footer to say the same thing on every machine, so
     /// they inject a snapshot instead of letting the rail sample the host.
+    /// Replace the cached background resources reading without sampling on the
+    /// caller, which may be the UI task.
+    pub fn set_resource_snapshot(
+        &mut self,
+        snapshot: Arc<crate::ui::resources::sampler::ResourceSnapshot>,
+    ) {
+        self.resource_snapshot = snapshot;
+    }
+
+    /// Pin a device reading for a settings preview or test.
     pub fn set_device_snapshot(&mut self, snapshot: crate::ui::resources::DeviceSnapshot) {
-        self.device_monitor.inject(snapshot);
+        self.device_snapshot_override = Some(snapshot);
+    }
+
+    /// The cached device reading, or the explicitly injected preview value.
+    pub(crate) fn device_snapshot(&self) -> crate::ui::resources::DeviceSnapshot {
+        self.device_snapshot_override
+            .unwrap_or_else(|| self.resource_snapshot.device_snapshot())
     }
 
     /// Configure Account logout with a testable home; without it, logout reports no writable location.

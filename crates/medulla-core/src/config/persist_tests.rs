@@ -6,6 +6,16 @@
 use super::*;
 
 #[test]
+fn theme_resources_config_deserializes_camel_case_overrides() {
+    let config: super::types::TuiConfig =
+        toml::from_str("[theme.resources]\ncpuBox = \"#010203\"\ncpuStart = \"green\"\n").unwrap();
+    let resources = config.theme.resources.unwrap();
+    assert_eq!(resources.cpu_box.as_deref(), Some("#010203"));
+    assert_eq!(resources.cpu_start.as_deref(), Some("green"));
+    assert!(resources.mem_box.is_none());
+}
+
+#[test]
 fn persists_the_welcome_flag_to_a_new_file() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("nested").join("config.toml");

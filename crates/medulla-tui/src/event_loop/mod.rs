@@ -95,12 +95,28 @@ pub(crate) async fn run(
     // header banner. Disabled via `[update] check = false` or
     // `MEDULLA_NO_UPDATE_CHECK`.
     spawn_update_checker(&app.loaded, &msg_tx);
+    let (resource_interval_tx, resource_interval_rx) =
+        tokio::sync::watch::channel(resource_sampling_period(&app));
+    let history_capacity = usize::from(terminal.size()?.width).saturating_mul(2);
+    medulla_tui::ui::resources::sampler::spawn_sampler(
+        medulla_tui::ui::resources::sampler::SystemResourceSource::default(),
+        resource_interval_rx,
+        history_capacity,
+        {
+            let msg_tx = msg_tx.clone();
+            move |snapshot| msg_tx.send(AppMsg::Resources(snapshot)).is_ok()
+        },
+    );
 
     // Product analytics: the top-level screen on entry and on every change.
     let mut analytics_screen = app.tab();
     medulla::analytics::record_screen_view(analytics_screen);
 
     loop {
+        medulla_tui::ui::resources::sampler::update_interval(
+            &resource_interval_tx,
+            resource_sampling_period(&app),
+        );
         terminal.draw(|f| app.draw(f))?;
         if app.should_quit {
             break;
@@ -144,6 +160,7 @@ pub(crate) async fn run(
             }
             Some(msg) = msg_rx.recv() => {
                 match msg {
+                    AppMsg::Resources(snapshot) => app.set_resource_snapshot(snapshot),
                     AppMsg::Status(s) => { app.set_status(s); app.refresh_snapshot(); }
                     AppMsg::Contexts(c) => app.set_contexts(c),
                     AppMsg::RemoteHostConnected {
@@ -430,6 +447,26 @@ pub(crate) async fn run(
     } else {
         SessionExit::Quit
     })
+}
+
+/// The resource sampler only runs while a visible screen or footer consumes
+/// its readings. The Resources tab is included when present in this build.
+fn resource_sampling_period(app: &App) -> Option<Duration> {
+    use medulla::config::ResourceDisplay;
+    let appearance = &app.loaded.config.appearance;
+    let status_line_needs_resources = [appearance.cpu, appearance.ram, appearance.disk_io]
+        .into_iter()
+        .any(|display| display != ResourceDisplay::Off);
+    let footer_needs_resources = app.tab() == "Sessions"
+        && [
+            appearance.device_cpu,
+            appearance.device_ram,
+            appearance.device_disk,
+        ]
+        .into_iter()
+        .any(|display| display != ResourceDisplay::Off);
+    (status_line_needs_resources || footer_needs_resources || app.tab() == "Resources")
+        .then(|| Duration::from_millis(app.loaded.config.resources.update_interval_ms()))
 }
 
 /// Apply the UI-side consequences after a workflow definition is known to be
