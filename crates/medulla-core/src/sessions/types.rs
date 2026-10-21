@@ -71,23 +71,6 @@ impl fmt::Display for SessionClass {
     }
 }
 
-/// Who *started* a session — its provenance, fixed for the session's whole life.
-///
-/// # Origin is not ownership
-///
-/// This is deliberately **not** "who may drive it now". That is *control*
-/// (`SessionControl` in the app crate, `owner` in the spec), it moves at runtime,
-/// and the two answer different questions:
-///
-/// | | Origin | Control / owner |
-/// |---|---|---|
-/// | Question | who started this session | who may start a turn in it *now* |
-/// | Lifetime | immutable | moves on every take / hand-back |
-/// | Set by | the creation path | takeover, hand-back, spawn-time choice |
-///
-/// So an [`Orchestrator`](Self::Orchestrator)-originated session an operator
-/// takes over is still `origin: orchestrator` while they hold it, and still is
-/// after they hand it back. Nothing may write this field after creation — the
 /// The operator's routing preference, resolved against the stimulus by
 /// [`route_session_class`](super::routing::route_session_class).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
