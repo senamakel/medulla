@@ -406,7 +406,9 @@ fn draw_mem_panel(
                 Rect::new(area.x, area.y + 1, area.width, 1),
             );
         }
-        lines.insert(0, Line::from("MEMORY HISTORY / IO READ-WRITE"));
+        lines.insert(0, Line::from(if config.io_mode {
+            if config.io_graph_combined { "IO READ+WRITE" } else { "IO READ            WRITE" }
+        } else { "RAM / SWAP HISTORY" }));
         let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 { 3 } else { 2 };
         lines.truncate(area.height.saturating_sub(graph_rows) as usize);
         frame.render_widget(

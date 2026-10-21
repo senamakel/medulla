@@ -264,38 +264,37 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
         mount: "/mnt/data".into(),
         total_bytes: 10_000,
         used_bytes: 2_500,
-        read_bytes_per_second: 512.0,
-        write_bytes_per_second: 1024.0,
+        read_bytes_per_second: 512_000.0,
+        write_bytes_per_second: 1_024_000.0,
         busy_percent: Some(15.0),
     }];
     history.push(&sample, 8);
     let sample = sample.with_history(Arc::new(history));
-    for (width, height) in [(170, 42), (80, 24)] {
-        let mut app = App::new(Arc::new(MockRuntime::empty()), loaded.clone());
-        app.set_resource_snapshot(Arc::new(sample.clone()));
-        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-        terminal
-            .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height)))
-            .unwrap();
-        let text = terminal
-            .backend()
-            .buffer()
-            .content()
-            .iter()
-            .map(|cell| cell.symbol())
-            .collect::<String>();
-        assert!(
-            text.contains("RAM 8K / 16K"),
-            "RAM missing at {width}x{height}: {text}"
-        );
-        assert!(
-            text.contains("/mnt/data"),
-            "disk missing at {width}x{height}: {text}"
-        );
-        assert!(
-            text.contains("Swap 0K / 4K"),
-            "swap missing at {width}x{height}: {text}"
-        );
+    for (width, height) in [(170, 42), (80, 24), (60, 16)] {
+        for (mem_graphs, io_mode, combined, speeds) in [
+            (true, false, false, true),
+            (false, false, false, true),
+            (true, true, true, true),
+            (true, true, false, false),
+        ] {
+            let mut configured = loaded.clone();
+            configured.config.resources.mem_graphs = mem_graphs;
+            configured.config.resources.io_mode = io_mode;
+            configured.config.resources.io_graph_combined = combined;
+            configured.config.resources.io_graph_speeds = speeds;
+            configured.config.resources.swap_disk = true;
+            let mut app = App::new(Arc::new(MockRuntime::empty()), configured);
+            app.set_resource_snapshot(Arc::new(sample.clone()));
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            terminal.draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height))).unwrap();
+            let text = terminal.backend().buffer().content().iter().map(|cell| cell.symbol()).collect::<String>();
+            assert!(text.contains("RAM 50%"), "RAM missing at {width}x{height}: {text}");
+            assert!(text.contains("/mnt/data"), "disk missing at {width}x{height}: {text}");
+            assert!(text.contains("Swap 13%"), "swap missing at {width}x{height}: {text}");
+            assert!(text.contains("[swap]"), "swap disk missing at {width}x{height}: {text}");
+            if !mem_graphs && !io_mode { assert!(text.contains('█'), "RAM meters missing at {width}x{height}: {text}"); }
+            if io_mode { assert!(text.contains(if combined { "IO READ+WRITE" } else { "IO READ" }), "IO graph labels missing at {width}x{height}: {text}"); }
+        }
     }
 }
 
