@@ -330,7 +330,7 @@ jobs:
           # compiles, the vendored core they link, the harness itself, and this
           # workflow. Documentation and the other workflows cannot.
           if printf '%s\n' "$changed" | grep -Eq \
-              '^(src/|e2e/|vendor/|scripts/|Cargo\.(toml|lock)$|\.gitmodules$|rust-toolchain\.toml$|\.github/workflows/ci\.yml$)'; then
+              '^(crates/|e2e/|vendor/|scripts/|Cargo\.(toml|lock)$|\.gitmodules$|rust-toolchain\.toml$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "no harness-relevant paths changed — skipping"
