@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct History<T>(Arc<VecDeque<T>>);
 
-impl<T> History<T> {
+impl<T: Clone> History<T> {
     /// Create an empty ring retaining at most `capacity` samples.
     pub fn new(capacity: usize) -> Self {
         Self(Arc::new(VecDeque::with_capacity(capacity)))
