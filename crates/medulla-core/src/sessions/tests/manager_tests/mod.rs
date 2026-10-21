@@ -148,16 +148,17 @@ pub(super) fn claude_harness_manager(body: &str) -> (SessionManager, tempfile::T
 /// Poll a session's phase until it reaches `target`, failing rather than
 /// hanging if it never does.
 async fn wait_for_phase(manager: &SessionManager, id: &str, target: SessionPhase) {
-    // A wall-clock budget, not an iteration count: under a loaded parallel test
-    // run, spawning the stub harness alone can outlast 2,000 one-ms sleeps.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-    while std::time::Instant::now() < deadline {
+    for _ in 0..2_000 {
         if manager.record(id).map(|record| record.phase) == Some(target) {
             return;
         }
         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
     }
-    panic!("session {id} never reached {target:?}");
+    panic!(
+        "session {id} never reached {target:?}; it is {:?} with transcript {:?}",
+        manager.record(id).map(|record| record.phase),
+        manager.transcript(id),
+    );
 }
 
 /// Spawn `submit(id, text)` on a background task so a test can inspect the
