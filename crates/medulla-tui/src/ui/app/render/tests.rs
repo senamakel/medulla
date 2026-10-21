@@ -49,7 +49,13 @@ fn status_line_renders_the_injected_process_snapshot() {
         .map(|cell| cell.symbol())
         .collect();
 
-    assert_eq!(status_line.trim_end(), "○ api.tinyhumans.ai    CPU 25%");
+    let expected_left = "○ api.tinyhumans.ai    CPU 25%";
+    let expected_right = "Ready";
+    let padding = usize::from(buffer.area.width) - expected_left.len() - expected_right.len();
+    assert_eq!(
+        status_line,
+        format!("{expected_left}{}{expected_right}", " ".repeat(padding))
+    );
 }
 
 #[test]
