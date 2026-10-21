@@ -324,7 +324,7 @@ fn draw_cpu_panel(
             .map(|(index, cpu)| {
                 let mut row = format!("C{index} {:>3.0}%", cpu.total);
                 if let Some(freq) = snapshot.cpu.frequencies_mhz.get(*index) {
-                    row.push_str(&format!(" {freq}MHz"));
+                row.push_str(&format!(" {}", format_frequency(*freq, &config.freq_mode)));
                 }
                 if let Some((_, temp, _)) = snapshot
                     .cpu

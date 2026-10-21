@@ -240,6 +240,21 @@ impl ResourceSource for SystemResourceSource {
                 })
                 .collect();
         }
+        if cpu.frequencies_mhz.is_empty() {
+            cpu.frequencies_mhz = self
+                .system
+                .cpus()
+                .iter()
+                .map(|cpu| cpu.frequency() / 1000)
+                .collect();
+        }
+        if cpu.load_average == [0.0; 3] {
+            let load = System::load_average();
+            cpu.load_average = [load.one, load.five, load.fifteen];
+        }
+        if cpu.uptime_seconds.is_none() {
+            cpu.uptime_seconds = Some(System::uptime());
+        }
         ResourceSnapshot {
             cpu,
             current_process,

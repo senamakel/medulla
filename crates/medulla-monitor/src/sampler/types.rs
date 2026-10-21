@@ -82,6 +82,12 @@ impl ResourceSnapshot {
         self
     }
 
+    /// Attach the history accumulated by a background sampler.
+    pub fn with_history(mut self, history: std::sync::Arc<ResourceHistory>) -> Self {
+        self.history = history;
+        self
+    }
+
     /// Adapt whole-device readings for the existing compact footer.
     pub fn device_snapshot(&self) -> crate::DeviceSnapshot {
         let cwd = std::env::current_dir().ok();
