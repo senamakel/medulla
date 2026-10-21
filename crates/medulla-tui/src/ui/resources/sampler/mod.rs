@@ -90,6 +90,7 @@ pub struct SystemResourceSource {
     system: System,
     disks: Disks,
     last_sample: Option<Instant>,
+    disk_peak_bytes_per_second: f64,
 }
 
 impl Default for SystemResourceSource {
@@ -98,7 +99,19 @@ impl Default for SystemResourceSource {
             system: System::new(),
             disks: Disks::new(),
             last_sample: None,
+            disk_peak_bytes_per_second: 1.0,
         }
+    }
+}
+
+impl SystemResourceSource {
+    /// Keep the IO bar scaled to recent activity instead of only this sample.
+    fn update_disk_peak(&mut self, read_rate: f64, write_rate: f64) -> f64 {
+        self.disk_peak_bytes_per_second = (self.disk_peak_bytes_per_second * 0.9)
+            .max(read_rate)
+            .max(write_rate)
+            .max(1.0);
+        self.disk_peak_bytes_per_second
     }
 }
 
@@ -189,25 +202,24 @@ impl ResourceSource for SystemResourceSource {
             let cores = self.system.cpus().len().max(1) as f64;
             let disk = process.disk_usage();
             let seconds = elapsed.max(0.001);
+            let read_rate = if baseline_ready {
+                disk.read_bytes as f64 / seconds
+            } else {
+                0.0
+            };
+            let write_rate = if baseline_ready {
+                disk.written_bytes as f64 / seconds
+            } else {
+                0.0
+            };
+            let disk_peak = self.update_disk_peak(read_rate, write_rate);
             Some(crate::ui::resources::types::ResourceSnapshot {
                 cpu_fraction: (f64::from(process.cpu_usage()) / (cores * 100.0)).clamp(0.0, 1.0),
                 memory_bytes: process.memory(),
                 total_memory_bytes: self.system.total_memory(),
-                disk_read_bytes_per_second: if baseline_ready {
-                    disk.read_bytes as f64 / seconds
-                } else {
-                    0.0
-                },
-                disk_write_bytes_per_second: if baseline_ready {
-                    disk.written_bytes as f64 / seconds
-                } else {
-                    0.0
-                },
-                disk_peak_bytes_per_second: if baseline_ready {
-                    (disk.read_bytes + disk.written_bytes) as f64 / seconds
-                } else {
-                    1.0
-                },
+                disk_read_bytes_per_second: read_rate,
+                disk_write_bytes_per_second: write_rate,
+                disk_peak_bytes_per_second: disk_peak,
             })
         });
         ResourceSnapshot {

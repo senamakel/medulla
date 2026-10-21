@@ -136,3 +136,10 @@ fn history_trims_to_requested_capacity_and_clones_cheaply() {
     history.push(4, 0);
     assert!(history.is_empty());
 }
+
+#[test]
+fn process_io_peak_decays_instead_of_resetting_to_each_sample() {
+    let mut source = super::SystemResourceSource::default();
+    assert_eq!(source.update_disk_peak(100.0, 0.0), 100.0);
+    assert_eq!(source.update_disk_peak(0.0, 0.0), 90.0);
+}
