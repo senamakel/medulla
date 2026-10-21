@@ -112,7 +112,8 @@ impl InteractiveSession {
             match command.spawn() {
                 Ok(child) => break child,
                 Err(err)
-                    if err.raw_os_error() == Some(26)
+                    if cfg!(target_os = "linux")
+                        && err.raw_os_error() == Some(26)
                         && text_busy_retries < TEXT_BUSY_RETRY_ATTEMPTS =>
                 {
                     text_busy_retries += 1;
