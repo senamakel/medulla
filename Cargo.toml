@@ -28,6 +28,7 @@ medulla = { path = "crates/medulla-core", default-features = false }
 medulla-link = { path = "crates/medulla-link" }
 medulla-juice = { path = "crates/medulla-juice" }
 medulla-monitor = { path = "crates/medulla-monitor" }
+medulla-pty = { path = "crates/medulla-pty" }
 # One daemon-owned native agent runtime. The facade re-exports the exact
 # vendored tool traits/results, so host tools do not link another tool graph.
 openhuman-embed = { path = "vendor/openhuman/crates/openhuman-embed", default-features = false, features = ["skills", "storage-sqlite"] }

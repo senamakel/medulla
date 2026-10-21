@@ -38,6 +38,11 @@ mod settlement;
 mod types;
 
 #[test]
+fn cell_text_module_path_remains_public() {
+    let _: Option<crate::worker::pty::cell_text::CellText> = None;
+}
+
+#[test]
 fn child_repository_override_is_retained_for_transcript_mapping() {
     let manager = PtyManager::new();
     let mut spec = sh("sleep 30");

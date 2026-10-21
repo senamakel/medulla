@@ -14,19 +14,19 @@
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// Lock `mutex`, ignoring poisoning.
-pub(super) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Read-lock `lock`, ignoring poisoning.
-pub(super) fn read<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
+pub fn read<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
     lock.read().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Write-lock `lock`, ignoring poisoning.
-pub(super) fn write<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
+pub fn write<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
     lock.write()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }

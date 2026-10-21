@@ -2541,6 +2541,7 @@ dependencies = [
  "hyper-util",
  "libc",
  "medulla-link",
+ "medulla-pty",
  "medulla-tokens",
  "medulla-types",
  "openhuman-embed",
@@ -2595,6 +2596,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "medulla-pty"
+version = "0.13.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "serde_json",
+ "unicode-segmentation",
+ "vt100",
+]
+
+[[package]]
 name = "medulla-tokens"
 version = "0.13.0"
 dependencies = [
@@ -2621,6 +2633,7 @@ dependencies = [
  "libc",
  "medulla",
  "medulla-link",
+ "medulla-pty",
  "medulla-monitor",
  "portable-pty",
  "ratatui",
