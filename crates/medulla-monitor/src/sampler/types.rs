@@ -1,7 +1,7 @@
 //! Snapshot data returned by the background resource sampler.
 
 /// Point-in-time disk capacity reading.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DiskSnapshot {
     /// Device name when the platform exposes one.
     pub device: String,

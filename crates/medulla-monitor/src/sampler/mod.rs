@@ -298,7 +298,6 @@ impl ResourceSource for SystemResourceSource {
                 #[cfg(target_os = "linux")] { linux.memory.free }
                 #[cfg(not(target_os = "linux"))] { self.system.free_memory() }
             },
-            memory_cached_bytes: { #[cfg(target_os = "linux")] { linux.memory.cached } #[cfg(not(target_os = "linux"))] { 0 } },
             swap_total_bytes: self.system.total_swap(),
             swap_used_bytes: self.system.used_swap(),
             disks: self
