@@ -13,4 +13,7 @@ pub use harness::{dispatchable_flavors, HarnessProvider, HarnessTransport, CODEX
 pub use token_usage::{BudgetWindow, TokenUsage};
 
 #[cfg(test)]
+#[path = "harness_contract_tests.rs"]
+mod harness_contract_tests;
+#[cfg(test)]
 mod tests;

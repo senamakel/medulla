@@ -295,4 +295,3 @@ fn budget_metadata_parses_out_of_descriptor_metadata() {
     bad.insert("budget".into(), json!({ "seatId": 5 }));
     assert!(AgentBudgetMetadata::from_metadata(&bad).is_none());
 }
-

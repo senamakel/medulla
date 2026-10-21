@@ -86,17 +86,17 @@ pub enum HarnessProvider {
     ///
     /// The one provider with no binary behind it: a task dispatched to it runs
     /// as an in-process agent turn on the openhuman-embed harness rather than a
-    /// spawned CLI — see [`crate::daemon::providers::embed`].
+    /// spawned CLI — see the SDK's embedded-provider implementation.
     ///
     /// It is dispatchable, but never *auto-selected*: it is not
     /// interchangeable with a coding CLI, so a task reaches it only by naming
-    /// it. See [`crate::daemon::providers::detect_providers`].
+    /// it. The SDK's provider detection deliberately skips it.
     Openhuman,
     /// A plain interactive shell — `bash`, `zsh`, whatever `$SHELL` names.
     ///
     /// Not a coding agent, and deliberately kept out of every path that treats
     /// one as interchangeable with another: it is never detected as an
-    /// available provider ([`crate::daemon::providers::DAEMON_PROVIDERS`]) and
+    /// available provider and
     /// never dispatchable ([`is_dispatchable`](Self::is_dispatchable)), so no
     /// peer frame can reach a shell however it spells the harness name. It
     /// exists so an operator can open a terminal beside their agents, in the
