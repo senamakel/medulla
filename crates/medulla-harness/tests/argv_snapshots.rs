@@ -45,7 +45,7 @@ fn codex_hook_argv_matches_the_pre_extraction_snapshot() {
         argv,
         [
             "-c",
-            r#"hooks={SessionStart=[{hooks=[{command="echo hi",type="command"}],matcher="*"}]}"#,
+            r#"hooks={"SessionStart"=[{"hooks"=[{"command"="echo hi","type"="command"}],"matcher"="*"}]}"#,
         ]
     );
 }

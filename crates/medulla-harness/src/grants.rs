@@ -1,7 +1,7 @@
 //! Narrow seam between harness customization and a host's control plane.
 
-use std::path::PathBuf;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// A hook-only credential handed to one spawned harness.
@@ -31,7 +31,10 @@ pub fn seed_hook_grant(
     let session = session.into();
     match minter.mint(&session) {
         Some(grant) => {
-            env.insert(HOOK_SOCKET_ENV.to_owned(), grant.socket.to_string_lossy().into_owned());
+            env.insert(
+                HOOK_SOCKET_ENV.to_owned(),
+                grant.socket.to_string_lossy().into_owned(),
+            );
             env.insert(HOOK_GRANT_ENV.to_owned(), grant.token);
             HookGrantGuard(Some((session, minter)))
         }
@@ -66,7 +69,10 @@ mod tests {
 
     impl HookGrantMinter for FakeMinter {
         fn mint(&self, _session: &str) -> Option<HookGrant> {
-            Some(HookGrant { socket: "/tmp/hook.sock".into(), token: "opaque".into() })
+            Some(HookGrant {
+                socket: "/tmp/hook.sock".into(),
+                token: "opaque".into(),
+            })
         }
 
         fn revoke(&self, session: &str) {
@@ -89,8 +95,12 @@ mod tests {
     fn missing_grant_is_a_noop_and_does_not_revoke() {
         struct EmptyMinter;
         impl HookGrantMinter for EmptyMinter {
-            fn mint(&self, _session: &str) -> Option<HookGrant> { None }
-            fn revoke(&self, _session: &str) { panic!("cannot revoke an unminted grant") }
+            fn mint(&self, _session: &str) -> Option<HookGrant> {
+                None
+            }
+            fn revoke(&self, _session: &str) {
+                panic!("cannot revoke an unminted grant")
+            }
         }
         let mut env = HashMap::new();
         let _guard = seed_hook_grant("session-b", &mut env, Arc::new(EmptyMinter));
