@@ -272,16 +272,16 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
     let sample = sample.with_history(Arc::new(history));
     for (width, height) in [(170, 42), (80, 24), (60, 16)] {
         for (mem_graphs, io_mode, combined, speeds) in [
-            (true, false, false, true),
-            (false, false, false, true),
-            (true, true, true, true),
-            (true, true, false, false),
+            (true, false, false, ""),
+            (false, false, false, ""),
+            (true, true, true, ""),
+            (true, true, false, "/mnt/data:1"),
         ] {
             let mut configured = loaded.clone();
             configured.config.resources.mem_graphs = mem_graphs;
             configured.config.resources.io_mode = io_mode;
             configured.config.resources.io_graph_combined = combined;
-            configured.config.resources.io_graph_speeds = speeds;
+            configured.config.resources.io_graph_speeds = speeds.into();
             configured.config.resources.swap_disk = true;
             let mut app = App::new(Arc::new(MockRuntime::empty()), configured);
             app.set_resource_snapshot(Arc::new(sample.clone()));

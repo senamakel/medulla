@@ -560,10 +560,15 @@ fn draw_disk_io_graphs(
 }
 
 fn io_graph_speed(config: &medulla::config::ResourcesConfig, mount: &str) -> f64 {
-    config.io_graph_speeds.split_whitespace().find_map(|entry| {
-        let (target, speed) = entry.split_once(':')?;
-        (target == mount).then(|| speed.parse::<u64>().ok()).flatten().map(|speed| speed as f64)
-    }).unwrap_or(100.0)
+    config
+        .io_graph_speeds
+        .split_whitespace()
+        .find_map(|entry| {
+            let (target, speed) = entry.split_once(':')?;
+            if target != mount { return None; }
+            speed.parse::<u64>().ok().filter(|speed| *speed > 0).map(|speed| speed as f64)
+        })
+        .unwrap_or(100.0)
 }
 
 fn draw_cpu_panel(
