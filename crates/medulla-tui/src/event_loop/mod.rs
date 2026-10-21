@@ -103,9 +103,7 @@ pub(crate) async fn run(
         120,
         {
             let msg_tx = msg_tx.clone();
-            move |snapshot| {
-                let _ = msg_tx.send(AppMsg::Resources(snapshot));
-            }
+            move |snapshot| msg_tx.send(AppMsg::Resources(snapshot)).is_ok()
         },
     );
 

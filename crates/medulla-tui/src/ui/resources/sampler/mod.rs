@@ -32,7 +32,7 @@ pub fn spawn_sampler<S, F>(
 ) -> tokio::task::JoinHandle<()>
 where
     S: ResourceSource,
-    F: Fn(Arc<ResourceSnapshot>) + Send + Sync + 'static,
+    F: Fn(Arc<ResourceSnapshot>) -> bool + Send + Sync + 'static,
 {
     tokio::spawn(async move {
         let mut history = ResourceHistory::default();
@@ -59,7 +59,9 @@ where
                     source = next_source;
                     history.push(&snapshot, history_capacity);
                     snapshot.history = Arc::new(history.clone());
-                    output(Arc::new(snapshot));
+                    if !output(Arc::new(snapshot)) {
+                        break;
+                    }
                 }
                 changed = interval.changed() => if changed.is_err() { break; },
             }
@@ -147,6 +149,19 @@ impl ResourceSource for SystemResourceSource {
                 threads: process.tasks().map_or(0, |tasks| tasks.len()),
             })
             .collect();
+        let process_index = std::sync::Arc::new(
+            processes
+                .iter()
+                .enumerate()
+                .map(|(index, process)| (process.pid, index))
+                .collect(),
+        );
+        let mut children = std::collections::HashMap::<u32, Vec<u32>>::new();
+        for process in &processes {
+            if let Some(parent) = process.ppid {
+                children.entry(parent).or_default().push(process.pid);
+            }
+        }
         let current_pid = sysinfo::get_current_pid().ok().map(|pid| pid.as_u32());
         let current_process = current_pid.and_then(|pid| {
             let process = self
@@ -182,6 +197,8 @@ impl ResourceSource for SystemResourceSource {
         ResourceSnapshot {
             current_process,
             history: Default::default(),
+            process_index,
+            children_index: std::sync::Arc::new(children),
             sample_interval_seconds: elapsed,
             cpu_percent: f64::from(self.system.global_cpu_usage()),
             cpu_cores_percent: self

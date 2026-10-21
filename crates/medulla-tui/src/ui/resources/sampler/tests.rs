@@ -26,9 +26,7 @@ async fn sampler_posts_injected_samples_in_order() {
         SequenceSource(Arc::new(AtomicUsize::new(0))),
         interval_rx,
         2,
-        move |snapshot| {
-            let _ = output_tx.send(snapshot);
-        },
+        move |snapshot| output_tx.send(snapshot).is_ok(),
     );
     let first = tokio::time::timeout(Duration::from_secs(1), output_rx.recv())
         .await
@@ -61,9 +59,7 @@ async fn changed_interval_controls_the_next_sample_tick() {
         SequenceSource(Arc::new(AtomicUsize::new(0))),
         interval_rx,
         2,
-        move |snapshot| {
-            let _ = output_tx.send(snapshot);
-        },
+        move |snapshot| output_tx.send(snapshot).is_ok(),
     );
 
     for _ in 0..5 {
