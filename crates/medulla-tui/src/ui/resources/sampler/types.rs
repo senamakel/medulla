@@ -155,7 +155,8 @@ impl ResourceHistory {
         self.cpu_percent.push(snapshot.cpu_percent, capacity);
         self.memory_used_bytes
             .push(snapshot.memory_used_bytes, capacity);
-        self.swap_used_bytes.push(snapshot.swap_used_bytes, capacity);
+        self.swap_used_bytes
+            .push(snapshot.swap_used_bytes, capacity);
         self.process_count.push(snapshot.processes.len(), capacity);
     }
 }

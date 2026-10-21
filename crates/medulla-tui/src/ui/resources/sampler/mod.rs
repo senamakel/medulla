@@ -134,8 +134,16 @@ impl ResourceSource for SystemResourceSource {
                 start_time: process.start_time(),
                 cpu_percent: f64::from(process.cpu_usage()),
                 memory_bytes: process.memory(),
-                disk_read_bytes: if baseline_ready { process.disk_usage().read_bytes } else { 0 },
-                disk_written_bytes: if baseline_ready { process.disk_usage().written_bytes } else { 0 },
+                disk_read_bytes: if baseline_ready {
+                    process.disk_usage().read_bytes
+                } else {
+                    0
+                },
+                disk_written_bytes: if baseline_ready {
+                    process.disk_usage().written_bytes
+                } else {
+                    0
+                },
                 threads: process.tasks().map_or(0, |tasks| tasks.len()),
             })
             .collect();
@@ -154,9 +162,21 @@ impl ResourceSource for SystemResourceSource {
                 cpu_fraction: (f64::from(process.cpu_usage()) / (cores * 100.0)).clamp(0.0, 1.0),
                 memory_bytes: process.memory(),
                 total_memory_bytes: self.system.total_memory(),
-                disk_read_bytes_per_second: if baseline_ready { disk.read_bytes as f64 / seconds } else { 0.0 },
-                disk_write_bytes_per_second: if baseline_ready { disk.written_bytes as f64 / seconds } else { 0.0 },
-                disk_peak_bytes_per_second: if baseline_ready { (disk.read_bytes + disk.written_bytes) as f64 / seconds } else { 1.0 },
+                disk_read_bytes_per_second: if baseline_ready {
+                    disk.read_bytes as f64 / seconds
+                } else {
+                    0.0
+                },
+                disk_write_bytes_per_second: if baseline_ready {
+                    disk.written_bytes as f64 / seconds
+                } else {
+                    0.0
+                },
+                disk_peak_bytes_per_second: if baseline_ready {
+                    (disk.read_bytes + disk.written_bytes) as f64 / seconds
+                } else {
+                    1.0
+                },
             })
         });
         ResourceSnapshot {

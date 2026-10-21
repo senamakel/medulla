@@ -40,7 +40,15 @@ async fn sampler_posts_injected_samples_in_order() {
         .unwrap();
     assert_eq!(first.cpu_percent, 0.0);
     assert_eq!(second.cpu_percent, 1.0);
-    assert_eq!(second.history.cpu_percent.iter().copied().collect::<Vec<_>>(), [0.0, 1.0]);
+    assert_eq!(
+        second
+            .history
+            .cpu_percent
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [0.0, 1.0]
+    );
     drop(interval_tx);
     task.abort();
 }
