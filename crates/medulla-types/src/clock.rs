@@ -250,16 +250,5 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn iso_rendering_matches_known_instants() {
-        assert_eq!(iso_from_epoch_millis(0), "1970-01-01T00:00:00.000Z");
-        assert_eq!(
-            iso_from_epoch_millis(1_709_164_800_123),
-            "2024-02-29T00:00:00.123Z"
-        );
-        assert_eq!(epoch_millis_from_iso("1970-01-01T00:00:00Z"), Some(0));
-    }
-}
+#[path = "clock_tests.rs"]
+mod tests;
