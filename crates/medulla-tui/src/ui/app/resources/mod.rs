@@ -61,7 +61,7 @@ impl App {
                 state.shown.agents,
                 rects.agents,
                 "Agents",
-                self.theme.resources.agents_box,
+                self.theme.resources.proc_box,
             ),
         ] {
             if shown && rect.width > 0 && rect.height > 0 {
