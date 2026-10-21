@@ -102,6 +102,14 @@ impl ResourcesState {
         };
         state.preset = config.preset.min(state.presets.len().saturating_sub(1));
         state.apply_preset();
+        // `shownBoxes` is an explicit startup choice. Interactive preset
+        // changes replace visibility with the boxes listed by that preset.
+        state.shown = ShownBoxes {
+            cpu: shown.contains(&"cpu"),
+            mem: shown.contains(&"mem"),
+            net: shown.contains(&"net"),
+            agents: shown.contains(&"agents"),
+        };
         if let Some(value) = config.cpu_bottom {
             state.opts.cpu_bottom = value;
         }
@@ -119,6 +127,7 @@ impl ResourcesState {
             return;
         };
         let (mut cpu_bottom, mut mem_below_net, mut agents_left) = (false, false, false);
+        let mut shown = ShownBoxes::default();
         for item in preset.split(',') {
             let mut parts = item.split(':');
             let (Some(name), Some(position), Some(_graph)) =
@@ -127,10 +136,20 @@ impl ResourcesState {
                 continue;
             };
             match name {
-                "cpu" => cpu_bottom = position == "1",
-                "mem" => mem_below_net = position == "1",
+                "cpu" => {
+                    shown.cpu = true;
+                    cpu_bottom = position == "1";
+                }
+                "mem" => {
+                    shown.mem = true;
+                    mem_below_net = position == "1";
+                }
+                "net" => shown.net = true,
                 "agents" => agents_left = position == "0",
                 _ => {}
+            }
+            if name == "agents" {
+                shown.agents = true;
             }
         }
         self.opts = LayoutOptions {
@@ -138,6 +157,7 @@ impl ResourcesState {
             mem_below_net,
             agents_left,
         };
+        self.shown = shown;
     }
 }
 

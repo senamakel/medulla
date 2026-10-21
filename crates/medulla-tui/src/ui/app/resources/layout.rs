@@ -49,47 +49,55 @@ pub(super) fn calc_sizes(area: Rect, shown: ShownBoxes, opts: &LayoutOptions) ->
     if shown.agents && shown.mem && shown.net {
         let left_w = (u32::from(rest.width) * 45).div_ceil(100) as u16;
         let right_w = rest.width.saturating_sub(left_w);
-        let top_h = (u32::from(rest.height) * 40).div_ceil(100) as u16;
-        let net_h = (u32::from(rest.height) * 28).div_ceil(100) as u16;
+        let mem_h = if shown.cpu {
+            u32::from(area.height) * 40 / 100
+        } else {
+            u32::from(rest.height) * 59 / 100
+        } as u16;
+        let net_h = rest.height.saturating_sub(mem_h);
         if opts.agents_left {
             out.agents = Rect::new(rest.x, rest.y, right_w, rest.height);
             out.mem = Rect::new(
                 rest.x + right_w,
-                rest.y,
-                left_w,
                 if opts.mem_below_net {
-                    rest.height - net_h
+                    rest.y + net_h
                 } else {
-                    top_h
+                    rest.y
                 },
+                left_w,
+                mem_h,
             );
             out.net = if opts.mem_below_net {
                 Rect::new(rest.x + right_w, rest.y, left_w, net_h)
             } else {
-                Rect::new(rest.x + right_w, rest.y + top_h, left_w, net_h)
+                Rect::new(rest.x + right_w, rest.y + mem_h, left_w, net_h)
             };
         } else {
             out.mem = Rect::new(
                 rest.x,
-                rest.y,
-                left_w,
                 if opts.mem_below_net {
-                    rest.height - net_h
+                    rest.y + net_h
                 } else {
-                    top_h
+                    rest.y
                 },
+                left_w,
+                mem_h,
             );
             out.net = if opts.mem_below_net {
                 Rect::new(rest.x, rest.y, left_w, net_h)
             } else {
-                Rect::new(rest.x, rest.y + top_h, left_w, net_h)
+                Rect::new(rest.x, rest.y + mem_h, left_w, net_h)
             };
             out.agents = Rect::new(rest.x + left_w, rest.y, right_w, rest.height);
         }
     } else if shown.agents {
         out.agents = rest;
     } else if shown.mem && shown.net {
-        let mh = (u32::from(rest.height) * 59).div_ceil(100) as u16;
+        let mh = if shown.cpu {
+            u32::from(area.height) * 40 / 100
+        } else {
+            u32::from(rest.height) * 59 / 100
+        } as u16;
         out.mem = if opts.mem_below_net {
             Rect::new(rest.x, rest.y + rest.height - mh, rest.width, mh)
         } else {

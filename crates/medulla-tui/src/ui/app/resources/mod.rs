@@ -82,14 +82,15 @@ impl App {
                     format!(" {title} [{key}] ")
                 };
                 if title.starts_with(" CPU ") {
-                    state.hits.cpu_toggle = Rect::new(rect.x + 2 + 6, rect.y, 3, 1);
-                    state.hits.menu = Rect::new(rect.x + 2 + 10, rect.y, 3, 1);
-                    state.hits.preset_prev = Rect::new(rect.x + 2 + 14, rect.y, 3, 1);
-                    state.hits.preset_next = Rect::new(rect.x + 2 + 18, rect.y, 3, 1);
-                    state.hits.interval_down = Rect::new(rect.x + 2 + 22, rect.y, 3, 1);
-                    state.hits.interval_up = Rect::new(rect.x + 2 + 26, rect.y, 3, 1);
+                    state.hits.cpu_toggle = Rect::new(rect.x + 6, rect.y, 3, 1);
+                    state.hits.menu = Rect::new(rect.x + 10, rect.y, 3, 1);
+                    state.hits.preset_prev = Rect::new(rect.x + 14, rect.y, 3, 1);
+                    state.hits.preset_next = Rect::new(rect.x + 18, rect.y, 3, 1);
+                    state.hits.interval_down = Rect::new(rect.x + 22, rect.y, 3, 1);
+                    state.hits.interval_up = Rect::new(rect.x + 26, rect.y, 3, 1);
                 } else {
-                    let hit = Rect::new(rect.x + 2 + 5, rect.y, 3, 1);
+                    let offset = if title.contains("Agents") { 9 } else { 6 };
+                    let hit = Rect::new(rect.x + offset, rect.y, 3, 1);
                     match title.chars().next() {
                         Some(' ') if title.contains("Mem") => state.hits.mem_toggle = hit,
                         Some(' ') if title.contains("Net") => state.hits.net_toggle = hit,

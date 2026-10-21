@@ -32,7 +32,10 @@ fn default_layout_uses_btop_shares_at_common_terminal_sizes() {
         assert_eq!(boxes.mem.height, mem_h);
         assert_eq!(boxes.net.height, net_h);
         assert_eq!(boxes.agents.width, agents_w);
-        assert_eq!(boxes.mem.height + boxes.net.height, area.height - boxes.cpu.height);
+        assert_eq!(
+            boxes.mem.height + boxes.net.height,
+            area.height - boxes.cpu.height
+        );
     }
 }
 
@@ -224,7 +227,10 @@ fn cpu_title_controls_have_distinct_click_actions() {
     ] {
         let x = cpu.x + x_offset;
         assert_eq!(buffer.get(x, cpu.y).symbol(), symbol);
-        assert!(hit.contains((x, cpu.y).into()), "visible control at x={x} misses hit rect {hit:?}");
+        assert!(
+            hit.contains((x, cpu.y).into()),
+            "visible control at x={x} misses hit rect {hit:?}"
+        );
     }
     assert!(menu.width > 0);
     assert!(cpu_toggle.width > 0);
@@ -252,16 +258,39 @@ fn each_panel_title_button_toggles_only_its_box() {
         .unwrap();
     let buffer = terminal.backend().buffer();
     let targets = [
-        (app.resources.rects.cpu, app.resources.hits.cpu_toggle, 6, '1'),
-        (app.resources.rects.mem, app.resources.hits.mem_toggle, 6, '2'),
-        (app.resources.rects.net, app.resources.hits.net_toggle, 6, '3'),
-        (app.resources.rects.agents, app.resources.hits.agents_toggle, 9, '4'),
+        (
+            app.resources.rects.cpu,
+            app.resources.hits.cpu_toggle,
+            6,
+            '1',
+        ),
+        (
+            app.resources.rects.mem,
+            app.resources.hits.mem_toggle,
+            6,
+            '2',
+        ),
+        (
+            app.resources.rects.net,
+            app.resources.hits.net_toggle,
+            6,
+            '3',
+        ),
+        (
+            app.resources.rects.agents,
+            app.resources.hits.agents_toggle,
+            9,
+            '4',
+        ),
     ];
     for (panel, hit, offset, key) in targets {
         assert!(hit.width > 0);
         let x = panel.x + offset;
         assert_eq!(buffer.get(x, panel.y).symbol(), "[");
-        assert!(hit.contains((x, panel.y).into()), "visible [{key}] misses hit rect {hit:?}");
+        assert!(
+            hit.contains((x, panel.y).into()),
+            "visible [{key}] misses hit rect {hit:?}"
+        );
         app.handle_click(x, panel.y);
         let shown = match key {
             '1' => app.resources.shown.cpu,
