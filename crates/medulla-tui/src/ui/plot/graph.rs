@@ -3,7 +3,7 @@
 use super::{Gradient, Symbol};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::widgets::Widget;
 
 /// Draw a percentage history, packing two samples into each terminal cell.
@@ -126,5 +126,3 @@ fn level(value: f32, low: f32, high: f32, bias: f32, no_zero: bool) -> u8 {
     }
 }
 
-#[allow(dead_code)]
-fn _color_type(_: Color) {}
