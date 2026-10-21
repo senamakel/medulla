@@ -15,7 +15,7 @@ mod lifecycle_tests;
 
 pub use cell_text::CellText;
 pub use convert::{ScreenCell, ScreenSnapshot};
-pub use lifecycle::{SessionClose, SessionLifecycle};
+pub use lifecycle::{LifecycleSession, SessionClose, SessionLifecycle};
 
 #[cfg(test)]
 #[path = "conversion_tests.rs"]

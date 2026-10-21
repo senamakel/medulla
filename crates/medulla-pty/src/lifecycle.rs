@@ -2,6 +2,22 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::collections::HashMap;
+
+/// Portable facts about a harness session passed to application callbacks.
+#[derive(Debug, Clone, Default)]
+pub struct LifecycleSession {
+    /// Local PTY manager id.
+    pub id: String,
+    /// External harness session id, when the provider exposes one.
+    pub session_id: Option<String>,
+    /// Working directory used to locate provider session metadata.
+    pub cwd: String,
+    /// Environment captured at launch.
+    pub env: HashMap<String, String>,
+    /// Application-owned capability key to revoke on close.
+    pub grant_session: Option<String>,
+}
 
 /// Application-owned behavior that cannot live in the portable PTY crate.
 ///
@@ -9,10 +25,10 @@ use std::sync::Arc;
 /// specific thread labels while the PTY manager remains independent of the SDK.
 pub trait SessionLifecycle: Send + Sync + 'static {
     /// Release application resources associated with a harness session.
-    fn on_close(&self, session: &str);
+    fn on_close(&self, session: &LifecycleSession);
 
     /// Return a provider-specific thread label for a harness session, if known.
-    fn thread_label(&self, session: &str) -> Option<String>;
+    fn thread_label(&self, session: &LifecycleSession) -> Option<String>;
 }
 
 /// A once-only notification for one external harness session.
@@ -21,13 +37,13 @@ pub trait SessionLifecycle: Send + Sync + 'static {
 /// can revoke capabilities or clean persisted state, so it must run once.
 pub struct SessionClose {
     lifecycle: Arc<dyn SessionLifecycle>,
-    session: String,
+    session: LifecycleSession,
     notified: AtomicBool,
 }
 
 impl SessionClose {
     /// Build a once-only close notification.
-    pub fn new(lifecycle: Arc<dyn SessionLifecycle>, session: String) -> Self {
+    pub fn new(lifecycle: Arc<dyn SessionLifecycle>, session: LifecycleSession) -> Self {
         Self {
             lifecycle,
             session,

@@ -2,6 +2,7 @@
 use std::sync::OnceLock;
 
 use medulla::harness_hooks::HookEventLog;
+use medulla_pty::{SessionLifecycle, SessionClose};
 
 #[allow(unused_imports)]
 use super::*;
@@ -37,6 +38,8 @@ pub(super) struct Inner {
     /// Feeds the single clipboard worker thread. See
     /// [`PtyManager::forward_clipboard`](super::PtyManager::forward_clipboard).
     pub(super) clipboard: Arc<ClipboardQueue>,
+    /// Application-specific session cleanup and provider metadata callbacks.
+    pub(super) lifecycle: Arc<dyn SessionLifecycle>,
     /// The lifecycle-report log the attention poller reads a `Notification`
     /// from. Set once, before any session opens, by
     /// [`PtyManager::set_hook_log`](super::PtyManager::set_hook_log); a

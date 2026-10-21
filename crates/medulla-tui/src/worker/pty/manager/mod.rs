@@ -44,6 +44,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
 
 use super::handle::SessionHandle;
+use medulla_pty::{LifecycleSession, SessionClose, SessionLifecycle};
 use medulla_pty::sync::{read, write};
 
 /// Read buffer for the PTY master.
@@ -142,6 +143,15 @@ impl PtyManager {
     /// of growing a backlog of stale ones without bound while the worker sits
     /// blocked in `tmux`/`pbcopy`.
     pub fn with_now_and_clipboard(now: NowFn, clipboard: ClipboardSink) -> Self {
+        Self::with_now_clipboard_and_lifecycle(now, clipboard, Arc::new(TuiSessionLifecycle))
+    }
+
+    /// Override the clock, clipboard destination, and app-specific callbacks.
+    pub fn with_now_clipboard_and_lifecycle(
+        now: NowFn,
+        clipboard: ClipboardSink,
+        lifecycle: Arc<dyn SessionLifecycle>,
+    ) -> Self {
         let queue = Arc::new(ClipboardQueue::new());
         let worker_queue = Arc::clone(&queue);
         std::thread::spawn(move || {
@@ -155,6 +165,7 @@ impl PtyManager {
                 next_id: AtomicU64::new(1),
                 now,
                 clipboard: queue,
+                lifecycle,
                 hook_log: std::sync::OnceLock::new(),
             }),
         }
@@ -209,6 +220,26 @@ impl PtyManager {
     /// Every handle, in open order.
     pub(super) fn handles(&self) -> Vec<Arc<SessionHandle>> {
         read(&self.inner.sessions).clone()
+    }
+}
+
+/// SDK services supplied to the portable PTY session layer.
+struct TuiSessionLifecycle;
+
+impl SessionLifecycle for TuiSessionLifecycle {
+    fn on_close(&self, session: &LifecycleSession) {
+        #[cfg(feature = "workflows")]
+        if let Some(grant) = &session.grant_session {
+            medulla::mcp::revoke_session(grant);
+        }
+    }
+
+    fn thread_label(&self, session: &LifecycleSession) -> Option<String> {
+        let session_id = session.session_id.as_deref();
+        match session_id {
+            Some(id) => medulla::session_history::codex_thread_label(&session.env, id),
+            None => medulla::session_history::codex_thread_label_for_cwd(&session.env, &session.cwd),
+        }
     }
 }
 
