@@ -22,7 +22,8 @@ pub use custom_harnesses::{
 };
 pub use detect::{
     build_resumed_run_args, build_run_args, detect_providers, extract_session_id, make_path_lookup,
-    provider_name, session_id_field, supports_stdin, ExistsOnPath, DAEMON_PROVIDERS,
+    provider_name, provider_bin as detected_provider_bin, session_id_field, supports_stdin,
+    ExistsOnPath, DAEMON_PROVIDERS,
 };
 pub use env::{
     bin_is_overridden, model_override, provider_args, provider_bin, router_env,

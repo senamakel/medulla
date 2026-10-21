@@ -16,7 +16,6 @@ use super::AppearanceConfig;
 use super::SubscriptionsConfig;
 use crate::harness_hooks::HooksConfig;
 use crate::protocol::HarnessProvider;
-pub use medulla_providers::{BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig};
 use crate::runtime::fleet::{
     AgentDeclaration, CapacitySnapshot, HarnessDescriptor, HostDescriptor, WorkspaceDescriptor,
 };
