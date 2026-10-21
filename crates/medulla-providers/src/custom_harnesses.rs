@@ -46,6 +46,11 @@ use serde::{Deserialize, Serialize};
 use super::RouterConfig;
 use medulla_types::HarnessProvider;
 
+const CODEX_OVERRIDES_ENV: &str = "MEDULLA_CODEX_OVERRIDES";
+const CODEX_DISPLAY_NAME_ENV: &str = "MEDULLA_CODEX_DISPLAY_NAME";
+const CODEX_EFFORT_ENV: &str = "MEDULLA_CODEX_REASONING_EFFORT";
+const CODEX_CONTEXT_WINDOW_ENV: &str = "MEDULLA_CODEX_CONTEXT_WINDOW";
+
 /// The default environment variable containing an OpenRouter API key.
 pub const OPENROUTER_API_KEY_ENV: &str = "OPENROUTER_API_KEY";
 /// OpenRouter's Anthropic-compatible endpoint used by Claude Code.
@@ -256,9 +261,9 @@ impl CustomHarnessConfig {
             return Vec::new();
         }
         let mut env = vec![
-            (crate::codex_overrides::OVERRIDES_ENV.into(), "1".into()),
+            (CODEX_OVERRIDES_ENV.into(), "1".into()),
             (
-                crate::codex_overrides::DISPLAY_NAME_ENV.into(),
+                CODEX_DISPLAY_NAME_ENV.into(),
                 self.name.clone(),
             ),
         ];
@@ -269,13 +274,13 @@ impl CustomHarnessConfig {
             .filter(|effort| !effort.is_empty())
         {
             env.push((
-                crate::codex_overrides::EFFORT_ENV.into(),
+                CODEX_EFFORT_ENV.into(),
                 effort.to_string(),
             ));
         }
         if let Some(window) = self.context_window {
             env.push((
-                crate::codex_overrides::CONTEXT_WINDOW_ENV.into(),
+                CODEX_CONTEXT_WINDOW_ENV.into(),
                 window.to_string(),
             ));
         }

@@ -258,14 +258,6 @@ pub fn build_resumed_run_args(
     args
 }
 
-/// Whether a provider can resume a previously captured harness session id.
-///
-/// Re-exported from [`crate::sessions::routing`] so the argv builder can gate on
-/// it without the providers module depending on the sessions module.
-fn can_resume(provider: HarnessProvider) -> bool {
-    can_resume(provider)
-}
-
 /// The stream field a provider announces its own session id on.
 ///
 /// claude stamps `session_id` on **every** frame (the `system`/`init` one is
