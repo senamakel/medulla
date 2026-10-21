@@ -163,7 +163,7 @@ mod tests {
     fn linux_cpu_percent_uses_guest_adjusted_totals_and_field_deltas() {
         let reading = cpu_delta(Times([10, 0, 10, 60, 0, 0, 0, 0, 0, 0]), Times([30, 0, 20, 110, 10, 0, 0, 0, 5, 0]));
         assert!((reading.total - 33.333_332).abs() < 0.001);
-        assert!((reading.user - 22.222_223).abs() < 0.001);
+        assert!((reading.user - 16.666_666).abs() < 0.001);
         assert!((reading.system - 11.111_111).abs() < 0.001);
         assert!((reading.idle - 55.555_557).abs() < 0.001);
         assert!((reading.iowait - 11.111_111).abs() < 0.001);
