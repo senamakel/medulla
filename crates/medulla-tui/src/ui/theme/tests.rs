@@ -1,6 +1,7 @@
 //! Tests for the theme module.
 
 use super::*;
+use medulla::config::ResourcesThemeConfig;
 
 #[test]
 fn parses_named_colors_case_insensitively() {
