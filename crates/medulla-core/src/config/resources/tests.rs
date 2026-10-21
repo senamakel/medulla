@@ -7,10 +7,35 @@ fn resources_interval_defaults_and_clamps_during_deserialization() {
     assert_eq!(defaults.shown_boxes, "cpu,mem,net,agents");
     assert!(defaults.presets.starts_with("cpu:0:default"));
     assert_eq!(defaults.preset, 0);
+    assert_eq!(defaults.cpu_graph_upper, "total");
+    assert_eq!(defaults.cpu_graph_lower, "iowait");
+    assert!(!defaults.cpu_invert_lower);
+    assert!(!defaults.cpu_single_graph);
+    assert_eq!(defaults.temp_scale, "celsius");
+    assert_eq!(defaults.freq_mode, "auto");
+    assert!(defaults.show_battery);
     let low: ResourcesConfig = serde_json::from_str(r#"{"updateMs":1}"#).unwrap();
     let high: ResourcesConfig = serde_json::from_str(r#"{"updateMs":50000}"#).unwrap();
     assert_eq!(low.update_ms, MIN_RESOURCES_UPDATE_MS);
     assert_eq!(high.update_ms, MAX_RESOURCES_UPDATE_MS);
+}
+
+#[test]
+fn cpu_sensor_options_deserialize_as_camel_case_and_old_config_keeps_defaults() {
+    let config: ResourcesConfig = serde_json::from_str(
+        r#"{"cpuGraphUpper":"user","cpuGraphLower":"system","cpuInvertLower":true,"cpuSingleGraph":true,"tempScale":"fahrenheit","freqMode":"ghz","showBattery":false}"#,
+    )
+    .unwrap();
+    assert_eq!(config.cpu_graph_upper, "user");
+    assert_eq!(config.cpu_graph_lower, "system");
+    assert!(config.cpu_invert_lower);
+    assert!(config.cpu_single_graph);
+    assert_eq!(config.temp_scale, "fahrenheit");
+    assert_eq!(config.freq_mode, "ghz");
+    assert!(!config.show_battery);
+    let old: ResourcesConfig = serde_json::from_str(r#"{"updateMs":2500}"#).unwrap();
+    assert_eq!(old.cpu_graph_upper, "total");
+    assert!(old.show_battery);
 }
 
 #[test]
