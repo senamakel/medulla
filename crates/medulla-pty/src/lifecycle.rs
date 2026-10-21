@@ -3,6 +3,8 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use crate::attention::HarnessAttention;
+use medulla_types::HarnessProvider;
 
 /// Portable facts about a harness session passed to application callbacks.
 #[derive(Debug, Clone, Default)]
@@ -17,6 +19,8 @@ pub struct LifecycleSession {
     pub env: HashMap<String, String>,
     /// Application-owned capability key to revoke on close.
     pub grant_session: Option<String>,
+    /// Harness provider for TUI-owned screen classifiers.
+    pub provider: HarnessProvider,
 }
 
 /// Application-defined launch origin carried without importing app enums.
@@ -51,6 +55,15 @@ pub trait SessionLifecycle: Send + Sync + 'static {
 
     /// Whether the current screen shows a harness still doing visible work.
     fn is_working(&self, _screen: &str) -> bool { false }
+
+    /// Classify a screen into a UI cue. The portable manager owns polling and
+    /// cue lifetime; the TUI owns provider-specific recognition.
+    fn classify_attention(
+        &self,
+        _session: &LifecycleSession,
+        _screen: &str,
+        _now: i64,
+    ) -> Option<HarnessAttention> { None }
 
     /// Inspect a session's current checkout. The TUI owns the Git inspection
     /// policy; the manager only stores the resulting value.
