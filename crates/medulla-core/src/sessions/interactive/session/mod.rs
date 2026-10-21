@@ -33,6 +33,10 @@ const MAX_RECORD_BYTES: usize = 1_048_576;
 /// This grace window is the fallback for a transport that never emits one.
 const INTERRUPT_GRACE: Duration = Duration::from_millis(2_000);
 
+/// Retry budget for Linux's transient `ETXTBSY` spawn error.
+const TEXT_BUSY_RETRY_ATTEMPTS: u32 = 50;
+const TEXT_BUSY_RETRY_DELAY: Duration = Duration::from_millis(20);
+
 /// Build the argv for an interactive session.
 ///
 /// The prompt is *not* an argument here — turns arrive on stdin, which is the
@@ -89,7 +93,8 @@ impl InteractiveSession {
         let mut env = spec.env.clone();
         let hook_grant_session = format!("interactive-{}", uuid::Uuid::new_v4());
         let hook_grant = crate::harness_hooks::seed_hook_grant(hook_grant_session, &mut env);
-        let mut child = Command::new(&spec.bin)
+        let mut command = Command::new(&spec.bin);
+        command
             .args(&args)
             .current_dir(&spec.cwd)
             .env_clear()
@@ -97,9 +102,26 @@ impl InteractiveSession {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|err| format!("failed to start {}: {err}", spec.bin))?;
+            .kill_on_drop(true);
+
+        // A concurrently forked child can inherit a writer for a freshly
+        // published harness executable. Linux reports ETXTBSY until that
+        // writer closes, so retry this transient spawn error briefly.
+        let mut text_busy_retries = 0;
+        let mut child = loop {
+            match command.spawn() {
+                Ok(child) => break child,
+                Err(err)
+                    if cfg!(target_os = "linux")
+                        && err.raw_os_error() == Some(26)
+                        && text_busy_retries < TEXT_BUSY_RETRY_ATTEMPTS =>
+                {
+                    text_busy_retries += 1;
+                    tokio::time::sleep(TEXT_BUSY_RETRY_DELAY).await;
+                }
+                Err(err) => return Err(format!("failed to start {}: {err}", spec.bin)),
+            }
+        };
 
         let stdin = child.stdin.take().ok_or("child has no stdin")?;
         let stdout = child.stdout.take().ok_or("child has no stdout")?;
