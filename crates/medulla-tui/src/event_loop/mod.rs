@@ -97,10 +97,11 @@ pub(crate) async fn run(
     spawn_update_checker(&app.loaded, &msg_tx);
     let (resource_interval_tx, resource_interval_rx) =
         tokio::sync::watch::channel(resource_sampling_period(&app));
+    let history_capacity = usize::from(terminal.size()?.width).saturating_mul(2);
     medulla_tui::ui::resources::sampler::spawn_sampler(
         medulla_tui::ui::resources::sampler::SystemResourceSource::default(),
         resource_interval_rx,
-        120,
+        history_capacity,
         {
             let msg_tx = msg_tx.clone();
             move |snapshot| msg_tx.send(AppMsg::Resources(snapshot)).is_ok()
