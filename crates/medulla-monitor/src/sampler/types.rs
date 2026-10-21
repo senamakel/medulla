@@ -209,6 +209,8 @@ pub struct ResourceHistory {
     pub disk_read_bytes_per_second: super::History<f64>,
     /// Combined disk write throughput.
     pub disk_write_bytes_per_second: super::History<f64>,
+    /// Per-device read, write, and busy readings for graph rendering.
+    pub disk_io: super::History<Vec<DiskSnapshot>>,
     /// Number of visible processes.
     pub process_count: super::History<usize>,
 }
@@ -242,6 +244,7 @@ impl ResourceHistory {
                 .sum(),
             capacity,
         );
+        self.disk_io.push(snapshot.disks.clone(), capacity);
         self.process_count.push(snapshot.processes.len(), capacity);
     }
 }
