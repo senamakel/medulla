@@ -155,7 +155,7 @@ impl ResourceSource for SystemResourceSource {
                 .with_disk_usage()
                 .with_tasks(),
         );
-        self.disks = Disks::new_with_refreshed_list();
+        self.disks.refresh(true);
         let task_pids: std::collections::HashSet<u32> = self
             .system
             .processes()

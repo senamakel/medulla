@@ -286,14 +286,44 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             let mut app = App::new(Arc::new(MockRuntime::empty()), configured);
             app.set_resource_snapshot(Arc::new(sample.clone()));
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-            terminal.draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height))).unwrap();
-            let text = terminal.backend().buffer().content().iter().map(|cell| cell.symbol()).collect::<String>();
-            assert!(text.contains("RAM 50%"), "RAM missing at {width}x{height}: {text}");
-            assert!(text.contains("/mnt/data"), "disk missing at {width}x{height}: {text}");
-            assert!(text.contains("Swap 13%"), "swap missing at {width}x{height}: {text}");
-            assert!(text.contains("[swap]"), "swap disk missing at {width}x{height}: {text}");
-            if !mem_graphs && !io_mode { assert!(text.contains('█'), "RAM meters missing at {width}x{height}: {text}"); }
-            if io_mode { assert!(text.contains(if combined { "IO READ+WRITE" } else { "IO READ" }), "IO graph labels missing at {width}x{height}: {text}"); }
+            terminal
+                .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height)))
+                .unwrap();
+            let text = terminal
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+            assert!(
+                text.contains("RAM 50%"),
+                "RAM missing at {width}x{height}: {text}"
+            );
+            assert!(
+                text.contains("/mnt/data"),
+                "disk missing at {width}x{height}: {text}"
+            );
+            assert!(
+                text.contains("Swap 13%"),
+                "swap missing at {width}x{height}: {text}"
+            );
+            assert!(
+                text.contains("[swap]"),
+                "swap disk missing at {width}x{height}: {text}"
+            );
+            if !mem_graphs && !io_mode {
+                assert!(
+                    text.contains('█'),
+                    "RAM meters missing at {width}x{height}: {text}"
+                );
+            }
+            if io_mode {
+                assert!(
+                    text.contains(if combined { "IO READ+WRITE" } else { "IO READ" }),
+                    "IO graph labels missing at {width}x{height}: {text}"
+                );
+            }
         }
     }
 }

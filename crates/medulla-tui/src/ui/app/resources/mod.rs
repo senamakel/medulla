@@ -253,13 +253,25 @@ fn draw_mem_panel(
     let total = snapshot.memory_total_bytes;
     let meter = |fraction: f64, width: usize| {
         let filled = (fraction.clamp(0.0, 1.0) * width as f64).round() as usize;
-        format!("{}{}", "█".repeat(filled), "░".repeat(width.saturating_sub(filled)))
+        format!(
+            "{}{}",
+            "█".repeat(filled),
+            "░".repeat(width.saturating_sub(filled))
+        )
     };
-    let ram_fraction = if total == 0 { 0.0 } else { snapshot.memory_used_bytes as f64 / total as f64 };
+    let ram_fraction = if total == 0 {
+        0.0
+    } else {
+        snapshot.memory_used_bytes as f64 / total as f64
+    };
     let mut lines = vec![Line::from(format!(
         "RAM {:>3.0}% {} {} / {}   avail {} cached {} free {}",
         ram_fraction * 100.0,
-        if config.mem_graphs { String::new() } else { meter(ram_fraction, 10) },
+        if config.mem_graphs {
+            String::new()
+        } else {
+            meter(ram_fraction, 10)
+        },
         bytes(snapshot.memory_used_bytes),
         bytes(total),
         bytes(snapshot.memory_available_bytes),
@@ -271,7 +283,11 @@ fn draw_mem_panel(
         lines.push(Line::from(format!(
             "Swap {:>3.0}% {} {} / {}",
             swap_fraction * 100.0,
-            if config.mem_graphs { String::new() } else { meter(swap_fraction, 10) },
+            if config.mem_graphs {
+                String::new()
+            } else {
+                meter(swap_fraction, 10)
+            },
             bytes(snapshot.swap_used_bytes),
             bytes(snapshot.swap_total_bytes)
         )));
@@ -279,9 +295,13 @@ fn draw_mem_panel(
     let mut disks = snapshot.disks.clone();
     if config.swap_disk && snapshot.swap_total_bytes > 0 {
         disks.push(crate::ui::resources::sampler::DiskSnapshot {
-            device: "swap".into(), mount: "[swap]".into(), total_bytes: snapshot.swap_total_bytes,
-            used_bytes: snapshot.swap_used_bytes, read_bytes_per_second: 0.0,
-            write_bytes_per_second: 0.0, busy_percent: None,
+            device: "swap".into(),
+            mount: "[swap]".into(),
+            total_bytes: snapshot.swap_total_bytes,
+            used_bytes: snapshot.swap_used_bytes,
+            read_bytes_per_second: 0.0,
+            write_bytes_per_second: 0.0,
+            busy_percent: None,
         });
     }
     if config.show_disks {
@@ -406,10 +426,23 @@ fn draw_mem_panel(
                 Rect::new(area.x, area.y + 1, area.width, 1),
             );
         }
-        lines.insert(0, Line::from(if config.io_mode {
-            if config.io_graph_combined { "IO READ+WRITE" } else { "IO READ            WRITE" }
-        } else { "RAM / SWAP HISTORY" }));
-        let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 { 3 } else { 2 };
+        lines.insert(
+            0,
+            Line::from(if config.io_mode {
+                if config.io_graph_combined {
+                    "IO READ+WRITE"
+                } else {
+                    "IO READ            WRITE"
+                }
+            } else {
+                "RAM / SWAP HISTORY"
+            }),
+        );
+        let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
+            3
+        } else {
+            2
+        };
         lines.truncate(area.height.saturating_sub(graph_rows) as usize);
         frame.render_widget(
             Paragraph::new(lines).style(Style::default().fg(Color::White)),
@@ -430,7 +463,11 @@ fn draw_mem_panel(
         area,
     );
     if !config.io_mode {
-        let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 { 2 } else { 1 };
+        let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
+            2
+        } else {
+            1
+        };
         draw_disk_busy_graphs(frame, area, snapshot, &disks, 0, disk_start);
     }
 }
@@ -445,14 +482,32 @@ fn draw_disk_busy_graphs(
 ) {
     let x = area.x + area.width.saturating_mul(3) / 4;
     let width = area.right().saturating_sub(x);
-    if width < 4 { return; }
+    if width < 4 {
+        return;
+    }
     for (index, disk) in disks.iter().enumerate() {
         let y = area.y + graph_rows + disk_start as u16 + index as u16;
-        if y >= area.bottom() { break; }
-        let history: Vec<f32> = snapshot.history.disk_io.iter()
-            .filter_map(|sample| sample.iter().find(|entry| entry.device == disk.device)
-                .and_then(|entry| entry.busy_percent).map(|busy| busy as f32)).collect();
-        if !history.is_empty() { frame.render_widget(crate::ui::plot::Graph::new(&history), Rect::new(x, y, width, 1)); }
+        if y >= area.bottom() {
+            break;
+        }
+        let history: Vec<f32> = snapshot
+            .history
+            .disk_io
+            .iter()
+            .filter_map(|sample| {
+                sample
+                    .iter()
+                    .find(|entry| entry.device == disk.device)
+                    .and_then(|entry| entry.busy_percent)
+                    .map(|busy| busy as f32)
+            })
+            .collect();
+        if !history.is_empty() {
+            frame.render_widget(
+                crate::ui::plot::Graph::new(&history),
+                Rect::new(x, y, width, 1),
+            );
+        }
     }
 }
 
