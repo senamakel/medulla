@@ -1,13 +1,13 @@
 //! The emulator-to-wire conversion, and the round trip back.
 //!
 //! Pure: every test here builds a snapshot or a grid by hand and asserts on the
-//! other side of [`convert`](crate::worker::stream::convert), with no pty and no
+//! other side of [`convert`](crate::convert), with no pty and no
 //! runtime.
 
-use medulla::protocol::{Color, ScreenRun, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
+use medulla_pty::screen::{Color, ScreenRun, ATTR_BOLD, ATTR_INVERSE, ATTR_UNDERLINE};
 
-use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
-use crate::worker::stream::convert::{snapshot_from_grid, wire_color, wire_grid, wire_style};
+use crate::{CellText, ScreenCell, ScreenSnapshot};
+use crate::convert::{snapshot_from_grid, wire_color, wire_grid, wire_style};
 
 /// A cell with text and no styling.
 pub(super) fn cell(text: &str) -> ScreenCell {
@@ -176,7 +176,7 @@ fn a_grid_declaring_more_rows_than_it_carries_is_padded() {
 
 #[test]
 fn an_empty_grid_yields_an_empty_snapshot_rather_than_panicking() {
-    let restored = snapshot_from_grid(&medulla::protocol::ScreenGrid {
+    let restored = snapshot_from_grid(&medulla_pty::screen::ScreenGrid {
         cols: 0,
         rows: 0,
         lines: Vec::new(),
@@ -192,7 +192,7 @@ fn a_combining_sequence_stays_one_cell_across_the_wire() {
     // combining acute. Splitting the run by `char` on the way back emitted two
     // cells where the emulator had one, shifting every column after it and
     // letting the row's resize truncate real content off the end.
-    use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
+    use crate::{CellText, ScreenCell, ScreenSnapshot};
     let cell = |text: &str| ScreenCell {
         text: CellText::from(text),
         fg: vt100::Color::Default,
@@ -209,8 +209,8 @@ fn a_combining_sequence_stays_one_cell_across_the_wire() {
         hide_cursor: false,
     };
 
-    let restored = crate::worker::stream::convert::snapshot_from_grid(
-        &crate::worker::stream::convert::wire_grid(&original),
+    let restored = crate::convert::snapshot_from_grid(
+        &crate::convert::wire_grid(&original),
     );
     assert_eq!(
         restored.cells[0].len(),
@@ -229,7 +229,7 @@ fn a_wide_glyph_keeps_its_continuation_cell() {
     // vt100 represents a wide glyph as a leading cell plus an empty
     // continuation, so both cross as cells and both must come back — otherwise
     // every column to the right of a CJK character shifts left by one.
-    use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
+    use crate::{CellText, ScreenCell, ScreenSnapshot};
     let cell = |text: &str| ScreenCell {
         text: CellText::from(text),
         fg: vt100::Color::Default,
@@ -245,8 +245,8 @@ fn a_wide_glyph_keeps_its_continuation_cell() {
         cursor: (0, 0),
         hide_cursor: false,
     };
-    let restored = crate::worker::stream::convert::snapshot_from_grid(
-        &crate::worker::stream::convert::wire_grid(&original),
+    let restored = crate::convert::snapshot_from_grid(
+        &crate::convert::wire_grid(&original),
     );
     assert_eq!(restored.cells[0].len(), 3);
     assert_eq!(restored.cells[0][0].text.as_str(), "私");
@@ -260,7 +260,7 @@ fn a_joined_emoji_stays_one_cell() {
     // cluster. A ZWJ sequence is several scalars in one cell, so splitting by
     // scalar — even width-aware — started a new cell at every positive-width
     // scalar after the joiner, shifting the rest of the row.
-    use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
+    use crate::{CellText, ScreenCell, ScreenSnapshot};
     let cell = |text: &str| ScreenCell {
         text: CellText::from(text),
         fg: vt100::Color::Default,
@@ -278,8 +278,8 @@ fn a_joined_emoji_stays_one_cell() {
         cursor: (0, 0),
         hide_cursor: false,
     };
-    let restored = crate::worker::stream::convert::snapshot_from_grid(
-        &crate::worker::stream::convert::wire_grid(&original),
+    let restored = crate::convert::snapshot_from_grid(
+        &crate::convert::wire_grid(&original),
     );
     assert_eq!(
         restored.cells[0].len(),
@@ -298,7 +298,7 @@ fn a_joined_emoji_stays_one_cell() {
 fn a_flag_stays_one_cell() {
     // Two regional indicators, each of positive width, forming one cell. Width
     // alone cannot tell this from two separate characters — only clustering can.
-    use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
+    use crate::{CellText, ScreenCell, ScreenSnapshot};
     let cell = |text: &str| ScreenCell {
         text: CellText::from(text),
         fg: vt100::Color::Default,
@@ -314,8 +314,8 @@ fn a_flag_stays_one_cell() {
         cursor: (0, 0),
         hide_cursor: false,
     };
-    let restored = crate::worker::stream::convert::snapshot_from_grid(
-        &crate::worker::stream::convert::wire_grid(&original),
+    let restored = crate::convert::snapshot_from_grid(
+        &crate::convert::wire_grid(&original),
     );
     assert_eq!(restored.cells[0].len(), 3);
     assert_eq!(restored.cells[0][0].text.as_str(), flag);

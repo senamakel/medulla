@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 
 use portable_pty::PtySize;
 
-use super::super::sync::lock;
+use medulla_pty::sync::lock;
 use super::types::{release_queued, MAX_QUEUED_WRITE_BYTES};
 use super::SessionHandle;
 

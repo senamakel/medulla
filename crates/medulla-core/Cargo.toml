@@ -28,6 +28,7 @@ medulla-types = { workspace = true }
 # The host-link transport (docs/host-link-protocol.md) — how this SDK reaches a
 # remote host. See `crates/medulla-core/src/bridge/link.rs`.
 medulla-link = { workspace = true }
+medulla-pty = { workspace = true }
 # The backend transport. `client` is a typed surface over this, not a second
 # HTTP client: credential headers, the `{success,data}` envelope, path
 # percent-encoding, and the not-exposed-route gate all live in the SDK.

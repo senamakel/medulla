@@ -8,7 +8,7 @@ use std::sync::{Arc, Weak};
 
 use super::super::attention::{self, AttentionKind, HarnessAttention};
 use super::super::handle::SessionHandle;
-use super::super::sync::lock;
+use medulla_pty::sync::lock;
 use super::session::consumed_bell_count;
 use super::PtyManager;
 

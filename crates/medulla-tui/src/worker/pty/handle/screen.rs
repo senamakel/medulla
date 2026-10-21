@@ -3,7 +3,7 @@
 
 use super::super::cell_text::CellText;
 use super::super::manager::{ScreenCell, ScreenSnapshot};
-use super::super::sync::lock;
+use medulla_pty::sync::lock;
 use super::SessionHandle;
 
 /// What an empty cell renders as. A `const` so the common case is a copy of a

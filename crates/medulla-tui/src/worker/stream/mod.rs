@@ -18,14 +18,16 @@
 //! sessions a given peer may watch is a question for the caller that owns the
 //! subscribe frame, not for the sampler.
 
-pub mod convert;
 pub mod router;
 pub mod sampler;
 
 #[cfg(test)]
 mod tests;
 
-pub use convert::{cell_color, snapshot_from_grid, wire_color, wire_grid, wire_style};
+pub use medulla_pty::convert;
+pub use medulla_pty::convert::{
+    cell_color, snapshot_from_grid, wire_color, wire_grid, wire_style,
+};
 pub use router::ScreenRouter;
 pub use sampler::{
     sample_interval, send_fn, spawn_session_stream, LiveCheck, SessionStream, StreamRegistry,

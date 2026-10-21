@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 
 use medulla::protocol::HarnessProvider;
 
-use super::super::sync::lock;
+use medulla_pty::sync::lock;
 use super::super::types::{PtyState, SessionRow};
 use super::types::{NO_EXIT_CODE, STATE_FAILED, STATE_RUNNING};
 use super::SessionHandle;

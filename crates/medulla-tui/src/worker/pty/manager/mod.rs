@@ -44,7 +44,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
 
 use super::handle::SessionHandle;
-use super::sync::{read, write};
+use medulla_pty::sync::{read, write};
 
 /// Read buffer for the PTY master.
 ///

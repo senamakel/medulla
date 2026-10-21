@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use portable_pty::{Child, MasterPty};
 
-use super::super::sync::lock;
+use medulla_pty::sync::lock;
 use super::super::types::SessionControl;
 use super::types::{
     AttentionState, ColdFields, SessionIo, SessionMeta, TerminalModes, NO_EXIT_CODE, STATE_EXITED,

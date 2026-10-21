@@ -3,7 +3,7 @@
 use std::sync::atomic::Ordering;
 
 use super::super::attention;
-use super::super::sync::lock;
+use medulla_pty::sync::lock;
 use super::super::types::SessionControl;
 use super::super::AttentionKind;
 use super::SessionHandle;
