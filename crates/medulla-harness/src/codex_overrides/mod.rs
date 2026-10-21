@@ -14,7 +14,7 @@
 //!   `custom` tools, which providers that accept only `function` tools reject
 //!   with a 400 for the whole request.
 //!
-//! So a preset that opts in ([`crate::config::CustomHarnessConfig::codex_overrides`])
+//! So a preset that opts in through core's `CustomHarnessConfig::codex_overrides`
 //! gets a full provider block, an API-key auth preference, and a model catalog
 //! entry derived *at spawn time* from the catalog the installed Codex already
 //! cached for itself — which is why the entry never goes stale across a Codex
@@ -25,7 +25,7 @@
 //! `codex login`, stay untouched.
 //!
 //! The preset's knobs reach this module through the environment
-//! ([`crate::config::CustomHarnessConfig::harness_env`]) rather than through a
+//! (core's `CustomHarnessConfig::harness_env`) rather than through a
 //! parameter, because the environment is the one thing every spawn seam — the
 //! interactive pane, the PTY executor, the headless daemon — already carries
 //! from the preset to the child unchanged.

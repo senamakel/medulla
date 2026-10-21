@@ -7,8 +7,8 @@
 //!
 //! # Configuration
 //!
-//! Attribution is config-driven: the `[attribution] commit` config key
-//! ([`crate::config::AttributionConfig`]), on by default.
+//! Attribution is config-driven: the `[attribution] commit` config key in
+//! core's `TuiConfig`, on by default.
 //! Callers resolve it from the loaded config and pass it in — this module never
 //! reads the environment or the filesystem to decide.
 //!
@@ -81,8 +81,7 @@ pub fn attribution_trailer() -> String {
 
 /// Extra CLI arguments that make `provider` attribute its commits to Medulla.
 ///
-/// `enabled` is the resolved `attribution.commit` config value — see
-/// [`crate::config::AttributionConfig`]. Returns an empty vector when
+/// `enabled` is the resolved `attribution.commit` config value. Returns an empty vector when
 /// attribution is off, or when the provider has no mechanism to retarget its
 /// trailer (Codex, Opencode). Callers prepend these to the child argv alongside
 /// `MEDULLA_<P>_ARGS`.
