@@ -487,4 +487,3 @@ fn a_run_without_a_key_is_not_routed() {
     .expect("no error");
     assert!(routed.is_none());
 }
-
