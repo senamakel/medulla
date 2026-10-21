@@ -2600,10 +2600,14 @@ name = "medulla-pty"
 version = "0.13.0"
 dependencies = [
  "base64 0.22.1",
+ "medulla-types",
+ "portable-pty",
  "serde",
  "serde_json",
+ "tokio",
  "unicode-segmentation",
  "vt100",
+ "vte",
 ]
 
 [[package]]
@@ -2633,8 +2637,8 @@ dependencies = [
  "libc",
  "medulla",
  "medulla-link",
- "medulla-pty",
  "medulla-monitor",
+ "medulla-pty",
  "portable-pty",
  "ratatui",
  "rustls",
