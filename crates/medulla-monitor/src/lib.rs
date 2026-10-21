@@ -8,6 +8,7 @@
 mod cpu;
 mod device;
 mod process_monitor;
+pub mod sampler;
 mod session;
 mod types;
 
@@ -15,6 +16,7 @@ pub use cpu::{CpuField, CpuMonitor, CpuReading, CpuSnapshot};
 pub use device::DeviceMonitor;
 pub use session::{SessionMonitor, SessionSnapshot};
 pub use types::{DeviceSnapshot, ResourceMonitor, ResourceSnapshot};
+pub use sampler::{DiskSnapshot, ProcessSnapshot, ResourceHistory, SystemResourceSource};
 
 /// Convert sysinfo's deltas to rates only after an initial counter baseline.
 ///

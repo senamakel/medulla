@@ -25,7 +25,7 @@ pub use medulla_monitor::{
 pub use session::{session_segments, session_usage};
 
 mod device;
-pub mod sampler;
+pub use medulla_monitor::sampler;
 mod session;
 
 #[cfg(test)]

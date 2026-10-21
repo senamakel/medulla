@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 serde = { workspace = true }
 sysinfo = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
