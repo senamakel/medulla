@@ -41,6 +41,8 @@ pub struct ProcessSnapshot {
 /// Immutable whole-device readings suitable for sharing with renderers.
 #[derive(Debug, Clone, Default)]
 pub struct ResourceSnapshot {
+    /// Whole-machine CPU details and Linux-only hardware readings.
+    pub cpu: medulla_monitor::CpuSnapshot,
     /// Current process metrics used by the status line.
     pub current_process: Option<super::super::ResourceSnapshot>,
     /// Recent readings accumulated by the sampler for graph rendering.
@@ -171,6 +173,8 @@ pub(super) fn most_specific_mount<'a>(
 pub struct ResourceHistory {
     /// Whole-device CPU utilization percentages.
     pub cpu_percent: super::History<f64>,
+    /// CPU field readings over time.
+    pub cpu: super::History<medulla_monitor::CpuSnapshot>,
     /// Physical memory currently used, in bytes.
     pub memory_used_bytes: super::History<u64>,
     /// Swap currently used, in bytes.
@@ -183,6 +187,7 @@ impl ResourceHistory {
     /// Append one snapshot and trim every series to the requested viewport size.
     pub fn push(&mut self, snapshot: &ResourceSnapshot, capacity: usize) {
         self.cpu_percent.push(snapshot.cpu_percent, capacity);
+        self.cpu.push(snapshot.cpu.clone(), capacity);
         self.memory_used_bytes
             .push(snapshot.memory_used_bytes, capacity);
         self.swap_used_bytes
