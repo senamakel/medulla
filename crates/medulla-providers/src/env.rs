@@ -73,7 +73,7 @@ fn bin_keys(provider: HarnessProvider) -> &'static [&'static str] {
 /// that answers "run this machine's turns on that model right now" without
 /// editing a config file or a graph. Callers that resolve a model from several
 /// sources should consult this first — see
-/// [`crate::daemon::providers::embed::effective_model`], which does
+/// `crate::daemon::providers::embed::effective_model`, which does
 /// exactly that for the in-process (OpenHuman) provider.
 pub fn model_override(provider: HarnessProvider, env: &HashMap<String, String>) -> Option<String> {
     let provider_keys = provider_keys(provider, "MODEL");
@@ -108,7 +108,7 @@ fn default_bin(provider: HarnessProvider) -> &'static str {
 /// Whether `bin` is something other than `provider`'s verified default
 /// (`claude` / `codex` / `opencode` / `openhuman-core`).
 ///
-/// This is what lets [`crate::mcp::attach_cli`] withhold the fleet grant from
+/// This is what lets `crate::mcp::attach_cli` withhold the fleet grant from
 /// an overridden binary rather than hand it out: that binary is whatever the
 /// override names, executed as the harness `--mcp-config` registers Medulla's
 /// tools onto — so it receives that registration's argv itself and can open

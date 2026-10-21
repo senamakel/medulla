@@ -8,7 +8,7 @@
 //! Every harness is accepted. OpenCode was excluded while presets were
 //! purely an endpoint adapter — it has native OpenRouter provider configuration
 //! and needed no help reaching the API. That native path is precisely the one
-//! that bypasses [`crate::inference_proxy`], so an OpenCode run configured
+//! that bypasses `crate::inference_proxy`, so an OpenCode run configured
 //! outside Medulla spends the operator's credit while crediting OpenCode for the
 //! traffic. Routing it through a preset is what brings it under Medulla's
 //! attribution.
@@ -21,7 +21,7 @@
 //! operator naming the model that turn should use, which is the one thing a
 //! preset is for. A preset with `baseHarness = "openhuman"` therefore behaves
 //! like any other: its `model` reaches the turn (see
-//! [`crate::daemon::providers::embed::effective_model`] for where it sits
+//! `crate::daemon::providers::embed::effective_model` for where it sits
 //! among the other routes).
 //!
 //! `baseUrl` and `apiKeyEnv` are live here too, though they arrive by a
@@ -31,7 +31,7 @@
 //! **per-call** route that applies to that turn alone and never persists. An
 //! OpenRouter endpoint is exchanged for a loopback mount and a machine-local
 //! token at the attribution proxy first; any other endpoint is handed over as
-//! spelled. See [`crate::daemon::providers::embed::embedded_route`].
+//! spelled. See `crate::daemon::providers::embed::embedded_route`.
 //!
 //! A preset that leaves them at their defaults still works and still needs no
 //! OpenRouter key: with no key exported under `apiKeyEnv` the turn runs on the
@@ -97,7 +97,7 @@ pub struct CustomHarnessConfig {
     /// Whether a Codex preset spawns with Medulla's Codex config overrides.
     ///
     /// Off by default because it changes which account a Codex run authenticates
-    /// as. See [`crate::codex_overrides`] for what it injects and why an
+    /// as. See `crate::codex_overrides` for what it injects and why an
     /// endpoint override alone does not get a non-OpenAI model answering.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub codex_overrides: bool,
@@ -112,7 +112,7 @@ pub struct CustomHarnessConfig {
     /// against uptime and throughput rather than pinning one. Naming the
     /// provider here is the only way to *state* the choice: the preference
     /// travels in the request body, so neither the model id nor the endpoint
-    /// override can carry it. [`crate::inference_proxy`] applies it.
+    /// override can carry it. `crate::inference_proxy` applies it.
     ///
     /// Inert for an `openhuman` preset, which has no proxied request to amend.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -231,7 +231,7 @@ impl CustomHarnessConfig {
     /// Codex takes its model the same way, but a preset with `codexOverrides`
     /// also carries its Codex knobs here, because the environment is what every
     /// spawn seam already hands the child unchanged — see
-    /// [`crate::codex_overrides`], which reads them back at the seam.
+    /// `crate::codex_overrides`, which reads them back at the seam.
     pub fn harness_env(&self) -> Vec<(String, String)> {
         if self.base_harness == HarnessProvider::Codex {
             return self.codex_env();

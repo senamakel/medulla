@@ -19,7 +19,7 @@ pub const DAEMON_PROVIDERS: [HarnessProvider; 3] = [
 ];
 
 /// Resolve the binary name/path for a provider (env override wins). Delegates to
-/// the central resolver ([`crate::protocol::env::provider_bin`]) so the
+/// the central resolver (`crate::protocol::env::provider_bin`) so the
 /// daemon and wrapper share one bin-override contract.
 pub fn provider_bin(provider: HarnessProvider, env: &HashMap<String, String>) -> String {
     resolve_provider_bin(provider, env)
@@ -96,10 +96,10 @@ fn is_executable(path: &std::path::Path) -> bool {
 ///
 /// So OpenHuman is reachable by being *named* — see
 /// [`HarnessProvider::needs_binary`] and the dispatch in
-/// [`crate::daemon::task_loop`] — never by implicit fallback. An operator who
+/// `crate::daemon::task_loop` — never by implicit fallback. An operator who
 /// *explicitly* configures `openhuman` as the host's default has named it, so
 /// the embedded host accepts and honours that default; see
-/// [`crate::daemon::embedded::EmbeddedDaemon::start`].
+/// `crate::daemon::embedded::EmbeddedDaemon::start`.
 pub fn detect_providers(
     env: &HashMap<String, String>,
     only: Option<&[HarnessProvider]>,
