@@ -1,10 +1,7 @@
 //! Whole-machine CPU sampling, with Linux's `/proc/stat` as the precise source.
 
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-};
+#[cfg(target_os = "linux")]
+use std::{collections::BTreeMap, fs, path::{Path, PathBuf}};
 
 /// CPU time fields exposed by Linux `/proc/stat` and selectable in graphs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,6 +95,7 @@ struct Times([u64; 10]);
 pub struct CpuMonitor {
     #[cfg(target_os = "linux")]
     root: PathBuf,
+    #[cfg(target_os = "linux")]
     previous: BTreeMap<String, Times>,
 }
 
@@ -106,6 +104,7 @@ impl Default for CpuMonitor {
         Self {
             #[cfg(target_os = "linux")]
             root: PathBuf::from("/"),
+            #[cfg(target_os = "linux")]
             previous: BTreeMap::new(),
         }
     }
