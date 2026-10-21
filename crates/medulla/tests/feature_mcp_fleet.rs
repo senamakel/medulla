@@ -74,7 +74,7 @@ async fn wired(
     Arc<RecordingFleet>,
     McpSession,
 ) {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = private_tempdir();
     let socket = dir.path().join("control.sock");
     let grants = GrantRegistry::new();
     let token = grants.mint(grant);
@@ -260,4 +260,15 @@ async fn workflow_tools_keep_working_alongside_the_fleet_ones() {
 
     assert!(!is_error, "{listed}");
     assert!(listed.get("workflows").is_some(), "{listed}");
+}
+
+/// An owner-only temp dir: `tempfile::tempdir` honours the umask, and a
+/// group-writable directory is rightly refused as a control-socket parent.
+fn private_tempdir() -> tempfile::TempDir {
+    use std::os::unix::fs::PermissionsExt;
+
+    tempfile::Builder::new()
+        .permissions(std::fs::Permissions::from_mode(0o700))
+        .tempdir()
+        .expect("create a private temp dir")
 }

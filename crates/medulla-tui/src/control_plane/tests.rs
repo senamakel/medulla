@@ -66,7 +66,7 @@ fn config(root: &std::path::Path, enabled: bool) -> medulla::config::TuiConfig {
 async fn fleet_tools_off_binds_nothing_at_all() {
     // The switch has to mean no socket, not a socket nobody is granted: an
     // operator who turned this off should be able to see that nothing listens.
-    let root = tempfile::tempdir().unwrap();
+    let root = private_tempdir();
     let logs = medulla_tui::log::LogBuffer::new();
 
     let server = start(
@@ -89,7 +89,7 @@ async fn a_hub_that_has_not_started_still_gets_a_control_plane() {
     // A login-less or hub-less launch still has locally launched harnesses
     // whose lifecycle hooks need somewhere to report — see `start`'s doc
     // comment. An empty `HubSlot` must not block the bind.
-    let root = tempfile::tempdir().unwrap();
+    let root = private_tempdir();
     let _home = ScratchHome::install(root.path());
     let logs = medulla_tui::log::LogBuffer::new();
 
@@ -122,7 +122,7 @@ async fn a_hub_that_has_not_started_still_gets_a_control_plane() {
 #[cfg(unix)]
 #[tokio::test]
 async fn binding_sweeps_a_previous_runs_leftover_config_file() {
-    let root = tempfile::tempdir().unwrap();
+    let root = private_tempdir();
     let _home = ScratchHome::install(root.path());
     let logs = medulla_tui::log::LogBuffer::new();
 
@@ -155,7 +155,7 @@ async fn binding_sweeps_a_previous_runs_leftover_config_file() {
 #[cfg(unix)]
 #[tokio::test]
 async fn binding_serves_and_cleans_up_after_itself() {
-    let root = tempfile::tempdir().unwrap();
+    let root = private_tempdir();
     let _home = ScratchHome::install(root.path());
     let logs = medulla_tui::log::LogBuffer::new();
     let path = root.path().join("control.sock");
@@ -189,7 +189,7 @@ async fn a_second_instance_does_not_take_a_live_address() {
     // First binder wins. The loser runs without a control plane rather than
     // silently multiplexing two fleets onto one socket, which would make "where
     // did my task go" unanswerable.
-    let root = tempfile::tempdir().unwrap();
+    let root = private_tempdir();
     let _home = ScratchHome::install(root.path());
     let logs = medulla_tui::log::LogBuffer::new();
 
@@ -228,7 +228,7 @@ async fn a_second_instance_does_not_take_a_live_address() {
 async fn an_environment_socket_path_does_not_bypass_parent_security() {
     use std::os::unix::fs::PermissionsExt;
 
-    let root = tempfile::tempdir().unwrap();
+    let root = private_tempdir();
     let env_parent = root.path().join("environment-path");
     std::fs::create_dir(&env_parent).unwrap();
     std::fs::set_permissions(&env_parent, std::fs::Permissions::from_mode(0o777)).unwrap();
@@ -253,4 +253,16 @@ async fn an_environment_socket_path_does_not_bypass_parent_security() {
         0o777,
         "Medulla must reject, not chmod, an environment-selected parent"
     );
+}
+
+/// An owner-only temp dir: `tempfile::tempdir` honours the umask, and a
+/// group-writable directory is rightly refused as a control-socket parent.
+fn private_tempdir() -> tempfile::TempDir {
+    let mut builder = tempfile::Builder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(std::fs::Permissions::from_mode(0o700));
+    }
+    builder.tempdir().expect("create a private temp dir")
 }

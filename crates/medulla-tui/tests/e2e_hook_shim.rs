@@ -84,7 +84,7 @@ fn settle(log: &HookEventLog, count: u64) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_lifecycle_report_travels_from_the_shim_to_the_log() {
-    let dir = tempfile::tempdir().expect("tempdir");
+    let dir = private_tempdir();
     let log = HookEventLog::new();
     let (server, token) = serve(dir.path(), log.clone()).await;
 
@@ -149,7 +149,7 @@ async fn a_blocking_env_file_does_not_delay_the_shim() {
     // would hang the process before `run_hook_cmd`'s own deadline starts, so
     // the harness would kill the shim as a hung hook. Regression for the
     // dotenv-before-dispatch ordering fixed on PR #192.
-    let dir = tempfile::tempdir().expect("tempdir");
+    let dir = private_tempdir();
     let fifo = dir.path().join(".env");
     let fifo_status = std::process::Command::new("mkfifo")
         .arg(&fifo)
@@ -197,7 +197,7 @@ async fn a_blocking_env_file_does_not_delay_the_shim() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_unknown_event_name_is_dropped_rather_than_recorded() {
-    let dir = tempfile::tempdir().expect("tempdir");
+    let dir = private_tempdir();
     let log = HookEventLog::new();
     let (server, token) = serve(dir.path(), log.clone()).await;
 
@@ -206,4 +206,15 @@ async fn an_unknown_event_name_is_dropped_rather_than_recorded() {
     // Nothing to wait for; give a report that should not exist time to arrive.
     std::thread::sleep(Duration::from_millis(200));
     assert_eq!(log.recorded(), 0);
+}
+
+/// An owner-only temp dir: `tempfile::tempdir` honours the umask, and a
+/// group-writable directory is rightly refused as a control-socket parent.
+fn private_tempdir() -> tempfile::TempDir {
+    use std::os::unix::fs::PermissionsExt;
+
+    tempfile::Builder::new()
+        .permissions(std::fs::Permissions::from_mode(0o700))
+        .tempdir()
+        .expect("create a private temp dir")
 }
