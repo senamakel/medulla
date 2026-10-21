@@ -224,9 +224,8 @@ impl CustomHarnessConfig {
     /// keeps sub-agents on OpenRouter too. OpenCode receives its model through an
     /// existing argument (`-m`) and needs no additional variables, and OpenHuman
     /// has no child process to hand an environment to at all — its model rides
-    /// down as
-    /// [`RunTaskOptions::model`](crate::daemon::providers::RunTaskOptions::model)
-    /// and becomes the core call's `model_override`.
+    /// down as `RunTaskOptions::model` and becomes the core call's
+    /// `model_override`.
     ///
     /// Codex takes its model the same way, but a preset with `codexOverrides`
     /// also carries its Codex knobs here, because the environment is what every
