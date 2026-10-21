@@ -7,7 +7,7 @@ use super::*;
 
 #[test]
 fn theme_resources_config_deserializes_camel_case_overrides() {
-    let config: super::types::MedullaConfig =
+    let config: super::types::TuiConfig =
         toml::from_str("[theme.resources]\ncpuBox = \"#010203\"\ncpuStart = \"green\"\n").unwrap();
     let resources = config.theme.resources.unwrap();
     assert_eq!(resources.cpu_box.as_deref(), Some("#010203"));
