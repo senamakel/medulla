@@ -10,7 +10,7 @@ repository.workspace = true
 medulla-types = { workspace = true }
 medulla-providers = { path = "../medulla-providers" }
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["preserve_order"] }
 toml = { workspace = true }
 toml_edit = { workspace = true }
 thiserror = { workspace = true }
