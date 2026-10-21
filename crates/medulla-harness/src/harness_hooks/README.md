@@ -22,17 +22,14 @@ harness's lifecycle back to it. Without them a harness on a pty is opaque:
 - [`builtin.rs`](./builtin.rs) — Medulla's own reporting hooks: which events they
   cover, why the deciding events (`PreToolUse`, `PermissionRequest`) are
   deliberately not among them, and how the command reaches the launching binary.
-- [`grant.rs`](./grant.rs) — `seed_hook_grant`, the credential every spawn door
-  seeds so the built-in's `medulla hook <Event>` command has something to
-  report to; see "Medulla's own hooks" below for why every door needed it, not
-  only the one that installs the command.
+- [`../grants.rs`](../grants.rs) — the `HookGrantMinter` seam used by core to
+  seed and revoke the credential for each spawn.
 - [`report.rs`](./report.rs) — One report's shape and the bounded log it lands
   in, plus the rule that a summary travels and a payload never does.
 - [`native.rs`](./native.rs) — The hook document both Claude Code and Codex
   accept, plus the inline-TOML encoder Codex's `-c` override needs.
 - [`claude.rs`](./claude.rs) — Claude Code delivery via `--settings`.
 - [`codex.rs`](./codex.rs) — Codex delivery via `-c hooks=…` and the trust bypass.
-- [`acp/runner.rs`](./acp/runner.rs) — Medulla-side PostToolUse fallback for Codex ACP sessions, whose app-server does not execute lifecycle hooks itself.
 - [`tests.rs`](./tests.rs) — Vocabulary, document folding, and the exact flags and
   JSON/TOML spelling each harness was verified against.
 
@@ -44,13 +41,13 @@ Resolved at config load, ahead of the operator's own, and switched off with
 files a one-line summary on the control socket that spawn was already handed.
 
 Resolving the command at load only gets it *installed* everywhere; it still
-needs a socket and a grant to report to. Every non-ACP spawn door now calls
-[`seed_hook_grant`](./grant.rs) at its own spawn seam — the operator-started
+needs a socket and a grant to report to. Core implements `HookGrantMinter` and
+calls `seed_hook_grant` at each spawn seam — the operator-started
 pty pane, the executor's dispatched pty sessions, the headless daemon's
 one-shot runs, the interactive session, and the `medulla <cli>` wrapper — so
 each seeds the environment variables the shim reads
 (`MEDULLA_HOOK_SOCKET`/`MEDULLA_HOOK_GRANT`) with a hook-only grant scoped to
-that one spawn (see [`Grant::hook_only`](../control_socket/grants.rs)). Before
+that one spawn (see core's control-socket grant implementation). Before
 that, only the pty pane's grant was seeded, so a hook installed everywhere else
 spawned, found nothing to report to, and exited — pure overhead, and a
 meaningfully wasteful one on `PostToolUse`, which fires once per tool call.
@@ -84,7 +81,7 @@ command onto in the first place (see
 `daemon::providers::execute::run_provider_task`'s own comment). Codex ACP
 sessions still run the operator's `PostToolUse` hooks *locally*, in Medulla's
 own process, after each completed tool call (see
-[`acp/runner.rs`](./acp/runner.rs)). That fallback is observation-only: ACP
+core's `harness_hooks::acp::runner`). That fallback is observation-only: ACP
 gives the client no way to amend a tool call it did not execute, so a hook's
 stdout decision is not forwarded. Hooks for other events on this transport are
 reported once, as a warning, rather than silently doing nothing.
