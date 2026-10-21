@@ -19,7 +19,7 @@ fn provider_args_match_the_pre_extraction_argv_snapshots() {
         assert_eq!(
             provider_args(provider, &env),
             expected.into_iter().map(str::to_string).collect::<Vec<_>>(),
-            "provider {provider}"
+            "provider {provider:?}"
         );
     }
 }
