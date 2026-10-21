@@ -91,6 +91,7 @@ pub struct SystemResourceSource {
     disks: Disks,
     last_sample: Option<Instant>,
     disk_peak_bytes_per_second: f64,
+    cpu_monitor: medulla_monitor::CpuMonitor,
 }
 
 impl Default for SystemResourceSource {
@@ -100,6 +101,7 @@ impl Default for SystemResourceSource {
             disks: Disks::new(),
             last_sample: None,
             disk_peak_bytes_per_second: 1.0,
+            cpu_monitor: medulla_monitor::CpuMonitor::default(),
         }
     }
 }
@@ -226,6 +228,7 @@ impl ResourceSource for SystemResourceSource {
             })
         });
         ResourceSnapshot {
+            cpu: self.cpu_monitor.sample(),
             current_process,
             history: Default::default(),
             process_index,

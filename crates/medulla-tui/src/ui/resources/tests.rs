@@ -12,6 +12,7 @@ fn sample() -> ResourceSnapshot {
         disk_read_bytes_per_second: 1024.0,
         disk_write_bytes_per_second: 2048.0,
         disk_peak_bytes_per_second: 4096.0,
+        ..Default::default()
     }
 }
 
