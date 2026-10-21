@@ -244,7 +244,7 @@ pub(super) fn absolute_path_from(path: PathBuf, cwd: &Path) -> PathBuf {
 /// rejects it without changing operator-owned filesystem state.
 #[cfg(unix)]
 fn ensure_private_parent(path: &Path) -> Result<(), ControlSocketError> {
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 
     let Some(parent) = path.parent() else {
         return Ok(());
