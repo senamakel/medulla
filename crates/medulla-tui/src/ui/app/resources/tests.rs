@@ -58,6 +58,56 @@ fn hidden_agents_widens_memory_and_network_and_cpu_alone_fills_area() {
 }
 
 #[test]
+fn every_visible_box_combination_has_a_rect_or_a_too_small_result() {
+    for area in [Rect::new(0, 0, 170, 42), Rect::new(0, 0, 80, 24)] {
+        for mask in 0..16 {
+            let shown = ShownBoxes {
+                cpu: mask & 1 != 0,
+                mem: mask & 2 != 0,
+                net: mask & 4 != 0,
+                agents: mask & 8 != 0,
+            };
+            let boxes = calc_sizes(area, shown, &LayoutOptions::default());
+            let every_visible_box_has_area = [
+                (shown.cpu, boxes.cpu),
+                (shown.mem, boxes.mem),
+                (shown.net, boxes.net),
+                (shown.agents, boxes.agents),
+            ]
+            .into_iter()
+            .all(|(shown, rect)| !shown || (rect.width > 0 && rect.height > 0));
+            assert!(
+                boxes.too_small.is_some() || every_visible_box_has_area,
+                "shown boxes {shown:?} have an unplaced panel at {area:?}: {boxes:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn cpu_hidden_gives_mem_seventy_two_percent_and_net_the_remaining_share() {
+    for agents in [false, true] {
+        let shown = ShownBoxes {
+            cpu: false,
+            mem: true,
+            net: true,
+            agents,
+        };
+        let boxes = calc_sizes(Rect::new(0, 0, 170, 42), shown, &LayoutOptions::default());
+        assert_eq!(boxes.mem.height, 30);
+        assert_eq!(boxes.net.height, 12);
+        assert_eq!(boxes.mem.height + boxes.net.height, 42);
+        if agents {
+            assert_eq!(boxes.mem.width, 77);
+            assert_eq!(boxes.agents.width, 93);
+        } else {
+            assert_eq!(boxes.mem.width, 170);
+            assert_eq!(boxes.net.width, 170);
+        }
+    }
+}
+
+#[test]
 fn undersized_terminal_requests_too_small_message() {
     let boxes = calc_sizes(Rect::new(0, 0, 50, 7), all(), &LayoutOptions::default());
     assert_eq!(boxes.too_small, Some(60));
