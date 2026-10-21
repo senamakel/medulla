@@ -1,9 +1,6 @@
 //! Data types for the `attention` module: what a harness is waiting for, and
 //! how loudly the rail should say so.
 
-#[allow(unused_imports)]
-use super::*;
-
 /// Why a harness wants the operator.
 ///
 /// Ordered by how certain the signal is, most certain first — [`Ord`] is derived
@@ -15,7 +12,7 @@ pub enum AttentionKind {
     /// in this session again until the operator restarts it, which is what makes
     /// it the most certain cue there is.
     Failed,
-    /// A startup dialog recognised by [`super::super::dialog`] — trust, the
+    /// A startup dialog recognized by the TUI dialog detector — trust, the
     /// bypass disclaimer, codex's update prompt. The harness will not take work
     /// until it is answered.
     Dialog,
