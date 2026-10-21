@@ -170,7 +170,7 @@ jobs:
           CARGO_PROFILE_TEST_DEBUG: none
         run: >-
           cargo llvm-cov --locked
-          --ignore-filename-regex '(^|/)vendor/|src/tui/src/(app_loop|commands|main)(/.*)?\.rs|src/tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|src/tui/src/harness_pty/mod\.rs|src/tui/src/ui/onboarding/run(/.*)?\.rs|src/tui/src/worker/executor_tests/live\.rs|src/sdk/src/daemon/(entry\.rs|transport/mod\.rs)|src/sdk/src/wrapper/(run|bridge)/mod\.rs|src/sdk/src/hub/(socket|relay)\.rs|src/sdk/src/hub/(boot|handle)(/.*)?\.rs'
+          --ignore-filename-regex '(^|/)vendor/|crates/medulla-tui/src/(app_loop|commands|main)(/.*)?\.rs|crates/medulla-tui/src/(event_loop|terminal|hub_relay|worker_loop)(/.*)?\.rs|crates/medulla-tui/src/harness_pty/mod\.rs|crates/medulla-tui/src/ui/onboarding/run(/.*)?\.rs|crates/medulla-tui/src/worker/executor_tests/live\.rs|crates/medulla/src/daemon/(entry\.rs|transport/mod\.rs)|crates/medulla/src/wrapper/(run|bridge)/mod\.rs|crates/medulla/src/hub/(socket|relay)\.rs|crates/medulla/src/hub/(boot|handle)(/.*)?\.rs'
           --fail-under-lines 80
           --summary-only
 
@@ -330,7 +330,7 @@ jobs:
           # compiles, the vendored core they link, the harness itself, and this
           # workflow. Documentation and the other workflows cannot.
           if printf '%s\n' "$changed" | grep -Eq \
-              '^(src/|e2e/|vendor/|scripts/|Cargo\.(toml|lock)$|\.gitmodules$|rust-toolchain\.toml$|\.github/workflows/ci\.yml$)'; then
+              '^(crates/|e2e/|vendor/|scripts/|Cargo\.(toml|lock)$|\.gitmodules$|rust-toolchain\.toml$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "no harness-relevant paths changed — skipping"

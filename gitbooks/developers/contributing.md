@@ -23,7 +23,7 @@ formatting and runs Clippy with warnings denied.
 cargo run                       # debug build, starts the TUI
 cargo run -- --mock             # debug build, offline demo runtime (no backend, no login)
 cargo run --release             # optimized build
-cargo install --path src/tui    # installs the `medulla` binary onto your PATH
+cargo install --path crates/medulla-tui    # installs the `medulla` binary onto your PATH
 ```
 
 `cargo run` with no flags uses the configured backend when a session is
@@ -42,7 +42,7 @@ cargo fmt --check                       # run `cargo fmt` to apply
 ```
 
 The e2e suites spin up in-process stand-ins so they are safe anywhere. They all
-live in `src/sdk/tests/support/`:
+live in `crates/medulla/tests/support/`:
 
 | File | What it stands in for |
 | --- | --- |
@@ -67,7 +67,7 @@ cargo llvm-cov report --show-missing-lines
 ```
 
 CI gates line coverage at 80% (`cargo llvm-cov --fail-under-lines 80`); keep new
-code covered. `src/tui/src/main.rs` (the terminal event loop, which needs a real
+code covered. `crates/medulla-tui/src/main.rs` (the terminal event loop, which needs a real
 TTY) and the daemon's live-network entry points are the known uncovered
 remainder.
 

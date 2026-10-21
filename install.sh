@@ -82,7 +82,7 @@ sha256_of() {
 
 # ---- Platform detection ------------------------------------------------------
 # Keys match the release build matrix's Rust target triples (see
-# src/sdk/src/update/check.rs::platform_key).
+# crates/medulla/src/update/check.rs::platform_key).
 
 detect_target() {
     os="$(uname -s)"
@@ -90,7 +90,7 @@ detect_target() {
     case "$os" in
         Linux)  os_part="unknown-linux-gnu" ;;
         Darwin) os_part="apple-darwin" ;;
-        *) die "unsupported OS '$os' — build from source: cargo install --path src/tui" ;;
+        *) die "unsupported OS '$os' — build from source: cargo install --path crates/medulla-tui" ;;
     esac
     case "$arch" in
         x86_64 | amd64) arch_part="x86_64" ;;
@@ -150,9 +150,9 @@ manifest_version() {
 build_from_source() {
     warn "falling back to building from source"
     have cargo || die "no usable prebuilt binary for this system and cargo is not installed — install Rust from https://rustup.rs then re-run, or use a distribution with a newer C library"
-    if [ -f "src/tui/Cargo.toml" ]; then
-        info "building from the local checkout (cargo install --path src/tui)"
-        cargo install --path src/tui --root "$MEDULLA_HOME" --locked
+    if [ -f "crates/medulla-tui/Cargo.toml" ]; then
+        info "building from the local checkout (cargo install --path crates/medulla-tui)"
+        cargo install --path crates/medulla-tui --root "$MEDULLA_HOME" --locked
     else
         info "building from git (cargo install --git https://github.com/${SOURCE_REPO})"
         # Without credentials git would sit at an interactive prompt inside a

@@ -1,5 +1,5 @@
 # Keep the Docker build context small. Context is the sdk/ crate root.
-# The Rust build only needs Cargo manifests, src/, examples/, and the
+# The Rust build only needs Cargo manifests, crates/, examples/, and the
 # path/vendored crates' sources — not their docs/websites/generated output.
 
 # Rust build output (25G+ locally)

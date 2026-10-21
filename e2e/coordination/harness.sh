@@ -125,7 +125,7 @@ write_harness_config() {
 # Codex is seeded because the stack has no network: `models_cache.json` is
 # normally fetched from Codex's own API on first run, and a `codexOverrides`
 # preset derives its model catalog from that file (see
-# `src/sdk/src/codex_overrides/catalog.rs`). Without it the spawn fails before it
+# `crates/medulla/src/codex_overrides/catalog.rs`). Without it the spawn fails before it
 # reaches the mock LLM.
 #
 # Claude Code is seeded because its *interactive* first run is a wizard — theme
@@ -317,7 +317,7 @@ harness_wrapper_launch() {
 # Claude and Codex write a flat JSONL transcript that the wrapper tails and
 # normalizes into typed session events. OpenCode does not — its session log is
 # not in that shape — so the wrapper runs it as a passthrough with input
-# injection and no transcript bridging. See `src/sdk/src/wrapper/mod.rs`.
+# injection and no transcript bridging. See `crates/medulla/src/wrapper/mod.rs`.
 harness_wrapper_bridges() {
   [ "$HARNESS" != "opencode" ]
 }

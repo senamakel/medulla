@@ -15,9 +15,9 @@ network, and no real coding-agent CLI is spawned unless a test writes one itself
 | --- | --- |
 | Unit tests for a directory module | `foo/tests.rs`, declared from `foo/mod.rs` with `#[cfg(test)] mod tests;` |
 | Unit tests for a single-file leaf module | a sibling `foo_tests.rs`, until the module becomes a directory |
-| Cross-module and end-to-end tests for the SDK | [`src/sdk/tests/`](https://github.com/tinyhumansai/medulla/tree/main/src/sdk/tests/) |
-| Cross-module and end-to-end tests for the app crate | [`src/tui/tests/`](https://github.com/tinyhumansai/medulla/tree/main/src/tui/tests/) |
-| Shared stand-ins | [`src/sdk/tests/support/`](https://github.com/tinyhumansai/medulla/tree/main/src/sdk/tests/support/) |
+| Cross-module and end-to-end tests for the SDK | [`crates/medulla/tests/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla/tests/) |
+| Cross-module and end-to-end tests for the app crate | [`crates/medulla-tui/tests/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-tui/tests/) |
+| Shared stand-ins | [`crates/medulla/tests/support/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla/tests/support/) |
 
 Integration files are named by the behavior they cover, not by the module they
 touch: `e2e_daemon.rs`, `feature_workers.rs`, `e2e_login.rs`. The `e2e_` prefix
@@ -29,7 +29,7 @@ one copy of each stand-in rather than two that drift.
 
 ## The shared stand-ins
 
-Everything under `src/sdk/tests/support/` exists so a suite can exercise real
+Everything under `crates/medulla/tests/support/` exists so a suite can exercise real
 code against something that is not real infrastructure.
 
 | File | What it stands in for |
@@ -61,8 +61,8 @@ daemon binary, a real coding CLI, and an interactive TUI, over the
 network egress.
 
 ```
-owner driver (src/sdk/examples/coordination_owner; a real medulla-link endpoint)
-  → mock link relay (src/sdk/examples/mock_link_forwarder.rs; blind UDP)
+owner driver (crates/medulla/examples/coordination_owner; a real medulla-link endpoint)
+  → mock link relay (crates/medulla/examples/mock_link_forwarder.rs; blind UDP)
     → medulla daemon (real binary, --providers <harness>, the host end)
       → the real coding CLI (spawned by the daemon as its provider)
         → mock LLM (e2e/coordination/mock_llm.py)
@@ -133,7 +133,7 @@ point:
 | `codex` | the same preset plus `codexOverrides` — the `-c` provider block and a derived model catalog, because a bare `OPENAI_BASE_URL` is ignored by Codex | OpenAI Responses |
 
 So the claude and codex legs exercise Medulla's real preset-routing path
-(`src/sdk/src/config/custom_harnesses.rs`, `src/sdk/src/codex_overrides/`); the
+(`crates/medulla/src/config/custom_harnesses.rs`, `crates/medulla/src/codex_overrides/`); the
 only fake in the chain is the model behind the endpoint. Each leg also asserts
 that the task arrived on the dialect that harness is *supposed* to speak, so a
 run that quietly fell back to another wire fails rather than passes.

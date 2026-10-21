@@ -60,7 +60,7 @@ function Die        { param([string] $Message) Write-Host "error: $Message" -For
 
 # ---- Platform detection ------------------------------------------------------
 # Keys match the release build matrix's Rust target triples (see
-# src/sdk/src/update/check.rs::platform_key). Only x86_64 ships today; arm64
+# crates/medulla/src/update/check.rs::platform_key). Only x86_64 ships today; arm64
 # Windows runs it through the x64 emulation layer.
 
 function Get-Target {
@@ -68,7 +68,7 @@ function Get-Target {
     if (-not $arch) { $arch = 'AMD64' }
     switch ($arch.ToUpperInvariant()) {
         'AMD64' { return 'x86_64-pc-windows-msvc' }
-        'X86'   { Die "32-bit Windows is not supported - build from source: cargo install --path src/tui" }
+        'X86'   { Die "32-bit Windows is not supported - build from source: cargo install --path crates/medulla-tui" }
         'ARM64' {
             Write-Warn 'no native arm64 Windows build; using the x86_64 binary through emulation'
             return 'x86_64-pc-windows-msvc'
@@ -86,9 +86,9 @@ function Install-FromSource {
     if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
         Die 'no prebuilt binary for this platform and cargo is not installed - install Rust from https://rustup.rs then re-run'
     }
-    if (Test-Path 'src/tui/Cargo.toml') {
-        Write-Info 'building from the local checkout (cargo install --path src/tui)'
-        cargo install --path src/tui --root $Prefix --locked
+    if (Test-Path 'crates/medulla-tui/Cargo.toml') {
+        Write-Info 'building from the local checkout (cargo install --path crates/medulla-tui)'
+        cargo install --path crates/medulla-tui --root $Prefix --locked
     } else {
         Write-Info "building from git (cargo install --git https://github.com/$SourceRepo)"
         # Without credentials git would sit at an interactive prompt, so refuse
