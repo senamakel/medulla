@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use super::types::{
-    AgentKind, AgentOrigin, AgentProcess, KnownProcessRoot, ProcessNode, ProcessRecord,
-    ProcessUsage,
+    AgentDiscoveryOptions, AgentKind, AgentOrigin, AgentProcess, KnownProcessRoot, ProcessNode,
+    ProcessRecord, ProcessUsage,
 };
 
 /// Classify and aggregate recognized processes from a platform-neutral sample.
@@ -11,6 +11,23 @@ pub fn discover_agents(
     known_roots: &[KnownProcessRoot],
     medulla_pid: u32,
     sampled_at_secs: u64,
+) -> Vec<AgentProcess> {
+    discover_agents_with_options(
+        processes,
+        known_roots,
+        medulla_pid,
+        sampled_at_secs,
+        AgentDiscoveryOptions::default(),
+    )
+}
+
+/// Discover agents with explicit controls for optional process categories.
+pub fn discover_agents_with_options(
+    processes: &[ProcessRecord],
+    known_roots: &[KnownProcessRoot],
+    medulla_pid: u32,
+    sampled_at_secs: u64,
+    options: AgentDiscoveryOptions,
 ) -> Vec<AgentProcess> {
     let by_pid: HashMap<u32, &ProcessRecord> = processes.iter().map(|p| (p.pid, p)).collect();
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
@@ -58,7 +75,10 @@ pub fn discover_agents(
         };
         // A shell is a useful agent row only when Medulla can explain why it
         // exists. Reporting every user's login shell would swamp the pane.
-        if kind == AgentKind::Shell && origin == AgentOrigin::External {
+        if kind == AgentKind::Shell
+            && origin == AgentOrigin::External
+            && !options.show_external_shells
+        {
             continue;
         }
         let mut visiting = HashSet::new();
@@ -118,7 +138,7 @@ fn classify(process: &ProcessRecord) -> Option<AgentKind> {
     };
     let args = argv.iter().map(String::as_str).collect::<Vec<_>>();
     let has = |needle: &str| args.iter().any(|arg| arg.contains(needle));
-    let has_arg = |needle: &str| args.iter().any(|arg| *arg == needle);
+    let has_arg = |needle: &str| args.contains(&needle);
 
     match basename {
         "claude" => Some(AgentKind::Claude),

@@ -3,10 +3,10 @@
 mod classify;
 mod types;
 
-pub use classify::discover_agents;
+pub use classify::{discover_agents, discover_agents_with_options};
 pub use types::{
-    AgentKind, AgentOrigin, AgentProcess, IoCounters, KnownProcessRoot, ProcessNode, ProcessRecord,
-    ProcessUsage,
+    AgentDiscoveryOptions, AgentKind, AgentOrigin, AgentProcess, IoCounters, KnownProcessRoot,
+    ProcessNode, ProcessRecord, ProcessUsage,
 };
 
 #[cfg(test)]

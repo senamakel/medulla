@@ -71,6 +71,13 @@ pub struct KnownProcessRoot {
     pub origin: AgentOrigin,
 }
 
+/// Controls optional agent categories in process discovery.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AgentDiscoveryOptions {
+    /// Include external shells in addition to shells owned by known Medulla roots.
+    pub show_external_shells: bool,
+}
+
 /// A descendant in an agent process tree.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcessNode {

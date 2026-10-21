@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use super::{
-    discover_agents, AgentKind, AgentOrigin, IoCounters, KnownProcessRoot, ProcessRecord,
-    ProcessUsage,
+    discover_agents, discover_agents_with_options, AgentDiscoveryOptions, AgentKind, AgentOrigin,
+    IoCounters, KnownProcessRoot, ProcessRecord, ProcessUsage,
 };
 
 fn process(
@@ -190,5 +190,25 @@ fn unreadable_argv_is_unknown_and_external_instead_of_guessing() {
 
     assert_eq!(agents.len(), 1);
     assert_eq!(agents[0].kind, AgentKind::Unknown);
+    assert_eq!(agents[0].origin, AgentOrigin::External);
+}
+
+#[test]
+fn external_shells_are_included_only_when_requested() {
+    let processes = vec![process(80, Some(7), "/usr/bin/bash", &["bash", "-l"], 10)];
+
+    assert!(discover_agents(&processes, &[], 1, 50).is_empty());
+    let agents = discover_agents_with_options(
+        &processes,
+        &[],
+        1,
+        50,
+        AgentDiscoveryOptions {
+            show_external_shells: true,
+        },
+    );
+
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].kind, AgentKind::Shell);
     assert_eq!(agents[0].origin, AgentOrigin::External);
 }
