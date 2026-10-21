@@ -371,7 +371,7 @@ impl vte::Perform for TerminalModes {
     /// Capture the child's clipboard writes; every other OSC is the screen
     /// emulator's business.
     fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
-        if let Some(text) = medulla::clipboard::tmux::osc52_from_params(params) {
+        if let Some(text) = crate::clipboard::osc52_from_params(params) {
             self.clipboard = Some(text);
         }
     }
