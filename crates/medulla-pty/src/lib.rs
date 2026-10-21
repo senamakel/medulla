@@ -5,6 +5,8 @@
 //! common single-cell text inline. Process handles and managers remain in the
 //! TUI crate.
 
+extern crate self as medulla_pty;
+
 pub mod attention;
 pub mod cell_text;
 pub mod clipboard;

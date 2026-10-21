@@ -5,7 +5,7 @@ use medulla_types::HarnessProvider;
 pub use medulla_types::SessionOrigin;
 use medulla_pty::OpaqueOrigin;
 
-use super::attention::HarnessAttention;
+use crate::attention::HarnessAttention;
 
 /// Default geometry for a freshly opened session, before the UI reports the real
 /// pane size. Wide enough that a harness's first full-screen paint is not

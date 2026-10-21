@@ -30,7 +30,6 @@
 //! is read-mostly and every session owns its own state; see the two modules'
 //! docs for the details.
 
-pub(crate) mod attention;
 pub mod handle;
 pub mod manager;
 pub mod types;
@@ -38,9 +37,9 @@ pub mod types;
 // Unix-only: every test here drives a real child on a real pseudo-terminal
 // via `/bin/sh`, which Windows has no equivalent of. The pty layer itself is
 // portable; its tests are not.
-pub use medulla_pty::attention::{AttentionKind, HarnessAttention};
+pub use crate::attention::{AttentionKind, HarnessAttention};
 pub use handle::SessionHandle;
 pub use manager::PtyManager;
-pub use medulla_pty::cell_text;
-pub use medulla_pty::{CellText, ScreenCell, ScreenSnapshot};
+pub use crate::cell_text;
+pub use crate::{CellText, ScreenCell, ScreenSnapshot};
 pub use types::{CloseAttempt, LaunchSpec, PtyState, SessionControl, SessionOrigin, SessionRow};
