@@ -1,0 +1,11 @@
+[package]
+name = "medulla-juice"
+description = "Pluggable context compression primitives for Medulla"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "medulla_juice"
+path = "src/lib.rs"

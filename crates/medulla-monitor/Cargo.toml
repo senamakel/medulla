@@ -1,0 +1,11 @@
+[package]
+name = "medulla-monitor"
+description = "Host resource sampling primitives for Medulla"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+sysinfo = { workspace = true }

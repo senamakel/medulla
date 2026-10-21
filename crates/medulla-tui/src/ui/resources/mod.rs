@@ -1,50 +1,22 @@
-//! Sampling and formatting of resource usage, at two scales.
+//! Formatting of resource snapshots for status line, sidebar, and pane titles.
 //!
-//! This module owns the Medulla process's own CPU, memory, and disk I/O, shown
-//! as status-line segments; the [`device`] submodule owns whole-device CPU,
-//! memory, and disk capacity, shown as a footer under the Sessions rail. The two
-//! are kept visually and textually distinct — process segments are bare
-//! (`CPU 25%`), device lines are prefixed (`Device CPU 25%`) — so a reader is
-//! never left guessing whose usage a number describes.
-//!
-//! Sampling is throttled at both scales so frequent ratatui redraws do not turn
-//! the chrome into a source of measurable load itself. The process monitor
-//! refreshes only the current PID and keeps a decaying disk-throughput peak for
-//! relative bars.
-//!
-//! The [`session`] submodule owns a third scale: one harness session's own
-//! process tree, shown in that session's pane title.
+//! Sampling is owned by [`medulla_monitor`]. This module keeps display
+//! formatting close to the TUI configuration and widgets that control it.
 
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
-pub use device::{device_lines, device_width_hint, DeviceMonitor};
-pub use session::{session_segments, session_usage, SessionMonitor, SessionSnapshot};
-pub use types::{DeviceSnapshot, ResourceMonitor, ResourceSnapshot};
+pub use device::{device_lines, device_width_hint};
+pub use medulla_monitor::{
+    DeviceMonitor, DeviceSnapshot, ResourceMonitor, ResourceSnapshot, SessionMonitor,
+    SessionSnapshot,
+};
+pub use session::{session_segments, session_usage};
 
 mod device;
-mod process_monitor;
 mod session;
-mod types;
 
 #[cfg(test)]
 mod tests;
-
-/// Convert sysinfo's deltas to rates only after an initial counter baseline.
-///
-/// A process's first refresh can report accumulated startup I/O as its delta.
-/// Ignoring that reading prevents it from inflating the decaying peak used by
-/// subsequent disk bars.
-fn disk_rates(
-    read_bytes: u64,
-    written_bytes: u64,
-    elapsed: f64,
-    baseline_ready: bool,
-) -> (f64, f64) {
-    if !baseline_ready {
-        return (0.0, 0.0);
-    }
-    (read_bytes as f64 / elapsed, written_bytes as f64 / elapsed)
-}
 
 /// Format every enabled resource as compact status-line segments.
 pub fn segments(config: &AppearanceConfig, sample: ResourceSnapshot) -> Vec<String> {

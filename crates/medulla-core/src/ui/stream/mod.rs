@@ -7,12 +7,10 @@
 //! stateless and side-effect free, so any front end (TUI, CLI, tests) can reuse
 //! them.
 
-mod types;
-
 #[cfg(test)]
 mod tests;
 
-pub use types::{TierUsage, UsageFold};
+pub use medulla_tokens::{TierUsage, UsageFold};
 
 use crate::ui::events::{EventEnvelope, TuiEvent};
 

@@ -31,6 +31,7 @@ medulla = { workspace = true, default-features = false }
 # worker loop a bridge over it.
 medulla-link = { workspace = true }
 medulla-pty = { workspace = true }
+medulla-monitor = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -46,7 +47,6 @@ base64 = { workspace = true }
 rustls = { workspace = true }
 toml = { workspace = true }
 dirs = { workspace = true }
-sysinfo = { workspace = true }
 # Grapheme clustering for rebuilding terminal cells from a wire run. A cell holds
 # one cluster (see `worker/pty/cell_text.rs`), which scalar-by-scalar iteration
 # cannot reproduce: a ZWJ emoji or a flag is several scalars in one cell.

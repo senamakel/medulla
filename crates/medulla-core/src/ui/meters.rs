@@ -13,6 +13,8 @@
 
 use crate::ui::agents::Line;
 
+pub use medulla_tokens::LaneUsage;
+
 /// The bar's width in cells. Eight is enough to read a fraction to the nearest
 /// eighth and short enough that three meters and their labels fit in 80 columns.
 const CELLS: usize = 8;
@@ -175,37 +177,4 @@ pub fn context_meter(usage: &LaneUsage, window: i64) -> Option<Line> {
         tokens(usage.output),
     );
     Some(meter("ctx", fraction, detail))
-}
-
-/// A lane's accumulated token usage.
-///
-/// Latest-wins for the prompt, running total for output: the prompt is the
-/// current context size (each turn resends it, so summing would multiply-count
-/// the same tokens), while output and cache genuinely accumulate over the lane's
-/// life.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct LaneUsage {
-    /// Prompt tokens on the most recent reported turn.
-    pub input: i64,
-    /// Output tokens summed across the lane.
-    pub output: i64,
-    /// Cache-read tokens on the most recent reported turn, when reported.
-    pub cache_read: Option<i64>,
-}
-
-impl LaneUsage {
-    /// Fold one reported usage into the running totals.
-    pub fn accumulate(&mut self, usage: &crate::ui::events::Usage) {
-        self.input = usage.input_tokens;
-        self.output += usage.output_tokens;
-        if usage.cache_read_tokens.is_some() {
-            self.cache_read = usage.cache_read_tokens;
-        }
-    }
-
-    /// The share of the current prompt served from cache, when known.
-    pub fn cache_hit_rate(&self) -> Option<f64> {
-        let cached = self.cache_read? as f64;
-        (self.input > 0).then(|| (cached / self.input as f64).clamp(0.0, 1.0))
-    }
 }
