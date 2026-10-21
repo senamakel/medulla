@@ -84,7 +84,12 @@ impl PtyManager {
                     }
                     state.cue = Some(next);
                 }
-                None if !deferring => state.cue = None,
+                None if !deferring => {
+                    state.cue = state
+                        .cue
+                        .take()
+                        .filter(|held| held.kind == AttentionKind::Bell);
+                }
                 None => {}
             }
         });

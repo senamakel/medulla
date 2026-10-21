@@ -1,7 +1,6 @@
 //! Launching a harness on a fresh pty, and draining it into the emulator.
 
 use std::io::{Read, Write};
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Weak};
