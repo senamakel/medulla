@@ -336,7 +336,7 @@ fn draw_mem_panel(
             )));
         }
     }
-    let graph_rows = if config.io_mode {
+    let graph_rows = if config.io_mode && config.show_disks {
         if config.io_graph_combined {
             1
         } else {
@@ -349,7 +349,7 @@ fn draw_mem_panel(
     };
     if graph_rows > 0 && area.height > graph_rows {
         let graph_area = Rect::new(area.x, area.y, area.width, graph_rows);
-        if config.io_mode {
+        if config.io_mode && config.show_disks {
             let read_samples: Vec<f64> = snapshot
                 .history
                 .disk_read_bytes_per_second
@@ -433,7 +433,7 @@ fn draw_mem_panel(
         }
         lines.insert(
             0,
-            Line::from(if config.io_mode {
+            Line::from(if config.io_mode && config.show_disks {
                 if config.io_graph_combined {
                     "IO READ+WRITE"
                 } else {
@@ -458,7 +458,7 @@ fn draw_mem_panel(
                 area.height - graph_rows,
             ),
         );
-        if config.io_mode {
+        if config.io_mode && config.show_disks {
             draw_disk_io_graphs(
                 frame, area, snapshot, &disks, graph_rows, disk_start, config,
             );
@@ -471,7 +471,7 @@ fn draw_mem_panel(
         Paragraph::new(lines).style(Style::default().fg(Color::White)),
         area,
     );
-    if config.io_mode {
+    if config.io_mode && config.show_disks {
         let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
             2
         } else {
