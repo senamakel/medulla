@@ -33,7 +33,6 @@
 pub mod attention;
 pub(crate) mod checkout;
 pub mod dialog;
-pub mod handle;
 pub mod inject;
 pub mod launch;
 pub mod manager;
@@ -46,7 +45,8 @@ pub mod types;
 mod tests;
 
 pub use attention::{lifecycle_cue, row_cue, AttentionKind, HarnessAttention, ATTENTION_GLYPH};
-pub use handle::SessionHandle;
+pub use medulla_pty::worker::pty::handle;
+pub use medulla_pty::worker::pty::handle::SessionHandle;
 pub use inject::inject_prompt;
 pub use manager::PtyManager;
 pub use medulla_pty::cell_text;
