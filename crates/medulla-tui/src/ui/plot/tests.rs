@@ -50,8 +50,8 @@ fn short_histories_right_align_and_odd_histories_start_with_an_empty_half() {
 fn short_and_empty_histories_clear_stale_buffer_cells() {
     let area = Rect::new(0, 0, 3, 1);
     let mut buffer = Buffer::empty(area);
-    for cell in buffer.content_mut() {
-        cell.set_char('x');
+    for x in 0..area.width {
+        buffer[(x, 0)].set_char('x');
     }
 
     Graph::new(&[25.0, 75.0]).render(area, &mut buffer);
