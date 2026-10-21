@@ -1,4 +1,4 @@
-//! Per-session CPU, memory, and disk-I/O sampling for harness pane titles.
+//! Per-session CPU, memory, and disk-I/O formatting for harness pane titles.
 //!
 //! Where the sibling process monitor answers "what is Medulla costing this
 //! machine?" and [`device`](super::device) answers "how much room is left?",
@@ -6,9 +6,7 @@
 //! pane: *what is this agent costing me right now?* — summed over the harness's
 //! whole process tree, because the compiler it forked is the part that costs.
 //!
-//! Sampling is throttled far below the render cadence, and shared across every
-//! session: the host refresh a reading needs enumerates the machine's processes
-//! once, and each session's tree is then walked out of that one snapshot.
+//! Sampling is shared across every session by [`medulla_monitor`].
 
 mod format;
 #[cfg(test)]

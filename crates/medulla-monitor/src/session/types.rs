@@ -1,9 +1,8 @@
 //! Data types for per-session resource sampling: the reading a title is drawn
 //! from, and the sampler's own state.
 //!
-//! Shape only. The host refreshes, the process-tree walk, and the throttle live
-//! in [`monitor`](super::monitor); the rendering lives in
-//! [`format`](super::format).
+//! Shape and sampler state. The host refresh, process-tree walk, and throttle
+//! live in [`monitor`](super::monitor); rendering is left to the TUI.
 
 use std::collections::HashMap;
 use std::time::Instant;
