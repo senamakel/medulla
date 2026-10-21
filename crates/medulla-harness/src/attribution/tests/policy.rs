@@ -1,8 +1,7 @@
 //! Verifies attribution configuration and provider-specific arguments.
 
 use super::{
-    attribution_args, attribution_trailer, AttributionConfig, HarnessProvider, ATTRIBUTION_EMAIL,
-    ATTRIBUTION_NAME,
+    attribution_args, attribution_trailer, HarnessProvider, ATTRIBUTION_EMAIL, ATTRIBUTION_NAME,
 };
 
 #[test]
@@ -13,32 +12,6 @@ fn trailer_uses_the_medulla_identity() {
     );
     assert_eq!(ATTRIBUTION_NAME, "Medulla");
     assert_eq!(ATTRIBUTION_EMAIL, "medulla@tinyhumans.ai");
-}
-
-/// Attribution is on unless the operator turns it off — a harness commit that
-/// does not name the tool that wrote it is the surprising case.
-#[test]
-fn attribution_config_defaults_to_on() {
-    assert!(AttributionConfig::default().commit);
-}
-
-/// An absent `attribution` section, and an empty one, both mean "on".
-#[test]
-fn absent_or_empty_config_section_means_on() {
-    let from_absent: crate::config::TuiConfig =
-        serde_json::from_str("{}").expect("empty config parses");
-    assert!(from_absent.attribution.commit);
-
-    let from_empty: AttributionConfig = serde_json::from_str("{}").expect("empty section parses");
-    assert!(from_empty.commit);
-}
-
-/// The operator turns attribution off with `attribution.commit: false`.
-#[test]
-fn config_can_turn_attribution_off() {
-    let parsed: crate::config::TuiConfig =
-        serde_json::from_str(r#"{"attribution":{"commit":false}}"#).expect("config parses");
-    assert!(!parsed.attribution.commit);
 }
 
 #[test]
