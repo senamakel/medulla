@@ -32,6 +32,15 @@ fn row(text: &str) -> Vec<ScreenRun> {
     vec![ScreenRun::plain(text)]
 }
 
+#[test]
+fn screen_v1_golden_frame_decodes_and_reencodes_byte_identically() {
+    // Captured from the pre-extraction codec. Keep the exact bytes stable so
+    // moving this protocol cannot silently change its wire representation.
+    let golden = r#"{"screen_version":"medulla.screen.v1","kind":"subscribe","task_id":"golden","max_fps":30,"resync":true}"#;
+    let message = parse_screen_message(golden).expect("golden frame should decode");
+    assert_eq!(encode_screen_message(&message), golden);
+}
+
 fn cells(text: &str, style: RunStyle) -> Vec<(String, RunStyle)> {
     text.chars().map(|c| (c.to_string(), style)).collect()
 }
