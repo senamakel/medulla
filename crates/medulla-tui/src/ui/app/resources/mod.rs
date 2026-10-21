@@ -324,10 +324,11 @@ fn draw_mem_panel(
                 String::new()
             };
             lines.push(Line::from(format!(
-                "{:<8} {:>3.0}% {} {} / {} free {}{}",
+                "{:<8} {:>3.0}% U{}F{} {} / {} free {}{}",
                 disk.mount,
                 used * 100.0,
-                meter(used, 8),
+                meter(used, 4),
+                meter(1.0 - used, 4),
                 bytes(disk.used_bytes),
                 bytes(disk.total_bytes),
                 bytes(disk.total_bytes.saturating_sub(disk.used_bytes)),
@@ -361,7 +362,10 @@ fn draw_mem_panel(
                 .iter()
                 .copied()
                 .collect();
-            let configured_speed = disks.iter().map(|disk| io_graph_speed(config, &disk.mount)).fold(100.0_f64, f64::max);
+            let configured_speed = disks
+                .iter()
+                .map(|disk| io_graph_speed(config, &disk.mount))
+                .fold(100.0_f64, f64::max);
             let scale = configured_speed * 1024.0 * 1024.0;
             let reads: Vec<f32> = read_samples
                 .iter()
@@ -372,9 +376,16 @@ fn draw_mem_panel(
                 .map(|v| (v * 100.0 / scale) as f32)
                 .collect();
             if config.io_graph_combined {
-                let combined_samples: Vec<f64> = read_samples.iter().zip(&write_samples).map(|(r, w)| r + w).collect();
+                let combined_samples: Vec<f64> = read_samples
+                    .iter()
+                    .zip(&write_samples)
+                    .map(|(r, w)| r + w)
+                    .collect();
                 let combined_scale = scale;
-                let combined: Vec<f32> = combined_samples.iter().map(|v| (v * 100.0 / combined_scale) as f32).collect();
+                let combined: Vec<f32> = combined_samples
+                    .iter()
+                    .map(|v| (v * 100.0 / combined_scale) as f32)
+                    .collect();
                 frame.render_widget(crate::ui::plot::Graph::new(&combined), graph_area);
             } else {
                 frame.render_widget(
@@ -448,7 +459,9 @@ fn draw_mem_panel(
             ),
         );
         if config.io_mode {
-            draw_disk_io_graphs(frame, area, snapshot, &disks, graph_rows, disk_start, config);
+            draw_disk_io_graphs(
+                frame, area, snapshot, &disks, graph_rows, disk_start, config,
+            );
         } else {
             draw_disk_busy_graphs(frame, area, snapshot, &disks, graph_rows, disk_start);
         }
@@ -459,7 +472,11 @@ fn draw_mem_panel(
         area,
     );
     if config.io_mode {
-        let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 { 2 } else { 1 };
+        let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
+            2
+        } else {
+            1
+        };
         draw_disk_io_graphs(frame, area, snapshot, &disks, 0, disk_start, config);
     } else {
         let disk_start = if config.show_swap && snapshot.swap_total_bytes > 0 {
@@ -535,7 +552,9 @@ fn draw_disk_io_graphs(
             .disk_io
             .iter()
             .filter_map(|sample| {
-                sample.iter().find(|entry| entry.device == disk.device)
+                sample
+                    .iter()
+                    .find(|entry| entry.device == disk.device)
                     .map(|entry| (entry.read_bytes_per_second * 100.0 / limit) as f32)
             })
             .collect();
@@ -544,17 +563,25 @@ fn draw_disk_io_graphs(
             .disk_io
             .iter()
             .filter_map(|sample| {
-                sample.iter().find(|entry| entry.device == disk.device)
+                sample
+                    .iter()
+                    .find(|entry| entry.device == disk.device)
                     .map(|entry| (entry.write_bytes_per_second * 100.0 / limit) as f32)
             })
             .collect();
         if config.io_graph_combined {
             let combined: Vec<f32> = read.iter().zip(&write).map(|(r, w)| r + w).collect();
-            frame.render_widget(crate::ui::plot::Graph::new(&combined), Rect::new(x, y, width, 1));
+            frame.render_widget(
+                crate::ui::plot::Graph::new(&combined),
+                Rect::new(x, y, width, 1),
+            );
         } else {
             let half = width / 2;
             frame.render_widget(crate::ui::plot::Graph::new(&read), Rect::new(x, y, half, 1));
-            frame.render_widget(crate::ui::plot::Graph::new(&write), Rect::new(x + half, y, width - half, 1));
+            frame.render_widget(
+                crate::ui::plot::Graph::new(&write),
+                Rect::new(x + half, y, width - half, 1),
+            );
         }
     }
 }
@@ -565,8 +592,14 @@ fn io_graph_speed(config: &medulla::config::ResourcesConfig, mount: &str) -> f64
         .split_whitespace()
         .find_map(|entry| {
             let (target, speed) = entry.split_once(':')?;
-            if target != mount { return None; }
-            speed.parse::<u64>().ok().filter(|speed| *speed > 0).map(|speed| speed as f64)
+            if target != mount {
+                return None;
+            }
+            speed
+                .parse::<u64>()
+                .ok()
+                .filter(|speed| *speed > 0)
+                .map(|speed| speed as f64)
         })
         .unwrap_or(100.0)
 }

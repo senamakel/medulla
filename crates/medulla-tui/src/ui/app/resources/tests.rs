@@ -172,6 +172,15 @@ fn disks_and_io_keys_toggle_the_memory_panel_modes() {
 }
 
 #[test]
+fn io_graph_speed_limits_override_per_mount_in_mib_per_second() {
+    let mut config = medulla::config::ResourcesConfig::default();
+    config.io_graph_speeds = "/mnt/data:1 /boot:4".into();
+    assert_eq!(super::io_graph_speed(&config, "/mnt/data"), 1.0);
+    assert_eq!(super::io_graph_speed(&config, "/boot"), 4.0);
+    assert_eq!(super::io_graph_speed(&config, "/"), 100.0);
+}
+
+#[test]
 fn selecting_a_preset_shows_only_the_boxes_named_by_its_entries() {
     let mut state = ResourcesState {
         presets: vec![
