@@ -13,7 +13,8 @@ pub(super) fn calc_sizes(area: Rect, shown: ShownBoxes, opts: &LayoutOptions) ->
         return out;
     }
     let rest = if shown.cpu {
-        let h = ((u32::from(area.height) * 32 + 99) / 100)
+        let h = (u32::from(area.height) * 32)
+            .div_ceil(100)
             .max(8)
             .min(u32::from(area.height)) as u16;
         let cpu_y = if opts.cpu_bottom {
