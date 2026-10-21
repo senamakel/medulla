@@ -23,10 +23,10 @@
 pub mod frames;
 pub mod session;
 
-#[cfg(test)]
-mod tests;
 #[cfg(all(test, target_os = "linux"))]
 mod spawn_tests;
+#[cfg(test)]
+mod tests;
 
 pub use frames::{encode_interrupt, encode_user_message, map_stream_frame, StreamEvent};
 pub use session::{build_interactive_args, InteractiveSession, InteractiveSpec};
