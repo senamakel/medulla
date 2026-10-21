@@ -71,7 +71,7 @@ pub use types::{
     HarnessNameStyle, HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig,
     LinkConfig, LoadedConfig, McpSection, MedullaConfig, OnboardingConfig, OpencodeConfig,
     PathStyle, Peer, ProviderBudgetConfig, RemoteHostSection, RouterConfig, RouterProviderConfig,
-    StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
+    ResourcesThemeConfig, StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
     DEFAULT_CONTEXT_WINDOW_TOKENS,
 };
 pub use urls::{backend_base_url, display_host, resolve_forwarder_base_url, PROD_BACKEND_BASE_URL};
