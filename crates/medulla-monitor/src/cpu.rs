@@ -188,6 +188,7 @@ impl CpuMonitor {
         let (package_temperature_c, package_temperature_crit_c, core_temperatures_c) =
             read_temperatures(&root);
         CpuSnapshot {
+            model: None,
             total,
             cores,
             frequencies_mhz: read_frequencies(&root),
