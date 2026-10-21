@@ -46,6 +46,31 @@ fn truecolor_fallback_matches_btop_256_color_indices() {
 }
 
 #[test]
+fn terminal_depth_prefers_colorterm_and_uses_ansi_colors_for_tty() {
+    assert_eq!(
+        ColorDepth::detect_from(Some("24bit"), None),
+        ColorDepth::TrueColor
+    );
+    assert_eq!(
+        ColorDepth::detect_from(None, Some("xterm-256color")),
+        ColorDepth::Color256
+    );
+    assert_eq!(
+        ColorDepth::detect_from(None, Some("vt100")),
+        ColorDepth::Color16
+    );
+    assert_eq!(truecolor_to_16(Color::Rgb(255, 0, 0)), Color::LightRed);
+}
+
+#[test]
+fn named_color_gradients_interpolate_between_their_rgb_values() {
+    let gradient = Gradient::new(Color::Red, None, Some(Color::Blue));
+    assert_eq!(gradient.at(0), Color::Red);
+    assert_eq!(gradient.at(100), Color::Blue);
+    assert_eq!(gradient.at(50), Color::Rgb(103, 0, 119));
+}
+
+#[test]
 fn resource_config_override_keeps_other_btop_defaults() {
     let theme = Theme::from_config(&ThemeConfig {
         resources: Some(ResourcesThemeConfig {

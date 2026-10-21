@@ -132,6 +132,12 @@ impl Theme {
         }
     }
 
+    /// Adapt resource colors to the detected terminal palette.
+    pub fn with_depth(mut self, depth: ColorDepth) -> Self {
+        self.resources = self.resources.with_depth(depth);
+        self
+    }
+
     /// Whether the attention pulse is in its bright phase on `frame`.
     ///
     /// The pulse is driven off the event loop's frame counter rather than

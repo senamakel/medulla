@@ -23,7 +23,8 @@ impl App {
     /// Sessions tab with an empty composer and the config-derived theme.
     pub fn new(runtime: Arc<dyn Runtime>, loaded: LoadedConfig) -> Self {
         let snapshot = runtime.snapshot();
-        let theme = Theme::from_config(&loaded.config.theme);
+        let theme = Theme::from_config(&loaded.config.theme)
+            .with_depth(crate::ui::theme::ColorDepth::detect());
         let harness_skip_permissions = loaded.config.harness.skip_permissions;
         let status_line_promotion_pending = loaded.config.status_line.is_none();
         App {
