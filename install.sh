@@ -82,7 +82,7 @@ sha256_of() {
 
 # ---- Platform detection ------------------------------------------------------
 # Keys match the release build matrix's Rust target triples (see
-# crates/medulla/src/update/check.rs::platform_key).
+# crates/medulla-core/src/update/check.rs::platform_key).
 
 detect_target() {
     os="$(uname -s)"
