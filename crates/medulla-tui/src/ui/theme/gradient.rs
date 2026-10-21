@@ -51,19 +51,55 @@ impl Gradient {
 }
 
 fn interpolate(a: Color, b: Color, step: usize, steps: usize) -> Color {
-    let (Color::Rgb(ar, ag, ab), Color::Rgb(br, bg, bb)) = (a, b) else {
-        return if step == 0 {
-            a
-        } else if step == steps {
-            b
-        } else {
-            a
-        };
-    };
+    if step == 0 {
+        return a;
+    }
+    if step == steps {
+        return b;
+    }
+    let (ar, ag, ab) = rgb(a);
+    let (br, bg, bb) = rgb(b);
     let channel = |from: u8, to: u8| {
         (i32::from(from) + (step as i32 * (i32::from(to) - i32::from(from))) / steps as i32) as u8
     };
     Color::Rgb(channel(ar, br), channel(ag, bg), channel(ab, bb))
+}
+
+fn rgb(color: Color) -> (u8, u8, u8) {
+    match color {
+        Color::Rgb(r, g, b) => (r, g, b),
+        Color::Black => (0, 0, 0),
+        Color::Red => (205, 0, 0),
+        Color::Green => (0, 205, 0),
+        Color::Yellow => (205, 205, 0),
+        Color::Blue => (0, 0, 238),
+        Color::Magenta => (205, 0, 205),
+        Color::Cyan => (0, 205, 205),
+        Color::Gray => (229, 229, 229),
+        Color::DarkGray => (127, 127, 127),
+        Color::LightRed => (255, 0, 0),
+        Color::LightGreen => (0, 255, 0),
+        Color::LightYellow => (255, 255, 0),
+        Color::LightBlue => (92, 92, 255),
+        Color::LightMagenta => (255, 0, 255),
+        Color::LightCyan => (0, 255, 255),
+        Color::White => (255, 255, 255),
+        Color::Indexed(index @ 0..=15) => rgb(TTY_PALETTE[index as usize]),
+        Color::Indexed(index @ 16..=231) => {
+            const LEVELS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+            let index = index - 16;
+            (
+                LEVELS[(index / 36) as usize],
+                LEVELS[((index / 6) % 6) as usize],
+                LEVELS[(index % 6) as usize],
+            )
+        }
+        Color::Indexed(index) => {
+            let gray = 8 + 10 * (index.saturating_sub(232));
+            (gray, gray, gray)
+        }
+        Color::Reset => (255, 255, 255),
+    }
 }
 
 /// Terminal palette supported for resource colors.
@@ -161,7 +197,24 @@ pub fn truecolor_to_16(color: Color) -> Color {
             let db = i32::from(b) - i32::from(*cb);
             dr * dr + dg * dg + db * db
         })
-        .map(|(index, _)| index as u8)
+        .map(|(index, _)| index)
         .unwrap_or(0);
-    Color::Indexed(nearest)
+    [
+        Color::Black,
+        Color::Red,
+        Color::Green,
+        Color::Yellow,
+        Color::Blue,
+        Color::Magenta,
+        Color::Cyan,
+        Color::Gray,
+        Color::DarkGray,
+        Color::LightRed,
+        Color::LightGreen,
+        Color::LightYellow,
+        Color::LightBlue,
+        Color::LightMagenta,
+        Color::LightCyan,
+        Color::White,
+    ][nearest]
 }
