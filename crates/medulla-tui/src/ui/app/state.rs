@@ -23,6 +23,7 @@ impl App {
     /// Sessions tab with an empty composer and the config-derived theme.
     pub fn new(runtime: Arc<dyn Runtime>, loaded: LoadedConfig) -> Self {
         let snapshot = runtime.snapshot();
+        let resources = super::resources::ResourcesState::from_config(&loaded.config.resources);
         let theme = Theme::from_config(&loaded.config.theme)
             .with_depth(crate::ui::theme::ColorDepth::detect());
         let harness_skip_permissions = loaded.config.harness.skip_permissions;
@@ -32,7 +33,7 @@ impl App {
             loaded,
             snapshot,
             tab_index: 0,
-            resources: Default::default(),
+            resources,
             changes: super::changes::GitChangesState::capture(),
             draft: Draft::new(),
             selected: 0,

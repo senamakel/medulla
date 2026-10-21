@@ -272,6 +272,8 @@ impl App {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
         } else if self.tab() == "Subconscious" {
             "Tab views · signal map · E decisions"
+        } else if self.tab() == "Resources" {
+            "Tab views · 1 CPU · 2 Mem · 3 Net · 4 Agents · p/P preset · +/- interval"
         } else if workflows {
             "Tab views · ⏎ open · Esc back · ←→ follow edges · ↑↓ steps · v layout · i inspect · c copilot · x run · d dry-run · r refresh"
         } else if self.tab() == "Sessions" && self.pane_view == PaneView::Diff {

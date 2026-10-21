@@ -84,7 +84,13 @@ pub const TABS: [&str; 6] = [
 /// the Sessions rail with its `d` diff pane, the live Subconscious signal
 /// field, Feedback, and Settings — renders without the workflow engine.
 #[cfg(not(feature = "workflows"))]
-pub const TABS: [&str; 5] = ["Sessions", "Subconscious", "Resources", "Feedback", "Settings"];
+pub const TABS: [&str; 5] = [
+    "Sessions",
+    "Subconscious",
+    "Resources",
+    "Feedback",
+    "Settings",
+];
 
 /// The TokenMaxxxing tab's sidebar pages.
 pub(in crate::ui::app) const TOKENMAXXING_SUBPAGES: [&str; 3] =

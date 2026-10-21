@@ -358,7 +358,7 @@ impl App {
             return;
         }
         match self.tab() {
-            "Resources" => {},
+            "Resources" => {}
             // Over the rail, the wheel walks the cursor over the lanes and
             // their tasks; anywhere else on the tab it scrolls the transcript.
             "Sessions" => {
@@ -477,9 +477,17 @@ impl App {
         if tab == "Resources" {
             let rects = self.resources.rects;
             for (rect, key) in [
-                (rects.cpu, '1'), (rects.mem, '2'), (rects.net, '3'), (rects.agents, '4'),
+                (rects.cpu, '1'),
+                (rects.mem, '2'),
+                (rects.net, '3'),
+                (rects.agents, '4'),
             ] {
-                if rect.width > 0 && rect.height > 0 && rect.y == y && rect.x <= x && x < rect.right() {
+                if rect.width > 0
+                    && rect.height > 0
+                    && rect.y == y
+                    && rect.x <= x
+                    && x < rect.right()
+                {
                     self.resources.key(crossterm::event::KeyCode::Char(key));
                     return None;
                 }
