@@ -22,6 +22,22 @@ pub trait ResourceSource: Send + 'static {
     fn sample(&mut self) -> ResourceSnapshot;
 }
 
+/// Change the sampler cadence only when its value differs.
+///
+/// `watch::Sender::send_replace` wakes receivers even for identical values;
+/// repeatedly doing that from the UI loop would keep restarting the timer and
+/// could starve samples while input or runtime events arrive continuously.
+pub fn update_interval(sender: &watch::Sender<Option<Duration>>, period: Option<Duration>) -> bool {
+    sender.send_if_modified(|current| {
+        if *current == period {
+            false
+        } else {
+            *current = period;
+            true
+        }
+    })
+}
+
 /// Spawn a sampler task. Sampling runs on Tokio's blocking pool so a slow
 /// process walk cannot hold up the UI/event-loop worker.
 pub fn spawn_sampler<S, F>(

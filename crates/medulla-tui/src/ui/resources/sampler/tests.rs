@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use tokio::sync::{mpsc, watch};
 
-use super::{spawn_sampler, History, ResourceSnapshot, ResourceSource};
+use super::{spawn_sampler, update_interval, History, ResourceSnapshot, ResourceSource};
 
 #[derive(Clone)]
 struct SequenceSource(Arc<AtomicUsize>);
@@ -91,6 +91,37 @@ async fn changed_interval_controls_the_next_sample_tick() {
     }
     task.abort();
     panic!("updated resource interval did not produce a sample");
+}
+
+#[tokio::test(start_paused = true)]
+async fn repeated_unchanged_interval_updates_do_not_starve_samples() {
+    let period = Duration::from_millis(20);
+    let (interval_tx, interval_rx) = watch::channel(Some(period));
+    let (output_tx, mut output_rx) = mpsc::unbounded_channel();
+    let task = spawn_sampler(
+        SequenceSource(Arc::new(AtomicUsize::new(0))),
+        interval_rx,
+        2,
+        move |snapshot| output_tx.send(snapshot).is_ok(),
+    );
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
+    for _ in 0..5 {
+        assert!(!update_interval(&interval_tx, Some(period)));
+        tokio::task::yield_now().await;
+    }
+    tokio::time::advance(period).await;
+    for _ in 0..100 {
+        tokio::task::yield_now().await;
+        if output_rx.try_recv().is_ok() {
+            task.abort();
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    task.abort();
+    panic!("unchanged interval updates starved the scheduled sample");
 }
 
 #[test]

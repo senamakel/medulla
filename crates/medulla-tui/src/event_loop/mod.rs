@@ -113,7 +113,10 @@ pub(crate) async fn run(
     medulla::analytics::record_screen_view(analytics_screen);
 
     loop {
-        resource_interval_tx.send_replace(resource_sampling_period(&app));
+        medulla_tui::ui::resources::sampler::update_interval(
+            &resource_interval_tx,
+            resource_sampling_period(&app),
+        );
         terminal.draw(|f| app.draw(f))?;
         if app.should_quit {
             break;
