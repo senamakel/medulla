@@ -14,12 +14,8 @@ fn resources_interval_defaults_and_clamps_during_deserialization() {
     assert_eq!(defaults.temp_scale, "celsius");
     assert_eq!(defaults.freq_mode, "auto");
     assert!(defaults.show_battery);
-    assert!(
-        defaults.mem_graphs
-            && defaults.show_disks
-            && defaults.show_swap
-            && defaults.io_graph_speeds
-    );
+    assert!(defaults.mem_graphs && defaults.show_disks && defaults.show_swap);
+    assert!(defaults.io_graph_speeds.is_empty());
     assert!(
         !defaults.swap_disk
             && !defaults.only_physical
@@ -35,7 +31,7 @@ fn resources_interval_defaults_and_clamps_during_deserialization() {
 
 #[test]
 fn memory_and_disk_options_deserialize_in_camel_case_and_old_configs_default() {
-    let config: ResourcesConfig = serde_json::from_str(r#"{"memGraphs":false,"showDisks":false,"showSwap":false,"swapDisk":true,"onlyPhysical":true,"useFstab":true,"disksFilter":"exclude=/boot","ioMode":true,"ioGraphCombined":true,"ioGraphSpeeds":false}"#).unwrap();
+    let config: ResourcesConfig = serde_json::from_str(r#"{"memGraphs":false,"showDisks":false,"showSwap":false,"swapDisk":true,"onlyPhysical":true,"useFstab":true,"disksFilter":"exclude=/boot","ioMode":true,"ioGraphCombined":true,"ioGraphSpeeds":"/:20 /boot:1"}"#).unwrap();
     assert!(!config.mem_graphs && !config.show_disks && !config.show_swap);
     assert!(
         config.swap_disk
@@ -45,7 +41,7 @@ fn memory_and_disk_options_deserialize_in_camel_case_and_old_configs_default() {
             && config.io_graph_combined
     );
     assert_eq!(config.disks_filter, "exclude=/boot");
-    assert!(!config.io_graph_speeds);
+    assert_eq!(config.io_graph_speeds, "/:20 /boot:1");
     let old: ResourcesConfig = serde_json::from_str("{}").unwrap();
     assert!(old.show_disks && old.show_swap);
 }
