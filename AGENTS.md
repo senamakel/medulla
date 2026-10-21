@@ -36,6 +36,13 @@ cargo test --locked
 cargo build --locked --all-targets
 ```
 
+Keep product primitives as leaves: crates under `crates/` must not depend on
+`medulla` or `medulla-tui`, and only `medulla-tui` may have normal `ratatui` or
+`crossterm` dependencies. Run `scripts/check-crate-layering.sh` to validate
+these boundaries; justified exceptions belong in `scripts/crate-layering.allow`
+and must name both the crate and dependency. The fixture regression check is
+`scripts/tests/layering/run.sh`.
+
 Use `make ci` to run the full local gate. See [DEVELOPING.md](DEVELOPING.md)
 and [Contributing](gitbooks/developers/contributing.md) for the development
 workflow.
