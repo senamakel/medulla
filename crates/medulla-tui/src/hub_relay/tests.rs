@@ -156,9 +156,8 @@ fn the_hub_never_writes_to_the_terminal_the_tui_owns() {
         let full = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
             .join(path);
-        let Ok(source) = std::fs::read_to_string(&full) else {
-            continue; // not laid out as expected; nothing to assert
-        };
+        let source = std::fs::read_to_string(&full)
+            .unwrap_or_else(|err| panic!("{} is not where this test expects: {err}", full.display()));
         let offenders: Vec<&str> = source
             .lines()
             .filter(|line| line.contains("eprintln!") || line.contains("println!"))
