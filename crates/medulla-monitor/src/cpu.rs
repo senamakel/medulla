@@ -430,7 +430,7 @@ fn read_battery(root: &Path) -> Option<f32> {
     None
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
     #[test]
@@ -447,7 +447,6 @@ mod tests {
         assert!((reading.guest - 5.555_556).abs() < 0.001);
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn missing_cpu_frequency_keeps_logical_cpu_slot() {
         let temp = tempfile::tempdir().unwrap();
@@ -458,7 +457,6 @@ mod tests {
         assert_eq!(read_frequencies(temp.path()), [None, Some(1200)]);
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn repeated_core_labels_map_to_distinct_packages() {
         let temp = tempfile::tempdir().unwrap();
