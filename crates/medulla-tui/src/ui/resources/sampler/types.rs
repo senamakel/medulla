@@ -89,6 +89,30 @@ impl ResourceSnapshot {
         }
     }
 
+    /// Return this snapshot with a process table and its render-time indexes.
+    ///
+    /// Resource sources can use this builder to publish process readings
+    /// without depending on the system sampler's implementation details.
+    pub fn with_processes(mut self, processes: Vec<ProcessSnapshot>) -> Self {
+        let process_index = std::sync::Arc::new(
+            processes
+                .iter()
+                .enumerate()
+                .map(|(index, process)| (process.pid, index))
+                .collect(),
+        );
+        let mut children = std::collections::HashMap::<u32, Vec<u32>>::new();
+        for process in &processes {
+            if let Some(parent) = process.ppid {
+                children.entry(parent).or_default().push(process.pid);
+            }
+        }
+        self.processes = processes;
+        self.process_index = process_index;
+        self.children_index = std::sync::Arc::new(children);
+        self
+    }
+
     /// Aggregate the cached process table for a session, without touching the
     /// host from the render path.
     pub fn session_snapshot(&self, root_pid: u32) -> Option<super::super::SessionSnapshot> {
