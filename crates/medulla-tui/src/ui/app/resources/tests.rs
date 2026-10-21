@@ -168,6 +168,65 @@ fn clicking_a_panel_title_toggles_that_box() {
         .unwrap();
     app.resources.rects = calc_sizes(Rect::new(0, 5, 170, 42), all(), &LayoutOptions::default());
     let cpu = app.resources.rects.cpu;
-    app.handle_click(cpu.x + 1, cpu.y);
+    app.resources.hits.cpu_toggle = Rect::new(cpu.x + 2, cpu.y, 3, 1);
+    app.handle_click(cpu.x + 2, cpu.y);
     assert!(!app.resources.shown.cpu);
+}
+
+#[test]
+fn cpu_title_controls_have_distinct_click_actions() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.tab_index = crate::ui::app::TABS
+        .iter()
+        .position(|tab| *tab == "Resources")
+        .unwrap();
+    app.resources.rects = calc_sizes(Rect::new(20, 5, 170, 42), all(), &LayoutOptions::default());
+    let cpu = app.resources.rects.cpu;
+    // The menu hit target is separate from the CPU visibility button.
+    app.resources.hits.menu = Rect::new(cpu.x + 24, cpu.y, 4, 1);
+    app.handle_click(cpu.x + 24, cpu.y);
+    assert!(app.resources.menu_open);
+    assert!(app.resources.shown.cpu);
+}
+
+#[test]
+fn resources_keyboard_changes_persist_and_reload() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("config.toml");
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults(path.display().to_string()),
+    );
+    app.set_config_path(path.clone());
+    app.tab_index = crate::ui::app::TABS
+        .iter()
+        .position(|tab| *tab == "Resources")
+        .unwrap();
+    app.on_key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE));
+    app.on_key(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE));
+    app.on_key(KeyEvent::new(KeyCode::Char('P'), KeyModifiers::NONE));
+
+    let path_text = path.to_str().unwrap().to_owned();
+    let loaded =
+        medulla::config::load_config(Some(&path_text), &Default::default(), temp.path()).unwrap();
+    assert_eq!(loaded.config.resources.update_ms, 2_100);
+    assert_eq!(loaded.config.resources.preset, 1);
+    assert_eq!(loaded.config.resources.shown_boxes, "mem,net,agents");
+}
+
+#[test]
+fn explicit_layout_options_override_preset_zero() {
+    let config = medulla::config::ResourcesConfig {
+        cpu_bottom: true,
+        mem_below_net: true,
+        agents_left: true,
+        ..Default::default()
+    };
+    let state = ResourcesState::from_config(&config);
+    assert!(state.opts.cpu_bottom);
+    assert!(state.opts.mem_below_net);
+    assert!(state.opts.agents_left);
 }
