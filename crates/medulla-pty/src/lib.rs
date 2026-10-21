@@ -7,6 +7,7 @@
 
 pub mod cell_text;
 pub mod convert;
+pub mod lifecycle;
 pub mod screen;
 pub mod sync;
 #[cfg(test)]
@@ -14,6 +15,7 @@ mod lifecycle_tests;
 
 pub use cell_text::CellText;
 pub use convert::{ScreenCell, ScreenSnapshot};
+pub use lifecycle::{SessionClose, SessionLifecycle};
 
 #[cfg(test)]
 #[path = "conversion_tests.rs"]
