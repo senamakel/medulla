@@ -21,6 +21,7 @@ pub mod worker;
 pub use attention::{AttentionKind, HarnessAttention};
 pub use cell_text::CellText;
 pub use clipboard::ClipboardSink;
+pub use medulla_types::Checkout;
 pub use convert::{ScreenCell, ScreenSnapshot};
 pub use lifecycle::{LifecycleSession, OpaqueOrigin, SessionClose, SessionLifecycle};
 

@@ -169,7 +169,7 @@ impl PtyManager {
     }
 
     /// Whether the named session's child environment selects a GitHub repository.
-    pub(in crate::worker) fn gh_repo_is_set(&self, id: &str) -> Option<bool> {
+    pub fn gh_repo_is_set(&self, id: &str) -> Option<bool> {
         self.handle(id).map(|session| session.gh_repo_is_set())
     }
 
@@ -205,7 +205,7 @@ impl PtyManager {
     }
 
     /// Record a harness thread name learned from provider-owned session state.
-    pub(in crate::worker) fn record_thread_name(&self, id: &str, thread_name: String) {
+    pub fn record_thread_name(&self, id: &str, thread_name: String) {
         if let Some(session) = self.handle(id) {
             session.record_thread_name(thread_name);
         }

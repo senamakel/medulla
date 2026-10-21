@@ -7,7 +7,7 @@ use medulla::harness_hooks::HookEventLog;
 use medulla_pty::{LifecycleSession, OpaqueOrigin, SessionLifecycle};
 use medulla_pty::worker::pty::manager::PtyManager as PortablePtyManager;
 use medulla_pty::worker::pty::types::LaunchSpec as PortableLaunchSpec;
-use medulla_pty::{AttentionKind, HarnessAttention};
+use medulla_pty::HarnessAttention;
 
 use super::types::LaunchSpec;
 use super::{attention, launch};
@@ -127,7 +127,7 @@ impl SessionLifecycle for TuiSessionLifecycle {
         }
     }
 
-    fn checkout(&self, session: &LifecycleSession) -> medulla_types::Checkout {
+    fn checkout(&self, session: &LifecycleSession) -> medulla_pty::Checkout {
         super::checkout::inspect::resolve(&session.cwd)
     }
 
