@@ -9,6 +9,35 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
+async fn wait_for_pid(path: &std::path::Path) -> u32 {
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            if let Ok(contents) = tokio::fs::read_to_string(path).await {
+                if let Ok(pid) = contents.trim().parse::<u32>() {
+                    return pid;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("PID file {} was not populated", path.display()))
+}
+
+#[tokio::test]
+async fn pid_reader_waits_until_an_existing_empty_file_is_populated() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("child.pid");
+    std::fs::write(&path, "").unwrap();
+    let writer_path = path.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        std::fs::write(writer_path, "12345\n").unwrap();
+    });
+
+    assert_eq!(wait_for_pid(&path).await, 12_345);
+}
+
 #[derive(Clone)]
 struct Provider;
 impl Respond for Provider {
@@ -22,7 +51,7 @@ impl Respond for Provider {
                 .iter()
                 .any(|message| message["role"] == "tool");
         let command = if history.contains("slow-worker") {
-            "sleep 60 & echo $! > child.pid; wait"
+            "sleep 60 & child=$!; printf '%s\\n' \"$child\" > child.pid.tmp && mv child.pid.tmp child.pid; wait"
         } else {
             "test -z \"$MEDULLA_TOKEN$OPENROUTER_API_KEY$FIXTURE_API_KEY\" || exit 9; echo credentials-absent; pwd; printf '\\nowner=%s\\n' \"$TURN_OWNER\""
         };
@@ -234,12 +263,7 @@ fn native_agents_scenario() {
             slow.timeout_ms = if timeout { 5_000 } else { 10_000 };
             let abort = slow.abort.clone();
             let pending = tokio::spawn(run_local_task(slow));
-            tokio::time::timeout(std::time::Duration::from_secs(10), async {
-                while !slow_dir.path().join("child.pid").exists() {
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                }
-            }).await.unwrap();
-            let pid: u32 = std::fs::read_to_string(slow_dir.path().join("child.pid")).unwrap().trim().parse().unwrap();
+            let pid = wait_for_pid(&slow_dir.path().join("child.pid")).await;
             if !timeout { abort.abort(); }
             let error = tokio::time::timeout(std::time::Duration::from_secs(15), pending).await.unwrap().unwrap().unwrap_err();
             assert!(if timeout { error.contains("idle") } else { error.contains("aborted") }, "{error}");
@@ -256,13 +280,10 @@ fn native_agents_scenario() {
             let dir = tempfile::tempdir().unwrap();
             let mut stopped = options(host.clone(), home.path(), dir.path(), &mock, "stop-hook");
             stopped.hooks.hooks = vec![serde_json::from_value(json!({"event":"Stop","type":"command",
-                "command":"sleep 60 & echo $! > stop.pid; wait","harnesses":["openhuman"]})).unwrap()];
+                "command":"sleep 60 & child=$!; printf '%s\\n' \"$child\" > stop.pid.tmp && mv stop.pid.tmp stop.pid; wait","harnesses":["openhuman"]})).unwrap()];
             let abort = stopped.abort.clone();
             let pending = tokio::spawn(run_local_task(stopped));
-            tokio::time::timeout(std::time::Duration::from_secs(10), async {
-                while !dir.path().join("stop.pid").exists() { tokio::time::sleep(std::time::Duration::from_millis(10)).await; }
-            }).await.unwrap();
-            let pid: u32 = std::fs::read_to_string(dir.path().join("stop.pid")).unwrap().trim().parse().unwrap();
+            let pid = wait_for_pid(&dir.path().join("stop.pid")).await;
             abort.abort();
             assert!(tokio::time::timeout(std::time::Duration::from_secs(5), pending).await.unwrap().unwrap().unwrap_err().contains("aborted during Stop hook"));
             if let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) {

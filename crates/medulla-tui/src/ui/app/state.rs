@@ -23,6 +23,7 @@ impl App {
     /// Sessions tab with an empty composer and the config-derived theme.
     pub fn new(runtime: Arc<dyn Runtime>, loaded: LoadedConfig) -> Self {
         let snapshot = runtime.snapshot();
+        let resources = super::resources::ResourcesState::from_config(&loaded.config.resources);
         let theme = Theme::from_config(&loaded.config.theme)
             .with_depth(crate::ui::theme::ColorDepth::detect());
         let harness_skip_permissions = loaded.config.harness.skip_permissions;
@@ -32,6 +33,7 @@ impl App {
             loaded,
             snapshot,
             tab_index: 0,
+            resources,
             changes: super::changes::GitChangesState::capture(),
             draft: Draft::new(),
             selected: 0,
@@ -600,6 +602,7 @@ impl App {
         // there, and nothing is lost by not starting in it.
         match self.tab() {
             "Feedback" => Some(Cmd::LoadFeedback(self.feedback.query.clone())),
+            "Resources" => None,
             // The diff pane is the Changes surface now, so entering the tab
             // re-loads its git data the way the removed Changes tab did on
             // entry: a repo that changed while the operator was on another tab

@@ -2586,6 +2586,7 @@ version = "0.13.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "chrono",
  "crossterm",
  "dirs 6.0.0",
  "fs2",
