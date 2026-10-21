@@ -11,6 +11,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
+use medulla_pty::LifecycleSession;
 
 use super::super::handle::SessionHandle;
 use super::PtyManager;
@@ -53,10 +54,13 @@ impl PtyManager {
             if !handle.is_running() {
                 return;
             }
-            let label = match handle.session_id() {
-                Some(session_id) => medulla::session_history::codex_thread_label(&env, &session_id),
-                None => medulla::session_history::codex_thread_label_for_cwd(&env, handle.cwd()),
-            };
+            let label = inner.lifecycle.thread_label(&LifecycleSession {
+                id: handle.id().to_owned(),
+                session_id: handle.session_id(),
+                cwd: handle.cwd().to_owned(),
+                env: env.clone(),
+                ..LifecycleSession::default()
+            });
             if let Some(label) = label {
                 handle.record_thread_name(label);
             }

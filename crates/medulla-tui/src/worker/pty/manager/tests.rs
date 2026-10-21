@@ -302,7 +302,7 @@ fn dropping_an_armed_launch_guard_kills_its_child() {
         killed: killed.clone(),
         reaped: reaped.clone(),
     });
-    let mut guard = LaunchGuard::new(Some("test-session".to_string()));
+    let mut guard = LaunchGuard::new(test_close("test-session"));
     guard.set_child(child);
 
     drop(guard);
@@ -332,7 +332,7 @@ fn disarming_a_launch_guard_hands_back_the_child_without_killing_it() {
         killed: killed.clone(),
         reaped: reaped.clone(),
     });
-    let mut guard = LaunchGuard::new(None);
+    let mut guard = LaunchGuard::new(test_close(""));
     guard.set_child(child);
 
     let handed_back = guard.disarm();
@@ -355,5 +355,5 @@ fn disarming_a_launch_guard_hands_back_the_child_without_killing_it() {
 /// `spawn_command` even ran) must not panic on drop.
 #[test]
 fn dropping_a_childless_launch_guard_is_harmless() {
-    drop(LaunchGuard::new(Some("test-session-no-child".to_string())));
+    drop(LaunchGuard::new(test_close("test-session-no-child")));
 }

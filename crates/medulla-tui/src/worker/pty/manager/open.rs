@@ -8,6 +8,7 @@ use std::sync::{Arc, Weak};
 
 use medulla::protocol::HarnessProvider;
 use portable_pty::{native_pty_system, Child, CommandBuilder, PtyPair, PtySize};
+use medulla_pty::{LifecycleSession, SessionClose};
 
 use super::super::handle::{release_queued, SessionHandle, SessionMeta};
 use super::super::launch::{interactive_args, mint_session_id};
@@ -31,9 +32,8 @@ use super::{write, PtyManager, BUF_LEN, OPENPTY_ATTEMPTS, OPENPTY_RETRY_CAP, OPE
 /// directly with a recording stand-in child, which a real failure inside
 /// `open` is not reliable enough to provoke in a test.
 pub(super) struct LaunchGuard {
-    /// `None` when this launch minted no grant — a provider with no
-    /// registration flag, or a host with no control plane bound.
-    grant: Option<String>,
+    /// Application cleanup callback, shared with the eventual session handle.
+    close: Arc<SessionClose>,
     /// `Some` from the moment `spawn_command` returns until [`Self::disarm`]
     /// hands it to its permanent owner.
     child: Option<Box<dyn Child + Send + Sync>>,
@@ -42,9 +42,9 @@ pub(super) struct LaunchGuard {
 }
 
 impl LaunchGuard {
-    pub(super) fn new(grant: Option<String>) -> Self {
+    pub(super) fn new(close: Arc<SessionClose>) -> Self {
         Self {
-            grant,
+            close,
             child: None,
             armed: true,
         }
@@ -94,10 +94,7 @@ impl Drop for LaunchGuard {
             let _ = child.kill();
             let _ = child.wait();
         }
-        #[cfg(feature = "workflows")]
-        if let Some(session) = &self.grant {
-            medulla::mcp::revoke_session(session);
-        }
+        self.close.notify();
     }
 }
 
@@ -121,7 +118,17 @@ impl PtyManager {
         // `open_pty()` failing — file descriptors exhausted, most likely —
         // must not return with that grant live and nothing left to revoke it.
         // See the type's own docs for what it does from here on.
-        let mut guard = LaunchGuard::new(spec.mcp_grant_session.clone());
+        let close = Arc::new(SessionClose::new(
+            self.inner.lifecycle.clone(),
+            LifecycleSession {
+                session_id: spec.session_id.clone(),
+                cwd: spec.cwd.clone(),
+                env: spec.env.clone(),
+                grant_session: spec.mcp_grant_session.clone(),
+                ..LifecycleSession::default()
+            },
+        ));
+        let mut guard = LaunchGuard::new(Arc::clone(&close));
 
         // Before the pty, because it shells out to `git`: one more reason this
         // whole function belongs on a blocking thread. The checkout is read
@@ -207,6 +214,7 @@ impl PtyManager {
                 // `Orchestrator`; the operator's picker stamps `User`.
                 origin: spec.origin,
                 mcp_grant_session: spec.mcp_grant_session,
+                close,
             },
             spec.label,
             spec.name,

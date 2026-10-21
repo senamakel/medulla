@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use medulla::protocol::HarnessProvider;
 use portable_pty::{Child, MasterPty};
+use medulla_pty::SessionClose;
 
 use super::super::attention::HarnessAttention;
 use super::super::types::SessionOrigin;
@@ -204,6 +205,8 @@ pub(crate) struct SessionMeta {
     /// workflow run executing — and again when the operator forgets the row, to
     /// drop the runs that were drawn beneath it.
     pub(crate) mcp_grant_session: Option<String>,
+    /// Application cleanup callback, guarded so races can only close once.
+    pub(crate) close: Arc<SessionClose>,
 }
 
 /// One live PTY-backed harness session, and everything the manager knows about
