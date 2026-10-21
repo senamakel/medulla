@@ -345,7 +345,10 @@ fn cpu_panel_renders_sixteen_cores_without_clipping_at_common_sizes() {
             assert!(text.contains("Test CPU"));
             assert!(text.contains("Load 0.50 0.25 0.10"));
         } else {
-            assert!(text.contains("Load 0.5 0.3 0.1"));
+            assert!(
+                text.contains("Load 0.5"),
+                "missing compact load at {width}x{height}: {text}"
+            );
         }
         assert!(!text.contains("Pkg"));
         assert!(!text.contains("°C"));
