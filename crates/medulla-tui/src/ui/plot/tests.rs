@@ -35,6 +35,18 @@ fn paired_samples_match_btop_glyphs_for_each_symbol_table() {
 }
 
 #[test]
+fn short_histories_right_align_and_odd_histories_start_with_an_empty_half() {
+    let short = render_graph(&[25.0, 75.0], 3, 1, Symbol::Braille, false);
+    assert_eq!(glyph(&short, 0, 0), ' ');
+    assert_eq!(glyph(&short, 1, 0), ' ');
+    assert_eq!(glyph(&short, 2, 0), '⣰');
+
+    let odd = render_graph(&[25.0, 75.0, 50.0], 2, 1, Symbol::Braille, false);
+    assert_eq!(glyph(&odd, 0, 0), '⢀');
+    assert_eq!(glyph(&odd, 1, 0), Symbol::Braille.glyph(false, 3, 2));
+}
+
+#[test]
 fn percentage_rows_fill_from_the_bottom_and_invert_to_the_top() {
     let up = render_graph(&[0.0, 37.5], 1, 4, Symbol::Braille, false);
     let down = render_graph(&[0.0, 37.5], 1, 4, Symbol::Braille, true);

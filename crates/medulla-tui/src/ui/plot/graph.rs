@@ -64,14 +64,19 @@ impl Widget for Graph<'_> {
         let height = area.height as usize;
         let first = self.values.len().saturating_sub(width.saturating_mul(2));
         let values = &self.values[first..];
+        let odd = values.len() % 2 == 1;
+        let cell_count = values.len().div_ceil(2);
+        let first_column = width - cell_count;
         let one_row_bias = if height == 1 { 0.3 } else { 0.1 };
 
-        for (column, pair) in values.chunks(2).enumerate() {
-            if column >= width {
-                break;
-            }
-            let previous = pair[0];
-            let current = pair.get(1).copied().unwrap_or(0.0);
+        for cell_index in 0..cell_count {
+            let (previous, current) = if odd && cell_index == 0 {
+                (0.0, values[0])
+            } else {
+                let value_index = cell_index * 2 - usize::from(odd);
+                (values[value_index], values[value_index + 1])
+            };
+            let column = first_column + cell_index;
             for row in 0..height {
                 let high = if height > 1 {
                     (100.0 * (height - row) as f32 / height as f32).round()
@@ -84,7 +89,8 @@ impl Widget for Graph<'_> {
                     0.0
                 };
                 let bottom = row == height - 1;
-                let left_no_zero = self.no_zero && bottom && !(column == 0 && first == 0);
+                let left_no_zero =
+                    self.no_zero && bottom && !(odd && cell_index == 0 && first == 0);
                 let left_level = level(previous, low, high, one_row_bias, left_no_zero);
                 let right_level = level(current, low, high, one_row_bias, self.no_zero && bottom);
                 let glyph = self.symbol.glyph(self.invert, left_level, right_level);

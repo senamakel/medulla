@@ -13,7 +13,7 @@ pub use symbols::Symbol;
 
 use ratatui::style::Color;
 
-/// A linear color gradient, sampled from 0 to 100 inclusive.
+/// A color gradient sampled from 0 to 100 inclusive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Gradient {
     stops: Vec<Color>,
@@ -22,8 +22,9 @@ pub struct Gradient {
 impl Gradient {
     /// Build a gradient from at least one color stop.
     ///
-    /// Stops are spread evenly from 0 through 100. An empty list behaves as a
-    /// solid white gradient so rendering remains well-defined.
+    /// Stops are spread evenly from 0 through 100. RGB stops are interpolated
+    /// channel by channel; other Ratatui colors switch at the midpoint between
+    /// stops. An empty list behaves as a solid white gradient.
     pub fn new(stops: impl Into<Vec<Color>>) -> Self {
         Self {
             stops: stops.into(),
