@@ -49,5 +49,6 @@ pub use attention::{lifecycle_cue, row_cue, AttentionKind, HarnessAttention, ATT
 pub use handle::SessionHandle;
 pub use inject::inject_prompt;
 pub use manager::PtyManager;
+pub use medulla_pty::cell_text;
 pub use medulla_pty::{CellText, ScreenCell, ScreenSnapshot};
 pub use types::{CloseAttempt, LaunchSpec, PtyState, SessionControl, SessionOrigin, SessionRow};
