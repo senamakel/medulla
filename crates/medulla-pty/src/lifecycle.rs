@@ -49,6 +49,9 @@ pub trait SessionLifecycle: Send + Sync + 'static {
     /// Remove application-owned records when a session is forgotten.
     fn on_forget(&self, _session: &str) {}
 
+    /// Whether the current screen shows a harness still doing visible work.
+    fn is_working(&self, _screen: &str) -> bool { false }
+
     /// Inspect a session's current checkout. The TUI owns the Git inspection
     /// policy; the manager only stores the resulting value.
     fn checkout(&self, _session: &LifecycleSession) -> medulla_types::Checkout {

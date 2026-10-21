@@ -211,6 +211,7 @@ impl PtyManager {
                 },
                 mcp_grant_session: spec.mcp_grant_session,
                 close,
+                lifecycle: Arc::clone(&self.inner.lifecycle),
             },
             spec.label,
             spec.name,

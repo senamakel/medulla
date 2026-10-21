@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicU8, AtomicUsize}
 use std::sync::{Arc, Mutex};
 
 use medulla_types::HarnessProvider;
-use medulla_pty::SessionClose;
+use medulla_pty::{SessionClose, SessionLifecycle};
 use portable_pty::{Child, MasterPty};
 
 use crate::attention::HarnessAttention;
@@ -207,6 +207,8 @@ pub(crate) struct SessionMeta {
     pub(crate) mcp_grant_session: Option<String>,
     /// Application cleanup callback, guarded so races can only close once.
     pub(crate) close: Arc<SessionClose>,
+    /// UI-owned terminal classification callback.
+    pub(crate) lifecycle: Arc<dyn SessionLifecycle>,
 }
 
 /// One live PTY-backed harness session, and everything the manager knows about
