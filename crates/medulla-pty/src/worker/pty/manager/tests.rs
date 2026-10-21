@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use medulla::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 use medulla_pty::{LifecycleSession, SessionClose, SessionLifecycle};
 use portable_pty::{Child, ChildKiller, ExitStatus};
 

@@ -2,7 +2,7 @@
 
 use std::sync::atomic::Ordering;
 
-use medulla::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 use super::super::types::{PtyState, SessionRow};
 use super::types::{NO_EXIT_CODE, STATE_FAILED, STATE_RUNNING};
@@ -135,7 +135,7 @@ impl SessionHandle {
     /// silent while nothing changes: a redraw per session per tick, for four
     /// sessions that are all still on the branch they started on, is a cost
     /// paid for no new information.
-    pub(in super::super) fn set_checkout(&self, checkout: medulla::ui::checkout::Checkout) -> bool {
+    pub(in super::super) fn set_checkout(&self, checkout: medulla_types::Checkout) -> bool {
         let mut cold = lock(&self.cold);
         if cold.checkout == checkout {
             return false;

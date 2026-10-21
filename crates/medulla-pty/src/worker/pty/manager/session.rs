@@ -5,7 +5,7 @@
 //! and counting live sessions — read under the lock, since they touch nothing
 //! but atomics and run every frame.
 
-use medulla::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 use super::super::types::{CloseAttempt, SessionControl, SessionRow};
 use super::{read, write, PtyManager};

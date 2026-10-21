@@ -2,7 +2,7 @@
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicU8, AtomicUsize};
 use std::sync::{Arc, Mutex};
 
-use medulla::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 use medulla_pty::SessionClose;
 use portable_pty::{Child, MasterPty};
 
@@ -131,7 +131,7 @@ pub(crate) struct ColdFields {
     /// `PtyManager::spawn_checkout_poller`; the checkout *identity* that pins
     /// the diff baseline is a different, deliberately immutable fact — see
     /// [`SessionMeta::launch_checkout_identity`].
-    pub(super) checkout: medulla::ui::checkout::Checkout,
+    pub(super) checkout: medulla_types::Checkout,
     /// Why the session failed, when it did.
     pub(super) last_error: Option<String>,
 }
