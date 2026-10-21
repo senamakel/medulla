@@ -297,6 +297,7 @@ fn cpu_title_controls_have_distinct_click_actions() {
 #[test]
 fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
     let mut cpu = medulla_monitor::CpuSnapshot {
+        model: Some("Test CPU".to_owned()),
         cores: (0..16)
             .map(|index| medulla_monitor::CpuReading {
                 total: index as f32,
@@ -325,6 +326,7 @@ fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
                 &snapshot,
                 &medulla::config::ResourcesConfig::default(),
                 crate::ui::theme::Theme::default().resources.cpu,
+                crate::ui::theme::Theme::default().resources.temp,
             )
         })
         .unwrap();
@@ -342,6 +344,7 @@ fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
         );
     }
     assert!(text.contains("2.4GHz"));
+    assert!(text.contains("Test CPU"));
     assert!(text.contains("Load 0.50 0.25 0.10"));
     assert!(!text.contains("Pkg"));
     assert!(!text.contains("°C"));

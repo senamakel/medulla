@@ -267,7 +267,12 @@ fn draw_cpu_panel(
     }
     let mut lines = Vec::new();
     let mut details = Vec::new();
-    if let Some(model) = snapshot.cpu.model.as_deref().filter(|model| !model.is_empty()) {
+    if let Some(model) = snapshot
+        .cpu
+        .model
+        .as_deref()
+        .filter(|model| !model.is_empty())
+    {
         details.push(model.to_owned());
     }
     if !snapshot.cpu.frequencies_mhz.is_empty() {
@@ -387,7 +392,11 @@ fn draw_cpu_panel(
                                 .iter()
                                 .find(|(index, _, _)| index == core_index)
                                 .map(|(_, temp, crit)| {
-                                    if *crit > 0.0 { temp * 100.0 / crit } else { temp }
+                                    if *crit > 0.0 {
+                                        temp * 100.0 / crit
+                                    } else {
+                                        temp
+                                    }
                                 })
                         })
                         .collect();
