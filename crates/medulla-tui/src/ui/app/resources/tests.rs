@@ -341,7 +341,10 @@ fn cpu_panel_renders_sixteen_core_rows_and_hides_missing_sensor_columns() {
         .map(|cell| cell.symbol())
         .collect::<String>();
     for core in 0..16 {
-        assert!(text.contains(&format!("C{core}")), "missing core row {core}");
+        assert!(
+            text.contains(&format!("C{core}")),
+            "missing core row {core}"
+        );
     }
     assert!(text.contains("2400MHz"));
     assert!(text.contains("Load 0.50 0.25 0.10"));

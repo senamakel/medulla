@@ -2587,6 +2587,7 @@ dependencies = [
  "serde",
  "sysinfo 0.37.2",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -2609,7 +2610,6 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
- "sysinfo 0.37.2",
  "tempfile",
  "tokio",
  "toml 0.8.23",
