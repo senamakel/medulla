@@ -67,7 +67,6 @@ use medulla_types::HarnessProvider;
 pub mod builtin;
 mod claude;
 mod codex;
-mod grant;
 mod native;
 mod report;
 mod types;

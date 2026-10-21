@@ -382,7 +382,7 @@ impl HooksConfig {
 /// [`Default`] is *no* attribution and *no* hooks, which is deliberate: a
 /// default-constructed policy is the absence of a decision, and the on-by-default
 /// value of `[attribution] commit` belongs to the config, not to this type. Every
-/// door builds one with [`LaunchPolicy::from_config`].
+/// core resolves one from configuration before passing it to a spawn door.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LaunchPolicy {
     /// Whether commits carry the `Co-authored-by: Medulla` trailer — the
@@ -393,31 +393,6 @@ pub struct LaunchPolicy {
 }
 
 impl LaunchPolicy {
-    /// The policy a config document describes.
-    ///
-    /// Medulla's own reporting hooks are re-resolved here rather than assumed.
-    /// [`crate::config::load_config`] already folds them in, and folding twice
-    /// is not additive ([`HooksConfig::with_builtin`] replaces them) — but not
-    /// every caller holds a *loaded* config: a document parsed straight off disk
-    /// carries only the operator's own `[[hooks]]`, and a door built from one of
-    /// those would install a strictly smaller set than its neighbours for no
-    /// reason an operator could see. `[hookDefaults] enabled = false` is still
-    /// honoured, because that is the switch that means "none of Medulla's".
-    #[must_use]
-    pub fn from_config(config: &crate::config::TuiConfig) -> Self {
-        let hooks = if config.hook_defaults.enabled {
-            config
-                .hooks
-                .with_builtin(super::builtin::hooks(&super::builtin::medulla_bin()))
-        } else {
-            config.hooks.clone()
-        };
-        Self {
-            attribution: config.attribution.commit,
-            hooks,
-        }
-    }
-
     /// Remove Medulla's reporting hooks while retaining operator hooks and
     /// commit attribution.
     ///
