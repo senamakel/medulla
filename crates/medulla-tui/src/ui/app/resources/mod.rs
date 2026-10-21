@@ -108,7 +108,12 @@ impl App {
             }
         }
         if state.menu_open {
-            let menu = Rect::new(area.right().saturating_sub(34), area.y + 1, 33.min(area.width), 3.min(area.height.saturating_sub(1)));
+            let menu = Rect::new(
+                area.right().saturating_sub(34),
+                area.y + 1,
+                33.min(area.width),
+                3.min(area.height.saturating_sub(1)),
+            );
             f.render_widget(
                 Paragraph::new("Resources · 1–4 boxes · p/P presets · +/- interval")
                     .block(Block::default().borders(Borders::ALL).title(" Menu ")),
@@ -118,12 +123,20 @@ impl App {
     }
 
     pub(in crate::ui::app) fn resources_key(&mut self, key: crossterm::event::KeyCode) -> bool {
-        if !self.resources.key(key) { return false; }
+        if !self.resources.key(key) {
+            return false;
+        }
         let state = &self.resources;
         let shown = [
-            (state.shown.cpu, "cpu"), (state.shown.mem, "mem"),
-            (state.shown.net, "net"), (state.shown.agents, "agents"),
-        ].into_iter().filter_map(|(shown, name)| shown.then_some(name)).collect::<Vec<_>>().join(",");
+            (state.shown.cpu, "cpu"),
+            (state.shown.mem, "mem"),
+            (state.shown.net, "net"),
+            (state.shown.agents, "agents"),
+        ]
+        .into_iter()
+        .filter_map(|(shown, name)| shown.then_some(name))
+        .collect::<Vec<_>>()
+        .join(",");
         let config = &mut self.loaded.config.resources;
         config.update_ms = state.interval_ms;
         config.shown_boxes = shown;
@@ -134,14 +147,27 @@ impl App {
         if let Some(path) = self.config_path.as_deref() {
             let settings = [
                 ("updateMs", ratatui_toml_value_u64(config.update_ms)),
-                ("shownBoxes", toml::Value::String(config.shown_boxes.clone())),
+                (
+                    "shownBoxes",
+                    toml::Value::String(config.shown_boxes.clone()),
+                ),
                 ("preset", toml::Value::Integer(config.preset as i64)),
-                ("cpuBottom", toml::Value::Boolean(config.cpu_bottom.unwrap_or(false))),
-                ("memBelowNet", toml::Value::Boolean(config.mem_below_net.unwrap_or(false))),
-                ("agentsLeft", toml::Value::Boolean(config.agents_left.unwrap_or(false))),
+                (
+                    "cpuBottom",
+                    toml::Value::Boolean(config.cpu_bottom.unwrap_or(false)),
+                ),
+                (
+                    "memBelowNet",
+                    toml::Value::Boolean(config.mem_below_net.unwrap_or(false)),
+                ),
+                (
+                    "agentsLeft",
+                    toml::Value::Boolean(config.agents_left.unwrap_or(false)),
+                ),
             ];
             for (key, value) in settings {
-                if let Err(error) = medulla::config::persist_setting(path, "resources", key, value) {
+                if let Err(error) = medulla::config::persist_setting(path, "resources", key, value)
+                {
                     self.set_status(format!("Resources save failed: {error}"));
                     return true;
                 }
@@ -160,10 +186,17 @@ impl App {
             return true;
         }
         let key = [
-            (hits.cpu_toggle, '1'), (hits.mem_toggle, '2'), (hits.net_toggle, '3'),
-            (hits.agents_toggle, '4'), (hits.preset_prev, 'p'), (hits.preset_next, 'P'),
-            (hits.interval_down, '-'), (hits.interval_up, '+'),
-        ].into_iter().find_map(|(rect, key)| rect.contains((x, y).into()).then_some(key));
+            (hits.cpu_toggle, '1'),
+            (hits.mem_toggle, '2'),
+            (hits.net_toggle, '3'),
+            (hits.agents_toggle, '4'),
+            (hits.preset_prev, 'p'),
+            (hits.preset_next, 'P'),
+            (hits.interval_down, '-'),
+            (hits.interval_up, '+'),
+        ]
+        .into_iter()
+        .find_map(|(rect, key)| rect.contains((x, y).into()).then_some(key));
         key.is_some_and(|key| self.resources_key(crossterm::event::KeyCode::Char(key)))
     }
 }

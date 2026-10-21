@@ -102,9 +102,15 @@ impl ResourcesState {
         };
         state.preset = config.preset.min(state.presets.len().saturating_sub(1));
         state.apply_preset();
-        if let Some(value) = config.cpu_bottom { state.opts.cpu_bottom = value; }
-        if let Some(value) = config.mem_below_net { state.opts.mem_below_net = value; }
-        if let Some(value) = config.agents_left { state.opts.agents_left = value; }
+        if let Some(value) = config.cpu_bottom {
+            state.opts.cpu_bottom = value;
+        }
+        if let Some(value) = config.mem_below_net {
+            state.opts.mem_below_net = value;
+        }
+        if let Some(value) = config.agents_left {
+            state.opts.agents_left = value;
+        }
         state
     }
 

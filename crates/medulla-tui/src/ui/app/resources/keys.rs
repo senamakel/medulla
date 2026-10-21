@@ -17,6 +17,9 @@ impl ResourcesState {
             _ => return false,
         }
         if matches!(key, KeyCode::Char('p') | KeyCode::Char('P')) {
+            // An interactive preset choice replaces the loaded placement
+            // overrides. The caller persists this resulting layout alongside
+            // the selected preset, so reload preserves what the operator saw.
             self.apply_preset();
         }
         true

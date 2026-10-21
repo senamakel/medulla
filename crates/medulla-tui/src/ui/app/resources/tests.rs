@@ -242,13 +242,20 @@ fn cpu_title_preset_and_interval_buttons_are_clickable() {
         .iter()
         .position(|tab| *tab == "Resources")
         .unwrap();
-    app.resources.presets.push("cpu:1:block,mem:1:block,net:0:block,agents:0:tty".into());
+    app.resources
+        .presets
+        .push("cpu:1:block,mem:1:block,net:0:block,agents:0:tty".into());
     let mut terminal = Terminal::new(TestBackend::new(190, 52)).unwrap();
     terminal
         .draw(|frame| app.draw_resources(frame, Rect::new(20, 5, 170, 42)))
         .unwrap();
     let hits = app.resources.hits;
-    for hit in [hits.preset_prev, hits.preset_next, hits.interval_down, hits.interval_up] {
+    for hit in [
+        hits.preset_prev,
+        hits.preset_next,
+        hits.interval_down,
+        hits.interval_up,
+    ] {
         assert!(hit.width > 0);
     }
     app.handle_click(hits.preset_next.x, hits.preset_next.y);
