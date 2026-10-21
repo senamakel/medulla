@@ -2586,6 +2586,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "medulla-monitor"
+version = "0.13.0"
+dependencies = [
+ "serde",
+ "sysinfo 0.37.2",
+]
+
+[[package]]
 name = "medulla-tui"
 version = "0.13.0"
 dependencies = [
@@ -2598,12 +2606,12 @@ dependencies = [
  "libc",
  "medulla",
  "medulla-link",
+ "medulla-monitor",
  "portable-pty",
  "ratatui",
  "rustls",
  "serde",
  "serde_json",
- "sysinfo 0.37.2",
  "tempfile",
  "tokio",
  "toml 0.8.23",

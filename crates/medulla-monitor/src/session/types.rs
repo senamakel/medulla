@@ -1,13 +1,13 @@
 //! Data types for per-session resource sampling: the reading a title is drawn
 //! from, and the sampler's own state.
 //!
-//! Shape only. The host refreshes, the process-tree walk, and the throttle live
-//! in [`monitor`](super::monitor); the rendering lives in
-//! [`format`](super::format).
+//! Shape and sampler state. The host refresh, process-tree walk, and throttle
+//! live in [`monitor`](super::monitor); rendering is left to the TUI.
 
 use std::collections::HashMap;
 use std::time::Instant;
 
+use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
 /// What one harness session is costing the machine right now.
@@ -17,7 +17,7 @@ use sysinfo::System;
 /// work, so charging the session only for its own root process would report
 /// near-zero for exactly the sessions an operator is watching because they are
 /// expensive.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct SessionSnapshot {
     /// CPU use of the whole process tree, as a fraction of the machine's total
     /// logical CPU capacity.
