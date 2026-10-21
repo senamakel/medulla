@@ -1,8 +1,8 @@
 //! Application callbacks at the edge of a PTY session's lifetime.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::collections::HashMap;
 
 /// Portable facts about a harness session passed to application callbacks.
 #[derive(Debug, Clone, Default)]

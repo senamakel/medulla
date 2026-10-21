@@ -44,8 +44,8 @@ use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
 
 use super::handle::SessionHandle;
-use medulla_pty::{LifecycleSession, SessionClose, SessionLifecycle};
 use medulla_pty::sync::{read, write};
+use medulla_pty::{LifecycleSession, SessionClose, SessionLifecycle};
 
 /// Read buffer for the PTY master.
 ///
@@ -238,7 +238,9 @@ impl SessionLifecycle for TuiSessionLifecycle {
         let session_id = session.session_id.as_deref();
         match session_id {
             Some(id) => medulla::session_history::codex_thread_label(&session.env, id),
-            None => medulla::session_history::codex_thread_label_for_cwd(&session.env, &session.cwd),
+            None => {
+                medulla::session_history::codex_thread_label_for_cwd(&session.env, &session.cwd)
+            }
         }
     }
 }

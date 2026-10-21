@@ -3,8 +3,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use portable_pty::{Child, ChildKiller, ExitStatus};
 use medulla_pty::{LifecycleSession, SessionClose, SessionLifecycle};
+use portable_pty::{Child, ChildKiller, ExitStatus};
 
 use super::attention::{
     bell_accounting, bells_are_deferred, working_state, HOOK_STALE_GRACE_MS, OPEN_ENDED_ABANDON_MS,

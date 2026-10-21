@@ -9,9 +9,9 @@
 //! one small file read on a thread. It is the Codex counterpart of the
 //! [checkout poller](super::checkout) beside it.
 
+use medulla_pty::LifecycleSession;
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
-use medulla_pty::LifecycleSession;
 
 use super::super::handle::SessionHandle;
 use super::PtyManager;

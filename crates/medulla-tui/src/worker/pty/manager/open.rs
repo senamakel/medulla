@@ -7,8 +7,8 @@ use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Weak};
 
 use medulla::protocol::HarnessProvider;
-use portable_pty::{native_pty_system, Child, CommandBuilder, PtyPair, PtySize};
 use medulla_pty::{LifecycleSession, SessionClose};
+use portable_pty::{native_pty_system, Child, CommandBuilder, PtyPair, PtySize};
 
 use super::super::handle::{release_queued, SessionHandle, SessionMeta};
 use super::super::launch::{interactive_args, mint_session_id};

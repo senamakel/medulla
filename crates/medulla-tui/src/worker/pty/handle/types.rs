@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicU8, AtomicUsize}
 use std::sync::{Arc, Mutex};
 
 use medulla::protocol::HarnessProvider;
-use portable_pty::{Child, MasterPty};
 use medulla_pty::SessionClose;
+use portable_pty::{Child, MasterPty};
 
 use super::super::attention::HarnessAttention;
 use super::super::types::SessionOrigin;
