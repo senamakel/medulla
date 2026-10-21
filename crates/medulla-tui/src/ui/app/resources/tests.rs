@@ -226,7 +226,7 @@ fn cpu_title_controls_have_distinct_click_actions() {
         (app.resources.hits.interval_up, 26, "["),
     ] {
         let x = cpu.x + x_offset;
-        assert_eq!(buffer.get(x, cpu.y).symbol(), symbol);
+        assert_eq!(buffer[(x, cpu.y)].symbol(), symbol);
         assert!(
             hit.contains((x, cpu.y).into()),
             "visible control at x={x} misses hit rect {hit:?}"
@@ -286,7 +286,7 @@ fn each_panel_title_button_toggles_only_its_box() {
     for (panel, hit, offset, key) in targets {
         assert!(hit.width > 0);
         let x = panel.x + offset;
-        assert_eq!(buffer.get(x, panel.y).symbol(), "[");
+        assert_eq!(buffer[(x, panel.y)].symbol(), "[");
         assert!(
             hit.contains((x, panel.y).into()),
             "visible [{key}] misses hit rect {hit:?}"
