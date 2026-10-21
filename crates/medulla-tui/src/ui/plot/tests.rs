@@ -23,7 +23,7 @@ fn glyph(buffer: &Buffer, x: u16, y: u16) -> char {
 fn paired_samples_match_btop_glyphs_for_each_symbol_table() {
     let expected = [
         (Symbol::Braille, '⣰', '⠹'),
-        (Symbol::Block, '▄', '▀'),
+        (Symbol::Block, '▟', '▜'),
         (Symbol::Tty, '▒', '▒'),
     ];
     for (symbol, up, down) in expected {
