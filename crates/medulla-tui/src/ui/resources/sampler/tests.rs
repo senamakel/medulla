@@ -43,6 +43,48 @@ async fn sampler_posts_injected_samples_in_order() {
     task.abort();
 }
 
+#[tokio::test(start_paused = true)]
+async fn changed_interval_controls_the_next_sample_tick() {
+    let (interval_tx, interval_rx) = watch::channel(Duration::from_secs(5));
+    let (output_tx, mut output_rx) = mpsc::unbounded_channel();
+    let task = spawn_sampler(
+        SequenceSource(Arc::new(AtomicUsize::new(0))),
+        interval_rx,
+        move |snapshot| {
+            let _ = output_tx.send(snapshot);
+        },
+    );
+
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
+    tokio::time::advance(Duration::from_secs(4)).await;
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
+    assert!(output_rx.try_recv().is_err());
+
+    interval_tx.send(Duration::from_millis(20)).unwrap();
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
+    tokio::time::advance(Duration::from_millis(19)).await;
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
+    assert!(output_rx.try_recv().is_err());
+    tokio::time::advance(Duration::from_millis(1)).await;
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+        if output_rx.try_recv().is_ok() {
+            task.abort();
+            return;
+        }
+    }
+    task.abort();
+    panic!("updated resource interval did not produce a sample");
+}
+
 #[test]
 fn history_trims_to_requested_capacity_and_clones_cheaply() {
     let mut history = History::new(3);
