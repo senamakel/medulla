@@ -131,7 +131,7 @@ impl ResourceSource for SystemResourceSource {
             let cores = self.system.cpus().len().max(1) as f64;
             let disk = process.disk_usage();
             let seconds = elapsed.max(0.001);
-            Some(super::super::ResourceSnapshot {
+            Some(crate::ui::resources::types::ResourceSnapshot {
                 cpu_fraction: (f64::from(process.cpu_usage()) / (cores * 100.0)).clamp(0.0, 1.0),
                 memory_bytes: process.memory(),
                 total_memory_bytes: self.system.total_memory(),
