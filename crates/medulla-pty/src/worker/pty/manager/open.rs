@@ -128,7 +128,6 @@ impl PtyManager {
                 env: spec.env.clone(),
                 grant_session: spec.mcp_grant_session.clone(),
                 provider: spec.provider,
-                ..LifecycleSession::default()
             },
         ));
         let mut guard = LaunchGuard::new(Arc::clone(&close));
