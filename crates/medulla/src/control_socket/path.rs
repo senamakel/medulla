@@ -250,7 +250,14 @@ fn ensure_private_parent(path: &Path) -> Result<(), ControlSocketError> {
         return Ok(());
     };
     let existed = parent.exists();
-    std::fs::create_dir_all(parent).map_err(|e| ControlSocketError::Io(e.to_string()))?;
+    // Every level created here is owner-only, not just the leaf: under a
+    // group-writable umask an intermediate directory would otherwise come out
+    // 0775 and fail the ancestor check below.
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(parent)
+        .map_err(|e| ControlSocketError::Io(e.to_string()))?;
     // Never mutate permissions on a directory Medulla did not create. This is
     // independent of whether the path was explicit: a derived MEDULLA_HOME can
     // also name an existing shared directory or a symlink to one.
