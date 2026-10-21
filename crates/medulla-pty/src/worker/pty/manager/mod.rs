@@ -196,7 +196,7 @@ impl PtyManager {
     /// caller then works against the session alone. This is the seam that stops
     /// a blocking write, a slow `wait()`, or a large snapshot on one session
     /// from stalling all the others.
-    pub(super) fn handle(&self, id: &str) -> Option<Arc<SessionHandle>> {
+    pub fn handle(&self, id: &str) -> Option<Arc<SessionHandle>> {
         read(&self.inner.sessions)
             .iter()
             .find(|session| session.id() == id)

@@ -12,6 +12,7 @@ use super::types::LaunchSpec;
 use super::{attention, launch};
 
 mod clipboard;
+pub use medulla_pty::ClipboardSink;
 
 /// Owns the portable manager and adapts TUI launch and lifecycle types.
 #[derive(Clone)]
