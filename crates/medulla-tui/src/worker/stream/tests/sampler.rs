@@ -7,11 +7,27 @@
 
 use medulla::protocol::{apply_frame, ApplyOutcome, Color, ScreenView, ATTR_BOLD, ATTR_INVERSE};
 
-use crate::worker::pty::ScreenCell;
+use crate::worker::pty::{CellText, ScreenCell, ScreenSnapshot};
 use crate::worker::stream::convert::wire_grid;
 use crate::worker::stream::{sample_interval, SessionStream};
 
-use super::conversion::snapshot;
+fn snapshot(rows: &[&str]) -> ScreenSnapshot {
+    ScreenSnapshot {
+        cells: rows
+            .iter()
+            .map(|row| {
+                row.chars()
+                    .map(|ch| ScreenCell {
+                        text: CellText::from(ch.to_string()),
+                        ..ScreenCell::default()
+                    })
+                    .collect()
+            })
+            .collect(),
+        cursor: (0, 0),
+        hide_cursor: false,
+    }
+}
 
 // --- the sampler -----------------------------------------------------------
 
