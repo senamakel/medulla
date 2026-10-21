@@ -1,9 +1,9 @@
-mod launch_seams;
-
 //! Unit tests for the hook vocabulary, the shared document, and each harness's
 //! delivery. The delivery assertions pin the exact flags and JSON/TOML spelling
 //! that were verified against Claude Code 2.1.221 and Codex 0.146, so a change
 //! that would stop hooks firing fails here rather than in production silence.
+
+mod launch_seams;
 
 use serde_json::{json, Value};
 

@@ -1,6 +1,6 @@
-mod acp;
-
 //! Unit tests for the Codex config overrides and the derived model catalog.
+
+mod acp;
 
 use std::collections::HashMap;
 use std::error::Error as _;
