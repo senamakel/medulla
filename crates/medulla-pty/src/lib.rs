@@ -14,6 +14,7 @@ pub mod lifecycle;
 mod lifecycle_tests;
 pub mod screen;
 pub mod sync;
+pub mod worker;
 
 pub use attention::{AttentionKind, HarnessAttention};
 pub use cell_text::CellText;
