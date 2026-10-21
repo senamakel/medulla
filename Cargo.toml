@@ -25,6 +25,7 @@ medulla = { path = "crates/medulla-core", default-features = false }
 # The host-link transport (docs/host-link-protocol.md). A plain path dep: it is
 # ours, has no registry coordinate, and is not vendored.
 medulla-link = { path = "crates/medulla-link" }
+medulla-juice = { path = "crates/medulla-juice" }
 # One daemon-owned native agent runtime. The facade re-exports the exact
 # vendored tool traits/results, so host tools do not link another tool graph.
 openhuman-embed = { path = "vendor/openhuman/crates/openhuman-embed", default-features = false, features = ["skills", "storage-sqlite"] }
