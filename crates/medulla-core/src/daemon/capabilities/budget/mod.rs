@@ -31,7 +31,8 @@ use crate::protocol::{
 use super::super::providers::{make_path_lookup, provider_bin};
 
 mod types;
-pub use types::{BudgetSeams, ConfiguredBudget, ProviderProbeInput};
+pub use medulla_providers::{ConfiguredBudget, ProviderProbeInput};
+pub use types::BudgetSeams;
 
 #[cfg(test)]
 mod tests;
