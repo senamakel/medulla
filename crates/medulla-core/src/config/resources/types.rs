@@ -83,8 +83,8 @@ pub struct ResourcesConfig {
     pub io_mode: bool,
     /// Combine read and write series into one graph.
     pub io_graph_combined: bool,
-    /// Scale IO graphs to recent peak speed.
-    pub io_graph_speeds: bool,
+    /// Per-mount IO graph ceilings in MiB/s (`mount:speed` pairs).
+    pub io_graph_speeds: String,
 }
 
 impl Default for ResourcesConfig {
@@ -113,7 +113,7 @@ impl Default for ResourcesConfig {
             disks_filter: String::new(),
             io_mode: false,
             io_graph_combined: false,
-            io_graph_speeds: true,
+            io_graph_speeds: String::new(),
         }
     }
 }
