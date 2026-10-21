@@ -1,0 +1,86 @@
+use super::{Gradient, Graph, Meter, Symbol};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::Color;
+use ratatui::widgets::Widget;
+use unicode_width::UnicodeWidthChar;
+
+fn render_graph(values: &[f32], width: u16, height: u16, symbol: Symbol, invert: bool) -> Buffer {
+    let area = Rect::new(0, 0, width, height);
+    let mut buffer = Buffer::empty(area);
+    Graph::new(values)
+        .symbol(symbol)
+        .invert(invert)
+        .render(area, &mut buffer);
+    buffer
+}
+
+#[test]
+fn paired_samples_match_btop_glyphs_for_each_symbol_table() {
+    let expected = [
+        (Symbol::Braille, '⣠', '⠙'),
+        (Symbol::Block, '▄', '▀'),
+        (Symbol::Tty, '▒', '▒'),
+    ];
+    for (symbol, up, down) in expected {
+        let graph = render_graph(&[25.0, 75.0], 1, 1, symbol, false);
+        let inverted = render_graph(&[25.0, 75.0], 1, 1, symbol, true);
+        assert_eq!(graph[(0, 0)].symbol(), up);
+        assert_eq!(inverted[(0, 0)].symbol(), down);
+    }
+}
+
+#[test]
+fn percentage_rows_fill_from_the_bottom_and_invert_to_the_top() {
+    let up = render_graph(&[0.0, 37.5], 1, 4, Symbol::Braille, false);
+    let down = render_graph(&[0.0, 37.5], 1, 4, Symbol::Braille, true);
+
+    assert_eq!(up[(0, 0)].symbol(), ' ');
+    assert_eq!(up[(0, 1)].symbol(), ' ');
+    assert_eq!(up[(0, 2)].symbol(), '⢠');
+    assert_eq!(up[(0, 3)].symbol(), '⢸');
+    assert_eq!(down[(0, 2)].symbol(), '⠘');
+    assert_eq!(down[(0, 3)].symbol(), '⢸');
+    // The lower dot in the up table becomes an upper dot with the down table.
+    assert_ne!(
+        Symbol::Braille.glyph(false, 1, 0),
+        Symbol::Braille.glyph(true, 1, 0)
+    );
+}
+
+#[test]
+fn no_zero_keeps_a_baseline_mark_for_zero_values() {
+    let graph = render_graph(&[0.0, 0.0], 1, 4, Symbol::Braille, false);
+    assert_eq!(graph[(0, 0)].symbol(), ' ');
+    assert_eq!(graph[(0, 1)].symbol(), ' ');
+    assert_eq!(graph[(0, 2)].symbol(), ' ');
+    assert_eq!(graph[(0, 3)].symbol(), '⣀');
+}
+
+#[test]
+fn meter_fills_zero_half_and_all_of_ten_cells() {
+    let gradient = Gradient::new(vec![Color::Rgb(1, 2, 3)]);
+    for (value, filled) in [(0.0, 0), (50.0, 5), (100.0, 10)] {
+        let area = Rect::new(0, 0, 10, 1);
+        let mut buffer = Buffer::empty(area);
+        Meter::new(value, &gradient, Color::Rgb(4, 5, 6)).render(area, &mut buffer);
+        let actual = (0..10)
+            .filter(|x| buffer[(*x, 0)].style().fg == Some(Color::Rgb(1, 2, 3)))
+            .count();
+        assert_eq!(actual, filled);
+        assert!(buffer.content().iter().all(|cell| cell.symbol() == '■'));
+    }
+}
+
+#[test]
+fn braille_glyphs_are_single_terminal_cells() {
+    assert_eq!(UnicodeWidthChar::width('⣿'), Some(1));
+    let graph = render_graph(&[0.0, 100.0], 1, 1, Symbol::Braille, false);
+    assert_eq!(graph[(0, 0)].symbol(), '⢸');
+}
+
+#[test]
+fn gradient_interpolates_rgb_stops() {
+    let gradient = Gradient::new(vec![Color::Rgb(0, 10, 20), Color::Rgb(100, 110, 120)]);
+    assert_eq!(gradient.at(50.0), Color::Rgb(50, 60, 70));
+}
