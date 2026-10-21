@@ -472,6 +472,17 @@ fn workflows_accept_the_local_harness_as_a_default_provider() {
     );
 }
 
+#[test]
+fn toml_provider_string_still_parses_after_provider_extraction() {
+    let config: TuiConfig = toml::from_str("[workflows]\ndefaultProvider = \"codex\"")
+        .expect("the existing provider string remains a TOML enum value");
+
+    assert_eq!(
+        config.workflows.default_provider,
+        Some(crate::protocol::HarnessProvider::Codex)
+    );
+}
+
 /// The provider this module's tests mean by "the embedded core".
 fn medulla_protocol_provider() -> crate::protocol::HarnessProvider {
     crate::protocol::HarnessProvider::Openhuman

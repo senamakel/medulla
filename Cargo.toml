@@ -20,6 +20,7 @@ license = "GPL-3.0-only"
 repository = "https://github.com/tinyhumansai/medulla"
 
 [workspace.dependencies]
+medulla-types = { path = "crates/medulla-types" }
 medulla = { path = "crates/medulla-core", default-features = false }
 # The host-link transport (docs/host-link-protocol.md). A plain path dep: it is
 # ours, has no registry coordinate, and is not vendored.
