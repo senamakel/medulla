@@ -78,5 +78,3 @@ bytes = { workspace = true }
 # only stay a unit test because time can be advanced rather than waited out.
 tokio = { workspace = true, features = ["test-util"] }
 wiremock = "0.6"
-tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "ansi", "env-filter"] }
-tracing-log = "0.2"
