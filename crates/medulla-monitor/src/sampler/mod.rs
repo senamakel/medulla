@@ -4,7 +4,9 @@ mod history;
 mod types;
 
 pub use history::History;
-pub use types::{DiskSnapshot, NetworkSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot};
+pub use types::{
+    DiskSnapshot, NetworkSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot,
+};
 
 #[cfg(test)]
 mod tests;
@@ -159,23 +161,31 @@ impl ResourceSource for SystemResourceSource {
         );
         self.disks.refresh(true);
         self.networks.refresh(true);
-        let networks = self.networks.iter().map(|(name, data)| {
-            #[cfg(target_os = "linux")]
-            let up = std::fs::read_to_string(std::path::Path::new("/sys/class/net").join(name).join("operstate"))
+        let networks = self
+            .networks
+            .iter()
+            .map(|(name, data)| {
+                #[cfg(target_os = "linux")]
+                let up = std::fs::read_to_string(
+                    std::path::Path::new("/sys/class/net")
+                        .join(name)
+                        .join("operstate"),
+                )
                 .map(|state| state.trim() == "up")
                 .unwrap_or(false);
-            #[cfg(not(target_os = "linux"))]
-            let up = true;
-            NetworkSnapshot {
-                interface: name.clone(),
-                up,
-                ip_addresses: data.ip_networks().iter().map(ToString::to_string).collect(),
-                received_bytes_per_second: data.received() as f64 / elapsed.max(0.001),
-                transmitted_bytes_per_second: data.transmitted() as f64 / elapsed.max(0.001),
-                total_received_bytes: data.total_received(),
-                total_transmitted_bytes: data.total_transmitted(),
-            }
-        }).collect::<Vec<_>>();
+                #[cfg(not(target_os = "linux"))]
+                let up = true;
+                NetworkSnapshot {
+                    interface: name.clone(),
+                    up,
+                    ip_addresses: data.ip_networks().iter().map(ToString::to_string).collect(),
+                    received_bytes_per_second: data.received() as f64 / elapsed.max(0.001),
+                    transmitted_bytes_per_second: data.transmitted() as f64 / elapsed.max(0.001),
+                    total_received_bytes: data.total_received(),
+                    total_transmitted_bytes: data.total_transmitted(),
+                }
+            })
+            .collect::<Vec<_>>();
         let task_pids: std::collections::HashSet<u32> = self
             .system
             .processes()

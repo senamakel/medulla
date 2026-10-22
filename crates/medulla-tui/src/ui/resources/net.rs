@@ -103,7 +103,9 @@ pub fn cycle_interface(
 }
 
 /// Pick the first active non-loopback interface with observed traffic.
-pub fn default_interface<'a>(interfaces: &'a [medulla_monitor::NetworkSnapshot]) -> Option<&'a str> {
+pub fn default_interface<'a>(
+    interfaces: &'a [medulla_monitor::NetworkSnapshot],
+) -> Option<&'a str> {
     interfaces
         .iter()
         .find(|interface| {
@@ -155,19 +157,31 @@ mod tests {
     fn default_interface_requires_up_non_loopback_with_traffic() {
         let samples = vec![
             medulla_monitor::NetworkSnapshot {
-                interface: "lo".into(), up: true, ip_addresses: vec![],
-                received_bytes_per_second: 4.0, transmitted_bytes_per_second: 0.0,
-                total_received_bytes: 4, total_transmitted_bytes: 0,
+                interface: "lo".into(),
+                up: true,
+                ip_addresses: vec![],
+                received_bytes_per_second: 4.0,
+                transmitted_bytes_per_second: 0.0,
+                total_received_bytes: 4,
+                total_transmitted_bytes: 0,
             },
             medulla_monitor::NetworkSnapshot {
-                interface: "eth0".into(), up: false, ip_addresses: vec![],
-                received_bytes_per_second: 0.0, transmitted_bytes_per_second: 0.0,
-                total_received_bytes: 0, total_transmitted_bytes: 0,
+                interface: "eth0".into(),
+                up: false,
+                ip_addresses: vec![],
+                received_bytes_per_second: 0.0,
+                transmitted_bytes_per_second: 0.0,
+                total_received_bytes: 0,
+                total_transmitted_bytes: 0,
             },
             medulla_monitor::NetworkSnapshot {
-                interface: "wlan0".into(), up: true, ip_addresses: vec![],
-                received_bytes_per_second: 4.0, transmitted_bytes_per_second: 0.0,
-                total_received_bytes: 4, total_transmitted_bytes: 0,
+                interface: "wlan0".into(),
+                up: true,
+                ip_addresses: vec![],
+                received_bytes_per_second: 4.0,
+                transmitted_bytes_per_second: 0.0,
+                total_received_bytes: 4,
+                total_transmitted_bytes: 0,
             },
         ];
         assert_eq!(default_interface(&samples), Some("wlan0"));

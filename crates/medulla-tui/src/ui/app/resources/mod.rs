@@ -82,7 +82,11 @@ impl App {
                     if title == "Mem" {
                         format!(" Mem [{key}] [d] [i] ")
                     } else if title == "Net" {
-                        format!(" Net [{key}] [b] [n] [z] [a{}] [y{}] ", if state.net_auto { "✓" } else { " " }, if state.net_sync { "✓" } else { " " })
+                        format!(
+                            " Net [{key}] [b] [n] [z] [a{}] [y{}] ",
+                            if state.net_auto { "✓" } else { " " },
+                            if state.net_sync { "✓" } else { " " }
+                        )
                     } else {
                         format!(" {title} [{key}] ")
                     }
@@ -172,7 +176,10 @@ impl App {
         }
         if key == crossterm::event::KeyCode::Char('z') {
             if let Some(interface) = self.resources.net_iface.as_deref().and_then(|name| {
-                self.resource_snapshot.networks.iter().find(|entry| entry.interface == name)
+                self.resource_snapshot
+                    .networks
+                    .iter()
+                    .find(|entry| entry.interface == name)
             }) {
                 self.resources.net_zero_received = interface.total_received_bytes;
                 self.resources.net_zero_transmitted = interface.total_transmitted_bytes;
@@ -182,11 +189,16 @@ impl App {
             let current = self.resources.net_iface.as_deref().or_else(|| {
                 crate::ui::resources::net::default_interface(&self.resource_snapshot.networks)
             });
-            let interfaces: Vec<_> = self.resource_snapshot.networks.iter()
+            let interfaces: Vec<_> = self
+                .resource_snapshot
+                .networks
+                .iter()
                 .map(|interface| (interface.interface.as_str(), interface.up))
                 .collect();
             self.resources.net_iface = crate::ui::resources::net::cycle_interface(
-                current, &interfaces, key == crossterm::event::KeyCode::Char('n')
+                current,
+                &interfaces,
+                key == crossterm::event::KeyCode::Char('n'),
             );
         }
         let state = &self.resources;
@@ -294,6 +306,148 @@ impl App {
         .find_map(|(rect, key)| rect.contains((x, y).into()).then_some(key));
         key.is_some_and(|key| self.resources_key(crossterm::event::KeyCode::Char(key)))
     }
+}
+
+fn draw_net_panel(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &crate::ui::resources::sampler::ResourceSnapshot,
+    config: &medulla::config::ResourcesConfig,
+    selected: Option<&str>,
+    zero_received: u64,
+    zero_transmitted: u64,
+) {
+    if area.is_empty() {
+        return;
+    }
+    let selected = selected
+        .and_then(|name| {
+            snapshot
+                .networks
+                .iter()
+                .find(|entry| entry.interface == name)
+        })
+        .or_else(|| {
+            crate::ui::resources::net::default_interface(&snapshot.networks).and_then(|name| {
+                snapshot
+                    .networks
+                    .iter()
+                    .find(|entry| entry.interface == name)
+            })
+        });
+    let Some(selected) = selected else {
+        frame.render_widget(Paragraph::new("No active network interface"), area);
+        return;
+    };
+    let (download, upload) = if config.swap_upload_download {
+        (
+            selected.transmitted_bytes_per_second,
+            selected.received_bytes_per_second,
+        )
+    } else {
+        (
+            selected.received_bytes_per_second,
+            selected.transmitted_bytes_per_second,
+        )
+    };
+    let mut lines = Vec::new();
+    let narrow = area.width <= 45;
+    if narrow {
+        lines.push(Line::from(format!(
+            "↓ {}  ↑ {}",
+            net_rate(download),
+            net_rate(upload)
+        )));
+        lines.push(Line::from(format!(
+            "Top {}  Total ↓{} ↑{}",
+            net_rate(download.max(upload)),
+            net_bytes(selected.total_received_bytes.saturating_sub(zero_received)),
+            net_bytes(
+                selected
+                    .total_transmitted_bytes
+                    .saturating_sub(zero_transmitted)
+            )
+        )));
+    } else {
+        let address = selected
+            .ip_addresses
+            .first()
+            .map(String::as_str)
+            .unwrap_or("no IP");
+        lines.push(Line::from(format!("{}  {}", selected.interface, address)));
+        lines.push(Line::from(format!(
+            "Download {:>9}/s  {} bit/s",
+            net_rate(download),
+            net_rate(download * 8.0)
+        )));
+        lines.push(Line::from(format!(
+            "Upload   {:>9}/s  {} bit/s",
+            net_rate(upload),
+            net_rate(upload * 8.0)
+        )));
+        lines.push(Line::from(format!(
+            "Top {}  Total ↓{} ↑{}",
+            net_rate(download.max(upload)),
+            net_bytes(selected.total_received_bytes.saturating_sub(zero_received)),
+            net_bytes(
+                selected
+                    .total_transmitted_bytes
+                    .saturating_sub(zero_transmitted)
+            )
+        )));
+    }
+    let graph_rows = if area.height >= 3 { 2 } else { 0 };
+    let graph_width = area.width;
+    if graph_rows > 0 {
+        let history: Vec<_> = snapshot.history.network_io.iter().collect();
+        let downloads: Vec<f32> = history
+            .iter()
+            .filter_map(|sample| {
+                sample
+                    .iter()
+                    .find(|entry| entry.interface == selected.interface)
+            })
+            .map(|entry| (entry.received_bytes_per_second / 1024.0) as f32)
+            .collect();
+        let uploads: Vec<f32> = history
+            .iter()
+            .filter_map(|sample| {
+                sample
+                    .iter()
+                    .find(|entry| entry.interface == selected.interface)
+            })
+            .map(|entry| (entry.transmitted_bytes_per_second / 1024.0) as f32)
+            .collect();
+        let x = area.x;
+        frame.render_widget(
+            crate::ui::plot::Graph::new(&downloads),
+            Rect::new(x, area.y, graph_width, 1),
+        );
+        frame.render_widget(
+            crate::ui::plot::Graph::new(&uploads).invert(true),
+            Rect::new(x, area.y + 1, graph_width, 1),
+        );
+    }
+    let text_y = area.y + graph_rows;
+    let text_height = area.height.saturating_sub(graph_rows);
+    frame.render_widget(
+        Paragraph::new(lines).style(Style::default().fg(Color::White)),
+        Rect::new(area.x, text_y, area.width, text_height),
+    );
+}
+
+fn net_rate(rate: f64) -> String {
+    if rate >= 1_048_576.0 {
+        format!("{:.1}M", rate / 1_048_576.0)
+    } else if rate >= 1024.0 {
+        format!("{:.1}K", rate / 1024.0)
+    } else {
+        format!("{rate:.0}B")
+    }
+}
+
+fn net_bytes(value: u64) -> String {
+    net_rate(value as f64)
 }
 
 fn draw_mem_panel(
