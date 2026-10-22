@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use super::{
-    discover_agents, discover_agents_with_options, AgentDiscoveryOptions, AgentKind, AgentOrigin,
-    IoCounters, KnownProcessRoot, ProcessRecord, ProcessUsage,
+    discover_agents, discover_agents_with_options, discover_registered_agents,
+    AgentDiscoveryOptions, AgentKind, AgentOrigin, IoCounters, KnownProcessRoot, ProcessRecord,
+    ProcessUsage,
 };
 
 fn process(
@@ -130,6 +131,28 @@ fn root_pid_reuse_does_not_attribute_agent_to_stale_session() {
 
     assert_eq!(agents.len(), 1);
     assert_eq!(agents[0].origin, AgentOrigin::External);
+}
+
+#[test]
+fn registered_launch_roots_are_used_by_resource_discovery() {
+    let _guard = medulla_monitor::agents::agent_registry().register_at(
+        medulla_monitor::agents::AgentRegistration {
+            pid: 10,
+            started_at_secs: 5,
+            task_id: Some("task-10".into()),
+            session_id: Some("session-10".into()),
+            provider: "claude".into(),
+        },
+    );
+    let processes = vec![
+        process(10, Some(1), "/usr/bin/pty-host", &["pty-host"], 5),
+        process(100, Some(10), "/usr/bin/claude", &["claude"], 20),
+    ];
+
+    let agents = discover_registered_agents(&processes, 1, 50, AgentDiscoveryOptions::default());
+
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].origin, AgentOrigin::Task { id: "task-10".into() });
 }
 
 #[test]

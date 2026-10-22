@@ -41,3 +41,16 @@ fn dropping_an_old_guard_does_not_remove_a_newer_pid_identity() {
 
     assert_eq!(registry.snapshot(), vec![replacement]);
 }
+
+#[test]
+fn dropping_an_old_guard_does_not_remove_a_reregistered_process_identity() {
+    let registry = AgentRegistry::default();
+    let old = registry.register_at(origin(Some("old"), None, "claude"));
+    let mut replacement = origin(Some("new"), Some("session"), "codex");
+    replacement.started_at_secs = 100;
+    let _new = registry.register_at(replacement.clone());
+
+    drop(old);
+
+    assert_eq!(registry.snapshot(), vec![replacement]);
+}

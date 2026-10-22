@@ -1,6 +1,9 @@
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex, OnceLock, Weak},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex, OnceLock, Weak,
+    },
 };
 
 use sysinfo::{Pid, ProcessesToUpdate, System};
@@ -23,7 +26,8 @@ pub struct AgentRegistration {
 /// Registry of child processes whose ownership is known to Medulla.
 #[derive(Debug, Clone, Default)]
 pub struct AgentRegistry {
-    entries: Arc<Mutex<BTreeMap<(u32, u64), AgentRegistration>>>,
+    entries: Arc<Mutex<BTreeMap<(u32, u64), (u64, AgentRegistration)>>>,
+    next_generation: Arc<AtomicU64>,
 }
 
 impl AgentRegistry {
@@ -53,37 +57,51 @@ impl AgentRegistry {
     /// that already sampled the process table at the spawn seam.
     pub fn register_at(&self, registration: AgentRegistration) -> RegistrationGuard {
         let key = (registration.pid, registration.started_at_secs);
-        lock(&self.entries).insert(key, registration);
+        let generation = self.next_generation.fetch_add(1, Ordering::Relaxed);
+        lock(&self.entries).insert(key, (generation, registration));
         RegistrationGuard {
             entries: Arc::downgrade(&self.entries),
             key,
+            generation,
         }
     }
 
     /// Return a stable snapshot of the current registrations.
     pub fn snapshot(&self) -> Vec<AgentRegistration> {
-        lock(&self.entries).values().cloned().collect()
+        lock(&self.entries)
+            .values()
+            .map(|(_, registration)| registration.clone())
+            .collect()
     }
 
     /// Return the registration only when the sampled PID still has its
     /// registered start time. A reused PID is therefore never treated as a
     /// Medulla-owned process.
     pub fn current_for(&self, pid: u32, started_at_secs: u64) -> Option<AgentRegistration> {
-        lock(&self.entries).get(&(pid, started_at_secs)).cloned()
+        lock(&self.entries)
+            .get(&(pid, started_at_secs))
+            .map(|(_, registration)| registration.clone())
     }
 }
 
 /// Removes one process identity from its registry when its owner is dropped.
 #[derive(Debug)]
 pub struct RegistrationGuard {
-    entries: Weak<Mutex<BTreeMap<(u32, u64), AgentRegistration>>>,
+    entries: Weak<Mutex<BTreeMap<(u32, u64), (u64, AgentRegistration)>>>,
     key: (u32, u64),
+    generation: u64,
 }
 
 impl Drop for RegistrationGuard {
     fn drop(&mut self) {
         if let Some(entries) = self.entries.upgrade() {
-            lock(&entries).remove(&self.key);
+            let mut entries = lock(&entries);
+            if entries
+                .get(&self.key)
+                .is_some_and(|(generation, _)| *generation == self.generation)
+            {
+                entries.remove(&self.key);
+            }
         }
     }
 }

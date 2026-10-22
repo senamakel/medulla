@@ -431,11 +431,16 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
             })
         });
     tokio::pin!(run);
+    let mut process_system = sysinfo::System::new();
     let (result, _agent_registration) = loop {
         tokio::select! {
             result = &mut run => break (result, None),
             _ = tokio::time::sleep(Duration::from_millis(25)) => {
-                if let Some((pid, started_at_secs)) = process_with_marker(REGISTRY_MARKER, &registry_marker) {
+                if let Some((pid, started_at_secs)) = process_with_marker(
+                    &mut process_system,
+                    REGISTRY_MARKER,
+                    &registry_marker,
+                ) {
                     let guard = medulla_monitor::agents::agent_registry().register_at(
                         medulla_monitor::agents::AgentRegistration {
                             pid,
@@ -463,28 +468,40 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 }
 
 /// Find the ACP SDK child by its per-run environment marker.
-fn process_with_marker(key: &str, value: &str) -> Option<(u32, u64)> {
-    use std::ffi::OsStr;
-    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+fn process_with_marker(
+    system: &mut sysinfo::System,
+    key: &str,
+    value: &str,
+) -> Option<(u32, u64)> {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, UpdateKind};
 
-    let mut system = System::new();
     system.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
         ProcessRefreshKind::nothing().with_environ(UpdateKind::Always),
     );
     let prefix = format!("{key}=");
-    system
+    let marked = system
         .processes()
         .values()
         .filter(|process| {
             process.environ().iter().any(|entry| {
-                let entry = entry.as_os_str();
                 entry
                     .to_str()
                     .is_some_and(|entry| entry.strip_prefix(&prefix) == Some(value))
-                    || entry == OsStr::new(&format!("{prefix}{value}"))
             })
+        })
+        .collect::<Vec<_>>();
+    let marked_pids = marked
+        .iter()
+        .map(|process| process.pid())
+        .collect::<std::collections::HashSet<_>>();
+    marked
+        .iter()
+        .filter(|process| {
+            process
+                .parent()
+                .map_or(true, |parent| !marked_pids.contains(&parent))
         })
         .min_by_key(|process| process.start_time())
         .map(|process| (process.pid().as_u32(), process.start_time()))
