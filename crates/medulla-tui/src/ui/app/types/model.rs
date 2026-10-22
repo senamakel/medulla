@@ -249,6 +249,13 @@ pub enum Cmd {
     /// portal meter reads its balance from that rather than issuing a second
     /// request; `None` when it has not been fetched yet.
     LoadSubscriptions(Option<serde_json::Value>),
+    /// Collect local provider and customization facts for the Harnesses page.
+    LoadHarnesses {
+        /// Effective configuration files, ordered from lowest to highest precedence.
+        sources: Vec<String>,
+        /// Medulla's per-account root for managed skills, when supplied at startup.
+        medulla_home: Option<std::path::PathBuf>,
+    },
     /// Load a page of the feedback board for the Feedback surface.
     LoadFeedback(FeedbackQuery),
     /// Load one board item's comments for the detail pane.

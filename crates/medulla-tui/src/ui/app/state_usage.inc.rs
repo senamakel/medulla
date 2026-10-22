@@ -202,6 +202,10 @@ impl App {
             }
             "Settings" => match self.settings_index {
                 SP_USAGE => Some(Cmd::LoadUsage),
+                SP_HARNESSES => Some(Cmd::LoadHarnesses {
+                    sources: self.loaded.sources.clone(),
+                    medulla_home: self.medulla_home.clone(),
+                }),
                 SP_SUBSCRIPTIONS => self.refresh_subscriptions(),
                 SP_CONTEXT => Some(Cmd::InspectContext),
                 SP_FEEDBACK => Some(Cmd::LoadFeedback(self.feedback.query.clone())),

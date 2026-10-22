@@ -55,7 +55,7 @@ impl App {
     }
 
     /// Supply collected provider and customization facts for Settings.
-    pub fn set_harnesses_view(&mut self, view: super::types::HarnessesView) {
+    pub(crate) fn set_harnesses_view(&mut self, view: super::types::HarnessesView) {
         self.harnesses_view = Some(view);
     }
 

@@ -132,13 +132,13 @@ fn harnesses_view_renders_injected_detection_routing_budget_and_customizations()
         detection_complete: true,
         routing: vec![("reasoning".into(), "claude-sonnet-4-6".into())],
         budgets: vec![("claude".into(), "used 12000 / limit 50000".into())],
-        customizations: vec![
+        configuration: vec![
             "hooks: 2 configured".into(),
-            "Codex overrides: enabled".into(),
+            "Codex overrides configured for 1 preset(s)".into(),
             "attribution: commits enabled".into(),
             "MCP: fleet tools enabled".into(),
-            "skills: 3 attached".into(),
         ],
+        live_facts: vec!["Managed skills installed: 3".into()],
     };
     let output = rendered(|frame, area| harnesses::draw_harnesses(frame, area, &view));
 
@@ -152,10 +152,10 @@ fn harnesses_view_renders_injected_detection_routing_budget_and_customizations()
         "claude-sonnet-4-6",
         "used 12000 / limit 50000",
         "hooks: 2 configured",
-        "Codex overrides: enabled",
+        "Codex overrides configured for 1 preset(s)",
         "attribution: commits enabled",
         "MCP: fleet tools enabled",
-        "skills: 3 attached",
+        "Managed skills installed: 3",
     ] {
         assert!(
             output.contains(expected),
@@ -197,9 +197,9 @@ fn selected_harnesses_page_uses_the_collected_app_snapshot() {
         detection_complete: true,
         routing: vec![("reasoning".into(), "routed-model".into())],
         budgets: vec![("codex".into(), "remaining 9000".into())],
-        customizations: vec![
-            "Codex overrides: enabled for 1 preset".into(),
-            "skills: 3 managed skills attached".into(),
+        configuration: vec!["Codex overrides configured for 1 preset(s)".into()],
+        live_facts: vec![
+            "Managed skills installed: 3".into(),
         ],
     });
 
@@ -209,8 +209,8 @@ fn selected_harnesses_page_uses_the_collected_app_snapshot() {
         "version unavailable",
         "routed-model",
         "remaining 9000",
-        "Codex overrides: enabled for 1 preset",
-        "skills: 3 managed skills attached",
+        "Codex overrides configured for 1 preset(s)",
+        "Managed skills installed: 3",
     ] {
         assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
     }
