@@ -514,35 +514,7 @@ impl RemoteServer {
             .retain(|identity, _| current.contains(identity));
         self.usage_cache
             .retain(|id, _| rows.iter().any(|row| &row.id == id));
-        // Channel 0 cannot fragment a message. Keep the *entire* Sessions
-        // envelope within its one-datagram budget, dropping the oldest history
-        // points first and usage fields only as a last resort.
-        let limit = medulla_link::MAX_MESSAGE_BYTES;
-        while encode_remote_message(&RemoteMessage::Sessions { rows: rows.clone() }).len() > limit {
-            let oldest_history = rows
-                .iter()
-                .enumerate()
-                .filter_map(|(index, row)| {
-                    row.usage
-                        .as_ref()
-                        .filter(|usage| !usage.cpu_history.is_empty())
-                        .map(|usage| (index, usage.cpu_history.len()))
-                })
-                .max_by_key(|(_, history_len)| *history_len)
-                .map(|(index, _)| index);
-            if let Some(index) = oldest_history {
-                if let Some(usage) = rows[index].usage.as_mut() {
-                    usage.cpu_history.remove(0);
-                }
-            } else if let Some(row) = rows.iter_mut().rev().find(|row| row.usage.is_some()) {
-                row.usage = None;
-            } else {
-                // Base session rows predate this telemetry and may themselves
-                // exceed the transport limit; telemetry cannot make that case
-                // worse, and the existing send path reports it.
-                break;
-            }
-        }
+        trim_usage_to_message_budget(&mut rows);
         rows
     }
 
@@ -560,6 +532,37 @@ impl RemoteServer {
     async fn send(&self, to: &str, body: &str) {
         if let Err(error) = self.bridge.send(to, body).await {
             self.log(&format!("remote: send to {to} failed: {error}"));
+        }
+    }
+}
+
+/// Trim only optional usage until the full reliable-channel message fits one
+/// datagram. Session identity/state fields are never removed here.
+fn trim_usage_to_message_budget(rows: &mut [RemoteSessionRow]) {
+    let limit = medulla_link::MAX_MESSAGE_BYTES;
+    while encode_remote_message(&RemoteMessage::Sessions { rows: rows.to_vec() }).len() > limit {
+        let oldest_history = rows
+            .iter()
+            .enumerate()
+            .filter_map(|(index, row)| {
+                row.usage
+                    .as_ref()
+                    .filter(|usage| !usage.cpu_history.is_empty())
+                    .map(|usage| (index, usage.cpu_history.len()))
+            })
+            .max_by_key(|(_, history_len)| *history_len)
+            .map(|(index, _)| index);
+        if let Some(index) = oldest_history {
+            if let Some(usage) = rows[index].usage.as_mut() {
+                usage.cpu_history.remove(0);
+            }
+        } else if let Some(row) = rows.iter_mut().rev().find(|row| row.usage.is_some()) {
+            row.usage = None;
+        } else {
+            // Base session rows predate this telemetry and may themselves
+            // exceed the transport limit; telemetry cannot make that case
+            // worse, and the existing send path reports it.
+            break;
         }
     }
 }
