@@ -456,6 +456,11 @@ impl RemoteServer {
         } else {
             None
         };
+        if sample {
+            // Rebuild from this sample so exited/reaped PIDs cannot leave
+            // stale process metrics attached to a still-retained session row.
+            self.usage_cache.clear();
+        }
         let mut rows: Vec<_> = self
             .sessions
             .sessions

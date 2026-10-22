@@ -393,19 +393,14 @@ pub(in crate::ui::app) fn draw_agents(
             .iter()
             .filter_map(|session| {
                 let usage = session.usage.as_ref()?;
-                let filter = state.agent_filter.as_deref()?;
-                let query = filter.strip_prefix('!').unwrap_or(filter).to_lowercase();
-                format!("{} {} {} {}", usage.pid, usage.kind, host, session.cwd)
-                    .to_lowercase()
-                    .contains(&query)
-                    .then_some((session, usage))
+                let matches = state.agent_filter.as_deref().is_none_or(|filter| {
+                    let query = filter.strip_prefix('!').unwrap_or(filter).to_lowercase();
+                    format!("{} {} {} {}", usage.pid, usage.kind, host, session.cwd)
+                        .to_lowercase()
+                        .contains(&query)
+                });
+                matches.then_some((session, usage))
             })
-            .chain(sessions.iter().filter_map(|session| {
-                if state.agent_filter.is_some() {
-                    return None;
-                }
-                session.usage.as_ref().map(|usage| (session, usage))
-            }))
             .collect();
         if remote_agents.is_empty() {
             continue;
@@ -420,13 +415,17 @@ pub(in crate::ui::app) fn draw_agents(
             remote_memory += usage.rss;
             let origin = format!("Remote{{{host}}}");
             let history = mini_graph(&usage.cpu_history);
+            let runtime = medulla::clock::now_millis()
+                .saturating_sub((usage.started_at.saturating_mul(1000)) as i64)
+                .max(0) as u64
+                / 1000;
             let cells = if compact {
                 vec![
                     usage.pid.to_string(),
                     format!("{} · {origin}", usage.kind),
                     format!("{:.1}", usage.cpu),
                     bytes(usage.rss),
-                    duration(0),
+                    duration(runtime),
                 ]
             } else {
                 vec![
@@ -438,7 +437,7 @@ pub(in crate::ui::app) fn draw_agents(
                     bytes(usage.rss),
                     format!("{:.1}", usage.cpu),
                     history,
-                    duration(0),
+                    duration(runtime),
                 ]
             };
             table_rows.push(Row::new(cells));
@@ -718,6 +717,76 @@ mod tests {
             process(30, "openhuman", 30.0, 2000),
             process(40, "aider", 40.0, 1000),
         ])
+    }
+
+    #[test]
+    fn remote_agents_render_beneath_each_host_heading() {
+        let row = |id: &str, kind: &str, pid| medulla::protocol::RemoteSessionRow {
+            id: id.into(),
+            label: kind.into(),
+            provider: kind.to_lowercase(),
+            preset: None,
+            state: medulla::protocol::RemoteSessionState::Running,
+            cwd: "/work".into(),
+            name: None,
+            thread_name: None,
+            started_at: 1_700_000_000_000,
+            last_output_at: 1_700_000_000_000,
+            busy: true,
+            working: true,
+            attention: None,
+            bracketed_paste: false,
+            last_error: None,
+            usage: Some(medulla::protocol::AgentUsage {
+                kind: kind.into(),
+                pid,
+                cpu: 1.0,
+                rss: 1024,
+                threads: 2,
+                started_at: 1_700_000_000,
+                cpu_history: vec![0.5, 1.0],
+            }),
+        };
+        let remote_hosts = vec![
+            ("alpha".into(), vec![row("w_a", "Claude", 101)]),
+            ("beta".into(), vec![row("w_b", "Codex", 202)]),
+        ];
+        let backend = ratatui::backend::TestBackend::new(120, 18);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        let mut state = ResourcesState::default();
+        terminal
+            .draw(|frame| {
+                draw_agents(
+                    frame,
+                    frame.area(),
+                    &ResourceSnapshot::default(),
+                    &remote_hosts,
+                    &mut state,
+                )
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let rendered = (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        for expected in [
+            "Remote · alpha",
+            "Remote{alpha}",
+            "Claude",
+            "Remote · beta",
+            "Remote{beta}",
+            "Codex",
+        ] {
+            assert!(
+                rendered.contains(expected),
+                "missing {expected:?}:\n{rendered}"
+            );
+        }
     }
 
     #[test]
