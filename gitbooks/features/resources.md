@@ -33,9 +33,10 @@ shows the minimum required size. The `cpuBottom`, `memBelowNet`, and
 The pane classifies processes only when executable names or command-line
 signatures match known harnesses. Current kinds include Claude, Codex,
 Codex App Server, Claude ACP, Codex ACP, OpenCode, OpenCode ACP, OpenHuman
-Core, embedded OpenHuman, supported shells, and Unknown when process metadata
-cannot be read. Unknown metadata is left unknown rather than guessed. A
-recognized row may include child processes in tree mode.
+Core, embedded OpenHuman, and supported shells. `Unknown` is used when argv is
+unavailable for an executable name the classifier supports; other
+unclassifiable processes are omitted. Medulla does not guess a kind from
+missing metadata. A recognized row may include child processes in tree mode.
 
 Origins explain which Medulla activity owns a process: `Session{id}`,
 `Task{id}`, `Headless`, `Remote{host}`, or `External`. Remote session usage is
@@ -49,7 +50,7 @@ unavailable. The pane does not send signals to remote processes.
 | `r` | Reverse the current sort. |
 | `e` | Toggle process-tree display. |
 | `f` / `/` | Open the filter editor. Text is matched literally by default; a query beginning with `!` is interpreted as a case-insensitive regular expression against agent kind. An invalid regular expression matches no rows. |
-| `Enter` | Focus the owning local session, or open details for a row without a session. |
+| `Enter` | Focus the owning Medulla session, local or remote, or open details for a row without a session. |
 | `F` | Follow the selected local agent. Remote rows cannot be followed. |
 | `t`, `k`, `s` | Request terminate, kill, or stop/continue on supported local processes. Medulla asks for confirmation; external processes require a second confirmation. Signals are unavailable on Windows and are never sent to remote processes. |
 | `Esc` | Close the active detail, filter, or confirmation overlay. |
@@ -83,8 +84,9 @@ network controls.
 
 `presets` is a whitespace-separated list. Within each preset, commas separate
 box entries in the form `<box>:<position>:<graph>`. Box names are `cpu`,
-`mem`, `net`, and `agents`; position is `0` or `1`; graph is `default`,
-`braille`, `block`, or `tty`. For example:
+`mem`, `net`, and `agents`; position is `0` or `1`; the required graph token is
+validated as `default`, `braille`, `block`, or `tty`. Presets currently apply
+box visibility and placement only; the graph token is ignored. For example:
 
 ```toml
 [resources]
