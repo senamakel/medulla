@@ -4,11 +4,11 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
+use medulla::runtime::mock::MockRuntime;
+use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
-use ratatui::Terminal;
 
 use crate::ui::app::App;
 

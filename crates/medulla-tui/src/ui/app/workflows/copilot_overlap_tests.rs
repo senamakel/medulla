@@ -14,9 +14,10 @@ fn automatic_review_does_not_clear_or_drain_a_busy_operator_turn() {
     app.wf.draft = composer::insert_at("", 0, "then document it");
     assert!(app.submit_copilot().is_none(), "follow-up queues");
 
-    assert!(app
-        .copilot_finished("sweep", "edit done".into(), Vec::new(), None)
-        .is_none());
+    assert!(
+        app.copilot_finished("sweep", "edit done".into(), Vec::new(), None)
+            .is_none()
+    );
     assert!(app.copilot_busy(), "the automatic review is still running");
     assert!(matches!(
         app.copilot_finished("sweep", "review done".into(), Vec::new(), None),

@@ -311,12 +311,14 @@ fn configure_repo(root: &Path) {
 }
 
 fn git(root: &Path, args: &[&str]) {
-    assert!(Command::new("git")
-        .current_dir(root)
-        .args(args)
-        .status()
-        .expect("git")
-        .success());
+    assert!(
+        Command::new("git")
+            .current_dir(root)
+            .args(args)
+            .status()
+            .expect("git")
+            .success()
+    );
 }
 
 fn output(root: &Path, args: &[&str]) -> String {

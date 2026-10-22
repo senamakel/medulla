@@ -8,9 +8,9 @@
 
 use super::super::rail::RailRow;
 use super::super::types::{App, Cmd};
-#[cfg(test)]
-use crate::ui::agents::{agent_row_model_paged, AgentRow};
 use crate::ui::agents::{AgentRole, TaskStatus};
+#[cfg(test)]
+use crate::ui::agents::{AgentRow, agent_row_model_paged};
 
 /// How many of a lane's task sublanes one page reveals.
 ///

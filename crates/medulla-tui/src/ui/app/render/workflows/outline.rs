@@ -8,11 +8,11 @@
 //! The row order and the duplicate-step grouping are the model's
 //! ([`crate::ui::app::workflows`]); this module turns them into lines.
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use medulla::ui::workflows::RunOverlay;
 

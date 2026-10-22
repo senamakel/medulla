@@ -4,8 +4,8 @@
 //! leaderboard. Every value is intentionally local sample data so program
 //! rules can be reviewed before persistence and eligibility contracts exist.
 
-use ratatui::layout::Rect;
 use ratatui::Frame;
+use ratatui::layout::Rect;
 
 use crate::ui::multi_pane;
 

@@ -5,11 +5,11 @@
 //! the graph shows what is moving, while the compact header reports what needs
 //! a human's attention.
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::ui::stream;
 

@@ -100,8 +100,8 @@ fn disabled_update_check_spawns_no_background_work() {
 #[cfg(feature = "workflows")]
 #[test]
 fn concurrent_claims_never_exceed_the_bound() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Barrier;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     const LIMIT: usize = 4;
     const SINKS: usize = 16;

@@ -9,8 +9,8 @@
 //! Consequently both halves of the job run at draw time, after every widget has
 //! painted: copy first if the button has been released, then highlight.
 
-use ratatui::layout::Rect;
 use ratatui::Frame;
+use ratatui::layout::Rect;
 
 use super::super::types::App;
 

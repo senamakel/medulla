@@ -6,5 +6,5 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub(super) use logic::{status_line_group, STATUS_LINE_ROWS, STATUS_LINE_ROW_COUNT};
+pub(super) use logic::{STATUS_LINE_ROW_COUNT, STATUS_LINE_ROWS, status_line_group};
 pub(super) use types::*;

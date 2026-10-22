@@ -7,13 +7,13 @@
 //! this lane's context window. The header is built first because it decides how
 //! many rows are left for the body to scroll through.
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
-use crate::ui::agents::{lane_lines, task_lines, Line as StyledLine};
+use crate::ui::agents::{Line as StyledLine, lane_lines, task_lines};
 use crate::ui::harness::{budget_note, task_board_lines};
 use crate::ui::meters;
 use medulla::harness_contract::AgentBudgetMetadata;

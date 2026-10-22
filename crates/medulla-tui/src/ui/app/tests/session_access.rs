@@ -95,9 +95,11 @@ fn orchestrator_session_refuses_attachment_and_remains_running() {
     assert!(cmd.is_none());
     assert!(app.status().contains("view-only"), "{}", app.status());
     assert_eq!(app.attached_session(), None);
-    assert!(sessions
-        .row(&session)
-        .is_some_and(|row| row.state.is_running()));
+    assert!(
+        sessions
+            .row(&session)
+            .is_some_and(|row| row.state.is_running())
+    );
     sessions.close(&session);
 }
 
@@ -112,9 +114,11 @@ fn stale_close_prompt_cannot_kill_an_orchestrator_session() {
     app.close_session(&session);
 
     assert!(app.status().contains("view-only"), "{}", app.status());
-    assert!(sessions
-        .row(&session)
-        .is_some_and(|row| row.state.is_running()));
+    assert!(
+        sessions
+            .row(&session)
+            .is_some_and(|row| row.state.is_running())
+    );
     sessions.close(&session);
 }
 

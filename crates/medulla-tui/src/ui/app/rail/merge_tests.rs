@@ -8,7 +8,7 @@
 //! lookup for real.
 
 use super::tests::stub_session;
-use super::{task_row_serving, AgentGroup, AgentRailRow, SessionRailRow};
+use super::{AgentGroup, AgentRailRow, SessionRailRow, task_row_serving};
 use medulla::ui::agents::{TaskState, TaskStatus};
 
 fn task_row(task_id: &str) -> SessionRailRow {

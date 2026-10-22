@@ -1,7 +1,7 @@
 //! Unit tests for the workflow graph: topology, simulation stability, and the
 //! character drawing surface.
 
-use super::charmap::{elbow_path, point_along, CharMap};
+use super::charmap::{CharMap, elbow_path, point_along};
 use super::types::{EdgeKind, Graph, NodeKind};
 use super::{layout, mock};
 use ratatui::buffer::Buffer;

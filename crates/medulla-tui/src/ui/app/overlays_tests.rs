@@ -18,8 +18,8 @@ use medulla::config::LoadedConfig;
 use medulla::runtime::mock::MockRuntime;
 
 use super::types::{
-    tab_pos, App, Overlay, PromptKind, ResumePicker, SessionPicker, SessionPickerStep,
-    WorkspaceChoice,
+    App, Overlay, PromptKind, ResumePicker, SessionPicker, SessionPickerStep, WorkspaceChoice,
+    tab_pos,
 };
 use crate::ui::composer::TextPrompt;
 

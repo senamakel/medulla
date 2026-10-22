@@ -54,11 +54,13 @@ fn a_trailing_separator_is_not_a_different_directory() {
     let mut declaration = AgentDeclaration::new("api-claude", "host", "claude", "");
     declaration.workspace = WorkspaceRef::checkout("/work/api/");
     let declarations = vec![declaration];
-    assert!(agent_for_session(
-        &declarations,
-        &session(HarnessProvider::Claude, "/work/api")
-    )
-    .is_some());
+    assert!(
+        agent_for_session(
+            &declarations,
+            &session(HarnessProvider::Claude, "/work/api")
+        )
+        .is_some()
+    );
 }
 
 #[test]
@@ -131,9 +133,11 @@ fn an_undeclared_directory_resolves_to_no_agent() {
         "claude",
         "/work/api",
     )];
-    assert!(agent_for_session(
-        &declarations,
-        &session(HarnessProvider::Claude, "/elsewhere")
-    )
-    .is_none());
+    assert!(
+        agent_for_session(
+            &declarations,
+            &session(HarnessProvider::Claude, "/elsewhere")
+        )
+        .is_none()
+    );
 }

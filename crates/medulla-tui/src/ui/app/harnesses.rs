@@ -124,10 +124,8 @@ pub(crate) fn collect_harnesses(
     };
     match medulla_harness::skills::installed(&install_options) {
         Ok(skills) => {
-            let workflows: BTreeSet<_> = skills
-                .into_iter()
-                .map(|skill| skill.workflow_id)
-                .collect();
+            let workflows: BTreeSet<_> =
+                skills.into_iter().map(|skill| skill.workflow_id).collect();
             view.live_facts.push(if workflows.is_empty() {
                 "No managed skills installed".into()
             } else {
@@ -144,9 +142,7 @@ pub(crate) fn collect_harnesses(
 fn codex_override_fact(custom_harnesses: &[CustomHarnessConfig]) -> String {
     let configured = custom_harnesses
         .iter()
-        .filter(|preset| {
-            preset.base_harness == HarnessProvider::Codex && preset.codex_overrides
-        })
+        .filter(|preset| preset.base_harness == HarnessProvider::Codex && preset.codex_overrides)
         .count();
     if configured == 0 {
         "No Codex override presets configured".into()
@@ -173,11 +169,7 @@ fn probe_provider_version(
         match child.try_wait() {
             Ok(Some(status)) if status.success() => {
                 let mut output = String::new();
-                child
-                    .stdout
-                    .take()?
-                    .read_to_string(&mut output)
-                    .ok()?;
+                child.stdout.take()?.read_to_string(&mut output).ok()?;
                 return output
                     .lines()
                     .next()
@@ -238,14 +230,19 @@ mod tests {
         assert!(view.detection_complete);
         assert_eq!(view.providers.len(), 1);
         assert_eq!(view.providers[0].name, "claude");
-        assert_eq!(view.providers[0].version.as_deref(), Some("Claude Code 2.4.1"));
-        assert!(view
-            .configuration
-            .iter()
-            .any(|fact| fact.contains("Codex overrides configured for 1")));
-        assert!(view
-            .live_facts
-            .iter()
-            .any(|fact| fact.contains("No managed skills installed")));
+        assert_eq!(
+            view.providers[0].version.as_deref(),
+            Some("Claude Code 2.4.1")
+        );
+        assert!(
+            view.configuration
+                .iter()
+                .any(|fact| fact.contains("Codex overrides configured for 1"))
+        );
+        assert!(
+            view.live_facts
+                .iter()
+                .any(|fact| fact.contains("No managed skills installed"))
+        );
     }
 }

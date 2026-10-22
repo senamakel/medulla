@@ -1,10 +1,10 @@
 //! Production placeholder for TokenMaxxxing before rewards launch.
 
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Frame;
 
 use super::super::super::types::App;
 

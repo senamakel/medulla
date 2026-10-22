@@ -11,10 +11,10 @@ use std::sync::Arc;
 use super::types::PaneView;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
-use ratatui::backend::TestBackend;
+use medulla::runtime::mock::MockRuntime;
 use ratatui::Terminal;
+use ratatui::backend::TestBackend;
 
 fn app() -> App {
     let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());

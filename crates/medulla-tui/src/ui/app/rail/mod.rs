@@ -41,7 +41,7 @@ use medulla::runtime::AgentDeclaration;
 use medulla::ui::hosts::{HostAgentRow, HostKind, HostRow};
 
 use super::types::App;
-use crate::ui::agents::{ordered_tasks, AgentLane, AgentRole};
+use crate::ui::agents::{AgentLane, AgentRole, ordered_tasks};
 use crate::worker::pty::SessionRow;
 
 mod cleanup;

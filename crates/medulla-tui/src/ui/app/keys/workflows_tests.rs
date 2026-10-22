@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
+use medulla::runtime::mock::MockRuntime;
 use medulla::workflows::{WorkflowRecord, WorkflowStore};
 use serde_json::json;
 

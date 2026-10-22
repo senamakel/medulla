@@ -1,8 +1,8 @@
 //! Row metadata and mutations for the Status line settings page.
 
 use medulla::config::{
-    wire_value, ControlStyle, FieldPlacement, FieldVisibility, HarnessNameStyle, PathStyle,
-    StatusLineConfig,
+    ControlStyle, FieldPlacement, FieldVisibility, HarnessNameStyle, PathStyle, StatusLineConfig,
+    wire_value,
 };
 
 use super::super::types::App;

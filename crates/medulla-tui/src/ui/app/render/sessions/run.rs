@@ -16,11 +16,11 @@
 //! — is set up in [`super::mirror_selected_workflow_run`], because it must
 //! happen before the layout, not during the draw.
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Frame;
 
 use super::super::super::rail::WorkflowRunRailRow;
 use super::super::super::types::App;

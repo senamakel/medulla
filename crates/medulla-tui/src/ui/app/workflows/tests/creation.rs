@@ -9,11 +9,12 @@ fn the_new_row_closes_the_catalogue_and_the_cursor_walks_onto_it() {
     // Down past the last workflow's last row lands on New rather than stopping.
     app.move_workflow_rail(false);
     assert!(app.wf.creating, "down from the bottom reaches New");
-    assert!(app
-        .workflow_rail_rows()
-        .iter()
-        .any(|row| app.workflow_rail_selected(row)
-            && matches!(row, super::super::WorkflowRailRow::New)));
+    assert!(
+        app.workflow_rail_rows()
+            .iter()
+            .any(|row| app.workflow_rail_selected(row)
+                && matches!(row, super::super::WorkflowRailRow::New))
+    );
 
     // And Up comes back into the catalogue.
     app.move_workflow_rail(true);

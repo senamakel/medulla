@@ -8,12 +8,12 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
+use medulla::runtime::mock::MockRuntime;
 
-use crate::ui::app::changes::types::ChangedFile;
-use crate::ui::app::types::{tab_pos, PaneView};
 use crate::ui::app::App;
+use crate::ui::app::changes::types::ChangedFile;
+use crate::ui::app::types::{PaneView, tab_pos};
 
 fn app() -> App {
     let rt: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
@@ -152,12 +152,14 @@ fn workflow_delete_prompt_draws_nothing_when_unarmed() {
         .draw(|f| app.draw_workflow_delete_prompt(f, f.area()))
         .expect("draw");
 
-    assert!(terminal
-        .backend()
-        .buffer()
-        .content()
-        .iter()
-        .all(|cell| cell.symbol() == " "));
+    assert!(
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .all(|cell| cell.symbol() == " ")
+    );
 }
 #[test]
 fn leaving_the_agents_tab_takes_the_keyboard_back_from_an_attached_harness() {

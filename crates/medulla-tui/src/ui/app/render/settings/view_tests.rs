@@ -176,10 +176,10 @@ fn harnesses_view_explains_empty_detection_without_host_probes() {
 
 #[test]
 fn selected_harnesses_page_uses_the_collected_app_snapshot() {
-    use crate::ui::app::types::{tab_pos, App, DetectedProvider, HarnessesView};
+    use crate::ui::app::types::{App, DetectedProvider, HarnessesView, tab_pos};
     use medulla::config::LoadedConfig;
-    use medulla::runtime::mock::MockRuntime;
     use medulla::runtime::Runtime;
+    use medulla::runtime::mock::MockRuntime;
     use std::sync::Arc;
 
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
@@ -198,9 +198,7 @@ fn selected_harnesses_page_uses_the_collected_app_snapshot() {
         routing: vec![("reasoning".into(), "routed-model".into())],
         budgets: vec![("codex".into(), "remaining 9000".into())],
         configuration: vec!["Codex overrides configured for 1 preset(s)".into()],
-        live_facts: vec![
-            "Managed skills installed: 3".into(),
-        ],
+        live_facts: vec!["Managed skills installed: 3".into()],
     });
 
     let output = rendered(|frame, _| app.draw(frame));
@@ -212,7 +210,10 @@ fn selected_harnesses_page_uses_the_collected_app_snapshot() {
         "Codex overrides configured for 1 preset(s)",
         "Managed skills installed: 3",
     ] {
-        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+        assert!(
+            output.contains(expected),
+            "missing {expected:?} in:\n{output}"
+        );
     }
 }
 

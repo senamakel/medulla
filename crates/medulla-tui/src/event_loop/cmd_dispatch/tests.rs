@@ -12,7 +12,7 @@ use super::run_cmd as dispatch_cmd;
 use crate::event_loop::types::AppMsg;
 
 #[cfg(feature = "workflows")]
-use super::workflows::{report_delete, DeleteOutcome};
+use super::workflows::{DeleteOutcome, report_delete};
 
 /// Dispatch through the production entry point with default workflow settings.
 fn run_cmd(

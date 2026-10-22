@@ -9,7 +9,7 @@ use crate::ui::harness_pane::HarnessChoice;
 
 use super::super::types::Cmd;
 use super::super::types::{
-    tab_pos, App, PickerHost, Prompt, PromptKind, SessionPicker, SessionPickerStep,
+    App, PickerHost, Prompt, PromptKind, SessionPicker, SessionPickerStep, tab_pos,
 };
 use crate::ui::composer::Draft;
 

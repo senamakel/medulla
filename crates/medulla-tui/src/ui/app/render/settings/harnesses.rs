@@ -1,12 +1,12 @@
 //! The Harnesses Settings section and its injected, side-effect-free view data.
 
+#[cfg(test)]
+pub(super) use super::super::super::types::DetectedProvider;
+pub(super) use super::super::super::types::HarnessesView;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-pub(super) use super::super::super::types::HarnessesView;
-#[cfg(test)]
-pub(super) use super::super::super::types::DetectedProvider;
 
 impl super::super::super::types::App {
     /// Render cached facts, falling back to the effective configuration while collection runs.
@@ -62,7 +62,11 @@ pub(super) fn draw_harnesses(f: &mut Frame, area: Rect, view: &HarnessesView) {
     if view.configuration.is_empty() {
         lines.push(Line::from("No configuration facts supplied."));
     } else {
-        lines.extend(view.configuration.iter().map(|item| Line::from(item.as_str())));
+        lines.extend(
+            view.configuration
+                .iter()
+                .map(|item| Line::from(item.as_str())),
+        );
     }
 
     lines.push(Line::from(""));

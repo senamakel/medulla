@@ -2,11 +2,11 @@
 //! process resource indicators.
 
 use medulla::config::ResourceDisplay;
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line as TLine, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 use unicode_width::UnicodeWidthStr;
 
 use crate::ui::app::types::App;

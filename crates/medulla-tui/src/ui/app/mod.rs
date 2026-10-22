@@ -17,9 +17,9 @@ mod commands;
 mod decisions;
 mod feedback;
 mod harness_workspace;
-mod harnesses;
 #[cfg(test)]
 mod harness_workspace_tests;
+mod harnesses;
 mod input;
 mod keys;
 mod overlays;

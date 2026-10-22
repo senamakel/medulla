@@ -16,8 +16,8 @@
 //! selected session is working on. This module owns only the layout that decides
 //! how much room each one gets.
 
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use super::super::types::App;
 

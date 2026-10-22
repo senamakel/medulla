@@ -8,13 +8,13 @@
 //! this step is producing right now, which is the only part of the box that
 //! changes between frames and therefore the part being watched.
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Frame;
 
-use medulla::ui::workflows::{find_node_in, RunOverlay};
+use medulla::ui::workflows::{RunOverlay, find_node_in};
 use medulla::workflows::RunStatus;
 
 use super::super::super::types::App;

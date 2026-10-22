@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use crossterm::event::EventStream;
 use futures::StreamExt;
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 use medulla::runtime::Runtime;
 use medulla_tui::ui::app::{App, Cmd, TABS};

@@ -17,7 +17,7 @@ use medulla::ui::agents::{TaskState, TaskStatus};
 
 use super::super::super::super::rail::{RailRow, SessionRailRow};
 use super::super::super::color;
-use super::tests::{app, lane, NOW};
+use super::tests::{NOW, app, lane};
 use crate::ui::harness_pane::LocalSessions;
 use crate::worker::pty::{LaunchSpec, PtyManager, PtyState, SessionControl, SessionOrigin};
 

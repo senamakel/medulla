@@ -7,7 +7,7 @@
 
 use medulla::protocol::{RemoteAttention, RemoteSessionRow, RemoteSessionState};
 
-use super::remote_sessions::{qualify, session_row, SessionRef};
+use super::remote_sessions::{SessionRef, qualify, session_row};
 
 fn remote_row(id: &str) -> RemoteSessionRow {
     RemoteSessionRow {

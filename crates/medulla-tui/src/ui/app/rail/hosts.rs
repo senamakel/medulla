@@ -8,7 +8,7 @@
 //! nothing writes.
 
 use medulla::config::LocalHostRef;
-use medulla::ui::hosts::{host_rows, HostRow};
+use medulla::ui::hosts::{HostRow, host_rows};
 
 use super::super::types::App;
 

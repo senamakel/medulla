@@ -7,11 +7,11 @@
 //! their own concern, kept in [`wrap`] so this file stays about *what* a row
 //! says rather than how it is laid out across columns.
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::ui::agents::{AgentLane, TaskStatus};
 use crate::worker::pty::ATTENTION_GLYPH;

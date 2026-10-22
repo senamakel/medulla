@@ -4,11 +4,11 @@
 //! the picker names the directory the rail is already showing, while the close
 //! prompt keeps the session whose work would be lost visible behind it.
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
-use ratatui::Frame;
 
 use super::super::types::{App, SessionPickerStep};
 

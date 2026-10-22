@@ -14,16 +14,16 @@
 //! whether typing goes here — the Sessions composer has always worked this way,
 //! and the copilot reading differently made the two panes feel unrelated.
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use medulla::ui::workflows::{CopilotTurn, TurnRole};
 
 use crate::ui::chat::{self, ComposerChrome};
-use crate::ui::util::{clip, wrap, SPINNER};
+use crate::ui::util::{SPINNER, clip, wrap};
 
 use super::super::super::types::{App, WorkflowFocus};
 
@@ -256,7 +256,7 @@ fn intro_lines(intro: Intro, width: usize) -> Vec<TLine<'static>> {
     let dim = Style::default().add_modifier(Modifier::DIM);
     let (blurb, samples) = match intro {
         Intro::NothingSelected => {
-            return vec![TLine::from(Span::styled("Select a workflow first.", dim))]
+            return vec![TLine::from(Span::styled("Select a workflow first.", dim))];
         }
         Intro::New => (
             "Describe what you want to happen and the copilot will build the \

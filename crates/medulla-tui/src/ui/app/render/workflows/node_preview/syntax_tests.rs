@@ -22,15 +22,21 @@ fn python_colours_keywords_strings_numbers_and_comments() {
             && span.style.fg == Some(Color::Cyan)
             && span.style.add_modifier.contains(Modifier::BOLD)
     }));
-    assert!(spans
-        .iter()
-        .any(|span| span.content == "\"Ada\"" && span.style.fg == Some(Color::Green)));
-    assert!(spans
-        .iter()
-        .any(|span| span.content == "2" && span.style.fg == Some(Color::Magenta)));
-    assert!(spans
-        .iter()
-        .any(|span| span.content == "# hello" && span.style.fg == Some(Color::DarkGray)));
+    assert!(
+        spans
+            .iter()
+            .any(|span| span.content == "\"Ada\"" && span.style.fg == Some(Color::Green))
+    );
+    assert!(
+        spans
+            .iter()
+            .any(|span| span.content == "2" && span.style.fg == Some(Color::Magenta))
+    );
+    assert!(
+        spans
+            .iter()
+            .any(|span| span.content == "# hello" && span.style.fg == Some(Color::DarkGray))
+    );
 }
 
 #[test]
@@ -43,12 +49,16 @@ fn shell_colours_commands_variables_strings_and_comments() {
             && span.style.fg == Some(Color::Yellow)
             && span.style.add_modifier.contains(Modifier::BOLD)
     }));
-    assert!(spans
-        .iter()
-        .any(|span| span.content == "\"$TARGET\"" && span.style.fg == Some(Color::Green)));
-    assert!(spans
-        .iter()
-        .any(|span| span.content == "# destination" && span.style.fg == Some(Color::DarkGray)));
+    assert!(
+        spans
+            .iter()
+            .any(|span| span.content == "\"$TARGET\"" && span.style.fg == Some(Color::Green))
+    );
+    assert!(
+        spans
+            .iter()
+            .any(|span| span.content == "# destination" && span.style.fg == Some(Color::DarkGray))
+    );
 }
 
 #[test]

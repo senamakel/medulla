@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::Runtime;
+use medulla::runtime::mock::MockRuntime;
 use medulla::ui::workflows::Move;
 use medulla::workflows::{WorkflowRecord, WorkflowStore};
 use serde_json::json;
@@ -345,9 +345,10 @@ fn a_failed_turn_drops_what_was_queued_behind_it() {
     // The follow-up assumed the turn that just failed had happened; running it
     // anyway would act on a graph nobody edited.
     assert!(!app.copilot_busy());
-    assert!(app
-        .copilot_finished("sweep", String::new(), Vec::new(), None)
-        .is_none());
+    assert!(
+        app.copilot_finished("sweep", String::new(), Vec::new(), None)
+            .is_none()
+    );
 }
 
 #[test]
@@ -408,9 +409,10 @@ fn aborting_stops_the_turn_and_drops_anything_behind_it() {
     assert!(matches!(aborted, Some(Cmd::AbortCopilot { .. })));
     // The operator is stopping this line of work; finishing what they just
     // interrupted is not what they asked for.
-    assert!(app
-        .copilot_finished("sweep", String::new(), Vec::new(), None)
-        .is_none());
+    assert!(
+        app.copilot_finished("sweep", String::new(), Vec::new(), None)
+            .is_none()
+    );
 }
 
 #[test]

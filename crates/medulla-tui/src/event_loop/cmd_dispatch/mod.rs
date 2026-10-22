@@ -350,15 +350,12 @@ pub(super) fn run_cmd(
             medulla_home,
         } => {
             let config = _config.clone();
-            let env: std::collections::HashMap<String, String> =
-                std::env::vars().collect();
+            let env: std::collections::HashMap<String, String> = std::env::vars().collect();
             let home = medulla_home.unwrap_or_else(|| medulla::home::medulla_home(&env));
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let result = tokio::task::spawn_blocking(move || {
-                    crate::ui::app::harnesses::collect_harnesses(
-                        &config, &sources, &home, &env,
-                    )
+                    crate::ui::app::harnesses::collect_harnesses(&config, &sources, &home, &env)
                 })
                 .await;
                 match result {
@@ -366,9 +363,8 @@ pub(super) fn run_cmd(
                         let _ = tx.send(AppMsg::HarnessesLoaded(view));
                     }
                     Err(error) => {
-                        let _ = tx.send(AppMsg::Status(format!(
-                            "Harness detection failed: {error}"
-                        )));
+                        let _ =
+                            tx.send(AppMsg::Status(format!("Harness detection failed: {error}")));
                     }
                 }
             });
