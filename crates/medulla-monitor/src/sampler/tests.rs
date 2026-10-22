@@ -414,6 +414,31 @@ fn process_details_are_refreshed_only_for_possible_agent_processes() {
     assert!(!super::may_be_agent_process("postgres"));
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn agent_metric_refresh_includes_descendants_without_refreshing_unrelated_trees() {
+    use std::collections::HashSet;
+    use sysinfo::Pid;
+
+    let processes = [
+        (Pid::from_u32(10), None),
+        (Pid::from_u32(11), Some(Pid::from_u32(10))),
+        (Pid::from_u32(12), Some(Pid::from_u32(11))),
+        (Pid::from_u32(20), None),
+        (Pid::from_u32(21), Some(Pid::from_u32(20))),
+    ];
+    let refreshed = super::pids_in_process_trees(processes, [Pid::from_u32(10)])
+        .into_iter()
+        .collect::<HashSet<_>>();
+
+    assert_eq!(
+        refreshed,
+        [Pid::from_u32(10), Pid::from_u32(11), Pid::from_u32(12)]
+            .into_iter()
+            .collect()
+    );
+}
+
 #[test]
 fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
     let disks = [
