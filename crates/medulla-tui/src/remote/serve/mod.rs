@@ -485,7 +485,7 @@ impl RemoteServer {
                                 history.remove(0);
                             }
                             let usage = medulla::protocol::AgentUsage {
-                            kind: sessions::agent_kind(row.provider.as_wire()),
+                                kind: sessions::agent_kind(row.provider.as_wire()),
                                 pid,
                                 cpu: process.cpu_percent,
                                 rss: process.memory_bytes,
