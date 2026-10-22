@@ -53,12 +53,13 @@ e2e-docker: e2e-image ## Run every offline e2e suite in containers for E2E_HARNE
 	$(E2E_RUN) /app/e2e/coordination/tests_multi.sh
 	$(E2E_RUN) /app/e2e/coordination/tests_acp.sh
 	$(E2E_RUN) /app/e2e/coordination/tests_tui.sh
+	$(E2E_RUN) /app/e2e/coordination/tests_resources.sh
 
 # Builds once, then loops: the image is the same for every harness, so a rebuild
 # per leg would only pay docker's cache-check cost three times over.
 e2e-docker-all: e2e-image ## Run every offline e2e suite against all three coding CLIs
 	@for harness in opencode claude codex; do \
-	  for suite in run tests tests_multi tests_acp tests_tui; do \
+	  for suite in run tests tests_multi tests_acp tests_tui tests_resources; do \
 	    echo "==> $$harness / $$suite"; \
 	    docker run --rm --network none -e E2E_HARNESS=$$harness $(E2E_IMAGE) \
 	      bash /app/e2e/coordination/$$suite.sh || exit 1; \
