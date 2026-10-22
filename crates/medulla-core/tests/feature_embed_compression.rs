@@ -53,6 +53,7 @@ fn options(
 ) -> RunTaskOptions {
     let mut env: HashMap<String, String> = std::env::vars().collect();
     env.insert("MEDULLA_HOME".into(), home.to_string_lossy().into_owned());
+    env.insert("LOCAL_ROUTER_KEY".into(), "fixture-key".into());
     RunTaskOptions {
         embed: host,
         budget: None,
@@ -74,6 +75,7 @@ fn options(
         abort: Abort::new(),
         router: Some(medulla::config::RouterConfig {
             base_url: Some(format!("{uri}/v1")),
+            api_key_env: Some("LOCAL_ROUTER_KEY".into()),
             ..Default::default()
         }),
         attribution: false,
