@@ -382,6 +382,29 @@ fn process_snapshots_include_executable_and_command_for_an_unregistered_child() 
     println!("external child snapshot for PID {pid}: {process:?}");
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn thread_details_are_refreshed_only_for_agent_candidates() {
+    use std::ffi::OsString;
+    use std::path::Path;
+
+    assert!(super::should_refresh_task_details(
+        Some(Path::new("/usr/local/bin/claude")),
+        &[OsString::from("claude")],
+    ));
+    assert!(super::should_refresh_task_details(
+        Some(Path::new("/usr/bin/node")),
+        &[
+            OsString::from("node"),
+            OsString::from("/opt/@agentclientprotocol/claude-agent-acp"),
+        ],
+    ));
+    assert!(!super::should_refresh_task_details(
+        Some(Path::new("/usr/bin/sleep")),
+        &[OsString::from("sleep"), OsString::from("120")],
+    ));
+}
+
 #[test]
 fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
     let disks = [
