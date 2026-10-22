@@ -31,7 +31,7 @@ impl Respond for ToolThenAnswer {
 
 #[cfg(unix)]
 fn fixture_command() -> String {
-    format!("cat '{}' | tr -d \\000", fixture_path().display())
+    format!("cat '{}' | tr -d '\\000'", fixture_path().display())
 }
 #[cfg(windows)]
 fn fixture_command() -> String {
