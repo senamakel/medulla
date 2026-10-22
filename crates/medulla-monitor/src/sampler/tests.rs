@@ -349,6 +349,36 @@ fn process_snapshots_include_executable_and_command_for_unregistered_agents() {
     );
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn process_snapshots_include_executable_and_command_for_an_unregistered_child() {
+    let mut child = std::process::Command::new("sleep").arg("60").spawn().unwrap();
+    let pid = child.id();
+    let snapshot = super::SystemResourceSource::default().sample();
+    let process = snapshot
+        .processes
+        .iter()
+        .find(|process| process.pid == pid)
+        .cloned();
+    let _ = child.kill();
+    let _ = child.wait();
+
+    let process = process.unwrap_or_else(|| panic!("sampler omitted external fixture PID {pid}"));
+    assert!(
+        process.exe.as_deref().is_some_and(|exe| {
+            std::path::Path::new(exe)
+                .file_name()
+                .is_some_and(|name| name == "sleep")
+        }),
+        "external process snapshot must include its executable: {process:?}"
+    );
+    assert!(
+        process.cmd.iter().any(|argument| argument == "60"),
+        "external process snapshot must include argv: {process:?}"
+    );
+    println!("external child snapshot for PID {pid}: {process:?}");
+}
+
 #[test]
 fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
     let disks = [

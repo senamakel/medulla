@@ -147,13 +147,14 @@ print(f"[e2e] session id {origin} for PID {pid}: {line.strip()}")
 PY
   log "  dispatched $HARNESS process is visible with its provider session id"
 
-  # A second process advertises the harness name in argv but was started by
+  # A second process has the harness executable basename but was started by
   # tmux, outside Medulla. It has no registry entry and must render as external.
   mkdir -p "$RUN_DIR/external-bin"
-  cp "$(command -v sleep)" "$RUN_DIR/external-bin/opencode"
+  local external_name="$HARNESS"
+  cp "$(command -v python3)" "$RUN_DIR/external-bin/$external_name"
   cat > "$RUN_DIR/external.cmd" <<EOF
 #!/usr/bin/env bash
-"$RUN_DIR/external-bin/opencode" 180 >/dev/null 2>&1 &
+"$RUN_DIR/external-bin/$external_name" -c 'import time; time.sleep(180)' >/dev/null 2>&1 &
 echo \$! > $(printf %q "$RUN_DIR/external.pid")
 wait
 EOF
@@ -162,7 +163,7 @@ EOF
   tmux send-keys -t "$SESSION:external" "bash $(printf %q "$RUN_DIR/external.cmd")" C-m
   wait_for_regex "$RUN_DIR/external.pid" '.' 10 || fail "external process fixture did not start"
   local external_pid="$(cat "$RUN_DIR/external.pid")"
-  [ "$(basename "$(readlink "/proc/$external_pid/exe")")" = opencode ] \
+  [ "$(basename "$(readlink "/proc/$external_pid/exe")")" = "$external_name" ] \
     || fail "external fixture executable is not named like a harness binary"
   local external_started_at="$(date +%s)"
   deadline=$(( $(date +%s) + 30 ))
@@ -184,7 +185,7 @@ import sys
 text = open(sys.argv[1], encoding="utf-8").read().splitlines()
 rows = [line for line in text if sys.argv[2] in line]
 assert rows and any("External" in line and "external" in line.lower() for line in rows), \
-    f"OpenCode PID {sys.argv[2]} has no External/external row: {rows!r}"
+    f"external PID {sys.argv[2]} has no External/external row: {rows!r}"
 print(f"[e2e] external process row: {rows[0].strip()}")
 PY
   kill "$external_pid" 2>/dev/null || true
