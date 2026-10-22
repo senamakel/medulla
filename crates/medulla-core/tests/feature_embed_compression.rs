@@ -111,8 +111,9 @@ fn explicit_opt_out_preserves_exact_tool_output_with_tinyjuice_feature_enabled()
 fn opt_out_scenario() {
     medulla::tokio_tuning::build_runtime().unwrap().block_on(async {
         let (requests, home, _cwd) = run_fixture(std::sync::Arc::new(EmbedHost::default().with_compression_enabled(false))).await;
-        assert!(requests.len() >= 2, "expected a second provider request");
-        let second: Value = serde_json::from_slice(&requests[1].body).unwrap_or_else(|error| panic!("reqs: {:?}", requests.iter().map(|r| (r.method.clone(), r.url.clone(), r.body.len(), error.to_string())).collect::<Vec<_>>()));
+        let completions: Vec<_> = requests.iter().filter(|request| request.method == wiremock::http::Method::POST && request.url.path() == "/v1/chat/completions").collect();
+        assert!(completions.len() >= 2, "expected a second provider completion request");
+        let second: Value = serde_json::from_slice(&completions[1].body).unwrap();
         let mut contents = Vec::new();
         tool_contents(&second, &mut contents);
         assert!(contents.iter().any(|content| content == FIXTURE.trim_end()), "tool content did not preserve fixture exactly");
@@ -131,8 +132,9 @@ fn loaded_tinyjuice_module_compresses_the_second_request_and_records_workspace_t
 fn enabled_scenario() {
     medulla::tokio_tuning::build_runtime().unwrap().block_on(async {
         let (requests, home, _cwd) = run_fixture(std::sync::Arc::new(EmbedHost::default().with_compression_enabled(true))).await;
-        assert!(requests.len() >= 2, "expected a second provider request");
-        let second: Value = serde_json::from_slice(&requests[1].body).unwrap_or_else(|error| panic!("reqs: {:?}", requests.iter().map(|r| (r.method.clone(), r.url.clone(), r.body.len(), error.to_string())).collect::<Vec<_>>()));
+        let completions: Vec<_> = requests.iter().filter(|request| request.method == wiremock::http::Method::POST && request.url.path() == "/v1/chat/completions").collect();
+        assert!(completions.len() >= 2, "expected a second provider completion request");
+        let second: Value = serde_json::from_slice(&completions[1].body).unwrap();
         let mut contents = Vec::new();
         tool_contents(&second, &mut contents);
         let sent = contents.join("\n");
