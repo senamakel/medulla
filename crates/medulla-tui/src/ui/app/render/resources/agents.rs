@@ -521,7 +521,7 @@ fn display_command(process: &ProcessSnapshot) -> String {
             }
         }
         if argument.starts_with('-') && is_secret_name(argument) {
-            rendered.push(argument.clone());
+            rendered.push(format!("{argument}=[REDACTED]"));
             redact_next = true;
         } else {
             rendered.push(argument.clone());
