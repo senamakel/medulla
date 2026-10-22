@@ -17,7 +17,6 @@
 
 use std::sync::{Arc, Weak};
 
-use super::super::checkout::inspect;
 use super::super::handle::SessionHandle;
 use super::PtyManager;
 
@@ -37,7 +36,7 @@ impl PtyManager {
         let inner = Arc::downgrade(&self.inner);
         std::thread::spawn(move || loop {
             std::thread::sleep(CHECKOUT_INTERVAL);
-            let (Some(handle), true) = (handle.upgrade(), inner.upgrade().is_some()) else {
+            let (Some(handle), Some(inner)) = (handle.upgrade(), inner.upgrade()) else {
                 return;
             };
             // An exited session's checkout is frozen at whatever it last was:
@@ -47,7 +46,14 @@ impl PtyManager {
             if !handle.is_running() {
                 return;
             }
-            handle.set_checkout(inspect::resolve(handle.cwd()));
+            handle.set_checkout(inner.lifecycle.checkout(&crate::LifecycleSession {
+                id: handle.id().to_owned(),
+                session_id: handle.session_id(),
+                cwd: handle.cwd().to_owned(),
+                env: handle.meta.env.clone(),
+                grant_session: handle.grant_session().map(str::to_owned),
+                provider: handle.provider(),
+            }));
         });
     }
 }

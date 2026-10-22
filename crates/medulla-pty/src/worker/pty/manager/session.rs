@@ -5,13 +5,14 @@
 //! and counting live sessions — read under the lock, since they touch nothing
 //! but atomics and run every frame.
 
-use medulla::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 use super::super::types::{CloseAttempt, SessionControl, SessionRow};
 use super::{read, write, PtyManager};
 
 /// Advance the consumed-bell watermark without allowing a stale screen sample
 /// to move it backwards.
+#[cfg(test)]
 pub(super) fn consumed_bell_count(seen: usize, sampled: usize) -> usize {
     seen.max(sampled)
 }
@@ -168,7 +169,7 @@ impl PtyManager {
     }
 
     /// Whether the named session's child environment selects a GitHub repository.
-    pub(in crate::worker) fn gh_repo_is_set(&self, id: &str) -> Option<bool> {
+    pub fn gh_repo_is_set(&self, id: &str) -> Option<bool> {
         self.handle(id).map(|session| session.gh_repo_is_set())
     }
 
@@ -204,7 +205,7 @@ impl PtyManager {
     }
 
     /// Record a harness thread name learned from provider-owned session state.
-    pub(in crate::worker) fn record_thread_name(&self, id: &str, thread_name: String) {
+    pub fn record_thread_name(&self, id: &str, thread_name: String) {
         if let Some(session) = self.handle(id) {
             session.record_thread_name(thread_name);
         }
@@ -289,12 +290,9 @@ impl PtyManager {
         // this lock, and holding one lock across another is how the freeze in
         // `SessionHandle::reap` got written in the first place.
         drop(sessions);
-        #[cfg(feature = "workflows")]
         if let Some(session) = forgotten.grant_session() {
-            medulla::mcp::forget_session_runs(session);
+            self.inner.lifecycle.on_forget(session);
         }
-        #[cfg(not(feature = "workflows"))]
-        let _ = forgotten;
         true
     }
 

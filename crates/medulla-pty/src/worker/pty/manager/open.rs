@@ -1,16 +1,15 @@
 //! Launching a harness on a fresh pty, and draining it into the emulator.
 
 use std::io::{Read, Write};
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Weak};
 
-use medulla::protocol::HarnessProvider;
+use medulla_pty::{LifecycleSession, SessionClose};
+use medulla_types::HarnessProvider;
 use portable_pty::{native_pty_system, Child, CommandBuilder, PtyPair, PtySize};
 
 use super::super::handle::{release_queued, SessionHandle, SessionMeta};
-use super::super::launch::{interactive_args, mint_session_id};
 use super::super::types::{LaunchSpec, DEFAULT_COLS, DEFAULT_ROWS, SCROLLBACK};
 
 use super::{write, PtyManager, BUF_LEN, OPENPTY_ATTEMPTS, OPENPTY_RETRY_CAP, OPENPTY_RETRY_PAUSE};
@@ -31,9 +30,8 @@ use super::{write, PtyManager, BUF_LEN, OPENPTY_ATTEMPTS, OPENPTY_RETRY_CAP, OPE
 /// directly with a recording stand-in child, which a real failure inside
 /// `open` is not reliable enough to provoke in a test.
 pub(super) struct LaunchGuard {
-    /// `None` when this launch minted no grant — a provider with no
-    /// registration flag, or a host with no control plane bound.
-    grant: Option<String>,
+    /// Application cleanup callback, shared with the eventual session handle.
+    close: Arc<SessionClose>,
     /// `Some` from the moment `spawn_command` returns until [`Self::disarm`]
     /// hands it to its permanent owner.
     child: Option<Box<dyn Child + Send + Sync>>,
@@ -42,9 +40,9 @@ pub(super) struct LaunchGuard {
 }
 
 impl LaunchGuard {
-    pub(super) fn new(grant: Option<String>) -> Self {
+    pub(super) fn new(close: Arc<SessionClose>) -> Self {
         Self {
-            grant,
+            close,
             child: None,
             armed: true,
         }
@@ -94,10 +92,7 @@ impl Drop for LaunchGuard {
             let _ = child.kill();
             let _ = child.wait();
         }
-        #[cfg(feature = "workflows")]
-        if let Some(session) = &self.grant {
-            medulla::mcp::revoke_session(session);
-        }
+        self.close.notify();
     }
 }
 
@@ -115,39 +110,51 @@ impl PtyManager {
     /// worker for up to half a second per launch, which under a burst starved
     /// the runtime the inbox drain and the screen samplers also live on.
     pub fn open(&self, spec: LaunchSpec) -> Result<String, String> {
+        // Reserve the id before any failure path can invoke lifecycle cleanup,
+        // so on_close always identifies the launch it belongs to.
+        let id = format!("w_{}", self.inner.next_id.fetch_add(1, Ordering::SeqCst));
         // Constructed before the *first* fallible call in this function, not
         // just before `spawn_command`: `spec.mcp_grant_session` was already
         // minted by the caller before `open` was ever reached, so even
         // `open_pty()` failing — file descriptors exhausted, most likely —
         // must not return with that grant live and nothing left to revoke it.
         // See the type's own docs for what it does from here on.
-        let mut guard = LaunchGuard::new(spec.mcp_grant_session.clone());
+        let close = Arc::new(SessionClose::new(
+            self.inner.lifecycle.clone(),
+            LifecycleSession {
+                id: id.clone(),
+                session_id: spec.session_id.clone(),
+                cwd: spec.cwd.clone(),
+                env: spec.env.clone(),
+                grant_session: spec.mcp_grant_session.clone(),
+                provider: spec.provider,
+            },
+        ));
+        let mut guard = LaunchGuard::new(Arc::clone(&close));
 
         // Before the pty, because it shells out to `git`: one more reason this
         // whole function belongs on a blocking thread. The checkout is read
         // once here so the row is right on its very first frame; from then on
         // the poller keeps it current, because a harness can move it.
-        let checkout = super::super::checkout::inspect::resolve(&spec.cwd);
-        let launch_root = git_root(&spec.cwd);
-        let launch_commit = launch_root.as_deref().and_then(git_head);
-        let launch_checkout_identity = super::super::checkout::capture(spec.cwd.as_ref());
+        let launch = self.inner.lifecycle.launch_checkout(&LifecycleSession {
+            id: id.clone(),
+            cwd: spec.cwd.clone(),
+            env: spec.env.clone(),
+            provider: spec.provider,
+            ..LifecycleSession::default()
+        });
+        let checkout = launch.checkout;
+        let launch_root = launch.root;
+        let launch_commit = launch.commit;
+        let launch_checkout_identity = launch.identity;
         let pty = open_pty()?;
 
         // Mint the id *before* spawning, so the transcript this session writes is
         // findable by name rather than by guessing which file is newest.
-        let session_id = spec
-            .session_id
-            .clone()
-            .or_else(|| mint_session_id(spec.provider));
+        let session_id = spec.session_id.clone();
 
         let mut command = CommandBuilder::new(&spec.bin);
-        for arg in interactive_args(
-            spec.provider,
-            session_id.as_deref(),
-            spec.skip_permissions,
-            spec.model.as_deref(),
-            &spec.extra_args,
-        ) {
+        for arg in &spec.args {
             command.arg(arg);
         }
         command.cwd(&spec.cwd);
@@ -190,7 +197,6 @@ impl PtyManager {
         let (writes, queued) = channel::<Vec<u8>>();
         let queued_bytes = Arc::new(AtomicUsize::new(0));
         let now = self.now();
-        let id = format!("w_{}", self.inner.next_id.fetch_add(1, Ordering::SeqCst));
         let handle = Arc::new(SessionHandle::new(
             SessionMeta {
                 id: id.clone(),
@@ -205,8 +211,14 @@ impl PtyManager {
                 // Whichever door this launch came through is this session's
                 // provenance from here on. The executor's task path stamps
                 // `Orchestrator`; the operator's picker stamps `User`.
-                origin: spec.origin,
+                origin: match spec.origin.as_str() {
+                    "user" => medulla_types::SessionOrigin::User,
+                    _ => medulla_types::SessionOrigin::Orchestrator,
+                },
                 mcp_grant_session: spec.mcp_grant_session,
+                close,
+                lifecycle: Arc::clone(&self.inner.lifecycle),
+                env: spec.env.clone(),
             },
             spec.label,
             spec.name,
@@ -223,14 +235,14 @@ impl PtyManager {
         handle.set_checkout(checkout);
 
         write(&self.inner.sessions).push(handle.clone());
+        self.spawn_attention_poller(Arc::downgrade(&handle));
+        self.spawn_checkout_poller(Arc::downgrade(&handle));
 
         // Only now: the reader marks output on every read, and a child that
         // greets the pty immediately would otherwise have its first output land
         // before there is a session to record it against — losing the
         // `last_output_at` that idle detection reads.
         self.spawn_writer(Arc::downgrade(&handle), writer, queued, queued_bytes);
-        self.spawn_attention_poller(Arc::downgrade(&handle));
-        self.spawn_checkout_poller(Arc::downgrade(&handle));
         // Codex persists `/rename` in a file it never says anything about on the
         // wire, so the rail's only way to learn one while a session is held,
         // idle, or retained is to re-read that file on a timer until the
@@ -344,44 +356,9 @@ impl PtyManager {
             } else {
                 String::new()
             };
-            handle.record_error(
-                format!("{}: {err}{lost}", handle.id()),
-                medulla::clock::now_millis(),
-            );
+            handle.record_error(format!("{}: {err}{lost}", handle.id()), super::now_millis());
         });
     }
-}
-
-/// Snapshot the repository commit before the harness can mutate the checkout.
-fn git_head(cwd: &str) -> Option<String> {
-    let output = Command::new("git")
-        .current_dir(cwd)
-        .args(["rev-parse", "--verify", "HEAD"])
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-        .filter(|head| !head.is_empty())
-}
-
-/// Resolve the repository identity paired with the immutable launch commit.
-fn git_root(cwd: &str) -> Option<String> {
-    let output = Command::new("git")
-        .current_dir(cwd)
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| {
-            String::from_utf8_lossy(&output.stdout)
-                .trim_end_matches(['\r', '\n'])
-                .to_owned()
-        })
-        .filter(|root| !root.is_empty())
 }
 
 /// Allocate a pty, retrying only the failures that are actually transient.

@@ -14,7 +14,7 @@
 use std::io::{IsTerminal, Write};
 use std::sync::Arc;
 
-use super::types::ClipboardSink;
+use medulla_pty::ClipboardSink;
 
 /// Forward a harness's copy to whoever is looking at this process.
 ///

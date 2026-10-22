@@ -9,6 +9,7 @@
 //! one small file read on a thread. It is the Codex counterpart of the
 //! [checkout poller](super::checkout) beside it.
 
+use medulla_pty::LifecycleSession;
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
 
@@ -44,7 +45,7 @@ impl PtyManager {
         let inner = Arc::downgrade(&self.inner);
         std::thread::spawn(move || loop {
             std::thread::sleep(LABEL_INTERVAL);
-            let (Some(handle), true) = (handle.upgrade(), inner.upgrade().is_some()) else {
+            let (Some(handle), Some(inner)) = (handle.upgrade(), inner.upgrade()) else {
                 return;
             };
             // An exited session's name is frozen at whatever it last was: the
@@ -53,10 +54,13 @@ impl PtyManager {
             if !handle.is_running() {
                 return;
             }
-            let label = match handle.session_id() {
-                Some(session_id) => medulla::session_history::codex_thread_label(&env, &session_id),
-                None => medulla::session_history::codex_thread_label_for_cwd(&env, handle.cwd()),
-            };
+            let label = inner.lifecycle.thread_label(&LifecycleSession {
+                id: handle.id().to_owned(),
+                session_id: handle.session_id(),
+                cwd: handle.cwd().to_owned(),
+                env: env.clone(),
+                ..LifecycleSession::default()
+            });
             if let Some(label) = label {
                 handle.record_thread_name(label);
             }

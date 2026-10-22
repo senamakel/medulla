@@ -2,7 +2,6 @@
 
 use std::sync::atomic::Ordering;
 
-use super::super::attention;
 use super::super::types::SessionControl;
 use super::super::AttentionKind;
 use super::SessionHandle;
@@ -198,7 +197,7 @@ impl SessionHandle {
         let consumed_pending = unseen_bells.min(attention.pending_completion_bells);
         attention.pending_completion_bells -= consumed_pending;
         let completion_bell_already_accounted_for = (unseen_bells > consumed_pending
-            && !attention::is_working(&contents))
+            && !self.meta.lifecycle.is_working(&contents))
             || attention
                 .cue
                 .as_ref()
