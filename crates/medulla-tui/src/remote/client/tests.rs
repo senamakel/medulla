@@ -152,6 +152,27 @@ async fn sessions_chunks_are_assembled_atomically_in_index_order() {
             .collect::<Vec<_>>(),
         ["first", "second"]
     );
+    server
+        .send(
+            "client",
+            &encode_remote_message(&RemoteMessage::SessionsChunk {
+                batch_id: 8,
+                index: 0,
+                count: 1,
+                rows: vec![row("stale")],
+            }),
+        )
+        .await
+        .unwrap();
+    client.pump().await;
+    assert_eq!(
+        client
+            .rows()
+            .iter()
+            .map(|row| row.id.as_str())
+            .collect::<Vec<_>>(),
+        ["first", "second"]
+    );
 }
 
 /// Let both sides make progress until `check` passes.
