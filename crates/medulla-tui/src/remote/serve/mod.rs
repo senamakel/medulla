@@ -697,11 +697,15 @@ fn shrink_session_row_to_fit(
             (row.thread_name.as_ref().map_or(0, String::len), 5),
             (row.last_error.as_ref().map_or(0, String::len), 6),
             (
-                row.attention.as_ref().map_or(0, |attention| attention.summary.len()),
+                row.attention
+                    .as_ref()
+                    .map_or(0, |attention| attention.summary.len()),
                 7,
             ),
             (
-                row.attention.as_ref().map_or(0, |attention| attention.kind.len()),
+                row.attention
+                    .as_ref()
+                    .map_or(0, |attention| attention.kind.len()),
                 8,
             ),
         ];

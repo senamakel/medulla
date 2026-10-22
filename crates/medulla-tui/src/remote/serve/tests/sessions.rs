@@ -166,10 +166,16 @@ fn oversized_usage_lists_keep_usage_on_chunks_that_fit_it() {
         let RemoteMessage::SessionsChunk { rows, .. } = message else {
             panic!("expected bounded chunks")
         };
-        assert!(rows.iter().all(|row| row.usage.is_some()), "a chunk that fits its usage should retain it");
+        assert!(
+            rows.iter().all(|row| row.usage.is_some()),
+            "a chunk that fits its usage should retain it"
+        );
         received.extend(rows.iter().map(|row| row.id.clone()));
     }
-    assert_eq!(received, rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>());
+    assert_eq!(
+        received,
+        rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>()
+    );
 }
 
 #[test]

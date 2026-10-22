@@ -821,7 +821,16 @@ mod tests {
                 "missing {expected:?}:\n{rendered}"
             );
         }
-        assert_eq!(rendered.matches("Remote").count(), 2, "each host gets one heading:\n{rendered}");
+        assert_eq!(
+            rendered.matches("alpha").count(),
+            2,
+            "alpha heading and row:\n{rendered}"
+        );
+        assert_eq!(
+            rendered.matches("beta").count(),
+            2,
+            "beta heading and row:\n{rendered}"
+        );
         assert!(rendered.find("alpha").unwrap() < rendered.find("beta").unwrap());
     }
 
@@ -833,27 +842,56 @@ mod tests {
         child.ppid = Some(100);
         let snapshot = ResourceSnapshot::default().with_processes(vec![parent, child]);
         let remote = |id: &str, kind: &str, pid| medulla::protocol::RemoteSessionRow {
-            id: id.into(), label: kind.into(), provider: kind.to_lowercase(), preset: None,
-            state: medulla::protocol::RemoteSessionState::Running, cwd: "/work".into(),
-            name: None, thread_name: None, started_at: 1_700_000_000_000,
-            last_output_at: 1_700_000_000_000, busy: false, working: false,
-            attention: None, bracketed_paste: false, last_error: None,
+            id: id.into(),
+            label: kind.into(),
+            provider: kind.to_lowercase(),
+            preset: None,
+            state: medulla::protocol::RemoteSessionState::Running,
+            cwd: "/work".into(),
+            name: None,
+            thread_name: None,
+            started_at: 1_700_000_000_000,
+            last_output_at: 1_700_000_000_000,
+            busy: false,
+            working: false,
+            attention: None,
+            bracketed_paste: false,
+            last_error: None,
             usage: Some(medulla::protocol::AgentUsage {
-                kind: kind.into(), pid, cpu: pid as f64, rss: 1_024, threads: 1,
-                started_at: 1_700_000_000, cpu_history: vec![],
+                kind: kind.into(),
+                pid,
+                cpu: pid as f64,
+                rss: 1_024,
+                threads: 1,
+                started_at: 1_700_000_000,
+                cpu_history: vec![],
             }),
         };
         // Deliberately pass hosts and rows out of display order. Remote hosts
         // group by host, but local tree order is kept exactly as discovered.
         let hosts = vec![
             ("beta".into(), vec![remote("b", "Beta", 1)]),
-            ("alpha".into(), vec![remote("a2", "Alpha", 999), remote("a1", "Alpha", 2)]),
+            (
+                "alpha".into(),
+                vec![remote("a2", "Alpha", 999), remote("a1", "Alpha", 2)],
+            ),
         ];
-        let state = ResourcesState { agent_tree: true, ..ResourcesState::default() };
+        let state = ResourcesState {
+            agent_tree: true,
+            ..ResourcesState::default()
+        };
         let rows = visible_rows_with_remote(&snapshot, &hosts, &state);
         assert_eq!(
-            rows.iter().map(|row| (row.host.as_deref(), row.pid)).collect::<Vec<_>>(),
-            [(None, 100), (None, 50), (Some("alpha"), 2), (Some("alpha"), 999), (Some("beta"), 1)],
+            rows.iter()
+                .map(|row| (row.host.as_deref(), row.pid))
+                .collect::<Vec<_>>(),
+            [
+                (None, 100),
+                (None, 50),
+                (Some("alpha"), 2),
+                (Some("alpha"), 999),
+                (Some("beta"), 1)
+            ],
         );
     }
 
