@@ -138,6 +138,26 @@ fn history_trims_to_requested_capacity_and_clones_cheaply() {
 }
 
 #[test]
+fn resource_history_keeps_each_memory_series_for_graphs() {
+    let sample = ResourceSnapshot {
+        memory_used_bytes: 10,
+        memory_available_bytes: 20,
+        memory_cached_bytes: 30,
+        memory_free_bytes: 40,
+        swap_used_bytes: 50,
+        ..Default::default()
+    };
+    let mut history = super::ResourceHistory::default();
+    history.push(&sample, 8);
+
+    assert_eq!(history.memory_used_bytes.iter().copied().collect::<Vec<_>>(), [10]);
+    assert_eq!(history.memory_available_bytes.iter().copied().collect::<Vec<_>>(), [20]);
+    assert_eq!(history.memory_cached_bytes.iter().copied().collect::<Vec<_>>(), [30]);
+    assert_eq!(history.memory_free_bytes.iter().copied().collect::<Vec<_>>(), [40]);
+    assert_eq!(history.swap_used_bytes.iter().copied().collect::<Vec<_>>(), [50]);
+}
+
+#[test]
 fn process_io_peak_decays_instead_of_resetting_to_each_sample() {
     let mut source = super::SystemResourceSource::default();
     assert_eq!(source.update_disk_peak(100.0, 0.0), 100.0);
