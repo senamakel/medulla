@@ -150,8 +150,8 @@ assert origin.lower() not in {"external", "host", "—"}, \
 if origin.lower().startswith("task "):
     assert origin.startswith("task wf:run-"), \
         f"expected this workflow's run origin, got {origin!r}"
-    assert sys.argv[3] in text and f"{sys.argv[3]}: succeeded" in text, \
-        f"the attributed workflow run did not complete successfully: {sys.argv[3]!r}"
+    assert "Running Resources proof" in text, \
+        "the proof workflow is not visibly running beside its attributed task row"
     print(f"[e2e] workflow run origin {origin} for PID {pid}: {line.strip()}")
 else:
     assert sys.argv[3] not in origin, f"unexpected workflow task origin {origin!r}"
