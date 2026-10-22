@@ -259,8 +259,7 @@ fn resources_draw_empty_titled_panels_until_data_views_land() {
 
 #[test]
 fn network_panel_renders_at_desktop_and_narrow_widths() {
-    let mut loaded = LoadedConfig::defaults("test.json".into());
-    loaded.config.resources.shown_boxes = "net".into();
+    let config = medulla::config::ResourcesConfig::default();
     let mut snapshot = crate::ui::resources::sampler::ResourceSnapshot::default();
     snapshot
         .networks
@@ -277,11 +276,22 @@ fn network_panel_renders_at_desktop_and_narrow_widths() {
     history.push(&snapshot, 8);
     let snapshot = snapshot.with_history(Arc::new(history));
     for width in [170, 45] {
-        let mut app = App::new(Arc::new(MockRuntime::empty()), loaded.clone());
-        app.set_resource_snapshot(Arc::new(snapshot.clone()));
         let mut terminal = Terminal::new(TestBackend::new(width, 42)).unwrap();
         terminal
-            .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, 42)))
+            .draw(|frame| {
+                draw_net_panel(
+                    frame,
+                    Rect::new(0, 0, width, 8),
+                    &snapshot,
+                    &config,
+                    Some("eth0"),
+                    0,
+                    0,
+                    10_240.0,
+                    10_240.0,
+                    false,
+                )
+            })
             .unwrap();
         let text = terminal
             .backend()
@@ -293,6 +303,43 @@ fn network_panel_renders_at_desktop_and_narrow_widths() {
         assert!(text.contains("eth0"), "interface absent at width {width}");
         assert!(text.contains("Total"), "totals absent at width {width}");
     }
+}
+
+#[test]
+fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    let mut sample = crate::ui::resources::sampler::ResourceSnapshot::default();
+    for (interface, up, rx) in [
+        ("lo", true, 20),
+        ("eth0", false, 40),
+        ("wlan0", true, 100),
+        ("enp1s0", true, 300),
+    ] {
+        sample
+            .networks
+            .push(crate::ui::resources::sampler::NetworkSnapshot {
+                interface: interface.into(),
+                up,
+                ip_addresses: Vec::new(),
+                received_bytes_per_second: 0.0,
+                transmitted_bytes_per_second: 0.0,
+                total_received_bytes: rx,
+                total_transmitted_bytes: rx * 2,
+            });
+    }
+    app.set_resource_snapshot(Arc::new(sample.clone()));
+    assert!(app.resources_key(KeyCode::Char('z')));
+    assert_eq!(app.resources.net_zero_received, 100);
+    assert_eq!(app.resources.net_zero_transmitted, 200);
+    assert!(app.resources_key(KeyCode::Char('n')));
+    assert_eq!(app.resources.net_iface.as_deref(), Some("enp1s0"));
+    assert!(app.resources_key(KeyCode::Char('n')));
+    assert_eq!(app.resources.net_iface.as_deref(), Some("wlan0"));
+    assert!(app.resources_key(KeyCode::Char('b')));
+    assert_eq!(app.resources.net_iface.as_deref(), Some("enp1s0"));
 }
 
 #[test]
