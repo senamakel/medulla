@@ -105,6 +105,45 @@ fn resources_settings_interval_updates_live_and_persists() {
 }
 
 #[test]
+fn resources_enter_only_toggles_flag_rows() {
+    let mut l = loaded();
+    l.config.resources.update_ms = 2_000;
+    l.config.resources.shown_boxes = "cpu,mem".into();
+    l.config.resources.net_iface = Some("eth0".into());
+    let rt = Arc::new(MockRuntime::demo());
+    let mut app = App::new(rt, l);
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('o'));
+
+    // A numeric setting and a choice must wait for ←/→.
+    let _ = key(&mut app, KeyCode::Enter);
+    assert_eq!(app.loaded.config.resources.update_ms, 2_000);
+    let _ = key(&mut app, KeyCode::Char('j'));
+    let _ = key(&mut app, KeyCode::Enter);
+    assert_eq!(app.loaded.config.resources.shown_boxes, "cpu,mem");
+
+    // Optional and regular flags remain togglable with Enter.
+    for _ in 0..3 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Enter); // cpuBottom (Auto -> On)
+    assert_eq!(app.loaded.config.resources.cpu_bottom, Some(true));
+    for _ in 0..4 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Enter); // cpuInvertLower
+    assert!(app.loaded.config.resources.cpu_invert_lower);
+
+    // netIface is a choice sourced from detected interfaces, so Enter must
+    // leave the configured interface untouched.
+    for _ in 0..19 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Enter);
+    assert_eq!(app.loaded.config.resources.net_iface.as_deref(), Some("eth0"));
+}
+
+#[test]
 fn resources_optional_layout_settings_can_return_to_auto_and_persist() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("config.toml");
