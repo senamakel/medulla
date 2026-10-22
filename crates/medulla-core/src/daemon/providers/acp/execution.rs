@@ -468,11 +468,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 }
 
 /// Find the ACP SDK child by its per-run environment marker.
-fn process_with_marker(
-    system: &mut sysinfo::System,
-    key: &str,
-    value: &str,
-) -> Option<(u32, u64)> {
+fn process_with_marker(system: &mut sysinfo::System, key: &str, value: &str) -> Option<(u32, u64)> {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, UpdateKind};
 
     system.refresh_processes_specifics(

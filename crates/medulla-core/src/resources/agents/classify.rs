@@ -107,7 +107,9 @@ pub fn discover_agents_with_options(
             children: child_nodes,
         });
     }
-    if let Some(embedded) = embedded_openhuman(medulla_pid, sampled_at_secs, &children, &by_pid, &known) {
+    if let Some(embedded) =
+        embedded_openhuman(medulla_pid, sampled_at_secs, &children, &by_pid, &known)
+    {
         agents.push(embedded);
     }
     agents.sort_by_key(|agent| agent.pid.unwrap_or(0));

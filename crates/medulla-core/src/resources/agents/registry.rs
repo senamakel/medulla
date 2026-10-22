@@ -1,5 +1,5 @@
-use super::{AgentOrigin, KnownProcessRoot};
 use super::{AgentDiscoveryOptions, AgentProcess, ProcessRecord};
+use super::{AgentOrigin, KnownProcessRoot};
 
 /// Snapshot currently registered launch roots for process discovery.
 ///

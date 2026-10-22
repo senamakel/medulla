@@ -2,7 +2,7 @@
 
 mod registry;
 
-pub use registry::{AgentRegistration, AgentRegistry, RegistrationGuard, agent_registry};
+pub use registry::{agent_registry, AgentRegistration, AgentRegistry, RegistrationGuard};
 
 #[cfg(test)]
 mod registry_tests;

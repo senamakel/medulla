@@ -152,7 +152,12 @@ fn registered_launch_roots_are_used_by_resource_discovery() {
     let agents = discover_registered_agents(&processes, 1, 50, AgentDiscoveryOptions::default());
 
     assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].origin, AgentOrigin::Task { id: "task-10".into() });
+    assert_eq!(
+        agents[0].origin,
+        AgentOrigin::Task {
+            id: "task-10".into()
+        }
+    );
 }
 
 #[test]
@@ -176,7 +181,13 @@ fn embedded_openhuman_share_contains_medullas_direct_shell_tool_children() {
         process(1, None, "/usr/bin/medulla", &["medulla"], 1),
         process(2, Some(1), "/usr/bin/bash", &["bash", "-lc", "echo hi"], 2),
         process(3, Some(2), "/usr/bin/git", &["git", "status"], 3),
-        process(4, Some(1), "/usr/bin/curl", &["curl", "https://example.test"], 4),
+        process(
+            4,
+            Some(1),
+            "/usr/bin/curl",
+            &["curl", "https://example.test"],
+            4,
+        ),
     ];
 
     let agents = discover_agents(&processes, &[], 1, 50);

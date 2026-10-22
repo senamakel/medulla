@@ -125,12 +125,7 @@ impl Connection {
             .spawn()
             .map_err(|error| AppServerError::Process(format!("spawn {}: {error}", spec.bin)))?;
         let agent_registration = child.id().and_then(|pid| {
-            medulla_monitor::agents::agent_registry().register(
-                pid,
-                None,
-                None,
-                "codex-app-server",
-            )
+            medulla_monitor::agents::agent_registry().register(pid, None, None, "codex-app-server")
         });
         let stdin = child
             .stdin
