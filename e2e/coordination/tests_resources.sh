@@ -66,7 +66,7 @@ try:
 except FileNotFoundError:
     config = {}
 config["resources"] = {"updateMs": 2000}
-config["workflows"] = {"defaultProvider": harness}
+config["workflows"] = {"defaultProvider": harness, "evolve": {"autoOnFailure": False}}
 json.dump(config, open(target, "w"), indent=2)
 workflow = {
     "id": "resources-proof", "name": "Resources proof",
@@ -84,6 +84,7 @@ PY
 #!/usr/bin/env bash
 set -euo pipefail
 $(harness_env "$app_home/harness-home")
+$(harness_transport_env)
 export HOME=$(printf %q "$app_home")
 export MEDULLA_HOME=$(printf %q "$app_home")
 export MEDULLA_USER=e2e
