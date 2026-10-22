@@ -220,6 +220,7 @@ impl RemoteServer {
             return;
         }
         self.last_rows = rows;
+        self.sessions_batch_id = self.sessions_batch_id.wrapping_add(1);
         let peers: Vec<String> = self.peers.iter().cloned().collect();
         for peer in peers {
             self.send_sessions(&peer).await;
@@ -444,6 +445,7 @@ impl RemoteServer {
         // tick would see that same change as "new" and send it a second time
         // to every peer.
         self.last_rows = self.current_rows();
+        self.sessions_batch_id = self.sessions_batch_id.wrapping_add(1);
         self.send_sessions(peer).await;
     }
 
@@ -466,6 +468,47 @@ impl RemoteServer {
             // stale process metrics attached to a still-retained session row.
             self.usage_cache.clear();
         }
+        let discovered = snapshot.as_ref().map(|snapshot| {
+            let processes: Vec<_> = snapshot
+                .processes
+                .iter()
+                .map(|process| ProcessRecord {
+                    pid: process.pid,
+                    ppid: process.ppid,
+                    exe: process.exe.as_deref().map(std::path::PathBuf::from),
+                    argv: Some(process.cmd.clone()),
+                    cwd: process.cwd.as_deref().map(std::path::PathBuf::from),
+                    started_at_secs: process.start_time,
+                    usage: ProcessUsage {
+                        cpu_percent: process.cpu_percent as f32,
+                        rss_bytes: process.memory_bytes,
+                        threads: process.threads as u64,
+                        io: None,
+                    },
+                })
+                .collect();
+            let roots: Vec<_> = self
+                .sessions
+                .sessions
+                .rows()
+                .iter()
+                .filter_map(|row| {
+                    let pid = self.sessions.sessions.pid(&row.id)?;
+                    let process = processes.iter().find(|process| process.pid == pid)?;
+                    Some(KnownProcessRoot {
+                        pid,
+                        started_at_secs: process.started_at_secs,
+                        origin: AgentOrigin::Session { id: row.id.clone() },
+                    })
+                })
+                .collect();
+            discover_agents(
+                &processes,
+                &roots,
+                std::process::id(),
+                (medulla::clock::now_millis().max(0) as u64) / 1000,
+            )
+        });
         let mut rows: Vec<_> = self
             .sessions
             .sessions
@@ -478,27 +521,31 @@ impl RemoteServer {
                     .bracketed_paste(&row.id)
                     .unwrap_or(false);
                 let mut wire = wire_row(row, bracketed);
-                if row.provider != medulla::protocol::HarnessProvider::Shell {
-                    if let Some(pid) = self.sessions.sessions.pid(&row.id) {
-                        if let Some(process) = snapshot.as_ref().and_then(|snapshot| {
-                            snapshot.processes.iter().find(|process| process.pid == pid)
-                        }) {
-                            let identity = (pid, process.start_time);
+                if let Some(agent) = discovered.as_ref().and_then(|agents| {
+                    agents.iter().find(|agent| {
+                        agent.origin == (AgentOrigin::Session { id: row.id.clone() })
+                    })
+                }) {
+                    if let Some(pid) = agent.pid {
+                        let identity = (pid, agent.started_at_secs);
+                        if sample {
                             let history = self.usage_history.entry(identity).or_default();
-                            history.push(process.cpu_percent);
+                            history.push(f64::from(agent.usage.cpu_percent));
                             if history.len() > 32 {
                                 history.remove(0);
                             }
-                            let usage = medulla::protocol::AgentUsage {
-                                kind: sessions::agent_kind(row.provider.as_wire()),
-                                pid,
-                                cpu: process.cpu_percent,
-                                rss: process.memory_bytes,
-                                threads: process.threads,
-                                started_at: process.start_time,
-                                cpu_history: history.clone(),
-                            };
-                            self.usage_cache.insert(row.id.clone(), usage);
+                            self.usage_cache.insert(
+                                row.id.clone(),
+                                medulla::protocol::AgentUsage {
+                                    kind: agent_kind(agent.kind).to_owned(),
+                                    pid,
+                                    cpu: f64::from(agent.usage.cpu_percent),
+                                    rss: agent.usage.rss_bytes,
+                                    threads: agent.usage.threads as usize,
+                                    started_at: agent.started_at_secs,
+                                    cpu_history: history.clone(),
+                                },
+                            );
                         }
                     }
                 }
@@ -539,6 +586,89 @@ impl RemoteServer {
 
 /// Trim only optional usage until the full reliable-channel message fits one
 /// datagram. Session identity/state fields are never removed here.
+fn agent_kind(kind: medulla::resources::agents::AgentKind) -> &'static str {
+    use medulla::resources::agents::AgentKind;
+    match kind {
+        AgentKind::Claude => "Claude",
+        AgentKind::Codex => "Codex",
+        AgentKind::CodexAppServer => "Codex App Server",
+        AgentKind::ClaudeAcp => "Claude-ACP",
+        AgentKind::CodexAcp => "Codex-ACP",
+        AgentKind::Opencode => "OpenCode",
+        AgentKind::OpencodeAcp => "OpenCode-ACP",
+        AgentKind::OpenhumanCore | AgentKind::EmbeddedOpenhuman => "OpenHuman",
+        AgentKind::Shell => "Shell",
+        AgentKind::Unknown => "Unknown",
+    }
+}
+
+fn sessions_messages(rows: &[RemoteSessionRow], batch_id: u64) -> Vec<RemoteMessage> {
+    let whole = RemoteMessage::Sessions { rows: rows.to_vec() };
+    if encode_remote_message(&whole).len() <= medulla_link::MAX_MESSAGE_BYTES {
+        return vec![whole];
+    }
+
+    let mut groups: Vec<Vec<RemoteSessionRow>> = Vec::new();
+    let mut group = Vec::new();
+    for source in rows {
+        let mut row = source.clone();
+        let candidate_fits = |candidate: &[RemoteSessionRow]| {
+            encode_remote_message(&RemoteMessage::SessionsChunk {
+                batch_id,
+                index: u16::MAX,
+                count: u16::MAX,
+                rows: candidate.to_vec(),
+            })
+            .len()
+                <= medulla_link::MAX_MESSAGE_BYTES
+        };
+        let mut candidate = group.clone();
+        candidate.push(row.clone());
+        if !candidate_fits(&candidate) && !group.is_empty() {
+            groups.push(std::mem::take(&mut group));
+            candidate = vec![row.clone()];
+        }
+        while !candidate_fits(&candidate) {
+            let Some(usage) = row.usage.as_mut() else {
+                break;
+            };
+            if !usage.cpu_history.is_empty() {
+                usage.cpu_history.remove(0);
+            } else {
+                row.usage = None;
+            }
+            candidate = vec![row.clone()];
+        }
+        // Keep every session row. Session text is normally short; bound
+        // unusually long descriptive fields only when one row cannot fit.
+        while !candidate_fits(&candidate) {
+            let field = [&mut row.label, &mut row.cwd, &mut row.name.get_or_insert_default(), &mut row.thread_name.get_or_insert_default(), &mut row.last_error.get_or_insert_default()];
+            let longest = field.into_iter().max_by_key(|value| value.len());
+            let Some(value) = longest else { break };
+            if value.len() <= 16 { break; }
+            value.truncate(value.len() / 2);
+            candidate = vec![row.clone()];
+        }
+        group.push(row);
+    }
+    if !group.is_empty() || groups.is_empty() {
+        groups.push(group);
+    }
+    let count = groups.len().min(u16::MAX as usize) as u16;
+    groups
+        .into_iter()
+        .enumerate()
+        .map(|(index, rows)| RemoteMessage::SessionsChunk {
+            batch_id,
+            index: index.min(u16::MAX as usize) as u16,
+            count,
+            rows,
+        })
+        .collect()
+}
+
+/// Trim only optional usage until the one-message envelope fits. Oversized
+/// base lists are sent with `SessionsChunk` by `sessions_messages`.
 fn trim_usage_to_message_budget(rows: &mut [RemoteSessionRow]) {
     let limit = medulla_link::MAX_MESSAGE_BYTES;
     while encode_remote_message(&RemoteMessage::Sessions {
@@ -564,11 +694,6 @@ fn trim_usage_to_message_budget(rows: &mut [RemoteSessionRow]) {
             }
         } else if let Some(row) = rows.iter_mut().rev().find(|row| row.usage.is_some()) {
             row.usage = None;
-        } else {
-            // Base session rows predate this telemetry and may themselves
-            // exceed the transport limit; telemetry cannot make that case
-            // worse, and the existing send path reports it.
-            break;
-        }
+        } else { break; }
     }
 }
