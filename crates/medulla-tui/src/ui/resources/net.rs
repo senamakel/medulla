@@ -51,11 +51,11 @@ impl NetScaler {
             self.above = self.above.saturating_sub(1);
         }
         if self.above >= 5 {
-            self.max = (self.average() * 1.3).max(10.0 * 1024.0);
+            self.max = (self.average().floor() * 1.3).floor().max(10.0 * 1024.0);
             self.above = 0;
             self.below = 0;
         } else if self.below >= 5 {
-            self.max = (self.average() * 3.0).max(10.0 * 1024.0);
+            self.max = (self.average().floor() * 3.0).floor().max(10.0 * 1024.0);
             self.above = 0;
             self.below = 0;
         }
@@ -148,7 +148,7 @@ mod tests {
         for rate in [20_000.0, 20_000.0, 20_000.0, 20_000.0, 10_240.0, 20_000.0] {
             scale.sample(rate);
         }
-        assert_eq!(scale.max(), 26_000.0);
+        assert_eq!(scale.max(), 23_462.0);
     }
 
     #[test]
