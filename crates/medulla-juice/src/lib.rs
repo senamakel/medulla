@@ -85,3 +85,50 @@ fn estimate_tokens(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "tinyjuice")]
+mod tinyjuice;
+#[cfg(feature = "tinyjuice")]
+pub use tinyjuice::TinyJuice;
+
+/// Dispatches to TinyJuice when explicitly enabled, otherwise preserving input.
+pub fn compress(input: &CompressInput<'_>) -> Compressed {
+    #[cfg(feature = "tinyjuice")]
+    {
+        TinyJuice.compress(input)
+    }
+    #[cfg(not(feature = "tinyjuice"))]
+    {
+        Passthrough.compress(input)
+    }
+}
+
+impl CompressionStats {
+    /// Returns approximate token totals, not provider-billed token counts.
+    pub fn token_totals(self) -> CompressionTokenTotals {
+        CompressionTokenTotals {
+            before_tokens: self.before_tokens,
+            after_tokens: self.after_tokens,
+        }
+    }
+}
+
+/// Approximate token totals for a standalone compression operation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CompressionTokenTotals {
+    pub before_tokens: u64,
+    pub after_tokens: u64,
+}
+
+impl CompressionTokenTotals {
+    pub fn saved_tokens(self) -> u64 {
+        self.before_tokens.saturating_sub(self.after_tokens)
+    }
+}
+
+/// Persisted aggregate for successful embedded-runtime compression events.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EmbeddedCompressionStats {
+    pub events: u64,
+    pub tokens: CompressionTokenTotals,
+}
