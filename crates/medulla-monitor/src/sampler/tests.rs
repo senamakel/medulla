@@ -329,7 +329,7 @@ fn process_io_peak_decays_instead_of_resetting_to_each_sample() {
 
 #[cfg(target_os = "linux")]
 #[test]
-fn process_snapshots_include_executable_and_command_for_unregistered_agents() {
+fn process_snapshots_skip_executable_and_command_for_unclassified_processes() {
     let mut source = super::SystemResourceSource::default();
     let snapshot = source.sample();
     let pid = std::process::id();
@@ -339,23 +339,19 @@ fn process_snapshots_include_executable_and_command_for_unregistered_agents() {
         .find(|process| process.pid == pid)
         .unwrap_or_else(|| panic!("sampler omitted its own process {pid}"));
 
-    assert!(
-        process.exe.as_deref().is_some_and(|exe| !exe.is_empty()),
-        "the process snapshot must include the executable used to classify unregistered agents: {process:?}"
-    );
-    assert!(
-        !process.cmd.is_empty(),
-        "the process snapshot must include argv used to classify unregistered agents: {process:?}"
-    );
+    assert!(process.exe.is_none());
+    assert!(process.cmd.is_empty());
 }
 
 #[cfg(target_os = "linux")]
 #[test]
-fn process_snapshots_include_executable_and_command_for_an_unregistered_child() {
-    let mut child = std::process::Command::new("sleep")
-        .arg("60")
+fn process_snapshots_include_executable_and_command_for_agent_candidate_children() {
+    let mut child = std::process::Command::new("bash")
+        .args(["-c", "read -r line"])
+        .stdin(std::process::Stdio::piped())
         .spawn()
         .unwrap();
+    let stdin = child.stdin.take();
     let pid = child.id();
     let snapshot = super::SystemResourceSource::default().sample();
     let process = snapshot
@@ -371,15 +367,15 @@ fn process_snapshots_include_executable_and_command_for_an_unregistered_child() 
         process.exe.as_deref().is_some_and(|exe| {
             std::path::Path::new(exe)
                 .file_name()
-                .is_some_and(|name| name == "sleep")
+                .is_some_and(|name| name == "bash")
         }),
-        "external process snapshot must include its executable: {process:?}"
+        "agent candidate snapshot must include its executable: {process:?}"
     );
     assert!(
-        process.cmd.iter().any(|argument| argument == "60"),
-        "external process snapshot must include argv: {process:?}"
+        process.cmd.iter().any(|argument| argument == "read -r line"),
+        "agent candidate snapshot must include argv: {process:?}"
     );
-    println!("external child snapshot for PID {pid}: {process:?}");
+    drop(stdin);
 }
 
 #[cfg(target_os = "linux")]

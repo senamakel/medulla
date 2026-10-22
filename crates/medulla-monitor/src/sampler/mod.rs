@@ -227,6 +227,29 @@ fn should_refresh_task_details(exe: Option<&std::path::Path>, cmd: &[std::ffi::O
     }
 }
 
+#[cfg(target_os = "linux")]
+fn may_be_agent_process(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    let name = name.strip_suffix(".exe").unwrap_or(&name);
+    matches!(
+        name,
+        "claude"
+            | "codex"
+            | "opencode"
+            | "openhuman-core"
+            | "sh"
+            | "bash"
+            | "zsh"
+            | "fish"
+            | "dash"
+            | "pwsh"
+            | "powershell"
+            | "node"
+            | "npx"
+            | "env"
+    )
+}
+
 impl ResourceSource for SystemResourceSource {
     fn sample(&mut self) -> ResourceSnapshot {
         let now = Instant::now();
@@ -237,18 +260,47 @@ impl ResourceSource for SystemResourceSource {
         let baseline_ready = self.last_sample.replace(now).is_some();
         self.system.refresh_cpu_all();
         self.system.refresh_memory();
+        let process_refresh = {
+            let refresh = ProcessRefreshKind::nothing()
+                .with_cpu()
+                .with_memory()
+                .with_disk_usage();
+            #[cfg(target_os = "linux")]
+            {
+                refresh
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                refresh
+                    .with_exe(UpdateKind::OnlyIfNotSet)
+                    .with_cmd(UpdateKind::OnlyIfNotSet)
+            }
+        };
         self.system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
-            ProcessRefreshKind::nothing()
-                .with_cpu()
-                .with_memory()
-                .with_disk_usage()
-                .with_exe(UpdateKind::OnlyIfNotSet)
-                .with_cmd(UpdateKind::OnlyIfNotSet),
+            process_refresh,
         );
         #[cfg(target_os = "linux")]
         {
+            let possible_agent_pids: Vec<_> = self
+                .system
+                .processes()
+                .iter()
+                .filter(|(_, process)| {
+                    may_be_agent_process(&process.name().to_string_lossy())
+                })
+                .map(|(pid, _)| *pid)
+                .collect();
+            if !possible_agent_pids.is_empty() {
+                self.system.refresh_processes_specifics(
+                    ProcessesToUpdate::Some(&possible_agent_pids),
+                    true,
+                    ProcessRefreshKind::nothing()
+                        .with_exe(UpdateKind::OnlyIfNotSet)
+                        .with_cmd(UpdateKind::OnlyIfNotSet),
+                );
+            }
             let agent_pids: Vec<_> = self
                 .system
                 .processes()
