@@ -20,6 +20,8 @@ pub(crate) struct HarnessesView {
     pub(crate) routing: Vec<(String, String)>,
     /// Provider budget descriptions.
     pub(crate) budgets: Vec<(String, String)>,
-    /// Applied customization descriptions supplied by the collector.
-    pub(crate) customizations: Vec<String>,
+    /// Facts from the effective configuration, not claims about live sessions.
+    pub(crate) configuration: Vec<String>,
+    /// Installed or sampled machine facts supplied by the collector.
+    pub(crate) live_facts: Vec<String>,
 }
