@@ -30,7 +30,6 @@ graph BT
   sdk --> harness
   sdk --> pty
   sdk --> tokens
-  sdk --> monitor
   sdk --> link
   sdk --> juice
   tui[medulla-tui] --> sdk
@@ -40,10 +39,8 @@ graph BT
   tui --> monitor
   tui --> link
   tui --> juice
-  tui --> tokens
-  tui --> types
 ```
 
-The dependency direction keeps product primitives usable independently: no primitive depends on `medulla` or `medulla-tui`, and terminal rendering belongs to `medulla-tui`.
+Arrows show direct Cargo dependencies. Token and shared types access from the TUI is transitive through the SDK. The dependency direction keeps product primitives usable independently: no primitive depends on `medulla` or `medulla-tui`, and terminal rendering belongs to `medulla-tui`.
 
 See [Architecture](../developers/architecture.md) for the full crate map and [One terminal, not a pile of them](../why-one-terminal.md) for the product rationale.

@@ -22,7 +22,6 @@ graph BT
   sdk --> harness
   sdk --> pty
   sdk --> tokens
-  sdk --> monitor
   sdk --> link
   sdk --> juice
   tui[medulla-tui] --> sdk
@@ -32,11 +31,9 @@ graph BT
   tui --> monitor
   tui --> link
   tui --> juice
-  tui --> tokens
-  tui --> types
 ```
 
-More precisely, `medulla-providers` depends on `medulla-types`; `medulla-harness` depends on `medulla-types` and `medulla-providers`; and `medulla-pty` and `medulla-tokens` depend on `medulla-types`. `medulla-monitor`, `medulla-link`, and `medulla-juice` are standalone primitives. The `medulla` SDK composes these crates, and `medulla-tui` depends on the SDK and the primitives it uses directly. Primitive crates do not depend on `medulla` or `medulla-tui`; only `medulla-tui` owns terminal rendering and input.
+More precisely, `medulla-providers` depends on `medulla-types`; `medulla-harness` depends on `medulla-types` and `medulla-providers`; and `medulla-pty` and `medulla-tokens` depend on `medulla-types`. `medulla-monitor`, `medulla-link`, and `medulla-juice` are standalone primitives. The `medulla` SDK directly composes types, juice, providers, tokens, link, PTY, and harness; `medulla-tui` directly depends on the SDK, juice, harness, providers, link, PTY, and monitor. Arrows show direct Cargo dependencies; use of a primitive through the SDK is transitive. Primitive crates do not depend on `medulla` or `medulla-tui`; only `medulla-tui` owns terminal rendering and input.
 
 | Crate | Product primitive and responsibility |
 | --- | --- |
