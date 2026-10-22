@@ -143,6 +143,7 @@ fn settings_tab_renders_nav_and_default_usage_subpage() {
         "Subscriptions",
         "Status line",
         "Config",
+        "Resources",
         "Feedback",
         "Trace",
         "Context",
@@ -596,6 +597,7 @@ fn each_settings_subpage_renders_its_signature() {
         ("Context", "Environment ·"),
         ("Account", "Account"),
         ("Help", "Keyboard & REPL help"),
+        ("Resources", "Sample interval"),
     ];
     for (name, sig) in signatures {
         let mut app = settings_app();
