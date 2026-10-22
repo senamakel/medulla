@@ -391,11 +391,28 @@ impl App {
             "netDownload" => cfg.net_download = step(cfg.net_download, delta, 1, 1_000_000, 100),
             "netUpload" => cfg.net_upload = step(cfg.net_upload, delta, 1, 1_000_000, 100),
             "netIface" => {
-                cfg.net_iface = if cfg.net_iface.is_some() && delta < 0 {
-                    None
+                let interfaces: Vec<_> = self
+                    .resource_snapshot
+                    .networks
+                    .iter()
+                    .map(|network| network.interface.as_str())
+                    .collect();
+                let current = cfg
+                    .net_iface
+                    .as_deref()
+                    .and_then(|name| interfaces.iter().position(|item| *item == name))
+                    .map(|index| index + 1)
+                    .unwrap_or(0);
+                let choices = interfaces.len() + 1;
+                let next = if delta < 0 {
+                    (current + choices - 1) % choices
                 } else {
-                    Some("auto".into())
-                }
+                    (current + 1) % choices
+                };
+                cfg.net_iface = next
+                    .checked_sub(1)
+                    .and_then(|index| interfaces.get(index))
+                    .map(|name| (*name).to_owned());
             }
             "swapUploadDownload" => cfg.swap_upload_download = !cfg.swap_upload_download,
             _ => unreachable!("all resource settings rows are mapped"),
