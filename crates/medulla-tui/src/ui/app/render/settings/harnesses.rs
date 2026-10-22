@@ -85,7 +85,10 @@ impl HarnessesView {
 impl super::super::super::types::App {
     /// Render the configuration facts available without running detection.
     pub(super) fn draw_harnesses(&mut self, f: &mut Frame, area: Rect) {
-        let view = HarnessesView::from_config(&self.loaded.config);
+        let view = self
+            .harnesses_view
+            .clone()
+            .unwrap_or_else(|| HarnessesView::from_config(&self.loaded.config));
         draw_harnesses(f, area, &view);
     }
 }
