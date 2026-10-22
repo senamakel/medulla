@@ -303,6 +303,12 @@ fn network_panel_renders_at_desktop_and_narrow_widths() {
             .collect::<String>();
         assert!(text.contains("eth0"), "interface absent at width {width}");
         assert!(text.contains("Total"), "totals absent at width {width}");
+        if width == 170 {
+            assert!(
+                text.contains("Top ↓4.0K ↑2.0K"),
+                "directional receive/transmit peaks absent: {text}"
+            );
+        }
     }
 }
 
