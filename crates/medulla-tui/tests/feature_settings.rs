@@ -82,21 +82,27 @@ fn settings_tab_renders_nav_and_default_usage_subpage() {
 fn number_keys_jump_subpages() {
     let mut app = settings_app();
     let _ = key(&mut app, KeyCode::Char('2'));
-    assert_eq!(app.settings_subpage(), "Appearance");
+    assert_eq!(app.settings_subpage(), "Tokens");
     let _ = key(&mut app, KeyCode::Char('3'));
-    assert_eq!(app.settings_subpage(), "Subscriptions");
+    assert_eq!(app.settings_subpage(), "Harnesses");
     let _ = key(&mut app, KeyCode::Char('4'));
-    assert_eq!(app.settings_subpage(), "Status line");
+    assert_eq!(app.settings_subpage(), "Appearance");
     let _ = key(&mut app, KeyCode::Char('5'));
+    assert_eq!(app.settings_subpage(), "Subscriptions");
+    let _ = key(&mut app, KeyCode::Char('6'));
+    assert_eq!(app.settings_subpage(), "Status line");
+    let _ = key(&mut app, KeyCode::Char('7'));
     assert_eq!(app.settings_subpage(), "Config");
-    // Help is the last subpage, and past the nine a digit can reach now that
-    // Subscriptions is on the nav — so the arrows are what get there.
+    let _ = key(&mut app, KeyCode::Char('8'));
+    assert_eq!(app.settings_subpage(), "Feedback");
     let _ = key(&mut app, KeyCode::Char('9'));
-    assert_eq!(app.settings_subpage(), "Account");
-    // A digit also enters the pane, so getting to Help means stepping back out
-    // to the nav first — the arrows browse content once a page has focus.
+    assert_eq!(app.settings_subpage(), "Trace");
+    // A digit also enters the pane; escape to the nav, then arrow through the
+    // unnumbered pages beyond Trace.
     let _ = key(&mut app, KeyCode::Esc);
-    let _ = key(&mut app, KeyCode::Down);
+    for _ in 0..3 {
+        let _ = key(&mut app, KeyCode::Down);
+    }
     assert_eq!(app.settings_subpage(), "Help");
     // Render the full help page: this test verifies numeric subpage navigation,
     // while short-viewport scrolling has its own focused coverage.
@@ -115,11 +121,11 @@ fn arrow_keys_move_subpage_selector() {
     let mut app = settings_app();
     assert_eq!(app.settings_subpage(), "Usage");
     let _ = key(&mut app, KeyCode::Down);
-    assert_eq!(app.settings_subpage(), "Appearance");
+    assert_eq!(app.settings_subpage(), "Tokens");
     let _ = key(&mut app, KeyCode::Down);
-    assert_eq!(app.settings_subpage(), "Subscriptions");
+    assert_eq!(app.settings_subpage(), "Harnesses");
     let _ = key(&mut app, KeyCode::Up);
-    assert_eq!(app.settings_subpage(), "Appearance");
+    assert_eq!(app.settings_subpage(), "Tokens");
 }
 
 #[test]
