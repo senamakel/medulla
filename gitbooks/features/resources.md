@@ -48,7 +48,7 @@ unavailable. The pane does not send signals to remote processes.
 | `←` / `→` | Change the sort field: PID, kind, origin, workspace, threads, memory, CPU, or runtime. |
 | `r` | Reverse the current sort. |
 | `e` | Toggle process-tree display. |
-| `f` | Open the literal-text filter editor; `/` opens the same editor in regular-expression mode. A query beginning with `!` is also interpreted as a case-insensitive regular expression against agent kind. An invalid regular expression matches no rows. |
+| `f` / `/` | Open the filter editor. Text is matched literally by default; a query beginning with `!` is interpreted as a case-insensitive regular expression against agent kind. An invalid regular expression matches no rows. |
 | `Enter` | Focus the owning local session, or open details for a row without a session. |
 | `F` | Follow the selected local agent. Remote rows cannot be followed. |
 | `t`, `k`, `s` | Request terminate, kill, or stop/continue on supported local processes. Medulla asks for confirmation; external processes require a second confirmation. Signals are unavailable on Windows and are never sent to remote processes. |
