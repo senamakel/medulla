@@ -107,6 +107,30 @@ pub struct RemoteSessionRow {
     /// Why it failed, when it did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
+    /// Classified process usage for this session, when its agent process is sampled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<AgentUsage>,
+}
+
+/// Bounded process telemetry for one classified agent session.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentUsage {
+    /// The Agents pane classification (for example `Claude` or `Codex`).
+    pub kind: String,
+    /// Process identifier on the reporting host.
+    pub pid: u32,
+    /// CPU utilization percentage.
+    pub cpu: f64,
+    /// Resident memory in bytes.
+    pub rss: u64,
+    /// Number of threads/tasks.
+    pub threads: usize,
+    /// Process start time in seconds since Unix epoch.
+    pub started_at: u64,
+    /// Recent CPU readings, oldest first, capped by the sender.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cpu_history: Vec<f64>,
 }
 
 /// One thing a remote host can start a session on.
