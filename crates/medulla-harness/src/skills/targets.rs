@@ -224,10 +224,7 @@ pub fn default_targets(root: &Path) -> Vec<SkillTarget> {
 /// Other providers get nothing yet. Codex reads skills from fixed locations
 /// with no additional-directory flag of its own, so the equivalent has to be a
 /// different mechanism, not this one.
-pub fn spawn_args(
-    provider: HarnessProvider,
-    managed_dir: Option<&Path>,
-) -> Vec<String> {
+pub fn spawn_args(provider: HarnessProvider, managed_dir: Option<&Path>) -> Vec<String> {
     if provider != HarnessProvider::Claude {
         return Vec::new();
     }

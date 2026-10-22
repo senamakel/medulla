@@ -1,6 +1,6 @@
 //! Owner-only files and per-socket MCP state paths.
 
-use serde_json::{json, Map, Value};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 

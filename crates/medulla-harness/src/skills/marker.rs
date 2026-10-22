@@ -186,4 +186,3 @@ fn parse_marker_fields(rest: &str) -> Option<(String, String)> {
     }
     Some((workflow?, rev?))
 }
-

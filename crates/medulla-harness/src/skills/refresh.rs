@@ -8,7 +8,9 @@ use medulla_types::HarnessProvider;
 
 use super::install::sync;
 use super::targets::{legacy_managed_root, managed_dir, managed_root, spawn_args};
-use super::{CatalogSnapshot, InstallOptions, InstallReport, SkillScope, SkillTarget, WorkflowCatalog};
+use super::{
+    CatalogSnapshot, InstallOptions, InstallReport, SkillScope, SkillTarget, WorkflowCatalog,
+};
 
 /// Refreshes one managed harness directory from a consistent catalog snapshot.
 ///

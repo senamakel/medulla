@@ -433,4 +433,3 @@ fn remove_managed(managed: &ManagedFile, opts: &InstallOptions) -> io::Result<Fi
         action: FileAction::Removed,
     })
 }
-

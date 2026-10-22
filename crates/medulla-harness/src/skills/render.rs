@@ -489,4 +489,3 @@ fn argument_hint(inputs: &[SkillInput]) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
-
