@@ -135,15 +135,15 @@ for line in text.splitlines():
     fields = line.replace("│", " ").split()
     if any(token.lower() == sys.argv[2].lower() for token in fields):
         seen.append(fields)
-    if len(fields) >= 3 and fields[0].isdigit() and fields[1].lower() == sys.argv[2].lower():
-        rows.append((line, fields))
+    for index, token in enumerate(fields):
+        if token.lower() == sys.argv[2].lower() and index >= 1 and index + 1 < len(fields) and fields[index - 1].isdigit():
+            rows.append((line, fields[index - 1], fields[index + 1]))
 assert rows, f"no {sys.argv[2]} process row in Resources pane; provider lines={seen!r}"
-line, fields = rows[0]
-origin = fields[2]
+line, pid, origin = rows[0]
 assert origin.lower() not in {"external", "host", "task", "—"}, \
     f"{sys.argv[2]} row is not attributed to its harness session: {line!r}"
 assert sys.argv[3] not in origin, f"expected the provider's concrete session id, got task origin {origin!r}"
-print(f"[e2e] session id {origin}: {line.strip()}")
+print(f"[e2e] session id {origin} for PID {pid}: {line.strip()}")
 PY
   log "  dispatched $HARNESS process is visible with its provider session id"
 
