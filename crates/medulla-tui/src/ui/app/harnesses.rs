@@ -155,15 +155,28 @@ fn probe_provider_version(
     provider: HarnessProvider,
     env: &HashMap<String, String>,
 ) -> Option<String> {
-    let mut child = Command::new(medulla_providers::provider_bin(provider, env))
+    let mut command = Command::new(medulla_providers::provider_bin(provider, env));
+    command
         .arg("--version")
         .env_clear()
-        .envs(env)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
+        .stderr(Stdio::null());
+    for key in [
+        "PATH",
+        "HOME",
+        "USERPROFILE",
+        "SystemRoot",
+        "WINDIR",
+        "PATHEXT",
+        "TMP",
+        "TEMP",
+    ] {
+        if let Some(value) = env.get(key) {
+            command.env(key, value);
+        }
+    }
+    let mut child = command.spawn().ok()?;
     let started = Instant::now();
     loop {
         match child.try_wait() {
@@ -244,5 +257,33 @@ mod tests {
                 .iter()
                 .any(|fact| fact.contains("No managed skills installed"))
         );
+    }
+
+    #[test]
+    fn failed_version_probe_and_custom_config_read_are_reported_unavailable() {
+        let temp = tempfile::tempdir().unwrap();
+        let bin_dir = temp.path().join("bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let claude = bin_dir.join("claude");
+        std::fs::write(&claude, "#!/bin/sh\nexit 4\n").unwrap();
+        let mut permissions = std::fs::metadata(&claude).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&claude, permissions).unwrap();
+        let source = temp.path().join("broken.json");
+        std::fs::write(&source, "not json").unwrap();
+        let env = HashMap::from([("PATH".to_string(), bin_dir.display().to_string())]);
+
+        let view = collect_harnesses(
+            &medulla::config::TuiConfig::default(),
+            &[source.display().to_string()],
+            &temp.path().join("medulla-home"),
+            &env,
+        );
+
+        assert_eq!(view.providers.len(), 1);
+        assert_eq!(view.providers[0].version, None);
+        assert!(view.configuration.iter().any(|fact| {
+            fact.contains("Codex overrides: unavailable") && fact.contains("could not be read")
+        }));
     }
 }
