@@ -194,6 +194,7 @@ impl App {
         &mut self,
         snapshot: Arc<crate::ui::resources::sampler::ResourceSnapshot>,
     ) {
+        self.resources.sample_network(&snapshot);
         self.resource_snapshot = snapshot;
     }
 

@@ -45,6 +45,8 @@ pub(in crate::ui::app) struct ResourcesState {
     pub net_zeroed: bool,
     pub net_zero_received: u64,
     pub net_zero_transmitted: u64,
+    pub net_download_scaler: crate::ui::resources::net::NetScaler,
+    pub net_upload_scaler: crate::ui::resources::net::NetScaler,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -94,11 +96,24 @@ impl Default for ResourcesState {
             net_zeroed: false,
             net_zero_received: 0,
             net_zero_transmitted: 0,
+            net_download_scaler: Default::default(),
+            net_upload_scaler: Default::default(),
         }
     }
 }
 
 impl ResourcesState {
+    pub fn sample_network(&mut self, snapshot: &crate::ui::resources::sampler::ResourceSnapshot) {
+        let selected = self.net_iface.as_deref()
+            .and_then(|name| snapshot.networks.iter().find(|entry| entry.interface == name))
+            .or_else(|| crate::ui::resources::net::default_interface(&snapshot.networks)
+                .and_then(|name| snapshot.networks.iter().find(|entry| entry.interface == name)));
+        if let Some(selected) = selected {
+            self.net_download_scaler.sample(selected.received_bytes_per_second);
+            self.net_upload_scaler.sample(selected.transmitted_bytes_per_second);
+        }
+    }
+
     pub fn from_config(config: &medulla::config::ResourcesConfig) -> Self {
         let shown = config
             .shown_boxes
