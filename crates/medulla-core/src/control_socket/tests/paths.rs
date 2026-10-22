@@ -187,7 +187,12 @@ mod bind {
         let dir = crate::control_socket::private_tempdir();
         let path = dir.path().join("control.sock");
 
-        assert!(prepare_bind(&path).await.is_ok());
+        let result = prepare_bind(&path).await;
+        assert!(
+            result.is_ok(),
+            "failed to reap stale socket at {path:?}: {:?}",
+            result.err()
+        );
     }
 
     #[tokio::test]
