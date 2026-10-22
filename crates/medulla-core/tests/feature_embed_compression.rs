@@ -130,6 +130,8 @@ fn loaded_tinyjuice_module_compresses_the_second_request_and_records_workspace_t
 }
 
 fn enabled_scenario() {
+    let _ = tracing_log::LogTracer::init();
+    let _ = tracing_subscriber::fmt().with_max_level(tracing::Level::DEBUG).with_test_writer().try_init();
     let standalone = medulla::juice::compress(&medulla::juice::CompressInput::new(FIXTURE));
     eprintln!("standalone {} -> {}", FIXTURE.len(), standalone.text.len());
     medulla::tokio_tuning::build_runtime().unwrap().block_on(async {
