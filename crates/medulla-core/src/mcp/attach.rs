@@ -85,8 +85,8 @@ mod files;
 mod server;
 
 use crate::protocol::HarnessProvider;
+use files::config_file_path;
 pub use files::{config_dir_for_socket, sweep_stale_config_files};
-use files::{config_file_path, write_owner_only};
 pub use medulla_harness::mcp::ATTACHED_ENV;
 use medulla_harness::mcp::{claude_mcp_config, codex_config_args as render_codex_config_args};
 pub use server::{server_command, server_spec, ServerSpec, ORIGIN_SESSION_ENV, SERVER_COMMAND_ENV};

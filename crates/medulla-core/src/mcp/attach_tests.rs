@@ -11,6 +11,7 @@ use std::sync::Mutex;
 
 use serde_json::Value;
 
+use super::files::write_owner_only;
 use super::*;
 
 /// A spec with no fleet grant, as a host with workflows on and no plane builds.

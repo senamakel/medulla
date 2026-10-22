@@ -35,6 +35,7 @@
 use std::fs;
 use std::io;
 
+#[path = "registration_codex.rs"]
 mod registration_codex;
 use std::path::{Path, PathBuf};
 
