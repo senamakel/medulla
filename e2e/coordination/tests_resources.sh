@@ -297,6 +297,7 @@ try:
         raise ValueError("perf sampling must span at least one sampler tick")
     interval = 2.0
     count = max(1, int(duration // interval))
+    time.sleep(interval * 2)
     points = [cpu_ticks()]
     start = time.monotonic()
     for _ in range(count):
@@ -308,6 +309,7 @@ try:
     ordered = sorted(tick_ms)
     p95 = ordered[min(len(ordered) - 1, int(0.95 * len(ordered)))]
     print(f"[e2e] process fixture: {len(fixtures)} unclassified sleepers; {len(tick_ms)} Medulla process CPU samples at {interval:.0f}s cadence; p95={p95:.1f}ms/tick, max={max(tick_ms):.1f}ms/tick, average={average_pct:.3f}% of one core over {elapsed:.1f}s (limits: <=40ms/tick, <=2.000%)")
+    print(f"[e2e] sorted per-tick process CPU samples (ms): {ordered}")
     assert p95 <= 40.0, f"Medulla CPU p95 {p95:.1f}ms per 2s tick exceeds 40ms"
     assert average_pct <= 2.0, f"Medulla CPU average {average_pct:.3f}% exceeds 2% of one core"
 finally:
