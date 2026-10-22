@@ -14,7 +14,7 @@ mod tests;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tokio::sync::watch;
 
 /// A source of resource snapshots, injectable to test task ordering without
@@ -220,6 +220,8 @@ impl ResourceSource for SystemResourceSource {
                 .with_cpu()
                 .with_memory()
                 .with_disk_usage()
+                .with_exe(UpdateKind::OnlyIfNotSet)
+                .with_cmd(UpdateKind::OnlyIfNotSet)
                 .with_tasks(),
         );
         self.disks.refresh(true);
