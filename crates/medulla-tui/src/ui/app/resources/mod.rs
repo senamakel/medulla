@@ -165,13 +165,21 @@ impl App {
                             &self.resource_snapshot,
                             &self.loaded.config.resources,
                             state.net_iface.as_deref(),
-                            state.net_zero_offsets.get(
-                                state.net_iface.as_deref().or_else(|| {
-                                    crate::ui::resources::net::default_interface(
-                                        &self.resource_snapshot.networks,
-                                    )
-                                }).unwrap_or_default(),
-                            ).copied().unwrap_or_default(),
+                            state
+                                .net_zero_offsets
+                                .get(
+                                    state
+                                        .net_iface
+                                        .as_deref()
+                                        .or_else(|| {
+                                            crate::ui::resources::net::default_interface(
+                                                &self.resource_snapshot.networks,
+                                            )
+                                        })
+                                        .unwrap_or_default(),
+                                )
+                                .copied()
+                                .unwrap_or_default(),
                             if state.net_auto {
                                 state.net_download_scaler.max()
                             } else {
@@ -219,7 +227,10 @@ impl App {
             }) {
                 self.resources.net_zero_offsets.insert(
                     interface.interface.clone(),
-                    (interface.total_received_bytes, interface.total_transmitted_bytes),
+                    (
+                        interface.total_received_bytes,
+                        interface.total_transmitted_bytes,
+                    ),
                 );
                 self.resources.net_iface = Some(interface.interface.clone());
             }
@@ -503,7 +514,10 @@ fn draw_net_panel(
     );
 }
 
-fn network_top(snapshot: &crate::ui::resources::sampler::ResourceSnapshot, interface: &str) -> (f64, f64) {
+fn network_top(
+    snapshot: &crate::ui::resources::sampler::ResourceSnapshot,
+    interface: &str,
+) -> (f64, f64) {
     snapshot
         .history
         .network_io
@@ -511,7 +525,10 @@ fn network_top(snapshot: &crate::ui::resources::sampler::ResourceSnapshot, inter
         .flat_map(|sample| sample.iter())
         .filter(|entry| entry.interface == interface)
         .fold((0.0_f64, 0.0_f64), |(rx, tx), entry| {
-            (rx.max(entry.received_bytes_per_second), tx.max(entry.transmitted_bytes_per_second))
+            (
+                rx.max(entry.received_bytes_per_second),
+                tx.max(entry.transmitted_bytes_per_second),
+            )
         })
 }
 

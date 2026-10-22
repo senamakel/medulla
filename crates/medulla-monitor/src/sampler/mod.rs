@@ -165,10 +165,11 @@ impl ResourceSource for SystemResourceSource {
             .networks
             .iter()
             .map(|(name, data)| {
-                let ip_addresses: Vec<_> = data.ip_networks().iter().map(ToString::to_string).collect();
+                let ip_addresses: Vec<_> =
+                    data.ip_networks().iter().map(ToString::to_string).collect();
                 #[cfg(target_os = "linux")]
                 let (up, running) = linux_interface_flags(name)
-                    .map(|flags| (flags & 0x1 != 0, flags & 0x40 != 0))
+                    .map(linux_interface_state)
                     .unwrap_or((false, false));
                 // sysinfo does not expose interface flags on other platforms.
                 // An assigned address is evidence of a configured interface;
@@ -180,7 +181,9 @@ impl ResourceSource for SystemResourceSource {
                 NetworkSnapshot {
                     interface: name.clone(),
                     up,
-                    connected: running || received_bytes_per_second > 0.0 || transmitted_bytes_per_second > 0.0,
+                    connected: running
+                        || received_bytes_per_second > 0.0
+                        || transmitted_bytes_per_second > 0.0,
                     ip_addresses,
                     received_bytes_per_second,
                     transmitted_bytes_per_second,
@@ -423,21 +426,26 @@ impl ResourceSource for SystemResourceSource {
 
 #[cfg(target_os = "linux")]
 fn linux_interface_flags(name: &str) -> Option<u32> {
-    std::fs::read_to_string(std::path::Path::new("/sys/class/net").join(name).join("flags"))
-        .ok()
-        .and_then(|flags| u32::from_str_radix(flags.trim().trim_start_matches("0x"), 16).ok())
+    std::fs::read_to_string(
+        std::path::Path::new("/sys/class/net")
+            .join(name)
+            .join("flags"),
+    )
+    .ok()
+    .and_then(|flags| u32::from_str_radix(flags.trim().trim_start_matches("0x"), 16).ok())
+}
+
+#[cfg(target_os = "linux")]
+fn linux_interface_state(flags: u32) -> (bool, bool) {
+    (flags & 0x1 != 0, flags & 0x40 != 0)
 }
 
 #[cfg(test)]
 mod interface_flag_tests {
     #[test]
     fn linux_flags_distinguish_admin_up_from_running() {
-        let up_without_carrier = 0x1;
-        let running_only = 0x40;
-        assert!(up_without_carrier & 0x1 != 0);
-        assert!(up_without_carrier & 0x40 == 0);
-        assert!(running_only & 0x1 == 0);
-        assert!(running_only & 0x40 != 0);
+        assert_eq!(super::linux_interface_state(0x1), (true, false));
+        assert_eq!(super::linux_interface_state(0x40), (false, true));
     }
 }
 
