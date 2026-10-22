@@ -969,7 +969,7 @@ fn agent_kill_waits_for_confirmation_and_uses_injected_signal_function() {
             .with_processes(vec![test_agent_process(42, "claude", 10.0)]),
     ));
     app.resources.agent_signal_fn = test_signal;
-    assert!(!app.resources_key(KeyCode::Char('k')));
+    assert!(app.resources_key(KeyCode::Char('k')));
     assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
     assert!(app.resources.agent_signal_armed.is_some());
     assert!(app.resources_key(KeyCode::Char('y')));
@@ -997,7 +997,7 @@ fn hidden_agents_box_cannot_arm_or_confirm_a_process_signal() {
     app.resources.agent_signal_fn = hidden_test_signal;
     app.resources.shown.agents = false;
 
-    assert!(app.resources_key(KeyCode::Char('k')));
+    assert!(!app.resources_key(KeyCode::Char('k')));
     assert!(app.resources.agent_signal_armed.is_none());
 
     app.resources.agent_signal_armed = Some((43, 1, AgentSignal::Kill));
