@@ -384,13 +384,11 @@ impl App {
                 }
                 KeyCode::Enter => {
                     self.resources.agent_filter_editing = false;
-                    self.resources.agent_selected =
-                        crate::ui::app::render::resources::visible_rows(
-                            &self.resource_snapshot,
-                            &self.resources,
-                        )
-                        .first()
-                        .map(|r| (r.pid, r.started));
+                    let rows = crate::ui::app::render::resources::visible_rows(
+                        &self.resource_snapshot,
+                        &self.resources,
+                    );
+                    self.resources.agent_selected = rows.first().map(|row| (row.pid,row.started));
                 }
                 KeyCode::Backspace => {
                     self.resources.agent_filter.as_mut().map(String::pop);

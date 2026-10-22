@@ -167,7 +167,7 @@ fn tree_rows(snapshot: &ResourceSnapshot, agents: Vec<AgentRow>) -> Vec<AgentRow
     for descendants in children.values_mut() {
         descendants.sort_by_key(|process| process.pid);
     }
-    let mut roots: Vec<AgentRow> = agents
+    let roots: Vec<AgentRow> = agents
         .iter()
         .filter(|row| {
             row.ppid
@@ -175,11 +175,11 @@ fn tree_rows(snapshot: &ResourceSnapshot, agents: Vec<AgentRow>) -> Vec<AgentRow
         })
         .cloned()
         .collect();
-    roots.sort_by(|a, b| compare(a, b, AgentSort::Cpu));
     let mut result = Vec::new();
     let mut visited = std::collections::HashSet::new();
     for root in roots {
         let pid = root.pid;
+        visited.insert(pid);
         result.push(root);
         append_children(pid, 1, &children, &all_agents, &mut visited, &mut result);
     }
@@ -264,12 +264,6 @@ pub(in crate::ui::app) fn draw_agents(
         if history.len() > 24 {
             history.remove(0);
         }
-    }
-    if state.agent_selected.is_none() {
-        state.agent_selected = rows.first().map(|r| (r.pid, r.started));
-    }
-    if state.agent_follow {
-        state.agent_selected = rows.first().map(|r| (r.pid, r.started));
     }
     if state.agent_detail {
         super::agents_detail::draw(
@@ -515,6 +509,20 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["external", "external", "external", "external"]
         );
+    }
+
+    #[test]
+    fn registry_classifies_session_task_and_host_origins() {
+        let registry = medulla_monitor::agents::agent_registry();
+        let registrations = [
+            medulla_monitor::agents::AgentRegistration { pid: 987_101, started_at_secs: 100, task_id: None, session_id: Some("session-label".into()), provider: "claude".into() },
+            medulla_monitor::agents::AgentRegistration { pid: 987_102, started_at_secs: 100, task_id: Some("task-7".into()), session_id: None, provider: "codex-acp".into() },
+            medulla_monitor::agents::AgentRegistration { pid: 987_103, started_at_secs: 100, task_id: None, session_id: None, provider: "openhuman".into() },
+        ];
+        let _guards: Vec<_> = registrations.iter().cloned().map(|registration| registry.register_at(registration)).collect();
+        let snapshot = ResourceSnapshot::default().with_processes(vec![process(987_101,"claude",1.0,1),process(987_102,"codex-acp",2.0,2),process(987_103,"openhuman",3.0,3),process(987_104,"aider",4.0,4)]);
+        let rows = rows(&snapshot);
+        assert_eq!(rows.iter().map(|row| row.origin.as_str()).collect::<Vec<_>>(), ["session-label","task task-7","host","external"]);
     }
 
     #[test]
