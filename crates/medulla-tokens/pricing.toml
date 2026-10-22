@@ -1,0 +1,25 @@
+# Version 1; reviewed 2026-10-22. Prices are USD per 1,000,000 tokens.
+# Sources: https://platform.claude.com/docs/en/about-claude/pricing
+#          https://developers.openai.com/api/docs/pricing
+# The usage schema has no cache-write TTL field. `cost` therefore estimates
+# cache writes at the explicitly listed default TTL. Codex write pricing is not
+# listed because the official source does not publish it for this model.
+version = 1
+
+[[model]]
+provider = "claude"
+model = "claude-sonnet-4-6"
+input = 3.0
+output = 15.0
+cache_read = 0.3
+cache_write = 3.75
+cache_write_default_ttl = "5m"
+input_includes_cache = false
+
+[[model]]
+provider = "codex"
+model = "gpt-5.3-codex"
+input = 1.75
+output = 14.0
+cache_read = 0.175
+input_includes_cache = true

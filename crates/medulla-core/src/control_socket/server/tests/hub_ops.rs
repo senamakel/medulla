@@ -36,6 +36,10 @@ fn done(reply: &str) -> Result<TaskOutcome, RunError> {
         usage: TokenUsage {
             input_tokens: 1,
             output_tokens: 2,
+
+            cache_read: None,
+            cache_write: None,
+            reasoning: None,
         },
         harness: None,
         session_id: None,

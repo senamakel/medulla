@@ -252,6 +252,10 @@ impl Relay for FakeWorker {
                 Some(TokenUsage {
                     input_tokens: 3,
                     output_tokens: 5,
+
+                    cache_read: None,
+                    cache_write: None,
+                    reasoning: None,
                 }),
             )),
             Mode::Error(text) => q.push_back(mk(TaskFrameKind::Error, text, None)),

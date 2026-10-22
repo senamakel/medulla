@@ -152,6 +152,10 @@ impl FleetOps for FakeFleet {
                 usage: TokenUsage {
                     input_tokens: 10,
                     output_tokens: 20,
+
+                    cache_read: None,
+                    cache_write: None,
+                    reasoning: None,
                 },
                 harness: None,
                 session_id: None,
