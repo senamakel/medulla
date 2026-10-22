@@ -10,11 +10,13 @@ mod harness;
 pub mod harness_contract;
 mod session_origin;
 mod token_usage;
+mod tool_mode;
 
 pub use checkout::Checkout;
 pub use harness::{dispatchable_flavors, HarnessProvider, HarnessTransport, CODEX_SERVER_FLAVOR};
 pub use session_origin::SessionOrigin;
 pub use token_usage::{BudgetWindow, TokenUsage};
+pub use tool_mode::{ToolMode, TOOL_MODE_ENV};
 
 #[cfg(test)]
 #[path = "harness_contract_tests.rs"]
