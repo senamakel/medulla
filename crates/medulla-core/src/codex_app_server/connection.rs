@@ -149,7 +149,7 @@ impl Connection {
 
         // Writer: one task owns stdin, so concurrent callers never interleave
         // half-written lines.
-        let writer_connection = connection.clone();
+        let writer_connection = Arc::downgrade(&connection);
         tokio::spawn(async move {
             let mut stdin = stdin;
             while let Some(line) = outbound_rx.recv().await {
@@ -157,15 +157,18 @@ impl Connection {
                     || stdin.write_all(b"\n").await.is_err()
                     || stdin.flush().await.is_err()
                 {
-                    writer_connection.mark_dead("stdin closed");
+                    if let Some(connection) = writer_connection.upgrade() {
+                        connection.mark_dead("stdin closed");
+                    }
                     return;
                 }
             }
         });
 
-        // Reader: decodes stdout and dispatches. Owns the connection weakly
-        // enough that the process is torn down when the pool drops it.
-        let reader_connection = connection.clone();
+        // Reader: decodes stdout and dispatches. Weak ownership lets dropping
+        // the pool's last connection owner tear down the process and registry
+        // guard instead of keeping the connection alive through its own reader.
+        let reader_connection = Arc::downgrade(&connection);
         tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             loop {
@@ -175,17 +178,25 @@ impl Connection {
                             continue;
                         }
                         if let Some(message) = Message::parse(&line) {
-                            reader_connection.dispatch(message);
+                            if let Some(connection) = reader_connection.upgrade() {
+                                connection.dispatch(message);
+                            } else {
+                                break;
+                            }
                         }
                     }
                     Ok(None) => break,
                     Err(error) => {
-                        reader_connection.mark_dead(&format!("stdout read failed: {error}"));
+                        if let Some(connection) = reader_connection.upgrade() {
+                            connection.mark_dead(&format!("stdout read failed: {error}"));
+                        }
                         return;
                     }
                 }
             }
-            reader_connection.mark_dead("process exited");
+            if let Some(connection) = reader_connection.upgrade() {
+                connection.mark_dead("process exited");
+            }
         });
 
         connection
