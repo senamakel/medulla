@@ -90,11 +90,20 @@ fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
             meters,
             sampled_at: 1,
         },
+        compression: Some(medulla::juice::EmbeddedCompressionStats {
+            events: 2,
+            tokens: medulla::juice::CompressionTokenTotals { before_tokens: 1200, after_tokens: 300 },
+        }),
     };
     let output = rendered(|frame, area| tokens::draw_tokens(frame, area, &view));
 
     for expected in [
         "Tokens",
+        "Local embedded workspace compression",
+        "1200 before",
+        "300 after",
+        "900 saved",
+        "2 compression events",
         "session-1",
         "Claude Code",
         "claude-sonnet-4-6",

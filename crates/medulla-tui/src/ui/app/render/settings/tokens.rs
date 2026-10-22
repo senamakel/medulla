@@ -31,6 +31,8 @@ pub(super) struct TokensView {
     pub rows: Vec<TokenUsageRow>,
     /// Latest subscription readings supplied by the app.
     pub subscriptions: SubscriptionSnapshot,
+    /// Persisted embedded-runtime workspace totals, when available.
+    pub compression: Option<medulla::juice::EmbeddedCompressionStats>,
 }
 
 /// Draw token accounting and subscription readings without probing providers.
@@ -73,6 +75,16 @@ pub(super) fn draw_tokens(f: &mut Frame, area: Rect, view: &TokensView) {
             Some(estimate) => lines.push(Line::from(format!("  cost ${estimate:.4}"))),
             None => lines.push(Line::from("  cost unavailable")),
         }
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from("Local embedded workspace compression"));
+    if let Some(stats) = view.compression {
+        lines.push(Line::from(format!("  {} estimated tokens before · {} after · {} saved", stats.tokens.before_tokens, stats.tokens.after_tokens, stats.tokens.saved_tokens())));
+        lines.push(Line::from(format!("  {} compression events", stats.events)));
+    } else {
+        lines.push(Line::from("  No embedded compression savings reported."));
+        lines.push(Line::from("  Claude/Codex hooks report usage but do not compress tool output."));
     }
 
     lines.push(Line::from(""));
@@ -128,6 +140,7 @@ impl super::super::super::types::App {
         let view = TokensView {
             rows,
             subscriptions: self.subscriptions.clone(),
+            compression: self.compression,
         };
         draw_tokens(f, area, &view);
     }
