@@ -44,6 +44,7 @@ fn detect_kind(process: &ProcessSnapshot) -> Option<String> {
     if full.contains("codex-acp") { Some("Codex-ACP".into()) }
     else if full.contains("claude") { Some("Claude".into()) }
     else if full.contains("openhuman") || full.contains("medulla") { Some("OpenHuman".into()) }
+    else if full.contains("aider") || full.contains("gemini") || full.contains("goose") || full.contains("cursor") || full.contains("opencode") { Some("External".into()) }
     else { None }
 }
 
@@ -66,7 +67,7 @@ pub(super) fn visible_rows(snapshot: &ResourceSnapshot, state: &ResourcesState) 
         let (regex, pattern) = filter.strip_prefix('!').map_or((false, filter), |pattern| (true, pattern));
         if regex {
             if let Ok(pattern) = regex::Regex::new(pattern) {
-                rows.retain(|row| pattern.is_match(&format!("{} {} {} {}", row.pid, row.kind, row.origin, row.workspace)));
+                rows.retain(|row| pattern.is_match(&row.kind));
             } else { rows.clear(); }
         } else {
             let pattern = pattern.to_lowercase();
@@ -145,3 +146,41 @@ fn bytes(value:u64)->String { if value >= 1<<30 {format!("{:.1}G",value as f64/(
 fn duration(seconds:u64)->String { if seconds >= 3600 {format!("{}h",seconds/3600)} else if seconds >= 60 {format!("{}m",seconds/60)} else {format!("{}s",seconds)} }
 fn shorten(value:&str,max:usize)->String { let chars:Vec<char>=value.chars().collect(); if chars.len()<=max {value.to_owned()} else {format!("…{}",chars[chars.len().saturating_sub(max.saturating_sub(1))..].iter().collect::<String>())} }
 fn mini_graph(values:&[f64])->String { const BARS:[char;8]=['▁','▂','▃','▄','▅','▆','▇','█']; values.iter().rev().take(8).rev().map(|v| BARS[(v.clamp(0.0,100.0)/100.0*7.0).round() as usize]).collect() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::app::resources::types::ResourcesState;
+
+    fn process(pid:u32, command:&str, cpu:f64, mem:u64)->ProcessSnapshot {
+        ProcessSnapshot { pid, ppid:None, exe:Some(command.into()), cmd:vec![command.into()], cwd:Some(format!("/workspace/{command}")), start_time:100, cpu_percent:cpu, memory_bytes:mem, disk_read_bytes:0, disk_written_bytes:0, threads:pid as usize, }
+    }
+    fn snapshot() -> ResourceSnapshot {
+        ResourceSnapshot::default().with_processes(vec![process(10,"claude",10.0,4000),process(20,"codex-acp",20.0,3000),process(30,"openhuman",30.0,2000),process(40,"aider",40.0,1000)])
+    }
+
+    #[test]
+    fn classifies_known_and_external_agent_processes() {
+        let rows = rows(&snapshot());
+        assert_eq!(rows.iter().map(|row| row.kind.as_str()).collect::<Vec<_>>(), ["Claude","Codex-ACP","OpenHuman","External"]);
+        assert_eq!(rows.iter().map(|row| row.origin.as_str()).collect::<Vec<_>>(), ["external","external","external","external"]);
+    }
+
+    #[test]
+    fn sorts_each_column_reverses_and_filters_codex_by_regex() {
+        let snap = snapshot();
+        let mut state = ResourcesState::default();
+        for sort in [AgentSort::Pid,AgentSort::Kind,AgentSort::Origin,AgentSort::Workspace,AgentSort::Threads,AgentSort::Memory,AgentSort::Cpu,AgentSort::Runtime] {
+            state.agent_sort=sort;
+            let sorted=visible_rows(&snap,&state);
+            assert_eq!(sorted.len(),4);
+            assert!(sorted.windows(2).all(|w| compare(&w[0],&w[1],sort)!=Ordering::Greater));
+        }
+        state.agent_sort=AgentSort::Cpu;
+        state.agent_reverse=true;
+        assert_eq!(visible_rows(&snap,&state)[0].pid,40);
+        state.agent_reverse=false;
+        state.agent_filter=Some("!^cod".into());
+        assert_eq!(visible_rows(&snap,&state).iter().map(|r|r.kind.as_str()).collect::<Vec<_>>(), ["Codex-ACP"]);
+    }
+}
