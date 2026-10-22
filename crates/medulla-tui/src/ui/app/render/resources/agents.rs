@@ -27,6 +27,7 @@ pub(in crate::ui::app) struct AgentRow {
     pub session_id: Option<String>,
     pub task_id: Option<String>,
     pub external: bool,
+    pub depth: usize,
 }
 
 pub(super) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
@@ -75,6 +76,7 @@ pub(super) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
                 session_id,
                 task_id,
                 external,
+                depth: 0,
             })
         })
         .collect()
@@ -146,7 +148,43 @@ pub(in crate::ui::app) fn visible_rows(
     if state.agent_reverse {
         rows.reverse();
     }
+    if state.agent_tree {
+        rows = tree_rows(snapshot, rows);
+    }
     rows
+}
+
+fn tree_rows(snapshot: &ResourceSnapshot, agents: Vec<AgentRow>) -> Vec<AgentRow> {
+    let all_agents: std::collections::HashMap<u32, AgentRow> = agents.iter().cloned().map(|row| (row.pid,row)).collect();
+    let mut children: std::collections::HashMap<u32, Vec<&ProcessSnapshot>> = std::collections::HashMap::new();
+    for process in &snapshot.processes { if let Some(parent) = process.ppid { children.entry(parent).or_default().push(process); } }
+    for descendants in children.values_mut() { descendants.sort_by_key(|process| process.pid); }
+    let mut roots: Vec<AgentRow> = agents.iter().filter(|row| row.ppid.is_none_or(|parent| !all_agents.contains_key(&parent))).cloned().collect();
+    roots.sort_by(|a,b| compare(a,b, AgentSort::Cpu));
+    let mut result = Vec::new();
+    let mut visited = std::collections::HashSet::new();
+    for root in roots { let pid = root.pid; result.push(root); append_children(pid, 1, &children, &all_agents, &mut visited, &mut result); }
+    // Cycles or incomplete parent chains should not make a known agent vanish.
+    for row in agents { if visited.insert(row.pid) { result.push(row); } }
+    result
+}
+
+fn append_children(parent: u32, depth: usize, children: &std::collections::HashMap<u32,Vec<&ProcessSnapshot>>, agents: &std::collections::HashMap<u32,AgentRow>, visited: &mut std::collections::HashSet<u32>, result: &mut Vec<AgentRow>) {
+    if let Some(descendants) = children.get(&parent) {
+        for process in descendants {
+            if !visited.insert(process.pid) { continue; }
+            let mut row = agents.get(&process.pid).cloned().unwrap_or_else(|| AgentRow {
+                pid: process.pid, started: process.start_time, kind: "Process".into(), origin: "child process".into(),
+                workspace: process.cwd.clone().unwrap_or_else(|| "—".into()), threads: process.threads, memory: process.memory_bytes,
+                cpu: process.cpu_percent, runtime: (medulla::clock::now_millis() - process.start_time.saturating_mul(1000) as i64).max(0) as u64 / 1000,
+                ppid: process.ppid, session_id: None, task_id: None, external: true, depth,
+            });
+            row.depth = depth;
+            let pid = row.pid;
+            result.push(row);
+            append_children(pid, depth + 1, children, agents, visited, result);
+        }
+    }
 }
 
 fn compare(a: &AgentRow, b: &AgentRow, key: AgentSort) -> Ordering {
@@ -228,7 +266,7 @@ pub(in crate::ui::app) fn draw_agents(
             let cells = if compact {
                 vec![
                     row.pid.to_string(),
-                    format!("{} · {}", row.kind, origin),
+                    format!("{}{}{} · {}", "  ".repeat(row.depth), if row.depth > 0 { "└─ " } else { "" }, row.kind, origin),
                     format!("{:.1}", row.cpu),
                     bytes(row.memory),
                     duration(row.runtime),
@@ -236,7 +274,7 @@ pub(in crate::ui::app) fn draw_agents(
             } else {
                 vec![
                     row.pid.to_string(),
-                    row.kind.clone(),
+                    format!("{}{}{}", "  ".repeat(row.depth), if row.depth > 0 { "└─ " } else { "" }, row.kind),
                     origin,
                     workspace,
                     row.threads.to_string(),
