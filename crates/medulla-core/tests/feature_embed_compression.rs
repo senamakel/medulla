@@ -147,3 +147,36 @@ fn enabled_scenario() {
         assert!(stats.tokens.saved_tokens() > 0);
     });
 }
+
+#[test]
+#[ignore = "run in its own process to isolate TINYJUICE_TEST_MODULE"]
+fn unavailable_module_fails_open_and_preserves_the_model_visible_result() {
+    std::env::set_var("TINYJUICE_TEST_MODULE", "/definitely/missing/libtinyjuice_module.so");
+    std::thread::Builder::new()
+        .stack_size(medulla::tokio_tuning::WORKER_STACK_BYTES)
+        .spawn(unavailable_module_scenario)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn unavailable_module_scenario() {
+    medulla::tokio_tuning::build_runtime().unwrap().block_on(async {
+        let (requests, _home, _cwd) = run_fixture(std::sync::Arc::new(
+            EmbedHost::default().with_compression_enabled(true),
+        ))
+        .await;
+        let completions: Vec<_> = requests
+            .iter()
+            .filter(|request| {
+                request.method == wiremock::http::Method::POST
+                    && request.url.path() == "/v1/chat/completions"
+            })
+            .collect();
+        assert!(completions.len() >= 2, "expected the follow-up model request");
+        let second: Value = serde_json::from_slice(&completions[1].body).unwrap();
+        let mut contents = Vec::new();
+        tool_contents(&second, &mut contents);
+        assert!(contents.iter().any(|content| content == FIXTURE));
+    });
+}
