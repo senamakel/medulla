@@ -31,13 +31,14 @@ Each step is a small red-green-refactor change. Add the assertion first, run the
 
 - Add `crates/medulla-tui/src/ui/app/render/settings/tokens.rs`.
 - Add `crates/medulla-tui/src/ui/app/render/settings/tokens_tests.rs` (or a `tests.rs` child module if that better matches the final module layout).
+- Change `crates/medulla-tokens/src/usage.rs` and `crates/medulla-core/src/ui/stream/mod.rs` with tests in `crates/medulla-core/src/ui/stream/tests.rs` if the existing fold cannot retain the new optional usage categories and provider/model attribution needed by the page.
 - Change `crates/medulla-tui/src/ui/app/render/settings/mod.rs` to declare and dispatch the page.
 - Change `crates/medulla-tui/Cargo.toml` and `Cargo.lock` only if direct primitive-crate dependencies are needed; keep crate layering rules intact.
 - Change `crates/medulla-tui/src/ui/app/types/model.rs` or a focused sibling type file only if App needs to own the injected Tokens view model.
 
-**Red:** Render a fixed usage fixture with Ratatui `TestBackend` and assert the visible output includes separate input, output, cache-read, cache-write, and reasoning values, a cost when `medulla-tokens` can price the provider/model, and subscription meter values supplied by the fixture. Include an unknown/unpriced model case and assert cost is displayed as unavailable rather than `$0` or a guessed amount. The test must not invoke provider detection or subscription network sampling.
+**Red:** First test the usage fold on fixed `InferenceEnd` events that carry optional token categories and model/tier identity; require it to retain input, output, cache read, cache write, reasoning, and provider/model attribution needed for pricing. Then render a fixed per-session/per-provider usage fixture with Ratatui `TestBackend` and assert the visible output includes each category, a cost when `medulla-tokens` can price the provider/model, and subscription meter values supplied by the fixture. Include an unknown/unpriced model case and assert cost is displayed as unavailable rather than `$0` or a guessed amount. The tests must not invoke provider detection or subscription network sampling.
 
-**Green:** Introduce the smallest view-data boundary needed to render supplied session/provider usage and subscription meters. Derive cost through `medulla_tokens::cost`; preserve unknown values as unavailable. Aggregate or format in a pure helper where useful, and keep the Ratatui code in `medulla-tui`.
+**Green:** Extend the shared fold only as far as necessary to retain the reported categories and pricing identity without changing the existing Usage totals. Introduce the smallest view-data boundary needed to render supplied session/provider usage and subscription meters. Derive cost through `medulla_tokens::cost`; preserve unknown values as unavailable. Aggregate or format in a pure helper where useful, and keep the Ratatui code in `medulla-tui`.
 
 ### 3. Add an injected Harnesses view and its TestBackend coverage
 
