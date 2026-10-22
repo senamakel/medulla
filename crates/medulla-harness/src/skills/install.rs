@@ -22,14 +22,15 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::workflows::WorkflowSummary;
-
 use super::render::{parse_marker, render, render_command, slug_for, SLUG_PREFIX};
 use super::targets::{
     command_path, commands_dir, dedupe_by_skills_dir, legacy_codex_skills_dir, skill_path,
     skills_dir, target_root,
 };
-use super::{FileAction, FileOutcome, InstallOptions, InstallReport, InstalledSkill, SkillTarget};
+use super::{
+    FileAction, FileOutcome, InstallOptions, InstallReport, InstalledSkill, SkillTarget,
+    SkillWorkflow,
+};
 
 /// Installs the given workflows into every configured target.
 ///
@@ -44,7 +45,7 @@ use super::{FileAction, FileOutcome, InstallOptions, InstallReport, InstalledSki
 /// A collision is *not* an error: it lands in the report as
 /// [`FileAction::SkippedUnmanaged`] or [`FileAction::SlugCollision`] so one bad
 /// path does not abort the rest.
-pub fn install(workflows: &[WorkflowSummary], opts: &InstallOptions) -> io::Result<InstallReport> {
+pub fn install(workflows: &[SkillWorkflow], opts: &InstallOptions) -> io::Result<InstallReport> {
     install_over(workflows, opts, &BTreeSet::new())
 }
 
@@ -56,7 +57,7 @@ pub fn install(workflows: &[WorkflowSummary], opts: &InstallOptions) -> io::Resu
 /// [`FileAction::SlugCollision`] for a write the real run performs — the one
 /// thing a dry run must never do is disagree with the run it predicts.
 fn install_over(
-    workflows: &[WorkflowSummary],
+    workflows: &[SkillWorkflow],
     opts: &InstallOptions,
     cleared: &BTreeSet<PathBuf>,
 ) -> io::Result<InstallReport> {
@@ -156,7 +157,7 @@ fn install_over(
 ///
 /// Propagates filesystem errors from removal or from the install pass.
 pub fn sync(
-    workflows: &[WorkflowSummary],
+    workflows: &[SkillWorkflow],
     opts: &InstallOptions,
     prune: bool,
 ) -> io::Result<InstallReport> {

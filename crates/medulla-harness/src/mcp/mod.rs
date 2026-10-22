@@ -71,6 +71,12 @@ pub fn claude_mcp_config(spec: &McpServerSpec) -> String {
 /// Render Codex CLI `-c` overrides for one attached MCP server.
 pub fn codex_config_args(spec: &McpServerSpec) -> Vec<String> {
     let string = |value: &str| toml_edit::Value::from(value).to_string();
+    let args = spec
+        .args
+        .iter()
+        .map(|arg| string(arg))
+        .collect::<Vec<_>>()
+        .join(",");
     let env = spec
         .env
         .iter()
@@ -86,7 +92,7 @@ pub fn codex_config_args(spec: &McpServerSpec) -> Vec<String> {
             string(&spec.command.display().to_string())
         ),
         "-c".to_string(),
-        format!("mcp_servers.{}.args=[\"mcp\"]", spec.name),
+        format!("mcp_servers.{}.args=[{args}]", spec.name),
         "-c".to_string(),
         format!("mcp_servers.{}.env={{{env}}}", spec.name),
         "-c".to_string(),
