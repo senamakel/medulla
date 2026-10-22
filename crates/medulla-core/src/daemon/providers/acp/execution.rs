@@ -218,6 +218,10 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     let registry_task_id = options.task_id.clone();
     let registry_session_id = options.resume_session_id.clone();
     let registry_provider = options.provider.as_str().to_string();
+    let registry_handle = Arc::new(Mutex::new(
+        None::<medulla_monitor::agents::RegistrationHandle>,
+    ));
+    let latest_session_id = Arc::new(Mutex::new(registry_session_id.clone()));
     // The ACP server process receives `agent_env`; the local PostToolUse
     // fallback spawns hooks from this same process, so it gets the same
     // per-session environment — the hook grant and task-specific router /
@@ -245,7 +249,17 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     let resume = options.resume_session_id.clone();
     let prompt = options.prompt.clone();
     let abort = options.abort.clone();
-    let on_session = options.on_session;
+    let on_session = options.on_session.map(|callback| {
+        let registry_handle = registry_handle.clone();
+        let latest_session_id = latest_session_id.clone();
+        Box::new(move |session_id: String| {
+            *latest_session_id.lock().unwrap() = Some(session_id.clone());
+            if let Some(handle) = registry_handle.lock().unwrap().as_ref() {
+                let _ = handle.set_session_id(session_id.clone());
+            }
+            callback(session_id);
+        }) as super::types::OnSession
+    });
     let provider = options.provider;
     let timeout = Duration::from_millis(options.timeout_ms);
 
@@ -450,6 +464,11 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                             provider: registry_provider.clone(),
                         },
                     );
+                    let handle = guard.handle();
+                    if let Some(session_id) = latest_session_id.lock().unwrap().as_ref() {
+                        let _ = handle.set_session_id(session_id.clone());
+                    }
+                    *registry_handle.lock().unwrap() = Some(handle);
                     break (run.await, Some(guard));
                 }
             }
