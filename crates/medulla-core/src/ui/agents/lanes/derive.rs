@@ -418,4 +418,3 @@ pub fn derive_agent_lanes(
     out.extend(function_tiers);
     out
 }
-
