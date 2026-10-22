@@ -2587,6 +2587,11 @@ dependencies = [
 [[package]]
 name = "medulla-juice"
 version = "0.13.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tinyjuice",
+]
 
 [[package]]
 name = "medulla-link"
