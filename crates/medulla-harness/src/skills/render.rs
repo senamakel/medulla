@@ -1,4 +1,4 @@
-//! Turning a [`WorkflowSummary`] into harness-readable skill text.
+//! Turning a [`SkillWorkflow`] into harness-readable skill text.
 //!
 //! Rendering is deliberately target-independent: one body serves every harness,
 //! and [`super::targets`] decides only where it lands. The generated text has
@@ -27,11 +27,10 @@
 //!   where one fits and at a word boundary otherwise, so a truncated line still
 //!   reads as a sentence rather than as damage.
 
+use super::marker::seal;
+use super::render_helpers::{shell_quote_arg, yaml_scalar};
+use super::{SkillInput, SkillWorkflow};
 use serde_json::{json, Map, Value};
-use sha2::{Digest, Sha256};
-use tinyflows::model::{InputType, WorkflowInput};
-
-use crate::workflows::WorkflowSummary;
 
 /// The tool a generated skill instructs the model to call.
 const RUN_TOOL: &str = "mcp__medulla__workflow_run";
@@ -140,7 +139,7 @@ pub fn slug_for(workflow_id: &str) -> String {
 /// the generated content, so it changes if and only if that content does —
 /// which is what makes an install idempotent across releases that do not touch
 /// the template.
-pub fn render(summary: &WorkflowSummary) -> super::RenderedSkill {
+pub fn render(summary: &SkillWorkflow) -> super::RenderedSkill {
     let slug = slug_for(&summary.id);
     let description = description_for(summary);
     let content = skill_content(summary, &slug, &description);
@@ -160,7 +159,7 @@ pub fn render(summary: &WorkflowSummary) -> super::RenderedSkill {
 /// 123` than describe the work; the model-facing instructions are the same call
 /// with the typed text handed over as `$ARGUMENTS`. Returns the complete file,
 /// marker included, so it follows the same managed-file discipline.
-pub fn render_command(skill: &super::RenderedSkill, summary: &WorkflowSummary) -> String {
+pub fn render_command(skill: &super::RenderedSkill, summary: &SkillWorkflow) -> String {
     let mut out = String::new();
     out.push_str("---\n");
     out.push_str(&format!(
@@ -193,191 +192,6 @@ pub fn render_command(skill: &super::RenderedSkill, summary: &WorkflowSummary) -
     seal(&summary.id, &out).0
 }
 
-/// The marker layout a `rev` is computed for.
-///
-/// Mixed into the hash so that moving the marker — as release 0.8 moved it from
-/// a line above the frontmatter to a comment inside it — changes every `rev`
-/// even where the rendered text is byte-identical. Without it an install would
-/// find its own matching `rev` on a file laid out the old way, report
-/// `unchanged`, and leave the operator with skills no harness can read.
-const MARKER_FORMAT: &str = "medulla-skill-marker/2";
-
-/// Wraps rendered content in its managed marker and returns `(file, rev)`.
-///
-/// The marker is what every write path checks before touching a file, so it is
-/// produced in exactly one place. It goes *inside* the frontmatter, as a YAML
-/// comment on its first line, because a harness only recognises frontmatter
-/// that opens on line 1: with the marker above it, Claude Code read the whole
-/// document as body text and showed the marker itself where the description
-/// belongs — which is the one field the model matches a request against, so the
-/// skill was installed, listed, and untriggerable. YAML drops `#` comments
-/// before anything else sees the document, so the marker stays invisible to the
-/// harness and legible to us.
-///
-/// The id is percent-encoded, because the store accepts any id that is a single
-/// path component — spaces, newlines, quotes and non-ASCII included — and the
-/// marker is a whitespace-separated, single-line field list. An id written raw
-/// would either come back as a different id or split the marker across lines,
-/// and both make Medulla disown a file it wrote itself.
-///
-/// Content that does not open with frontmatter falls back to the marker on its
-/// own first line. Nothing here generates such content, but a marker that is
-/// silently dropped would make the file unrecognisable — and therefore neither
-/// updatable nor removable.
-fn seal(workflow_id: &str, content: &str) -> (String, String) {
-    let rev = format!(
-        "{:x}",
-        Sha256::digest(format!("{MARKER_FORMAT}\n{content}").as_bytes())
-    );
-    let id = encode_marker_id(workflow_id);
-    let marker = format!("medulla:managed workflow={id} rev={rev}");
-    let file = match content.strip_prefix("---\n") {
-        Some(rest) => format!("---\n# {marker}\n{rest}"),
-        None => format!("<!-- {marker} -->\n{content}"),
-    };
-    (file, rev)
-}
-
-/// The characters a marker id keeps as itself.
-///
-/// Deliberately narrow — alphanumerics and the three punctuation marks a
-/// workflow id normally uses. Everything else, including `%` itself, becomes an
-/// escape, so encoding is injective and decoding needs no lookahead rules.
-fn is_marker_literal(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
-}
-
-/// Percent-encodes a workflow id for the marker line.
-///
-/// Operates on UTF-8 bytes, so a non-ASCII id round-trips exactly rather than
-/// being transliterated.
-fn encode_marker_id(workflow_id: &str) -> String {
-    let mut out = String::with_capacity(workflow_id.len());
-    for byte in workflow_id.as_bytes() {
-        if is_marker_literal(*byte) {
-            out.push(*byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    out
-}
-
-/// Decodes a marker id, or `None` when the field is not something
-/// [`encode_marker_id`] could have produced.
-///
-/// Malformed input is rejected rather than guessed at: a half-written escape or
-/// a stray literal byte means the line is not a marker we wrote, and treating
-/// it as one would let a foreign file be adopted — or overwritten.
-fn decode_marker_id(field: &str) -> Option<String> {
-    let bytes = field.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'%' => {
-                let hex = field.get(index + 1..index + 3)?;
-                if !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                    return None;
-                }
-                out.push(u8::from_str_radix(hex, 16).ok()?);
-                index += 3;
-            }
-            byte if is_marker_literal(byte) => {
-                out.push(byte);
-                index += 1;
-            }
-            _ => return None,
-        }
-    }
-    let decoded = String::from_utf8(out).ok()?;
-    if decoded.is_empty() {
-        return None;
-    }
-    Some(decoded)
-}
-
-/// Reads the marker out of a file's head.
-///
-/// Two spellings are accepted, and both must stay: the current one is a YAML
-/// comment inside the leading frontmatter, and the legacy one is an HTML
-/// comment on line 1, above it. A release that stopped recognising the legacy
-/// form would disown every file the previous release installed — reporting a
-/// collision against its own skill on reinstall, and refusing to remove it on
-/// `sync --prune` or `uninstall`.
-///
-/// Returns the `(workflow id, rev)` the marker names, or `None` when the file
-/// is not ours — which the install path treats as "leave it alone", never as
-/// "assume it is stale". A marker whose fields are duplicated, unparseable, or
-/// missing counts as not ours for the same reason: the only safe reading of a
-/// line we cannot fully account for is that someone else wrote it.
-///
-/// The marker occupies an exact slot, not merely "somewhere inside the
-/// frontmatter": [`seal`] always splices it onto the line immediately after
-/// the opening `---`, so a well-formed file of ours has it on line 2 and
-/// nowhere else. Accepting it anywhere else in the block would let a
-/// hand-written skill whose own frontmatter happens to carry a
-/// `# medulla:managed` comment — documentation about this feature, or a
-/// migration note — be adopted, and later overwritten or pruned, as if we had
-/// written it. A `---` that never closes is rejected outright for the same
-/// reason: it is not frontmatter any parser would recognise, so nothing
-/// inside it can be read as ours either.
-///
-/// "Exact slot" includes the indentation: the line is matched without being
-/// left-trimmed first, because `seal` never indents it and YAML happily accepts
-/// an indented comment. Trimming would adopt a hand-written
-/// `  # medulla:managed …` on the strength of whitespace we could not have
-/// produced. The legacy HTML form keeps its tolerance — files already on disk
-/// were written before this rule existed.
-pub(crate) fn parse_marker(file: &str) -> Option<(String, String)> {
-    let mut lines = file.lines();
-    let first = lines.next()?;
-    if let Some(rest) = first.trim().strip_prefix("<!-- medulla:managed ") {
-        return parse_marker_fields(rest.strip_suffix("-->")?.trim());
-    }
-    // The opener is held to the same column-zero rule as the marker below it,
-    // and for the same reason: an indented `  ---` is not frontmatter any
-    // parser opens, so a file starting with one is not a skill of ours however
-    // its second line reads.
-    if first.trim_end() != "---" {
-        return None;
-    }
-    // Trailing whitespace only: an editor may strip or add it at end of line,
-    // but a leading space is a different line from the one we write.
-    let rest = lines.next()?.strip_prefix("# medulla:managed ")?;
-    // The block still has to close for this to be frontmatter at all — a
-    // marker-shaped second line above an unclosed `---` is not one either.
-    if !lines.any(|line| line.trim_end() == "---") {
-        return None;
-    }
-    parse_marker_fields(rest.trim())
-}
-
-/// Parses the marker's `key=value` field list, whatever comment wrapped it.
-fn parse_marker_fields(rest: &str) -> Option<(String, String)> {
-    let mut workflow = None;
-    let mut rev = None;
-    for field in rest.split_whitespace() {
-        // Unknown keys are tolerated so a marker written by a later release
-        // still identifies its workflow; a field that is not `key=value` at all
-        // is not.
-        let (key, value) = field.split_once('=')?;
-        match key {
-            "workflow" if workflow.is_some() => return None,
-            "workflow" => workflow = Some(decode_marker_id(value)?),
-            "rev" if rev.is_some() => return None,
-            "rev" => {
-                if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                    return None;
-                }
-                rev = Some(value.to_string());
-            }
-            _ => {}
-        }
-    }
-    Some((workflow?, rev?))
-}
-
 /// The frontmatter description: the workflow's own words plus a trigger clause.
 ///
 /// The clause is not decoration. A description that only restates the workflow
@@ -391,7 +205,7 @@ fn parse_marker_fields(rest: &str) -> Option<(String, String)> {
 /// sentence of throat-clearing, and the workflow's own words are condensed to
 /// [`MAX_FRONTMATTER_DESCRIPTION_CHARS`]. Anything condensed away is restored in
 /// the body by [`skill_content`], so the full text is still one skill-fire away.
-fn description_for(summary: &WorkflowSummary) -> String {
+fn description_for(summary: &SkillWorkflow) -> String {
     let trigger = format!(
         "Medulla workflow \"{id}\" — use when asked to run it, or to do this work.",
         id = summary.id
@@ -408,7 +222,7 @@ fn description_for(summary: &WorkflowSummary) -> String {
 /// the frontmatter already carries in full would be the exact duplication this
 /// template exists to remove, but silently losing the tail of a long one would
 /// be worse.
-fn description_was_condensed(summary: &WorkflowSummary) -> bool {
+fn description_was_condensed(summary: &SkillWorkflow) -> bool {
     was_condensed(&summary.description, MAX_FRONTMATTER_DESCRIPTION_CHARS)
 }
 
@@ -519,7 +333,7 @@ fn terminate(text: &str) -> String {
 /// headings that used to separate them are gone — a section header costs tokens
 /// on every load and earns them back only in a document long enough to navigate,
 /// which this deliberately is not.
-fn skill_content(summary: &WorkflowSummary, slug: &str, description: &str) -> String {
+fn skill_content(summary: &SkillWorkflow, slug: &str, description: &str) -> String {
     let mut out = String::new();
     out.push_str("---\n");
     out.push_str(&format!("name: {slug}\n"));
@@ -555,7 +369,7 @@ fn skill_content(summary: &WorkflowSummary, slug: &str, description: &str) -> St
 /// configuration, so a missing server is a normal state rather than a bug — and
 /// a model that dead-ends there, or worse reports a run it never started, is
 /// worse than no skill at all. Hence this line, and only this line.
-fn fallback_line(summary: &WorkflowSummary) -> String {
+fn fallback_line(summary: &SkillWorkflow) -> String {
     let inputs =
         serde_json::to_string(&example_input_map(summary)).unwrap_or_else(|_| "{}".to_string());
     format!(
@@ -578,7 +392,7 @@ fn fallback_line(summary: &WorkflowSummary) -> String {
 /// names [`workflow_get`](GET_WORKFLOW_TOOL), which serves them whole. That
 /// pointer is why the skill can afford to be an index rather than a copy: the
 /// full text is one call away, and only fetched by a model that needs it.
-fn inputs_section(summary: &WorkflowSummary) -> String {
+fn inputs_section(summary: &SkillWorkflow) -> String {
     let mut condensed_any = description_was_condensed(summary);
     if summary.inputs.is_empty() {
         let mut out = String::from("No inputs — pass `\"inputs\": {}`.\n");
@@ -593,7 +407,7 @@ fn inputs_section(summary: &WorkflowSummary) -> String {
             "- `{name}`{star} {ty}",
             name = input.name,
             star = if input.required { "*" } else { "" },
-            ty = input.ty.as_str(),
+            ty = input.ty,
         ));
         if let Some(default) = &input.default {
             out.push_str(&format!(" = `{default}`"));
@@ -629,7 +443,7 @@ fn full_text_pointer() -> String {
 /// Written on one line rather than pretty-printed: a model reads the argument
 /// shape either way, and the indented form spends a line and its padding on
 /// every input the list below already names.
-fn call_example(summary: &WorkflowSummary) -> String {
+fn call_example(summary: &SkillWorkflow) -> String {
     let call = json!({ "id": summary.id, "inputs": example_input_map(summary) });
     format!(
         "{RUN_TOOL}\n{}",
@@ -642,15 +456,15 @@ fn call_example(summary: &WorkflowSummary) -> String {
 /// An input with a default shows its default (so the example is runnable as
 /// written); everything else shows a type-shaped placeholder the model is meant
 /// to replace, not a plausible-looking invented value.
-fn example_input_map(summary: &WorkflowSummary) -> Map<String, Value> {
+fn example_input_map(summary: &SkillWorkflow) -> Map<String, Value> {
     let mut map = Map::new();
     for input in &summary.inputs {
-        let value = match (&input.default, input.ty) {
+        let value = match (&input.default, input.ty.as_str()) {
             (Some(default), _) => default.clone(),
-            (None, InputType::String) => Value::String(format!("<{}>", input.name)),
-            (None, InputType::Number) => json!(0),
-            (None, InputType::Boolean) => json!(false),
-            (None, InputType::Json) => json!({}),
+            (None, "string") => Value::String(format!("<{}>", input.name)),
+            (None, "number") => json!(0),
+            (None, "boolean") => json!(false),
+            (None, _) => json!({}),
         };
         map.insert(input.name.clone(), value);
     }
@@ -659,7 +473,7 @@ fn example_input_map(summary: &WorkflowSummary) -> Map<String, Value> {
 
 /// The `argument-hint` line: required inputs in angle brackets, optional in
 /// square ones, matching what both harnesses show beside a slash command.
-fn argument_hint(inputs: &[WorkflowInput]) -> String {
+fn argument_hint(inputs: &[SkillInput]) -> String {
     if inputs.is_empty() {
         return "(no inputs)".to_string();
     }
@@ -674,40 +488,4 @@ fn argument_hint(inputs: &[WorkflowInput]) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-/// A double-quoted YAML scalar, safe for any one-line description.
-///
-/// Frontmatter is parsed before the harness ever sees the body, so a colon in a
-/// workflow description must not be able to break the document.
-fn yaml_scalar(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push('"');
-    for ch in text.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' | '\r' => out.push(' '),
-            other => out.push(other),
-        }
-    }
-    out.push('"');
-    out
-}
-
-/// Renders text as a single shell word.
-///
-/// The fallback line is a command an operator will paste, so a workflow id or
-/// JSON value with shell-significant characters must not become multiple
-/// arguments or change the command's meaning.
-fn shell_quote_arg(value: &str) -> String {
-    if value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
-        && !value.is_empty()
-    {
-        value.to_string()
-    } else {
-        format!("'{}'", value.replace('\'', "'\\''"))
-    }
 }

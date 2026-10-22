@@ -8,6 +8,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use medulla_types::HarnessProvider;
+
 use super::{SkillScope, SkillTarget};
 
 /// The root a scope resolves to.
@@ -19,7 +21,9 @@ use super::{SkillScope, SkillTarget};
 pub fn scope_root(scope: SkillScope, env: &HashMap<String, String>, cwd: &Path) -> PathBuf {
     match scope {
         SkillScope::Project => cwd.to_path_buf(),
-        SkillScope::Managed => managed_root(env, cwd),
+        // The Medulla home and workspace identifier belong to a catalog
+        // snapshot; callers resolve managed scope through `managed_root`.
+        SkillScope::Managed => cwd.to_path_buf(),
         SkillScope::User => env
             .get("HOME")
             .map(|home| home.trim())
@@ -51,11 +55,11 @@ pub fn scope_root(scope: SkillScope, env: &HashMap<String, String>, cwd: &Path) 
 /// handed the other project's skills, or watch its own be pruned away by the
 /// other project's refresh. Same digest rule as the store's own per-workspace
 /// state, via [`workspace_scope`].
-pub fn managed_root(env: &HashMap<String, String>, cwd: &Path) -> PathBuf {
-    crate::home::medulla_home(env)
+pub fn managed_root(medulla_home: &Path, workspace_scope: &str) -> PathBuf {
+    medulla_home
         .join("skills")
         .join("scopes")
-        .join(crate::workflows::store::workspace_scope(cwd))
+        .join(workspace_scope)
 }
 
 /// Where releases up to 0.8 put the managed skills: the Medulla home itself,
@@ -64,8 +68,8 @@ pub fn managed_root(env: &HashMap<String, String>, cwd: &Path) -> PathBuf {
 /// Kept only so [`super::refresh`] can retire what it finds there. Nothing
 /// reads it any more — `--add-dir` points at the scoped root above — so a
 /// leftover here is a directory of files for nobody.
-pub(crate) fn legacy_managed_root(env: &HashMap<String, String>) -> PathBuf {
-    crate::home::medulla_home(env)
+pub(crate) fn legacy_managed_root(medulla_home: &Path) -> PathBuf {
+    medulla_home.to_path_buf()
 }
 
 /// One harness's managed directory: `<medulla home>/<harness>-skills`.
@@ -77,8 +81,8 @@ pub(crate) fn legacy_managed_root(env: &HashMap<String, String>) -> PathBuf {
 ///
 /// Laid out inside like a project root, so Claude finds
 /// `<managed root>/claude-skills/.claude/skills/<slug>/SKILL.md`.
-pub fn managed_dir(target: SkillTarget, env: &HashMap<String, String>, cwd: &Path) -> PathBuf {
-    managed_root(env, cwd).join(format!("{}-skills", target.as_str()))
+pub fn managed_dir(target: SkillTarget, medulla_home: &Path, workspace_scope: &str) -> PathBuf {
+    managed_root(medulla_home, workspace_scope).join(format!("{}-skills", target.as_str()))
 }
 
 /// The root one target actually writes under, given the scope.
@@ -220,16 +224,14 @@ pub fn default_targets(root: &Path) -> Vec<SkillTarget> {
 /// Other providers get nothing yet. Codex reads skills from fixed locations
 /// with no additional-directory flag of its own, so the equivalent has to be a
 /// different mechanism, not this one.
-pub fn spawn_args(
-    provider: crate::protocol::HarnessProvider,
-    env: &HashMap<String, String>,
-    cwd: &Path,
-) -> Vec<String> {
-    if provider != crate::protocol::HarnessProvider::Claude {
+pub fn spawn_args(provider: HarnessProvider, managed_dir: Option<&Path>) -> Vec<String> {
+    if provider != HarnessProvider::Claude {
         return Vec::new();
     }
-    let dir = managed_dir(SkillTarget::Claude, env, cwd);
-    if !skills_dir(SkillTarget::Claude, &dir).is_dir() {
+    let Some(dir) = managed_dir else {
+        return Vec::new();
+    };
+    if !skills_dir(SkillTarget::Claude, dir).is_dir() {
         return Vec::new();
     }
     vec!["--add-dir".to_string(), dir.display().to_string()]

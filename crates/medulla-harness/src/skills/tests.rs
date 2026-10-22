@@ -13,20 +13,15 @@ use std::path::Path;
 
 use tempfile::TempDir;
 
-use crate::workflows::WorkflowSummary;
-
-use super::render::parse_marker;
+use super::marker::parse_marker;
 use super::*;
 
 /// A listing view with the fields skill rendering actually reads.
-fn summary(id: &str, description: &str) -> WorkflowSummary {
-    WorkflowSummary {
+fn summary(id: &str, description: &str) -> SkillWorkflow {
+    SkillWorkflow {
         id: id.to_string(),
-        name: id.to_string(),
         description: description.to_string(),
         enabled: true,
-        node_count: 3,
-        trigger_kind: Some("manual".to_string()),
         inputs: Vec::new(),
     }
 }
@@ -51,11 +46,7 @@ fn a_skill_the_old_layout_installed_is_adopted_and_rewritten() {
     let home = TempDir::new().unwrap();
     let summary = summary("babysit", "Watch a PR.");
     let skill = render(&summary);
-    let path = skill_path(
-        SkillTarget::Claude,
-        home.path(),
-        &crate::workflows::skills::slug_for("babysit"),
-    );
+    let path = skill_path(SkillTarget::Claude, home.path(), &slug_for("babysit"));
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     // The old file: the same rendered content, marker on line one.
     let content = skill.body.replacen(

@@ -7,6 +7,60 @@
 use std::path::PathBuf;
 
 use serde::Serialize;
+use serde_json::Value;
+
+/// Workflow fields needed to render a harness skill without depending on the
+/// workflow engine crate.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SkillWorkflow {
+    /// Stable workflow identifier.
+    pub id: String,
+    /// Operator-facing description.
+    pub description: String,
+    /// Whether the workflow may be run.
+    pub enabled: bool,
+    /// Inputs advertised to callers.
+    pub inputs: Vec<SkillInput>,
+}
+
+/// One typed workflow input used in generated skill instructions.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SkillInput {
+    /// Input parameter name.
+    pub name: String,
+    /// JSON type name (`string`, `number`, `boolean`, or `json`).
+    pub ty: String,
+    /// Human-readable description, if present.
+    pub description: Option<String>,
+    /// Whether callers must supply the input.
+    pub required: bool,
+    /// Default value, if present.
+    pub default: Option<Value>,
+}
+
+/// A coherent catalogue view plus the Medulla home and workspace identity that
+/// scope the files generated from it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CatalogSnapshot {
+    /// Current workflow listing.
+    pub workflows: Vec<SkillWorkflow>,
+    /// Stable identifier for the workspace whose catalogue was listed.
+    pub workspace_scope: String,
+    /// Medulla's state home for the current account.
+    pub medulla_home: PathBuf,
+    /// Whether the listing is complete enough to safely prune stale skills.
+    pub complete: bool,
+}
+
+/// Source of workflows for refreshing Medulla-managed harness skills.
+///
+/// Implementations should return a single consistent snapshot. A failed or
+/// partial listing should set `complete` to false so refresh installs current
+/// entries without pruning skills that may only be temporarily absent.
+pub trait WorkflowCatalog: Send + Sync {
+    /// Loads workflow summaries and the scope in which they are valid.
+    fn snapshot(&self) -> std::io::Result<CatalogSnapshot>;
+}
 
 /// A harness that reads generated skills from disk.
 ///

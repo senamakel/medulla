@@ -34,15 +34,16 @@
 
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
 
-use serde::Serialize;
-use serde_json::{Map, Value};
-use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, TableLike, Value as TomlValue};
+#[path = "registration_codex.rs"]
+mod registration_codex;
+use std::path::{Path, PathBuf};
 
 use super::types::SkillScope;
 use super::SkillTarget;
-use crate::workflows::mcp::{ToolMode, TOOL_MODE_ENV};
+use medulla_types::{ToolMode, TOOL_MODE_ENV};
+use serde::Serialize;
+use serde_json::{Map, Value};
 
 /// The server key written into every harness config.
 const SERVER_NAME: &str = "medulla";
@@ -167,7 +168,7 @@ pub fn register(opts: &RegistrationOptions) -> io::Result<Vec<RegistrationOutcom
                     manual(SkillTarget::Claude, claude_user_command(opts))
                 }
             },
-            SkillTarget::Codex => register_codex(opts)?,
+            SkillTarget::Codex => registration_codex::register_codex(opts)?,
             SkillTarget::Generic => manual(SkillTarget::Generic, generic_command(opts)),
         });
     }
@@ -261,7 +262,7 @@ fn already_attached(target: SkillTarget, tools_mode: &str) -> RegistrationOutcom
 }
 
 /// A left-alone outcome for a config we could not parse.
-fn skipped(target: SkillTarget, path: &Path, reason: String) -> RegistrationOutcome {
+pub(super) fn skipped(target: SkillTarget, path: &Path, reason: String) -> RegistrationOutcome {
     RegistrationOutcome {
         target,
         path: Some(path.to_path_buf()),
@@ -361,176 +362,13 @@ fn claude_entry(opts: &RegistrationOptions) -> Value {
     Value::Object(entry)
 }
 
-/// Merges `[mcp_servers.medulla]` into `<root>/.codex/config.toml`.
-///
-/// Edited with `toml_edit`, not `toml`: `toml::Table` models values only, so
-/// reading a config into one and writing it back deletes every comment and
-/// re-sorts every key. `~/.codex/config.toml` is a file the operator wrote by
-/// hand, and the very first registration would have eaten it. `toml_edit` keeps
-/// the document's trivia, so the write is an *edit* — our table appended or its
-/// changed keys reassigned, and nothing else in the file moved.
-fn register_codex(opts: &RegistrationOptions) -> io::Result<RegistrationOutcome> {
-    let path = opts.root.join(".codex").join("config.toml");
-    let existing = match read_if_present(&path)? {
-        Existing::Absent => None,
-        Existing::Unreadable => {
-            return Ok(skipped(
-                SkillTarget::Codex,
-                &path,
-                format!(
-                    "{} is not valid UTF-8; left untouched — add [mcp_servers.medulla] by hand \
-                     or move the file aside",
-                    path.display()
-                ),
-            ));
-        }
-        Existing::Text(text) => Some(text),
-    };
-
-    let mut document = match existing.as_deref() {
-        None => DocumentMut::new(),
-        Some(text) => match text.parse::<DocumentMut>() {
-            Ok(document) => document,
-            Err(error) => {
-                return Ok(skipped(
-                    SkillTarget::Codex,
-                    &path,
-                    format!("could not parse existing config ({error}); left untouched"),
-                ));
-            }
-        },
-    };
-
-    // A fresh `mcp_servers` is implicit so a first registration renders one
-    // `[mcp_servers.medulla]` header rather than a bare `[mcp_servers]` above it.
-    if document.get("mcp_servers").is_none() {
-        let mut table = Table::new();
-        table.set_implicit(true);
-        document.insert("mcp_servers", Item::Table(table));
-    }
-    let Some(servers) = document["mcp_servers"].as_table_like_mut() else {
-        return Ok(skipped(
-            SkillTarget::Codex,
-            &path,
-            "`mcp_servers` exists but is not a table; fix it and re-run".to_string(),
-        ));
-    };
-
-    if codex_entry_matches(servers.get(SERVER_NAME), opts) {
-        return Ok(outcome(SkillTarget::Codex, path, "unchanged"));
-    }
-    let action = if existing.is_some() {
-        "updated"
-    } else {
-        "created"
-    };
-    write_codex_entry(servers, opts);
-
-    if !opts.dry_run {
-        write_new_file(&path, &document.to_string())?;
-    }
-    Ok(outcome(SkillTarget::Codex, path, action))
-}
-
-/// Whether `item` already says everything [`write_codex_entry`] would write.
-///
-/// Compared by meaning, not by rendering: an operator who spelled the entry as
-/// an inline table, or `env` as a sub-table, is saying the same thing and must
-/// not be reformatted into our spelling. Keys we do not write are ignored rather
-/// than counted as a difference — see [`write_codex_entry`] for what is ours.
-fn codex_entry_matches(item: Option<&Item>, opts: &RegistrationOptions) -> bool {
-    let Some(entry) = item.and_then(Item::as_table_like) else {
-        return false;
-    };
-    command_matches(entry, opts) && args_matches(entry) && env_matches(entry, opts)
-}
-
-/// Whether the entry already points at this binary.
-fn command_matches(entry: &dyn TableLike, opts: &RegistrationOptions) -> bool {
-    entry.get("command").and_then(Item::as_str) == Some(&exe_string(opts))
-}
-
-/// Whether the entry's argv is exactly `["mcp"]`.
-fn args_matches(entry: &dyn TableLike) -> bool {
-    entry
-        .get("args")
-        .and_then(Item::as_array)
-        .is_some_and(|args| {
-            args.len() == 1 && args.get(0).and_then(TomlValue::as_str) == Some(MCP_ARG)
-        })
-}
-
-/// Whether the entry's env already selects this tool mode.
-///
-/// Other variables in the same table are not our business, so they are not read
-/// here and not written below.
-fn env_matches(entry: &dyn TableLike, opts: &RegistrationOptions) -> bool {
-    entry
-        .get("env")
-        .and_then(Item::as_table_like)
-        .is_some_and(|env| env.get(TOOLS_ENV).and_then(Item::as_str) == Some(&opts.tools_mode))
-}
-
-/// Writes `[mcp_servers.medulla]` into `servers`, touching as little as possible.
-///
-/// Three keys are ours and are corrected: `command` and `args`, which *are* the
-/// process this registration promises the harness, and the [`TOOLS_ENV`]
-/// variable, which is the tool surface the operator chose. Everything else the
-/// operator put under our table — a `startup_timeout_sec`, another environment
-/// variable — is theirs and is left alone.
-///
-/// Even those three are only assigned when they do not already mean the right
-/// thing, because assigning replaces the key's value and any trailing comment on
-/// its line. A registration that only moved the binary therefore leaves the rest
-/// of the table, and the table's position in the operator's file, as it was.
-fn write_codex_entry(servers: &mut dyn TableLike, opts: &RegistrationOptions) {
-    if !servers
-        .get(SERVER_NAME)
-        .is_some_and(|item| item.is_table_like())
-    {
-        servers.insert(SERVER_NAME, Item::Table(Table::new()));
-    }
-    let Some(entry) = servers
-        .get_mut(SERVER_NAME)
-        .and_then(Item::as_table_like_mut)
-    else {
-        // Unreachable: the branch above just made it a table.
-        return;
-    };
-
-    if !command_matches(entry, opts) {
-        entry.insert("command", toml_edit::value(exe_string(opts)));
-    }
-    if !args_matches(entry) {
-        let mut args = Array::new();
-        args.push(MCP_ARG);
-        entry.insert("args", toml_edit::value(args));
-    }
-    if !env_matches(entry, opts) {
-        write_tools_env(entry, opts);
-    }
-}
-
-/// Sets [`TOOLS_ENV`] inside the entry's `env`, creating the table if needed.
-///
-/// Written into the operator's existing table rather than over it, so a session
-/// they gave another variable keeps it when the tool mode changes.
-fn write_tools_env(entry: &mut dyn TableLike, opts: &RegistrationOptions) {
-    if !entry.get("env").is_some_and(|item| item.is_table_like()) {
-        entry.insert("env", toml_edit::value(InlineTable::new()));
-    }
-    if let Some(env) = entry.get_mut("env").and_then(Item::as_table_like_mut) {
-        env.insert(TOOLS_ENV, toml_edit::value(opts.tools_mode.clone()));
-    }
-}
-
 /// The absolute binary path as it is written into a config.
-fn exe_string(opts: &RegistrationOptions) -> String {
+pub(super) fn exe_string(opts: &RegistrationOptions) -> String {
     opts.exe.display().to_string()
 }
 
 /// A written-file outcome.
-fn outcome(target: SkillTarget, path: PathBuf, action: &str) -> RegistrationOutcome {
+pub(super) fn outcome(target: SkillTarget, path: PathBuf, action: &str) -> RegistrationOutcome {
     RegistrationOutcome {
         target,
         path: Some(path),
@@ -546,7 +384,7 @@ fn outcome(target: SkillTarget, path: PathBuf, action: &str) -> RegistrationOutc
 /// written, so failing here would leave the operator with installed skills, no
 /// report, and — under `--json` — nothing on stdout to parse. It is reported as
 /// `skipped` for the same reason a malformed config is.
-enum Existing {
+pub(super) enum Existing {
     /// No file at the path: this is a first registration.
     Absent,
     /// A file that is not valid UTF-8. Left alone; never parsed, never written.
@@ -561,7 +399,7 @@ enum Existing {
 /// Bytes rather than `fs::read_to_string`, mirroring `install::read_existing`:
 /// a config that is not UTF-8 is something we did not write and cannot safely
 /// rewrite.
-fn read_if_present(path: &Path) -> io::Result<Existing> {
+pub(super) fn read_if_present(path: &Path) -> io::Result<Existing> {
     match fs::read(path) {
         Ok(bytes) => Ok(String::from_utf8(bytes).map_or(Existing::Unreadable, Existing::Text)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Existing::Absent),
@@ -570,7 +408,7 @@ fn read_if_present(path: &Path) -> io::Result<Existing> {
 }
 
 /// Writes `body` to `path`, creating parent directories as needed.
-fn write_new_file(path: &Path, body: &str) -> io::Result<()> {
+pub(super) fn write_new_file(path: &Path, body: &str) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
