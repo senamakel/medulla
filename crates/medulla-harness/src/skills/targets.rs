@@ -228,13 +228,13 @@ pub fn spawn_args(
     provider: HarnessProvider,
     managed_dir: Option<&Path>,
 ) -> Vec<String> {
-    if provider != crate::protocol::HarnessProvider::Claude {
+    if provider != HarnessProvider::Claude {
         return Vec::new();
     }
     let Some(dir) = managed_dir else {
         return Vec::new();
     };
-    if !skills_dir(SkillTarget::Claude, &dir).is_dir() {
+    if !skills_dir(SkillTarget::Claude, dir).is_dir() {
         return Vec::new();
     }
     vec!["--add-dir".to_string(), dir.display().to_string()]
