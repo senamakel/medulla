@@ -282,14 +282,16 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
     history.push(&sample, 8);
     let sample = sample.with_history(Arc::new(history));
     for (width, height) in [(170, 42), (80, 24), (60, 16)] {
-        for (mem_graphs, io_mode, combined, speeds) in [
-            (true, false, false, ""),
-            (false, false, false, ""),
-            (true, true, true, ""),
-            (true, true, false, "/mnt/data:1"),
+        for (mem_graphs, show_disks, io_mode, combined, speeds) in [
+            (true, true, false, false, ""),
+            (false, true, false, false, ""),
+            (true, true, true, true, ""),
+            (true, true, true, false, "/mnt/data:1"),
+            (true, false, false, false, ""),
         ] {
             let mut configured = loaded.clone();
             configured.config.resources.mem_graphs = mem_graphs;
+            configured.config.resources.show_disks = show_disks;
             configured.config.resources.io_mode = io_mode;
             configured.config.resources.io_graph_combined = combined;
             configured.config.resources.io_graph_speeds = speeds.into();
@@ -311,18 +313,23 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                 text.contains("RAM  50%"),
                 "RAM missing at {width}x{height}: {text}"
             );
-            assert!(
-                text.contains("/mnt/data"),
-                "disk missing at {width}x{height}: {text}"
-            );
+            assert_eq!(text.contains("/mnt/data"), show_disks, "disk visibility at {width}x{height}: {text}");
             assert!(
                 text.contains("Swap  12%"),
                 "swap missing at {width}x{height}: {text}"
             );
-            assert!(
-                text.contains("[swap]"),
-                "swap disk missing at {width}x{height}: {text}"
-            );
+            assert_eq!(text.contains("[swap]"), show_disks, "swap disk visibility at {width}x{height}: {text}");
+            if mem_graphs && !io_mode {
+                let mem = app.resources.rects.mem;
+                let graph_x = mem.x + 1 + (mem.width - 2) * 3 / 4;
+                assert!(
+                    (mem.y + 2..mem.y + 3).any(|y| {
+                        (mem.x + 1..mem.right() - 1)
+                            .any(|x| terminal.backend().buffer()[(x, y)].symbol() != " ")
+                    }),
+                    "memory history graph missing at {width}x{height} (graph x {graph_x})"
+                );
+            }
             if !mem_graphs && !io_mode {
                 assert!(
                     text.contains('█'),
@@ -343,7 +350,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                     }),
                     "IO graph missing at {width}x{height}"
                 );
-            } else {
+            } else if show_disks {
                 let mem = app.resources.rects.mem;
                 let inner_y = mem.y + 1;
                 let graph_rows = if mem_graphs { 2 } else { 0 };
