@@ -84,10 +84,13 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use medulla_harness::mcp::{claude_mcp_config, codex_config_args as render_codex_config_args, McpEndpoint, McpServerSpec};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
 use crate::protocol::HarnessProvider;
+
+pub use medulla_harness::mcp::ATTACHED_ENV;
 
 /// A stdio MCP server, described once and rendered per transport.
 ///
@@ -145,24 +148,16 @@ impl ServerSpec {
     /// which is why this adds Medulla's server without displacing the
     /// operator's.
     pub fn claude_mcp_config(&self) -> String {
-        let mut entry = Map::new();
-        entry.insert(
-            "command".to_string(),
-            Value::String(self.command.display().to_string()),
-        );
-        entry.insert(
-            "args".to_string(),
-            Value::Array(self.args.iter().cloned().map(Value::String).collect()),
-        );
-        if !self.env.is_empty() {
-            let env: Map<String, Value> = self
-                .env
-                .iter()
-                .map(|(key, value)| (key.clone(), Value::String(value.clone())))
-                .collect();
-            entry.insert("env".to_string(), Value::Object(env));
+        claude_mcp_config(&self.render_spec())
+    }
+
+    fn render_spec(&self) -> McpServerSpec {
+        McpServerSpec {
+            name: self.name,
+            command: self.command.clone(),
+            args: self.args.clone(),
+            env: self.env.clone(),
         }
-        json!({ "mcpServers": { self.name: Value::Object(entry) } }).to_string()
     }
 
     /// Write this server's full registration — [`Self::secret_env`] included —
@@ -629,7 +624,6 @@ pub const ORIGIN_SESSION_ENV: &str = "MEDULLA_ORIGIN_SESSION";
 /// surface. This is a provenance guard against accidental ambient discovery,
 /// not a privilege boundary against another process running as the same OS
 /// user: such a process can inspect and reproduce any child environment.
-pub const ATTACHED_ENV: &str = "MEDULLA_MCP_ATTACHED";
 
 /// The binary a spawned tool server runs.
 ///
@@ -856,39 +850,12 @@ pub fn attach_cli(
 /// exec modes. Both are verified per-launch channels. Other providers remain
 /// unsupported until they have an equivalent invocation-scoped mechanism.
 pub fn supports_cli_attach(provider: HarnessProvider) -> bool {
-    matches!(provider, HarnessProvider::Claude | HarnessProvider::Codex)
+    medulla_harness::mcp::supports_cli_attach(provider)
 }
 
 /// Per-invocation Codex configuration for one explicitly attached server.
 fn codex_config_args(spec: &ServerSpec) -> Vec<String> {
-    let string = |value: &str| toml_edit::Value::from(value).to_string();
-    let env = spec
-        .env
-        .iter()
-        .filter(|(key, _)| key != ATTACHED_ENV)
-        .map(|(key, value)| format!("{key}={}", string(value)))
-        .collect::<Vec<_>>()
-        .join(",");
-    vec![
-        "-c".to_string(),
-        format!(
-            "mcp_servers.{}.command={}",
-            spec.name,
-            string(&spec.command.display().to_string())
-        ),
-        "-c".to_string(),
-        format!("mcp_servers.{}.args=[\"mcp\"]", spec.name),
-        "-c".to_string(),
-        format!("mcp_servers.{}.env={{{env}}}", spec.name),
-        "-c".to_string(),
-        format!(
-            "mcp_servers.{}.env_vars=[{}]",
-            spec.name,
-            string(ATTACHED_ENV)
-        ),
-        "-c".to_string(),
-        format!("mcp_servers.{}.enabled=true", spec.name),
-    ]
+    render_codex_config_args(&spec.render_spec())
 }
 
 #[cfg(test)]
