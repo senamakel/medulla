@@ -85,7 +85,7 @@ pub(super) fn view_from_config(config: &TuiConfig) -> HarnessesView {
 
 /// Read provider binaries, layered custom-harness settings, and managed skills.
 /// The caller runs this on a blocking worker; the renderer only reads its result.
-pub(crate) fn collect_harnesses(
+pub fn collect_harnesses(
     config: &TuiConfig,
     sources: &[String],
     medulla_home: &Path,
