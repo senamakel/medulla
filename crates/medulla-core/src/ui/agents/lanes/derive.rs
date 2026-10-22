@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use crate::runtime::AgentDescriptor;
 use crate::ui::events::{EventEnvelope, TuiEvent};
 
-use super::fmt::{event_kind_color, tokens_suffix, tool_line};
-use super::helpers::{ensure_lane, ensure_session_lane, new_agent_lane, touch_task, Lanes};
-use super::types::{AgentLane, AgentRole, TurnBlock};
+use super::helpers::{ensure_lane, ensure_session_lane, new_agent_lane, touch_task};
+use super::types::Lanes;
+use crate::ui::agents::fmt::{event_kind_color, tokens_suffix, tool_line};
+use crate::ui::agents::types::{AgentLane, AgentRole, TaskStatus, TurnBlock};
 
 /// Fold the event stream into lanes. Tier turns come from `inference_end`;
 /// worker turns from the `task_*` events; session lanes from session/peer events.
