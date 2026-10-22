@@ -3,7 +3,8 @@
 mod registry;
 
 pub use registry::{
-    agent_registry, AgentRegistration, AgentRegistry, RegistrationGuard, RegistrationHandle,
+    agent_registry, current_process_identity, AgentRegistration, AgentRegistry, RegistrationGuard,
+    RegistrationHandle,
 };
 
 #[cfg(test)]
