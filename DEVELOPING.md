@@ -73,3 +73,24 @@ never send real events: both modules resolve as opted out under `cfg(test)`.
 
 Debug symbols are not uploaded to Sentry yet; release binaries symbolicate
 in-process from whatever debug info they carry.
+
+
+## Embedded tool-output compression
+
+Compression is opt-in at build time:
+
+```sh
+cargo build --locked -p medulla-tui --features tinyjuice
+```
+
+This enables OpenHuman's native module loader and the pinned TinyJuice module.
+The native module must be available through OpenHuman's pinned module registry
+or `TINYJUICE_TEST_MODULE` in an explicit test setup. Module loading and
+compression fail open: if the module cannot load or declines a result, the
+original tool output continues to the model. Hosts can explicitly opt out
+before their first embedded turn with `EmbedHost::with_compression_enabled(false)`.
+
+Tokens settings may show OpenHuman's persisted workspace-wide estimated token
+savings. These totals are shared across embedded turns, are not tied to one
+session or provider, and do not include byte or cost savings. Claude/Codex hooks
+remain reporting-only and do not compress tool output.

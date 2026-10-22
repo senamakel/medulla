@@ -1,23 +1,14 @@
-//! Pluggable context compression primitives for Medulla.
+//! Context compression primitives and embedded-runtime savings.
 //!
-//! This crate currently provides only a passthrough compressor and metadata
-//! estimates. Token counts use TinyJuice's documented heuristic of roughly
-//! four Unicode characters per token; they are estimates, not provider counts.
+//! The synchronous standalone adapter performs faithful JSON table
+//! reformatting through the pinned TinyJuice release when `tinyjuice` is
+//! explicitly enabled. It otherwise preserves input exactly. Embedded turns
+//! use OpenHuman's native tool-result middleware when the same feature is
+//! enabled; this includes its broader routing and recovery behavior.
 //!
-//! Compression is not wired into either host integration yet:
-//!
-//! - Embedded OpenHuman's `ToolHook::after_tool` returns `()`, and
-//!   `after_tool_context` can only append text. Neither can replace a tool
-//!   result with compressed content. See
-//!   `crates/medulla-core/src/daemon/providers/embed/hooks.rs` and the vendored
-//!   OpenHuman `agent/hooks.rs`.
-//! - Claude and Codex use Medulla's report-only `PostToolUse` hook shim. It
-//!   writes no replacement content to stdout. See
-//!   `crates/medulla-tui/src/commands/hook.rs`.
-//!
-//! These integration seams need host API changes before a compressor can
-//! replace tool results. This crate deliberately has no host or compressor
-//! dependencies.
+//! The built-in Claude and Codex CLI hooks remain report-only and preserve
+//! silent stdout. Persisted embedded savings are workspace-wide estimated token
+//! totals, not per-session/provider measurements, and contain no byte counts.
 
 /// Text passed to a [`Compressor`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
