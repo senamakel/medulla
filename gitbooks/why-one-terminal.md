@@ -1,6 +1,6 @@
 # One terminal, not a pile of them
 
-Coding agents are good at one task at a time. The moment you want three of them going, on two machines, the tooling around them starts to show its age. This page is about what that tooling cannot do, and what Medulla does instead.
+Coding agents are good at one task at a time. The moment you want three of them going, on two machines, the tooling around them starts to show its age. Medulla brings the multiplexer, attention monitor, host link, harness customization, provider registry, compression integration, and token stats together as one product. This page is about what that tooling cannot do, and what Medulla does instead.
 
 ## The setup everyone ends up with
 
@@ -31,3 +31,4 @@ Medulla does not decide what work to hand out or which agent should do it. There
 * [Sessions](features/sessions.md) for the rail, the keys, and what a row shows.
 * [Remote machines](features/remote-hosts.md) for adding a host.
 * [Attention cues](features/attention.md) for the full list of what Medulla watches for.
+* [One product, composable primitives](features/one-product.md) for how the crates fit together.
