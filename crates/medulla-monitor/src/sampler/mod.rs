@@ -222,6 +222,7 @@ impl ResourceSource for SystemResourceSource {
                     .cwd()
                     .map(|path| path.to_string_lossy().into_owned()),
                 start_time: process.start_time(),
+                owner_uid: process.effective_user_id().map(ToString::to_string),
                 cpu_percent: f64::from(process.cpu_usage()),
                 memory_bytes: process.memory(),
                 disk_read_bytes: if baseline_ready {

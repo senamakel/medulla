@@ -161,6 +161,21 @@ fn process_start_time(pid: u32) -> Option<u64> {
     system.process(pid).map(sysinfo::Process::start_time)
 }
 
+/// Read the current start-time and effective user identity for a process.
+///
+/// This is intended for security-sensitive actions that must revalidate a
+/// sampled process identity immediately before acting on its PID.
+pub fn current_process_identity(pid: u32) -> Option<(u64, String)> {
+    let pid = Pid::from_u32(pid);
+    let mut system = System::new();
+    system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    let process = system.process(pid)?;
+    Some((
+        process.start_time(),
+        process.effective_user_id()?.to_string(),
+    ))
+}
+
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()
