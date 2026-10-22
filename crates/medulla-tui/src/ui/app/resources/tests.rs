@@ -956,6 +956,7 @@ fn agent_rows_render_with_classification_at_desktop_and_narrow_sizes() {
 }
 
 static SIGNALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static SIGNAL_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn test_process_owned(_pid: u32, _started: u64, uid: Option<&str>) -> bool {
     uid == Some("test-user")
 }
@@ -974,6 +975,7 @@ fn test_signal(
 
 #[test]
 fn agent_kill_waits_for_confirmation_and_uses_injected_signal_function() {
+    let _guard = SIGNAL_TEST_LOCK.lock().unwrap();
     SIGNALS.store(0, std::sync::atomic::Ordering::SeqCst);
     let mut app = App::new(
         Arc::new(MockRuntime::empty()),
@@ -989,6 +991,9 @@ fn agent_kill_waits_for_confirmation_and_uses_injected_signal_function() {
     assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
     assert!(app.resources.agent_signal_armed.is_some());
     assert!(app.resources_key(KeyCode::Char('y')));
+    assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(app.resources.agent_signal_armed.is_some());
+    assert!(app.resources_key(KeyCode::Char('Y')));
     assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert!(app.resources.agent_signal_armed.is_none());
 }
@@ -1091,6 +1096,7 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
 
 #[test]
 fn external_agent_signal_requires_a_second_explicit_confirmation() {
+    let _guard = SIGNAL_TEST_LOCK.lock().unwrap();
     SIGNALS.store(0, std::sync::atomic::Ordering::SeqCst);
     let mut app = App::new(
         Arc::new(MockRuntime::empty()),
@@ -1114,6 +1120,7 @@ fn external_agent_signal_requires_a_second_explicit_confirmation() {
 
 #[test]
 fn unowned_process_never_reaches_the_injected_signal_function() {
+    let _guard = SIGNAL_TEST_LOCK.lock().unwrap();
     SIGNALS.store(0, std::sync::atomic::Ordering::SeqCst);
     let mut app = App::new(
         Arc::new(MockRuntime::empty()),
