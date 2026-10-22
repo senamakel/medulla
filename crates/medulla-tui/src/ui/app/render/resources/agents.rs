@@ -112,6 +112,7 @@ fn pretty_kind(provider: &str) -> String {
         Some(HarnessProvider::Claude) => "Claude".into(),
         Some(HarnessProvider::Codex) => "Codex".into(),
         Some(HarnessProvider::Opencode) => "OpenCode".into(),
+        Some(HarnessProvider::Openhuman) => "OpenHuman".into(),
         Some(_) => provider.to_owned(),
         None if provider.to_lowercase().contains("openhuman") => "OpenHuman".into(),
         None if provider.to_lowercase().contains("codex-acp") => "Codex-ACP".into(),
@@ -566,6 +567,10 @@ mod tests {
                 .map(|row| row.origin.as_str())
                 .collect::<Vec<_>>(),
             ["session-label", "task task-7", "host", "external"]
+        );
+        assert_eq!(
+            rows.iter().map(|row| row.kind.as_str()).collect::<Vec<_>>(),
+            ["Claude", "codex-acp", "OpenHuman", "External"]
         );
     }
 
