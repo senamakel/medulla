@@ -179,6 +179,7 @@ pub async fn run_provider_task(mut options: RunTaskOptions) -> Result<RunTaskRes
     let router = options.router;
     let env = options.env;
     let spec = RunSpec {
+        task_id: options.task_id,
         provider: options.provider,
         prompt: options.prompt,
         cwd: options.cwd,
