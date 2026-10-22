@@ -155,6 +155,14 @@ fn probe_provider_version(
     provider: HarnessProvider,
     env: &HashMap<String, String>,
 ) -> Option<String> {
+    probe_provider_version_with_timeout(provider, env, VERSION_PROBE_TIMEOUT)
+}
+
+fn probe_provider_version_with_timeout(
+    provider: HarnessProvider,
+    env: &HashMap<String, String>,
+    timeout: Duration,
+) -> Option<String> {
     let mut command = Command::new(medulla_providers::provider_bin(provider, env));
     command
         .arg("--version")
@@ -191,7 +199,7 @@ fn probe_provider_version(
                     .map(str::to_string);
             }
             Ok(Some(_)) | Err(_) => return None,
-            Ok(None) if started.elapsed() < VERSION_PROBE_TIMEOUT => {
+            Ok(None) if started.elapsed() < timeout => {
                 std::thread::sleep(Duration::from_millis(10));
             }
             Ok(None) => {
@@ -285,5 +293,28 @@ mod tests {
         assert!(view.configuration.iter().any(|fact| {
             fact.contains("Codex overrides: unavailable") && fact.contains("could not be read")
         }));
+    }
+
+    #[test]
+    fn hung_version_probe_is_stopped_by_its_deadline() {
+        let temp = tempfile::tempdir().unwrap();
+        let bin_dir = temp.path().join("bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let claude = bin_dir.join("claude");
+        std::fs::write(&claude, "#!/bin/sh\nexec /bin/sleep 5\n").unwrap();
+        let mut permissions = std::fs::metadata(&claude).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&claude, permissions).unwrap();
+        let env = HashMap::from([("PATH".to_string(), bin_dir.display().to_string())]);
+
+        let started = std::time::Instant::now();
+        let result = super::probe_provider_version_with_timeout(
+            medulla::protocol::HarnessProvider::Claude,
+            &env,
+            std::time::Duration::from_millis(25),
+        );
+
+        assert_eq!(result, None);
+        assert!(started.elapsed() < std::time::Duration::from_secs(1));
     }
 }
