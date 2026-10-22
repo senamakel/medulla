@@ -1,14 +1,22 @@
 //! Snapshot data returned by the background resource sampler.
 
 /// Point-in-time disk capacity reading.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DiskSnapshot {
+    /// Device name when the platform exposes one.
+    pub device: String,
     /// Mount point or volume name.
     pub mount: String,
     /// Total capacity in bytes.
     pub total_bytes: u64,
     /// Capacity in use in bytes.
     pub used_bytes: u64,
+    /// Read throughput from the preceding sample, where supported.
+    pub read_bytes_per_second: f64,
+    /// Write throughput from the preceding sample, where supported.
+    pub write_bytes_per_second: f64,
+    /// Device busy percentage, unavailable on non-Linux collectors.
+    pub busy_percent: Option<f64>,
 }
 
 /// Point-in-time process reading.
@@ -59,6 +67,8 @@ pub struct ResourceSnapshot {
     pub memory_used_bytes: u64,
     /// Physical memory available to applications, in bytes.
     pub memory_available_bytes: u64,
+    /// Cached physical memory, in bytes.
+    pub memory_cached_bytes: u64,
     /// Physical memory currently unused, in bytes.
     pub memory_free_bytes: u64,
     /// Total swap capacity, in bytes.
@@ -189,8 +199,20 @@ pub struct ResourceHistory {
     pub cpu: super::History<crate::CpuSnapshot>,
     /// Physical memory currently used, in bytes.
     pub memory_used_bytes: super::History<u64>,
+    /// Memory available to applications.
+    pub memory_available_bytes: super::History<u64>,
+    /// Cached memory.
+    pub memory_cached_bytes: super::History<u64>,
+    /// Unused physical memory, in bytes.
+    pub memory_free_bytes: super::History<u64>,
     /// Swap currently used, in bytes.
     pub swap_used_bytes: super::History<u64>,
+    /// Combined disk read throughput.
+    pub disk_read_bytes_per_second: super::History<f64>,
+    /// Combined disk write throughput.
+    pub disk_write_bytes_per_second: super::History<f64>,
+    /// Per-device read, write, and busy readings for graph rendering.
+    pub disk_io: super::History<Vec<DiskSnapshot>>,
     /// Number of visible processes.
     pub process_count: super::History<usize>,
 }
@@ -202,8 +224,31 @@ impl ResourceHistory {
         self.cpu.push(snapshot.cpu.clone(), capacity);
         self.memory_used_bytes
             .push(snapshot.memory_used_bytes, capacity);
+        self.memory_available_bytes
+            .push(snapshot.memory_available_bytes, capacity);
+        self.memory_cached_bytes
+            .push(snapshot.memory_cached_bytes, capacity);
+        self.memory_free_bytes
+            .push(snapshot.memory_free_bytes, capacity);
         self.swap_used_bytes
             .push(snapshot.swap_used_bytes, capacity);
+        self.disk_read_bytes_per_second.push(
+            snapshot
+                .disks
+                .iter()
+                .map(|disk| disk.read_bytes_per_second)
+                .sum(),
+            capacity,
+        );
+        self.disk_write_bytes_per_second.push(
+            snapshot
+                .disks
+                .iter()
+                .map(|disk| disk.write_bytes_per_second)
+                .sum(),
+            capacity,
+        );
+        self.disk_io.push(snapshot.disks.clone(), capacity);
         self.process_count.push(snapshot.processes.len(), capacity);
     }
 }

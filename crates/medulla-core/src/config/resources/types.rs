@@ -65,6 +65,26 @@ pub struct ResourcesConfig {
     pub freq_mode: String,
     /// Show battery percentage when the platform reports it.
     pub show_battery: bool,
+    /// Draw memory and swap history as graphs.
+    pub mem_graphs: bool,
+    /// Show mounted disks in the memory panel.
+    pub show_disks: bool,
+    /// Show swap usage in the memory panel.
+    pub show_swap: bool,
+    /// Mount a swap device as a disk row when available.
+    pub swap_disk: bool,
+    /// Hide virtual and loop devices from the disk list.
+    pub only_physical: bool,
+    /// Prefer filesystems listed in /etc/fstab.
+    pub use_fstab: bool,
+    /// Comma-separated mount filters; entries prefixed by `exclude=` are omitted.
+    pub disks_filter: String,
+    /// Show disk busy percentage in the disks pane.
+    pub io_mode: bool,
+    /// Combine read and write series into one graph.
+    pub io_graph_combined: bool,
+    /// Per-mount IO graph ceilings in MiB/s (`mount:speed` pairs).
+    pub io_graph_speeds: String,
 }
 
 impl Default for ResourcesConfig {
@@ -84,6 +104,16 @@ impl Default for ResourcesConfig {
             temp_scale: "celsius".into(),
             freq_mode: "auto".into(),
             show_battery: true,
+            mem_graphs: true,
+            show_disks: true,
+            show_swap: true,
+            swap_disk: true,
+            only_physical: true,
+            use_fstab: true,
+            disks_filter: String::new(),
+            io_mode: false,
+            io_graph_combined: false,
+            io_graph_speeds: String::new(),
         }
     }
 }

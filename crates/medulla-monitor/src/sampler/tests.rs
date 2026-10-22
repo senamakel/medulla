@@ -138,6 +138,57 @@ fn history_trims_to_requested_capacity_and_clones_cheaply() {
 }
 
 #[test]
+fn resource_history_keeps_each_memory_series_for_graphs() {
+    let sample = ResourceSnapshot {
+        memory_used_bytes: 10,
+        memory_available_bytes: 20,
+        memory_cached_bytes: 30,
+        memory_free_bytes: 40,
+        swap_used_bytes: 50,
+        ..Default::default()
+    };
+    let mut history = super::ResourceHistory::default();
+    history.push(&sample, 8);
+
+    assert_eq!(
+        history
+            .memory_used_bytes
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [10]
+    );
+    assert_eq!(
+        history
+            .memory_available_bytes
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [20]
+    );
+    assert_eq!(
+        history
+            .memory_cached_bytes
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [30]
+    );
+    assert_eq!(
+        history
+            .memory_free_bytes
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [40]
+    );
+    assert_eq!(
+        history.swap_used_bytes.iter().copied().collect::<Vec<_>>(),
+        [50]
+    );
+}
+
+#[test]
 fn process_io_peak_decays_instead_of_resetting_to_each_sample() {
     let mut source = super::SystemResourceSource::default();
     assert_eq!(source.update_disk_peak(100.0, 0.0), 100.0);
@@ -148,14 +199,22 @@ fn process_io_peak_decays_instead_of_resetting_to_each_sample() {
 fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
     let disks = [
         super::DiskSnapshot {
+            device: "sda1".into(),
             mount: "/".into(),
             total_bytes: 10_000,
             used_bytes: 9_000,
+            read_bytes_per_second: 0.0,
+            write_bytes_per_second: 0.0,
+            busy_percent: None,
         },
         super::DiskSnapshot {
+            device: "sdb1".into(),
             mount: "/mnt/data".into(),
             total_bytes: 1_000,
             used_bytes: 250,
+            read_bytes_per_second: 0.0,
+            write_bytes_per_second: 0.0,
+            busy_percent: None,
         },
     ];
 
@@ -163,4 +222,118 @@ fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
         super::types::most_specific_mount(&disks, std::path::Path::new("/mnt/data/project"))
             .unwrap();
     assert_eq!(selected.mount, "/mnt/data");
+}
+
+#[test]
+fn disk_filters_exclude_mount_subtrees_and_virtual_filesystems() {
+    let options = super::DiskOptions {
+        filter: "exclude=/boot".into(),
+        ..Default::default()
+    };
+    assert!(!super::mount_is_visible(
+        "/boot",
+        "/dev/sda1",
+        "ext4",
+        &options,
+        ""
+    ));
+    assert!(!super::mount_is_visible(
+        "/boot/efi",
+        "/dev/sda2",
+        "vfat",
+        &options,
+        ""
+    ));
+    assert!(super::mount_is_visible(
+        "/",
+        "/dev/sda3",
+        "ext4",
+        &options,
+        ""
+    ));
+    let physical = super::DiskOptions {
+        only_physical: true,
+        ..Default::default()
+    };
+    assert!(!super::mount_is_visible(
+        "/run", "tmpfs", "tmpfs", &physical, ""
+    ));
+    assert!(!super::mount_is_visible(
+        "/app", "overlay", "overlay", &physical, ""
+    ));
+    assert!(super::mount_is_visible(
+        "/",
+        "/dev/sda3",
+        "ext4",
+        &physical,
+        ""
+    ));
+}
+
+#[test]
+fn fstab_mode_keeps_only_configured_mounts() {
+    let options = super::DiskOptions {
+        use_fstab: true,
+        ..Default::default()
+    };
+    let fstab = "/dev/root / ext4 defaults 0 1\n/dev/data /mnt/data\\040drive ext4 defaults 0 2\n";
+    assert!(super::mount_is_visible(
+        "/",
+        "/dev/root",
+        "ext4",
+        &options,
+        fstab
+    ));
+    assert!(super::mount_is_visible(
+        "/mnt/data drive",
+        "/dev/data",
+        "ext4",
+        &options,
+        fstab
+    ));
+    assert!(!super::mount_is_visible(
+        "/var",
+        "/dev/root",
+        "ext4",
+        &options,
+        fstab
+    ));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_meminfo_reports_available_and_cached_with_legacy_fallback() {
+    let memory = super::parse_memory("MemTotal: 1000 kB\nMemFree: 100 kB\nCached: 300 kB\nMemAvailable: 700 kB\nSwapTotal: 50 kB\n");
+    assert_eq!(
+        (memory.total, memory.available, memory.cached),
+        (1_024_000, 716_800, 307_200)
+    );
+    let fallback = super::parse_memory("MemTotal: 1000 kB\nMemFree: 100 kB\nCached: 300 kB\n");
+    assert_eq!(fallback.available, 409_600);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_block_stat_deltas_report_read_write_rates_and_busy_percent() {
+    let before = super::parse_block_stat("8 0 100 500 8 0 200 900 0 300 1400").unwrap();
+    let after = super::parse_block_stat("8 0 110 700 8 0 220 1300 0 450 2000").unwrap();
+    let reading = super::io_delta(before, after, 2.0);
+    assert_eq!(reading.read_rate, 2_560.0);
+    assert_eq!(reading.write_rate, 5_120.0);
+    assert_eq!(reading.busy, 7.5);
+    assert_eq!(super::io_delta((0, 0, 0), (0, 0, 10_000), 1.0).busy, 100.0);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_partition_block_stats_are_read_from_class_block() {
+    let root = tempfile::tempdir().unwrap();
+    let partition_stat = root.path().join("sys/class/block/nvme0n1p1/stat");
+    std::fs::create_dir_all(partition_stat.parent().unwrap()).unwrap();
+    std::fs::write(&partition_stat, "259 1 100 500 259 1 200 900 0 300 1400").unwrap();
+
+    assert_eq!(
+        super::read_block_stat(root.path(), "nvme0n1p1"),
+        Some((100, 200, 300))
+    );
 }

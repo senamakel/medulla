@@ -14,7 +14,9 @@ mod types;
 
 pub use cpu::{CpuField, CpuMonitor, CpuReading, CpuSnapshot};
 pub use device::DeviceMonitor;
-pub use sampler::{DiskSnapshot, ProcessSnapshot, ResourceHistory, SystemResourceSource};
+pub use sampler::{
+    DiskOptions, DiskSnapshot, ProcessSnapshot, ResourceHistory, SystemResourceSource,
+};
 pub use session::{SessionMonitor, SessionSnapshot};
 pub use types::{DeviceSnapshot, ResourceMonitor, ResourceSnapshot};
 

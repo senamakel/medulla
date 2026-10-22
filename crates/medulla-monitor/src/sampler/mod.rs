@@ -92,6 +92,9 @@ pub struct SystemResourceSource {
     last_sample: Option<Instant>,
     disk_peak_bytes_per_second: f64,
     cpu_monitor: crate::CpuMonitor,
+    disk_options: DiskOptions,
+    #[cfg(target_os = "linux")]
+    linux: LinuxResourceMonitor,
 }
 
 impl Default for SystemResourceSource {
@@ -102,11 +105,27 @@ impl Default for SystemResourceSource {
             last_sample: None,
             disk_peak_bytes_per_second: 1.0,
             cpu_monitor: crate::CpuMonitor::default(),
+            disk_options: DiskOptions::default(),
+            #[cfg(target_os = "linux")]
+            linux: LinuxResourceMonitor::default(),
         }
     }
 }
 
+/// Optional disk list filtering, configured by the TUI without coupling this crate to its config type.
+#[derive(Debug, Clone, Default)]
+pub struct DiskOptions {
+    pub only_physical: bool,
+    pub use_fstab: bool,
+    pub filter: String,
+}
+
 impl SystemResourceSource {
+    /// Set mount filtering used when building each resource snapshot.
+    pub fn with_disk_options(mut self, options: DiskOptions) -> Self {
+        self.disk_options = options;
+        self
+    }
     /// Keep the IO bar scaled to recent activity instead of only this sample.
     fn update_disk_peak(&mut self, read_rate: f64, write_rate: f64) -> f64 {
         self.disk_peak_bytes_per_second = (self.disk_peak_bytes_per_second * 0.9)
@@ -136,7 +155,7 @@ impl ResourceSource for SystemResourceSource {
                 .with_disk_usage()
                 .with_tasks(),
         );
-        self.disks = Disks::new_with_refreshed_list();
+        self.disks.refresh(true);
         let task_pids: std::collections::HashSet<u32> = self
             .system
             .processes()
@@ -261,6 +280,8 @@ impl ResourceSource for SystemResourceSource {
         if cpu.uptime_seconds.is_none() {
             cpu.uptime_seconds = Some(System::uptime());
         }
+        #[cfg(target_os = "linux")]
+        let linux = self.linux.sample(&self.disks, elapsed);
         ResourceSnapshot {
             cpu,
             current_process,
@@ -275,23 +296,295 @@ impl ResourceSource for SystemResourceSource {
                 .iter()
                 .map(|cpu| f64::from(cpu.cpu_usage()))
                 .collect(),
-            memory_total_bytes: self.system.total_memory(),
-            memory_used_bytes: self.system.used_memory(),
-            memory_available_bytes: self.system.available_memory(),
-            memory_free_bytes: self.system.free_memory(),
+            memory_total_bytes: {
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.total
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    self.system.total_memory()
+                }
+            },
+            memory_used_bytes: {
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.total.saturating_sub(linux.memory.available)
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    self.system.used_memory()
+                }
+            },
+            memory_available_bytes: {
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.available
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    self.system.available_memory()
+                }
+            },
+            memory_cached_bytes: {
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.cached
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    0
+                }
+            },
+            memory_free_bytes: {
+                #[cfg(target_os = "linux")]
+                {
+                    linux.memory.free
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    self.system.free_memory()
+                }
+            },
             swap_total_bytes: self.system.total_swap(),
             swap_used_bytes: self.system.used_swap(),
             disks: self
                 .disks
                 .list()
                 .iter()
-                .map(|disk| DiskSnapshot {
-                    mount: disk.mount_point().to_string_lossy().into_owned(),
-                    total_bytes: disk.total_space(),
-                    used_bytes: disk.total_space().saturating_sub(disk.available_space()),
+                .filter(|disk| disk_is_visible(disk, &self.disk_options))
+                .map(|disk| {
+                    #[cfg(target_os = "linux")]
+                    let io = linux
+                        .io
+                        .get(disk.name().to_string_lossy().trim_start_matches("/dev/"))
+                        .copied();
+                    DiskSnapshot {
+                        device: disk.name().to_string_lossy().into_owned(),
+                        mount: disk.mount_point().to_string_lossy().into_owned(),
+                        total_bytes: disk.total_space(),
+                        used_bytes: disk.total_space().saturating_sub(disk.available_space()),
+                        #[cfg(target_os = "linux")]
+                        read_bytes_per_second: io.map_or(0.0, |io| io.read_rate),
+                        #[cfg(not(target_os = "linux"))]
+                        read_bytes_per_second: disk.usage().read_bytes as f64 / elapsed.max(0.001),
+                        #[cfg(target_os = "linux")]
+                        write_bytes_per_second: io.map_or(0.0, |io| io.write_rate),
+                        #[cfg(not(target_os = "linux"))]
+                        write_bytes_per_second: disk.usage().written_bytes as f64
+                            / elapsed.max(0.001),
+                        #[cfg(target_os = "linux")]
+                        busy_percent: io.map(|io| io.busy),
+                        #[cfg(not(target_os = "linux"))]
+                        busy_percent: None,
+                    }
                 })
                 .collect(),
             processes,
         }
     }
+}
+
+fn disk_is_visible(disk: &sysinfo::Disk, options: &DiskOptions) -> bool {
+    let mount = disk.mount_point().to_string_lossy();
+    let device = disk.name().to_string_lossy();
+    let fs = disk.file_system().to_string_lossy();
+    #[cfg(target_os = "linux")]
+    let fstab = if options.use_fstab {
+        std::fs::read_to_string("/etc/fstab").unwrap_or_default()
+    } else {
+        String::new()
+    };
+    #[cfg(not(target_os = "linux"))]
+    let fstab = String::new();
+    #[cfg(not(target_os = "linux"))]
+    let options = &DiskOptions {
+        use_fstab: false,
+        ..options.clone()
+    };
+    mount_is_visible(&mount, &device, &fs, options, &fstab)
+}
+
+fn mount_is_visible(
+    mount: &str,
+    device: &str,
+    filesystem: &str,
+    options: &DiskOptions,
+    fstab: &str,
+) -> bool {
+    if options.only_physical {
+        let fs = filesystem.to_ascii_lowercase();
+        if [
+            "tmpfs", "devtmpfs", "overlay", "squashfs", "proc", "sysfs", "cgroup",
+        ]
+        .iter()
+        .any(|virtual_fs| fs == *virtual_fs)
+            || device.starts_with("/dev/loop")
+            || device.starts_with("/dev/ram")
+        {
+            return false;
+        }
+    }
+    if options.use_fstab {
+        let mounts: std::collections::HashSet<String> = fstab
+            .lines()
+            .filter_map(|line| {
+                let line = line.split('#').next()?.trim();
+                let fields: Vec<_> = line.split_whitespace().collect();
+                (fields.len() >= 2).then(|| fields[1].replace("\\040", " "))
+            })
+            .collect();
+        if !mounts.contains(mount) {
+            return false;
+        }
+    }
+    let filters: Vec<_> = options
+        .filter
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    for filter in filters.iter().filter_map(|s| s.strip_prefix("exclude=")) {
+        if mount == filter || mount.starts_with(&format!("{}/", filter.trim_end_matches('/'))) {
+            return false;
+        }
+    }
+    let includes: Vec<_> = filters
+        .iter()
+        .filter(|s| !s.starts_with("exclude="))
+        .copied()
+        .collect();
+    includes.is_empty()
+        || includes.iter().any(|prefix| {
+            mount == *prefix || mount.starts_with(&format!("{}/", prefix.trim_end_matches('/')))
+        })
+}
+
+#[cfg(target_os = "linux")]
+struct LinuxResourceMonitor {
+    root: std::path::PathBuf,
+    previous: std::collections::HashMap<String, (u64, u64, u64)>,
+    previous_uptime: Option<f64>,
+}
+
+#[cfg(target_os = "linux")]
+struct LinuxSample {
+    memory: MemoryReading,
+    io: std::collections::HashMap<String, IoReading>,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Default)]
+struct MemoryReading {
+    total: u64,
+    available: u64,
+    free: u64,
+    cached: u64,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy)]
+struct IoReading {
+    read_rate: f64,
+    write_rate: f64,
+    busy: f64,
+}
+
+#[cfg(target_os = "linux")]
+impl Default for LinuxResourceMonitor {
+    fn default() -> Self {
+        Self {
+            root: "/".into(),
+            previous: Default::default(),
+            previous_uptime: None,
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxResourceMonitor {
+    fn sample(&mut self, disks: &Disks, elapsed: f64) -> LinuxSample {
+        use std::fs;
+        let mem = fs::read_to_string(self.root.join("proc/meminfo")).unwrap_or_default();
+        let memory = parse_memory(&mem);
+        let uptime = fs::read_to_string(self.root.join("proc/uptime"))
+            .ok()
+            .and_then(|s| s.split_whitespace().next()?.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let seconds = self
+            .previous_uptime
+            .replace(uptime)
+            .map(|old| (uptime - old).max(0.001))
+            .unwrap_or(elapsed.max(0.001));
+        let mut io = std::collections::HashMap::new();
+        for disk in disks.list() {
+            let name = disk
+                .name()
+                .to_string_lossy()
+                .trim_start_matches("/dev/")
+                .to_owned();
+            let Some(now) = read_block_stat(&self.root, &name) else {
+                continue;
+            };
+            if let Some(old) = self.previous.insert(name.clone(), now) {
+                io.insert(name, io_delta(old, now, seconds));
+            }
+        }
+        LinuxSample { memory, io }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn read_block_stat(root: &std::path::Path, name: &str) -> Option<(u64, u64, u64)> {
+    use std::fs;
+    let stat = fs::read_to_string(root.join("sys/class/block").join(name).join("stat"))
+        .or_else(|_| fs::read_to_string(root.join("sys/block").join(name).join("stat")))
+        .ok()?;
+    parse_block_stat(&stat)
+}
+
+#[cfg(target_os = "linux")]
+fn parse_memory(contents: &str) -> MemoryReading {
+    let fields: std::collections::HashMap<&str, u64> = contents
+        .lines()
+        .filter_map(|line| {
+            let mut p = line.split_whitespace();
+            let (key, value) = (p.next()?, p.next()?.parse::<u64>().ok()?);
+            Some((key.trim_end_matches(':'), value.saturating_mul(1024)))
+        })
+        .collect();
+    let total = fields.get("MemTotal").copied().unwrap_or(0);
+    let free = fields.get("MemFree").copied().unwrap_or(0);
+    let cached = fields.get("Cached").copied().unwrap_or(0);
+    let available = fields
+        .get("MemAvailable")
+        .copied()
+        .unwrap_or_else(|| free.saturating_add(cached))
+        .min(total);
+    MemoryReading {
+        total,
+        available,
+        free,
+        cached,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn io_delta(old: (u64, u64, u64), new: (u64, u64, u64), seconds: f64) -> IoReading {
+    let seconds = seconds.max(0.001);
+    IoReading {
+        read_rate: new.0.saturating_sub(old.0).saturating_mul(512) as f64 / seconds,
+        write_rate: new.1.saturating_sub(old.1).saturating_mul(512) as f64 / seconds,
+        busy: (new.2.saturating_sub(old.2) as f64 / seconds / 10.0).clamp(0.0, 100.0),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn parse_block_stat(contents: &str) -> Option<(u64, u64, u64)> {
+    let values: Vec<u64> = contents
+        .split_whitespace()
+        .map(str::parse)
+        .collect::<Result<_, _>>()
+        .ok()?;
+    (values.len() >= 10).then(|| (values[2], values[6], values[9]))
 }

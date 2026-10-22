@@ -54,6 +54,17 @@
 # cpuBottom = false
 # memBelowNet = false
 # agentsLeft = false
+# memGraphs = true
+# showDisks = true
+# showSwap = true
+# swapDisk = true
+# onlyPhysical = true
+# useFstab = true
+# disksFilter = "exclude=/boot"
+# ioMode = false
+# ioGraphCombined = false
+# Per-mount graph ceilings in MiB/s; unmatched mounts use 100 MiB/s.
+# ioGraphSpeeds = "/mnt/media:100 /:20 /boot:1"
 
 # ---------------------------------------------------------------------------
 # backend — the Medulla HTTP API

@@ -160,6 +160,29 @@ fn resource_keys_toggle_boxes_cycle_presets_and_clamp_interval() {
 }
 
 #[test]
+fn disks_and_io_keys_toggle_the_memory_panel_modes() {
+    let mut state = ResourcesState::default();
+    assert!(state.show_disks && !state.io_mode);
+    assert!(state.key(KeyCode::Char('d')));
+    assert!(!state.show_disks);
+    assert!(state.key(KeyCode::Char('i')));
+    assert!(state.io_mode);
+    assert!(state.key(KeyCode::Char('i')));
+    assert!(!state.io_mode);
+}
+
+#[test]
+fn io_graph_speed_limits_override_per_mount_in_mib_per_second() {
+    let config = medulla::config::ResourcesConfig {
+        io_graph_speeds: "/mnt/data:1 /boot:4".into(),
+        ..Default::default()
+    };
+    assert_eq!(super::io_graph_speed(&config, "/mnt/data"), 1.0);
+    assert_eq!(super::io_graph_speed(&config, "/boot"), 4.0);
+    assert_eq!(super::io_graph_speed(&config, "/"), 100.0);
+}
+
+#[test]
 fn selecting_a_preset_shows_only_the_boxes_named_by_its_entries() {
     let mut state = ResourcesState {
         presets: vec![
@@ -232,6 +255,147 @@ fn resources_draw_empty_titled_panels_until_data_views_land() {
     assert!(text.contains("Mem [2]"));
     assert!(text.contains("Net [3]"));
     assert!(text.contains("Agents [4]"));
+}
+
+#[test]
+fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
+    let mut loaded = LoadedConfig::defaults("test.json".into());
+    loaded.config.resources.shown_boxes = "mem".into();
+    let mut history = crate::ui::resources::sampler::ResourceHistory::default();
+    let mut sample = crate::ui::resources::sampler::ResourceSnapshot::default();
+    sample.memory_total_bytes = 16_000;
+    sample.memory_used_bytes = 8_000;
+    sample.memory_available_bytes = 8_000;
+    sample.memory_cached_bytes = 2_000;
+    sample.memory_free_bytes = 1_000;
+    sample.swap_total_bytes = 4_000;
+    sample.swap_used_bytes = 500;
+    sample.disks = vec![crate::ui::resources::sampler::DiskSnapshot {
+        device: "/dev/sda1".into(),
+        mount: "/mnt/data".into(),
+        total_bytes: 10_000,
+        used_bytes: 2_500,
+        read_bytes_per_second: (32 * 1024 * 1024) as f64,
+        write_bytes_per_second: (64 * 1024 * 1024) as f64,
+        busy_percent: Some(15.0),
+    }];
+    history.push(&sample, 8);
+    let sample = sample.with_history(Arc::new(history));
+    for (width, height) in [(170, 42), (80, 24), (60, 16)] {
+        for (mem_graphs, show_disks, io_mode, combined, speeds) in [
+            (true, true, false, false, ""),
+            (false, true, false, false, ""),
+            (true, true, true, true, ""),
+            (true, true, true, false, "/mnt/data:1"),
+            (true, false, false, false, ""),
+            (true, false, true, false, ""),
+        ] {
+            let mut configured = loaded.clone();
+            configured.config.resources.mem_graphs = mem_graphs;
+            configured.config.resources.show_disks = show_disks;
+            configured.config.resources.io_mode = io_mode;
+            configured.config.resources.io_graph_combined = combined;
+            configured.config.resources.io_graph_speeds = speeds.into();
+            configured.config.resources.swap_disk = true;
+            let show_swap = configured.config.resources.show_swap;
+            let mut app = App::new(Arc::new(MockRuntime::empty()), configured);
+            app.set_resource_snapshot(Arc::new(sample.clone()));
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            terminal
+                .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height)))
+                .unwrap();
+            let text = terminal
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+            assert!(
+                text.contains("RAM  50%"),
+                "RAM missing at {width}x{height}: {text}"
+            );
+            let show_disk_rows = show_disks && !io_mode;
+            assert_eq!(
+                text.contains("/mnt/data"),
+                show_disk_rows,
+                "disk visibility at {width}x{height}: {text}"
+            );
+            assert!(
+                text.contains("Swap  12%"),
+                "swap missing at {width}x{height}: {text}"
+            );
+            assert_eq!(
+                text.contains("[swap]"),
+                show_disk_rows,
+                "swap disk visibility at {width}x{height}: {text}"
+            );
+            if mem_graphs && (!io_mode || !show_disks) {
+                let mem = app.resources.rects.mem;
+                let wanted_graph_rows = if show_swap { 5 } else { 4 };
+                let graph_rows = wanted_graph_rows.min(mem.height.saturating_sub(2) as usize);
+                let visible_graph_rows = (mem.y + 1..mem.y + 1 + graph_rows as u16)
+                    .filter(|y| {
+                        (mem.x + 1..mem.right() - 1)
+                            .any(|x| terminal.backend().buffer()[(x, *y)].symbol() != " ")
+                    })
+                    .count();
+                assert_eq!(
+                    visible_graph_rows, graph_rows,
+                    "memory series missing at {width}x{height}"
+                );
+                for label in if show_swap {
+                    ["USED", "AVAIL", "CACHE", "FREE", "SWAP"].as_slice()
+                } else {
+                    ["USED", "AVAIL", "CACHE", "FREE"].as_slice()
+                } {
+                    assert!(
+                        text.contains(label),
+                        "memory history series {label} missing at {width}x{height}: {text}"
+                    );
+                }
+            }
+            if !mem_graphs && !io_mode {
+                assert!(
+                    text.contains('█'),
+                    "RAM meters missing at {width}x{height}: {text}"
+                );
+                for meter in ["U██░░", "A██░░", "C█░░░", "F░░░░"] {
+                    assert!(
+                        text.contains(meter),
+                        "memory meter {meter} missing at {width}x{height}: {text}"
+                    );
+                }
+            }
+            if io_mode && show_disks {
+                assert!(
+                    text.contains(if combined { "IO READ+WRITE" } else { "IO READ" }),
+                    "IO graph labels missing at {width}x{height}: {text}"
+                );
+                let mem = app.resources.rects.mem;
+                let graph_y = mem.y + 1;
+                assert!(
+                    (graph_y..graph_y + 4).any(|y| {
+                        (mem.x + 1..mem.right() - 1)
+                            .any(|x| terminal.backend().buffer()[(x, y)].symbol() != " ")
+                    }),
+                    "IO graph missing at {width}x{height}"
+                );
+            } else if show_disk_rows {
+                let mem = app.resources.rects.mem;
+                let inner_y = mem.y + 1;
+                let graph_rows = if mem_graphs { 5 } else { 0 };
+                let disk_start = if mem_graphs { 3 } else { 2 };
+                let disk_graph_y = inner_y + graph_rows + disk_start;
+                let graph_x = mem.x + 1 + (mem.width - 2) * 3 / 4;
+                assert!(
+                    (graph_x..mem.right() - 1)
+                        .any(|x| terminal.backend().buffer()[(x, disk_graph_y)].symbol() != " "),
+                    "per-disk busy graph missing at {width}x{height}"
+                );
+            }
+        }
+    }
 }
 
 #[test]
