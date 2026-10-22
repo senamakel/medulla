@@ -71,3 +71,21 @@ fn resources_layout_settings_deserialize_as_camel_case() {
     assert_eq!(config.mem_below_net, Some(true));
     assert_eq!(config.agents_left, Some(true));
 }
+
+#[test]
+fn network_options_deserialize_in_camel_case_and_old_configs_default() {
+    let config: ResourcesConfig = serde_json::from_str(
+        r#"{"netAuto":false,"netSync":true,"netDownload":250,"netUpload":125,"netIface":"eth0","swapUploadDownload":true}"#,
+    ).unwrap();
+    assert!(!config.net_auto && config.net_sync);
+    assert_eq!(config.net_download, 250);
+    assert_eq!(config.net_upload, 125);
+    assert_eq!(config.net_iface.as_deref(), Some("eth0"));
+    assert!(config.swap_upload_download);
+    let old: ResourcesConfig = serde_json::from_str("{}").unwrap();
+    assert!(old.net_auto);
+    assert!(!old.net_sync && !old.swap_upload_download);
+    assert_eq!(old.net_download, 100);
+    assert_eq!(old.net_upload, 100);
+    assert_eq!(old.net_iface, None);
+}
