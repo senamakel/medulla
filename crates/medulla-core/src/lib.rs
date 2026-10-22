@@ -29,7 +29,7 @@ pub mod harness_work;
 pub mod history_upload;
 pub mod home;
 pub mod hub;
-pub mod inference_proxy;
+pub use medulla_providers::proxy as inference_proxy;
 pub mod init;
 pub mod logging;
 /// Medulla's own MCP server, offered to the harnesses it spawns.
