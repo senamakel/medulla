@@ -2618,11 +2618,16 @@ dependencies = [
 name = "medulla-pty"
 version = "0.13.0"
 dependencies = [
+ "anyhow",
  "base64 0.22.1",
+ "medulla-types",
+ "portable-pty",
  "serde",
  "serde_json",
+ "tokio",
  "unicode-segmentation",
  "vt100",
+ "vte",
 ]
 
 [[package]]

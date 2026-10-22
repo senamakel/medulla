@@ -16,7 +16,7 @@
 //! supersedes whatever (possibly truncated) result `vte`'s own dispatch
 //! produced for the same escape.
 
-use medulla::clipboard::tmux::osc52_from_params;
+use crate::clipboard::osc52_from_params;
 
 /// Bound on one OSC 52 payload capture, in raw (pre-decode) bytes.
 ///

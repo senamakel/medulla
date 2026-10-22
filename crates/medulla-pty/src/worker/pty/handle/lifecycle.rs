@@ -66,7 +66,7 @@ impl SessionHandle {
                 // Filled in by the caller before the handle is published, and
                 // re-read on a timer from there on: see
                 // `PtyManager::spawn_checkout_poller`.
-                checkout: medulla::ui::checkout::Checkout::default(),
+                checkout: medulla_types::Checkout::default(),
                 last_error: None,
             }),
             attention: Mutex::new(AttentionState {
@@ -150,9 +150,6 @@ impl SessionHandle {
         // after its harness exits is a live token with no live session — and
         // the MCP server is a *subprocess* of the harness, so one that outlived
         // its parent would still be able to redeem it.
-        #[cfg(feature = "workflows")]
-        if let Some(session) = &self.meta.mcp_grant_session {
-            medulla::mcp::revoke_session(session);
-        }
+        self.meta.close.notify();
     }
 }

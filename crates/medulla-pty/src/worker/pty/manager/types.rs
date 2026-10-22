@@ -1,18 +1,11 @@
 //! Data types for the worker PTY manager.
-use std::sync::OnceLock;
-
-use medulla::harness_hooks::HookEventLog;
+use medulla_pty::SessionLifecycle;
 
 #[allow(unused_imports)]
 use super::*;
 /// A clock in epoch ms (injectable for tests).
 pub type NowFn = Arc<dyn Fn() -> i64 + Send + Sync>;
-/// Where a harness's own clipboard writes (OSC 52) are sent on to.
-///
-/// Injectable for the same reason the clock is: the real one writes escape
-/// sequences to this process's terminal and shells out to `tmux`/`pbcopy`, none
-/// of which a test can observe or should trigger.
-pub type ClipboardSink = Arc<dyn Fn(&str) + Send + Sync>;
+pub use medulla_pty::ClipboardSink;
 /// Owns the live harness sessions the worker TUI renders.
 ///
 /// Cheap to clone (an `Arc`), so the daemon's inbound-frame path and the render
@@ -37,13 +30,8 @@ pub(super) struct Inner {
     /// Feeds the single clipboard worker thread. See
     /// [`PtyManager::forward_clipboard`](super::PtyManager::forward_clipboard).
     pub(super) clipboard: Arc<ClipboardQueue>,
-    /// The lifecycle-report log the attention poller reads a `Notification`
-    /// from. Set once, before any session opens, by
-    /// [`PtyManager::set_hook_log`](super::PtyManager::set_hook_log); a
-    /// [`OnceLock`] because the poller reads it on every tick and the value
-    /// never changes after startup. `None` until then, in which case the
-    /// hook-derived cue is simply absent.
-    pub(super) hook_log: OnceLock<HookEventLog>,
+    /// Application-specific session cleanup and provider metadata callbacks.
+    pub(super) lifecycle: Arc<dyn SessionLifecycle>,
 }
 
 /// A single-slot, coalescing handoff to the clipboard worker thread.
