@@ -901,6 +901,7 @@ fn test_agent_process(
         cmd: vec![command.into()],
         cwd: Some(format!("/work/{command}")),
         start_time: 1,
+        owner_uid: Some("test-user".into()),
         cpu_percent: cpu,
         memory_bytes: 2 * 1024 * 1024,
         disk_read_bytes: 0,

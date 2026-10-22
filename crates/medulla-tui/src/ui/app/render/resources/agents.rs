@@ -27,6 +27,7 @@ pub(in crate::ui::app) struct AgentRow {
     pub session_id: Option<String>,
     pub task_id: Option<String>,
     pub external: bool,
+    pub remote: bool,
     pub depth: usize,
 }
 
@@ -59,6 +60,9 @@ pub(super) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
                 Some(_) => ("host".into(), None, None, false),
                 None => ("external".into(), None, None, true),
             };
+            let remote = session_id
+                .as_deref()
+                .is_some_and(|id| matches!(crate::ui::app::remote_sessions::SessionRef::parse(id), crate::ui::app::remote_sessions::SessionRef::Remote { .. }));
             Some(AgentRow {
                 pid: process.pid,
                 started: process.start_time,
@@ -76,6 +80,7 @@ pub(super) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
                 session_id,
                 task_id,
                 external,
+                remote,
                 depth: 0,
             })
         })
@@ -528,6 +533,7 @@ mod tests {
             cmd: vec![command.into()],
             cwd: Some(format!("/workspace/{command}")),
             start_time: 100,
+            owner_uid: None,
             cpu_percent: cpu,
             memory_bytes: mem,
             disk_read_bytes: 0,
@@ -620,6 +626,7 @@ mod tests {
                 cmd: vec!["node".into()],
                 cwd: Some("/work".into()),
                 start_time: 101,
+                owner_uid: None,
                 cpu_percent: 2.0,
                 memory_bytes: 512,
                 disk_read_bytes: 0,

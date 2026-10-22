@@ -17,6 +17,7 @@ fn process(pid: u32, command: &str, cpu: f64) -> ProcessSnapshot {
         cmd: vec![command.into()],
         cwd: Some(format!("/workspace/{command}")),
         start_time: 1,
+        owner_uid: None,
         cpu_percent: cpu,
         memory_bytes: 2 * 1024 * 1024,
         disk_read_bytes: 0,
