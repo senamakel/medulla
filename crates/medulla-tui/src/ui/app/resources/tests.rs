@@ -328,7 +328,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                 show_disks,
                 "swap disk visibility at {width}x{height}: {text}"
             );
-            if mem_graphs && !io_mode {
+            if mem_graphs && (!io_mode || !show_disks) {
                 let mem = app.resources.rects.mem;
                 assert!(
                     (mem.y + 1..mem.y + 3).any(|y| {
