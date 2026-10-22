@@ -1,0 +1,178 @@
+//! Deterministic Settings view tests. The page renderers accept their data so
+//! these tests never inspect the host or sample a provider account.
+
+use ratatui::backend::TestBackend;
+use ratatui::layout::Rect;
+use ratatui::Terminal;
+
+use super::{harnesses, tokens};
+use crate::ui::app::types::{SETTINGS_GROUPS, SETTINGS_SUBPAGES};
+
+fn rendered(draw: impl FnOnce(&mut ratatui::Frame<'_>, Rect)) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(100, 32)).expect("test terminal");
+    terminal.draw(draw).expect("render view");
+    terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>()
+}
+
+#[test]
+fn tokens_and_harnesses_are_general_settings_sections() {
+    let tokens = SETTINGS_SUBPAGES
+        .iter()
+        .position(|name| *name == "Tokens")
+        .expect("Tokens Settings section");
+    let harnesses = SETTINGS_SUBPAGES
+        .iter()
+        .position(|name| *name == "Harnesses")
+        .expect("Harnesses Settings section");
+    assert!(tokens < SETTINGS_GROUPS[1].1);
+    assert!(harnesses < SETTINGS_GROUPS[1].1);
+    assert_eq!(SETTINGS_GROUPS[0].0, "GENERAL");
+    assert_eq!(SETTINGS_GROUPS[1].0, "DEBUG");
+    assert_eq!(SETTINGS_GROUPS[2].0, "ABOUT");
+}
+
+#[test]
+fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
+    use medulla::subscriptions::{MeterId, MeterReading, SubscriptionSnapshot};
+    use medulla_tokens::Usage;
+    use medulla_types::HarnessProvider;
+    use std::collections::BTreeMap;
+
+    let mut meters = BTreeMap::new();
+    meters.insert(
+        MeterId::ClaudeSession,
+        MeterReading {
+            used_fraction: Some(0.42),
+            ..Default::default()
+        },
+    );
+    let view = tokens::TokensView {
+        rows: vec![
+            tokens::TokenUsageRow {
+                session: "session-1".into(),
+                tier: "reasoning".into(),
+                provider: Some(HarnessProvider::Claude),
+                model: Some("claude-sonnet-4-6".into()),
+                usage: Usage {
+                    input_tokens: 1_000_000,
+                    output_tokens: 200_000,
+                    cache_read_tokens: Some(100_000),
+                    cache_write_tokens: Some(100_000),
+                    reasoning_tokens: Some(50_000),
+                    ..Default::default()
+                },
+            },
+            tokens::TokenUsageRow {
+                session: "session-2".into(),
+                tier: "unknown".into(),
+                provider: Some(HarnessProvider::Claude),
+                model: Some("not-in-pricing-table".into()),
+                usage: Usage {
+                    input_tokens: 2,
+                    output_tokens: 1,
+                    ..Default::default()
+                },
+            },
+        ],
+        subscriptions: SubscriptionSnapshot { meters, sampled_at: 1 },
+    };
+    let output = rendered(|frame, area| tokens::draw_tokens(frame, area, &view));
+
+    for expected in [
+        "Tokens",
+        "session-1",
+        "Claude",
+        "claude-sonnet-4-6",
+        "input 1000000",
+        "output 200000",
+        "cache read 100000",
+        "cache write 100000",
+        "reasoning 50000",
+        "cost $6.4050",
+        "Claude 5h",
+        "42%",
+        "not-in-pricing-table",
+        "cost unavailable",
+    ] {
+        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+    }
+}
+
+#[test]
+fn harnesses_view_renders_injected_detection_routing_budget_and_customizations() {
+    let view = harnesses::HarnessesView {
+        providers: vec![
+            harnesses::DetectedProvider {
+                name: "Claude Code".into(),
+                version: Some("2.1.4".into()),
+            },
+            harnesses::DetectedProvider {
+                name: "Codex".into(),
+                version: Some("0.123.0".into()),
+            },
+        ],
+        routing: vec![("reasoning".into(), "claude-sonnet-4-6".into())],
+        budgets: vec![("claude".into(), "used 12000 / limit 50000".into())],
+        customizations: vec![
+            "hooks: 2 configured".into(),
+            "Codex overrides: enabled".into(),
+            "attribution: commits enabled".into(),
+            "MCP: fleet tools enabled".into(),
+            "skills: 3 attached".into(),
+        ],
+    };
+    let output = rendered(|frame, area| harnesses::draw_harnesses(frame, area, &view));
+
+    for expected in [
+        "Harnesses",
+        "Claude Code",
+        "2.1.4",
+        "Codex",
+        "0.123.0",
+        "reasoning",
+        "claude-sonnet-4-6",
+        "used 12000 / limit 50000",
+        "hooks: 2 configured",
+        "Codex overrides: enabled",
+        "attribution: commits enabled",
+        "MCP: fleet tools enabled",
+        "skills: 3 attached",
+    ] {
+        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+    }
+}
+
+#[test]
+fn harnesses_view_explains_empty_detection_without_host_probes() {
+    let view = harnesses::HarnessesView::default();
+    let output = rendered(|frame, area| harnesses::draw_harnesses(frame, area, &view));
+    assert!(output.contains("No providers detected"));
+}
+
+#[test]
+fn existing_usage_page_still_uses_the_legacy_input_output_presentation() {
+    use crate::ui::app::types::SETTINGS_SUBPAGES;
+    use crate::ui::app::App;
+    use medulla::config::LoadedConfig;
+    use medulla::runtime::mock::MockRuntime;
+    use medulla::runtime::Runtime;
+    use std::sync::Arc;
+
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.settings_index = SETTINGS_SUBPAGES
+        .iter()
+        .position(|name| *name == "Usage")
+        .unwrap();
+    let output = rendered(|frame, area| app.draw_settings(frame, area));
+    assert!(output.contains("This session"));
+    assert!(output.contains("Account"));
+    assert!(!output.contains("cache read"));
+    assert!(!output.contains("reasoning"));
+}

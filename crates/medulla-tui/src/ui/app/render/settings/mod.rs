@@ -31,6 +31,9 @@ mod status_line;
 mod subscriptions;
 mod usage;
 
+#[cfg(test)]
+mod view_tests;
+
 /// Return the number of terminal rows a rendered, wrapped footer occupies.
 ///
 /// Both pages with a pinned footer render it through this exact `Paragraph`
