@@ -6,7 +6,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::Line,
-    widgets::{Block, Borders, Paragraph, Row, Table},
+    widgets::{Block, Borders, Clear, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -31,7 +31,7 @@ pub(in crate::ui::app) struct AgentRow {
     pub depth: usize,
 }
 
-pub(super) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
+pub(in crate::ui::app) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
     let registrations = medulla_monitor::agents::agent_registry().snapshot();
     snapshot
         .processes
@@ -440,31 +440,127 @@ fn draw_signal_confirmation(
     snapshot: &ResourceSnapshot,
     state: &ResourcesState,
 ) {
-    let Some((pid, started, signal)) = state.agent_signal_armed else {
+    let Some(armed) = state.agent_signal_armed else {
         return;
     };
     let row = rows(snapshot)
         .into_iter()
-        .find(|row| row.pid == pid && row.started == started);
-    let label = match row {
-        Some(row) if row.external => "EXTERNAL PROCESS",
-        Some(_) => "Medulla agent",
-        None => "PROCESS",
-    };
-    let signal = match signal {
+        .find(|row| row.pid == armed.pid && row.started == armed.started);
+    let process = snapshot.processes.iter().find(|process| {
+        process.pid == armed.pid && process.start_time == armed.started
+    });
+    let kind = row.as_ref().map_or("Unknown", |row| row.kind.as_str());
+    let origin = row.as_ref().map_or("external", |row| row.origin.as_str());
+    let command = process.map_or_else(|| "unavailable".into(), display_command);
+    let signal = match armed.signal {
         AgentSignal::Terminate => "terminate",
         AgentSignal::Kill => "kill",
         AgentSignal::Stop => "stop",
     };
-    let prompt = format!("{label}: {signal} PID {pid}? y confirm · any other key cancels");
-    frame.render_widget(
-        Paragraph::new(Line::from(prompt)).style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), 1),
+    let external = row.as_ref().is_some_and(|row| row.external);
+    let instruction = match (external, armed.stage) {
+        (true, crate::ui::app::resources::types::AgentSignalConfirmStage::First) => {
+            "Press y for the second confirmation; Esc cancels"
+        }
+        (true, crate::ui::app::resources::types::AgentSignalConfirmStage::ExternalSecond) => {
+            "External target: press uppercase Y to send; Esc cancels"
+        }
+        (false, _) => "Press y to send; Esc cancels",
+    };
+    let prompt = format!(
+        "Kind: {kind}\nPID: {}\nCommand: {command}\nOrigin: {origin}\nSignal: {signal}\nTarget host: local\n\n{instruction}",
+        armed.pid
     );
+    let popup = Rect::new(
+        area.x.saturating_add(1),
+        area.y.saturating_add(1),
+        area.width.saturating_sub(2),
+        area.height.saturating_sub(2).min(10),
+    );
+    frame.render_widget(Clear, popup);
+    frame.render_widget(
+        Paragraph::new(prompt)
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(if external {
+                        " EXTERNAL PROCESS · Confirm signal "
+                    } else {
+                        " Confirm process signal "
+                    })
+                    .style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+            ),
+        popup,
+    );
+}
+
+fn display_command(process: &ProcessSnapshot) -> String {
+    let mut rendered = Vec::new();
+    let mut redact_next = false;
+    for argument in process.cmd.iter().filter(|arg| !is_environment_assignment(arg)) {
+        if redact_next {
+            rendered.push("[REDACTED]".to_owned());
+            redact_next = false;
+            continue;
+        }
+        if let Some((key, _)) = argument.split_once('=') {
+            if argument.starts_with('-') && is_secret_name(key) {
+                rendered.push(format!("{key}=[REDACTED]"));
+                continue;
+            }
+        }
+        if argument.starts_with('-') && is_secret_name(argument) {
+            rendered.push(argument.clone());
+            redact_next = true;
+        } else {
+            rendered.push(argument.clone());
+        }
+    }
+    if rendered.is_empty() {
+        rendered.push(
+            process
+                .exe
+                .as_deref()
+                .and_then(std::path::Path::new)
+                .and_then(std::path::Path::file_name)
+                .and_then(|name| name.to_str())
+                .unwrap_or("unavailable")
+                .to_owned(),
+        );
+    }
+    let command = rendered.join(" ");
+    const LIMIT: usize = 72;
+    if command.len() <= LIMIT {
+        return command;
+    }
+    let mut end = LIMIT.saturating_sub(1);
+    while !command.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…", &command[..end])
+}
+
+fn is_environment_assignment(argument: &str) -> bool {
+    let Some((name, _)) = argument.split_once('=') else {
+        return false;
+    };
+    !name.is_empty()
+        && !argument.starts_with('-')
+        && name
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn is_secret_name(name: &str) -> bool {
+    let name = name.trim_start_matches('-').to_ascii_lowercase();
+    ["token", "secret", "password", "passwd", "api-key", "apikey", "auth", "credential"]
+        .iter()
+        .any(|secret| name.contains(secret))
 }
 
 fn kind_counts(rows: &[AgentRow]) -> String {
