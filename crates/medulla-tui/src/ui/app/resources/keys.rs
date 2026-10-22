@@ -10,6 +10,10 @@ impl ResourcesState {
             KeyCode::Char('4') => self.shown.agents = !self.shown.agents,
             KeyCode::Char('d') => self.show_disks = !self.show_disks,
             KeyCode::Char('i') => self.io_mode = !self.io_mode,
+            KeyCode::Char('z') => self.net_zeroed = true,
+            KeyCode::Char('a') => self.net_auto = !self.net_auto,
+            KeyCode::Char('y') => self.net_sync = !self.net_sync,
+            KeyCode::Char('b') | KeyCode::Char('n') => return true,
             KeyCode::Char('p') => self.preset = self.preset.saturating_sub(1),
             KeyCode::Char('P') => self.preset = (self.preset + 1) % self.presets.len().max(1),
             KeyCode::Char('+') | KeyCode::Char('=') => {

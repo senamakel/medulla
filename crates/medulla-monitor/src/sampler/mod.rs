@@ -4,7 +4,9 @@ mod history;
 mod types;
 
 pub use history::History;
-pub use types::{DiskSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot};
+pub use types::{
+    DiskSnapshot, NetworkSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot,
+};
 
 #[cfg(test)]
 mod tests;
@@ -12,7 +14,7 @@ mod tests;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use sysinfo::{Disks, ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::sync::watch;
 
 /// A source of resource snapshots, injectable to test task ordering without
@@ -89,6 +91,7 @@ where
 pub struct SystemResourceSource {
     system: System,
     disks: Disks,
+    networks: Networks,
     last_sample: Option<Instant>,
     disk_peak_bytes_per_second: f64,
     cpu_monitor: crate::CpuMonitor,
@@ -102,6 +105,7 @@ impl Default for SystemResourceSource {
         Self {
             system: System::new(),
             disks: Disks::new(),
+            networks: Networks::new_with_refreshed_list(),
             last_sample: None,
             disk_peak_bytes_per_second: 1.0,
             cpu_monitor: crate::CpuMonitor::default(),
@@ -156,6 +160,40 @@ impl ResourceSource for SystemResourceSource {
                 .with_tasks(),
         );
         self.disks.refresh(true);
+        self.networks.refresh(true);
+        let networks = self
+            .networks
+            .iter()
+            .map(|(name, data)| {
+                let ip_addresses: Vec<_> =
+                    data.ip_networks().iter().map(ToString::to_string).collect();
+                #[cfg(target_os = "linux")]
+                let (up, running) = linux_interface_flags(name)
+                    .map(linux_interface_state)
+                    .unwrap_or((false, false));
+                // sysinfo does not expose interface flags on other platforms.
+                // An assigned address is evidence of a configured interface;
+                // observed traffic is evidence it is currently connected.
+                #[cfg(not(target_os = "linux"))]
+                let (up, running) = (!ip_addresses.is_empty(), false);
+                let received_bytes_per_second = data.received() as f64 / elapsed.max(0.001);
+                let transmitted_bytes_per_second = data.transmitted() as f64 / elapsed.max(0.001);
+                NetworkSnapshot {
+                    interface: name.clone(),
+                    up,
+                    connected: running
+                        || received_bytes_per_second > 0.0
+                        || transmitted_bytes_per_second > 0.0,
+                    ip_addresses,
+                    received_bytes_per_second,
+                    transmitted_bytes_per_second,
+                    total_received_bytes: data.total_received(),
+                    total_transmitted_bytes: data.total_transmitted(),
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut networks = networks;
+        networks.sort_by(|left, right| left.interface.cmp(&right.interface));
         let task_pids: std::collections::HashSet<u32> = self
             .system
             .processes()
@@ -380,8 +418,34 @@ impl ResourceSource for SystemResourceSource {
                     }
                 })
                 .collect(),
+            networks,
             processes,
         }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_interface_flags(name: &str) -> Option<u32> {
+    std::fs::read_to_string(
+        std::path::Path::new("/sys/class/net")
+            .join(name)
+            .join("flags"),
+    )
+    .ok()
+    .and_then(|flags| u32::from_str_radix(flags.trim().trim_start_matches("0x"), 16).ok())
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn linux_interface_state(flags: u32) -> (bool, bool) {
+    (flags & 0x1 != 0, flags & 0x40 != 0)
+}
+
+#[cfg(test)]
+mod interface_flag_tests {
+    #[test]
+    fn linux_flags_distinguish_admin_up_from_running() {
+        assert_eq!(super::linux_interface_state(0x1), (true, false));
+        assert_eq!(super::linux_interface_state(0x40), (false, true));
     }
 }
 

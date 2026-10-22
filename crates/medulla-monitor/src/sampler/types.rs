@@ -19,6 +19,27 @@ pub struct DiskSnapshot {
     pub busy_percent: Option<f64>,
 }
 
+/// Point-in-time counters and addresses for one network interface.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NetworkSnapshot {
+    /// Operating-system interface name.
+    pub interface: String,
+    /// Whether the interface is administratively up.
+    pub up: bool,
+    /// Whether the interface currently has carrier or observed traffic.
+    pub connected: bool,
+    /// Assigned IPv4 and IPv6 addresses.
+    pub ip_addresses: Vec<String>,
+    /// Received bytes per second from the preceding sample.
+    pub received_bytes_per_second: f64,
+    /// Transmitted bytes per second from the preceding sample.
+    pub transmitted_bytes_per_second: f64,
+    /// Bytes received since the interface counter was initialized.
+    pub total_received_bytes: u64,
+    /// Bytes transmitted since the interface counter was initialized.
+    pub total_transmitted_bytes: u64,
+}
+
 /// Point-in-time process reading.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcessSnapshot {
@@ -77,6 +98,8 @@ pub struct ResourceSnapshot {
     pub swap_used_bytes: u64,
     /// Mounted disk readings.
     pub disks: Vec<DiskSnapshot>,
+    /// Per-interface traffic, state, and addresses.
+    pub networks: Vec<NetworkSnapshot>,
     /// Process table in the order sysinfo supplied it.
     pub processes: Vec<ProcessSnapshot>,
     /// Lookup prepared off-thread for fast session rollups during rendering.
@@ -213,6 +236,8 @@ pub struct ResourceHistory {
     pub disk_write_bytes_per_second: super::History<f64>,
     /// Per-device read, write, and busy readings for graph rendering.
     pub disk_io: super::History<Vec<DiskSnapshot>>,
+    /// Per-interface traffic series.
+    pub network_io: super::History<Vec<NetworkSnapshot>>,
     /// Number of visible processes.
     pub process_count: super::History<usize>,
 }
@@ -249,6 +274,7 @@ impl ResourceHistory {
             capacity,
         );
         self.disk_io.push(snapshot.disks.clone(), capacity);
+        self.network_io.push(snapshot.networks.clone(), capacity);
         self.process_count.push(snapshot.processes.len(), capacity);
     }
 }

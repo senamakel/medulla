@@ -81,6 +81,29 @@ impl App {
                     };
                     if title == "Mem" {
                         format!(" Mem [{key}] [d] [i] ")
+                    } else if title == "Net" {
+                        let selected = state.net_iface.as_deref().or_else(|| {
+                            crate::ui::resources::net::default_interface(
+                                &self.resource_snapshot.networks,
+                            )
+                        });
+                        let address = selected
+                            .and_then(|name| {
+                                self.resource_snapshot
+                                    .networks
+                                    .iter()
+                                    .find(|entry| entry.interface == name)
+                            })
+                            .and_then(|entry| entry.ip_addresses.first())
+                            .map(String::as_str)
+                            .unwrap_or("no IP");
+                        format!(
+                            " Net [{key}] [b] [n] [z] [a{}] [y{}] {} {} ",
+                            if state.net_auto { "✓" } else { " " },
+                            if state.net_sync { "✓" } else { " " },
+                            selected.unwrap_or("no iface"),
+                            address
+                        )
                     } else {
                         format!(" {title} [{key}] ")
                     }
@@ -99,6 +122,13 @@ impl App {
                         Some(' ') if title.contains("Mem") => state.hits.mem_toggle = hit,
                         Some(' ') if title.contains("Net") => state.hits.net_toggle = hit,
                         _ => state.hits.agents_toggle = hit,
+                    }
+                    if title.contains("Net") {
+                        state.hits.net_prev = Rect::new(rect.x + 10, rect.y, 3, 1);
+                        state.hits.net_next = Rect::new(rect.x + 14, rect.y, 3, 1);
+                        state.hits.net_zero = Rect::new(rect.x + 18, rect.y, 3, 1);
+                        state.hits.net_auto = Rect::new(rect.x + 22, rect.y, 3, 1);
+                        state.hits.net_sync = Rect::new(rect.x + 26, rect.y, 3, 1);
                     }
                 }
                 let block = Block::default()
@@ -128,6 +158,40 @@ impl App {
                         );
                         state.hits.disks_toggle = Rect::new(rect.x + 9, rect.y, 3, 1);
                         state.hits.io_toggle = Rect::new(rect.x + 13, rect.y, 3, 1);
+                    } else if title.contains("Net") {
+                        draw_net_panel(
+                            f,
+                            inner,
+                            &self.resource_snapshot,
+                            &self.loaded.config.resources,
+                            state.net_iface.as_deref(),
+                            state
+                                .net_zero_offsets
+                                .get(
+                                    state
+                                        .net_iface
+                                        .as_deref()
+                                        .or_else(|| {
+                                            crate::ui::resources::net::default_interface(
+                                                &self.resource_snapshot.networks,
+                                            )
+                                        })
+                                        .unwrap_or_default(),
+                                )
+                                .copied()
+                                .unwrap_or_default(),
+                            if state.net_auto {
+                                state.net_download_scaler.max()
+                            } else {
+                                state.net_download as f64 * 1024.0
+                            },
+                            if state.net_auto {
+                                state.net_upload_scaler.max()
+                            } else {
+                                state.net_upload as f64 * 1024.0
+                            },
+                            state.net_sync,
+                        );
                     }
                 }
             }
@@ -151,6 +215,42 @@ impl App {
         if !self.resources.key(key) {
             return false;
         }
+        if key == crossterm::event::KeyCode::Char('z') {
+            let current = self.resources.net_iface.as_deref().or_else(|| {
+                crate::ui::resources::net::default_interface(&self.resource_snapshot.networks)
+            });
+            if let Some(interface) = current.and_then(|name| {
+                self.resource_snapshot
+                    .networks
+                    .iter()
+                    .find(|entry| entry.interface == name)
+            }) {
+                self.resources.net_zero_offsets.insert(
+                    interface.interface.clone(),
+                    (
+                        interface.total_received_bytes,
+                        interface.total_transmitted_bytes,
+                    ),
+                );
+                self.resources.net_iface = Some(interface.interface.clone());
+            }
+        }
+        if matches!(key, crossterm::event::KeyCode::Char('b' | 'n')) {
+            let current = self.resources.net_iface.as_deref().or_else(|| {
+                crate::ui::resources::net::default_interface(&self.resource_snapshot.networks)
+            });
+            let interfaces: Vec<_> = self
+                .resource_snapshot
+                .networks
+                .iter()
+                .map(|interface| (interface.interface.as_str(), interface.up))
+                .collect();
+            self.resources.net_iface = crate::ui::resources::net::cycle_interface(
+                current,
+                &interfaces,
+                key == crossterm::event::KeyCode::Char('n'),
+            );
+        }
         let state = &self.resources;
         let shown = [
             (state.shown.cpu, "cpu"),
@@ -171,6 +271,12 @@ impl App {
         config.agents_left = Some(state.opts.agents_left);
         config.show_disks = state.show_disks;
         config.io_mode = state.io_mode;
+        config.net_auto = state.net_auto;
+        config.net_sync = state.net_sync;
+        config.net_download = state.net_download;
+        config.net_upload = state.net_upload;
+        config.net_iface = state.net_iface.clone();
+        config.swap_upload_download = state.swap_upload_download;
         if let Some(path) = self.config_path.as_deref() {
             let settings = [
                 ("updateMs", ratatui_toml_value_u64(config.update_ms)),
@@ -193,6 +299,21 @@ impl App {
                 ),
                 ("showDisks", toml::Value::Boolean(config.show_disks)),
                 ("ioMode", toml::Value::Boolean(config.io_mode)),
+                ("netAuto", toml::Value::Boolean(config.net_auto)),
+                ("netSync", toml::Value::Boolean(config.net_sync)),
+                ("netDownload", ratatui_toml_value_u64(config.net_download)),
+                ("netUpload", ratatui_toml_value_u64(config.net_upload)),
+                (
+                    "netIface",
+                    config
+                        .net_iface
+                        .clone()
+                        .map_or(toml::Value::String(String::new()), toml::Value::String),
+                ),
+                (
+                    "swapUploadDownload",
+                    toml::Value::Boolean(config.swap_upload_download),
+                ),
             ];
             for (key, value) in settings {
                 if let Err(error) = medulla::config::persist_setting(path, "resources", key, value)
@@ -221,6 +342,11 @@ impl App {
             (hits.agents_toggle, '4'),
             (hits.disks_toggle, 'd'),
             (hits.io_toggle, 'i'),
+            (hits.net_prev, 'b'),
+            (hits.net_next, 'n'),
+            (hits.net_zero, 'z'),
+            (hits.net_auto, 'a'),
+            (hits.net_sync, 'y'),
             (hits.preset_prev, 'p'),
             (hits.preset_next, 'P'),
             (hits.interval_down, '-'),
@@ -230,6 +356,223 @@ impl App {
         .find_map(|(rect, key)| rect.contains((x, y).into()).then_some(key));
         key.is_some_and(|key| self.resources_key(crossterm::event::KeyCode::Char(key)))
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_net_panel(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &crate::ui::resources::sampler::ResourceSnapshot,
+    config: &medulla::config::ResourcesConfig,
+    selected: Option<&str>,
+    zero_offsets: (u64, u64),
+    download_max: f64,
+    upload_max: f64,
+    sync: bool,
+) {
+    if area.is_empty() {
+        return;
+    }
+    let selected = selected
+        .and_then(|name| {
+            snapshot
+                .networks
+                .iter()
+                .find(|entry| entry.interface == name)
+        })
+        .or_else(|| {
+            crate::ui::resources::net::default_interface(&snapshot.networks).and_then(|name| {
+                snapshot
+                    .networks
+                    .iter()
+                    .find(|entry| entry.interface == name)
+            })
+        });
+    let Some(selected) = selected else {
+        frame.render_widget(Paragraph::new("No active network interface"), area);
+        return;
+    };
+    let (zero_received, zero_transmitted) = zero_offsets;
+    let (download, upload) = if config.swap_upload_download {
+        (
+            selected.transmitted_bytes_per_second,
+            selected.received_bytes_per_second,
+        )
+    } else {
+        (
+            selected.received_bytes_per_second,
+            selected.transmitted_bytes_per_second,
+        )
+    };
+    let (top_download, top_upload) = network_top(snapshot, &selected.interface);
+    let (total_download, total_upload) = if config.swap_upload_download {
+        (
+            selected.total_transmitted_bytes,
+            selected.total_received_bytes,
+        )
+    } else {
+        (
+            selected.total_received_bytes,
+            selected.total_transmitted_bytes,
+        )
+    };
+    let (top_download, top_upload) = if config.swap_upload_download {
+        (top_upload, top_download)
+    } else {
+        (top_download, top_upload)
+    };
+    let mut lines = Vec::new();
+    let narrow = area.width <= 45;
+    if narrow {
+        lines.push(Line::from(format!(
+            "{} ↓ {}  ↑ {}",
+            selected.interface,
+            net_rate(download),
+            net_rate(upload)
+        )));
+        lines.push(Line::from(format!(
+            "bits ↓{} ↑{}",
+            net_rate(download * 8.0),
+            net_rate(upload * 8.0)
+        )));
+        lines.push(Line::from(format!(
+            "Top ↓{} ↑{}  Total ↓{} ↑{}",
+            net_rate(top_download),
+            net_rate(top_upload),
+            net_bytes(
+                total_download.saturating_sub(if config.swap_upload_download {
+                    zero_transmitted
+                } else {
+                    zero_received
+                })
+            ),
+            net_bytes(total_upload.saturating_sub(if config.swap_upload_download {
+                zero_received
+            } else {
+                zero_transmitted
+            }))
+        )));
+    } else {
+        let address = selected
+            .ip_addresses
+            .first()
+            .map(String::as_str)
+            .unwrap_or("no IP");
+        lines.push(Line::from(format!("{}  {}", selected.interface, address)));
+        lines.push(Line::from(format!(
+            "Download {:>9}/s  {} bit/s",
+            net_rate(download),
+            net_rate(download * 8.0)
+        )));
+        lines.push(Line::from(format!(
+            "Upload   {:>9}/s  {} bit/s",
+            net_rate(upload),
+            net_rate(upload * 8.0)
+        )));
+        lines.push(Line::from(format!(
+            "Top ↓{} ↑{}  Total ↓{} ↑{}",
+            net_rate(top_download),
+            net_rate(top_upload),
+            net_bytes(
+                total_download.saturating_sub(if config.swap_upload_download {
+                    zero_transmitted
+                } else {
+                    zero_received
+                })
+            ),
+            net_bytes(total_upload.saturating_sub(if config.swap_upload_download {
+                zero_received
+            } else {
+                zero_transmitted
+            }))
+        )));
+    }
+    let graph_rows = if area.height >= 3 { 2 } else { 0 };
+    let (download_max, upload_max) =
+        crate::ui::resources::net::synced_max(download_max, upload_max, sync);
+    let graph_width = area.width;
+    if graph_rows > 0 {
+        let history: Vec<_> = snapshot.history.network_io.iter().collect();
+        let downloads: Vec<f32> = history
+            .iter()
+            .filter_map(|sample| {
+                sample
+                    .iter()
+                    .find(|entry| entry.interface == selected.interface)
+            })
+            .map(|entry| {
+                let rate = if config.swap_upload_download {
+                    entry.transmitted_bytes_per_second
+                } else {
+                    entry.received_bytes_per_second
+                };
+                (rate * 100.0 / download_max.max(1.0)) as f32
+            })
+            .collect();
+        let uploads: Vec<f32> = history
+            .iter()
+            .filter_map(|sample| {
+                sample
+                    .iter()
+                    .find(|entry| entry.interface == selected.interface)
+            })
+            .map(|entry| {
+                let rate = if config.swap_upload_download {
+                    entry.received_bytes_per_second
+                } else {
+                    entry.transmitted_bytes_per_second
+                };
+                (rate * 100.0 / upload_max.max(1.0)) as f32
+            })
+            .collect();
+        let x = area.x;
+        frame.render_widget(
+            crate::ui::plot::Graph::new(&downloads),
+            Rect::new(x, area.y, graph_width, 1),
+        );
+        frame.render_widget(
+            crate::ui::plot::Graph::new(&uploads).invert(true),
+            Rect::new(x, area.y + 1, graph_width, 1),
+        );
+    }
+    let text_y = area.y + graph_rows;
+    let text_height = area.height.saturating_sub(graph_rows);
+    frame.render_widget(
+        Paragraph::new(lines).style(Style::default().fg(Color::White)),
+        Rect::new(area.x, text_y, area.width, text_height),
+    );
+}
+
+fn network_top(
+    snapshot: &crate::ui::resources::sampler::ResourceSnapshot,
+    interface: &str,
+) -> (f64, f64) {
+    snapshot
+        .history
+        .network_io
+        .iter()
+        .flat_map(|sample| sample.iter())
+        .filter(|entry| entry.interface == interface)
+        .fold((0.0_f64, 0.0_f64), |(rx, tx), entry| {
+            (
+                rx.max(entry.received_bytes_per_second),
+                tx.max(entry.transmitted_bytes_per_second),
+            )
+        })
+}
+
+fn net_rate(rate: f64) -> String {
+    if rate >= 1_048_576.0 {
+        format!("{:.1}M", rate / 1_048_576.0)
+    } else if rate >= 1024.0 {
+        format!("{:.1}K", rate / 1024.0)
+    } else {
+        format!("{rate:.0}B")
+    }
+}
+
+fn net_bytes(value: u64) -> String {
+    net_rate(value as f64)
 }
 
 fn draw_mem_panel(

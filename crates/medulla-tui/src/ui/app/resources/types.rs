@@ -36,6 +36,16 @@ pub(in crate::ui::app) struct ResourcesState {
     pub menu_open: bool,
     pub show_disks: bool,
     pub io_mode: bool,
+    pub net_auto: bool,
+    pub net_sync: bool,
+    pub net_download: u64,
+    pub net_upload: u64,
+    pub net_iface: Option<String>,
+    pub swap_upload_download: bool,
+    pub net_zeroed: bool,
+    pub net_zero_offsets: std::collections::HashMap<String, (u64, u64)>,
+    pub net_download_scaler: crate::ui::resources::net::NetScaler,
+    pub net_upload_scaler: crate::ui::resources::net::NetScaler,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -46,6 +56,11 @@ pub(in crate::ui::app) struct ResourceHits {
     pub agents_toggle: Rect,
     pub disks_toggle: Rect,
     pub io_toggle: Rect,
+    pub net_prev: Rect,
+    pub net_next: Rect,
+    pub net_zero: Rect,
+    pub net_auto: Rect,
+    pub net_sync: Rect,
     pub menu: Rect,
     pub preset_prev: Rect,
     pub preset_next: Rect,
@@ -71,11 +86,47 @@ impl Default for ResourcesState {
             menu_open: false,
             show_disks: true,
             io_mode: false,
+            net_auto: true,
+            net_sync: false,
+            net_download: 100,
+            net_upload: 100,
+            net_iface: None,
+            swap_upload_download: false,
+            net_zeroed: false,
+            net_zero_offsets: std::collections::HashMap::new(),
+            net_download_scaler: Default::default(),
+            net_upload_scaler: Default::default(),
         }
     }
 }
 
 impl ResourcesState {
+    pub fn sample_network(&mut self, snapshot: &crate::ui::resources::sampler::ResourceSnapshot) {
+        let selected = self
+            .net_iface
+            .as_deref()
+            .and_then(|name| {
+                snapshot
+                    .networks
+                    .iter()
+                    .find(|entry| entry.interface == name)
+            })
+            .or_else(|| {
+                crate::ui::resources::net::default_interface(&snapshot.networks).and_then(|name| {
+                    snapshot
+                        .networks
+                        .iter()
+                        .find(|entry| entry.interface == name)
+                })
+            });
+        if let Some(selected) = selected {
+            self.net_download_scaler
+                .sample(selected.received_bytes_per_second);
+            self.net_upload_scaler
+                .sample(selected.transmitted_bytes_per_second);
+        }
+    }
+
     pub fn from_config(config: &medulla::config::ResourcesConfig) -> Self {
         let shown = config
             .shown_boxes
@@ -105,6 +156,13 @@ impl ResourcesState {
             interval_ms: config.update_interval_ms(),
             show_disks: config.show_disks,
             io_mode: config.io_mode,
+            net_auto: config.net_auto,
+            net_sync: config.net_sync,
+            net_download: config.net_download.max(1),
+            net_upload: config.net_upload.max(1),
+            net_iface: config.net_iface.clone().filter(|name| !name.is_empty()),
+            swap_upload_download: config.swap_upload_download,
+            net_zeroed: false,
             presets,
             ..Self::default()
         };

@@ -1,4 +1,5 @@
 use super::{
+    draw_net_panel,
     layout::calc_sizes,
     types::{LayoutOptions, ResourcesState, ShownBoxes},
 };
@@ -255,6 +256,170 @@ fn resources_draw_empty_titled_panels_until_data_views_land() {
     assert!(text.contains("Mem [2]"));
     assert!(text.contains("Net [3]"));
     assert!(text.contains("Agents [4]"));
+}
+
+#[test]
+fn network_panel_renders_at_desktop_and_narrow_widths() {
+    let config = medulla::config::ResourcesConfig::default();
+    let mut snapshot = crate::ui::resources::sampler::ResourceSnapshot::default();
+    snapshot
+        .networks
+        .push(crate::ui::resources::sampler::NetworkSnapshot {
+            interface: "eth0".into(),
+            up: true,
+            connected: true,
+            ip_addresses: vec!["192.0.2.2".into()],
+            received_bytes_per_second: 4096.0,
+            transmitted_bytes_per_second: 2048.0,
+            total_received_bytes: 8192,
+            total_transmitted_bytes: 4096,
+        });
+    let mut history = crate::ui::resources::sampler::ResourceHistory::default();
+    history.push(&snapshot, 8);
+    let snapshot = snapshot.with_history(Arc::new(history));
+    for width in [170, 45] {
+        let mut terminal = Terminal::new(TestBackend::new(width, 42)).unwrap();
+        terminal
+            .draw(|frame| {
+                draw_net_panel(
+                    frame,
+                    Rect::new(0, 0, width, 8),
+                    &snapshot,
+                    &config,
+                    Some("eth0"),
+                    (0, 0),
+                    10_240.0,
+                    10_240.0,
+                    false,
+                )
+            })
+            .unwrap();
+        let text = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(text.contains("eth0"), "interface absent at width {width}");
+        assert!(text.contains("Total"), "totals absent at width {width}");
+        if width == 170 {
+            assert!(
+                text.contains("Top ↓4.0K ↑2.0K"),
+                "directional receive/transmit peaks absent: {text}"
+            );
+            let mut swapped = config.clone();
+            swapped.swap_upload_download = true;
+            terminal
+                .draw(|frame| {
+                    draw_net_panel(
+                        frame,
+                        Rect::new(0, 0, width, 8),
+                        &snapshot,
+                        &swapped,
+                        Some("eth0"),
+                        (0, 0),
+                        10_240.0,
+                        10_240.0,
+                        false,
+                    )
+                })
+                .unwrap();
+            let swapped_text = terminal
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+            assert!(
+                swapped_text.contains("Top ↓2.0K ↑4.0K  Total ↓4.0K ↑8.0K"),
+                "swapped top/totals must follow displayed directions: {swapped_text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    let mut sample = crate::ui::resources::sampler::ResourceSnapshot::default();
+    for (interface, up, rx) in [
+        ("lo", true, 20),
+        ("eth0", false, 40),
+        ("wlan0", true, 100),
+        ("enp1s0", true, 300),
+    ] {
+        sample
+            .networks
+            .push(crate::ui::resources::sampler::NetworkSnapshot {
+                interface: interface.into(),
+                up,
+                connected: up && interface != "lo",
+                ip_addresses: Vec::new(),
+                received_bytes_per_second: 0.0,
+                transmitted_bytes_per_second: 0.0,
+                total_received_bytes: rx,
+                total_transmitted_bytes: rx * 2,
+            });
+    }
+    app.set_resource_snapshot(Arc::new(sample.clone()));
+    app.resources.net_iface = Some("wlan0".into());
+    assert!(app.resources_key(KeyCode::Char('z')));
+    assert_eq!(app.resources.net_zero_offsets["wlan0"], (100, 200));
+    let mut later = sample.clone();
+    let wlan = later
+        .networks
+        .iter_mut()
+        .find(|entry| entry.interface == "wlan0")
+        .unwrap();
+    wlan.total_received_bytes += 10;
+    wlan.total_transmitted_bytes += 20;
+    app.set_resource_snapshot(Arc::new(later));
+    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
+        .unwrap();
+    let text = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(
+        text.contains("Total ↓10B ↑20B"),
+        "zeroed counters must continue from their offset: {text}"
+    );
+    assert!(app.resources_key(KeyCode::Char('n')));
+    assert_eq!(app.resources.net_iface.as_deref(), Some("enp1s0"));
+    assert!(app.resources_key(KeyCode::Char('z')));
+    assert_eq!(app.resources.net_zero_offsets["enp1s0"], (300, 600));
+    assert!(app.resources_key(KeyCode::Char('b')));
+    assert_eq!(app.resources.net_iface.as_deref(), Some("wlan0"));
+    assert_eq!(app.resources.net_zero_offsets["wlan0"], (100, 200));
+}
+
+#[test]
+fn network_border_auto_and_sync_controls_are_clickable() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
+        .unwrap();
+    assert!(app.resources.net_auto);
+    let auto = app.resources.hits.net_auto;
+    app.resources_click(auto.x, auto.y);
+    assert!(!app.resources.net_auto);
+    let sync = app.resources.hits.net_sync;
+    app.resources_click(sync.x, sync.y);
+    assert!(app.resources.net_sync);
 }
 
 #[test]
