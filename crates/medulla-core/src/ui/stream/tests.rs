@@ -25,6 +25,7 @@ fn end(tier: &str, model: Option<&str>, usage: Option<(i64, i64)>) -> TuiEvent {
         tier: tier.into(),
         op: "execute_step".into(),
         model: model.map(Into::into),
+        provider: None,
         duration_ms: 1,
         usage: usage.map(|(i, o)| Usage {
             input_tokens: i,
@@ -115,6 +116,7 @@ fn detailed_usage_preserves_categories_and_model_attribution() {
                 tier: "reasoning".into(),
                 op: "execute_step".into(),
                 model: Some("claude-sonnet-4-6".into()),
+                provider: None,
                 duration_ms: 1,
                 usage: Some(Usage {
                     input_tokens: 100,
@@ -135,6 +137,7 @@ fn detailed_usage_preserves_categories_and_model_attribution() {
                 tier: "reasoning".into(),
                 op: "execute_step".into(),
                 model: Some("claude-sonnet-4-6".into()),
+                provider: None,
                 duration_ms: 1,
                 usage: Some(Usage {
                     input_tokens: 50,
@@ -155,6 +158,7 @@ fn detailed_usage_preserves_categories_and_model_attribution() {
     assert_eq!(details.len(), 1);
     let row = &details[0];
     assert_eq!(row.tier, "reasoning");
+    assert_eq!(row.provider, None);
     assert_eq!(row.model.as_deref(), Some("claude-sonnet-4-6"));
     assert_eq!(row.usage.input_tokens, 150);
     assert_eq!(row.usage.output_tokens, 30);

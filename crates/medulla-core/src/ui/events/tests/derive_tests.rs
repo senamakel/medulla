@@ -91,6 +91,7 @@ fn describe_event_snapshots() {
                 tier: "reasoning".into(),
                 op: "step".into(),
                 model: None,
+                provider: None,
                 duration_ms: 7,
                 usage: None,
                 content: None,

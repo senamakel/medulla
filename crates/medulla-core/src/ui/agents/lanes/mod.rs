@@ -166,6 +166,7 @@ pub fn derive_agent_lanes(
                 tier,
                 op,
                 model,
+                provider: _,
                 duration_ms,
                 usage,
                 content,

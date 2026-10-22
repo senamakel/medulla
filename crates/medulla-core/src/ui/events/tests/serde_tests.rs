@@ -28,6 +28,7 @@ fn known_event_round_trips() {
         tier: "reasoning".into(),
         op: "execute_step".into(),
         model: Some("gpt".into()),
+        provider: Some(crate::protocol::HarnessProvider::Codex),
         duration_ms: 120,
         usage: Some(Usage {
             input_tokens: 10,
@@ -87,6 +88,7 @@ fn one_of_each() -> Vec<(&'static str, TuiEvent)> {
                 tier: "reasoning".into(),
                 op: "step".into(),
                 model: None,
+                provider: None,
                 duration_ms: 5,
                 usage: None,
                 content: Some("c".into()),
