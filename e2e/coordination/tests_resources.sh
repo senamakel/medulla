@@ -241,29 +241,27 @@ PY
   log "  Agents visibility, Mem/Net width, and interval controls passed"
 
   # Keep the production sampler running in the same Medulla process, but hide
-  # the full-width CPU chart so its terminal repaint cost does not dominate the
-  # sampler process-CPU measurement below.
-  tmux send-keys -t "$SESSION:resources" 1
+  # the charts and table after their behavior has been asserted. Their full
+  # width terminal repaints would otherwise be counted against the sampler's
+  # process-level CPU measurement below.
+  tmux send-keys -t "$SESSION:resources" 1 2 3 4
   sleep 1
   pane="$(capture_app)"
-  printf '%s\n' "$pane" | grep -Fq '┌ CPU [1]' \
-    && fail "CPU chart remained visible before sampler CPU measurement"
+  for title in 'CPU [1]' 'Mem [2]' 'Net [3]' 'Agents [4]'; do
+    printf '%s\n' "$pane" | grep -Fq "┌ $title" \
+      && fail "$title remained visible before sampler CPU measurement"
+  done
 
-  # The attribution proof has completed. Stop its provider process so the
-  # 60-second measurement covers the sampler over 1000 processes without an
-  # unrelated model turn adding CPU to the same Medulla PID.
+  # Let the real workflow finish successfully before measuring Medulla's
+  # process CPU. This keeps the sampler workload active without counting an
+  # unrelated model turn or a failure-review task against the budget.
   local session_pid="$(cat "$RUN_DIR/session.pid")"
-  if kill -0 "$session_pid" 2>/dev/null; then
-    kill "$session_pid" 2>/dev/null || true
-    local session_deadline=$(( $(date +%s) + 10 ))
-    while kill -0 "$session_pid" 2>/dev/null && [ "$(date +%s)" -lt "$session_deadline" ]; do
-      sleep 0.25
-    done
-    kill -0 "$session_pid" 2>/dev/null \
-      && fail "proof harness process $session_pid did not stop before the performance sample"
-  fi
+  wait_app_regex 'resources-proof: succeeded' \
+    || fail "the Resources proof workflow did not finish before the performance sample"
+  kill -0 "$session_pid" 2>/dev/null \
+    && fail "proof harness process $session_pid remained alive after workflow success"
   sleep 2
-  log "  proof harness process $session_pid ended before the sampler CPU measurement"
+  log "  proof workflow succeeded and harness process $session_pid ended before sampler CPU measurement"
 
   # §7 of resources-tab.md specifies 1000 processes at a 2000ms cadence, with
   # sampler CPU p95 <=40ms per tick and <=2% of one core averaged over one
