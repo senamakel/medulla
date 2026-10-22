@@ -86,26 +86,18 @@ EOF
   wait_app_regex 'Sessions|Welcome|Start a new session' 60 \
     || fail "Medulla app did not paint its initial screen"
 
-  # Resources is the fourth tab in the workflow-enabled build.
-  tmux send-keys -t "$SESSION:resources" Tab Tab Tab
-  wait_app_regex 'CPU.*2000ms' \
-    || fail "Resources did not open at its 2000ms default interval"
-  local pane
-  pane="$(capture_app)"
-  printf '%s\n' "$pane" > "$RUN_DIR/resources-initial.pane"
-  for title in 'CPU' 'Mem' 'Net' 'Agents'; do
-    printf '%s\n' "$pane" | grep -q "$title" || fail "Resources screen is missing $title title"
-  done
-
-  # Start a harness from the app (Ctrl-T), choose this device and the sole
-  # configured harness, then type the isolated workspace into the picker.
+  local pane provider_label
+  case "$HARNESS" in
+    opencode) provider_label='OpenCode' ;;
+    claude) provider_label='Claude Code' ;;
+    codex) provider_label='Codex' ;;
+  esac
+  # Start a harness from the app's Sessions tab (Ctrl-T), choose this device
+  # and the sole configured harness, then type the isolated workspace.
   tmux send-keys -t "$SESSION:resources" C-t
   sleep 1
   tmux send-keys -t "$SESSION:resources" Enter
-  sleep 1
-  local picker_line
-  picker_line="$(capture_app | grep -Ei "[❯ ]+(${HARNESS}|OpenCode|Claude|Codex)" | head -1 || true)"
-  if [ -z "$picker_line" ]; then
+  if ! wait_app_regex "$provider_label" 30; then
     capture_app > "$RUN_DIR/harness-picker.pane"
     fail "session picker did not offer the configured $HARNESS harness"
   fi
@@ -114,16 +106,36 @@ EOF
   tmux send-keys -t "$SESSION:resources" -l "$workspace"
   tmux send-keys -t "$SESSION:resources" Enter
 
-  # Wait for a real harness PTY and its registered session origin.
+  # Move to Resources after the process is launched; it is the fourth tab in
+  # the workflow-enabled build and the third in slim builds.
+  sleep 3
+  tmux send-keys -t "$SESSION:resources" Tab Tab Tab
+  wait_app_regex 'CPU.*2000ms' \
+    || fail "Resources did not open at its 2000ms default interval"
+  pane="$(capture_app)"
+  printf '%s\n' "$pane" > "$RUN_DIR/resources-initial.pane"
+  for title in 'CPU' 'Mem' 'Net' 'Agents'; do
+    printf '%s\n' "$pane" | grep -q "$title" || fail "Resources screen is missing $title title"
+  done
+
+  # Wait for the real harness PTY's row to carry its registered session id.
   local deadline=$(( $(date +%s) + READY_TIMEOUT_S ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     pane="$(capture_app)"
-    if printf '%s\n' "$pane" | grep -qiE "${HARNESS}.*session|session.*${HARNESS}"; then break; fi
+    if printf '%s\n' "$pane" | grep -qi "$provider_label"; then break; fi
     sleep 1
   done
   printf '%s\n' "$pane" > "$RUN_DIR/resources-session.pane"
-  printf '%s\n' "$pane" | grep -qiE 'session|host' \
+  "$PYTHON_BIN" - "$RUN_DIR/resources-session.pane" "$provider_label" <<'PY' \
     || fail "Resources did not attribute a running $HARNESS process to its session"
+import sys
+text = open(sys.argv[1], encoding="utf-8").read()
+rows = [line for line in text.splitlines() if sys.argv[2].lower() in line.lower()]
+assert rows, f"no {sys.argv[2]} process row in Resources pane"
+assert any("external" not in line.lower() and "·" in line for line in rows), \
+    f"{sys.argv[2]} has no non-external session origin: {rows!r}"
+print(f"[e2e] session-attributed process row: {rows[0].strip()}")
+PY
   log "  app-launched $HARNESS process is visible with its session origin"
 
   # A second process advertises the harness name in argv but was started by
