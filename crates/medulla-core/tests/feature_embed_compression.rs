@@ -116,7 +116,7 @@ fn opt_out_scenario() {
         let second: Value = serde_json::from_slice(&completions[1].body).unwrap();
         let mut contents = Vec::new();
         tool_contents(&second, &mut contents);
-        assert!(contents.iter().any(|content| content == FIXTURE.trim_end()), "tool content did not preserve fixture exactly");
+        assert!(contents.iter().any(|content| content == FIXTURE.trim_end()), "tool content did not preserve fixture exactly; contents={:?}", contents.iter().map(|c| (c.len(), c.chars().take(100).collect::<String>())).collect::<Vec<_>>());
         let workspace = medulla::home::medulla_home(&HashMap::from([("MEDULLA_HOME".to_owned(), home.path().to_string_lossy().into_owned())])).join("embed/workspace");
         assert!(medulla::juice::read_embedded_stats(&workspace).unwrap().is_none());
     });
