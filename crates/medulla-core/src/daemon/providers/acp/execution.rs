@@ -465,13 +465,13 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
 /// Find the ACP SDK child by its per-run environment marker.
 fn process_with_marker(key: &str, value: &str) -> Option<(u32, u64)> {
     use std::ffi::OsStr;
-    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
     let mut system = System::new();
     system.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
-        ProcessRefreshKind::nothing().with_environ(),
+        ProcessRefreshKind::nothing().with_environ(UpdateKind::Always),
     );
     let prefix = format!("{key}=");
     system

@@ -411,12 +411,14 @@ async fn run_provider_attempt(
             }
         }
     };
-    let _agent_registration = medulla_monitor::agents::agent_registry().register(
-        child.id(),
-        spec.task_id.clone(),
-        spec.resume_session_id.clone(),
-        spec.provider.as_str(),
-    );
+    let _agent_registration = child.id().and_then(|pid| {
+        medulla_monitor::agents::agent_registry().register(
+            pid,
+            spec.task_id.clone(),
+            spec.resume_session_id.clone(),
+            spec.provider.as_str(),
+        )
+    });
 
     // stdin forwarding: hand the caller an unbounded sender; a background task
     // drains it into the child's stdin (appending a newline when missing).

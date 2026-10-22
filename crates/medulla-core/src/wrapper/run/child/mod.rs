@@ -112,12 +112,9 @@ fn spawn_stdio(
     let mut child = command
         .spawn()
         .map_err(|err| anyhow::anyhow!("failed to start {bin}: {err}"))?;
-    let agent_registration = medulla_monitor::agents::agent_registry().register(
-        child.id(),
-        None,
-        None,
-        bin,
-    );
+    let agent_registration = child.id().and_then(|pid| {
+        medulla_monitor::agents::agent_registry().register(pid, None, None, bin)
+    });
 
     // A single task owns the pipe so injected writes never interleave.
     let input = if inject {
