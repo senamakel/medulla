@@ -421,3 +421,36 @@ impl Drop for Connection {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mark_dead_removes_the_app_server_registration() {
+        let registry = medulla_monitor::agents::agent_registry();
+        let registration = medulla_monitor::agents::AgentRegistration {
+            pid: u32::MAX - std::process::id(),
+            started_at_secs: u64::MAX - 7,
+            task_id: None,
+            session_id: None,
+            provider: "codex-app-server-test".into(),
+        };
+        let identity = (registration.pid, registration.started_at_secs);
+        let guard = registry.register_at(registration);
+        let (outbound, _receiver) = mpsc::unbounded_channel();
+        let connection = Connection {
+            outbound,
+            pending: Mutex::new(HashMap::new()),
+            threads: Mutex::new(HashMap::new()),
+            next_id: AtomicI64::new(1),
+            alive: AtomicBool::new(true),
+            child: Mutex::new(None),
+            _agent_registration: Some(guard),
+        };
+
+        connection.mark_dead("test process exit");
+
+        assert!(registry.current_for(identity.0, identity.1).is_none());
+    }
+}
