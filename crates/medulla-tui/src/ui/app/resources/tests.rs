@@ -273,8 +273,8 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
         mount: "/mnt/data".into(),
         total_bytes: 10_000,
         used_bytes: 2_500,
-        read_bytes_per_second: 512_000.0,
-        write_bytes_per_second: 1_024_000.0,
+        read_bytes_per_second: (32 * 1024 * 1024) as f64,
+        write_bytes_per_second: (64 * 1024 * 1024) as f64,
         busy_percent: Some(15.0),
     }];
     history.push(&sample, 8);
