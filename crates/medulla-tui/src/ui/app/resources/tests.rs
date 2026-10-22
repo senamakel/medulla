@@ -332,6 +332,7 @@ fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
             });
     }
     app.set_resource_snapshot(Arc::new(sample.clone()));
+    app.resources.net_iface = Some("wlan0".into());
     assert!(app.resources_key(KeyCode::Char('z')));
     assert_eq!(app.resources.net_zero_received, 100);
     assert_eq!(app.resources.net_zero_transmitted, 200);
@@ -350,7 +351,9 @@ fn network_border_auto_and_sync_controls_are_clickable() {
         LoadedConfig::defaults("test.json".into()),
     );
     let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
-    terminal.draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42))).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
+        .unwrap();
     assert!(!app.resources.net_auto);
     let auto = app.resources.hits.net_auto;
     app.resources_click(auto.x, auto.y);

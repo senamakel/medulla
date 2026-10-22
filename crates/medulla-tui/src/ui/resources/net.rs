@@ -102,9 +102,7 @@ pub fn cycle_interface(
 }
 
 /// Pick the first active non-loopback interface with observed traffic.
-pub fn default_interface<'a>(
-    interfaces: &'a [medulla_monitor::NetworkSnapshot],
-) -> Option<&'a str> {
+pub fn default_interface(interfaces: &[medulla_monitor::NetworkSnapshot]) -> Option<&str> {
     interfaces
         .iter()
         .filter(|interface| {
@@ -115,7 +113,11 @@ pub fn default_interface<'a>(
                     || interface.received_bytes_per_second > 0.0
                     || interface.transmitted_bytes_per_second > 0.0)
         })
-        .max_by_key(|interface| interface.total_received_bytes.saturating_add(interface.total_transmitted_bytes))
+        .max_by_key(|interface| {
+            interface
+                .total_received_bytes
+                .saturating_add(interface.total_transmitted_bytes)
+        })
         .map(|interface| interface.interface.as_str())
 }
 

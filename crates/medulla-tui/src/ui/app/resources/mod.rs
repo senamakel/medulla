@@ -340,6 +340,7 @@ impl App {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_net_panel(
     frame: &mut Frame,
     area: Rect,
