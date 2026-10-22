@@ -49,104 +49,71 @@ PY
 main() {
   RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/medulla-resources-e2e-XXXXXX")"
   e2e_init
-  boot_llm ""
+  boot_forwarder resources
+  boot_llm "export MOCK_LLM_RESPONSE_DELAY_MS=15000"
 
-  # The app's offline runtime avoids account setup. Its local host still starts
-  # the selected real coding CLI as a PTY session, exercising the same process
-  # registry that the sampler consumes.
-  local app_config="$RUN_DIR/app.json" app_home="$RUN_DIR/app-home" workspace="$RUN_DIR/work"
-  mkdir -p "$app_home" "$workspace"
-  harness_seed_home "$app_home/harness-home" "$workspace"
-  "$PYTHON_BIN" - "$HARNESS" "$RUN_DIR/medulla.$HARNESS.json" "$app_config" <<'PY'
-import json, sys
-harness, source, target = sys.argv[1:]
-try:
-    config = json.load(open(source))
-except FileNotFoundError:
-    config = {}
-config["host"] = {"enabled": True, "providers": [harness], "defaultProvider": harness}
-config["resources"] = {"updateMs": 2000}
-json.dump(config, open(target, "w"), indent=2)
-PY
+  # Use the worker's actual operator screen. A dispatched task creates a
+  # registered process with a concrete session id, unlike an unmanaged picker.
+  local workspace="$RUN_DIR/work-resources" daemon_flags
+  mkdir -p "$workspace"
+  harness_seed_home "$RUN_DIR/ochome-resources" "$workspace"
+  daemon_flags="$(harness_daemon_flags)"
 
   cat > "$RUN_DIR/resources.cmd" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-$(harness_env "$app_home/harness-home")
-export HOME=$(printf %q "$app_home")
-export MEDULLA_HOME=$(printf %q "$app_home")
+$(harness_env "$RUN_DIR/ochome-resources")
+export MEDULLA_HOME=$(printf %q "$RUN_DIR/mhome-resources")
 export MEDULLA_USER=e2e
 export MEDULLA_ANALYTICS_DISABLED=1
 echo \$\$ > $(printf %q "$RUN_DIR/app.pid")
-exec $(printf %q "$MEDULLA_BIN") --mock --config $(printf %q "$app_config")
+exec $(printf %q "$MEDULLA_BIN") daemon --tui --providers $(printf %q "$HARNESS") --no-pair \\
+  --name worker-resources --workspace $(printf %q "$workspace") --poll-ms 500 $daemon_flags
 EOF
   chmod +x "$RUN_DIR/resources.cmd"
   tmux new-window -t "$SESSION" -n resources -c "$workspace"
   tmux send-keys -t "$SESSION:resources" "bash $(printf %q "$RUN_DIR/resources.cmd")" C-m
-  wait_app_regex 'Sessions|Welcome|Start a new session' 60 \
-    || fail "Medulla app did not paint its initial screen"
+  if harness_screen_interactive; then select_screen_option 'Interactive'; else select_screen_option 'Headless'; fi
+  select_screen_option "$(harness_screen_label)"
+  wait_app_regex "WORKER .*(interactive|headless) on $HARNESS" 60 \
+    || fail "Medulla daemon did not paint its operator screen"
+  tmux send-keys -t "$SESSION:resources" Tab Tab Tab
+  wait_app_regex 'CPU.*2000ms' \
+    || fail "Resources did not open at its 2000ms default interval"
 
   local pane provider_label
   case "$HARNESS" in
     opencode) provider_label='OpenCode' ;;
-    claude) provider_label='Claude Code' ;;
+    claude) provider_label='Claude' ;;
     codex) provider_label='Codex' ;;
   esac
-  # Start a harness from the app's Sessions tab (Ctrl-T), choose this device
-  # and the sole configured harness, then type the isolated workspace.
-  tmux send-keys -t "$SESSION:resources" C-t
-  sleep 1
-  if ! wait_app_regex 'Claude Code|Codex|OpenCode' 30; then
-    capture_app > "$RUN_DIR/harness-picker.pane"
-    fail "session picker did not offer the configured $HARNESS harness"
-  fi
-  local selected attempts=0
-  while [ "$attempts" -lt 10 ]; do
-    selected="$(capture_app | grep '❯' | head -1 || true)"
-    printf '%s' "$selected" | grep -qi "$provider_label" && break
-    tmux send-keys -t "$SESSION:resources" Down
-    attempts=$((attempts + 1))
-    sleep 0.2
-  done
-  printf '%s' "$selected" | grep -qi "$provider_label" || {
-    capture_app > "$RUN_DIR/harness-picker.pane"
-    fail "could not select $provider_label from the harness picker"
-  }
-  tmux send-keys -t "$SESSION:resources" Enter
-  sleep 1
-  tmux send-keys -t "$SESSION:resources" Enter
-
-  # Move to Resources after the process is launched; it is the fourth tab in
-  # the workflow-enabled build and the third in slim builds.
-  sleep 3
-  tmux send-keys -t "$SESSION:resources" Tab Tab Tab
-  wait_app_regex 'CPU.*2000ms' \
-    || fail "Resources did not open at its 2000ms default interval"
   pane="$(capture_app)"
   printf '%s\n' "$pane" > "$RUN_DIR/resources-initial.pane"
   for title in 'CPU' 'Mem' 'Net' 'Agents'; do
     printf '%s\n' "$pane" | grep -q "$title" || fail "Resources screen is missing $title title"
   done
 
-  # Wait for the real harness PTY's row to carry its registered session id.
-  local deadline=$(( $(date +%s) + READY_TIMEOUT_S ))
+  # Dispatch through the owner and observe its exact registered session id.
+  local task_id="resources-session-$$" deadline
+  start_owner resources_task --to "$(worker_id resources)" \
+    --task "reply with the coordination marker RESOURCES-$$" --task-id "$task_id" --timeout-ms 180000
+  deadline=$(( $(date +%s) + READY_TIMEOUT_S ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     pane="$(capture_app)"
-    if printf '%s\n' "$pane" | grep -qi "$provider_label"; then break; fi
+    if printf '%s\n' "$pane" | grep -q "$task_id"; then break; fi
     sleep 1
   done
   printf '%s\n' "$pane" > "$RUN_DIR/resources-session.pane"
-  "$PYTHON_BIN" - "$RUN_DIR/resources-session.pane" "$provider_label" <<'PY' \
+  "$PYTHON_BIN" - "$RUN_DIR/resources-session.pane" "$provider_label" "$task_id" <<'PY' \
     || fail "Resources did not attribute a running $HARNESS process to its session"
 import sys
 text = open(sys.argv[1], encoding="utf-8").read()
-rows = [line for line in text.splitlines() if sys.argv[2].lower() in line.lower()]
+rows = [line for line in text.splitlines() if sys.argv[2].lower() in line.lower() and sys.argv[3] in line]
 assert rows, f"no {sys.argv[2]} process row in Resources pane"
-assert any("external" not in line.lower() and "host" not in line.lower() for line in rows), \
-    f"{sys.argv[2]} has no non-external session origin: {rows!r}"
+assert any("external" not in line.lower() for line in rows), f"{sys.argv[2]} is marked external: {rows!r}"
 print(f"[e2e] session-attributed process row: {rows[0].strip()}")
 PY
-  log "  app-launched $HARNESS process is visible with its session origin"
+  log "  dispatched $HARNESS process is visible with session origin $task_id"
 
   # A second process advertises the harness name in argv but was started by
   # tmux, outside Medulla. It has no registry entry and must render as external.
