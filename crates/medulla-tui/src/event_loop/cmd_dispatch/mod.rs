@@ -345,6 +345,30 @@ pub(super) fn run_cmd(
                 let _ = tx.send(AppMsg::SubscriptionsLoaded(Box::new(snapshot)));
             });
         }
+        Cmd::LoadHarnesses {
+            sources,
+            medulla_home,
+        } => {
+            let config = _config.clone();
+            let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+            let home = medulla_home.unwrap_or_else(|| medulla::home::medulla_home(&env));
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                let result = tokio::task::spawn_blocking(move || {
+                    medulla_tui::ui::app::collect_harnesses(&config, &sources, &home, &env)
+                })
+                .await;
+                match result {
+                    Ok(view) => {
+                        let _ = tx.send(AppMsg::HarnessesLoaded(view));
+                    }
+                    Err(error) => {
+                        let _ =
+                            tx.send(AppMsg::Status(format!("Harness detection failed: {error}")));
+                    }
+                }
+            });
+        }
         Cmd::LoadUsage => {
             let rt = runtime.clone();
             let tx = msg_tx.clone();

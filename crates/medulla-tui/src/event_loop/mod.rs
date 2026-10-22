@@ -220,6 +220,7 @@ pub(crate) async fn run(
                             );
                         }
                     }
+                    AppMsg::HarnessesLoaded(view) => app.set_harnesses_view(view),
                     AppMsg::OpenResume(chats) => app.open_resume(chats),
                     AppMsg::LoggedOut => {
                         // The runtime's own clear already landed (that is

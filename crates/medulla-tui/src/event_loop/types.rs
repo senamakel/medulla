@@ -147,6 +147,8 @@ pub(super) enum AppMsg {
     /// A fresh subscription-usage sample. Boxed because it is the largest
     /// variant by some way and every message would otherwise carry its width.
     SubscriptionsLoaded(Box<medulla::subscriptions::SubscriptionSnapshot>),
+    /// Fresh local provider and customization facts for Settings > Harnesses.
+    HarnessesLoaded(medulla_tui::ui::app::HarnessesView),
     /// A newer release was detected by the background update checker.
     UpdateAvailable(String),
     /// An automatic review began outside the selected pane.

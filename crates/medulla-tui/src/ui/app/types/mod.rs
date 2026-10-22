@@ -7,10 +7,12 @@
 //! sibling input, rendering, and command modules share the model without
 //! turning this directory module into another monolithic source file.
 
+mod harnesses;
 mod model;
 mod picker;
 mod rail_hit;
 
+pub use harnesses::{DetectedProvider, HarnessesView};
 pub use model::*;
 pub(in crate::ui::app) use picker::*;
 pub(in crate::ui::app) use rail_hit::{RailHit, RailHitTarget};

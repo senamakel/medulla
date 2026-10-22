@@ -96,6 +96,7 @@ impl Runtime for MockRuntime {
                     tier: "reasoning".into(),
                     op: "execute_step".into(),
                     model: Some("gpt-4o".into()),
+                    provider: None,
                     duration_ms: 500,
                     usage: Some(Usage {
                         input_tokens: 800,

@@ -23,6 +23,7 @@ fn inference_end_folds_into_the_orchestrator_tier() {
             tier: "orchestrator".into(),
             op: "execute_step".into(),
             model: Some("gpt".into()),
+            provider: None,
             duration_ms: 42,
             usage: Some(Usage {
                 input_tokens: 100,
@@ -51,6 +52,7 @@ fn a_manager_turn_is_dropped_rather_than_given_a_lane() {
             tier: "reasoning".into(),
             op: "execute_step".into(),
             model: None,
+            provider: None,
             duration_ms: 5,
             usage: None,
             content: Some("planning".into()),

@@ -72,6 +72,7 @@ impl MockRuntime {
                 tier: "orchestrator".into(),
                 op: "orchestrate".into(),
                 model: Some("gpt-4o".into()),
+                provider: None,
                 duration_ms: 820,
                 usage: Some(Usage {
                     input_tokens: 1200,
