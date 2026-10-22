@@ -1,4 +1,4 @@
-//! Turning a [`WorkflowSummary`] into harness-readable skill text.
+//! Turning a [`SkillWorkflow`] into harness-readable skill text.
 //!
 //! Rendering is deliberately target-independent: one body serves every harness,
 //! and [`super::targets`] decides only where it lands. The generated text has
@@ -389,7 +389,7 @@ fn parse_marker_fields(rest: &str) -> Option<(String, String)> {
 /// sentence of throat-clearing, and the workflow's own words are condensed to
 /// [`MAX_FRONTMATTER_DESCRIPTION_CHARS`]. Anything condensed away is restored in
 /// the body by [`skill_content`], so the full text is still one skill-fire away.
-fn description_for(summary: &WorkflowSummary) -> String {
+fn description_for(summary: &SkillWorkflow) -> String {
     let trigger = format!(
         "Medulla workflow \"{id}\" — use when asked to run it, or to do this work.",
         id = summary.id
@@ -406,7 +406,7 @@ fn description_for(summary: &WorkflowSummary) -> String {
 /// the frontmatter already carries in full would be the exact duplication this
 /// template exists to remove, but silently losing the tail of a long one would
 /// be worse.
-fn description_was_condensed(summary: &WorkflowSummary) -> bool {
+fn description_was_condensed(summary: &SkillWorkflow) -> bool {
     was_condensed(&summary.description, MAX_FRONTMATTER_DESCRIPTION_CHARS)
 }
 
@@ -517,7 +517,7 @@ fn terminate(text: &str) -> String {
 /// headings that used to separate them are gone — a section header costs tokens
 /// on every load and earns them back only in a document long enough to navigate,
 /// which this deliberately is not.
-fn skill_content(summary: &WorkflowSummary, slug: &str, description: &str) -> String {
+fn skill_content(summary: &SkillWorkflow, slug: &str, description: &str) -> String {
     let mut out = String::new();
     out.push_str("---\n");
     out.push_str(&format!("name: {slug}\n"));
@@ -553,7 +553,7 @@ fn skill_content(summary: &WorkflowSummary, slug: &str, description: &str) -> St
 /// configuration, so a missing server is a normal state rather than a bug — and
 /// a model that dead-ends there, or worse reports a run it never started, is
 /// worse than no skill at all. Hence this line, and only this line.
-fn fallback_line(summary: &WorkflowSummary) -> String {
+fn fallback_line(summary: &SkillWorkflow) -> String {
     let inputs =
         serde_json::to_string(&example_input_map(summary)).unwrap_or_else(|_| "{}".to_string());
     format!(
@@ -591,7 +591,7 @@ fn inputs_section(summary: &SkillWorkflow) -> String {
             "- `{name}`{star} {ty}",
             name = input.name,
             star = if input.required { "*" } else { "" },
-            ty = input.ty.as_str(),
+            ty = input.ty,
         ));
         if let Some(default) = &input.default {
             out.push_str(&format!(" = `{default}`"));
@@ -643,7 +643,7 @@ fn call_example(summary: &SkillWorkflow) -> String {
 fn example_input_map(summary: &SkillWorkflow) -> Map<String, Value> {
     let mut map = Map::new();
     for input in &summary.inputs {
-        let value = match (&input.default, input.ty) {
+        let value = match (&input.default, input.ty.as_str()) {
             (Some(default), _) => default.clone(),
             (None, "string") => Value::String(format!("<{}>", input.name)),
             (None, "number") => json!(0),
