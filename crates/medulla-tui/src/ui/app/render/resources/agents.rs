@@ -518,6 +518,35 @@ mod tests {
     }
 
     #[test]
+    fn tree_mode_nests_child_processes_under_agent_rows() {
+        let snapshot = ResourceSnapshot::default().with_processes(vec![
+            process(10, "claude", 10.0),
+            ProcessSnapshot {
+                pid: 11,
+                ppid: Some(10),
+                exe: Some("node".into()),
+                cmd: vec!["node".into()],
+                cwd: Some("/work".into()),
+                start_time: 101,
+                cpu_percent: 2.0,
+                memory_bytes: 512,
+                disk_read_bytes: 0,
+                disk_written_bytes: 0,
+                threads: 1,
+            },
+        ]);
+        let mut state = ResourcesState::default();
+        state.agent_tree = true;
+        let rows = visible_rows(&snapshot, &state);
+        assert_eq!(
+            rows.iter()
+                .map(|row| (&*row.kind, row.depth))
+                .collect::<Vec<_>>(),
+            [("Claude", 0), ("Process", 1)]
+        );
+    }
+
+    #[test]
     fn sorts_each_column_reverses_and_filters_codex_by_regex() {
         let snap = snapshot();
         let mut state = ResourcesState::default();
