@@ -170,7 +170,10 @@ mod tests {
                         let opted_out = EmbedHost::default().with_compression_enabled(false);
                         let _runtime = opted_out.runtime(home.path()).await.unwrap();
                         let opted_in = EmbedHost::default().with_compression_enabled(true);
-                        let error = opted_in.runtime(home.path()).await.unwrap_err();
+                        let error = match opted_in.runtime(home.path()).await {
+                            Ok(_) => panic!("conflicting compression policy reused the runtime"),
+                            Err(error) => error,
+                        };
                         assert!(error.contains("another compression policy"));
                     });
             })
