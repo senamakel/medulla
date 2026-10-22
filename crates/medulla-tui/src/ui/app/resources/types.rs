@@ -315,11 +315,6 @@ fn current_user_uid() -> String {
     unsafe { libc::geteuid() }.to_string()
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn current_user_uid() -> String {
-    String::new()
-}
-
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn process_owned_by_current_user(pid: u32, started: u64, sampled_uid: Option<&str>) -> bool {
     let Some(sampled_uid) = sampled_uid else {
