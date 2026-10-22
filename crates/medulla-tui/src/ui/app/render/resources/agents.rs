@@ -570,7 +570,7 @@ mod tests {
         );
         assert_eq!(
             rows.iter().map(|row| row.kind.as_str()).collect::<Vec<_>>(),
-            ["Claude", "codex-acp", "OpenHuman", "External"]
+            ["Claude", "Codex-ACP", "OpenHuman", "External"]
         );
     }
 
