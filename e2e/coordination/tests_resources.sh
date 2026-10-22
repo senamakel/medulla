@@ -121,7 +121,7 @@ EOF
   local task_id="resources-proof" deadline=$(( $(date +%s) + READY_TIMEOUT_S ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     pane="$(capture_app)"
-    if printf '%s\n' "$pane" | grep -qi "$provider_label"; then break; fi
+    if printf '%s\n' "$pane" | grep -Eq "│[0-9]+[[:space:]]+$provider_label[[:space:]]+"; then break; fi
     sleep 1
   done
   printf '%s\n' "$pane" > "$RUN_DIR/resources-session.pane"
@@ -129,19 +129,38 @@ EOF
     || fail "Resources did not attribute a running $HARNESS process to its session"
 import sys
 text = open(sys.argv[1], encoding="utf-8").read()
-rows = [line for line in text.splitlines() if sys.argv[2].lower() in line.lower()]
+rows = []
+for line in text.splitlines():
+    fields = line.strip(" │").split()
+    if len(fields) >= 3 and fields[0].isdigit() and fields[1].lower() == sys.argv[2].lower():
+        rows.append((line, fields))
 assert rows, f"no {sys.argv[2]} process row in Resources pane"
-assert any("external" not in line.lower() and "host" not in line.lower() for line in rows), \
-    f"{sys.argv[2]} has no task/session origin: {rows!r}"
-print(f"[e2e] session-attributed process row: {rows[0].strip()}")
+line, fields = rows[0]
+origin = fields[2]
+assert origin.lower() not in {"external", "host", "task", "—"}, \
+    f"{sys.argv[2]} row is not attributed to its harness session: {line!r}"
+assert sys.argv[3] not in origin, f"expected the provider's concrete session id, got task origin {origin!r}"
+print(f"[e2e] session id {origin}: {line.strip()}")
 PY
-  log "  dispatched $HARNESS process is visible with session origin $task_id"
+  log "  dispatched $HARNESS process is visible with its provider session id"
 
   # A second process advertises the harness name in argv but was started by
   # tmux, outside Medulla. It has no registry entry and must render as external.
+  mkdir -p "$RUN_DIR/external-bin"
+  cp "$(command -v sleep)" "$RUN_DIR/external-bin/opencode"
+  cat > "$RUN_DIR/external.cmd" <<EOF
+#!/usr/bin/env bash
+"$RUN_DIR/external-bin/opencode" 180 >/dev/null 2>&1 &
+echo \$! > $(printf %q "$RUN_DIR/external.pid")
+wait
+EOF
+  chmod +x "$RUN_DIR/external.cmd"
   tmux new-window -t "$SESSION" -n external -c "$workspace"
-  tmux send-keys -t "$SESSION:external" \
-    "echo \$\$ > $(printf %q "$RUN_DIR/external.pid"); exec -a opencode sleep 180" C-m
+  tmux send-keys -t "$SESSION:external" "bash $(printf %q "$RUN_DIR/external.cmd")" C-m
+  wait_for_regex "$RUN_DIR/external.pid" '.' 10 || fail "external process fixture did not start"
+  local external_pid="$(cat "$RUN_DIR/external.pid")"
+  [ "$(basename "$(readlink "/proc/$external_pid/exe")")" = opencode ] \
+    || fail "external fixture executable is not named like a harness binary"
   deadline=$(( $(date +%s) + 30 ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     pane="$(capture_app)"
@@ -149,7 +168,7 @@ PY
     sleep 1
   done
   printf '%s\n' "$pane" > "$RUN_DIR/resources-external.pane"
-  "$PYTHON_BIN" - "$RUN_DIR/resources-external.pane" "$(cat "$RUN_DIR/external.pid")" <<'PY' \
+  "$PYTHON_BIN" - "$RUN_DIR/resources-external.pane" "$external_pid" <<'PY' \
     || fail "the unregistered $HARNESS process was not labeled external"
 import sys
 text = open(sys.argv[1], encoding="utf-8").read().splitlines()
@@ -158,6 +177,7 @@ assert rows and any("External" in line and "external" in line.lower() for line i
     f"OpenCode PID {sys.argv[2]} has no External/external row: {rows!r}"
 print(f"[e2e] external process row: {rows[0].strip()}")
 PY
+  kill "$external_pid" 2>/dev/null || true
   log "  unregistered $HARNESS-like process is visible with origin external"
 
   # Toggle Agents off and prove the production-rendered Mem/Net borders widen.
