@@ -9,19 +9,39 @@ use std::sync::{Arc, Mutex as RegistryMutex, OnceLock, Weak};
 use openhuman_embed::{Runtime, RuntimeConfig, TokenSource, Workspace};
 use tokio::sync::{Mutex, OnceCell};
 
-#[derive(Default)]
 pub struct EmbedHost {
     runtime: OnceCell<Arc<OwnedRuntime>>,
     remaining: Option<AtomicU64>,
+    compression_requested: bool,
 }
 
 pub(super) struct OwnedRuntime {
     pub runtime: Runtime,
     home: PathBuf,
     pub turns: ThreadClaims,
+    compression_enabled: bool,
+}
+
+impl Default for EmbedHost {
+    fn default() -> Self {
+        Self {
+            runtime: OnceCell::new(),
+            remaining: None,
+            compression_requested: cfg!(feature = "tinyjuice"),
+        }
+    }
 }
 
 impl EmbedHost {
+    /// Requests embedded tool-output compression before the runtime is created.
+    pub fn with_compression_enabled(mut self, enabled: bool) -> Self {
+        self.compression_requested = enabled;
+        self
+    }
+
+    fn effective_compression(&self) -> bool {
+        cfg!(feature = "tinyjuice") && self.compression_requested
+    }
     /// Bind the daemon’s configured provider budgets to its native runtime.
     pub fn with_budget(budget: Option<crate::config::BudgetConfig>) -> Self {
         let headroom = budget
@@ -36,8 +56,8 @@ impl EmbedHost {
             })
             .map(|remaining| remaining.max(0) as u64);
         Self {
-            runtime: OnceCell::new(),
             remaining: headroom.map(AtomicU64::new),
+            ..Self::default()
         }
     }
     pub(super) fn token_headroom(&self) -> Option<u64> {
@@ -60,6 +80,9 @@ impl EmbedHost {
             .get_or_try_init(|| async {
                 let mut registry = PROCESS.get_or_init(|| Mutex::new(Weak::new())).lock().await;
                 if let Some(runtime) = registry.upgrade() {
+                    if runtime.compression_enabled != self.effective_compression() {
+                        return Err("the process already hosts an embed runtime with another compression policy".into());
+                    }
                     if runtime.home != home {
                         return Err(
                             "the process already hosts another Medulla account's embed runtime"
@@ -72,6 +95,9 @@ impl EmbedHost {
                 config.local_ai.runtime_enabled = false;
                 config.runtime_python.enabled = false;
                 config.memory.conversations.enabled = false;
+                let compression_enabled = super::compression::apply_compression_policy(
+                    &mut config, self.compression_requested,
+                );
                 config.agent.session_dual_write = false;
                 config.agent.session_shadow_reads = false;
                 let runtime = Runtime::builder()
@@ -85,11 +111,15 @@ impl EmbedHost {
                     runtime,
                     home: home.to_owned(),
                     turns: ThreadClaims::default(),
+                    compression_enabled,
                 });
                 *registry = Arc::downgrade(&owned);
                 Ok::<_, String>(owned)
             })
             .await?;
+        if owned.compression_enabled != self.effective_compression() {
+            return Err("a daemon cannot change its embed compression policy between turns".into());
+        }
         if owned.home != home {
             return Err("a daemon cannot change its embed account home between turns".into());
         }

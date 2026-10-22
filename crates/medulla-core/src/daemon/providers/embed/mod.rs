@@ -2,6 +2,7 @@
 //! each worker/thread gets an agent and each run gets scoped tools and hooks.
 
 mod budget;
+mod compression;
 mod environment;
 mod hooks;
 mod host;

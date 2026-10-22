@@ -16,6 +16,8 @@ default = ["workflows"]
 # slim build can drop the engine and its jq expression stack; on by default
 # because the shipped TUI exposes workflows.
 workflows = ["dep:tinyflows"]
+# Opts embedded runtime tool-output compaction into the pinned TinyJuice module.
+tinyjuice = ["medulla-juice/tinyjuice", "openhuman-embed/modules"]
 # Test-only. Restores a single escape hatch — `MEDULLA_API_URL` — so the offline
 # end-to-end suites can point a spawned `medulla` binary at a local stub backend.
 # Off by default and never enabled for a shipped build, so the endpoint stays
@@ -25,6 +27,7 @@ test-endpoint-override = []
 
 [dependencies]
 medulla-types = { workspace = true }
+medulla-juice = { workspace = true }
 medulla-providers = { path = "../medulla-providers", features = ["proxy"] }
 medulla-tokens = { workspace = true }
 # The host-link transport (docs/host-link-protocol.md) — how this SDK reaches a
