@@ -33,7 +33,7 @@ const MARKER_FORMAT: &str = "medulla-skill-marker/2";
 /// own first line. Nothing here generates such content, but a marker that is
 /// silently dropped would make the file unrecognisable — and therefore neither
 /// updatable nor removable.
-fn seal(workflow_id: &str, content: &str) -> (String, String) {
+pub(super) fn seal(workflow_id: &str, content: &str) -> (String, String) {
     let rev = format!(
         "{:x}",
         Sha256::digest(format!("{MARKER_FORMAT}\n{content}").as_bytes())

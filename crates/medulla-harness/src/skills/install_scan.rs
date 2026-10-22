@@ -112,7 +112,7 @@ pub(super) fn prunable(
 /// `.codex/skills` is reached through [`scan_skill_dirs`] by the prune pass
 /// alone — the listing paths report what a harness will actually load, and
 /// [`install`] cleans that root only on behalf of a workflow that still exists.
-fn scan_candidates(target: SkillTarget, root: &Path) -> io::Result<Vec<Candidate>> {
+pub(super) fn scan_candidates(target: SkillTarget, root: &Path) -> io::Result<Vec<Candidate>> {
     let mut found = scan_skill_dirs(target, &skills_dir(target, root))?;
 
     if let Some(dir) = commands_dir(target, root) {
@@ -147,7 +147,7 @@ fn scan_candidates(target: SkillTarget, root: &Path) -> io::Result<Vec<Candidate
 /// `.codex` is the normal state for most machines. Split out from
 /// [`scan_candidates`] so the prune pass can point it at Codex's deprecated
 /// `.codex/skills` root, which has no commands directory beside it.
-fn scan_skill_dirs(target: SkillTarget, skills: &Path) -> io::Result<Vec<Candidate>> {
+pub(super) fn scan_skill_dirs(target: SkillTarget, skills: &Path) -> io::Result<Vec<Candidate>> {
     let mut found = Vec::new();
     for entry in read_dir_opt(skills)? {
         let dir = entry.path();
