@@ -383,3 +383,18 @@ fn existing_usage_page_still_uses_the_legacy_input_output_presentation() {
     assert!(!output.contains("cache read"));
     assert!(!output.contains("reasoning"));
 }
+
+#[test]
+fn tokens_view_explains_absent_embedded_compression_without_invented_zeroes() {
+    let output = rendered(|frame, area| tokens::draw_tokens(frame, area, &tokens::TokensView::default()));
+    for expected in [
+        "Local embedded workspace compression",
+        "No embedded compression savings reported.",
+        "Claude/Codex hooks report usage but do not compress tool output.",
+    ] {
+        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+    }
+    assert!(!output.contains("0 saved"));
+    assert!(!output.contains("bytes saved"));
+    assert!(!output.contains("cost saved"));
+}
