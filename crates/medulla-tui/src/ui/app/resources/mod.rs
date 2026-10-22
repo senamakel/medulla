@@ -81,6 +81,8 @@ impl App {
                     };
                     if title == "Mem" {
                         format!(" Mem [{key}] [d] [i] ")
+                    } else if title == "Net" {
+                        format!(" Net [{key}] [b] [n] [z] [a{}] [y{}] ", if state.net_auto { "✓" } else { " " }, if state.net_sync { "✓" } else { " " })
                     } else {
                         format!(" {title} [{key}] ")
                     }
@@ -99,6 +101,13 @@ impl App {
                         Some(' ') if title.contains("Mem") => state.hits.mem_toggle = hit,
                         Some(' ') if title.contains("Net") => state.hits.net_toggle = hit,
                         _ => state.hits.agents_toggle = hit,
+                    }
+                    if title.contains("Net") {
+                        state.hits.net_prev = Rect::new(rect.x + 9, rect.y, 3, 1);
+                        state.hits.net_next = Rect::new(rect.x + 13, rect.y, 3, 1);
+                        state.hits.net_zero = Rect::new(rect.x + 17, rect.y, 3, 1);
+                        state.hits.net_auto = Rect::new(rect.x + 21, rect.y, 3, 3);
+                        state.hits.net_sync = Rect::new(rect.x + 27, rect.y, 3, 3);
                     }
                 }
                 let block = Block::default()
@@ -271,6 +280,11 @@ impl App {
             (hits.agents_toggle, '4'),
             (hits.disks_toggle, 'd'),
             (hits.io_toggle, 'i'),
+            (hits.net_prev, 'b'),
+            (hits.net_next, 'n'),
+            (hits.net_zero, 'z'),
+            (hits.net_auto, 'a'),
+            (hits.net_sync, 'y'),
             (hits.preset_prev, 'p'),
             (hits.preset_next, 'P'),
             (hits.interval_down, '-'),
