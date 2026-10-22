@@ -7,6 +7,7 @@
 
 mod cpu;
 mod device;
+pub mod agents;
 mod process_monitor;
 pub mod sampler;
 mod session;
