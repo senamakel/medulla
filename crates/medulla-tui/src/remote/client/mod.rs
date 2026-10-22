@@ -73,6 +73,7 @@ pub struct RemoteHost {
     /// Every session over there, as last reported.
     rows: Vec<RemoteSessionRow>,
     sessions_chunks: Option<(u64, Vec<Option<Vec<RemoteSessionRow>>>)>,
+    latest_sessions_batch: Option<u64>,
     /// The session whose screen is streaming, and the view being folded.
     watching: Option<(String, Option<ScreenView>)>,
     /// Held so the SSH session is not reaped while the host is in use.
@@ -160,6 +161,7 @@ impl RemoteHost {
             capabilities: RemoteCapabilities::default(),
             rows: Vec::new(),
             sessions_chunks: None,
+            latest_sessions_batch: None,
             watching: None,
             _ssh: None,
         })
@@ -176,6 +178,7 @@ impl RemoteHost {
             capabilities: RemoteCapabilities::default(),
             rows: Vec::new(),
             sessions_chunks: None,
+            latest_sessions_batch: None,
             watching: None,
             _ssh: None,
         }
@@ -332,12 +335,19 @@ impl RemoteHost {
                             continue;
                         }
                         if self
+                            .latest_sessions_batch
+                            .is_some_and(|latest| batch_id < latest)
+                        {
+                            continue;
+                        }
+                        if self
                             .sessions_chunks
                             .as_ref()
                             .is_none_or(|(current, chunks)| {
                                 *current != batch_id || chunks.len() != count as usize
                             })
                         {
+                            self.latest_sessions_batch = Some(batch_id);
                             self.sessions_chunks = Some((batch_id, vec![None; count as usize]));
                         }
                         if let Some((_, chunks)) = self.sessions_chunks.as_mut() {
