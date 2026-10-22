@@ -976,3 +976,60 @@ fn agent_kill_waits_for_confirmation_and_uses_injected_signal_function() {
     assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert!(app.resources.agent_signal_armed.is_none());
 }
+
+static HIDDEN_SIGNALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+fn hidden_test_signal(_pid: u32, _signal: AgentSignal) -> std::io::Result<()> {
+    HIDDEN_SIGNALS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
+#[test]
+fn hidden_agents_box_cannot_arm_or_confirm_a_process_signal() {
+    HIDDEN_SIGNALS.store(0, std::sync::atomic::Ordering::SeqCst);
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(43, "claude", 10.0)]),
+    ));
+    app.resources.agent_signal_fn = hidden_test_signal;
+    app.resources.shown.agents = false;
+
+    assert!(app.resources_key(KeyCode::Char('k')));
+    assert!(app.resources.agent_signal_armed.is_none());
+
+    app.resources.agent_signal_armed = Some((43, 1, AgentSignal::Kill));
+    assert!(app.resources_key(KeyCode::Char('y')));
+    assert!(app.resources.agent_signal_armed.is_none());
+    assert_eq!(HIDDEN_SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
+}
+
+#[test]
+fn agent_signal_confirmation_stays_visible_in_detail_view() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(44, "aider", 10.0)]),
+    ));
+    app.resources.agent_selected = Some((44, 1));
+    app.resources.agent_detail = true;
+    app.resources.agent_signal_armed = Some((44, 1, AgentSignal::Kill));
+
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 80, 24)))
+        .unwrap();
+    let text = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(text.contains("EXTERNAL PROCESS: kill PID 44? y confirm"));
+}
