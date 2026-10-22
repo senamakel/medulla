@@ -13,7 +13,7 @@ use ratatui::{
 use crate::ui::app::resources::types::{AgentSignal, AgentSort, ResourcesState};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct AgentRow {
+pub(in crate::ui::app) struct AgentRow {
     pub pid: u32,
     pub started: u64,
     pub kind: String,
@@ -118,7 +118,10 @@ fn pretty_kind(provider: &str) -> String {
     }
 }
 
-pub(super) fn visible_rows(snapshot: &ResourceSnapshot, state: &ResourcesState) -> Vec<AgentRow> {
+pub(in crate::ui::app) fn visible_rows(
+    snapshot: &ResourceSnapshot,
+    state: &ResourcesState,
+) -> Vec<AgentRow> {
     let mut rows = rows(snapshot);
     if let Some(filter) = state.agent_filter.as_deref() {
         let (regex, pattern) = filter
@@ -159,7 +162,7 @@ fn compare(a: &AgentRow, b: &AgentRow, key: AgentSort) -> Ordering {
     }
 }
 
-pub(super) fn draw_agents(
+pub(in crate::ui::app) fn draw_agents(
     frame: &mut Frame,
     area: Rect,
     snapshot: &ResourceSnapshot,
