@@ -888,3 +888,91 @@ fn explicit_layout_options_override_preset_zero() {
     assert!(state.opts.mem_below_net);
     assert!(state.opts.agents_left);
 }
+
+fn test_agent_process(
+    pid: u32,
+    command: &str,
+    cpu: f64,
+) -> medulla_monitor::sampler::ProcessSnapshot {
+    medulla_monitor::sampler::ProcessSnapshot {
+        pid,
+        ppid: None,
+        exe: Some(command.into()),
+        cmd: vec![command.into()],
+        cwd: Some(format!("/work/{command}")),
+        start_time: 1,
+        cpu_percent: cpu,
+        memory_bytes: 2 * 1024 * 1024,
+        disk_read_bytes: 0,
+        disk_written_bytes: 0,
+        threads: 2,
+    }
+}
+
+#[test]
+fn agent_rows_render_with_classification_at_desktop_and_narrow_sizes() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default().with_processes(vec![
+            test_agent_process(10, "claude", 12.0),
+            test_agent_process(20, "codex-acp", 22.0),
+            test_agent_process(30, "openhuman", 32.0),
+            test_agent_process(40, "aider", 42.0),
+        ]),
+    ));
+    for (width, height) in [(170, 42), (80, 24)] {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, height)))
+            .unwrap();
+        let text = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        for expected in [
+            "Claude",
+            "Codex-ACP",
+            "OpenHuman",
+            "External",
+            "external",
+            "PID",
+        ] {
+            assert!(
+                text.contains(expected),
+                "missing {expected} at {width}x{height}: {text}"
+            );
+        }
+    }
+}
+
+static SIGNALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+fn test_signal(_pid: u32, _signal: types::AgentSignal) -> std::io::Result<()> {
+    SIGNALS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
+#[test]
+fn agent_kill_waits_for_confirmation_and_uses_injected_signal_function() {
+    SIGNALS.store(0, std::sync::atomic::Ordering::SeqCst);
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(42, "claude", 10.0)]),
+    ));
+    app.resources.agent_signal_fn = test_signal;
+    assert!(app.resources_key(KeyCode::Char('k')));
+    assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(app.resources.agent_signal_armed.is_some());
+    assert!(app.resources_key(KeyCode::Char('y')));
+    assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(app.resources.agent_signal_armed.is_none());
+}
