@@ -5,7 +5,6 @@ use medulla_monitor::sampler::{ProcessSnapshot, ResourceSnapshot};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::Line,
     widgets::{Block, Borders, Clear, Paragraph, Row, Table, Wrap},
     Frame,
 };
@@ -60,9 +59,12 @@ pub(in crate::ui::app) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
                 Some(_) => ("host".into(), None, None, false),
                 None => ("external".into(), None, None, true),
             };
-            let remote = session_id
-                .as_deref()
-                .is_some_and(|id| matches!(crate::ui::app::remote_sessions::SessionRef::parse(id), crate::ui::app::remote_sessions::SessionRef::Remote { .. }));
+            let remote = session_id.as_deref().is_some_and(|id| {
+                matches!(
+                    crate::ui::app::remote_sessions::SessionRef::parse(id),
+                    crate::ui::app::remote_sessions::SessionRef::Remote { .. }
+                )
+            });
             Some(AgentRow {
                 pid: process.pid,
                 started: process.start_time,
@@ -446,9 +448,10 @@ fn draw_signal_confirmation(
     let row = rows(snapshot)
         .into_iter()
         .find(|row| row.pid == armed.pid && row.started == armed.started);
-    let process = snapshot.processes.iter().find(|process| {
-        process.pid == armed.pid && process.start_time == armed.started
-    });
+    let process = snapshot
+        .processes
+        .iter()
+        .find(|process| process.pid == armed.pid && process.start_time == armed.started);
     let kind = row.as_ref().map_or("Unknown", |row| row.kind.as_str());
     let origin = row.as_ref().map_or("external", |row| row.origin.as_str());
     let command = process.map_or_else(|| "unavailable".into(), display_command);
@@ -479,22 +482,20 @@ fn draw_signal_confirmation(
     );
     frame.render_widget(Clear, popup);
     frame.render_widget(
-        Paragraph::new(prompt)
-            .wrap(Wrap { trim: true })
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(if external {
-                        " EXTERNAL PROCESS · Confirm signal "
-                    } else {
-                        " Confirm process signal "
-                    })
-                    .style(
-                        Style::default()
-                            .fg(Color::Yellow)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-            ),
+        Paragraph::new(prompt).wrap(Wrap { trim: true }).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(if external {
+                    " EXTERNAL PROCESS · Confirm signal "
+                } else {
+                    " Confirm process signal "
+                })
+                .style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+        ),
         popup,
     );
 }
@@ -502,7 +503,11 @@ fn draw_signal_confirmation(
 fn display_command(process: &ProcessSnapshot) -> String {
     let mut rendered = Vec::new();
     let mut redact_next = false;
-    for argument in process.cmd.iter().filter(|arg| !is_environment_assignment(arg)) {
+    for argument in process
+        .cmd
+        .iter()
+        .filter(|arg| !is_environment_assignment(arg))
+    {
         if redact_next {
             rendered.push("[REDACTED]".to_owned());
             redact_next = false;
@@ -558,9 +563,18 @@ fn is_environment_assignment(argument: &str) -> bool {
 
 fn is_secret_name(name: &str) -> bool {
     let name = name.trim_start_matches('-').to_ascii_lowercase();
-    ["token", "secret", "password", "passwd", "api-key", "apikey", "auth", "credential"]
-        .iter()
-        .any(|secret| name.contains(secret))
+    [
+        "token",
+        "secret",
+        "password",
+        "passwd",
+        "api-key",
+        "apikey",
+        "auth",
+        "credential",
+    ]
+    .iter()
+    .any(|secret| name.contains(secret))
 }
 
 fn kind_counts(rows: &[AgentRow]) -> String {

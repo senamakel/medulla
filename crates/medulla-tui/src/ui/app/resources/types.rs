@@ -330,9 +330,7 @@ fn process_owned_by_current_user(pid: u32, started: u64, sampled_uid: Option<&st
     else {
         return false;
     };
-    current_started == started
-        && current_uid == sampled_uid
-        && current_uid == current_user_uid()
+    current_started == started && current_uid == sampled_uid && current_uid == current_user_uid()
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
