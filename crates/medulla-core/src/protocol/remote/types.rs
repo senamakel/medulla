@@ -238,6 +238,19 @@ pub enum RemoteMessage {
         /// Every session on the host, in the daemon's own order.
         rows: Vec<RemoteSessionRow>,
     },
+    /// Daemon → client: one bounded part of a session list too large for one
+    /// transport message. Clients publish the list only after every part with
+    /// the same batch id has arrived.
+    SessionsChunk {
+        /// Monotonically increasing per-server list generation.
+        batch_id: u64,
+        /// Zero-based part index.
+        index: u16,
+        /// Number of parts in this generation.
+        count: u16,
+        /// Sessions carried by this part.
+        rows: Vec<RemoteSessionRow>,
+    },
 }
 
 /// A remote message with its version tag, as it appears on the wire.
