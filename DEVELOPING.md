@@ -90,6 +90,16 @@ compression fail open: if the module cannot load or declines a result, the
 original tool output continues to the model. Hosts can explicitly opt out
 before their first embedded turn with `EmbedHost::with_compression_enabled(false)`.
 
+The ignored integration test builds `tinyjuice-module` from the pinned vendor
+manifest, then copies its cdylib into a private directory before setting
+`TINYJUICE_TEST_MODULE`. OpenHuman rejects modules beneath group-writable
+directories, which includes many shared checkout and build directories. For
+example, use a user-owned directory with mode `0700` and point the variable at
+the copied `libtinyjuice_module.so` (or the platform's equivalent library).
+Run `loaded_tinyjuice_module_compresses_the_second_request_and_records_workspace_totals`
+in isolation with `--ignored`; the module must actually load for this test to
+pass.
+
 Tokens settings may show OpenHuman's persisted workspace-wide estimated token
 savings. These totals are shared across embedded turns, are not tied to one
 session or provider, and do not include byte or cost savings. Claude/Codex hooks
