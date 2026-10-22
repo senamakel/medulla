@@ -68,35 +68,58 @@ select_screen_option() {
 main() {
   RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/medulla-resources-e2e-XXXXXX")"
   e2e_init
-  boot_forwarder resources
   boot_llm "export MOCK_LLM_RESPONSE_DELAY_MS=15000"
 
-  # Use the worker's actual operator screen. A dispatched task creates a
-  # registered process with a concrete session id, unlike an unmanaged picker.
-  local workspace="$RUN_DIR/work-resources" daemon_flags
-  mkdir -p "$workspace"
-  harness_seed_home "$RUN_DIR/ochome-resources" "$workspace"
-  daemon_flags="$(harness_daemon_flags)"
+  # Run a minimal real workflow in the client TUI. Its local workflow host
+  # dispatches the real harness from the same Medulla process as the sampler,
+  # so the resource row can be joined to its registered session origin.
+  local app_config="$RUN_DIR/app.json" app_home="$RUN_DIR/app-home" workspace="$RUN_DIR/work"
+  mkdir -p "$app_home" "$workspace/.medulla/workflows"
+  harness_seed_home "$app_home/harness-home" "$workspace"
+  "$PYTHON_BIN" - "$HARNESS" "${MEDULLA_CONFIG:-}" "$app_config" "$workspace/.medulla/workflows/resources-proof.json" <<'PY'
+import json, sys
+harness, source, target, workflow_path = sys.argv[1:]
+try:
+    config = json.load(open(source)) if source else {}
+except FileNotFoundError:
+    config = {}
+config["resources"] = {"updateMs": 2000}
+config["workflows"] = {"defaultProvider": harness}
+json.dump(config, open(target, "w"), indent=2)
+workflow = {
+    "id": "resources-proof", "name": "Resources proof",
+    "description": "Keep a real harness request visible for Resources attribution.",
+    "nodes": [
+        {"id": "trigger", "kind": "trigger", "name": "start", "config": {"trigger_kind": "manual"}},
+        {"id": "agent", "kind": "agent", "name": "Keep harness live", "config": {"prompt": "reply with the coordination marker RESOURCES_PROOF"}},
+    ],
+    "edges": [{"from_node": "trigger", "to_node": "agent"}],
+}
+json.dump(workflow, open(workflow_path, "w"), indent=2)
+PY
 
   cat > "$RUN_DIR/resources.cmd" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-$(harness_env "$RUN_DIR/ochome-resources")
-export MEDULLA_HOME=$(printf %q "$RUN_DIR/mhome-resources")
+$(harness_env "$app_home/harness-home")
+export HOME=$(printf %q "$app_home")
+export MEDULLA_HOME=$(printf %q "$app_home")
 export MEDULLA_USER=e2e
 export MEDULLA_ANALYTICS_DISABLED=1
 echo \$\$ > $(printf %q "$RUN_DIR/app.pid")
-exec $(printf %q "$MEDULLA_BIN") daemon --tui --providers $(printf %q "$HARNESS") --no-pair \\
-  --name worker-resources --workspace $(printf %q "$workspace") --poll-ms 500 $daemon_flags
+cd $(printf %q "$workspace")
+exec $(printf %q "$MEDULLA_BIN") --mock --config $(printf %q "$app_config")
 EOF
   chmod +x "$RUN_DIR/resources.cmd"
   tmux new-window -t "$SESSION" -n resources -c "$workspace"
   tmux send-keys -t "$SESSION:resources" "bash $(printf %q "$RUN_DIR/resources.cmd")" C-m
-  if harness_screen_interactive; then select_screen_option 'Interactive'; else select_screen_option 'Headless'; fi
-  select_screen_option "$(harness_screen_label)"
-  wait_app_regex "WORKER .*(interactive|headless) on $HARNESS" 60 \
-    || fail "Medulla daemon did not paint its operator screen"
-  tmux send-keys -t "$SESSION:resources" Tab Tab Tab
+  wait_app_regex 'Sessions|Welcome|Start a new session' 60 \
+    || fail "Medulla app did not paint its initial screen"
+  tmux send-keys -t "$SESSION:resources" Tab
+  wait_app_regex 'Resources proof' || fail "the workflow fixture was not loaded"
+  tmux send-keys -t "$SESSION:resources" x
+  sleep 1
+  tmux send-keys -t "$SESSION:resources" Tab Tab
   wait_app_regex 'CPU.*2000ms' \
     || fail "Resources did not open at its 2000ms default interval"
 
@@ -112,11 +135,9 @@ EOF
     printf '%s\n' "$pane" | grep -q "$title" || fail "Resources screen is missing $title title"
   done
 
-  # Dispatch through the owner and observe its exact registered session id.
-  local task_id="resources-session-$$" deadline
-  start_owner resources_task --to "$(worker_id resources)" \
-    --task "reply with the coordination marker RESOURCES-$$" --task-id "$task_id" --timeout-ms 180000
-  deadline=$(( $(date +%s) + READY_TIMEOUT_S ))
+  # The workflow ID is the process registry's task origin until the provider
+  # reports a native session id. Wait for that exact origin in production text.
+  local task_id="resources-proof" deadline
   while [ "$(date +%s)" -lt "$deadline" ]; do
     pane="$(capture_app)"
     if printf '%s\n' "$pane" | grep -q "$task_id"; then break; fi
