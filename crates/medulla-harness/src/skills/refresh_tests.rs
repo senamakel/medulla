@@ -2,8 +2,11 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use super::{refresh_catalog, sync_catalog, CatalogSnapshot, SkillInput, SkillTarget, SkillWorkflow};
-use crate::skills::{managed_dir, skill_path, HarnessProvider, WorkflowCatalog};
+use super::{
+    managed_dir, refresh_catalog, skill_path, sync_catalog, CatalogSnapshot, SkillInput,
+    SkillTarget, SkillWorkflow, WorkflowCatalog,
+};
+use medulla_types::HarnessProvider;
 
 struct FakeCatalog(Mutex<CatalogSnapshot>);
 

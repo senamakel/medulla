@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn claude_json_matches_the_existing_registration_shape() {
-        let spec = FixtureEndpoint.endpoint("fixture").unwrap();
+        let spec = FixtureEndpoint.endpoint("fixture");
         assert_eq!(
             claude_mcp_config(&spec),
             r#"{"mcpServers":{"medulla":{"command":"/opt/medulla","args":["mcp"],"env":{"MEDULLA_MCP_ATTACHED":"marker-fixture","MEDULLA_WORKFLOW_TOOLS":"run"}}}}"#
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn codex_args_match_the_existing_registration_shape() {
-        let spec = FixtureEndpoint.endpoint("fixture").unwrap();
+        let spec = FixtureEndpoint.endpoint("fixture");
         assert_eq!(
             codex_config_args(&spec),
             vec![

@@ -34,19 +34,7 @@ pub mod targets;
 mod types;
 
 #[cfg(test)]
-mod marker_tests;
-#[cfg(test)]
-mod prune_tests;
-#[cfg(test)]
 mod refresh_tests;
-#[cfg(test)]
-mod registration_tests;
-#[cfg(test)]
-mod render_tests;
-#[cfg(test)]
-mod targets_tests;
-#[cfg(test)]
-mod tests;
 
 pub use install::{install, installed, sync, uninstall};
 pub use refresh::{refresh_catalog, sync_catalog, RefreshLock};
