@@ -105,6 +105,10 @@ async fn run_fixture(host: std::sync::Arc<EmbedHost>) -> (Vec<Request>, tempfile
 
 #[test]
 fn explicit_opt_out_preserves_exact_tool_output_with_tinyjuice_feature_enabled() {
+    std::thread::Builder::new().stack_size(medulla::tokio_tuning::WORKER_STACK_BYTES).spawn(opt_out_scenario).unwrap().join().unwrap();
+}
+
+fn opt_out_scenario() {
     medulla::tokio_tuning::build_runtime().unwrap().block_on(async {
         let (requests, home, _cwd) = run_fixture(std::sync::Arc::new(EmbedHost::default().with_compression_enabled(false))).await;
         assert!(requests.len() >= 2, "expected a second provider request");
@@ -121,6 +125,10 @@ fn explicit_opt_out_preserves_exact_tool_output_with_tinyjuice_feature_enabled()
 #[ignore = "requires an explicitly built TinyJuice cdylib via TINYJUICE_TEST_MODULE"]
 fn loaded_tinyjuice_module_compresses_the_second_request_and_records_workspace_totals() {
     assert!(std::env::var_os("TINYJUICE_TEST_MODULE").is_some(), "set TINYJUICE_TEST_MODULE to an explicitly built cdylib");
+    std::thread::Builder::new().stack_size(medulla::tokio_tuning::WORKER_STACK_BYTES).spawn(enabled_scenario).unwrap().join().unwrap();
+}
+
+fn enabled_scenario() {
     medulla::tokio_tuning::build_runtime().unwrap().block_on(async {
         let (requests, home, _cwd) = run_fixture(std::sync::Arc::new(EmbedHost::default().with_compression_enabled(true))).await;
         assert!(requests.len() >= 2, "expected a second provider request");
