@@ -100,7 +100,7 @@ fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
     for expected in [
         "Tokens",
         "Local embedded workspace compression",
-        "1200 before",
+        "1200 estimated tokens before",
         "300 after",
         "900 saved",
         "2 compression events",
