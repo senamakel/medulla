@@ -343,6 +343,7 @@ impl RemoteServer {
             RemoteMessage::Capabilities(_)
             | RemoteMessage::Opened { .. }
             | RemoteMessage::OpenFailed { .. }
+            | RemoteMessage::SessionsChunk { .. }
             | RemoteMessage::Sessions { .. } => {
                 self.log(&format!(
                     "remote: ignored a daemon-to-client message from {from}"

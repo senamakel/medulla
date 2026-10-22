@@ -51,14 +51,21 @@ pub(in crate::ui::app) struct ResourcesState {
     pub agent_tree: bool,
     pub agent_filter: Option<String>,
     pub agent_filter_editing: bool,
-    pub agent_selected: Option<(u32, u64)>,
-    pub agent_follow: Option<(u32, u64)>,
+    pub agent_selected: Option<AgentIdentity>,
+    pub agent_follow: Option<AgentIdentity>,
     pub agent_detail: bool,
     pub agent_signal_armed: Option<AgentSignalConfirmation>,
     pub agent_process_owned_fn: fn(u32, u64, Option<&str>) -> bool,
     pub agent_signal_fn: fn(u32, u64, Option<&str>, AgentSignal) -> std::io::Result<()>,
-    pub agent_cpu_history: std::collections::HashMap<(u32, u64), Vec<f64>>,
+    pub agent_cpu_history: std::collections::HashMap<AgentIdentity, Vec<f64>>,
     pub agent_last_sample: Option<std::time::Instant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(in crate::ui::app) struct AgentIdentity {
+    pub host: Option<String>,
+    pub pid: u32,
+    pub started: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
