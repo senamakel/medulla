@@ -32,7 +32,7 @@ pub(in crate::ui::app) struct AgentRow {
 }
 
 impl AgentRow {
-    fn identity(&self) -> AgentIdentity {
+    pub(in crate::ui::app) fn identity(&self) -> AgentIdentity {
         AgentIdentity { host: self.host.clone(), pid: self.pid, started: self.started }
     }
 }
@@ -324,7 +324,7 @@ pub(in crate::ui::app) fn draw_agents(
     state: &mut ResourcesState,
 ) {
     let rows = visible_rows_with_remote(snapshot, remote_hosts, state);
-    if let Some(following) = state.agent_follow {
+    if let Some(following) = state.agent_follow.clone() {
         if !snapshot
             .processes
             .iter()
@@ -444,15 +444,13 @@ pub(in crate::ui::app) fn draw_agents(
             item
         })
         .collect();
-    let remote_count = rows.iter().filter(|row| row.remote).count();
-    let remote_cpu = rows.iter().filter(|row| row.remote).map(|row| row.cpu).sum::<f64>();
-    let remote_memory = rows.iter().filter(|row| row.remote).map(|row| row.memory).sum::<u64>();
     let follow = state
         .agent_follow
-        .map(|(pid, _)| format!(" · FOLLOW PID {pid}"))
+        .as_ref()
+        .map(|identity| format!(" · FOLLOW PID {}", identity.pid))
         .unwrap_or_default();
     let title = format!(" Agents{follow} · {} · {} · CPU {:.1}% · Mem {} · ←/→ sort r reverse e tree f filter Enter detail F follow t/k/s signal ",
-            rows.len() + remote_count, kind_counts(&rows), rows.iter().map(|r| r.cpu).sum::<f64>() + remote_cpu, bytes(rows.iter().map(|r| r.memory).sum::<u64>() + remote_memory));
+            rows.len(), kind_counts(&rows), rows.iter().map(|r| r.cpu).sum::<f64>(), bytes(rows.iter().map(|r| r.memory).sum::<u64>()));
     let widths = if compact {
         vec![
             ratatui::layout::Constraint::Length(7),
@@ -480,7 +478,7 @@ pub(in crate::ui::app) fn draw_agents(
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
     let selected_index = selected.and_then(|identity| {
         rows.iter()
-            .position(|row| (row.pid, row.started) == identity)
+            .position(|row| row.identity() == identity)
     });
     let mut table_state = ratatui::widgets::TableState::default();
     table_state.select(selected_index);
