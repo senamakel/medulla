@@ -167,59 +167,73 @@ fn native_agents_keep_each_workers_context_private_and_resume_their_own_session(
         .unwrap();
 }
 
-#[tokio::test]
-async fn embedded_openhuman_shell_process_is_nested_under_a_pidless_row() {
-    let mock = MockServer::start().await;
-    Mock::given(wiremock::matchers::method("POST"))
-        .and(wiremock::matchers::path("/v1/chat/completions"))
-        .respond_with(Provider)
-        .mount(&mock)
-        .await;
-    let home = tempfile::tempdir().unwrap();
-    let cwd = tempfile::tempdir().unwrap();
-    let host = Arc::new(EmbedHost::default());
-    let options = options(host, home.path(), cwd.path(), &mock, "slow-worker");
-    let abort = options.abort.clone();
-    let run = tokio::spawn(run_local_task(options));
-    let child_pid = wait_for_pid(&cwd.path().join("child.pid")).await;
+#[test]
+fn embedded_openhuman_shell_process_is_nested_under_a_pidless_row() {
+    std::thread::Builder::new()
+        .stack_size(medulla::tokio_tuning::WORKER_STACK_BYTES)
+        .spawn(embedded_openhuman_shell_scenario)
+        .unwrap()
+        .join()
+        .unwrap();
+}
 
-    let agents = tokio::time::timeout(std::time::Duration::from_secs(10), async {
-        loop {
-            let processes = current_process_records();
-            let agents = medulla::resources::agents::discover_agents(
-                &processes,
-                &[],
-                std::process::id(),
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
-            );
-            if agents
+fn embedded_openhuman_shell_scenario() {
+    medulla::tokio_tuning::build_runtime()
+        .unwrap()
+        .block_on(async {
+            let mock = MockServer::start().await;
+            Mock::given(wiremock::matchers::method("POST"))
+                .and(wiremock::matchers::path("/v1/chat/completions"))
+                .respond_with(Provider)
+                .mount(&mock)
+                .await;
+            let home = tempfile::tempdir().unwrap();
+            let cwd = tempfile::tempdir().unwrap();
+            let host = Arc::new(EmbedHost::default());
+            let options = options(host, home.path(), cwd.path(), &mock, "slow-worker");
+            let abort = options.abort.clone();
+            let run = tokio::spawn(run_local_task(options));
+            let child_pid = wait_for_pid(&cwd.path().join("child.pid")).await;
+
+            let agents = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                loop {
+                    let processes = current_process_records();
+                    let agents = medulla::resources::agents::discover_agents(
+                        &processes,
+                        &[],
+                        std::process::id(),
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
+                    );
+                    if agents.iter().any(|agent| {
+                        agent.kind == medulla::resources::agents::AgentKind::EmbeddedOpenhuman
+                    }) {
+                        break agents;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("shell child should be visible under Medulla's in-process row");
+
+            let embedded = agents
                 .iter()
-                .any(|agent| agent.kind == medulla::resources::agents::AgentKind::EmbeddedOpenhuman)
-            {
-                break agents;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-        }
-    })
-    .await
-    .expect("shell child should be visible under Medulla's in-process row");
+                .filter(|agent| {
+                    agent.kind == medulla::resources::agents::AgentKind::EmbeddedOpenhuman
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(embedded.len(), 1);
+            assert_eq!(embedded[0].pid, None);
+            assert!(embedded[0]
+                .children
+                .iter()
+                .any(|child| process_tree_contains(child, child_pid)));
 
-    let embedded = agents
-        .iter()
-        .filter(|agent| agent.kind == medulla::resources::agents::AgentKind::EmbeddedOpenhuman)
-        .collect::<Vec<_>>();
-    assert_eq!(embedded.len(), 1);
-    assert_eq!(embedded[0].pid, None);
-    assert!(embedded[0]
-        .children
-        .iter()
-        .any(|child| process_tree_contains(child, child_pid)));
-
-    abort.abort();
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(10), run).await;
+            abort.abort();
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(10), run).await;
+        });
 }
 
 fn native_agents_scenario() {
