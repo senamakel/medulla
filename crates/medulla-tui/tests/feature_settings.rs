@@ -15,8 +15,8 @@ use ratatui::Terminal;
 
 use medulla::config::{AppearanceConfig, LinkConfig, LoadedConfig, ResourceDisplay};
 use medulla::runtime::mock::MockRuntime;
-use medulla_tui::ui::app::{App, Cmd, TABS};
 use medulla_monitor::sampler::{DiskSnapshot, ResourceSnapshot};
+use medulla_tui::ui::app::{App, Cmd, TABS};
 
 fn loaded() -> LoadedConfig {
     let mut l = LoadedConfig::defaults("medulla.tui.json".into());
@@ -551,14 +551,14 @@ fn device_sample() -> ResourceSnapshot {
     sample.memory_used_bytes = 8 * 1024 * 1024 * 1024;
     sample.memory_total_bytes = 32 * 1024 * 1024 * 1024;
     sample.disks = vec![DiskSnapshot {
-            device: "test".into(),
-            mount: "/".into(),
-            total_bytes: 400 * 1024 * 1024 * 1024,
-            used_bytes: 300 * 1024 * 1024 * 1024,
-            read_bytes_per_second: 0.0,
-            write_bytes_per_second: 0.0,
-            busy_percent: None,
-        }];
+        device: "test".into(),
+        mount: "/".into(),
+        total_bytes: 400 * 1024 * 1024 * 1024,
+        used_bytes: 300 * 1024 * 1024 * 1024,
+        read_bytes_per_second: 0.0,
+        write_bytes_per_second: 0.0,
+        busy_percent: None,
+    }];
     sample
 }
 
@@ -574,7 +574,7 @@ fn agents_app(appearance: AppearanceConfig) -> App {
 }
 
 #[test]
-fn enabled_device_indicators_render_in_the_agents_sidebar() {
+fn sidebar_footer_shows_device_cpu_before_the_resources_tab_is_opened() {
     let mut app = agents_app(AppearanceConfig {
         device_cpu: ResourceDisplay::Percent,
         device_ram: ResourceDisplay::Value,

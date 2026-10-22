@@ -17,8 +17,8 @@ use medulla::config::{
 };
 use medulla::runtime::mock::MockRuntime;
 use medulla::subscriptions::{MeterReading, SubscriptionSnapshot};
-use medulla_tui::ui::app::{App, Cmd, TABS};
 use medulla_monitor::sampler::ResourceSnapshot;
+use medulla_tui::ui::app::{App, Cmd, TABS};
 
 fn loaded() -> LoadedConfig {
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
