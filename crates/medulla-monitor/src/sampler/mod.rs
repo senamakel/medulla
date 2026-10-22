@@ -276,20 +276,15 @@ impl ResourceSource for SystemResourceSource {
                     .with_cmd(UpdateKind::OnlyIfNotSet)
             }
         };
-        self.system.refresh_processes_specifics(
-            ProcessesToUpdate::All,
-            true,
-            process_refresh,
-        );
+        self.system
+            .refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh);
         #[cfg(target_os = "linux")]
         {
             let possible_agent_pids: Vec<_> = self
                 .system
                 .processes()
                 .iter()
-                .filter(|(_, process)| {
-                    may_be_agent_process(&process.name().to_string_lossy())
-                })
+                .filter(|(_, process)| may_be_agent_process(&process.name().to_string_lossy()))
                 .map(|(pid, _)| *pid)
                 .collect();
             if !possible_agent_pids.is_empty() {

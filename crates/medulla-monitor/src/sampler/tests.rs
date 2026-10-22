@@ -372,7 +372,10 @@ fn process_snapshots_include_executable_and_command_for_agent_candidate_children
         "agent candidate snapshot must include its executable: {process:?}"
     );
     assert!(
-        process.cmd.iter().any(|argument| argument == "read -r line"),
+        process
+            .cmd
+            .iter()
+            .any(|argument| argument == "read -r line"),
         "agent candidate snapshot must include argv: {process:?}"
     );
     drop(stdin);
