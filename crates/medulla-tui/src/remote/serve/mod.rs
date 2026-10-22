@@ -510,7 +510,7 @@ impl RemoteServer {
                 (medulla::clock::now_millis().max(0) as u64) / 1000,
             )
         });
-        let mut rows: Vec<_> = self
+        let rows: Vec<_> = self
             .sessions
             .sessions
             .rows()
@@ -642,7 +642,6 @@ fn sessions_messages(rows: &[RemoteSessionRow], batch_id: u64) -> Vec<RemoteMess
             candidate = vec![row.clone()];
         }
         if !candidate_fits(&candidate) {
-            candidate = vec![row.clone()];
             shrink_session_row_to_fit(&mut row, &candidate_fits);
             candidate = vec![row.clone()];
         }
@@ -735,37 +734,4 @@ fn truncate_to_char_boundary(value: &mut String, mut target: usize) {
         target -= 1;
     }
     value.truncate(target);
-}
-
-/// Trim only optional usage until the one-message envelope fits. Oversized
-/// base lists are sent with `SessionsChunk` by `sessions_messages`.
-fn trim_usage_to_message_budget(rows: &mut [RemoteSessionRow]) {
-    let limit = medulla_link::MAX_MESSAGE_BYTES;
-    while encode_remote_message(&RemoteMessage::Sessions {
-        rows: rows.to_vec(),
-    })
-    .len()
-        > limit
-    {
-        let oldest_history = rows
-            .iter()
-            .enumerate()
-            .filter_map(|(index, row)| {
-                row.usage
-                    .as_ref()
-                    .filter(|usage| !usage.cpu_history.is_empty())
-                    .map(|usage| (index, usage.cpu_history.len()))
-            })
-            .max_by_key(|(_, history_len)| *history_len)
-            .map(|(index, _)| index);
-        if let Some(index) = oldest_history {
-            if let Some(usage) = rows[index].usage.as_mut() {
-                usage.cpu_history.remove(0);
-            }
-        } else if let Some(row) = rows.iter_mut().rev().find(|row| row.usage.is_some()) {
-            row.usage = None;
-        } else {
-            break;
-        }
-    }
 }

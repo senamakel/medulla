@@ -46,7 +46,7 @@ fn session_usage_matches_classified_descendant_and_aggregated_tree() {
 }
 
 #[test]
-fn sessions_usage_is_trimmed_to_the_single_message_budget() {
+fn oversized_session_usage_is_trimmed_per_bounded_message() {
     let row = |id: &str, pid| RemoteSessionRow {
         id: id.into(),
         label: "agent".into(),
@@ -73,12 +73,18 @@ fn sessions_usage_is_trimmed_to_the_single_message_budget() {
             cpu_history: vec![12.5; 300],
         }),
     };
-    let mut rows = vec![row("w_1", 101), row("w_2", 202)];
-
-    super::super::trim_usage_to_message_budget(&mut rows);
-
-    let encoded = encode_remote_message(&RemoteMessage::Sessions { rows: rows.clone() });
-    assert!(encoded.len() <= medulla_link::MAX_MESSAGE_BYTES);
+    let source = vec![row("w_1", 101), row("w_2", 202)];
+    let messages = super::super::sessions_messages(&source, 6);
+    let rows = messages
+        .iter()
+        .flat_map(|message| match message {
+            RemoteMessage::Sessions { rows } | RemoteMessage::SessionsChunk { rows, .. } => rows,
+            _ => panic!("expected a session list message"),
+        })
+        .collect::<Vec<_>>();
+    assert!(messages.iter().all(|message| {
+        encode_remote_message(message).len() <= medulla_link::MAX_MESSAGE_BYTES
+    }));
     assert_eq!(rows.len(), 2, "usage trimming must preserve session rows");
     assert!(rows.iter().all(|row| row.usage.is_some()));
     assert!(rows.iter().all(|row| {
