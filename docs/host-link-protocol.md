@@ -34,8 +34,13 @@ channel 0. A `Sessions` row may include optional classified process usage
 history). Hosts sample and publish it no faster than `[resources].updateMs`
 (default 2000 ms); it is omitted when unavailable. The field is optional so
 older and newer clients remain interoperable. Senders trim history and omit
-usage as needed to keep the complete `Sessions` message within channel 0's
-single-message datagram budget; channel 0 cannot fragment a message.
+usage as needed to keep a `Sessions` message within channel 0's single-message
+datagram budget. If the base session list still exceeds that budget, the sender
+uses additive `SessionsChunk` messages with a generation id and part index;
+clients replace the displayed list only after receiving every part. Each chunk
+is independently bounded by the same datagram limit. Older clients ignore this
+new message kind and retain their last complete list; channel 0 itself does not
+fragment messages.
 
 This document is normative. Both endpoints live in the `medulla-link` crate and
 code against it. Where this document and the implementation disagree, this
