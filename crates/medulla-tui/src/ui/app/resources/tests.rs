@@ -1156,9 +1156,10 @@ fn enter_on_a_registered_session_agent_selects_its_sessions_rail_row() {
             provider: "claude".into(),
         },
     );
+    let mut process = test_agent_process(pid, "claude", 10.0);
+    process.start_time = started;
     app.set_resource_snapshot(Arc::new(
-        crate::ui::resources::sampler::ResourceSnapshot::default()
-            .with_processes(vec![test_agent_process(pid, "claude", 10.0)]),
+        crate::ui::resources::sampler::ResourceSnapshot::default().with_processes(vec![process]),
     ));
     app.resources.agent_selected = Some((pid, started));
 
