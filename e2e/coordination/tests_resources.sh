@@ -56,6 +56,10 @@ main() {
   # dispatches the real harness from the same Medulla process as the sampler,
   # so the resource row can be joined to its registered session origin.
   local app_config="$RUN_DIR/app.json" app_home="$RUN_DIR/app-home" workspace="$RUN_DIR/work"
+  local app_transport_env=""
+  if [ "$HARNESS" = codex ]; then
+    app_transport_env="$(DAEMON_TRANSPORT=acp harness_transport_env)"
+  fi
   mkdir -p "$app_home" "$workspace/.medulla/workflows"
   harness_seed_home "$app_home/harness-home" "$workspace"
   "$PYTHON_BIN" - "$HARNESS" "${MEDULLA_CONFIG:-}" "$app_config" "$workspace/.medulla/workflows/resources-proof.json" <<'PY'
@@ -84,7 +88,7 @@ PY
 #!/usr/bin/env bash
 set -euo pipefail
 $(harness_env "$app_home/harness-home")
-$(DAEMON_TRANSPORT=acp harness_transport_env)
+$app_transport_env
 export HOME=$(printf %q "$app_home")
 export MEDULLA_HOME=$(printf %q "$app_home")
 export MEDULLA_USER=e2e
