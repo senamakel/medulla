@@ -52,6 +52,9 @@ use medulla::protocol::{
     encode_remote_message, encode_screen_message, parse_remote_message, parse_screen_message,
     RemoteCapabilities, RemoteMessage, RemoteSessionRow, ScreenMessage,
 };
+use medulla::resources::agents::{
+    discover_agents, AgentOrigin, KnownProcessRoot, ProcessRecord, ProcessUsage,
+};
 
 use crate::ui::harness_pane::LocalSessions;
 use crate::worker::pty::PtyManager;
@@ -104,6 +107,7 @@ pub struct RemoteServer {
     usage_interval: Duration,
     usage_history: std::collections::HashMap<(u32, u64), Vec<f64>>,
     usage_cache: std::collections::HashMap<String, medulla::protocol::AgentUsage>,
+    sessions_batch_id: u64,
     log: Option<LogFn>,
 }
 
@@ -129,6 +133,7 @@ impl RemoteServer {
             usage_interval: Duration::from_millis(2_000),
             usage_history: std::collections::HashMap::new(),
             usage_cache: std::collections::HashMap::new(),
+            sessions_batch_id: 0,
             log: None,
         }
     }
@@ -520,13 +525,9 @@ impl RemoteServer {
 
     /// Send `peer` the cached session list.
     async fn send_sessions(&self, peer: &str) {
-        self.send(
-            peer,
-            &encode_remote_message(&RemoteMessage::Sessions {
-                rows: self.last_rows.clone(),
-            }),
-        )
-        .await;
+        for message in sessions_messages(&self.last_rows, self.sessions_batch_id) {
+            self.send(peer, &encode_remote_message(&message)).await;
+        }
     }
 
     async fn send(&self, to: &str, body: &str) {
