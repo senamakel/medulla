@@ -62,6 +62,31 @@ fn dropping_an_old_guard_does_not_remove_a_reregistered_process_identity() {
 }
 
 #[test]
+fn a_live_registration_handle_attaches_a_late_session_id() {
+    let registry = AgentRegistry::default();
+    let guard = registry.register_at(origin(None, None, "claude"));
+    let handle = guard.handle();
+
+    assert!(handle.set_session_id("session-arrived-later"));
+    assert_eq!(
+        registry.snapshot(),
+        vec![origin(None, Some("session-arrived-later"), "claude")]
+    );
+}
+
+#[test]
+fn a_stale_registration_handle_cannot_update_a_replacement() {
+    let registry = AgentRegistry::default();
+    let old = registry.register_at(origin(None, None, "claude"));
+    let old_handle = old.handle();
+    let replacement = registry.register_at(origin(Some("task-2"), None, "codex"));
+
+    assert!(!old_handle.set_session_id("stale-session"));
+    assert_eq!(registry.snapshot(), vec![origin(Some("task-2"), None, "codex")]);
+    drop(replacement);
+}
+
+#[test]
 fn spawn_idle_child_is_registered_with_origin_and_removed_when_guard_drops() {
     let mut child = spawn_idle_child();
     let registry = AgentRegistry::default();

@@ -95,6 +95,45 @@ pub struct RegistrationGuard {
     generation: u64,
 }
 
+impl RegistrationGuard {
+    /// Return a cloneable updater for this exact registration generation.
+    /// Updates become no-ops after this guard has been dropped or replaced.
+    pub fn handle(&self) -> RegistrationHandle {
+        RegistrationHandle {
+            entries: self.entries.clone(),
+            key: self.key,
+            generation: self.generation,
+        }
+    }
+}
+
+/// Identity-safe metadata updater for a live process registration.
+#[derive(Debug, Clone)]
+pub struct RegistrationHandle {
+    entries: Weak<Mutex<RegistryEntries>>,
+    key: ProcessIdentity,
+    generation: u64,
+}
+
+impl RegistrationHandle {
+    /// Attach a session discovered after process launch to this registration.
+    /// A replaced registration or a dropped owner is left untouched.
+    pub fn set_session_id(&self, session_id: impl Into<String>) -> bool {
+        let Some(entries) = self.entries.upgrade() else {
+            return false;
+        };
+        let mut entries = lock(&entries);
+        let Some((generation, registration)) = entries.get_mut(&self.key) else {
+            return false;
+        };
+        if *generation != self.generation {
+            return false;
+        }
+        registration.session_id = Some(session_id.into());
+        true
+    }
+}
+
 impl Drop for RegistrationGuard {
     fn drop(&mut self) {
         if let Some(entries) = self.entries.upgrade() {

@@ -411,7 +411,7 @@ async fn run_provider_attempt(
             }
         }
     };
-    let _agent_registration = child.id().and_then(|pid| {
+    let agent_registration = child.id().and_then(|pid| {
         medulla_monitor::agents::agent_registry().register(
             pid,
             spec.task_id.clone(),
@@ -419,6 +419,16 @@ async fn run_provider_attempt(
             spec.provider.as_str(),
         )
     });
+    if let (Some(handle), Some(callback)) = (
+        agent_registration.as_ref().map(|guard| guard.handle()),
+        on_session.take(),
+    ) {
+        on_session = Some(Box::new(move |session_id| {
+            let _ = handle.set_session_id(session_id.clone());
+            callback(session_id);
+        }));
+    }
+    let _agent_registration = agent_registration;
 
     // stdin forwarding: hand the caller an unbounded sender; a background task
     // drains it into the child's stdin (appending a newline when missing).
