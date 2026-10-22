@@ -4,7 +4,7 @@ mod keys;
 pub(super) mod layout;
 #[cfg(test)]
 mod tests;
-mod types;
+pub(super) mod types;
 
 pub(super) use types::ResourcesState;
 
@@ -192,6 +192,8 @@ impl App {
                             },
                             state.net_sync,
                         );
+                    } else if title.contains("Agents") {
+                        crate::ui::app::render::resources::agents::draw_agents(f, rect, &self.resource_snapshot, &mut self.resources);
                     }
                 }
             }

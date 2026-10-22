@@ -25,6 +25,7 @@ mod frame_state;
 pub(super) mod graph;
 mod points;
 mod prompt;
+pub(super) mod resources;
 mod selection;
 mod session_modals;
 mod sessions;
