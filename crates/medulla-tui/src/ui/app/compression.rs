@@ -4,7 +4,7 @@ use super::types::SP_TOKENS;
 const REFRESH_SECONDS: u64 = 5;
 
 impl App {
-    pub(super) fn due_compression_refresh(&mut self, now_seconds: u64) -> Option<Cmd> {
+    pub(crate) fn due_compression_refresh(&mut self, now_seconds: u64) -> Option<Cmd> {
         if !cfg!(feature = "tinyjuice")
             || self.tab() != "Settings"
             || self.settings_index != SP_TOKENS
@@ -21,7 +21,7 @@ impl App {
         })
     }
 
-    pub(super) fn set_compression_stats(
+    pub(crate) fn set_compression_stats(
         &mut self,
         result: Result<Option<medulla::juice::EmbeddedCompressionStats>, String>,
     ) {
