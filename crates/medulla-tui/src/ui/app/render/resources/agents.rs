@@ -4,7 +4,7 @@ use medulla::protocol::HarnessProvider;
 use medulla_monitor::sampler::{ProcessSnapshot, ResourceSnapshot};
 use ratatui::{layout::Rect, style::{Color, Modifier, Style}, text::Line, widgets::{Block, Borders, Cell, Paragraph, Row, Table}, Frame};
 
-use crate::ui::app::{resources::types::{AgentSignal, AgentSort, ResourcesState}, types::App};
+use crate::ui::app::{resources::types::{AgentSignal, AgentSort, ResourcesState}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct AgentRow {
@@ -86,25 +86,24 @@ fn compare(a: &AgentRow, b: &AgentRow, key: AgentSort) -> Ordering {
     }
 }
 
-impl App {
-    pub(super) fn draw_agents(&mut self, frame: &mut Frame, area: Rect) {
-        let rows = visible_rows(&self.resource_snapshot, &self.resources);
+pub(super) fn draw_agents(frame: &mut Frame, area: Rect, snapshot: &ResourceSnapshot, state: &mut ResourcesState) {
+        let rows = visible_rows(snapshot, state);
         for row in &rows {
-            let history = self.resources.agent_cpu_history.entry((row.pid,row.started)).or_default();
+            let history = state.agent_cpu_history.entry((row.pid,row.started)).or_default();
             history.push(row.cpu);
             if history.len() > 24 { history.remove(0); }
         }
-        if self.resources.agent_selected.is_none() { self.resources.agent_selected = rows.first().map(|r| (r.pid,r.started)); }
-        if self.resources.agent_follow { self.resources.agent_selected = rows.first().map(|r| (r.pid,r.started)); }
-        if self.resources.agent_detail {
-            super::agents_detail::draw(frame, area, rows.iter().find(|r| Some((r.pid,r.started)) == self.resources.agent_selected));
+        if state.agent_selected.is_none() { state.agent_selected = rows.first().map(|r| (r.pid,r.started)); }
+        if state.agent_follow { state.agent_selected = rows.first().map(|r| (r.pid,r.started)); }
+        if state.agent_detail {
+            super::agents_detail::draw(frame, area, rows.iter().find(|r| Some((r.pid,r.started)) == state.agent_selected));
             return;
         }
-        let selected = self.resources.agent_selected;
+        let selected = state.agent_selected;
         let compact = area.width < 105;
         let header = if compact { Row::new(["PID", "Agent / Origin", "CPU", "Mem", "Run"]) } else { Row::new(["PID", "Agent", "Origin", "Workspace", "Th", "Mem", "CPU%", "CPU", "Runtime"]) };
         let table_rows: Vec<Row> = rows.iter().map(|row| {
-            let graph = self.resources.agent_cpu_history.get(&(row.pid,row.started)).map(|history| mini_graph(history)).unwrap_or_default();
+            let graph = state.agent_cpu_history.get(&(row.pid,row.started)).map(|history| mini_graph(history)).unwrap_or_default();
             let workspace = shorten(&row.workspace, if compact { 18 } else { 25 });
             let origin = if row.external { "external".to_owned() } else { row.origin.clone() };
             let cells = if compact {
@@ -122,7 +121,7 @@ impl App {
             else { vec![ratatui::layout::Constraint::Length(7),ratatui::layout::Constraint::Length(13),ratatui::layout::Constraint::Length(13),ratatui::layout::Constraint::Min(12),ratatui::layout::Constraint::Length(4),ratatui::layout::Constraint::Length(8),ratatui::layout::Constraint::Length(6),ratatui::layout::Constraint::Length(8),ratatui::layout::Constraint::Length(7)] };
         let table = Table::new(table_rows, widths).header(header.style(Style::default().add_modifier(Modifier::BOLD))).block(Block::default().borders(Borders::ALL).title(title)).row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
         frame.render_widget(table, area);
-        if let Some((pid,_,signal)) = self.resources.agent_signal_armed {
+        if let Some((pid,_,signal)) = state.agent_signal_armed {
             let row = rows.iter().find(|row| row.pid == pid);
             if let Some(row) = row {
                 let label = if row.external { "EXTERNAL PROCESS" } else { "Medulla agent" };
@@ -131,11 +130,10 @@ impl App {
                 frame.render_widget(Paragraph::new(Line::from(prompt)).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)), Rect::new(area.x+1,area.y+1,area.width.saturating_sub(2),1));
             }
         }
-        if self.resources.agent_filter_editing {
-            let filter = self.resources.agent_filter.as_deref().unwrap_or_default();
+        if state.agent_filter_editing {
+            let filter = state.agent_filter.as_deref().unwrap_or_default();
             frame.render_widget(Paragraph::new(format!("Filter: {filter}_   Enter apply · Esc cancel")), Rect::new(area.x+1,area.bottom().saturating_sub(2),area.width.saturating_sub(2),1));
         }
-    }
 }
 
 fn kind_counts(rows: &[AgentRow]) -> String {

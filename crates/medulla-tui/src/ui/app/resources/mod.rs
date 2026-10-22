@@ -193,7 +193,7 @@ impl App {
                             state.net_sync,
                         );
                     } else if title.contains("Agents") {
-                        crate::ui::app::render::resources::agents::draw_agents(f, rect, &self.resource_snapshot, &mut self.resources);
+                        crate::ui::app::render::resources::agents::draw_agents(f, inner, &self.resource_snapshot, state);
                     }
                 }
             }
