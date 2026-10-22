@@ -33,6 +33,7 @@ medulla-link = { workspace = true }
 medulla-monitor = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+regex = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 ratatui = { workspace = true }

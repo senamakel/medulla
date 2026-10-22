@@ -272,10 +272,24 @@ fn valid_preset(preset: &str) -> bool {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(in crate::ui::app) enum AgentSort { Pid, Kind, Origin, Workspace, Threads, Memory, #[default] Cpu, Runtime }
+pub(in crate::ui::app) enum AgentSort {
+    Pid,
+    Kind,
+    Origin,
+    Workspace,
+    Threads,
+    Memory,
+    #[default]
+    Cpu,
+    Runtime,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui::app) enum AgentSignal { Terminate, Kill, Stop }
+pub(in crate::ui::app) enum AgentSignal {
+    Terminate,
+    Kill,
+    Stop,
+}
 
 #[cfg(unix)]
 fn send_process_signal(pid: u32, signal: AgentSignal) -> std::io::Result<()> {
@@ -285,10 +299,17 @@ fn send_process_signal(pid: u32, signal: AgentSignal) -> std::io::Result<()> {
         AgentSignal::Stop => libc::SIGSTOP,
     };
     // SAFETY: kill only receives the integer pid and signal values validated above.
-    if unsafe { libc::kill(pid as libc::pid_t, signal) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+    if unsafe { libc::kill(pid as libc::pid_t, signal) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
 }
 
 #[cfg(not(unix))]
 fn send_process_signal(_pid: u32, _signal: AgentSignal) -> std::io::Result<()> {
-    Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "process signals are unsupported on this platform"))
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "process signals are unsupported on this platform",
+    ))
 }
