@@ -405,6 +405,16 @@ fn thread_details_are_refreshed_only_for_agent_candidates() {
     ));
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn process_details_are_refreshed_only_for_possible_agent_processes() {
+    assert!(super::may_be_agent_process("claude"));
+    assert!(super::may_be_agent_process("node"));
+    assert!(super::may_be_agent_process("bash"));
+    assert!(!super::may_be_agent_process("sleep"));
+    assert!(!super::may_be_agent_process("postgres"));
+}
+
 #[test]
 fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
     let disks = [
