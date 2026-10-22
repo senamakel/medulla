@@ -175,7 +175,7 @@ impl ResourceSource for SystemResourceSource {
                 .and_then(|flags| {
                     u32::from_str_radix(flags.trim().trim_start_matches("0x"), 16).ok()
                 })
-                .is_some_and(|flags| flags & 1 != 0);
+            .is_some_and(|flags| flags & 0x40 != 0);
                 #[cfg(not(target_os = "linux"))]
                 let up = true;
                 NetworkSnapshot {
