@@ -135,7 +135,7 @@ fn embedded_openhuman(
             by_pid
                 .get(pid)
                 .and_then(|process| classify(process))
-                .map_or(true, |kind| kind == AgentKind::Shell)
+                .is_none_or(|kind| kind == AgentKind::Shell)
         })
         .collect::<Vec<_>>();
     if direct_children.is_empty() {

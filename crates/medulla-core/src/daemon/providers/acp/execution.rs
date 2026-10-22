@@ -497,7 +497,7 @@ fn process_with_marker(system: &mut sysinfo::System, key: &str, value: &str) -> 
         .filter(|process| {
             process
                 .parent()
-                .map_or(true, |parent| !marked_pids.contains(&parent))
+                .is_none_or(|parent| !marked_pids.contains(&parent))
         })
         .min_by_key(|process| process.start_time())
         .map(|process| (process.pid().as_u32(), process.start_time()))
