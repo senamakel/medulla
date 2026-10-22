@@ -104,7 +104,7 @@ pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 10] = [
+pub const SETTINGS_SUBPAGES: [&str; 11] = [
     "Usage",
     "Appearance",
     "Subscriptions",
@@ -115,6 +115,7 @@ pub const SETTINGS_SUBPAGES: [&str; 10] = [
     "Context",
     "Account",
     "Help",
+    "Resources",
 ];
 
 /// The left-nav group headings, as `(heading, first subpage index)`.
@@ -139,6 +140,7 @@ pub(in crate::ui::app) const SP_TRACE: usize = 6;
 pub(in crate::ui::app) const SP_CONTEXT: usize = 7;
 pub(in crate::ui::app) const SP_ACCOUNT: usize = 8;
 pub(in crate::ui::app) const SP_HELP: usize = 9;
+pub(in crate::ui::app) const SP_RESOURCES: usize = 10;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
