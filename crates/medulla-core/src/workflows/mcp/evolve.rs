@@ -10,7 +10,6 @@
 //! operator's decision, and the cheapest enforcement of that is that no agent
 //! has a verb for them.
 
-use medulla_types::ToolMode;
 use serde_json::{json, Value};
 
 /// Restricts evolution writes to the workflow being reviewed.
