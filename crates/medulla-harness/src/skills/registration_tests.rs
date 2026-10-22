@@ -12,7 +12,7 @@ use tempfile::TempDir;
 
 use super::registration::{register, RegistrationOptions};
 use super::{SkillScope, SkillTarget};
-use crate::workflows::mcp::ToolMode;
+use medulla_types::ToolMode;
 
 /// Registration options rooted at a scratch directory.
 fn opts(root: &Path, targets: Vec<SkillTarget>, scope: SkillScope) -> RegistrationOptions {
