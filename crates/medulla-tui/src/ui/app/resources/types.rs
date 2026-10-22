@@ -46,6 +46,17 @@ pub(in crate::ui::app) struct ResourcesState {
     pub net_zero_offsets: std::collections::HashMap<String, (u64, u64)>,
     pub net_download_scaler: crate::ui::resources::net::NetScaler,
     pub net_upload_scaler: crate::ui::resources::net::NetScaler,
+    pub agent_sort: AgentSort,
+    pub agent_reverse: bool,
+    pub agent_tree: bool,
+    pub agent_filter: Option<String>,
+    pub agent_filter_editing: bool,
+    pub agent_selected: Option<(u32, u64)>,
+    pub agent_follow: bool,
+    pub agent_detail: bool,
+    pub agent_signal_armed: Option<(u32, u64, AgentSignal)>,
+    pub agent_signal_fn: fn(u32, AgentSignal) -> std::io::Result<()>,
+    pub agent_cpu_history: std::collections::HashMap<(u32, u64), Vec<f64>>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -96,6 +107,17 @@ impl Default for ResourcesState {
             net_zero_offsets: std::collections::HashMap::new(),
             net_download_scaler: Default::default(),
             net_upload_scaler: Default::default(),
+            agent_sort: AgentSort::Cpu,
+            agent_reverse: false,
+            agent_tree: false,
+            agent_filter: None,
+            agent_filter_editing: false,
+            agent_selected: None,
+            agent_follow: false,
+            agent_detail: false,
+            agent_signal_armed: None,
+            agent_signal_fn: send_process_signal,
+            agent_cpu_history: std::collections::HashMap::new(),
         }
     }
 }
@@ -247,4 +269,26 @@ fn valid_preset(preset: &str) -> bool {
         any = true;
     }
     any
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(in crate::ui::app) enum AgentSort { Pid, Kind, Origin, Workspace, Threads, Memory, #[default] Cpu, Runtime }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::ui::app) enum AgentSignal { Terminate, Kill, Stop }
+
+#[cfg(unix)]
+fn send_process_signal(pid: u32, signal: AgentSignal) -> std::io::Result<()> {
+    let signal = match signal {
+        AgentSignal::Terminate => libc::SIGTERM,
+        AgentSignal::Kill => libc::SIGKILL,
+        AgentSignal::Stop => libc::SIGSTOP,
+    };
+    // SAFETY: kill only receives the integer pid and signal values validated above.
+    if unsafe { libc::kill(pid as libc::pid_t, signal) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+}
+
+#[cfg(not(unix))]
+fn send_process_signal(_pid: u32, _signal: AgentSignal) -> std::io::Result<()> {
+    Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "process signals are unsupported on this platform"))
 }
