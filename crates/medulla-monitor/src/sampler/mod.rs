@@ -435,7 +435,7 @@ fn linux_interface_flags(name: &str) -> Option<u32> {
     .and_then(|flags| u32::from_str_radix(flags.trim().trim_start_matches("0x"), 16).ok())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 fn linux_interface_state(flags: u32) -> (bool, bool) {
     (flags & 0x1 != 0, flags & 0x40 != 0)
 }
