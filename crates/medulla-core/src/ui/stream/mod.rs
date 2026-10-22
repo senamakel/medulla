@@ -11,8 +11,63 @@
 mod tests;
 
 pub use medulla_tokens::{TierUsage, UsageFold};
+use medulla_tokens::Usage;
 
 use crate::ui::events::{EventEnvelope, TuiEvent};
+
+/// Token accounting grouped by inference tier and concrete model.
+///
+/// Provider is intentionally not inferred from a tier or model name. Event
+/// streams that do not carry provider attribution leave it to the consuming
+/// view to display as unknown.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DetailedUsage {
+    /// Model tier selected by orchestration.
+    pub tier: String,
+    /// Concrete model identifier, when reported.
+    pub model: Option<String>,
+    /// Accumulated token categories for this tier/model pair.
+    pub usage: Usage,
+}
+
+/// Fold inference usage into category-preserving tier/model rows.
+///
+/// Optional categories remain absent when no event reports them. Once a
+/// category is reported, later events without that category do not erase it.
+pub fn detailed_usage(events: &[EventEnvelope]) -> Vec<DetailedUsage> {
+    let mut rows: std::collections::BTreeMap<(String, Option<String>), Usage> =
+        std::collections::BTreeMap::new();
+    for envelope in events {
+        let TuiEvent::InferenceEnd {
+            tier,
+            model,
+            usage: Some(usage),
+            ..
+        } = &envelope.event
+        else {
+            continue;
+        };
+        let total = rows.entry((tier.clone(), model.clone())).or_default();
+        total.input_tokens += usage.input_tokens;
+        total.output_tokens += usage.output_tokens;
+        add_optional(&mut total.cache_read_tokens, usage.cache_read_tokens);
+        add_optional(
+            &mut total.cache_creation_tokens,
+            usage.cache_creation_tokens,
+        );
+        add_optional(&mut total.cache_write_tokens, usage.cache_write_tokens);
+        add_optional(&mut total.reasoning_tokens, usage.reasoning_tokens);
+    }
+    rows.into_iter()
+        .map(|((tier, model), usage)| DetailedUsage { tier, model, usage })
+        .collect()
+}
+
+fn add_optional(total: &mut Option<i64>, value: Option<i64>) {
+    if let Some(value) = value {
+        *total = Some(total.unwrap_or_default() + value);
+    }
+}
 
 /// Fold the event log into per-tier and per-task token totals for the Usage tab.
 ///
