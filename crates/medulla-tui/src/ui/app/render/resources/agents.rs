@@ -954,6 +954,16 @@ mod tests {
     }
 
     #[test]
+    fn unregistered_bare_codex_process_is_visible_as_external() {
+        let rows = rows(
+            &ResourceSnapshot::default().with_processes(vec![process(987_105, "codex", 0.0, 1)]),
+        );
+        assert_eq!(rows.len(), 1, "the harness-named process must be visible");
+        assert_eq!(rows[0].kind, "External");
+        assert_eq!(rows[0].origin, "external");
+    }
+
+    #[test]
     fn registry_classifies_session_task_and_host_origins() {
         let registry = medulla_monitor::agents::agent_registry();
         let registrations = [
