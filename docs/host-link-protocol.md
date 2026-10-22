@@ -29,18 +29,22 @@ retains a forwarder route for coordination tests; it is not a deployed
 bootstrap, as described in Appendix A.
 
 Session control uses the additive `medulla.remote.v1` messages on reliable
-channel 0. A `Sessions` row may include optional classified process usage
-(kind, PID, CPU, resident memory, thread count, start time, and a short CPU
-history). Hosts sample and publish it no faster than `[resources].updateMs`
-(default 2000 ms); it is omitted when unavailable. The field is optional so
-older and newer clients remain interoperable. Senders trim history and omit
-usage as needed to keep a `Sessions` message within channel 0's single-message
-datagram budget. If the base session list still exceeds that budget, the sender
-uses additive `SessionsChunk` messages with a generation id and part index;
-clients replace the displayed list only after receiving every part. Each chunk
-is independently bounded by the same datagram limit. Older clients ignore this
-new message kind and retain their last complete list; channel 0 itself does not
-fragment messages.
+channel 0. Each `Sessions` row has an optional `usage` object for classified
+process telemetry. Its camelCase fields are `kind` (classification name),
+`pid` (host-local process id), `cpu` (percent of one logical CPU), `rss`
+(resident bytes), `threads`, `startedAt` (Unix seconds), and `cpuHistory`
+(oldest-first CPU percentages, bounded by the sender). Senders omit `usage`
+when no classified process sample is available. They sample and publish no
+faster than `[resources].updateMs` (default 2000 ms). The field is optional so
+older and newer clients remain interoperable.
+
+Senders trim history and omit usage as needed to keep a `Sessions` message
+within channel 0's single-message datagram budget. If the base session list
+still exceeds that budget, the sender uses additive `SessionsChunk` messages
+with a generation id and part index; clients replace the displayed list only
+after receiving every part. Each chunk is independently bounded by the same
+datagram limit. Older clients ignore this new message kind and retain their
+last complete list; channel 0 itself does not fragment messages.
 
 This document is normative. Both endpoints live in the `medulla-link` crate and
 code against it. Where this document and the implementation disagree, this

@@ -1,5 +1,13 @@
 # Plan: Resources tab with a btop-style Agents pane
 
+> **Status: Implemented.** The UI and shared sampler landed through
+> [PR #58](https://github.com/senamakel/medulla/pull/58),
+> [PR #59](https://github.com/senamakel/medulla/pull/59),
+> [PR #60](https://github.com/senamakel/medulla/pull/60),
+> [PR #61](https://github.com/senamakel/medulla/pull/61), and its Windows test
+> follow-up [PR #62](https://github.com/senamakel/medulla/pull/62). The user
+> guide is [Resources](../../gitbooks/features/resources.md).
+
 ## Problem
 
 Medulla has resource snippets in the Sessions view, but no host-wide history, no dedicated overview of CPU/memory/network activity, and no inventory of the coding-agent processes running on a host. The Resources tab will bring those views together: familiar btop-shaped resource boxes, with an Agents pane that classifies Medulla sessions and externally started coding agents. The tab must remain honest about platform data gaps and must not block drawing while it samples processes.
