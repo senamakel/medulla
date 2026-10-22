@@ -4,6 +4,10 @@
 //! Codex's `-c` overrides. The SDK supplies an endpoint through
 //! [`McpEndpoint`], keeping grant minting and runtime configuration out of this
 //! crate.
+//!
+//! OpenCode has no verified CLI attach path today; its wrapper uses an SSE
+//! bridge, so CLI MCP registration is a follow-up when an invocation-scoped
+//! mechanism is available.
 
 use std::path::PathBuf;
 
