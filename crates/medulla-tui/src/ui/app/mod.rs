@@ -13,6 +13,7 @@
 mod account;
 mod appearance;
 mod changes;
+mod compression;
 mod commands;
 mod decisions;
 mod feedback;

@@ -337,6 +337,16 @@ pub(super) fn run_cmd(
                 }
             });
         }
+        Cmd::LoadCompressionStats { workspace } => {
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                let result = tokio::task::spawn_blocking(move || medulla::juice::read_embedded_stats(&workspace))
+                    .await
+                    .map_err(|error| error.to_string())
+                    .and_then(|result| result.map_err(|error| error.to_string()));
+                let _ = tx.send(AppMsg::CompressionStatsLoaded(result));
+            });
+        }
         Cmd::LoadSubscriptions(account) => {
             let config = _config.subscriptions.clone();
             let tx = msg_tx.clone();

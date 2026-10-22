@@ -28,6 +28,7 @@ test-endpoint-override = ["medulla/test-endpoint-override"]
 
 [dependencies]
 medulla = { workspace = true, default-features = false }
+medulla-juice = { workspace = true }
 medulla-harness = { workspace = true }
 medulla-providers = { path = "../medulla-providers" }
 # The host-link transport: `main.rs` brings the link up before handing the

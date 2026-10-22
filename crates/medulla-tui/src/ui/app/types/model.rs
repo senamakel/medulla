@@ -241,6 +241,8 @@ pub enum Cmd {
         /// The dispatched task whose session should be killed.
         task_id: String,
     },
+    /// Load embedded compression totals from the configured workspace.
+    LoadCompressionStats { workspace: std::path::PathBuf },
     /// Fetch account-level usage from the backend for the Usage tab.
     LoadUsage,
     /// Re-sample the subscription-usage meters that are switched on.
