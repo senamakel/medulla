@@ -185,16 +185,29 @@ async fn disk_options_change_samples_without_restarting_the_sampler() {
         move |snapshot| output_tx.send(snapshot).is_ok(),
     );
 
-    async fn sample(
+    async fn sample_matching(
         output_rx: &mut mpsc::UnboundedReceiver<Arc<ResourceSnapshot>>,
+        matches: impl Fn(&ResourceSnapshot) -> bool,
     ) -> Arc<ResourceSnapshot> {
-        tokio::time::timeout(Duration::from_secs(1), output_rx.recv())
-            .await
-            .unwrap()
-            .unwrap()
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                let snapshot = output_rx.recv().await.expect("sampler should stay alive");
+                if matches(&snapshot) {
+                    return snapshot;
+                }
+            }
+        })
+        .await
+        .expect("sampler should publish a matching snapshot within one second")
     }
 
-    assert_eq!(sample(&mut output_rx).await.disks.len(), 4);
+    assert_eq!(
+        sample_matching(&mut output_rx, |snapshot| snapshot.disks.len() == 4)
+            .await
+            .disks
+            .len(),
+        4
+    );
     assert!(update_disk_options(
         &options_tx,
         DiskOptions {
@@ -202,7 +215,13 @@ async fn disk_options_change_samples_without_restarting_the_sampler() {
             ..Default::default()
         }
     ));
-    assert_eq!(sample(&mut output_rx).await.disks.len(), 3);
+    assert_eq!(
+        sample_matching(&mut output_rx, |snapshot| snapshot.disks.len() == 3)
+            .await
+            .disks
+            .len(),
+        3
+    );
     assert!(update_disk_options(
         &options_tx,
         DiskOptions {
@@ -211,7 +230,13 @@ async fn disk_options_change_samples_without_restarting_the_sampler() {
             ..Default::default()
         }
     ));
-    assert_eq!(sample(&mut output_rx).await.disks.len(), 2);
+    assert_eq!(
+        sample_matching(&mut output_rx, |snapshot| snapshot.disks.len() == 2)
+            .await
+            .disks
+            .len(),
+        2
+    );
     assert!(update_disk_options(
         &options_tx,
         DiskOptions {
@@ -220,7 +245,10 @@ async fn disk_options_change_samples_without_restarting_the_sampler() {
             filter: "exclude=/boot".into(),
         }
     ));
-    let final_sample = sample(&mut output_rx).await;
+    let final_sample = sample_matching(&mut output_rx, |snapshot| {
+        snapshot.disks.len() == 1 && snapshot.disks[0].mount == "/"
+    })
+    .await;
     assert_eq!(final_sample.disks.len(), 1);
     assert_eq!(final_sample.disks[0].mount, "/");
 
