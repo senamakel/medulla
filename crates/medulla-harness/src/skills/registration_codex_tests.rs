@@ -9,12 +9,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde_json::{json, Value};
+use serde_json::Value;
 use tempfile::TempDir;
 
 use super::registration::{register, RegistrationOptions};
 use super::{SkillScope, SkillTarget};
-use medulla_types::ToolMode;
 
 /// Registration options rooted at a scratch directory.
 fn opts(root: &Path, targets: Vec<SkillTarget>, scope: SkillScope) -> RegistrationOptions {

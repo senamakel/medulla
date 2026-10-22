@@ -39,6 +39,7 @@ impl InputType {
     }
 }
 
+#[derive(Clone)]
 struct WorkflowInput {
     name: String,
     ty: InputType,
