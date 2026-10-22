@@ -149,6 +149,3 @@ fn a_written_config_file_carries_the_session_alongside_the_grant() {
         "and the grant is still there beside it"
     );
 }
-
-#[path = "attach_tests_ext.rs"]
-mod tests_ext;
