@@ -1081,7 +1081,7 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
         "Command: aider --api-key=[REDACTED] --workspace /tmp/work",
         "Origin: external",
         "Signal: kill",
-        "Target host: local host",
+        "Target host: local",
     ] {
         assert!(text.contains(expected), "missing {expected} in {text}");
     }
