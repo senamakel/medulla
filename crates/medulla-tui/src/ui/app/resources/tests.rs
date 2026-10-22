@@ -1053,6 +1053,9 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
     ));
     app.resources.agent_selected = Some((44, 1));
     app.resources.agent_detail = true;
+    app.resources.shown.cpu = false;
+    app.resources.shown.mem = false;
+    app.resources.shown.net = false;
     app.resources.agent_signal_armed = Some(AgentSignalConfirmation {
         pid: 44,
         started: 1,

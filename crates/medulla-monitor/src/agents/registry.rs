@@ -165,6 +165,7 @@ fn process_start_time(pid: u32) -> Option<u64> {
 ///
 /// This is intended for security-sensitive actions that must revalidate a
 /// sampled process identity immediately before acting on its PID.
+#[cfg(unix)]
 pub fn current_process_identity(pid: u32) -> Option<(u64, String)> {
     let pid = Pid::from_u32(pid);
     let mut system = System::new();
@@ -172,7 +173,7 @@ pub fn current_process_identity(pid: u32) -> Option<(u64, String)> {
     let process = system.process(pid)?;
     Some((
         process.start_time(),
-        process.effective_user_id()?.to_string(),
+        (**process.effective_user_id()?).to_string(),
     ))
 }
 

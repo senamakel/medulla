@@ -2,9 +2,10 @@
 
 mod registry;
 
+#[cfg(unix)]
+pub use registry::current_process_identity;
 pub use registry::{
-    agent_registry, current_process_identity, AgentRegistration, AgentRegistry, RegistrationGuard,
-    RegistrationHandle,
+    agent_registry, AgentRegistration, AgentRegistry, RegistrationGuard, RegistrationHandle,
 };
 
 #[cfg(test)]

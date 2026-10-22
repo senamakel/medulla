@@ -428,9 +428,7 @@ impl ResourceSource for SystemResourceSource {
 fn effective_user_id(process: &sysinfo::Process) -> Option<String> {
     #[cfg(unix)]
     {
-        process
-            .effective_user_id()
-            .map(|uid| (**uid).to_string())
+        process.effective_user_id().map(|uid| (**uid).to_string())
     }
     #[cfg(not(unix))]
     {

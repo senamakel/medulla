@@ -531,7 +531,7 @@ fn display_command(process: &ProcessSnapshot) -> String {
             process
                 .exe
                 .as_deref()
-                .and_then(std::path::Path::new)
+                .map(std::path::Path::new)
                 .and_then(std::path::Path::file_name)
                 .and_then(|name| name.to_str())
                 .unwrap_or("unavailable")
