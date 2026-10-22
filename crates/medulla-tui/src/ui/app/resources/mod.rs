@@ -82,10 +82,19 @@ impl App {
                     if title == "Mem" {
                         format!(" Mem [{key}] [d] [i] ")
                     } else if title == "Net" {
+                        let selected = state.net_iface.as_deref().or_else(|| {
+                            crate::ui::resources::net::default_interface(&self.resource_snapshot.networks)
+                        });
+                        let address = selected
+                            .and_then(|name| self.resource_snapshot.networks.iter().find(|entry| entry.interface == name))
+                            .and_then(|entry| entry.ip_addresses.first())
+                            .map(String::as_str)
+                            .unwrap_or("no IP");
                         format!(
-                            " Net [{key}] [b] [n] [z] [a{}] [y{}] ",
+                            " Net [{key}] [b] [n] [z] [a{}] [y{}] {} {} ",
                             if state.net_auto { "✓" } else { " " },
-                            if state.net_sync { "✓" } else { " " }
+                            if state.net_sync { "✓" } else { " " },
+                            selected.unwrap_or("no iface"), address
                         )
                     } else {
                         format!(" {title} [{key}] ")
@@ -107,11 +116,11 @@ impl App {
                         _ => state.hits.agents_toggle = hit,
                     }
                     if title.contains("Net") {
-                        state.hits.net_prev = Rect::new(rect.x + 9, rect.y, 3, 1);
-                        state.hits.net_next = Rect::new(rect.x + 13, rect.y, 3, 1);
-                        state.hits.net_zero = Rect::new(rect.x + 17, rect.y, 3, 1);
-                        state.hits.net_auto = Rect::new(rect.x + 21, rect.y, 3, 3);
-                        state.hits.net_sync = Rect::new(rect.x + 27, rect.y, 3, 3);
+                        state.hits.net_prev = Rect::new(rect.x + 10, rect.y, 3, 1);
+                        state.hits.net_next = Rect::new(rect.x + 14, rect.y, 3, 1);
+                        state.hits.net_zero = Rect::new(rect.x + 18, rect.y, 3, 1);
+                        state.hits.net_auto = Rect::new(rect.x + 22, rect.y, 3, 1);
+                        state.hits.net_sync = Rect::new(rect.x + 26, rect.y, 3, 1);
                     }
                 }
                 let block = Block::default()
@@ -376,6 +385,11 @@ fn draw_net_panel(
             selected.interface,
             net_rate(download),
             net_rate(upload)
+        )));
+        lines.push(Line::from(format!(
+            "bits ↓{} ↑{}",
+            net_rate(download * 8.0),
+            net_rate(upload * 8.0)
         )));
         lines.push(Line::from(format!(
             "Top {}  Total ↓{} ↑{}",
