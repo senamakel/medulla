@@ -6,7 +6,7 @@ use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, TableLike, Value a
 
 use super::{
     exe_string, outcome, read_if_present, skipped, write_new_file, Existing, RegistrationOptions,
-    RegistrationOutcome, SkillTarget, SERVER_NAME, MCP_ARG, TOOLS_ENV,
+    RegistrationOutcome, SkillTarget, MCP_ARG, SERVER_NAME, TOOLS_ENV,
 };
 
 /// Merges `[mcp_servers.medulla]` into `<root>/.codex/config.toml`.
@@ -171,4 +171,3 @@ fn write_tools_env(entry: &mut dyn TableLike, opts: &RegistrationOptions) {
         env.insert(TOOLS_ENV, toml_edit::value(opts.tools_mode.clone()));
     }
 }
-
