@@ -138,7 +138,7 @@ PY
   # tmux, outside Medulla. It has no registry entry and must render as external.
   tmux new-window -t "$SESSION" -n external -c "$workspace"
   tmux send-keys -t "$SESSION:external" \
-    "echo \\\$\\\$ > $(printf %q "$RUN_DIR/external.pid"); exec -a opencode sleep 180" C-m
+    "echo \$\$ > $(printf %q "$RUN_DIR/external.pid"); exec -a opencode sleep 180" C-m
   deadline=$(( $(date +%s) + 30 ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     pane="$(capture_app)"
