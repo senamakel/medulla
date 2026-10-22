@@ -156,6 +156,29 @@ impl ThreadClaims {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "tinyjuice")]
+    #[test]
+    fn a_process_runtime_cannot_be_reused_with_another_compression_policy() {
+        std::thread::Builder::new()
+            .stack_size(crate::tokio_tuning::WORKER_STACK_BYTES)
+            .spawn(|| {
+                crate::tokio_tuning::build_runtime()
+                    .unwrap()
+                    .block_on(async {
+                        let home = tempfile::tempdir().unwrap();
+                        let opted_out = EmbedHost::default().with_compression_enabled(false);
+                        let _runtime = opted_out.runtime(home.path()).await.unwrap();
+                        let opted_in = EmbedHost::default().with_compression_enabled(true);
+                        let error = opted_in.runtime(home.path()).await.unwrap_err();
+                        assert!(error.contains("another compression policy"));
+                    });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
     #[test]
     fn a_session_policy_snapshot_has_one_owner_without_blocking_other_workers() {
         let claims = ThreadClaims::default();
