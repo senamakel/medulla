@@ -336,6 +336,30 @@ fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
     assert!(app.resources_key(KeyCode::Char('z')));
     assert_eq!(app.resources.net_zero_received, 100);
     assert_eq!(app.resources.net_zero_transmitted, 200);
+    let mut later = sample.clone();
+    let wlan = later
+        .networks
+        .iter_mut()
+        .find(|entry| entry.interface == "wlan0")
+        .unwrap();
+    wlan.total_received_bytes += 10;
+    wlan.total_transmitted_bytes += 20;
+    app.set_resource_snapshot(Arc::new(later));
+    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
+        .unwrap();
+    let text = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(
+        text.contains("Total ↓10B ↑20B"),
+        "zeroed counters must continue from their offset: {text}"
+    );
     assert!(app.resources_key(KeyCode::Char('n')));
     assert_eq!(app.resources.net_iface.as_deref(), Some("enp1s0"));
     assert!(app.resources_key(KeyCode::Char('n')));
