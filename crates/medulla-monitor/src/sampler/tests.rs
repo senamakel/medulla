@@ -185,12 +185,14 @@ async fn disk_options_change_samples_without_restarting_the_sampler() {
         move |snapshot| output_tx.send(snapshot).is_ok(),
     );
 
-    let sample = |output_rx: &mut mpsc::UnboundedReceiver<Arc<ResourceSnapshot>>| async move {
+    async fn sample(
+        output_rx: &mut mpsc::UnboundedReceiver<Arc<ResourceSnapshot>>,
+    ) -> Arc<ResourceSnapshot> {
         tokio::time::timeout(Duration::from_secs(1), output_rx.recv())
             .await
             .unwrap()
             .unwrap()
-    };
+    }
 
     assert_eq!(sample(&mut output_rx).await.disks.len(), 4);
     assert!(update_disk_options(
