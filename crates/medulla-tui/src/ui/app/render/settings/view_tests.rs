@@ -218,6 +218,35 @@ fn selected_harnesses_page_uses_the_collected_app_snapshot() {
 }
 
 #[test]
+fn entering_harnesses_queues_local_collection_with_loaded_sources() {
+    use crate::ui::app::types::{App, Cmd, tab_pos};
+    use medulla::config::LoadedConfig;
+    use medulla::runtime::Runtime;
+    use medulla::runtime::mock::MockRuntime;
+    use std::sync::Arc;
+
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
+    loaded.sources = vec!["user-config.json".into(), "project-config.json".into()];
+    let mut app = App::new(runtime, loaded);
+    app.tab_index = tab_pos("Settings");
+    app.settings_index = SETTINGS_SUBPAGES
+        .iter()
+        .position(|name| *name == "Harnesses")
+        .unwrap();
+
+    assert!(matches!(
+        app.tab_enter_cmd(),
+        Some(Cmd::LoadHarnesses { sources, .. })
+            if sources
+                == vec![
+                    "user-config.json".to_string(),
+                    "project-config.json".to_string()
+                ]
+    ));
+}
+
+#[test]
 fn settings_dispatch_renders_both_new_sections_by_selection() {
     use crate::ui::app::types::{App, tab_pos};
     use medulla::config::LoadedConfig;
