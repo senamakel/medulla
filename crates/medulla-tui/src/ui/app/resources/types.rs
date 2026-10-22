@@ -57,6 +57,7 @@ pub(in crate::ui::app) struct ResourcesState {
     pub agent_signal_armed: Option<(u32, u64, AgentSignal)>,
     pub agent_signal_fn: fn(u32, AgentSignal) -> std::io::Result<()>,
     pub agent_cpu_history: std::collections::HashMap<(u32, u64), Vec<f64>>,
+    pub agent_last_sample: Option<std::time::Instant>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -118,6 +119,7 @@ impl Default for ResourcesState {
             agent_signal_armed: None,
             agent_signal_fn: send_process_signal,
             agent_cpu_history: std::collections::HashMap::new(),
+            agent_last_sample: None,
         }
     }
 }

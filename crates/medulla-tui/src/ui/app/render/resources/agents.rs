@@ -255,15 +255,27 @@ pub(in crate::ui::app) fn draw_agents(
     state: &mut ResourcesState,
 ) {
     let rows = visible_rows(snapshot, state);
-    for row in &rows {
-        let history = state
-            .agent_cpu_history
-            .entry((row.pid, row.started))
-            .or_default();
-        history.push(row.cpu);
-        if history.len() > 24 {
-            history.remove(0);
+    let now = std::time::Instant::now();
+    let sample_due = state
+        .agent_last_sample
+        .is_none_or(|last| now.duration_since(last).as_millis() >= u128::from(state.interval_ms));
+    let current: std::collections::HashSet<_> =
+        rows.iter().map(|row| (row.pid, row.started)).collect();
+    state
+        .agent_cpu_history
+        .retain(|identity, _| current.contains(identity));
+    if sample_due {
+        for row in &rows {
+            let history = state
+                .agent_cpu_history
+                .entry((row.pid, row.started))
+                .or_default();
+            history.push(row.cpu);
+            if history.len() > 24 {
+                history.remove(0);
+            }
         }
+        state.agent_last_sample = Some(now);
     }
     if state.agent_detail {
         super::agents_detail::draw(
@@ -575,8 +587,10 @@ mod tests {
                 threads: 1,
             },
         ]);
-        let mut state = ResourcesState::default();
-        state.agent_tree = true;
+        let state = ResourcesState {
+            agent_tree: true,
+            ..ResourcesState::default()
+        };
         let rows = visible_rows(&snapshot, &state);
         assert_eq!(
             rows.iter()
