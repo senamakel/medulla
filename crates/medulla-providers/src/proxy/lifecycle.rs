@@ -62,9 +62,10 @@ impl ProxyHandle {
             };
         }
 
-        // Reuse the login flow's CSPRNG-backed nonce generator instead of
-        // introducing a second randomness dependency for loopback tokens.
-        let token = format!("mdl-{}", crate::auth::random_state_nonce());
+        // UUID v4 reads the operating system CSPRNG. This is a bearer token, so
+        // predictable per-call randomness would let a local process redeem the
+        // upstream key through the loopback listener.
+        let token = format!("mdl-{}", random_nonce());
         registry.by_token.insert(token.clone(), credential);
         registry.by_identity.insert(identity, token.clone());
         ProxyEndpoint {
@@ -72,6 +73,21 @@ impl ProxyHandle {
             token,
         }
     }
+}
+
+/// Produce 32 lowercase hexadecimal characters from the operating system CSPRNG.
+fn random_nonce() -> String {
+    let mut bytes = [0u8; 16];
+    for chunk in bytes.chunks_mut(8) {
+        let uuid = uuid::Uuid::new_v4();
+        chunk.copy_from_slice(&uuid.as_bytes()[8..16]);
+    }
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(char::from_digit(u32::from(byte >> 4), 16).expect("nibble is valid"));
+        output.push(char::from_digit(u32::from(byte & 0x0f), 16).expect("nibble is valid"));
+    }
+    output
 }
 
 /// The process-wide proxy, started on first use.

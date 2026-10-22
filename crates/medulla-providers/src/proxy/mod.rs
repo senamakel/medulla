@@ -3,8 +3,8 @@
 //! # Why this exists
 //!
 //! When an operator supplies an OpenRouter key, Medulla points the harness at
-//! OpenRouter through [`crate::config::RouterConfig`] and
-//! [`crate::protocol::env::router_env`]. That works, but it hands OpenRouter a
+//! OpenRouter through [`crate::RouterConfig`] and Medulla's router environment
+//! injection. That works, but it hands OpenRouter a
 //! request the *harness* composed — including the harness's own `HTTP-Referer`
 //! and `X-Title`, the two headers OpenRouter reads to decide which application
 //! to credit. Traffic Medulla orchestrated is therefore attributed to Claude
@@ -50,7 +50,13 @@ mod types;
 mod tests;
 
 #[cfg(test)]
+mod spawn_tests;
+
+#[cfg(test)]
 mod body_tests;
+
+#[cfg(test)]
+mod transport_tests;
 
 pub use body::MAX_REWRITE_BYTES;
 pub use headers::{rewrite, MEDULLA_REFERER, MEDULLA_TITLE};

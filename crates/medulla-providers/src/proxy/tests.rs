@@ -11,8 +11,8 @@ use http::header::{HeaderMap, HeaderName, HeaderValue};
 
 use super::routing::{is_openrouter, resolve_key};
 use super::*;
-use crate::config::{RouterConfig, RouterProviderConfig};
-use crate::protocol::HarnessProvider;
+use crate::{RouterConfig, RouterProviderConfig};
+use medulla_types::HarnessProvider;
 
 /// Build a header map from `(name, value)` pairs.
 fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
@@ -375,36 +375,6 @@ fn models_survive_the_rewrite() {
 }
 
 #[test]
-fn route_spawn_scrubs_the_real_key_and_rewrites_the_router() {
-    let mut router = Some(openrouter_router());
-    let mut env: HashMap<String, String> = HashMap::from([
-        ("OPENROUTER_API_KEY".to_string(), "sk-or-real".to_string()),
-        ("PATH".to_string(), "/usr/bin".to_string()),
-        // Keeps the listener off the network: the run never reaches upstream in
-        // this test, but starting one that could would be wrong regardless.
-        (
-            UPSTREAM_URL_ENV.to_string(),
-            "http://127.0.0.1:1/api".to_string(),
-        ),
-    ]);
-    route_spawn(HarnessProvider::Claude, &mut router, &mut env).expect("routed");
-
-    // The real key is gone — a harness in this environment has nothing to reach
-    // OpenRouter with except the loopback token.
-    assert!(!env.contains_key("OPENROUTER_API_KEY"));
-    let token = env.get(PROXY_TOKEN_ENV).expect("token exported");
-    assert!(token.starts_with("mdl-"));
-    assert_eq!(env.get("PATH").map(String::as_str), Some("/usr/bin"));
-
-    let router = router.expect("router kept");
-    assert_eq!(router.api_key_env.as_deref(), Some(PROXY_TOKEN_ENV));
-    assert!(router
-        .base_url_for("claude")
-        .expect("claude routed")
-        .starts_with("http://127.0.0.1:"));
-}
-
-#[test]
 fn route_spawn_leaves_an_unrouted_run_untouched() {
     let mut router = None;
     let mut env: HashMap<String, String> =
@@ -486,83 +456,4 @@ fn a_run_without_a_key_is_not_routed() {
     )
     .expect("no error");
     assert!(routed.is_none());
-}
-
-#[test]
-fn mounts_map_onto_their_upstream_dialects() {
-    assert_eq!(
-        UpstreamShape::Anthropic.upstream_base(OPENROUTER_ROOT),
-        "https://openrouter.ai/api"
-    );
-    assert_eq!(
-        UpstreamShape::OpenAi.upstream_base(OPENROUTER_ROOT),
-        "https://openrouter.ai/api/v1"
-    );
-    // A trailing slash on the configured root must not double up.
-    assert_eq!(
-        UpstreamShape::OpenAi.upstream_base("https://openrouter.ai/api/"),
-        "https://openrouter.ai/api/v1"
-    );
-}
-
-#[test]
-fn paths_split_into_a_mount_and_a_remainder() {
-    use super::serve::split_mount;
-
-    assert_eq!(
-        split_mount("/anthropic/v1/messages"),
-        Some((UpstreamShape::Anthropic, "/v1/messages"))
-    );
-    assert_eq!(
-        split_mount("/openai/chat/completions"),
-        Some((UpstreamShape::OpenAi, "/chat/completions"))
-    );
-    assert_eq!(
-        split_mount("/anthropic"),
-        Some((UpstreamShape::Anthropic, ""))
-    );
-    assert_eq!(split_mount("/unknown/v1"), None);
-    assert_eq!(split_mount("/"), None);
-}
-
-#[test]
-fn upstream_urls_carry_the_query_string() {
-    use super::serve::upstream_url;
-
-    assert_eq!(
-        upstream_url(
-            OPENROUTER_ROOT,
-            UpstreamShape::Anthropic,
-            "/v1/messages",
-            None
-        ),
-        "https://openrouter.ai/api/v1/messages"
-    );
-    assert_eq!(
-        upstream_url(
-            OPENROUTER_ROOT,
-            UpstreamShape::OpenAi,
-            "/models",
-            Some("limit=5")
-        ),
-        "https://openrouter.ai/api/v1/models?limit=5"
-    );
-}
-
-#[test]
-fn tokens_are_minted_once_per_credential() {
-    let handle = ProxyHandle::start(OPENROUTER_ROOT.to_string()).expect("proxy starts");
-
-    let first = handle.endpoint_for_key("sk-or-one");
-    let again = handle.endpoint_for_key("sk-or-one");
-    let other = handle.endpoint_for_key("sk-or-two");
-
-    assert_eq!(first.token, again.token, "same key reuses its token");
-    assert_ne!(
-        first.token, other.token,
-        "distinct keys get distinct tokens"
-    );
-    assert!(first.token.starts_with("mdl-"));
-    assert_eq!(first.port, handle.port());
-    assert_ne!(handle.port(), 0);
 }
