@@ -31,8 +31,8 @@ pub struct McpServerSpec {
 
 /// Supplies a session-specific endpoint to the harness attachment renderer.
 pub trait McpEndpoint {
-    /// Resolve the endpoint for `session`, or return `None` when none is served.
-    fn endpoint(&self, session: &str) -> Option<McpServerSpec>;
+    /// Resolve the endpoint for `session`.
+    fn endpoint(&self, session: &str) -> McpServerSpec;
 }
 
 /// Whether a provider's CLI has a verified invocation-scoped MCP registration.
@@ -113,8 +113,8 @@ mod tests {
     struct FixtureEndpoint;
 
     impl McpEndpoint for FixtureEndpoint {
-        fn endpoint(&self, session: &str) -> Option<McpServerSpec> {
-            Some(McpServerSpec {
+        fn endpoint(&self, session: &str) -> McpServerSpec {
+            McpServerSpec {
                 name: "medulla",
                 command: PathBuf::from("/opt/medulla"),
                 args: vec!["mcp".to_string()],
@@ -122,7 +122,7 @@ mod tests {
                     (ATTACHED_ENV.to_string(), format!("marker-{session}")),
                     ("MEDULLA_WORKFLOW_TOOLS".to_string(), "run".to_string()),
                 ],
-            })
+            }
         }
     }
 

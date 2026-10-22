@@ -219,8 +219,8 @@ impl ServerSpec {
 }
 
 impl McpEndpoint for ServerSpec {
-    fn endpoint(&self, session: &str) -> Option<McpServerSpec> {
-        Some(self.clone().for_session(session).render_spec())
+    fn endpoint(&self, session: &str) -> McpServerSpec {
+        self.clone().for_session(session).render_spec()
     }
 }
 
@@ -806,9 +806,7 @@ pub fn attach_cli(
         }
         return None;
     };
-    let registration = spec
-        .endpoint(session)
-        .expect("a resolved MCP endpoint always produces a renderable server spec");
+    let registration = spec.endpoint(session);
     if provider == HarnessProvider::Codex {
         // Codex accepts the same `-c key=value` overrides in interactive and
         // `exec` modes. The launch marker is forwarded by name so its random

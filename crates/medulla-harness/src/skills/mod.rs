@@ -9,7 +9,7 @@
 //!
 //! The pipeline is three steps, one per submodule:
 //!
-//! 1. [`render`] turns a [`WorkflowSummary`](crate::workflows::WorkflowSummary)
+//! 1. [`render`] turns a [`SkillWorkflow`] summary
 //!    into target-independent skill text — frontmatter the model matches on, a
 //!    concrete call example built from the declared inputs, and a fallback for
 //!    when the server is not attached.
@@ -49,13 +49,13 @@ mod targets_tests;
 mod tests;
 
 pub use install::{install, installed, sync, uninstall};
-pub use refresh::{refresh_managed, sync_managed};
+pub use refresh::{refresh_catalog, sync_catalog, RefreshLock};
 pub use registration::{register, RegistrationOptions, RegistrationOutcome};
 pub use render::{render, render_command, slug_for};
 pub use targets::{
     command_path, default_targets, managed_dir, managed_root, scope_root, skill_path, spawn_args,
 };
 pub use types::{
-    FileAction, FileOutcome, InstallOptions, InstallReport, InstalledSkill, RenderedSkill,
-    SkillScope, SkillTarget,
+    CatalogSnapshot, FileAction, FileOutcome, InstallOptions, InstallReport, InstalledSkill,
+    RenderedSkill, SkillInput, SkillScope, SkillTarget, SkillWorkflow, WorkflowCatalog,
 };
