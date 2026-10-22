@@ -89,6 +89,7 @@ fn options(
         .unwrap(),
     );
     RunTaskOptions {
+        task_id: None,
         embed: host,
         budget: None,
         provider: HarnessProvider::Openhuman,
