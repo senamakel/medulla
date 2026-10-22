@@ -1033,3 +1033,56 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
         .collect::<String>();
     assert!(text.contains("EXTERNAL PROCESS: kill PID 44? y confirm"));
 }
+
+#[test]
+fn agent_follow_tracks_identity_through_sorting_and_snapshot_reordering() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    let processes: Vec<_> = (100..120)
+        .map(|pid| test_agent_process(pid, "claude", f64::from(pid)))
+        .collect();
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(processes.clone()),
+    ));
+    app.resources.agent_selected = Some((119, 1));
+    assert!(app.resources_key(KeyCode::Char('F')));
+    assert_eq!(app.resources.agent_follow, Some((119, 1)));
+
+    let render = |app: &mut App| {
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 80, 24)))
+            .unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>()
+    };
+    let first = render(&mut app);
+    assert_eq!(app.resources.agent_selected, Some((119, 1)));
+    assert!(first.contains("FOLLOW PID 119"));
+    assert!(
+        first.contains("119"),
+        "followed process should be visible: {first}"
+    );
+
+    assert!(app.resources_key(KeyCode::Right));
+    assert!(app.resources_key(KeyCode::Right));
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(processes.into_iter().rev().collect()),
+    ));
+    let reordered = render(&mut app);
+    assert_eq!(app.resources.agent_selected, Some((119, 1)));
+    assert!(reordered.contains("FOLLOW PID 119"));
+    assert!(
+        reordered.contains("119"),
+        "followed process should stay visible: {reordered}"
+    );
+}

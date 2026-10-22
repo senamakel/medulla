@@ -352,6 +352,10 @@ impl App {
     fn agent_key(&mut self, key: crossterm::event::KeyCode) -> bool {
         use crossterm::event::KeyCode;
         use types::{AgentSignal, AgentSort};
+        if !self.resources.shown.agents {
+            self.resources.agent_signal_armed = None;
+            return false;
+        }
         if self.resources.agent_signal_armed.is_some() {
             let armed = self
                 .resources
@@ -454,6 +458,9 @@ impl App {
                     _ => selected,
                 };
                 self.resources.agent_selected = rows.get(next).map(|row| (row.pid, row.started));
+                if self.resources.agent_follow.is_some() {
+                    self.resources.agent_follow = self.resources.agent_selected;
+                }
                 true
             }
             KeyCode::Char('r') => {
@@ -470,7 +477,14 @@ impl App {
                 true
             }
             KeyCode::Char('F') => {
-                self.resources.agent_follow = !self.resources.agent_follow;
+                let identity = rows.get(selected).map(|row| (row.pid, row.started));
+                self.resources.agent_follow = match (self.resources.agent_follow, identity) {
+                    (Some(following), Some(selected)) if following == selected => None,
+                    (_, selected) => selected,
+                };
+                if self.resources.agent_follow.is_some() {
+                    self.resources.agent_selected = self.resources.agent_follow;
+                }
                 true
             }
             KeyCode::Enter => {

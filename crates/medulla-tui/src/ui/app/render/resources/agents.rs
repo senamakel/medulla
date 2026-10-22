@@ -256,6 +256,20 @@ pub(in crate::ui::app) fn draw_agents(
     state: &mut ResourcesState,
 ) {
     let rows = visible_rows(snapshot, state);
+    if let Some(following) = state.agent_follow {
+        if !snapshot
+            .processes
+            .iter()
+            .any(|process| (process.pid, process.start_time) == following)
+        {
+            state.agent_follow = None;
+            if state.agent_selected == Some(following) {
+                state.agent_selected = None;
+            }
+        } else if rows.iter().any(|row| (row.pid, row.started) == following) {
+            state.agent_selected = Some(following);
+        }
+    }
     let now = std::time::Instant::now();
     let sample_due = state
         .agent_last_sample
@@ -285,6 +299,7 @@ pub(in crate::ui::app) fn draw_agents(
             rows.iter()
                 .find(|r| Some((r.pid, r.started)) == state.agent_selected),
         );
+        draw_signal_confirmation(frame, area, snapshot, state);
         return;
     }
     let selected = state.agent_selected;
@@ -361,7 +376,11 @@ pub(in crate::ui::app) fn draw_agents(
             item
         })
         .collect();
-    let title = format!(" Agents · {} · {} · CPU {:.1}% · Mem {} · ←/→ sort r reverse e tree f filter Enter detail F follow t/k/s signal ",
+    let follow = state
+        .agent_follow
+        .map(|(pid, _)| format!(" · FOLLOW PID {pid}"))
+        .unwrap_or_default();
+    let title = format!(" Agents{follow} · {} · {} · CPU {:.1}% · Mem {} · ←/→ sort r reverse e tree f filter Enter detail F follow t/k/s signal ",
             rows.len(), kind_counts(&rows), rows.iter().map(|r| r.cpu).sum::<f64>(), bytes(rows.iter().map(|r| r.memory).sum()));
     let widths = if compact {
         vec![
@@ -388,31 +407,14 @@ pub(in crate::ui::app) fn draw_agents(
         .header(header.style(Style::default().add_modifier(Modifier::BOLD)))
         .block(Block::default().borders(Borders::ALL).title(title))
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
-    frame.render_widget(table, area);
-    if let Some((pid, _, signal)) = state.agent_signal_armed {
-        let row = rows.iter().find(|row| row.pid == pid);
-        if let Some(row) = row {
-            let label = if row.external {
-                "EXTERNAL PROCESS"
-            } else {
-                "Medulla agent"
-            };
-            let signal = match signal {
-                AgentSignal::Terminate => "terminate",
-                AgentSignal::Kill => "kill",
-                AgentSignal::Stop => "stop",
-            };
-            let prompt = format!("{label}: {signal} PID {pid}? y confirm · any other key cancels");
-            frame.render_widget(
-                Paragraph::new(Line::from(prompt)).style(
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), 1),
-            );
-        }
-    }
+    let selected_index = selected.and_then(|identity| {
+        rows.iter()
+            .position(|row| (row.pid, row.started) == identity)
+    });
+    let mut table_state = ratatui::widgets::TableState::default();
+    table_state.select(selected_index);
+    frame.render_stateful_widget(table, area, &mut table_state);
+    draw_signal_confirmation(frame, area, snapshot, state);
     if state.agent_filter_editing {
         let filter = state.agent_filter.as_deref().unwrap_or_default();
         frame.render_widget(
@@ -425,6 +427,39 @@ pub(in crate::ui::app) fn draw_agents(
             ),
         );
     }
+}
+
+fn draw_signal_confirmation(
+    frame: &mut Frame,
+    area: Rect,
+    snapshot: &ResourceSnapshot,
+    state: &ResourcesState,
+) {
+    let Some((pid, started, signal)) = state.agent_signal_armed else {
+        return;
+    };
+    let row = rows(snapshot)
+        .into_iter()
+        .find(|row| row.pid == pid && row.started == started);
+    let label = match row {
+        Some(row) if row.external => "EXTERNAL PROCESS",
+        Some(_) => "Medulla agent",
+        None => "PROCESS",
+    };
+    let signal = match signal {
+        AgentSignal::Terminate => "terminate",
+        AgentSignal::Kill => "kill",
+        AgentSignal::Stop => "stop",
+    };
+    let prompt = format!("{label}: {signal} PID {pid}? y confirm · any other key cancels");
+    frame.render_widget(
+        Paragraph::new(Line::from(prompt)).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), 1),
+    );
 }
 
 fn kind_counts(rows: &[AgentRow]) -> String {
