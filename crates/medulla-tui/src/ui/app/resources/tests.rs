@@ -344,6 +344,23 @@ fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
 }
 
 #[test]
+fn network_border_auto_and_sync_controls_are_clickable() {
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
+    terminal.draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42))).unwrap();
+    assert!(!app.resources.net_auto);
+    let auto = app.resources.hits.net_auto;
+    app.resources_click(auto.x, auto.y);
+    assert!(app.resources.net_auto);
+    let sync = app.resources.hits.net_sync;
+    app.resources_click(sync.x, sync.y);
+    assert!(app.resources.net_sync);
+}
+
+#[test]
 fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
     let mut loaded = LoadedConfig::defaults("test.json".into());
     loaded.config.resources.shown_boxes = "mem".into();
