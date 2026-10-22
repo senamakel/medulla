@@ -28,11 +28,12 @@ Building from a checkout requires the submodule init described in
 
 ## Cargo features
 
-The crate has one feature.
+The crate has two integration features.
 
 | Feature | Default | What it turns on |
 | --- | --- | --- |
 | `workflows` | on | The [`flow_engine`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-core/src/flow_engine/) adapter seam onto the vendored `tinyflows` engine, the [`workflows`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-core/src/workflows/) module (definitions, store, runs, authoring), and the [`mcp`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-core/src/mcp/) module. Kept behind a feature so a slim build can drop the engine and its jq expression stack; on by default because the shipped TUI exposes workflows. |
+| `tinyjuice` | off | Enables TinyJuice context compression in embedded OpenHuman turns. The feature also enables the embedded runtime's module support. |
 
 `mcp` is gated on `workflows` because its `workflow_*` tool family delegates to
 `workflows::ops`. The `fleet_*` family beside it depends only on
