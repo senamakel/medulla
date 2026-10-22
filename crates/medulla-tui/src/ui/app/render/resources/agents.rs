@@ -233,6 +233,7 @@ fn append_children(
                     session_id: None,
                     task_id: None,
                     external: true,
+                    remote: false,
                     depth,
                 });
             row.depth = depth;
