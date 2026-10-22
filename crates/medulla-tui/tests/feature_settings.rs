@@ -125,8 +125,14 @@ fn resources_optional_layout_settings_can_return_to_auto_and_persist() {
     assert_eq!(app.loaded.config.resources.cpu_bottom, None);
 
     let saved = std::fs::read_to_string(&path).unwrap();
-    assert!(!saved.contains("cpuBottom"), "Auto removes the override: {saved}");
-    assert!(saved.contains("netAuto = false"), "unrelated settings survive: {saved}");
+    assert!(
+        !saved.contains("cpuBottom"),
+        "Auto removes the override: {saved}"
+    );
+    assert!(
+        saved.contains("netAuto = false"),
+        "unrelated settings survive: {saved}"
+    );
     let loaded = medulla::config::load_config(
         Some(path.to_str().unwrap()),
         &Default::default(),

@@ -160,7 +160,10 @@ impl ResourceSource for DiskOptionsSource {
             busy_percent: None,
         })
         .collect();
-        ResourceSnapshot { disks, ..Default::default() }
+        ResourceSnapshot {
+            disks,
+            ..Default::default()
+        }
     }
 
     fn update_disk_options(&mut self, options: DiskOptions) {
@@ -192,12 +195,19 @@ async fn disk_options_change_samples_without_restarting_the_sampler() {
     assert_eq!(sample(&mut output_rx).await.disks.len(), 4);
     assert!(update_disk_options(
         &options_tx,
-        DiskOptions { only_physical: true, ..Default::default() }
+        DiskOptions {
+            only_physical: true,
+            ..Default::default()
+        }
     ));
     assert_eq!(sample(&mut output_rx).await.disks.len(), 3);
     assert!(update_disk_options(
         &options_tx,
-        DiskOptions { only_physical: true, use_fstab: true, ..Default::default() }
+        DiskOptions {
+            only_physical: true,
+            use_fstab: true,
+            ..Default::default()
+        }
     ));
     assert_eq!(sample(&mut output_rx).await.disks.len(), 2);
     assert!(update_disk_options(

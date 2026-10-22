@@ -417,10 +417,20 @@ impl App {
             "swapUploadDownload" => cfg.swap_upload_download = !cfg.swap_upload_download,
             _ => unreachable!("all resource settings rows are mapped"),
         }
+        let clear_auto = match row.key {
+            "cpuBottom" => cfg.cpu_bottom.is_none(),
+            "memBelowNet" => cfg.mem_below_net.is_none(),
+            "agentsLeft" => cfg.agents_left.is_none(),
+            _ => false,
+        };
         let value = persist_value(cfg, row);
         if let Some(path) = self.config_path.as_deref() {
-            if let Err(error) = medulla::config::persist_setting(path, "resources", row.key, value)
-            {
+            let persisted = if clear_auto {
+                medulla::config::clear_setting(path, "resources", row.key)
+            } else {
+                medulla::config::persist_setting(path, "resources", row.key, value)
+            };
+            if let Err(error) = persisted {
                 return format!("Resources · changed in memory; could not save: {error}");
             }
         }
@@ -449,10 +459,14 @@ fn step(current: u64, delta: i32, min: u64, max: u64, amount: u64) -> u64 {
     (current as i64 + i64::from(delta) * amount as i64).clamp(min as i64, max as i64) as u64
 }
 fn optional_flag(value: Option<bool>, delta: i32) -> Option<bool> {
-    Some(match value {
-        None => delta >= 0,
-        Some(value) => !value,
-    })
+    match (value, delta < 0) {
+        (None, false) => Some(true),
+        (Some(true), false) => Some(false),
+        (Some(false), false) => None,
+        (None, true) => Some(false),
+        (Some(false), true) => Some(true),
+        (Some(true), true) => None,
+    }
 }
 fn choices(row: Row) -> &'static [&'static str] {
     if let Kind::Choice(values) = row.kind {
