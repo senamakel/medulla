@@ -130,6 +130,8 @@ impl InteractiveSession {
                 spec.provider.as_str(),
             )
         });
+        let agent_registration_handle =
+            agent_registration.as_ref().map(|guard| guard.handle());
 
         let stdin = child.stdin.take().ok_or("child has no stdin")?;
         let stdout = child.stdout.take().ok_or("child has no stdout")?;
@@ -174,6 +176,7 @@ impl InteractiveSession {
             interrupt_seq: AtomicU64::new(0),
             _hook_grant: hook_grant,
             _agent_registration: agent_registration,
+            agent_registration_handle,
         }))
     }
 
@@ -243,11 +246,17 @@ impl InteractiveSession {
                     on_event(&event);
                     match event {
                         StreamEvent::Session { session_id } => {
+                            if let Some(handle) = &self.agent_registration_handle {
+                                let _ = handle.set_session_id(session_id.clone());
+                            }
                             *self.harness_session_id.lock().unwrap() = Some(session_id);
                         }
                         StreamEvent::AssistantDelta { text } => reply.push_str(&text),
                         StreamEvent::Result { reply: result, is_error, session_id } => {
                             if let Some(session_id) = session_id {
+                                if let Some(handle) = &self.agent_registration_handle {
+                                    let _ = handle.set_session_id(session_id.clone());
+                                }
                                 *self.harness_session_id.lock().unwrap() = Some(session_id);
                             }
                             // When an interrupt is in flight, the terminating

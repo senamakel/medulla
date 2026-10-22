@@ -42,4 +42,6 @@ pub struct InteractiveSession {
     pub(super) _hook_grant: crate::harness_hooks::HookGrantGuard,
     /// Keeps the interactive child attached to its provider origin.
     pub(super) _agent_registration: Option<medulla_monitor::agents::RegistrationGuard>,
+    /// Updates the same process identity when the harness announces its id.
+    pub(super) agent_registration_handle: Option<medulla_monitor::agents::RegistrationHandle>,
 }
