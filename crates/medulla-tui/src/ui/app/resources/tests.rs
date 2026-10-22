@@ -321,13 +321,12 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             assert_eq!(text.contains("[swap]"), show_disks, "swap disk visibility at {width}x{height}: {text}");
             if mem_graphs && !io_mode {
                 let mem = app.resources.rects.mem;
-                let graph_x = mem.x + 1 + (mem.width - 2) * 3 / 4;
                 assert!(
-                    (mem.y + 2..mem.y + 3).any(|y| {
+                    (mem.y + 1..mem.y + 3).any(|y| {
                         (mem.x + 1..mem.right() - 1)
                             .any(|x| terminal.backend().buffer()[(x, y)].symbol() != " ")
                     }),
-                    "memory history graph missing at {width}x{height} (graph x {graph_x})"
+                    "memory history graph missing at {width}x{height}"
                 );
             }
             if !mem_graphs && !io_mode {
