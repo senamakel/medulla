@@ -191,7 +191,9 @@ EOF
     kill -0 "$external_pid" 2>/dev/null \
       || fail "external fixture exited before the Resources sampler could refresh it"
     pane="$(capture_app)"
-    if printf '%s\n' "$pane" | grep -q "$external_pid"; then break; fi
+    if printf '%s\n' "$pane" | "$PYTHON_BIN" -c 'import sys; pid=sys.argv[1]; sys.exit(0 if any(line.replace("│", " ").split()[:1] == [pid] for line in sys.stdin) else 1)' "$external_pid"; then
+      break
+    fi
     sleep 1
   done
   kill -0 "$external_pid" 2>/dev/null \
