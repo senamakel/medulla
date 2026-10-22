@@ -57,7 +57,7 @@ fn catalog_refresh_installs_and_returns_the_claude_managed_directory() {
 
     assert_eq!(
         args,
-        ["--add-dir", root.display().to_string()].map(str::to_owned)
+        vec!["--add-dir".to_string(), root.display().to_string()]
     );
     assert!(skill_path(SkillTarget::Claude, &root, "medulla-audit").is_file());
 }

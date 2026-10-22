@@ -39,13 +39,11 @@ use std::io;
 mod registration_codex;
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
-use serde_json::{Map, Value};
-use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, TableLike, Value as TomlValue};
-
 use super::types::SkillScope;
 use super::SkillTarget;
 use medulla_types::{ToolMode, TOOL_MODE_ENV};
+use serde::Serialize;
+use serde_json::{Map, Value};
 
 /// The server key written into every harness config.
 const SERVER_NAME: &str = "medulla";
@@ -386,7 +384,7 @@ pub(super) fn outcome(target: SkillTarget, path: PathBuf, action: &str) -> Regis
 /// written, so failing here would leave the operator with installed skills, no
 /// report, and — under `--json` — nothing on stdout to parse. It is reported as
 /// `skipped` for the same reason a malformed config is.
-enum Existing {
+pub(super) enum Existing {
     /// No file at the path: this is a first registration.
     Absent,
     /// A file that is not valid UTF-8. Left alone; never parsed, never written.

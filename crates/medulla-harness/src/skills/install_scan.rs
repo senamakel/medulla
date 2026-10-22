@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use super::marker::parse_marker;
 use super::render::SLUG_PREFIX;
 use super::targets::{commands_dir, skills_dir};
-use super::{FileAction, FileOutcome, InstallOptions, SkillTarget};
+use super::SkillTarget;
 
 /// A generated file discovered on disk, with what its marker claims.
 pub(super) struct ManagedFile {
@@ -27,7 +27,7 @@ pub(super) struct ManagedFile {
 /// The marker is `None` for a file we cannot identify — someone else's, an
 /// unreadable one, or a `SKILL.md` that is not there at all because only the
 /// directory around it survived.
-struct Candidate {
+pub(super) struct Candidate {
     path: PathBuf,
     slug: String,
     marker: Option<(String, String)>,
