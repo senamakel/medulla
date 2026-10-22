@@ -378,7 +378,7 @@ fn draw_net_panel(
         )));
         lines.push(Line::from(format!(
             "Top {}  Total ↓{} ↑{}",
-            net_rate(download.max(upload)),
+            net_rate(network_top(snapshot, &selected.interface)),
             net_bytes(selected.total_received_bytes.saturating_sub(zero_received)),
             net_bytes(
                 selected
@@ -405,7 +405,7 @@ fn draw_net_panel(
         )));
         lines.push(Line::from(format!(
             "Top {}  Total ↓{} ↑{}",
-            net_rate(download.max(upload)),
+            net_rate(network_top(snapshot, &selected.interface)),
             net_bytes(selected.total_received_bytes.saturating_sub(zero_received)),
             net_bytes(
                 selected
@@ -427,7 +427,14 @@ fn draw_net_panel(
                     .iter()
                     .find(|entry| entry.interface == selected.interface)
             })
-            .map(|entry| (entry.received_bytes_per_second * 100.0 / download_max.max(1.0)) as f32)
+            .map(|entry| {
+                let rate = if config.swap_upload_download {
+                    entry.transmitted_bytes_per_second
+                } else {
+                    entry.received_bytes_per_second
+                };
+                (rate * 100.0 / download_max.max(1.0)) as f32
+            })
             .collect();
         let uploads: Vec<f32> = history
             .iter()
@@ -436,7 +443,14 @@ fn draw_net_panel(
                     .iter()
                     .find(|entry| entry.interface == selected.interface)
             })
-            .map(|entry| (entry.transmitted_bytes_per_second * 100.0 / upload_max.max(1.0)) as f32)
+            .map(|entry| {
+                let rate = if config.swap_upload_download {
+                    entry.received_bytes_per_second
+                } else {
+                    entry.transmitted_bytes_per_second
+                };
+                (rate * 100.0 / upload_max.max(1.0)) as f32
+            })
             .collect();
         let x = area.x;
         frame.render_widget(
@@ -454,6 +468,21 @@ fn draw_net_panel(
         Paragraph::new(lines).style(Style::default().fg(Color::White)),
         Rect::new(area.x, text_y, area.width, text_height),
     );
+}
+
+fn network_top(snapshot: &crate::ui::resources::sampler::ResourceSnapshot, interface: &str) -> f64 {
+    snapshot
+        .history
+        .network_io
+        .iter()
+        .flat_map(|sample| sample.iter())
+        .filter(|entry| entry.interface == interface)
+        .map(|entry| {
+            entry
+                .received_bytes_per_second
+                .max(entry.transmitted_bytes_per_second)
+        })
+        .fold(0.0, f64::max)
 }
 
 fn net_rate(rate: f64) -> String {
