@@ -66,7 +66,8 @@ fn resources_settings_interval_updates_live_and_persists() {
     let _ = key(&mut app, KeyCode::Right);
 
     assert_eq!(app.loaded.config.resources.update_interval_ms(), 2_100);
-    assert_eq!(app.resources.interval_ms, 2_100);
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    assert!(text_of(&draw(&mut app, 160, 40)).contains("2100ms"));
     let path_text = path.to_str().unwrap();
     let loaded = medulla::config::load_config(Some(path_text), &Default::default(), dir.path())
         .unwrap();
