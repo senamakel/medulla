@@ -5,7 +5,9 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-pub(super) use super::super::super::types::{DetectedProvider, HarnessesView};
+pub(super) use super::super::super::types::HarnessesView;
+#[cfg(test)]
+pub(super) use super::super::super::types::DetectedProvider;
 
 impl HarnessesView {
     /// Build configuration facts without probing the host or reading files.
@@ -132,7 +134,7 @@ pub(super) fn draw_harnesses(f: &mut Frame, area: Rect, view: &HarnessesView) {
     if view.customizations.is_empty() {
         lines.push(Line::from("No customization facts supplied."));
     } else {
-        lines.extend(view.customizations.iter().map(Line::from));
+        lines.extend(view.customizations.iter().map(|item| Line::from(item.as_str())));
     }
     f.render_widget(
         Paragraph::new(lines)
