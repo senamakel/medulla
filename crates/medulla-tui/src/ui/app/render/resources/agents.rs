@@ -510,7 +510,6 @@ fn display_command(process: &ProcessSnapshot) -> String {
         .filter(|arg| !is_environment_assignment(arg))
     {
         if redact_next {
-            rendered.push("[REDACTED]".to_owned());
             redact_next = false;
             continue;
         }
