@@ -138,7 +138,7 @@ PY
   # tmux, outside Medulla. It has no registry entry and must render as external.
   tmux new-window -t "$SESSION" -n external -c "$workspace"
   tmux send-keys -t "$SESSION:external" \
-    "exec -a $(printf %q "$HARNESS") sleep 180" C-m
+    "echo \\\$\\\$ > $(printf %q "$RUN_DIR/external.pid"); exec -a opencode sleep 180" C-m
   deadline=$(( $(date +%s) + 30 ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     pane="$(capture_app)"
@@ -146,14 +146,14 @@ PY
     sleep 1
   done
   printf '%s\n' "$pane" > "$RUN_DIR/resources-external.pane"
-  "$PYTHON_BIN" - "$RUN_DIR/resources-external.pane" "$provider_label" <<'PY' \
+  "$PYTHON_BIN" - "$RUN_DIR/resources-external.pane" "$(cat "$RUN_DIR/external.pid")" <<'PY' \
     || fail "the unregistered $HARNESS process was not labeled external"
 import sys
 text = open(sys.argv[1], encoding="utf-8").read().splitlines()
-rows = [line for line in text if sys.argv[2].lower() in line.lower()]
-assert any("external" in line.lower() for line in rows), \
-    f"no {sys.argv[2]} row marked external: {rows!r}"
-print(f"[e2e] external process row: {[row.strip() for row in rows if 'external' in row.lower()][0]}")
+rows = [line for line in text if sys.argv[2] in line]
+assert rows and any("External" in line and "external" in line.lower() for line in rows), \
+    f"OpenCode PID {sys.argv[2]} has no External/external row: {rows!r}"
+print(f"[e2e] external process row: {rows[0].strip()}")
 PY
   log "  unregistered $HARNESS-like process is visible with origin external"
 
