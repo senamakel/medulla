@@ -340,7 +340,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                 let visible_graph_rows = (mem.y + 1..mem.y + 1 + graph_rows as u16)
                     .filter(|y| {
                         (mem.x + 1..mem.right() - 1)
-                            .any(|x| terminal.backend().buffer()[(x, y)].symbol() != " ")
+                            .any(|x| terminal.backend().buffer()[(x, *y)].symbol() != " ")
                     })
                     .count();
                 assert_eq!(
