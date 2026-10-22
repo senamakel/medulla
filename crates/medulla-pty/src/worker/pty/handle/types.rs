@@ -2,11 +2,12 @@
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicU8, AtomicUsize};
 use std::sync::{Arc, Mutex};
 
-use medulla::protocol::HarnessProvider;
+use medulla_pty::{SessionClose, SessionLifecycle};
+use medulla_types::HarnessProvider;
 use portable_pty::{Child, MasterPty};
 
-use super::super::attention::HarnessAttention;
 use super::super::types::SessionOrigin;
+use crate::attention::HarnessAttention;
 
 /// [`SessionHandle::state`] discriminants. Kept as a `u8` so the whole liveness
 /// question is one relaxed atomic load rather than a lock.
@@ -130,7 +131,7 @@ pub(crate) struct ColdFields {
     /// `PtyManager::spawn_checkout_poller`; the checkout *identity* that pins
     /// the diff baseline is a different, deliberately immutable fact — see
     /// [`SessionMeta::launch_checkout_identity`].
-    pub(super) checkout: medulla::ui::checkout::Checkout,
+    pub(super) checkout: medulla_types::Checkout,
     /// Why the session failed, when it did.
     pub(super) last_error: Option<String>,
 }
@@ -204,6 +205,12 @@ pub(crate) struct SessionMeta {
     /// workflow run executing — and again when the operator forgets the row, to
     /// drop the runs that were drawn beneath it.
     pub(crate) mcp_grant_session: Option<String>,
+    /// Application cleanup callback, guarded so races can only close once.
+    pub(crate) close: Arc<SessionClose>,
+    /// UI-owned terminal classification callback.
+    pub(crate) lifecycle: Arc<dyn SessionLifecycle>,
+    /// Launch environment supplied to TUI lifecycle callbacks.
+    pub(crate) env: std::collections::HashMap<String, String>,
 }
 
 /// One live PTY-backed harness session, and everything the manager knows about
@@ -232,7 +239,7 @@ pub(crate) struct SessionMeta {
 /// registry lock immediately — so no caller ever holds the registry while doing
 /// work.
 pub struct SessionHandle {
-    pub(super) meta: SessionMeta,
+    pub(in crate::worker::pty) meta: SessionMeta,
     /// One of the `STATE_*` discriminants.
     pub(super) state: AtomicU8,
     /// The exit status, or [`NO_EXIT_CODE`].
@@ -368,7 +375,7 @@ impl vte::Perform for TerminalModes {
     /// Capture the child's clipboard writes; every other OSC is the screen
     /// emulator's business.
     fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
-        if let Some(text) = medulla::clipboard::tmux::osc52_from_params(params) {
+        if let Some(text) = crate::clipboard::osc52_from_params(params) {
             self.clipboard = Some(text);
         }
     }
