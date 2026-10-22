@@ -130,11 +130,14 @@ EOF
 import sys
 text = open(sys.argv[1], encoding="utf-8").read()
 rows = []
+seen = []
 for line in text.splitlines():
     fields = line.replace("│", " ").split()
+    if any(token.lower() == sys.argv[2].lower() for token in fields):
+        seen.append(fields)
     if len(fields) >= 3 and fields[0].isdigit() and fields[1].lower() == sys.argv[2].lower():
         rows.append((line, fields))
-assert rows, f"no {sys.argv[2]} process row in Resources pane"
+assert rows, f"no {sys.argv[2]} process row in Resources pane; provider lines={seen!r}"
 line, fields = rows[0]
 origin = fields[2]
 assert origin.lower() not in {"external", "host", "task", "—"}, \
