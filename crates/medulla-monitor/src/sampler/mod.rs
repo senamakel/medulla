@@ -353,50 +353,31 @@ impl ResourceSource for SystemResourceSource {
                 .list()
                 .iter()
                 .filter(|disk| disk_is_visible(disk, &self.disk_options))
-                .map(|disk| DiskSnapshot {
-                    device: disk.name().to_string_lossy().into_owned(),
-                    mount: disk.mount_point().to_string_lossy().into_owned(),
-                    total_bytes: disk.total_space(),
-                    used_bytes: disk.total_space().saturating_sub(disk.available_space()),
+                .map(|disk| {
                     #[cfg(target_os = "linux")]
-                    read_bytes_per_second: linux
+                    let io = linux
                         .io
-                        .get(
-                            &disk
-                                .name()
-                                .to_string_lossy()
-                                .trim_start_matches("/dev/")
-                                .to_string(),
-                        )
-                        .map_or(0.0, |io| io.read_rate),
-                    #[cfg(not(target_os = "linux"))]
-                    read_bytes_per_second: disk.usage().read_bytes as f64 / elapsed.max(0.001),
-                    #[cfg(target_os = "linux")]
-                    write_bytes_per_second: linux
-                        .io
-                        .get(
-                            &disk
-                                .name()
-                                .to_string_lossy()
-                                .trim_start_matches("/dev/")
-                                .to_string(),
-                        )
-                        .map_or(0.0, |io| io.write_rate),
-                    #[cfg(not(target_os = "linux"))]
-                    write_bytes_per_second: disk.usage().written_bytes as f64 / elapsed.max(0.001),
-                    #[cfg(target_os = "linux")]
-                    busy_percent: linux
-                        .io
-                        .get(
-                            &disk
-                                .name()
-                                .to_string_lossy()
-                                .trim_start_matches("/dev/")
-                                .to_string(),
-                        )
-                        .map(|io| io.busy),
-                    #[cfg(not(target_os = "linux"))]
-                    busy_percent: None,
+                        .get(disk.name().to_string_lossy().trim_start_matches("/dev/"))
+                        .copied();
+                    DiskSnapshot {
+                        device: disk.name().to_string_lossy().into_owned(),
+                        mount: disk.mount_point().to_string_lossy().into_owned(),
+                        total_bytes: disk.total_space(),
+                        used_bytes: disk.total_space().saturating_sub(disk.available_space()),
+                        #[cfg(target_os = "linux")]
+                        read_bytes_per_second: io.map_or(0.0, |io| io.read_rate),
+                        #[cfg(not(target_os = "linux"))]
+                        read_bytes_per_second: disk.usage().read_bytes as f64 / elapsed.max(0.001),
+                        #[cfg(target_os = "linux")]
+                        write_bytes_per_second: io.map_or(0.0, |io| io.write_rate),
+                        #[cfg(not(target_os = "linux"))]
+                        write_bytes_per_second: disk.usage().written_bytes as f64
+                            / elapsed.max(0.001),
+                        #[cfg(target_os = "linux")]
+                        busy_percent: io.map(|io| io.busy),
+                        #[cfg(not(target_os = "linux"))]
+                        busy_percent: None,
+                    }
                 })
                 .collect(),
             processes,
