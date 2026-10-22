@@ -70,7 +70,9 @@ async fn direct_runs_report_the_session_before_workspace_context() {
                     medulla_monitor::agents::agent_registry()
                         .snapshot()
                         .into_iter()
-                        .find(|registration| registration.session_id.as_deref() == Some(&session_id)),
+                        .find(|registration| {
+                            registration.session_id.as_deref() == Some(&session_id)
+                        }),
                 );
                 order.lock().unwrap().push(format!("session:{session_id}"));
             })

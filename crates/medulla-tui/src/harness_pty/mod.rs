@@ -233,7 +233,11 @@ mod tests {
     #[tokio::test]
     async fn pty_child_registration_is_removed_when_restore_drops_its_guard() {
         let registry = medulla_monitor::agents::agent_registry();
-        let before: HashSet<u32> = registry.snapshot().into_iter().map(|entry| entry.pid).collect();
+        let before: HashSet<u32> = registry
+            .snapshot()
+            .into_iter()
+            .map(|entry| entry.pid)
+            .collect();
         let harness = spawn(PtyRequest {
             bin: "/bin/sh".into(),
             args: vec!["-c".into(), "sleep 30".into()],

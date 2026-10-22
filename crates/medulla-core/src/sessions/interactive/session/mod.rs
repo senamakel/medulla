@@ -130,8 +130,7 @@ impl InteractiveSession {
                 spec.provider.as_str(),
             )
         });
-        let agent_registration_handle =
-            agent_registration.as_ref().map(|guard| guard.handle());
+        let agent_registration_handle = agent_registration.as_ref().map(|guard| guard.handle());
 
         let stdin = child.stdin.take().ok_or("child has no stdin")?;
         let stdout = child.stdout.take().ok_or("child has no stdout")?;

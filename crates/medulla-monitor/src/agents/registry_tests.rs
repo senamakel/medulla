@@ -82,7 +82,10 @@ fn a_stale_registration_handle_cannot_update_a_replacement() {
     let replacement = registry.register_at(origin(Some("task-2"), None, "codex"));
 
     assert!(!old_handle.set_session_id("stale-session"));
-    assert_eq!(registry.snapshot(), vec![origin(Some("task-2"), None, "codex")]);
+    assert_eq!(
+        registry.snapshot(),
+        vec![origin(Some("task-2"), None, "codex")]
+    );
     drop(replacement);
 }
 

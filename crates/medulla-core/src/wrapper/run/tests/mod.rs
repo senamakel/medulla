@@ -164,8 +164,11 @@ async fn no_injection_inherits_stdio() {
 #[tokio::test]
 async fn wrapper_stdio_child_registration_lives_until_the_session_drops() {
     let registry = medulla_monitor::agents::agent_registry();
-    let before: std::collections::HashSet<u32> =
-        registry.snapshot().into_iter().map(|entry| entry.pid).collect();
+    let before: std::collections::HashSet<u32> = registry
+        .snapshot()
+        .into_iter()
+        .map(|entry| entry.pid)
+        .collect();
     let mut cfg = config(None);
     let mut session = spawn_child_with(
         "/bin/sh",

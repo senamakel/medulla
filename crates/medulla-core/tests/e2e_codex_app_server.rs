@@ -15,9 +15,9 @@ mod support;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use medulla::codex_app_server::{AppServerSpec, Connection};
 use medulla::daemon::mappers::HarnessSemanticEvent;
 use medulla::daemon::providers::{run_provider_task, Abort, RunTaskOptions, RunTaskResult};
-use medulla::codex_app_server::{AppServerSpec, Connection};
 use medulla::protocol::{HarnessProvider, HarnessTransport};
 use medulla::sessions::SessionClass;
 
@@ -118,8 +118,11 @@ async fn app_server_connection_registration_tracks_the_pooled_child_lifetime() {
     let dir = TempDir::new();
     let fake = fake_app_server(&dir, TurnScript::Reply("unused"));
     let registry = medulla_monitor::agents::agent_registry();
-    let before: std::collections::HashSet<u32> =
-        registry.snapshot().into_iter().map(|entry| entry.pid).collect();
+    let before: std::collections::HashSet<u32> = registry
+        .snapshot()
+        .into_iter()
+        .map(|entry| entry.pid)
+        .collect();
     let connection = Connection::open(&AppServerSpec {
         bin: fake.bin,
         args: Vec::new(),
