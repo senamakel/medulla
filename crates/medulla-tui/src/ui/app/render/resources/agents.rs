@@ -128,7 +128,7 @@ pub(in crate::ui::app) fn visible_rows(
             .strip_prefix('!')
             .map_or((false, filter), |pattern| (true, pattern));
         if regex {
-            if let Ok(pattern) = regex::Regex::new(pattern) {
+            if let Ok(pattern) = regex::Regex::new(&format!("(?i){pattern}")) {
                 rows.retain(|row| pattern.is_match(&row.kind));
             } else {
                 rows.clear();
