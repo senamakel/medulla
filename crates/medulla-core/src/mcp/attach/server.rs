@@ -6,7 +6,7 @@ use medulla_harness::mcp::{claude_mcp_config, McpEndpoint, McpServerSpec};
 use serde_json::{json, Map, Value};
 
 use super::files::{config_file_path, mcp_state_dir, write_owner_only};
-use super::{ATTACHED_ENV, SERVER_NAME, TOOL_MODE_ENV, TOOL_SCOPE_ENV};
+use super::ATTACHED_ENV;
 
 /// A stdio MCP server, described once and rendered per transport.
 ///

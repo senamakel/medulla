@@ -5,29 +5,88 @@
 //! Kept apart from [`super::tests`], which exercises the install/sync/marker
 //! pipeline that consumes this rendered text rather than the text itself.
 
-use serde_json::json;
-
-use crate::workflows::{InputType, WorkflowInput, WorkflowSummary};
+use serde_json::{json, Value};
 
 use super::render::{condense, MAX_FRONTMATTER_DESCRIPTION_CHARS};
 use super::*;
 
 /// A listing view with the fields skill rendering actually reads.
-fn summary(id: &str, description: &str, inputs: Vec<WorkflowInput>) -> WorkflowSummary {
-    WorkflowSummary {
+fn summary(id: &str, description: &str, inputs: Vec<WorkflowInput>) -> SkillWorkflow {
+    SkillWorkflow {
         id: id.to_string(),
-        name: id.to_string(),
         description: description.to_string(),
         enabled: true,
-        node_count: 3,
-        trigger_kind: Some("manual".to_string()),
-        inputs,
+        inputs: inputs.into_iter().map(WorkflowInput::into_skill_input).collect(),
+    }
+}
+
+#[derive(Clone, Copy)]
+enum InputType {
+    String,
+    Number,
+    Boolean,
+    Json,
+}
+
+impl InputType {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::String => "string",
+            Self::Number => "number",
+            Self::Boolean => "boolean",
+            Self::Json => "json",
+        }
+    }
+}
+
+struct WorkflowInput {
+    name: String,
+    ty: InputType,
+    description: Option<String>,
+    required: bool,
+    default: Option<Value>,
+}
+
+impl WorkflowInput {
+    fn new(name: &str, ty: InputType) -> Self {
+        Self {
+            name: name.into(),
+            ty,
+            description: None,
+            required: false,
+            default: None,
+        }
+    }
+
+    fn required(mut self) -> Self {
+        self.required = true;
+        self
+    }
+
+    fn with_default(mut self, value: Value) -> Self {
+        self.default = Some(value);
+        self
+    }
+
+    fn with_description(mut self, description: &str) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    fn into_skill_input(self) -> SkillInput {
+        SkillInput {
+            name: self.name,
+            ty: self.ty.as_str().into(),
+            description: self.description,
+            required: self.required,
+            default: self.default,
+        }
     }
 }
 
 /// A workflow documented as thoroughly as the real ones are — the case the size
 /// budget has to hold for, since a terse template is easy on a terse workflow.
-fn verbose_summary() -> WorkflowSummary {
+fn verbose_summary() -> SkillWorkflow {
     summary(
         "pr-babysitter",
         "Babysit a pull request in any checked-out repository: infer the repo from its git \
