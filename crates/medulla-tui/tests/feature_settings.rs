@@ -105,6 +105,38 @@ fn resources_settings_interval_updates_live_and_persists() {
 }
 
 #[test]
+fn resources_optional_layout_settings_can_return_to_auto_and_persist() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    std::fs::write(&path, "[resources]\ncpuBottom = true\nnetAuto = false\n").unwrap();
+    let mut app = settings_app();
+    app.set_config_path(path.clone());
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('o'));
+    for _ in 0..4 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+
+    let _ = key(&mut app, KeyCode::Right); // Auto -> On
+    assert_eq!(app.loaded.config.resources.cpu_bottom, Some(true));
+    let _ = key(&mut app, KeyCode::Right); // On -> Off
+    assert_eq!(app.loaded.config.resources.cpu_bottom, Some(false));
+    let _ = key(&mut app, KeyCode::Right); // Off -> Auto
+    assert_eq!(app.loaded.config.resources.cpu_bottom, None);
+
+    let saved = std::fs::read_to_string(&path).unwrap();
+    assert!(!saved.contains("cpuBottom"), "Auto removes the override: {saved}");
+    assert!(saved.contains("netAuto = false"), "unrelated settings survive: {saved}");
+    let loaded = medulla::config::load_config(
+        Some(path.to_str().unwrap()),
+        &Default::default(),
+        dir.path(),
+    )
+    .unwrap();
+    assert_eq!(loaded.config.resources.cpu_bottom, None);
+}
+
+#[test]
 fn resources_key_opens_settings_help() {
     let mut app = settings_app();
     app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
