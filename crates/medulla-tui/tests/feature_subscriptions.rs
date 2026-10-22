@@ -419,10 +419,9 @@ fn the_device_and_meter_blocks_share_one_right_edge() {
             ..AppearanceConfig::default()
         },
     );
-    app.set_resource_snapshot(std::sync::Arc::new(ResourceSnapshot {
-        cpu_percent: 42.0,
-        ..Default::default()
-    }));
+    let mut sample = ResourceSnapshot::default();
+    sample.cpu_percent = 42.0;
+    app.set_resource_snapshot(Arc::new(sample));
     let out = text_of(&draw(&mut app, 140, 40));
     // One footer, one layout: both blocks put their bar and percentage in the
     // same columns against the rail's border.
