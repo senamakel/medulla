@@ -2608,6 +2608,7 @@ dependencies = [
  "medulla-monitor",
  "portable-pty",
  "ratatui",
+ "regex",
  "rustls",
  "serde",
  "serde_json",
