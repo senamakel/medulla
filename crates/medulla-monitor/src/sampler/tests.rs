@@ -272,3 +272,17 @@ fn linux_block_stat_deltas_report_read_write_rates_and_busy_percent() {
     assert_eq!(reading.busy, 7.5);
     assert_eq!(super::io_delta((0, 0, 0), (0, 0, 10_000), 1.0).busy, 100.0);
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_partition_block_stats_are_read_from_class_block() {
+    let root = tempfile::tempdir().unwrap();
+    let partition_stat = root.path().join("sys/class/block/nvme0n1p1/stat");
+    std::fs::create_dir_all(partition_stat.parent().unwrap()).unwrap();
+    std::fs::write(&partition_stat, "259 1 100 500 259 1 200 900 0 300 1400").unwrap();
+
+    assert_eq!(
+        super::read_block_stat(root.path(), "nvme0n1p1"),
+        Some((100, 200, 300))
+    );
+}

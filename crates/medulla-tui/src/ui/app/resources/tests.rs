@@ -334,6 +334,12 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                     text.contains('█'),
                     "RAM meters missing at {width}x{height}: {text}"
                 );
+                for meter in ["U██░░", "A██░░", "C█░░░", "F░░░░"] {
+                    assert!(
+                        text.contains(meter),
+                        "memory meter {meter} missing at {width}x{height}: {text}"
+                    );
+                }
             }
             if io_mode {
                 assert!(

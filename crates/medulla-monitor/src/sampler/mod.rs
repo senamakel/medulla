@@ -523,11 +523,7 @@ impl LinuxResourceMonitor {
                 .to_string_lossy()
                 .trim_start_matches("/dev/")
                 .to_owned();
-            let stat_path = self.root.join("sys/block").join(&name).join("stat");
-            let Ok(stat) = fs::read_to_string(stat_path) else {
-                continue;
-            };
-            let Some(now) = parse_block_stat(&stat) else {
+            let Some(now) = read_block_stat(&self.root, &name) else {
                 continue;
             };
             if let Some(old) = self.previous.insert(name.clone(), now) {
@@ -536,6 +532,15 @@ impl LinuxResourceMonitor {
         }
         LinuxSample { memory, io }
     }
+}
+
+#[cfg(target_os = "linux")]
+fn read_block_stat(root: &std::path::Path, name: &str) -> Option<(u64, u64, u64)> {
+    use std::fs;
+    let stat = fs::read_to_string(root.join("sys/class/block").join(name).join("stat"))
+        .or_else(|_| fs::read_to_string(root.join("sys/block").join(name).join("stat")))
+        .ok()?;
+    parse_block_stat(&stat)
 }
 
 #[cfg(target_os = "linux")]
