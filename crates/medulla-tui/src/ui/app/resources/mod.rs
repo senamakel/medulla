@@ -264,20 +264,31 @@ fn draw_mem_panel(
     } else {
         snapshot.memory_used_bytes as f64 / total as f64
     };
-    let mut lines = vec![Line::from(format!(
-        "RAM {:>3.0}% {} {} / {}   avail {} cached {} free {}",
-        ram_fraction * 100.0,
-        if config.mem_graphs {
-            String::new()
-        } else {
-            meter(ram_fraction, 10)
-        },
-        bytes(snapshot.memory_used_bytes),
-        bytes(total),
-        bytes(snapshot.memory_available_bytes),
-        bytes(snapshot.memory_cached_bytes),
-        bytes(snapshot.memory_free_bytes)
-    ))];
+    let ram_line = if config.mem_graphs {
+        format!(
+            "RAM {:>3.0}% {} / {}",
+            ram_fraction * 100.0,
+            bytes(snapshot.memory_used_bytes),
+            bytes(total)
+        )
+    } else {
+        let fraction = |value: u64| {
+            if total == 0 {
+                0.0
+            } else {
+                value as f64 / total as f64
+            }
+        };
+        format!(
+            "RAM {:>3.0}% U{} A{} C{} F{}",
+            ram_fraction * 100.0,
+            meter(ram_fraction, 4),
+            meter(fraction(snapshot.memory_available_bytes), 4),
+            meter(fraction(snapshot.memory_cached_bytes), 4),
+            meter(fraction(snapshot.memory_free_bytes), 4),
+        )
+    };
+    let mut lines = vec![Line::from(ram_line)];
     if config.show_swap && snapshot.swap_total_bytes > 0 {
         let swap_fraction = snapshot.swap_used_bytes as f64 / snapshot.swap_total_bytes as f64;
         lines.push(Line::from(format!(

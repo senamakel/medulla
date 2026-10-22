@@ -313,12 +313,20 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                 text.contains("RAM  50%"),
                 "RAM missing at {width}x{height}: {text}"
             );
-            assert_eq!(text.contains("/mnt/data"), show_disks, "disk visibility at {width}x{height}: {text}");
+            assert_eq!(
+                text.contains("/mnt/data"),
+                show_disks,
+                "disk visibility at {width}x{height}: {text}"
+            );
             assert!(
                 text.contains("Swap  12%"),
                 "swap missing at {width}x{height}: {text}"
             );
-            assert_eq!(text.contains("[swap]"), show_disks, "swap disk visibility at {width}x{height}: {text}");
+            assert_eq!(
+                text.contains("[swap]"),
+                show_disks,
+                "swap disk visibility at {width}x{height}: {text}"
+            );
             if mem_graphs && !io_mode {
                 let mem = app.resources.rects.mem;
                 assert!(
