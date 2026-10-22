@@ -18,7 +18,7 @@ unverified, so harness churn is guaranteed; confining it to path arithmetic
 means a new harness is a match arm, not a second template to keep in step with
 the first.
 
-The generated body is built from `WorkflowSummary` alone — the declared inputs
+The generated body is built from `SkillWorkflow` alone — the declared inputs
 are already on the listing view, so rendering never has to fetch a graph. It
 contains four things that each exist for a reason:
 
@@ -282,18 +282,32 @@ Two targets are deliberately not written:
 A config that exists but does not parse is reported as `skipped` with the reason
 rather than replaced, and rather than aborting the other targets.
 
+## Catalog boundary
+
+This crate does not depend on Medulla's workflow engine. A host converts its
+listing to [`SkillWorkflow`](./types.rs), then supplies it through
+[`WorkflowCatalog`](./types.rs) when refreshing managed skills. A catalog
+snapshot carries the workflow summaries, workspace scope, and Medulla home
+together. Its `complete` flag tells refresh whether pruning is safe; a partial
+listing installs what it can see and leaves absent entries alone.
+
+`medulla-core::workflows::skills` remains the SDK facade. It maps the engine's
+`WorkflowSummary` to this crate's DTO and adapts the file-backed store to the
+catalog contract.
+
 ## Contents
 
 - [`mod.rs`](./mod.rs) — Harness-native skills that trigger saved workflows over MCP.
 - [`types.rs`](./types.rs) — Targets, scopes, rendered skills, and install outcomes.
-- [`render.rs`](./render.rs) — `WorkflowSummary` → skill text, and the managed marker.
+- [`render.rs`](./render.rs) — `SkillWorkflow` → skill text.
+- [`marker.rs`](./marker.rs) — marker encoding and ownership checks.
 - [`targets.rs`](./targets.rs) — Where each harness expects to find a skill.
 - [`install.rs`](./install.rs) — Install, sync, uninstall, and the marker discipline.
-- [`refresh.rs`](./refresh.rs) — Re-rendering the managed scope at spawn time.
+- [`install_scan.rs`](./install_scan.rs) — Managed file discovery and prune candidates.
+- [`refresh.rs`](./refresh.rs) — Catalog-driven managed refresh under a workspace lock.
 - [`registration.rs`](./registration.rs) — Merging `medulla mcp` into each harness's config.
-- [`tests.rs`](./tests.rs) — Rendering, target layout, and managed-file behaviour.
-- [`registration_tests.rs`](./registration_tests.rs) — Config merges, preservation, and manual outcomes.
-- [`refresh_tests.rs`](./refresh_tests.rs) — That a spawned session sees the store as it stands.
+- [`registration_codex.rs`](./registration_codex.rs) — Codex TOML merge.
+- [`refresh_tests.rs`](./refresh_tests.rs) — Fake catalog refresh, scope isolation, and safe pruning.
 
 ## Maintenance
 
