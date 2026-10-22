@@ -45,19 +45,18 @@ impl NetScaler {
         self.history.push_back(rate);
         if rate > self.max {
             self.above = self.above.saturating_add(1);
-            self.below = 0;
+            self.below = self.below.saturating_sub(1);
         } else if self.max > 10.0 * 1024.0 && rate < self.max / 10.0 {
             self.below = self.below.saturating_add(1);
-            self.above = 0;
-        } else {
-            self.above = 0;
-            self.below = 0;
+            self.above = self.above.saturating_sub(1);
         }
         if self.above >= 5 {
             self.max = (self.average() * 1.3).max(10.0 * 1024.0);
             self.above = 0;
+            self.below = 0;
         } else if self.below >= 5 {
             self.max = (self.average() * 3.0).max(10.0 * 1024.0);
+            self.above = 0;
             self.below = 0;
         }
         self.max
@@ -108,7 +107,7 @@ pub fn default_interface<'a>(
 ) -> Option<&'a str> {
     interfaces
         .iter()
-        .find(|interface| {
+        .filter(|interface| {
             interface.up
                 && !is_loopback(&interface.interface)
                 && (interface.total_received_bytes > 0
@@ -116,6 +115,7 @@ pub fn default_interface<'a>(
                     || interface.received_bytes_per_second > 0.0
                     || interface.transmitted_bytes_per_second > 0.0)
         })
+        .max_by_key(|interface| interface.total_received_bytes.saturating_add(interface.total_transmitted_bytes))
         .map(|interface| interface.interface.as_str())
 }
 
@@ -138,6 +138,15 @@ mod tests {
         let idle = (0..5).map(|_| scale.sample(0.0)).collect::<Vec<_>>();
         assert_eq!(idle[..4], [26_000.0; 4]);
         assert_eq!(idle[4], 10_240.0);
+    }
+
+    #[test]
+    fn scaler_counters_balance_instead_of_resetting_on_neutral_samples() {
+        let mut scale = NetScaler::default();
+        for rate in [20_000.0, 20_000.0, 20_000.0, 20_000.0, 10_240.0, 20_000.0] {
+            scale.sample(rate);
+        }
+        assert_eq!(scale.max(), 26_000.0);
     }
 
     #[test]
