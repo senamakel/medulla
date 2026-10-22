@@ -8,6 +8,9 @@ use std::{
 
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
+type ProcessIdentity = (u32, u64);
+type RegistryEntries = BTreeMap<ProcessIdentity, (u64, AgentRegistration)>;
+
 /// Ownership metadata for a process launched to serve an agent run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentRegistration {
@@ -26,7 +29,7 @@ pub struct AgentRegistration {
 /// Registry of child processes whose ownership is known to Medulla.
 #[derive(Debug, Clone, Default)]
 pub struct AgentRegistry {
-    entries: Arc<Mutex<BTreeMap<(u32, u64), (u64, AgentRegistration)>>>,
+    entries: Arc<Mutex<RegistryEntries>>,
     next_generation: Arc<AtomicU64>,
 }
 
@@ -87,8 +90,8 @@ impl AgentRegistry {
 /// Removes one process identity from its registry when its owner is dropped.
 #[derive(Debug)]
 pub struct RegistrationGuard {
-    entries: Weak<Mutex<BTreeMap<(u32, u64), (u64, AgentRegistration)>>>,
-    key: (u32, u64),
+    entries: Weak<Mutex<RegistryEntries>>,
+    key: ProcessIdentity,
     generation: u64,
 }
 
