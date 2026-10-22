@@ -253,9 +253,7 @@ impl ResourceSource for SystemResourceSource {
                 .system
                 .processes()
                 .iter()
-                .filter(|(_, process)| {
-                    should_refresh_task_details(process.exe(), process.cmd())
-                })
+                .filter(|(_, process)| should_refresh_task_details(process.exe(), process.cmd()))
                 .map(|(pid, _)| *pid)
                 .collect();
             if !agent_pids.is_empty() {
