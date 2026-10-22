@@ -233,6 +233,19 @@ impl App {
                 menu,
             );
         }
+        if state.help_open {
+            let help = Rect::new(
+                area.x.saturating_add(area.width.saturating_sub(62) / 2),
+                area.y.saturating_add(area.height.saturating_sub(11) / 2),
+                62.min(area.width),
+                11.min(area.height),
+            );
+            f.render_widget(
+                Paragraph::new("1–4 show or hide boxes\np/P change layout preset\n+/- change sample interval\na/y control network scaling\nb/n select network interface\nz reset network totals\no open Resources settings\n←/→ change a setting · Esc close")
+                    .block(Block::default().borders(Borders::ALL).title(" Resources key help ")),
+                help,
+            );
+        }
     }
 
     pub(in crate::ui::app) fn resources_key(&mut self, key: crossterm::event::KeyCode) -> bool {
