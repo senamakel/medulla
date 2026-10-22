@@ -67,6 +67,13 @@ fn session_rows_read_old_payloads_and_round_trip_agent_usage() {
     let encoded = serde_json::to_string(&current).unwrap();
     let decoded: RemoteSessionRow = serde_json::from_str(&encoded).unwrap();
     assert_eq!(decoded, current);
+
+    #[derive(serde::Deserialize)]
+    struct LegacyClientRow {
+        id: String,
+    }
+    let old_client: LegacyClientRow = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(old_client.id, "w_1");
 }
 
 #[test]
