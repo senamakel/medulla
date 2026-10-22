@@ -297,6 +297,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             configured.config.resources.io_graph_combined = combined;
             configured.config.resources.io_graph_speeds = speeds.into();
             configured.config.resources.swap_disk = true;
+            let show_swap = configured.config.resources.show_swap;
             let mut app = App::new(Arc::new(MockRuntime::empty()), configured);
             app.set_resource_snapshot(Arc::new(sample.clone()));
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -331,7 +332,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             );
             if mem_graphs && (!io_mode || !show_disks) {
                 let mem = app.resources.rects.mem;
-                let wanted_graph_rows = if configured.config.resources.show_swap {
+                let wanted_graph_rows = if show_swap {
                     5
                 } else {
                     4

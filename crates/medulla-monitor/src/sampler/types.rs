@@ -203,6 +203,8 @@ pub struct ResourceHistory {
     pub memory_available_bytes: super::History<u64>,
     /// Cached memory.
     pub memory_cached_bytes: super::History<u64>,
+    /// Unused physical memory, in bytes.
+    pub memory_free_bytes: super::History<u64>,
     /// Swap currently used, in bytes.
     pub swap_used_bytes: super::History<u64>,
     /// Combined disk read throughput.
@@ -226,6 +228,8 @@ impl ResourceHistory {
             .push(snapshot.memory_available_bytes, capacity);
         self.memory_cached_bytes
             .push(snapshot.memory_cached_bytes, capacity);
+        self.memory_free_bytes
+            .push(snapshot.memory_free_bytes, capacity);
         self.swap_used_bytes
             .push(snapshot.swap_used_bytes, capacity);
         self.disk_read_bytes_per_second.push(
