@@ -8,9 +8,11 @@
 //! turning this directory module into another monolithic source file.
 
 mod model;
+mod harnesses;
 mod picker;
 mod rail_hit;
 
 pub use model::*;
+pub(crate) use harnesses::{DetectedProvider, HarnessesView};
 pub(in crate::ui::app) use picker::*;
 pub(in crate::ui::app) use rail_hit::{RailHit, RailHitTarget};

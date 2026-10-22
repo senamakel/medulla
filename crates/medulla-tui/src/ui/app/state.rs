@@ -78,6 +78,7 @@ impl App {
             settings_focused: false,
             appearance_index: 0,
             subscriptions_index: 0,
+            harnesses_view: None,
             subscriptions: Default::default(),
             subscriptions_loading: false,
             subscriptions_waiting_for_account: false,
@@ -193,6 +194,11 @@ impl App {
     /// Configure Account logout with a testable home; without it, logout reports no writable location.
     pub fn set_medulla_home(&mut self, home: std::path::PathBuf) {
         self.medulla_home = Some(home);
+    }
+
+    /// Supply collected provider and customization facts for Settings.
+    pub fn set_harnesses_view(&mut self, view: super::types::HarnessesView) {
+        self.harnesses_view = Some(view);
     }
 
     /// Place the attention blink rate at an arbitrary interval. Test seam.

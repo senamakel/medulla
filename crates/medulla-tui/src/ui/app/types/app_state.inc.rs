@@ -130,6 +130,8 @@ pub struct App {
     pub(in crate::ui::app) appearance_index: usize,
     /// The selected meter row on the Subscriptions subpage.
     pub(in crate::ui::app) subscriptions_index: usize,
+    /// Provider and customization facts cached for the Harnesses page.
+    pub(in crate::ui::app) harnesses_view: Option<super::HarnessesView>,
     /// The latest subscription-usage readings, shown in the sidebar and on the
     /// Subscriptions subpage. Empty until the first sample lands.
     pub(in crate::ui::app) subscriptions: medulla::subscriptions::SubscriptionSnapshot,
