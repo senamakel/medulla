@@ -24,6 +24,41 @@ async fn wait_for_pid(path: &std::path::Path) -> u32 {
     .unwrap_or_else(|_| panic!("PID file {} was not populated", path.display()))
 }
 
+fn current_process_records() -> Vec<medulla::resources::agents::ProcessRecord> {
+    use medulla::resources::agents::{ProcessRecord, ProcessUsage};
+    use sysinfo::{ProcessesToUpdate, System};
+
+    let mut system = System::new_all();
+    system.refresh_processes(ProcessesToUpdate::All, true);
+    system
+        .processes()
+        .values()
+        .map(|process| ProcessRecord {
+            pid: process.pid().as_u32(),
+            ppid: process.parent().map(|pid| pid.as_u32()),
+            exe: process.exe().map(std::path::Path::to_path_buf),
+            argv: Some(
+                process
+                    .cmd()
+                    .iter()
+                    .map(|arg| arg.to_string_lossy().into_owned())
+                    .collect(),
+            ),
+            cwd: process.cwd().map(std::path::Path::to_path_buf),
+            started_at_secs: process.start_time(),
+            usage: ProcessUsage::default(),
+        })
+        .collect()
+}
+
+fn process_tree_contains(node: &medulla::resources::agents::ProcessNode, pid: u32) -> bool {
+    node.pid == pid
+        || node
+            .children
+            .iter()
+            .any(|child| process_tree_contains(child, pid))
+}
+
 #[tokio::test]
 async fn pid_reader_waits_until_an_existing_empty_file_is_populated() {
     let directory = tempfile::tempdir().unwrap();
@@ -130,6 +165,61 @@ fn native_agents_keep_each_workers_context_private_and_resume_their_own_session(
         .unwrap()
         .join()
         .unwrap();
+}
+
+#[tokio::test]
+async fn embedded_openhuman_shell_process_is_nested_under_a_pidless_row() {
+    let mock = MockServer::start().await;
+    Mock::given(wiremock::matchers::method("POST"))
+        .and(wiremock::matchers::path("/v1/chat/completions"))
+        .respond_with(Provider)
+        .mount(&mock)
+        .await;
+    let home = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    let host = Arc::new(EmbedHost::default());
+    let options = options(host, home.path(), cwd.path(), &mock, "slow-worker");
+    let abort = options.abort.clone();
+    let run = tokio::spawn(run_local_task(options));
+    let child_pid = wait_for_pid(&cwd.path().join("child.pid")).await;
+
+    let agents = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let processes = current_process_records();
+            let agents = medulla::resources::agents::discover_agents(
+                &processes,
+                &[],
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            );
+            if agents
+                .iter()
+                .any(|agent| agent.kind == medulla::resources::agents::AgentKind::EmbeddedOpenhuman)
+            {
+                break agents;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("shell child should be visible under Medulla's in-process row");
+
+    let embedded = agents
+        .iter()
+        .filter(|agent| agent.kind == medulla::resources::agents::AgentKind::EmbeddedOpenhuman)
+        .collect::<Vec<_>>();
+    assert_eq!(embedded.len(), 1);
+    assert_eq!(embedded[0].pid, None);
+    assert!(embedded[0]
+        .children
+        .iter()
+        .any(|child| process_tree_contains(child, child_pid)));
+
+    abort.abort();
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(10), run).await;
 }
 
 fn native_agents_scenario() {
