@@ -15,7 +15,7 @@ fn session_usage_matches_classified_descendant_and_aggregated_tree() {
     let process = |pid, ppid, argv: &[&str], cpu, rss| ProcessRecord {
         pid,
         ppid,
-        exe: None,
+        exe: (pid == 11).then(|| std::path::PathBuf::from("/usr/bin/claude")),
         argv: Some(argv.iter().map(|arg| (*arg).to_owned()).collect()),
         cwd: None,
         started_at_secs: pid as u64,
@@ -28,7 +28,7 @@ fn session_usage_matches_classified_descendant_and_aggregated_tree() {
     };
     let processes = vec![
         process(10, None, &["pty-host"], 1.0, 100),
-        process(11, Some(10), &["/usr/bin/env", "claude"], 4.0, 200),
+        process(11, Some(10), &["claude"], 4.0, 200),
         process(12, Some(11), &["git", "status"], 2.0, 50),
     ];
     let roots = vec![KnownProcessRoot {
