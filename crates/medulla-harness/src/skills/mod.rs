@@ -31,6 +31,7 @@ mod marker;
 pub mod refresh;
 pub mod registration;
 pub mod render;
+mod render_helpers;
 pub mod targets;
 mod types;
 
