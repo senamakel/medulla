@@ -118,11 +118,6 @@ async fn app_server_connection_registration_tracks_the_pooled_child_lifetime() {
     let dir = TempDir::new();
     let fake = fake_app_server(&dir, TurnScript::Reply("unused"));
     let registry = medulla_monitor::agents::agent_registry();
-    let before: std::collections::HashSet<u32> = registry
-        .snapshot()
-        .into_iter()
-        .map(|entry| entry.pid)
-        .collect();
     let connection = Connection::open(&AppServerSpec {
         bin: fake.bin,
         args: Vec::new(),
@@ -133,26 +128,37 @@ async fn app_server_connection_registration_tracks_the_pooled_child_lifetime() {
     })
     .await
     .expect("fake app-server initializes");
+    let child_pid = fake
+        .pids()
+        .last()
+        .copied()
+        .expect("fake server records its exact process id");
     let registration = registry
         .snapshot()
         .into_iter()
-        .find(|entry| !before.contains(&entry.pid) && entry.provider == "codex-app-server")
+        .find(|entry| entry.pid == child_pid && entry.provider == "codex-app-server")
         .expect("app-server process is registered");
     assert_eq!(registration.task_id, None);
     assert_eq!(registration.session_id, None);
 
     drop(connection);
-    tokio::time::timeout(std::time::Duration::from_secs(2), async {
-        while registry
-            .snapshot()
-            .iter()
-            .any(|entry| entry.pid == registration.pid)
-        {
+    let gone = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while registry.snapshot().iter().any(|entry| {
+            entry.pid == registration.pid && entry.started_at_secs == registration.started_at_secs
+        }) {
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
     })
-    .await
-    .expect("dropping the app-server connection drops its registration");
+    .await;
+    assert!(
+        gone.is_ok(),
+        "registration identity remained after connection drop: {:?}",
+        registry
+            .snapshot()
+            .into_iter()
+            .filter(|entry| entry.pid == registration.pid)
+            .collect::<Vec<_>>()
+    );
 }
 
 #[tokio::test]
