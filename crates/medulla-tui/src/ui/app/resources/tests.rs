@@ -173,8 +173,10 @@ fn disks_and_io_keys_toggle_the_memory_panel_modes() {
 
 #[test]
 fn io_graph_speed_limits_override_per_mount_in_mib_per_second() {
-    let mut config = medulla::config::ResourcesConfig::default();
-    config.io_graph_speeds = "/mnt/data:1 /boot:4".into();
+    let config = medulla::config::ResourcesConfig {
+        io_graph_speeds: "/mnt/data:1 /boot:4".into(),
+        ..Default::default()
+    };
     assert_eq!(super::io_graph_speed(&config, "/mnt/data"), 1.0);
     assert_eq!(super::io_graph_speed(&config, "/boot"), 4.0);
     assert_eq!(super::io_graph_speed(&config, "/"), 100.0);
