@@ -314,9 +314,10 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                 text.contains("RAM  50%"),
                 "RAM missing at {width}x{height}: {text}"
             );
+            let show_disk_rows = show_disks && !io_mode;
             assert_eq!(
                 text.contains("/mnt/data"),
-                show_disks,
+                show_disk_rows,
                 "disk visibility at {width}x{height}: {text}"
             );
             assert!(
@@ -325,17 +326,26 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             );
             assert_eq!(
                 text.contains("[swap]"),
-                show_disks,
+                show_disk_rows,
                 "swap disk visibility at {width}x{height}: {text}"
             );
             if mem_graphs && (!io_mode || !show_disks) {
                 let mem = app.resources.rects.mem;
-                assert!(
-                    (mem.y + 1..mem.y + 3).any(|y| {
+                let wanted_graph_rows = if configured.config.resources.show_swap {
+                    5
+                } else {
+                    4
+                };
+                let graph_rows = wanted_graph_rows.min(mem.height.saturating_sub(2) as usize);
+                let visible_graph_rows = (mem.y + 1..mem.y + 1 + graph_rows as u16)
+                    .filter(|y| {
                         (mem.x + 1..mem.right() - 1)
                             .any(|x| terminal.backend().buffer()[(x, y)].symbol() != " ")
-                    }),
-                    "memory history graph missing at {width}x{height}"
+                    })
+                    .count();
+                assert_eq!(
+                    visible_graph_rows, graph_rows,
+                    "memory series missing at {width}x{height}"
                 );
             }
             if !mem_graphs && !io_mode {
@@ -364,10 +374,10 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                     }),
                     "IO graph missing at {width}x{height}"
                 );
-            } else if show_disks {
+            } else if show_disk_rows {
                 let mem = app.resources.rects.mem;
                 let inner_y = mem.y + 1;
-                let graph_rows = if mem_graphs { 2 } else { 0 };
+                let graph_rows = if mem_graphs { 5 } else { 0 };
                 let disk_start = if mem_graphs { 3 } else { 2 };
                 let disk_graph_y = inner_y + graph_rows + disk_start;
                 let graph_x = mem.x + 1 + (mem.width - 2) * 3 / 4;
