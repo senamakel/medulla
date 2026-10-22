@@ -96,7 +96,7 @@ fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
     for expected in [
         "Tokens",
         "session-1",
-        "Claude",
+        "Claude Code",
         "claude-sonnet-4-6",
         "input 1000000",
         "output 200000",
@@ -179,6 +179,11 @@ fn tokens_app_renders_pricing_only_for_provider_attributed_events() {
     ] {
         assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
     }
+    assert_eq!(
+        output.matches("input 1000000").count(),
+        2,
+        "provider-attributed and legacy usage must remain separate rows:\n{output}"
+    );
 }
 
 #[test]

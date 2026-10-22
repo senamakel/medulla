@@ -42,7 +42,7 @@ pub(super) fn draw_tokens(f: &mut Frame, area: Rect, view: &TokensView) {
     for row in &view.rows {
         let provider = row
             .provider
-            .map(|provider| provider.as_str())
+            .map(|provider| provider.display_name())
             .unwrap_or("unknown provider");
         let model = row.model.as_deref().unwrap_or("unknown model");
         lines.push(Line::from(format!(
