@@ -83,10 +83,17 @@ impl App {
                         format!(" Mem [{key}] [d] [i] ")
                     } else if title == "Net" {
                         let selected = state.net_iface.as_deref().or_else(|| {
-                            crate::ui::resources::net::default_interface(&self.resource_snapshot.networks)
+                            crate::ui::resources::net::default_interface(
+                                &self.resource_snapshot.networks,
+                            )
                         });
                         let address = selected
-                            .and_then(|name| self.resource_snapshot.networks.iter().find(|entry| entry.interface == name))
+                            .and_then(|name| {
+                                self.resource_snapshot
+                                    .networks
+                                    .iter()
+                                    .find(|entry| entry.interface == name)
+                            })
                             .and_then(|entry| entry.ip_addresses.first())
                             .map(String::as_str)
                             .unwrap_or("no IP");
@@ -94,7 +101,8 @@ impl App {
                             " Net [{key}] [b] [n] [z] [a{}] [y{}] {} {} ",
                             if state.net_auto { "✓" } else { " " },
                             if state.net_sync { "✓" } else { " " },
-                            selected.unwrap_or("no iface"), address
+                            selected.unwrap_or("no iface"),
+                            address
                         )
                     } else {
                         format!(" {title} [{key}] ")
