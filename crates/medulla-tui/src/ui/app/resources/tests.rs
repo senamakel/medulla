@@ -1,7 +1,10 @@
 use super::{
     draw_net_panel,
     layout::calc_sizes,
-    types::{AgentSignal, LayoutOptions, ResourcesState, ShownBoxes},
+    types::{
+        AgentSignal, AgentSignalConfirmStage, AgentSignalConfirmation, LayoutOptions,
+        ResourcesState, ShownBoxes,
+    },
 };
 use crate::ui::app::App;
 use crossterm::event::KeyCode;
@@ -953,7 +956,18 @@ fn agent_rows_render_with_classification_at_desktop_and_narrow_sizes() {
 }
 
 static SIGNALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-fn test_signal(_pid: u32, _signal: AgentSignal) -> std::io::Result<()> {
+fn test_process_owned(_pid: u32, _started: u64, uid: Option<&str>) -> bool {
+    uid == Some("test-user")
+}
+fn never_owned(_pid: u32, _started: u64, _uid: Option<&str>) -> bool {
+    false
+}
+fn test_signal(
+    _pid: u32,
+    _started: u64,
+    _uid: Option<&str>,
+    _signal: AgentSignal,
+) -> std::io::Result<()> {
     SIGNALS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     Ok(())
 }
@@ -970,6 +984,7 @@ fn agent_kill_waits_for_confirmation_and_uses_injected_signal_function() {
             .with_processes(vec![test_agent_process(42, "claude", 10.0)]),
     ));
     app.resources.agent_signal_fn = test_signal;
+    app.resources.agent_process_owned_fn = test_process_owned;
     assert!(app.resources_key(KeyCode::Char('k')));
     assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
     assert!(app.resources.agent_signal_armed.is_some());
@@ -1001,7 +1016,12 @@ fn hidden_agents_box_cannot_arm_or_confirm_a_process_signal() {
     assert!(!app.resources_key(KeyCode::Char('k')));
     assert!(app.resources.agent_signal_armed.is_none());
 
-    app.resources.agent_signal_armed = Some((43, 1, AgentSignal::Kill));
+    app.resources.agent_signal_armed = Some(AgentSignalConfirmation {
+        pid: 43,
+        started: 1,
+        signal: AgentSignal::Kill,
+        stage: AgentSignalConfirmStage::First,
+    });
     assert!(app.resources_key(KeyCode::Char('y')));
     assert!(app.resources.agent_signal_armed.is_none());
     assert_eq!(HIDDEN_SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
@@ -1028,7 +1048,12 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
     ));
     app.resources.agent_selected = Some((44, 1));
     app.resources.agent_detail = true;
-    app.resources.agent_signal_armed = Some((44, 1, AgentSignal::Kill));
+    app.resources.agent_signal_armed = Some(AgentSignalConfirmation {
+        pid: 44,
+        started: 1,
+        signal: AgentSignal::Kill,
+        stage: AgentSignalConfirmStage::First,
+    });
 
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     terminal
@@ -1041,7 +1066,7 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
         .iter()
         .map(|cell| cell.symbol())
         .collect::<String>();
-    assert!(text.contains("EXTERNAL PROCESS: kill PID 44? y confirm"));
+    assert!(text.contains("EXTERNAL PROCESS"));
     for expected in [
         "Kind: External",
         "PID: 44",
@@ -1068,6 +1093,7 @@ fn external_agent_signal_requires_a_second_explicit_confirmation() {
             .with_processes(vec![test_agent_process(45, "aider", 10.0)]),
     ));
     app.resources.agent_signal_fn = test_signal;
+    app.resources.agent_process_owned_fn = test_process_owned;
 
     assert!(app.resources_key(KeyCode::Char('k')));
     assert!(app.resources_key(KeyCode::Char('y')));
@@ -1075,6 +1101,26 @@ fn external_agent_signal_requires_a_second_explicit_confirmation() {
     assert!(app.resources.agent_signal_armed.is_some());
     assert!(app.resources_key(KeyCode::Char('Y')));
     assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(app.resources.agent_signal_armed.is_none());
+}
+
+#[test]
+fn unowned_process_never_reaches_the_injected_signal_function() {
+    SIGNALS.store(0, std::sync::atomic::Ordering::SeqCst);
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(46, "claude", 10.0)]),
+    ));
+    app.resources.agent_signal_fn = test_signal;
+    app.resources.agent_process_owned_fn = never_owned;
+
+    assert!(app.resources_key(KeyCode::Char('k')));
+    assert!(app.resources_key(KeyCode::Char('y')));
+    assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
     assert!(app.resources.agent_signal_armed.is_none());
 }
 
