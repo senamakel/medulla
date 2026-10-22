@@ -26,6 +26,8 @@ pub struct NetworkSnapshot {
     pub interface: String,
     /// Whether the interface is administratively up.
     pub up: bool,
+    /// Whether the interface currently has carrier or observed traffic.
+    pub connected: bool,
     /// Assigned IPv4 and IPv6 addresses.
     pub ip_addresses: Vec<String>,
     /// Received bytes per second from the preceding sample.
