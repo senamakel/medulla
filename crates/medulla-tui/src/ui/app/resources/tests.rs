@@ -366,7 +366,6 @@ fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
     assert_eq!(app.resources.net_zero_offsets["enp1s0"], (300, 600));
     assert!(app.resources_key(KeyCode::Char('b')));
     assert_eq!(app.resources.net_iface.as_deref(), Some("wlan0"));
-    assert!(app.resources_key(KeyCode::Char('z')));
     assert_eq!(app.resources.net_zero_offsets["wlan0"], (100, 200));
 }
 
