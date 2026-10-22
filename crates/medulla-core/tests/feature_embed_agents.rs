@@ -180,6 +180,7 @@ fn embedded_openhuman_shell_process_is_nested_under_a_pidless_row() {
         .unwrap();
 }
 
+#[cfg(target_os = "linux")]
 fn embedded_openhuman_shell_scenario() {
     medulla::tokio_tuning::build_runtime()
         .unwrap()
