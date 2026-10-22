@@ -45,7 +45,13 @@ pub fn claude_mcp_config(spec: &McpServerSpec) -> String {
     );
     entry.insert(
         "args".to_string(),
-        serde_json::Value::Array(spec.args.iter().cloned().map(serde_json::Value::String).collect()),
+        serde_json::Value::Array(
+            spec.args
+                .iter()
+                .cloned()
+                .map(serde_json::Value::String)
+                .collect(),
+        ),
     );
     if !spec.env.is_empty() {
         let env = spec
@@ -70,13 +76,21 @@ pub fn codex_config_args(spec: &McpServerSpec) -> Vec<String> {
         .join(",");
     vec![
         "-c".to_string(),
-        format!("mcp_servers.{}.command={}", spec.name, string(&spec.command.display().to_string())),
+        format!(
+            "mcp_servers.{}.command={}",
+            spec.name,
+            string(&spec.command.display().to_string())
+        ),
         "-c".to_string(),
         format!("mcp_servers.{}.args=[\"mcp\"]", spec.name),
         "-c".to_string(),
         format!("mcp_servers.{}.env={{{env}}}", spec.name),
         "-c".to_string(),
-        format!("mcp_servers.{}.env_vars=[{}]", spec.name, string(ATTACHED_ENV)),
+        format!(
+            "mcp_servers.{}.env_vars=[{}]",
+            spec.name,
+            string(ATTACHED_ENV)
+        ),
         "-c".to_string(),
         format!("mcp_servers.{}.enabled=true", spec.name),
     ]

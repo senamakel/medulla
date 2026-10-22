@@ -15,5 +15,5 @@ pub(crate) use dispatch::call;
 #[cfg(test)]
 pub(crate) use dispatch::scope_error_for;
 pub use dispatch::TOOL_NAMES;
-pub use medulla_types::{ToolMode, TOOL_MODE_ENV};
 pub use evolve::TOOL_SCOPE_ENV;
+pub use medulla_types::{ToolMode, TOOL_MODE_ENV};

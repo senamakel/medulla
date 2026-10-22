@@ -84,7 +84,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use medulla_harness::mcp::{claude_mcp_config, codex_config_args as render_codex_config_args, McpEndpoint, McpServerSpec};
+use medulla_harness::mcp::{
+    claude_mcp_config, codex_config_args as render_codex_config_args, McpEndpoint, McpServerSpec,
+};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
@@ -862,7 +864,6 @@ pub fn supports_cli_attach(provider: HarnessProvider) -> bool {
 }
 
 /// Per-invocation Codex configuration for one explicitly attached server.
-
 
 #[cfg(test)]
 #[path = "attach_tests.rs"]
