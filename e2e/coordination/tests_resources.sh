@@ -97,13 +97,24 @@ EOF
   tmux send-keys -t "$SESSION:resources" C-t
   sleep 1
   tmux send-keys -t "$SESSION:resources" Enter
-  if ! wait_app_regex "$provider_label" 30; then
+  if ! wait_app_regex 'Claude Code|Codex|OpenCode' 30; then
     capture_app > "$RUN_DIR/harness-picker.pane"
     fail "session picker did not offer the configured $HARNESS harness"
   fi
+  local selected attempts=0
+  while [ "$attempts" -lt 10 ]; do
+    selected="$(capture_app | grep '❯' | head -1 || true)"
+    printf '%s' "$selected" | grep -qi "$provider_label" && break
+    tmux send-keys -t "$SESSION:resources" Down
+    attempts=$((attempts + 1))
+    sleep 0.2
+  done
+  printf '%s' "$selected" | grep -qi "$provider_label" || {
+    capture_app > "$RUN_DIR/harness-picker.pane"
+    fail "could not select $provider_label from the harness picker"
+  }
   tmux send-keys -t "$SESSION:resources" Enter
   sleep 1
-  tmux send-keys -t "$SESSION:resources" -l "$workspace"
   tmux send-keys -t "$SESSION:resources" Enter
 
   # Move to Resources after the process is launched; it is the fourth tab in
@@ -132,7 +143,7 @@ import sys
 text = open(sys.argv[1], encoding="utf-8").read()
 rows = [line for line in text.splitlines() if sys.argv[2].lower() in line.lower()]
 assert rows, f"no {sys.argv[2]} process row in Resources pane"
-assert any("external" not in line.lower() and "·" in line for line in rows), \
+assert any("external" not in line.lower() and "host" not in line.lower() for line in rows), \
     f"{sys.argv[2]} has no non-external session origin: {rows!r}"
 print(f"[e2e] session-attributed process row: {rows[0].strip()}")
 PY
@@ -150,8 +161,15 @@ PY
     sleep 1
   done
   printf '%s\n' "$pane" > "$RUN_DIR/resources-external.pane"
-  printf '%s\n' "$pane" | grep -q 'external' \
+  "$PYTHON_BIN" - "$RUN_DIR/resources-external.pane" "$provider_label" <<'PY' \
     || fail "the unregistered $HARNESS process was not labeled external"
+import sys
+text = open(sys.argv[1], encoding="utf-8").read().splitlines()
+rows = [line for line in text if sys.argv[2].lower() in line.lower()]
+assert any("external" in line.lower() for line in rows), \
+    f"no {sys.argv[2]} row marked external: {rows!r}"
+print(f"[e2e] external process row: {[row.strip() for row in rows if 'external' in row.lower()][0]}")
+PY
   log "  unregistered $HARNESS-like process is visible with origin external"
 
   # Toggle Agents off and prove the production-rendered Mem/Net borders widen.
