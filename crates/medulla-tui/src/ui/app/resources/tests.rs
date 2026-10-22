@@ -1,4 +1,5 @@
 use super::{
+    draw_net_panel,
     layout::calc_sizes,
     types::{LayoutOptions, ResourcesState, ShownBoxes},
 };

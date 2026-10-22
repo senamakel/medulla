@@ -162,7 +162,7 @@ impl ResourcesState {
             net_sync: config.net_sync,
             net_download: config.net_download.max(1),
             net_upload: config.net_upload.max(1),
-            net_iface: config.net_iface.clone(),
+            net_iface: config.net_iface.clone().filter(|name| !name.is_empty()),
             swap_upload_download: config.swap_upload_download,
             net_zeroed: false,
             presets,

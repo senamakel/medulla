@@ -189,6 +189,8 @@ impl ResourceSource for SystemResourceSource {
                 }
             })
             .collect::<Vec<_>>();
+        let mut networks = networks;
+        networks.sort_by(|left, right| left.interface.cmp(&right.interface));
         let task_pids: std::collections::HashSet<u32> = self
             .system
             .processes()
