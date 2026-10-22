@@ -267,6 +267,7 @@ fn network_panel_renders_at_desktop_and_narrow_widths() {
         .push(crate::ui::resources::sampler::NetworkSnapshot {
             interface: "eth0".into(),
             up: true,
+            connected: true,
             ip_addresses: vec!["192.0.2.2".into()],
             received_bytes_per_second: 4096.0,
             transmitted_bytes_per_second: 2048.0,
@@ -286,8 +287,7 @@ fn network_panel_renders_at_desktop_and_narrow_widths() {
                     &snapshot,
                     &config,
                     Some("eth0"),
-                    0,
-                    0,
+                    (0, 0),
                     10_240.0,
                     10_240.0,
                     false,
@@ -324,6 +324,7 @@ fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
             .push(crate::ui::resources::sampler::NetworkSnapshot {
                 interface: interface.into(),
                 up,
+                connected: up && interface != "lo",
                 ip_addresses: Vec::new(),
                 received_bytes_per_second: 0.0,
                 transmitted_bytes_per_second: 0.0,
@@ -334,8 +335,7 @@ fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
     app.set_resource_snapshot(Arc::new(sample.clone()));
     app.resources.net_iface = Some("wlan0".into());
     assert!(app.resources_key(KeyCode::Char('z')));
-    assert_eq!(app.resources.net_zero_received, 100);
-    assert_eq!(app.resources.net_zero_transmitted, 200);
+    assert_eq!(app.resources.net_zero_offsets["wlan0"], (100, 200));
     let mut later = sample.clone();
     let wlan = later
         .networks
@@ -362,10 +362,12 @@ fn network_zero_offsets_totals_and_interface_keys_skip_down_links() {
     );
     assert!(app.resources_key(KeyCode::Char('n')));
     assert_eq!(app.resources.net_iface.as_deref(), Some("enp1s0"));
-    assert!(app.resources_key(KeyCode::Char('n')));
-    assert_eq!(app.resources.net_iface.as_deref(), Some("wlan0"));
+    assert!(app.resources_key(KeyCode::Char('z')));
+    assert_eq!(app.resources.net_zero_offsets["enp1s0"], (300, 600));
     assert!(app.resources_key(KeyCode::Char('b')));
-    assert_eq!(app.resources.net_iface.as_deref(), Some("enp1s0"));
+    assert_eq!(app.resources.net_iface.as_deref(), Some("wlan0"));
+    assert!(app.resources_key(KeyCode::Char('z')));
+    assert_eq!(app.resources.net_zero_offsets["wlan0"], (100, 200));
 }
 
 #[test]

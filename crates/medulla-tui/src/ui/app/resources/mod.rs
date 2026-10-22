@@ -165,8 +165,13 @@ impl App {
                             &self.resource_snapshot,
                             &self.loaded.config.resources,
                             state.net_iface.as_deref(),
-                            state.net_zero_received,
-                            state.net_zero_transmitted,
+                            state.net_zero_offsets.get(
+                                state.net_iface.as_deref().or_else(|| {
+                                    crate::ui::resources::net::default_interface(
+                                        &self.resource_snapshot.networks,
+                                    )
+                                }).unwrap_or_default(),
+                            ).copied().unwrap_or_default(),
                             if state.net_auto {
                                 state.net_download_scaler.max()
                             } else {
@@ -212,8 +217,10 @@ impl App {
                     .iter()
                     .find(|entry| entry.interface == name)
             }) {
-                self.resources.net_zero_received = interface.total_received_bytes;
-                self.resources.net_zero_transmitted = interface.total_transmitted_bytes;
+                self.resources.net_zero_offsets.insert(
+                    interface.interface.clone(),
+                    (interface.total_received_bytes, interface.total_transmitted_bytes),
+                );
                 self.resources.net_iface = Some(interface.interface.clone());
             }
         }
@@ -347,8 +354,7 @@ fn draw_net_panel(
     snapshot: &crate::ui::resources::sampler::ResourceSnapshot,
     config: &medulla::config::ResourcesConfig,
     selected: Option<&str>,
-    zero_received: u64,
-    zero_transmitted: u64,
+    zero_offsets: (u64, u64),
     download_max: f64,
     upload_max: f64,
     sync: bool,
@@ -375,6 +381,7 @@ fn draw_net_panel(
         frame.render_widget(Paragraph::new("No active network interface"), area);
         return;
     };
+    let (zero_received, zero_transmitted) = zero_offsets;
     let (download, upload) = if config.swap_upload_download {
         (
             selected.transmitted_bytes_per_second,
@@ -401,8 +408,9 @@ fn draw_net_panel(
             net_rate(upload * 8.0)
         )));
         lines.push(Line::from(format!(
-            "Top {}  Total ↓{} ↑{}",
-            net_rate(network_top(snapshot, &selected.interface)),
+            "Top ↓{} ↑{}  Total ↓{} ↑{}",
+            net_rate(network_top(snapshot, &selected.interface).0),
+            net_rate(network_top(snapshot, &selected.interface).1),
             net_bytes(selected.total_received_bytes.saturating_sub(zero_received)),
             net_bytes(
                 selected
@@ -428,8 +436,9 @@ fn draw_net_panel(
             net_rate(upload * 8.0)
         )));
         lines.push(Line::from(format!(
-            "Top {}  Total ↓{} ↑{}",
-            net_rate(network_top(snapshot, &selected.interface)),
+            "Top ↓{} ↑{}  Total ↓{} ↑{}",
+            net_rate(network_top(snapshot, &selected.interface).0),
+            net_rate(network_top(snapshot, &selected.interface).1),
             net_bytes(selected.total_received_bytes.saturating_sub(zero_received)),
             net_bytes(
                 selected
@@ -494,19 +503,16 @@ fn draw_net_panel(
     );
 }
 
-fn network_top(snapshot: &crate::ui::resources::sampler::ResourceSnapshot, interface: &str) -> f64 {
+fn network_top(snapshot: &crate::ui::resources::sampler::ResourceSnapshot, interface: &str) -> (f64, f64) {
     snapshot
         .history
         .network_io
         .iter()
         .flat_map(|sample| sample.iter())
         .filter(|entry| entry.interface == interface)
-        .map(|entry| {
-            entry
-                .received_bytes_per_second
-                .max(entry.transmitted_bytes_per_second)
+        .fold((0.0_f64, 0.0_f64), |(rx, tx), entry| {
+            (rx.max(entry.received_bytes_per_second), tx.max(entry.transmitted_bytes_per_second))
         })
-        .fold(0.0, f64::max)
 }
 
 fn net_rate(rate: f64) -> String {

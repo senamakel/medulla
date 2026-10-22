@@ -43,8 +43,7 @@ pub(in crate::ui::app) struct ResourcesState {
     pub net_iface: Option<String>,
     pub swap_upload_download: bool,
     pub net_zeroed: bool,
-    pub net_zero_received: u64,
-    pub net_zero_transmitted: u64,
+    pub net_zero_offsets: std::collections::HashMap<String, (u64, u64)>,
     pub net_download_scaler: crate::ui::resources::net::NetScaler,
     pub net_upload_scaler: crate::ui::resources::net::NetScaler,
 }
@@ -94,8 +93,7 @@ impl Default for ResourcesState {
             net_iface: None,
             swap_upload_download: false,
             net_zeroed: false,
-            net_zero_received: 0,
-            net_zero_transmitted: 0,
+            net_zero_offsets: std::collections::HashMap::new(),
             net_download_scaler: Default::default(),
             net_upload_scaler: Default::default(),
         }

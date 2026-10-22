@@ -106,7 +106,7 @@ pub fn default_interface(interfaces: &[medulla_monitor::NetworkSnapshot]) -> Opt
     interfaces
         .iter()
         .filter(|interface| {
-            interface.up
+            interface.connected
                 && !is_loopback(&interface.interface)
                 && (interface.total_received_bytes > 0
                     || interface.total_transmitted_bytes > 0
@@ -170,6 +170,7 @@ mod tests {
             medulla_monitor::NetworkSnapshot {
                 interface: "lo".into(),
                 up: true,
+                connected: true,
                 ip_addresses: vec![],
                 received_bytes_per_second: 4.0,
                 transmitted_bytes_per_second: 0.0,
@@ -179,6 +180,7 @@ mod tests {
             medulla_monitor::NetworkSnapshot {
                 interface: "eth0".into(),
                 up: false,
+                connected: false,
                 ip_addresses: vec![],
                 received_bytes_per_second: 0.0,
                 transmitted_bytes_per_second: 0.0,
@@ -188,6 +190,7 @@ mod tests {
             medulla_monitor::NetworkSnapshot {
                 interface: "wlan0".into(),
                 up: true,
+                connected: true,
                 ip_addresses: vec![],
                 received_bytes_per_second: 4.0,
                 transmitted_bytes_per_second: 0.0,
