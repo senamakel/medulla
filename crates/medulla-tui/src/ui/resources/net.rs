@@ -79,8 +79,16 @@ pub fn synced_max(download: f64, upload: f64, sync: bool) -> (f64, f64) {
 }
 
 /// Cycle an interface index forward or backward, ignoring down interfaces.
-pub fn cycle_interface(current: Option<&str>, interfaces: &[(&str, bool)], forward: bool) -> Option<String> {
-    let up: Vec<_> = interfaces.iter().filter(|(_, is_up)| *is_up).map(|(name, _)| *name).collect();
+pub fn cycle_interface(
+    current: Option<&str>,
+    interfaces: &[(&str, bool)],
+    forward: bool,
+) -> Option<String> {
+    let up: Vec<_> = interfaces
+        .iter()
+        .filter(|(_, is_up)| *is_up)
+        .map(|(name, _)| *name)
+        .collect();
     if up.is_empty() {
         return None;
     }
@@ -114,8 +122,14 @@ mod tests {
     #[test]
     fn interface_cycling_skips_down_interfaces() {
         let interfaces = [("lo", true), ("eth0", false), ("wlan0", true)];
-        assert_eq!(cycle_interface(Some("lo"), &interfaces, true).as_deref(), Some("wlan0"));
-        assert_eq!(cycle_interface(Some("lo"), &interfaces, false).as_deref(), Some("wlan0"));
+        assert_eq!(
+            cycle_interface(Some("lo"), &interfaces, true).as_deref(),
+            Some("wlan0")
+        );
+        assert_eq!(
+            cycle_interface(Some("lo"), &interfaces, false).as_deref(),
+            Some("wlan0")
+        );
     }
 
     #[test]

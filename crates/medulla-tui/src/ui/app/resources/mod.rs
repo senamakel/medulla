@@ -171,6 +171,12 @@ impl App {
         config.agents_left = Some(state.opts.agents_left);
         config.show_disks = state.show_disks;
         config.io_mode = state.io_mode;
+        config.net_auto = state.net_auto;
+        config.net_sync = state.net_sync;
+        config.net_download = state.net_download;
+        config.net_upload = state.net_upload;
+        config.net_iface = state.net_iface.clone();
+        config.swap_upload_download = state.swap_upload_download;
         if let Some(path) = self.config_path.as_deref() {
             let settings = [
                 ("updateMs", ratatui_toml_value_u64(config.update_ms)),
@@ -193,6 +199,21 @@ impl App {
                 ),
                 ("showDisks", toml::Value::Boolean(config.show_disks)),
                 ("ioMode", toml::Value::Boolean(config.io_mode)),
+                ("netAuto", toml::Value::Boolean(config.net_auto)),
+                ("netSync", toml::Value::Boolean(config.net_sync)),
+                ("netDownload", ratatui_toml_value_u64(config.net_download)),
+                ("netUpload", ratatui_toml_value_u64(config.net_upload)),
+                (
+                    "netIface",
+                    config
+                        .net_iface
+                        .clone()
+                        .map_or(toml::Value::String(String::new()), toml::Value::String),
+                ),
+                (
+                    "swapUploadDownload",
+                    toml::Value::Boolean(config.swap_upload_download),
+                ),
             ];
             for (key, value) in settings {
                 if let Err(error) = medulla::config::persist_setting(path, "resources", key, value)

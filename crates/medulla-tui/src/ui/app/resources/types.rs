@@ -36,6 +36,13 @@ pub(in crate::ui::app) struct ResourcesState {
     pub menu_open: bool,
     pub show_disks: bool,
     pub io_mode: bool,
+    pub net_auto: bool,
+    pub net_sync: bool,
+    pub net_download: u64,
+    pub net_upload: u64,
+    pub net_iface: Option<String>,
+    pub swap_upload_download: bool,
+    pub net_zeroed: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -71,6 +78,13 @@ impl Default for ResourcesState {
             menu_open: false,
             show_disks: true,
             io_mode: false,
+            net_auto: true,
+            net_sync: false,
+            net_download: 100,
+            net_upload: 100,
+            net_iface: None,
+            swap_upload_download: false,
+            net_zeroed: false,
         }
     }
 }
@@ -105,6 +119,13 @@ impl ResourcesState {
             interval_ms: config.update_interval_ms(),
             show_disks: config.show_disks,
             io_mode: config.io_mode,
+            net_auto: config.net_auto,
+            net_sync: config.net_sync,
+            net_download: config.net_download.max(1),
+            net_upload: config.net_upload.max(1),
+            net_iface: config.net_iface.clone(),
+            swap_upload_download: config.swap_upload_download,
+            net_zeroed: false,
             presets,
             ..Self::default()
         };
