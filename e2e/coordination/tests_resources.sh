@@ -46,6 +46,25 @@ print(f"[e2e] {label} panel width: {width} columns")
 PY
 }
 
+select_screen_option() {
+  local label="$1" deadline=$(( $(date +%s) + 60 )) pane line digit
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    pane="$(capture_app)"
+    line="$(printf '%s\n' "$pane" | grep -E "[0-9][.)]? +$label" | head -1 || true)"
+    if [ -n "$line" ]; then
+      digit="$(printf '%s\n' "$line" | grep -Eo '[0-9]' | head -1 || true)"
+      [ -n "$digit" ] || fail "screen setup option '$label' has no number: $line"
+      tmux send-keys -t "$SESSION:resources" "$digit" Enter
+      sleep 2
+      return 0
+    fi
+    if printf '%s\n' "$pane" | grep -Eq 'WORKER .*(interactive|headless) on '; then return 0; fi
+    sleep 1
+  done
+  capture_app > "$RUN_DIR/resources-setup.pane"
+  fail "operator screen never offered '$label'"
+}
+
 main() {
   RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/medulla-resources-e2e-XXXXXX")"
   e2e_init
