@@ -43,6 +43,8 @@ pub(in crate::ui::app) struct ResourcesState {
     pub net_iface: Option<String>,
     pub swap_upload_download: bool,
     pub net_zeroed: bool,
+    pub net_zero_received: u64,
+    pub net_zero_transmitted: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -85,6 +87,8 @@ impl Default for ResourcesState {
             net_iface: None,
             swap_upload_download: false,
             net_zeroed: false,
+            net_zero_received: 0,
+            net_zero_transmitted: 0,
         }
     }
 }

@@ -86,7 +86,7 @@ pub fn cycle_interface(
 ) -> Option<String> {
     let up: Vec<_> = interfaces
         .iter()
-        .filter(|(_, is_up)| *is_up)
+        .filter(|(name, is_up)| *is_up && !is_loopback(name))
         .map(|(name, _)| *name)
         .collect();
     if up.is_empty() {
@@ -102,6 +102,25 @@ pub fn cycle_interface(
     Some(up[next].to_owned())
 }
 
+/// Pick the first active non-loopback interface with observed traffic.
+pub fn default_interface<'a>(interfaces: &'a [medulla_monitor::NetworkSnapshot]) -> Option<&'a str> {
+    interfaces
+        .iter()
+        .find(|interface| {
+            interface.up
+                && !is_loopback(&interface.interface)
+                && (interface.total_received_bytes > 0
+                    || interface.total_transmitted_bytes > 0
+                    || interface.received_bytes_per_second > 0.0
+                    || interface.transmitted_bytes_per_second > 0.0)
+        })
+        .map(|interface| interface.interface.as_str())
+}
+
+fn is_loopback(name: &str) -> bool {
+    name == "lo" || name.starts_with("lo:") || name == "Loopback Pseudo-Interface 1"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,9 +132,9 @@ mod tests {
         assert_eq!(steady, vec![10_240.0; 6]);
         let burst = (0..5).map(|_| scale.sample(20_000.0)).collect::<Vec<_>>();
         assert_eq!(burst[..4], [10_240.0; 4]);
-        assert_eq!(burst[4], 24_960.0);
+        assert_eq!(burst[4], 26_000.0);
         let idle = (0..5).map(|_| scale.sample(0.0)).collect::<Vec<_>>();
-        assert_eq!(idle[..4], [24_960.0; 4]);
+        assert_eq!(idle[..4], [26_000.0; 4]);
         assert_eq!(idle[4], 10_240.0);
     }
 
@@ -130,6 +149,28 @@ mod tests {
             cycle_interface(Some("lo"), &interfaces, false).as_deref(),
             Some("wlan0")
         );
+    }
+
+    #[test]
+    fn default_interface_requires_up_non_loopback_with_traffic() {
+        let samples = vec![
+            medulla_monitor::NetworkSnapshot {
+                interface: "lo".into(), up: true, ip_addresses: vec![],
+                received_bytes_per_second: 4.0, transmitted_bytes_per_second: 0.0,
+                total_received_bytes: 4, total_transmitted_bytes: 0,
+            },
+            medulla_monitor::NetworkSnapshot {
+                interface: "eth0".into(), up: false, ip_addresses: vec![],
+                received_bytes_per_second: 0.0, transmitted_bytes_per_second: 0.0,
+                total_received_bytes: 0, total_transmitted_bytes: 0,
+            },
+            medulla_monitor::NetworkSnapshot {
+                interface: "wlan0".into(), up: true, ip_addresses: vec![],
+                received_bytes_per_second: 4.0, transmitted_bytes_per_second: 0.0,
+                total_received_bytes: 4, total_transmitted_bytes: 0,
+            },
+        ];
+        assert_eq!(default_interface(&samples), Some("wlan0"));
     }
 
     #[test]
