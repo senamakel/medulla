@@ -90,7 +90,9 @@ pub struct ProcessNode {
 /// A classified agent process and its aggregate resource usage.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AgentProcess {
-    pub pid: u32,
+    /// Root process identifier. `None` for an in-process agent such as the
+    /// embedded OpenHuman runtime.
+    pub pid: Option<u32>,
     pub kind: AgentKind,
     pub origin: AgentOrigin,
     pub exe: Option<PathBuf>,

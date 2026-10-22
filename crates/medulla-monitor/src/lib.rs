@@ -5,6 +5,7 @@
 //! monitor exposes [`inject`](ResourceMonitor::inject) or its corresponding
 //! method so callers can provide deterministic readings in tests.
 
+pub mod agents;
 mod cpu;
 mod device;
 mod process_monitor;

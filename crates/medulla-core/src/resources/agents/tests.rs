@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use super::{
-    discover_agents, discover_agents_with_options, AgentDiscoveryOptions, AgentKind, AgentOrigin,
-    IoCounters, KnownProcessRoot, ProcessRecord, ProcessUsage,
+    discover_agents, discover_agents_with_options, discover_registered_agents,
+    AgentDiscoveryOptions, AgentKind, AgentOrigin, IoCounters, KnownProcessRoot, ProcessRecord,
+    ProcessUsage,
 };
 
 fn process(
@@ -92,7 +93,7 @@ fn env_npx_node_acp_chain_is_one_claude_acp_agent() {
     let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].pid, 22);
+    assert_eq!(agents[0].pid, Some(22));
     assert_eq!(agents[0].kind, AgentKind::ClaudeAcp);
     assert_eq!(agents[0].origin, AgentOrigin::External);
 }
@@ -107,7 +108,7 @@ fn external_claude_is_classified_and_unrelated_node_is_ignored() {
     let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].pid, 30);
+    assert_eq!(agents[0].pid, Some(30));
     assert_eq!(agents[0].kind, AgentKind::Claude);
     assert_eq!(agents[0].origin, AgentOrigin::External);
 }
@@ -133,6 +134,33 @@ fn root_pid_reuse_does_not_attribute_agent_to_stale_session() {
 }
 
 #[test]
+fn registered_launch_roots_are_used_by_resource_discovery() {
+    let _guard = medulla_monitor::agents::agent_registry().register_at(
+        medulla_monitor::agents::AgentRegistration {
+            pid: 10,
+            started_at_secs: 5,
+            task_id: Some("task-10".into()),
+            session_id: Some("session-10".into()),
+            provider: "claude".into(),
+        },
+    );
+    let processes = vec![
+        process(10, Some(1), "/usr/bin/pty-host", &["pty-host"], 5),
+        process(100, Some(10), "/usr/bin/claude", &["claude"], 20),
+    ];
+
+    let agents = discover_registered_agents(&processes, 1, 50, AgentDiscoveryOptions::default());
+
+    assert_eq!(agents.len(), 1);
+    assert_eq!(
+        agents[0].origin,
+        AgentOrigin::Task {
+            id: "task-10".into()
+        }
+    );
+}
+
+#[test]
 fn medulla_and_unowned_tool_descendants_are_not_external() {
     let processes = vec![
         process(1, None, "/usr/bin/medulla", &["medulla"], 1),
@@ -140,7 +168,38 @@ fn medulla_and_unowned_tool_descendants_are_not_external() {
         process(3, Some(1), "/usr/bin/claude", &["claude"], 3),
     ];
 
-    assert!(discover_agents(&processes, &[], 1, 50).is_empty());
+    let agents = discover_agents(&processes, &[], 1, 50);
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].kind, AgentKind::EmbeddedOpenhuman);
+    assert_eq!(agents[0].children.len(), 1);
+    assert_eq!(agents[0].children[0].pid, 2);
+}
+
+#[test]
+fn embedded_openhuman_share_contains_medullas_direct_shell_tool_children() {
+    let processes = vec![
+        process(1, None, "/usr/bin/medulla", &["medulla"], 1),
+        process(2, Some(1), "/usr/bin/bash", &["bash", "-lc", "echo hi"], 2),
+        process(3, Some(2), "/usr/bin/git", &["git", "status"], 3),
+        process(
+            4,
+            Some(1),
+            "/usr/bin/curl",
+            &["curl", "https://example.test"],
+            4,
+        ),
+    ];
+
+    let agents = discover_agents(&processes, &[], 1, 50);
+
+    assert_eq!(agents.len(), 1);
+    let embedded = &agents[0];
+    assert_eq!(embedded.kind, AgentKind::EmbeddedOpenhuman);
+    assert_eq!(embedded.pid, None);
+    assert_eq!(embedded.children.len(), 2);
+    assert_eq!(embedded.children[0].pid, 2);
+    assert_eq!(embedded.children[0].children[0].pid, 3);
+    assert_eq!(embedded.children[1].pid, 4);
 }
 
 #[test]
@@ -159,7 +218,7 @@ fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
     let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].pid, 51);
+    assert_eq!(agents[0].pid, Some(51));
     assert_eq!(agents[0].kind, AgentKind::CodexAcp);
 }
 
