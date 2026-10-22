@@ -1231,27 +1231,54 @@ fn remote_agent_rows_participate_in_selection_and_enter_opens_the_host_session()
     );
     let mut host = crate::ui::app::remote_hosts::RemoteHostState::default();
     host.rows.push(medulla::protocol::RemoteSessionRow {
-        id: "w_remote".into(), label: "remote agent".into(), provider: "claude".into(),
-        preset: None, state: medulla::protocol::RemoteSessionState::Running,
-        cwd: "/remote/work".into(), name: None, thread_name: None,
-        started_at: 1_700_000_000_000, last_output_at: 1_700_000_000_000,
-        busy: true, working: true, attention: None, bracketed_paste: false,
+        id: "w_remote".into(),
+        label: "remote agent".into(),
+        provider: "claude".into(),
+        preset: None,
+        state: medulla::protocol::RemoteSessionState::Running,
+        cwd: "/remote/work".into(),
+        name: None,
+        thread_name: None,
+        started_at: 1_700_000_000_000,
+        last_output_at: 1_700_000_000_000,
+        busy: true,
+        working: true,
+        attention: None,
+        bracketed_paste: false,
         last_error: None,
         usage: Some(medulla::protocol::AgentUsage {
-            kind: "Claude".into(), pid: 77, cpu: 2.0, rss: 1024, threads: 2,
-            started_at: 1_700_000_000, cpu_history: vec![1.0, 2.0],
+            kind: "Claude".into(),
+            pid: 77,
+            cpu: 2.0,
+            rss: 1024,
+            threads: 2,
+            started_at: 1_700_000_000,
+            cpu_history: vec![1.0, 2.0],
         }),
     });
     app.remote_hosts.insert("tower".into(), host);
 
     assert!(app.resources_key(KeyCode::Down));
-    assert_eq!(app.resources.agent_selected, Some(AgentIdentity {
-        host: Some("tower".into()), pid: 77, started: 1_700_000_000,
-    }));
+    assert_eq!(
+        app.resources.agent_selected,
+        Some(AgentIdentity {
+            host: Some("tower".into()),
+            pid: 77,
+            started: 1_700_000_000,
+        })
+    );
     assert!(app.resources_key(KeyCode::Enter));
-    let sessions_tab = crate::ui::app::types::TABS.iter().position(|tab| *tab == "Sessions").unwrap();
+    let sessions_tab = crate::ui::app::types::TABS
+        .iter()
+        .position(|tab| *tab == "Sessions")
+        .unwrap();
     assert_eq!(app.tab_index, sessions_tab);
-    assert_eq!(app.selected_session_id(), Some("tower/w_remote"));
+    let rail_rows = app.rail_rows();
+    let selected_row = rail_rows
+        .iter()
+        .position(|row| row.session_id() == Some("tower/w_remote"))
+        .expect("remote agent session is available on the Sessions rail");
+    assert_eq!(app.rail_cursor(), selected_row);
 }
 
 #[test]
