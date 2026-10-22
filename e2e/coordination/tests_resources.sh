@@ -164,12 +164,19 @@ EOF
   local external_pid="$(cat "$RUN_DIR/external.pid")"
   [ "$(basename "$(readlink "/proc/$external_pid/exe")")" = opencode ] \
     || fail "external fixture executable is not named like a harness binary"
+  local external_started_at="$(date +%s)"
   deadline=$(( $(date +%s) + 30 ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
+    kill -0 "$external_pid" 2>/dev/null \
+      || fail "external fixture exited before the Resources sampler could refresh it"
     pane="$(capture_app)"
-    if printf '%s\n' "$pane" | grep -q 'external'; then break; fi
+    if printf '%s\n' "$pane" | grep -q "$external_pid"; then break; fi
     sleep 1
   done
+  [ "$(( $(date +%s) - external_started_at ))" -ge 4 ] \
+    || fail "external fixture did not span at least two 2000ms sampler intervals"
+  kill -0 "$external_pid" 2>/dev/null \
+    || fail "external fixture exited before its captured Resources row was checked"
   printf '%s\n' "$pane" > "$RUN_DIR/resources-external.pane"
   "$PYTHON_BIN" - "$RUN_DIR/resources-external.pane" "$external_pid" <<'PY' \
     || fail "the unregistered $HARNESS process was not labeled external"
