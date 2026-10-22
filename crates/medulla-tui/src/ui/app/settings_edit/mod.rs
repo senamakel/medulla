@@ -18,6 +18,7 @@ use medulla::config::{MedullaConfig, OpencodeConfig};
 use super::types::App;
 
 mod types;
+mod resources;
 
 #[cfg(test)]
 mod tests;

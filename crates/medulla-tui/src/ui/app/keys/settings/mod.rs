@@ -22,7 +22,7 @@ use medulla::client::FeedbackType;
 use super::super::appearance::APPEARANCE_ROWS;
 use super::super::types::{
     App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK,
-    SP_HELP, SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
+    SP_HELP, SP_RESOURCES, SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
 };
 
 impl App {
@@ -85,6 +85,18 @@ impl App {
             SP_TRACE => self.trace_key(code),
             SP_CONTEXT => self.context_key(code),
             SP_ACCOUNT => self.account_key(code),
+            SP_RESOURCES => match code {
+                KeyCode::Char('j') | KeyCode::Char('k') => {
+                    self.move_resources_settings(matches!(code, KeyCode::Char('k')));
+                    SettingsKey::handled(None)
+                }
+                KeyCode::Left | KeyCode::Right | KeyCode::Enter => {
+                    let delta = if code == KeyCode::Left { -1 } else { 1 };
+                    self.set_status(self.adjust_resources_setting(delta));
+                    SettingsKey::handled(None)
+                }
+                _ => SettingsKey::Unhandled,
+            },
             _ => SettingsKey::Unhandled,
         }
     }
@@ -142,6 +154,10 @@ impl App {
                 } else {
                     self.help_scroll.saturating_add(1)
                 };
+                SettingsKey::handled(None)
+            }
+            SP_RESOURCES => {
+                self.move_resources_settings(up);
                 SettingsKey::handled(None)
             }
             // Usage and Account have nothing to scroll; swallow the key so it

@@ -692,6 +692,8 @@ pub struct App {
     /// the page entirely. Entering the pane hands `↑↓` to the content and makes
     /// the letter bindings deliberate rather than ambient.
     pub(in crate::ui::app) settings_focused: bool,
+    /// Selected Resources option while editing its Settings subpage.
+    pub(in crate::ui::app) resources_settings_index: usize,
     /// The selected row on the Appearance subpage.
     pub(in crate::ui::app) appearance_index: usize,
     /// The selected meter row on the Subscriptions subpage.

@@ -236,6 +236,26 @@ impl App {
     }
 
     pub(in crate::ui::app) fn resources_key(&mut self, key: crossterm::event::KeyCode) -> bool {
+        if key == crossterm::event::KeyCode::Char('o') {
+            self.tab_index = crate::ui::app::TABS
+                .iter()
+                .position(|tab| *tab == "Settings")
+                .unwrap_or(0);
+            self.settings_index = crate::ui::app::types::SP_RESOURCES;
+            self.settings_focused = true;
+            self.set_status("Settings · Resources");
+            return true;
+        }
+        if key == crossterm::event::KeyCode::Char('?') {
+            self.resources.help_open = !self.resources.help_open;
+            return true;
+        }
+        if self.resources.help_open {
+            if key == crossterm::event::KeyCode::Esc {
+                self.resources.help_open = false;
+            }
+            return true;
+        }
         if self.agent_key(key) {
             return true;
         }
