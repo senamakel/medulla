@@ -85,6 +85,18 @@ pub struct ResourcesConfig {
     pub io_graph_combined: bool,
     /// Per-mount IO graph ceilings in MiB/s (`mount:speed` pairs).
     pub io_graph_speeds: String,
+    /// Automatically scale network graphs to recent traffic.
+    pub net_auto: bool,
+    /// Use the larger network direction scale for both graphs.
+    pub net_sync: bool,
+    /// Download graph ceiling in KiB/s when automatic scaling is disabled.
+    pub net_download: u64,
+    /// Upload graph ceiling in KiB/s when automatic scaling is disabled.
+    pub net_upload: u64,
+    /// Preferred network interface name, if available.
+    pub net_iface: Option<String>,
+    /// Swap the displayed download and upload directions.
+    pub swap_upload_download: bool,
 }
 
 impl Default for ResourcesConfig {
@@ -114,6 +126,12 @@ impl Default for ResourcesConfig {
             io_mode: false,
             io_graph_combined: false,
             io_graph_speeds: String::new(),
+            net_auto: true,
+            net_sync: false,
+            net_download: 100,
+            net_upload: 100,
+            net_iface: None,
+            swap_upload_download: false,
         }
     }
 }

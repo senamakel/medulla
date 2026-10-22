@@ -1,0 +1,125 @@
+//! Network graph autoscaling and interface selection helpers.
+
+use std::collections::VecDeque;
+
+/// btop-style adaptive scale for one network direction, in bytes per second.
+///
+/// The five most recent rates are retained independently of the up/down
+/// counters so a scale change uses the same rolling window as btop.
+#[derive(Debug, Clone)]
+pub struct NetScaler {
+    max: f64,
+    history: VecDeque<f64>,
+    above: u8,
+    below: u8,
+}
+
+impl Default for NetScaler {
+    fn default() -> Self {
+        Self::new(10.0 * 1024.0)
+    }
+}
+
+impl NetScaler {
+    /// Create a scaler with its maximum clamped to btop's 10 KiB/s floor.
+    pub fn new(max: f64) -> Self {
+        Self {
+            max: max.max(10.0 * 1024.0),
+            history: VecDeque::with_capacity(5),
+            above: 0,
+            below: 0,
+        }
+    }
+
+    /// Current graph ceiling in bytes per second.
+    pub fn max(&self) -> f64 {
+        self.max
+    }
+
+    /// Incorporate one sample and return the current ceiling.
+    pub fn sample(&mut self, rate: f64) -> f64 {
+        let rate = rate.max(0.0);
+        if self.history.len() == 5 {
+            self.history.pop_front();
+        }
+        self.history.push_back(rate);
+        if rate > self.max {
+            self.above = self.above.saturating_add(1);
+            self.below = 0;
+        } else if self.max > 10.0 * 1024.0 && rate < self.max / 10.0 {
+            self.below = self.below.saturating_add(1);
+            self.above = 0;
+        } else {
+            self.above = 0;
+            self.below = 0;
+        }
+        if self.above >= 5 {
+            self.max = (self.average() * 1.3).max(10.0 * 1024.0);
+            self.above = 0;
+        } else if self.below >= 5 {
+            self.max = (self.average() * 3.0).max(10.0 * 1024.0);
+            self.below = 0;
+        }
+        self.max
+    }
+
+    fn average(&self) -> f64 {
+        self.history.iter().sum::<f64>() / self.history.len().max(1) as f64
+    }
+}
+
+/// Return the maximum shared ceiling when sync is enabled.
+pub fn synced_max(download: f64, upload: f64, sync: bool) -> (f64, f64) {
+    if sync {
+        let max = download.max(upload);
+        (max, max)
+    } else {
+        (download, upload)
+    }
+}
+
+/// Cycle an interface index forward or backward, ignoring down interfaces.
+pub fn cycle_interface(current: Option<&str>, interfaces: &[(&str, bool)], forward: bool) -> Option<String> {
+    let up: Vec<_> = interfaces.iter().filter(|(_, is_up)| *is_up).map(|(name, _)| *name).collect();
+    if up.is_empty() {
+        return None;
+    }
+    let index = current.and_then(|name| up.iter().position(|candidate| *candidate == name));
+    let next = match (index, forward) {
+        (Some(index), true) => (index + 1) % up.len(),
+        (Some(index), false) => (index + up.len() - 1) % up.len(),
+        (None, true) => 0,
+        (None, false) => up.len() - 1,
+    };
+    Some(up[next].to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scaler_tracks_steady_burst_idle_with_five_sample_windows() {
+        let mut scale = NetScaler::new(10.0 * 1024.0);
+        let steady = (0..6).map(|_| scale.sample(2_000.0)).collect::<Vec<_>>();
+        assert_eq!(steady, vec![10_240.0; 6]);
+        let burst = (0..5).map(|_| scale.sample(20_000.0)).collect::<Vec<_>>();
+        assert_eq!(burst[..4], [10_240.0; 4]);
+        assert_eq!(burst[4], 24_960.0);
+        let idle = (0..5).map(|_| scale.sample(0.0)).collect::<Vec<_>>();
+        assert_eq!(idle[..4], [24_960.0; 4]);
+        assert_eq!(idle[4], 10_240.0);
+    }
+
+    #[test]
+    fn interface_cycling_skips_down_interfaces() {
+        let interfaces = [("lo", true), ("eth0", false), ("wlan0", true)];
+        assert_eq!(cycle_interface(Some("lo"), &interfaces, true).as_deref(), Some("wlan0"));
+        assert_eq!(cycle_interface(Some("lo"), &interfaces, false).as_deref(), Some("wlan0"));
+    }
+
+    #[test]
+    fn sync_uses_larger_direction_scale() {
+        assert_eq!(synced_max(10.0, 20.0, true), (20.0, 20.0));
+    }
+}
