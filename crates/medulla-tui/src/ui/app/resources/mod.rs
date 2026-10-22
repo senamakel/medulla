@@ -128,6 +128,16 @@ impl App {
                         );
                         state.hits.disks_toggle = Rect::new(rect.x + 9, rect.y, 3, 1);
                         state.hits.io_toggle = Rect::new(rect.x + 13, rect.y, 3, 1);
+                    } else if title.contains("Net") {
+                        draw_net_panel(
+                            f,
+                            inner,
+                            &self.resource_snapshot,
+                            &self.loaded.config.resources,
+                            state.net_iface.as_deref(),
+                            state.net_zero_received,
+                            state.net_zero_transmitted,
+                        );
                     }
                 }
             }
@@ -150,6 +160,25 @@ impl App {
     pub(in crate::ui::app) fn resources_key(&mut self, key: crossterm::event::KeyCode) -> bool {
         if !self.resources.key(key) {
             return false;
+        }
+        if key == crossterm::event::KeyCode::Char('z') {
+            if let Some(interface) = self.resources.net_iface.as_deref().and_then(|name| {
+                self.resource_snapshot.networks.iter().find(|entry| entry.interface == name)
+            }) {
+                self.resources.net_zero_received = interface.total_received_bytes;
+                self.resources.net_zero_transmitted = interface.total_transmitted_bytes;
+            }
+        }
+        if matches!(key, crossterm::event::KeyCode::Char('b' | 'n')) {
+            let current = self.resources.net_iface.as_deref().or_else(|| {
+                crate::ui::resources::net::default_interface(&self.resource_snapshot.networks)
+            });
+            let interfaces: Vec<_> = self.resource_snapshot.networks.iter()
+                .map(|interface| (interface.interface.as_str(), interface.up))
+                .collect();
+            self.resources.net_iface = crate::ui::resources::net::cycle_interface(
+                current, &interfaces, key == crossterm::event::KeyCode::Char('n')
+            );
         }
         let state = &self.resources;
         let shown = [
