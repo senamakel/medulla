@@ -97,7 +97,7 @@ pub struct Connection {
     /// Retained so dropping the connection kills the child.
     child: Mutex<Option<Child>>,
     /// Keeps the process discoverable for the lifetime of the pooled child.
-    _agent_registration: Option<medulla_monitor::agents::RegistrationGuard>,
+    _agent_registration: Mutex<Option<medulla_monitor::agents::RegistrationGuard>>,
 }
 
 impl Connection {
@@ -144,7 +144,7 @@ impl Connection {
             next_id: AtomicI64::new(1),
             alive: AtomicBool::new(true),
             child: Mutex::new(Some(child)),
-            _agent_registration: agent_registration,
+            _agent_registration: Mutex::new(agent_registration),
         });
 
         // Writer: one task owns stdin, so concurrent callers never interleave
@@ -410,6 +410,12 @@ impl Connection {
         if let Some(mut child) = self.child.lock().expect("app-server child lock").take() {
             let _ = child.start_kill();
         }
+        drop(
+            self._agent_registration
+                .lock()
+                .expect("app-server registration lock")
+                .take(),
+        );
     }
 }
 
@@ -446,7 +452,7 @@ mod tests {
             next_id: AtomicI64::new(1),
             alive: AtomicBool::new(true),
             child: Mutex::new(None),
-            _agent_registration: Some(guard),
+            _agent_registration: Mutex::new(Some(guard)),
         };
 
         connection.mark_dead("test process exit");
