@@ -104,13 +104,28 @@ impl Default for ResourcesState {
 
 impl ResourcesState {
     pub fn sample_network(&mut self, snapshot: &crate::ui::resources::sampler::ResourceSnapshot) {
-        let selected = self.net_iface.as_deref()
-            .and_then(|name| snapshot.networks.iter().find(|entry| entry.interface == name))
-            .or_else(|| crate::ui::resources::net::default_interface(&snapshot.networks)
-                .and_then(|name| snapshot.networks.iter().find(|entry| entry.interface == name)));
+        let selected = self
+            .net_iface
+            .as_deref()
+            .and_then(|name| {
+                snapshot
+                    .networks
+                    .iter()
+                    .find(|entry| entry.interface == name)
+            })
+            .or_else(|| {
+                crate::ui::resources::net::default_interface(&snapshot.networks).and_then(|name| {
+                    snapshot
+                        .networks
+                        .iter()
+                        .find(|entry| entry.interface == name)
+                })
+            });
         if let Some(selected) = selected {
-            self.net_download_scaler.sample(selected.received_bytes_per_second);
-            self.net_upload_scaler.sample(selected.transmitted_bytes_per_second);
+            self.net_download_scaler
+                .sample(selected.received_bytes_per_second);
+            self.net_upload_scaler
+                .sample(selected.transmitted_bytes_per_second);
         }
     }
 

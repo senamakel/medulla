@@ -150,8 +150,16 @@ impl App {
                             state.net_iface.as_deref(),
                             state.net_zero_received,
                             state.net_zero_transmitted,
-                            if state.net_auto { state.net_download_scaler.max() } else { state.net_download as f64 * 1024.0 },
-                            if state.net_auto { state.net_upload_scaler.max() } else { state.net_upload as f64 * 1024.0 },
+                            if state.net_auto {
+                                state.net_download_scaler.max()
+                            } else {
+                                state.net_download as f64 * 1024.0
+                            },
+                            if state.net_auto {
+                                state.net_upload_scaler.max()
+                            } else {
+                                state.net_upload as f64 * 1024.0
+                            },
                             state.net_sync,
                         );
                     }
@@ -181,7 +189,12 @@ impl App {
             let current = self.resources.net_iface.as_deref().or_else(|| {
                 crate::ui::resources::net::default_interface(&self.resource_snapshot.networks)
             });
-            if let Some(interface) = current.and_then(|name| self.resource_snapshot.networks.iter().find(|entry| entry.interface == name)) {
+            if let Some(interface) = current.and_then(|name| {
+                self.resource_snapshot
+                    .networks
+                    .iter()
+                    .find(|entry| entry.interface == name)
+            }) {
                 self.resources.net_zero_received = interface.total_received_bytes;
                 self.resources.net_zero_transmitted = interface.total_transmitted_bytes;
                 self.resources.net_iface = Some(interface.interface.clone());
@@ -402,7 +415,8 @@ fn draw_net_panel(
         )));
     }
     let graph_rows = if area.height >= 3 { 2 } else { 0 };
-    let (download_max, upload_max) = crate::ui::resources::net::synced_max(download_max, upload_max, sync);
+    let (download_max, upload_max) =
+        crate::ui::resources::net::synced_max(download_max, upload_max, sync);
     let graph_width = area.width;
     if graph_rows > 0 {
         let history: Vec<_> = snapshot.history.network_io.iter().collect();
