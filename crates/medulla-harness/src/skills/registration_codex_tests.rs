@@ -9,7 +9,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde_json::Value;
 use tempfile::TempDir;
 
 use super::registration::{register, RegistrationOptions};
@@ -26,12 +25,6 @@ fn opts(root: &Path, targets: Vec<SkillTarget>, scope: SkillScope) -> Registrati
         tools_mode: "run".to_string(),
         dry_run: false,
     }
-}
-
-/// The parsed `.mcp.json` under `root`.
-fn read_json(root: &Path) -> Value {
-    serde_json::from_str(&fs::read_to_string(root.join(".mcp.json")).expect("read .mcp.json"))
-        .expect("parse .mcp.json")
 }
 
 /// The parsed Codex config under `root`.
@@ -63,7 +56,6 @@ fn codex_creates_config_toml() {
     );
     assert_eq!(entry["env"]["MEDULLA_WORKFLOW_TOOLS"].as_str(), Some("run"));
 }
-
 
 #[test]
 fn codex_merge_preserves_unrelated_tables_and_servers() {
@@ -112,7 +104,6 @@ command = \"linear-mcp\" # via npx
 args = [\"serve\"]
 ";
 
-
 #[test]
 fn codex_registration_preserves_comments_blank_lines_and_key_order() {
     let dir = TempDir::new().unwrap();
@@ -150,7 +141,6 @@ fn codex_registration_preserves_comments_blank_lines_and_key_order() {
     );
 }
 
-
 #[test]
 fn codex_re_registration_over_a_hand_written_config_is_unchanged() {
     let dir = TempDir::new().unwrap();
@@ -166,7 +156,6 @@ fn codex_re_registration_over_a_hand_written_config_is_unchanged() {
     assert_eq!(again[0].action, "unchanged");
     assert_eq!(fs::read_to_string(&path).unwrap(), after_first);
 }
-
 
 #[test]
 fn codex_keeps_the_operators_own_keys_inside_our_table() {
@@ -210,7 +199,6 @@ fn codex_keeps_the_operators_own_keys_inside_our_table() {
     assert_eq!(entry["startup_timeout_sec"].as_integer(), Some(30));
 }
 
-
 #[test]
 fn codex_update_keeps_the_operators_trivia_around_the_changed_key() {
     let dir = TempDir::new().unwrap();
@@ -234,4 +222,3 @@ fn codex_update_keeps_the_operators_trivia_around_the_changed_key() {
         Some("/usr/local/bin/medulla")
     );
 }
-

@@ -46,11 +46,7 @@ fn a_skill_the_old_layout_installed_is_adopted_and_rewritten() {
     let home = TempDir::new().unwrap();
     let summary = summary("babysit", "Watch a PR.");
     let skill = render(&summary);
-    let path = skill_path(
-        SkillTarget::Claude,
-        home.path(),
-        &slug_for("babysit"),
-    );
+    let path = skill_path(SkillTarget::Claude, home.path(), &slug_for("babysit"));
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     // The old file: the same rendered content, marker on line one.
     let content = skill.body.replacen(

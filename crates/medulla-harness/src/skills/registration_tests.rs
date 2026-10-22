@@ -65,7 +65,6 @@ fn claude_project_creates_mcp_json() {
     );
 }
 
-
 #[test]
 fn claude_merge_preserves_other_servers_and_keys() {
     let dir = TempDir::new().unwrap();
@@ -105,7 +104,6 @@ fn claude_merge_preserves_other_servers_and_keys() {
     );
 }
 
-
 #[test]
 fn re_registering_is_unchanged_and_rewrites_nothing() {
     let dir = TempDir::new().unwrap();
@@ -132,7 +130,6 @@ fn re_registering_is_unchanged_and_rewrites_nothing() {
     );
 }
 
-
 #[test]
 fn a_moved_binary_updates_the_entry() {
     let dir = TempDir::new().unwrap();
@@ -158,7 +155,6 @@ fn a_moved_binary_updates_the_entry() {
     );
 }
 
-
 #[test]
 fn a_changed_tools_mode_updates_the_entry() {
     let dir = TempDir::new().unwrap();
@@ -174,7 +170,6 @@ fn a_changed_tools_mode_updates_the_entry() {
         json!("full")
     );
 }
-
 
 #[test]
 fn an_unrecognised_tools_mode_is_refused_before_anything_is_written() {
@@ -197,7 +192,6 @@ fn an_unrecognised_tools_mode_is_refused_before_anything_is_written() {
     assert!(!dir.path().join(".codex").exists());
 }
 
-
 #[test]
 fn a_tools_mode_that_withholds_workflow_run_is_refused() {
     let dir = TempDir::new().unwrap();
@@ -210,7 +204,6 @@ fn a_tools_mode_that_withholds_workflow_run_is_refused() {
     assert!(error.to_string().contains("workflow_run"), "{error}");
     assert!(!dir.path().join(".mcp.json").exists());
 }
-
 
 #[test]
 fn every_accepted_tools_mode_is_a_tool_mode_that_can_run() {
@@ -230,7 +223,6 @@ fn every_accepted_tools_mode_is_a_tool_mode_that_can_run() {
     }
 }
 
-
 #[test]
 fn dry_run_reports_the_same_outcomes_and_writes_nothing() {
     let dir = TempDir::new().unwrap();
@@ -248,7 +240,6 @@ fn dry_run_reports_the_same_outcomes_and_writes_nothing() {
     assert!(!dir.path().join(".mcp.json").exists());
     assert!(!dir.path().join(".codex").exists());
 }
-
 
 #[test]
 fn claude_user_scope_is_manual_and_writes_nothing() {
@@ -271,7 +262,6 @@ fn claude_user_scope_is_manual_and_writes_nothing() {
     assert!(!dir.path().join(".mcp.json").exists());
 }
 
-
 #[test]
 fn generic_is_manual_and_writes_nothing() {
     let dir = TempDir::new().unwrap();
@@ -292,7 +282,6 @@ fn generic_is_manual_and_writes_nothing() {
     );
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
 }
-
 
 #[test]
 fn an_unparseable_config_is_left_untouched() {
@@ -322,7 +311,6 @@ fn an_unparseable_config_is_left_untouched() {
         "a config we could not parse is left exactly as it was"
     );
 }
-
 
 #[test]
 fn a_config_that_is_not_utf8_is_skipped_rather_than_failing_the_run() {

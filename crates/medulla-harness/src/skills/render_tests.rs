@@ -16,7 +16,10 @@ fn summary(id: &str, description: &str, inputs: Vec<WorkflowInput>) -> SkillWork
         id: id.to_string(),
         description: description.to_string(),
         enabled: true,
-        inputs: inputs.into_iter().map(WorkflowInput::into_skill_input).collect(),
+        inputs: inputs
+            .into_iter()
+            .map(WorkflowInput::into_skill_input)
+            .collect(),
     }
 }
 

@@ -39,7 +39,10 @@ fn every_target_has_its_documented_layout() {
 fn user_scope_uses_home_and_project_scope_uses_the_working_directory() {
     let env = HashMap::from([("HOME".to_string(), "/home/operator".to_string())]);
     let cwd = Path::new("/work/repo");
-    assert_eq!(scope_root(SkillScope::User, &env, cwd), Path::new("/home/operator"));
+    assert_eq!(
+        scope_root(SkillScope::User, &env, cwd),
+        Path::new("/home/operator")
+    );
     assert_eq!(scope_root(SkillScope::Project, &env, cwd), cwd);
     assert_eq!(scope_root(SkillScope::User, &HashMap::new(), cwd), cwd);
 }
@@ -90,7 +93,11 @@ fn default_targets_are_the_harnesses_already_present() {
     std::fs::create_dir_all(home.path().join(".codex")).unwrap();
     assert_eq!(
         default_targets(home.path()),
-        vec![SkillTarget::Claude, SkillTarget::Codex, SkillTarget::Generic]
+        vec![
+            SkillTarget::Claude,
+            SkillTarget::Codex,
+            SkillTarget::Generic
+        ]
     );
 }
 
