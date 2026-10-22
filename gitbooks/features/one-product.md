@@ -34,6 +34,14 @@ graph BT
   sdk --> link
   sdk --> juice
   tui[medulla-tui] --> sdk
+  tui --> harness
+  tui --> providers
+  tui --> pty
+  tui --> monitor
+  tui --> link
+  tui --> juice
+  tui --> tokens
+  tui --> types
 ```
 
 The dependency direction keeps product primitives usable independently: no primitive depends on `medulla` or `medulla-tui`, and terminal rendering belongs to `medulla-tui`.
