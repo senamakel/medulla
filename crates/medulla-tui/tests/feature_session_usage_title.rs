@@ -159,6 +159,7 @@ fn the_pane_title_reports_the_session_s_own_cpu_memory_and_io() {
             cmd: vec!["/bin/sh".to_string()],
             cwd: Some("/".to_string()),
             start_time: 1,
+            owner_uid: None,
             cpu_percent: 18.0,
             memory_bytes: 1024,
             disk_read_bytes: 512,

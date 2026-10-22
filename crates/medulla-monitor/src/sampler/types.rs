@@ -55,6 +55,8 @@ pub struct ProcessSnapshot {
     pub cwd: Option<String>,
     /// Start time as seconds since Unix epoch.
     pub start_time: u64,
+    /// Effective user id when the platform exposes it.
+    pub owner_uid: Option<String>,
     /// CPU utilization as a percentage.
     pub cpu_percent: f64,
     /// Resident memory in bytes.

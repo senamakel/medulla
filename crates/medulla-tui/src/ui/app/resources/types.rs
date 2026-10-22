@@ -46,6 +46,19 @@ pub(in crate::ui::app) struct ResourcesState {
     pub net_zero_offsets: std::collections::HashMap<String, (u64, u64)>,
     pub net_download_scaler: crate::ui::resources::net::NetScaler,
     pub net_upload_scaler: crate::ui::resources::net::NetScaler,
+    pub agent_sort: AgentSort,
+    pub agent_reverse: bool,
+    pub agent_tree: bool,
+    pub agent_filter: Option<String>,
+    pub agent_filter_editing: bool,
+    pub agent_selected: Option<(u32, u64)>,
+    pub agent_follow: Option<(u32, u64)>,
+    pub agent_detail: bool,
+    pub agent_signal_armed: Option<AgentSignalConfirmation>,
+    pub agent_process_owned_fn: fn(u32, u64, Option<&str>) -> bool,
+    pub agent_signal_fn: fn(u32, u64, Option<&str>, AgentSignal) -> std::io::Result<()>,
+    pub agent_cpu_history: std::collections::HashMap<(u32, u64), Vec<f64>>,
+    pub agent_last_sample: Option<std::time::Instant>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -96,6 +109,19 @@ impl Default for ResourcesState {
             net_zero_offsets: std::collections::HashMap::new(),
             net_download_scaler: Default::default(),
             net_upload_scaler: Default::default(),
+            agent_sort: AgentSort::Cpu,
+            agent_reverse: false,
+            agent_tree: false,
+            agent_filter: None,
+            agent_filter_editing: false,
+            agent_selected: None,
+            agent_follow: None,
+            agent_detail: false,
+            agent_signal_armed: None,
+            agent_process_owned_fn: process_owned_by_current_user,
+            agent_signal_fn: send_process_signal,
+            agent_cpu_history: std::collections::HashMap::new(),
+            agent_last_sample: None,
         }
     }
 }
@@ -247,4 +273,101 @@ fn valid_preset(preset: &str) -> bool {
         any = true;
     }
     any
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(in crate::ui::app) enum AgentSort {
+    Pid,
+    Kind,
+    Origin,
+    Workspace,
+    Threads,
+    Memory,
+    #[default]
+    Cpu,
+    Runtime,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::ui::app) enum AgentSignal {
+    Terminate,
+    Kill,
+    Stop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::ui::app) enum AgentSignalConfirmStage {
+    First,
+    ExternalSecond,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::ui::app) struct AgentSignalConfirmation {
+    pub pid: u32,
+    pub started: u64,
+    pub signal: AgentSignal,
+    pub stage: AgentSignalConfirmStage,
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn current_user_uid() -> String {
+    // SAFETY: geteuid has no preconditions and returns the current effective uid.
+    unsafe { libc::geteuid() }.to_string()
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn process_owned_by_current_user(pid: u32, started: u64, sampled_uid: Option<&str>) -> bool {
+    let Some(sampled_uid) = sampled_uid else {
+        return false;
+    };
+    let Some((current_started, current_uid)) =
+        medulla_monitor::agents::current_process_identity(pid)
+    else {
+        return false;
+    };
+    current_started == started && current_uid == sampled_uid && current_uid == current_user_uid()
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn process_owned_by_current_user(_pid: u32, _started: u64, _sampled_uid: Option<&str>) -> bool {
+    false
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn send_process_signal(
+    pid: u32,
+    started: u64,
+    sampled_uid: Option<&str>,
+    signal: AgentSignal,
+) -> std::io::Result<()> {
+    if !process_owned_by_current_user(pid, started, sampled_uid) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "process identity or owner changed before signal",
+        ));
+    }
+    let signal = match signal {
+        AgentSignal::Terminate => libc::SIGTERM,
+        AgentSignal::Kill => libc::SIGKILL,
+        AgentSignal::Stop => libc::SIGSTOP,
+    };
+    // SAFETY: kill only receives the integer pid and signal values validated above.
+    if unsafe { libc::kill(pid as libc::pid_t, signal) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn send_process_signal(
+    _pid: u32,
+    _started: u64,
+    _sampled_uid: Option<&str>,
+    _signal: AgentSignal,
+) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "process signals are unsupported on this platform",
+    ))
 }

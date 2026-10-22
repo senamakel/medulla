@@ -222,6 +222,7 @@ impl ResourceSource for SystemResourceSource {
                     .cwd()
                     .map(|path| path.to_string_lossy().into_owned()),
                 start_time: process.start_time(),
+                owner_uid: effective_user_id(process),
                 cpu_percent: f64::from(process.cpu_usage()),
                 memory_bytes: process.memory(),
                 disk_read_bytes: if baseline_ready {
@@ -421,6 +422,18 @@ impl ResourceSource for SystemResourceSource {
             networks,
             processes,
         }
+    }
+}
+
+fn effective_user_id(process: &sysinfo::Process) -> Option<String> {
+    #[cfg(unix)]
+    {
+        process.effective_user_id().map(|uid| (**uid).to_string())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = process;
+        None
     }
 }
 

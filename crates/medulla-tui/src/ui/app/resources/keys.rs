@@ -7,7 +7,12 @@ impl ResourcesState {
             KeyCode::Char('1') => self.shown.cpu = !self.shown.cpu,
             KeyCode::Char('2') => self.shown.mem = !self.shown.mem,
             KeyCode::Char('3') => self.shown.net = !self.shown.net,
-            KeyCode::Char('4') => self.shown.agents = !self.shown.agents,
+            KeyCode::Char('4') => {
+                self.shown.agents = !self.shown.agents;
+                if !self.shown.agents {
+                    self.agent_signal_armed = None;
+                }
+            }
             KeyCode::Char('d') => self.show_disks = !self.show_disks,
             KeyCode::Char('i') => self.io_mode = !self.io_mode,
             KeyCode::Char('z') => self.net_zeroed = true,
