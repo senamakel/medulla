@@ -11,7 +11,10 @@ use crate::ui::app::types::{SETTINGS_GROUPS, SETTINGS_SUBPAGES};
 fn rendered(draw: impl FnOnce(&mut ratatui::Frame<'_>, Rect)) -> String {
     let mut terminal = Terminal::new(TestBackend::new(100, 32)).expect("test terminal");
     terminal
-        .draw(|frame| draw(frame, frame.area()))
+        .draw(|frame| {
+            let area = frame.area();
+            draw(frame, area);
+        })
         .expect("render view");
     terminal
         .backend()
