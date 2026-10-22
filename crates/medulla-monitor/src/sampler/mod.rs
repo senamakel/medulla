@@ -4,7 +4,7 @@ mod history;
 mod types;
 
 pub use history::History;
-pub use types::{DiskSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot};
+pub use types::{DiskSnapshot, NetworkSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot};
 
 #[cfg(test)]
 mod tests;
@@ -12,7 +12,7 @@ mod tests;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use sysinfo::{Disks, ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::sync::watch;
 
 /// A source of resource snapshots, injectable to test task ordering without
@@ -89,6 +89,7 @@ where
 pub struct SystemResourceSource {
     system: System,
     disks: Disks,
+    networks: Networks,
     last_sample: Option<Instant>,
     disk_peak_bytes_per_second: f64,
     cpu_monitor: crate::CpuMonitor,
@@ -102,6 +103,7 @@ impl Default for SystemResourceSource {
         Self {
             system: System::new(),
             disks: Disks::new(),
+            networks: Networks::new_with_refreshed_list(),
             last_sample: None,
             disk_peak_bytes_per_second: 1.0,
             cpu_monitor: crate::CpuMonitor::default(),
@@ -156,6 +158,24 @@ impl ResourceSource for SystemResourceSource {
                 .with_tasks(),
         );
         self.disks.refresh(true);
+        self.networks.refresh(true);
+        let networks = self.networks.iter().map(|(name, data)| {
+            #[cfg(target_os = "linux")]
+            let up = std::fs::read_to_string(std::path::Path::new("/sys/class/net").join(name).join("operstate"))
+                .map(|state| state.trim() == "up")
+                .unwrap_or(false);
+            #[cfg(not(target_os = "linux"))]
+            let up = true;
+            NetworkSnapshot {
+                interface: name.clone(),
+                up,
+                ip_addresses: data.ip_networks().iter().map(ToString::to_string).collect(),
+                received_bytes_per_second: data.received() as f64 / elapsed.max(0.001),
+                transmitted_bytes_per_second: data.transmitted() as f64 / elapsed.max(0.001),
+                total_received_bytes: data.total_received(),
+                total_transmitted_bytes: data.total_transmitted(),
+            }
+        }).collect::<Vec<_>>();
         let task_pids: std::collections::HashSet<u32> = self
             .system
             .processes()
@@ -380,6 +400,7 @@ impl ResourceSource for SystemResourceSource {
                     }
                 })
                 .collect(),
+            networks,
             processes,
         }
     }
