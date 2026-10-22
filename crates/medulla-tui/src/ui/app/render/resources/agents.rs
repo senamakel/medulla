@@ -118,6 +118,7 @@ fn detect_kind(process: &ProcessSnapshot) -> Option<String> {
         || full.contains("gemini")
         || full.contains("goose")
         || full.contains("cursor")
+        || full.contains("codex")
         || full.contains("opencode")
     {
         Some("External".into())
