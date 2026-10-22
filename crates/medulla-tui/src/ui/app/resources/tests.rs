@@ -1012,9 +1012,18 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
         Arc::new(MockRuntime::empty()),
         LoadedConfig::defaults("test.json".into()),
     );
+    let mut process = test_agent_process(44, "aider", 10.0);
+    process.exe = Some("/usr/bin/aider".into());
+    process.cmd = vec![
+        "API_TOKEN=envsecret".into(),
+        "aider".into(),
+        "--api-key".into(),
+        "supersecret".into(),
+        "--workspace".into(),
+        "/tmp/work".into(),
+    ];
     app.set_resource_snapshot(Arc::new(
-        crate::ui::resources::sampler::ResourceSnapshot::default()
-            .with_processes(vec![test_agent_process(44, "aider", 10.0)]),
+        crate::ui::resources::sampler::ResourceSnapshot::default().with_processes(vec![process]),
     ));
     app.resources.agent_selected = Some((44, 1));
     app.resources.agent_detail = true;
@@ -1032,6 +1041,88 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
         .map(|cell| cell.symbol())
         .collect::<String>();
     assert!(text.contains("EXTERNAL PROCESS: kill PID 44? y confirm"));
+    for expected in [
+        "Kind: External",
+        "PID: 44",
+        "Command: aider --api-key=[REDACTED] --workspace /tmp/work",
+        "Origin: external",
+        "Signal: kill",
+        "Target host: local host",
+    ] {
+        assert!(text.contains(expected), "missing {expected} in {text}");
+    }
+    assert!(!text.contains("supersecret"));
+    assert!(!text.contains("envsecret"));
+}
+
+#[test]
+fn external_agent_signal_requires_a_second_explicit_confirmation() {
+    SIGNALS.store(0, std::sync::atomic::Ordering::SeqCst);
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(45, "aider", 10.0)]),
+    ));
+    app.resources.agent_signal_fn = test_signal;
+
+    assert!(app.resources_key(KeyCode::Char('k')));
+    assert!(app.resources_key(KeyCode::Char('y')));
+    assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(app.resources.agent_signal_armed.is_some());
+    assert!(app.resources_key(KeyCode::Char('Y')));
+    assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(app.resources.agent_signal_armed.is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn enter_on_a_registered_session_agent_selects_its_sessions_rail_row() {
+    use medulla::protocol::HarnessProvider;
+
+    let mut app = crate::ui::app::rail::tests::hosting_app();
+    let harnesses = app.local_sessions().expect("test host").clone();
+    let choice = harnesses
+        .choices()
+        .into_iter()
+        .find(|choice| choice.provider == HarnessProvider::Codex)
+        .expect("codex harness is configured");
+    let session_id = harnesses
+        .open_unmanaged_named(&choice, "/", false, Some("agents acceptance".into()))
+        .expect("a /bin/sh session starts");
+
+    let pid = 45_001;
+    let started = 100;
+    let _registration = medulla_monitor::agents::agent_registry().register_at(
+        medulla_monitor::agents::AgentRegistration {
+            pid,
+            started_at_secs: started,
+            task_id: None,
+            session_id: Some(session_id.clone()),
+            provider: "claude".into(),
+        },
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(pid, "claude", 10.0)]),
+    ));
+    app.resources.agent_selected = Some((pid, started));
+
+    assert!(app.resources_key(KeyCode::Enter));
+    let sessions_tab = crate::ui::app::types::TABS
+        .iter()
+        .position(|tab| *tab == "Sessions")
+        .unwrap();
+    assert_eq!(app.tab_index, sessions_tab);
+    let rows = app.rail_rows();
+    let selected_row = rows
+        .iter()
+        .position(|row| row.session_id() == Some(session_id.as_str()))
+        .expect("registered session is on the rail");
+    assert_eq!(app.rail_cursor(), selected_row);
+    harnesses.sessions.shutdown();
 }
 
 #[test]
