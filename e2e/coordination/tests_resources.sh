@@ -191,7 +191,7 @@ EOF
     kill -0 "$external_pid" 2>/dev/null \
       || fail "external fixture exited before the Resources sampler could refresh it"
     pane="$(capture_app)"
-    if printf '%s\n' "$pane" | "$PYTHON_BIN" -c 'import sys; pid=sys.argv[1]; sys.exit(0 if any(line.replace("│", " ").split()[:1] == [pid] for line in sys.stdin) else 1)' "$external_pid"; then
+    if printf '%s\n' "$pane" | "$PYTHON_BIN" -c 'import sys; pid=sys.argv[1]; sys.exit(0 if any(pid in line.replace("│", " ").split() for line in sys.stdin) else 1)' "$external_pid"; then
       break
     fi
     sleep 1
@@ -203,13 +203,16 @@ EOF
     || fail "the unregistered $HARNESS process was not labeled external"
 import sys
 text = open(sys.argv[1], encoding="utf-8").read().splitlines()
-rows = [line for line in text if sys.argv[2] in line.split()]
+rows = [line for line in text if sys.argv[2] in line.replace("│", " ").split()]
 assert rows, f"external PID {sys.argv[2]} has no Agents row"
 fields = rows[0].replace("│", " ").split()
-assert "external" in [field.lower() for field in fields], \
-    f"external PID {sys.argv[2]} has no external origin: {rows!r}"
-kind = next((field for field in fields if field.lower() in {"external", sys.argv[3].lower()}), None)
-assert kind, f"external PID {sys.argv[2]} has no recognized harness/external kind: {rows!r}"
+pid_index = fields.index(sys.argv[2])
+assert pid_index + 2 < len(fields), f"external PID {sys.argv[2]} has an incomplete Agents row: {rows!r}"
+kind, origin = fields[pid_index + 1 : pid_index + 3]
+assert origin.lower() == "external", \
+    f"external PID {sys.argv[2]} has origin {origin!r}, expected 'external': {rows!r}"
+assert kind.lower() in {"external", sys.argv[3].lower()}, \
+    f"external PID {sys.argv[2]} has unexpected kind {kind!r}: {rows!r}"
 print(f"[e2e] external process row: {rows[0].strip()}")
 PY
   kill "$external_pid" 2>/dev/null || true
