@@ -256,6 +256,9 @@ PY
     printf '%s\n' "$pane" | grep -Fq "┌ $title" \
       && fail "$title remained visible before sampler CPU measurement"
   done
+  # Keep the Resources view alive while minimizing unrelated terminal repaint
+  # work; every panel's production behavior has already been asserted above.
+  tmux resize-window -t "$SESSION:resources" -x 80 -y 24
 
   # Stop the proof harness once its real session row has been asserted. The
   # workflow fixture exists to keep a provider session observable; its outcome
