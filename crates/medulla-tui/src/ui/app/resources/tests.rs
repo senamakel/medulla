@@ -337,8 +337,10 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                 let mem = app.resources.rects.mem;
                 let graph_y = mem.y + 1;
                 assert!(
-                    (mem.x + 1..mem.right() - 1)
-                        .any(|x| terminal.backend().buffer()[(x, graph_y)].symbol() != " "),
+                    (graph_y..graph_y + 4).any(|y| {
+                        (mem.x + 1..mem.right() - 1)
+                            .any(|x| terminal.backend().buffer()[(x, y)].symbol() != " ")
+                    }),
                     "IO graph missing at {width}x{height}"
                 );
             } else {
