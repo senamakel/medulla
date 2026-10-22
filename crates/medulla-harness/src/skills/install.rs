@@ -22,6 +22,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use super::install_scan::{
+    prunable, read_existing, read_marker, scan_managed, Existing, ManagedFile,
+};
 use super::marker::parse_marker;
 use super::render::{render, render_command, slug_for, SLUG_PREFIX};
 use super::targets::{

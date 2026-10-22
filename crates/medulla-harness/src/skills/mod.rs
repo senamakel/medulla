@@ -27,6 +27,7 @@
 //! test can point it at a tempdir.
 
 pub mod install;
+mod install_scan;
 mod marker;
 pub mod refresh;
 pub mod registration;
