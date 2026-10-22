@@ -197,13 +197,17 @@ EOF
   kill -0 "$external_pid" 2>/dev/null \
     || fail "external fixture exited before its captured Resources row was checked"
   printf '%s\n' "$pane" > "$RUN_DIR/resources-external.pane"
-  "$PYTHON_BIN" - "$RUN_DIR/resources-external.pane" "$external_pid" <<'PY' \
+  "$PYTHON_BIN" - "$RUN_DIR/resources-external.pane" "$external_pid" "$provider_label" <<'PY' \
     || fail "the unregistered $HARNESS process was not labeled external"
 import sys
 text = open(sys.argv[1], encoding="utf-8").read().splitlines()
-rows = [line for line in text if sys.argv[2] in line]
-assert rows and any("External" in line and "external" in line.lower() for line in rows), \
-    f"external PID {sys.argv[2]} has no External/external row: {rows!r}"
+rows = [line for line in text if sys.argv[2] in line.split()]
+assert rows, f"external PID {sys.argv[2]} has no Agents row"
+fields = rows[0].replace("│", " ").split()
+assert "external" in [field.lower() for field in fields], \
+    f"external PID {sys.argv[2]} has no external origin: {rows!r}"
+kind = next((field for field in fields if field.lower() in {"external", sys.argv[3].lower()}), None)
+assert kind, f"external PID {sys.argv[2]} has no recognized harness/external kind: {rows!r}"
 print(f"[e2e] external process row: {rows[0].strip()}")
 PY
   kill "$external_pid" 2>/dev/null || true
