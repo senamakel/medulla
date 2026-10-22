@@ -200,7 +200,7 @@ pub(in crate::ui::app) fn visible_rows_with_remote(
                     .max(0) as u64
                     / 1000,
                 ppid: None,
-                session_id: Some(format!("{}::{}", host, session.id)),
+                session_id: Some(crate::ui::app::remote_sessions::qualify(host, &session.id)),
                 task_id: None,
                 external: false,
                 remote: true,
