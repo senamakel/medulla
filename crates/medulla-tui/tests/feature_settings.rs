@@ -140,7 +140,10 @@ fn resources_enter_only_toggles_flag_rows() {
         let _ = key(&mut app, KeyCode::Char('j'));
     }
     let _ = key(&mut app, KeyCode::Enter);
-    assert_eq!(app.loaded.config.resources.net_iface.as_deref(), Some("eth0"));
+    assert_eq!(
+        app.loaded.config.resources.net_iface.as_deref(),
+        Some("eth0")
+    );
 }
 
 #[test]

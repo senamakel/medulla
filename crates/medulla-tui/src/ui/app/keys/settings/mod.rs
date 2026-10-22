@@ -90,7 +90,12 @@ impl App {
                     self.move_resources_settings(matches!(code, KeyCode::Char('k')));
                     SettingsKey::handled(None)
                 }
-                KeyCode::Left | KeyCode::Right | KeyCode::Enter => {
+                KeyCode::Enter => {
+                    let status = self.toggle_resources_setting();
+                    self.set_status(status);
+                    SettingsKey::handled(None)
+                }
+                KeyCode::Left | KeyCode::Right => {
                     let delta = if code == KeyCode::Left { -1 } else { 1 };
                     let status = self.adjust_resources_setting(delta);
                     self.set_status(status);

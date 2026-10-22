@@ -332,6 +332,16 @@ impl App {
         };
     }
 
+    /// Toggle the selected resource setting only when it is a flag row.
+    pub(in crate::ui::app) fn toggle_resources_setting(&mut self) -> String {
+        let row = ROWS[self.resources_settings_index.min(ROWS.len() - 1)];
+        if matches!(row.kind, Kind::Flag | Kind::OptionalFlag) {
+            self.adjust_resources_setting(0)
+        } else {
+            format!("Resources · {} needs ← or → to change", row.label)
+        }
+    }
+
     pub(in crate::ui::app) fn adjust_resources_setting(&mut self, delta: i32) -> String {
         let row = ROWS[self.resources_settings_index.min(ROWS.len() - 1)];
         let cfg = &mut self.loaded.config.resources;
