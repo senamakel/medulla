@@ -351,33 +351,65 @@ impl App {
 
     fn agent_key(&mut self, key: crossterm::event::KeyCode) -> bool {
         use crossterm::event::KeyCode;
-        use types::{AgentSignal, AgentSort};
+        use types::{AgentSignal, AgentSignalConfirmStage, AgentSignalConfirmation, AgentSort};
         if !self.resources.shown.agents {
             self.resources.agent_signal_armed = None;
             return false;
         }
-        if self.resources.agent_signal_armed.is_some() {
-            let armed = self
-                .resources
-                .agent_signal_armed
-                .take()
-                .expect("armed signal");
-            if key == KeyCode::Char('y') {
-                let still_current = self
-                    .resource_snapshot
-                    .processes
-                    .iter()
-                    .any(|process| process.pid == armed.0 && process.start_time == armed.1);
-                if still_current {
-                    match (self.resources.agent_signal_fn)(armed.0, armed.2) {
-                        Ok(()) => self.set_status(format!("Signal sent to PID {}", armed.0)),
-                        Err(error) => self.set_status(format!("Signal failed: {error}")),
-                    }
-                } else {
-                    self.set_status("Process exited before signal was confirmed");
-                }
-            } else {
+        if let Some(armed) = self.resources.agent_signal_armed.take() {
+            let confirmation = match armed.stage {
+                AgentSignalConfirmStage::First => key == KeyCode::Char('y'),
+                AgentSignalConfirmStage::ExternalSecond => key == KeyCode::Char('Y'),
+            };
+            if !confirmation {
                 self.set_status("Process signal cancelled");
+                return true;
+            }
+            let process = self
+                .resource_snapshot
+                .processes
+                .iter()
+                .find(|process| process.pid == armed.pid && process.start_time == armed.started)
+                .cloned();
+            let Some(process) = process else {
+                self.set_status("Process exited before signal was confirmed");
+                return true;
+            };
+            let row = crate::ui::app::render::resources::rows(&self.resource_snapshot)
+                .into_iter()
+                .find(|row| row.pid == armed.pid && row.started == armed.started);
+            let Some(row) = row else {
+                self.set_status("Process is no longer a classified local agent");
+                return true;
+            };
+            if row.remote {
+                self.set_status("Signals to remote processes are disabled");
+                return true;
+            }
+            if !(self.resources.agent_process_owned_fn)(
+                armed.pid,
+                armed.started,
+                process.owner_uid.as_deref(),
+            ) {
+                self.set_status("Cannot signal a process not owned by the current user");
+                return true;
+            }
+            if row.external && armed.stage == AgentSignalConfirmStage::First {
+                self.resources.agent_signal_armed = Some(AgentSignalConfirmation {
+                    stage: AgentSignalConfirmStage::ExternalSecond,
+                    ..armed
+                });
+                self.set_status("External process: press uppercase Y to confirm the signal");
+                return true;
+            }
+            match (self.resources.agent_signal_fn)(
+                armed.pid,
+                armed.started,
+                process.owner_uid.as_deref(),
+                armed.signal,
+            ) {
+                Ok(()) => self.set_status(format!("Signal sent to PID {}", armed.pid)),
+                Err(error) => self.set_status(format!("Signal failed: {error}")),
             }
             return true;
         }
@@ -503,12 +535,25 @@ impl App {
             }
             KeyCode::Char('t' | 'k' | 's') => {
                 if let Some(row) = rows.get(selected) {
+                    if !cfg!(any(target_os = "linux", target_os = "macos")) {
+                        self.set_status("Process signals are disabled on this platform");
+                        return true;
+                    }
+                    if row.remote {
+                        self.set_status("Signals to remote processes are disabled");
+                        return true;
+                    }
                     let signal = match key {
                         KeyCode::Char('t') => AgentSignal::Terminate,
                         KeyCode::Char('k') => AgentSignal::Kill,
                         _ => AgentSignal::Stop,
                     };
-                    self.resources.agent_signal_armed = Some((row.pid, row.started, signal));
+                    self.resources.agent_signal_armed = Some(AgentSignalConfirmation {
+                        pid: row.pid,
+                        started: row.started,
+                        signal,
+                        stage: AgentSignalConfirmStage::First,
+                    });
                 }
                 true
             }
