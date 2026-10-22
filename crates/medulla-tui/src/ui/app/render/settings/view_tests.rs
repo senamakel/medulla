@@ -171,7 +171,7 @@ fn tokens_app_renders_pricing_only_for_provider_attributed_events() {
     let output = rendered(|frame, _| app.draw(frame));
     for expected in [
         "runtime-session-42",
-        "Claude",
+        "Claude Code",
         "claude-sonnet-4-6",
         "cost $6.4050",
         "unknown provider",
