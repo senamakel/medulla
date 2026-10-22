@@ -7,10 +7,8 @@
 //! (`CPU 25%`), device lines are prefixed (`Device CPU 25%`) — so a reader is
 //! never left guessing whose usage a number describes.
 //!
-//! Sampling is throttled at both scales so frequent ratatui redraws do not turn
-//! the chrome into a source of measurable load itself. The process monitor
-//! refreshes only the current PID and keeps a decaying disk-throughput peak for
-//! relative bars.
+//! A shared background sampler publishes immutable snapshots to every visible
+//! consumer, so rendering never performs system refreshes of its own.
 //!
 //! The [`session`] submodule owns a third scale: one harness session's own
 //! process tree, shown in that session's pane title.
@@ -18,10 +16,7 @@
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
 pub use device::{device_lines, device_width_hint};
-pub use medulla_monitor::{
-    DeviceMonitor, DeviceSnapshot, ResourceMonitor, ResourceSnapshot, SessionMonitor,
-    SessionSnapshot,
-};
+pub use medulla_monitor::{DeviceSnapshot, ResourceSnapshot, SessionSnapshot};
 pub use session::{session_segments, session_usage};
 
 mod device;

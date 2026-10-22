@@ -15,8 +15,8 @@ use ratatui::Terminal;
 
 use medulla::config::{AppearanceConfig, LinkConfig, LoadedConfig, ResourceDisplay};
 use medulla::runtime::mock::MockRuntime;
+use medulla_monitor::sampler::{DiskSnapshot, ResourceSnapshot};
 use medulla_tui::ui::app::{App, Cmd, TABS};
-use medulla_tui::ui::resources::DeviceSnapshot;
 
 fn loaded() -> LoadedConfig {
     let mut l = LoadedConfig::defaults("medulla.tui.json".into());
@@ -545,14 +545,21 @@ fn appearance_persists_process_indicators_to_json() {
 }
 
 /// A fixed reading, so the sidebar says the same thing on every machine.
-fn device_sample() -> DeviceSnapshot {
-    DeviceSnapshot {
-        cpu_fraction: Some(0.42),
-        memory_used_bytes: Some(8 * 1024 * 1024 * 1024),
-        memory_total_bytes: Some(32 * 1024 * 1024 * 1024),
-        disk_used_bytes: Some(300 * 1024 * 1024 * 1024),
-        disk_total_bytes: Some(400 * 1024 * 1024 * 1024),
-    }
+fn device_sample() -> ResourceSnapshot {
+    let mut sample = ResourceSnapshot::default();
+    sample.cpu_percent = 42.0;
+    sample.memory_used_bytes = 8 * 1024 * 1024 * 1024;
+    sample.memory_total_bytes = 32 * 1024 * 1024 * 1024;
+    sample.disks = vec![DiskSnapshot {
+        device: "test".into(),
+        mount: "/".into(),
+        total_bytes: 400 * 1024 * 1024 * 1024,
+        used_bytes: 300 * 1024 * 1024 * 1024,
+        read_bytes_per_second: 0.0,
+        write_bytes_per_second: 0.0,
+        busy_percent: None,
+    }];
+    sample
 }
 
 /// Open the Agents tab with the given appearance and an injected device sample.
@@ -561,13 +568,13 @@ fn agents_app(appearance: AppearanceConfig) -> App {
     config.config.appearance = appearance;
     let runtime = Arc::new(MockRuntime::demo());
     let mut app = App::new(runtime, config);
-    app.set_device_snapshot(device_sample());
+    app.set_resource_snapshot(Arc::new(device_sample()));
     app.tab_index = TABS.iter().position(|tab| *tab == "Sessions").unwrap();
     app
 }
 
 #[test]
-fn enabled_device_indicators_render_in_the_agents_sidebar() {
+fn sidebar_footer_shows_device_cpu_before_the_resources_tab_is_opened() {
     let mut app = agents_app(AppearanceConfig {
         device_cpu: ResourceDisplay::Percent,
         device_ram: ResourceDisplay::Value,
