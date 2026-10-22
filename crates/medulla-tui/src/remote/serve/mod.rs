@@ -522,11 +522,10 @@ impl RemoteServer {
                     .bracketed_paste(&row.id)
                     .unwrap_or(false);
                 let mut wire = wire_row(row, bracketed);
-                if let Some(agent) = discovered.as_ref().and_then(|agents| {
-                    agents.iter().find(|agent| {
-                        agent.origin == (AgentOrigin::Session { id: row.id.clone() })
-                    })
-                }) {
+                if let Some(agent) = discovered
+                    .as_ref()
+                    .and_then(|agents| classified_session_agent(agents, &row.id))
+                {
                     if let Some(pid) = agent.pid {
                         let identity = (pid, agent.started_at_secs);
                         if sample {
@@ -601,6 +600,15 @@ fn agent_kind(kind: medulla::resources::agents::AgentKind) -> &'static str {
         AgentKind::Shell => "Shell",
         AgentKind::Unknown => "Unknown",
     }
+}
+
+fn classified_session_agent<'a>(
+    agents: &'a [medulla::resources::agents::AgentProcess],
+    session_id: &str,
+) -> Option<&'a medulla::resources::agents::AgentProcess> {
+    agents.iter().find(|agent| {
+        agent.origin == (AgentOrigin::Session { id: session_id.to_owned() })
+    })
 }
 
 fn sessions_messages(rows: &[RemoteSessionRow], batch_id: u64) -> Vec<RemoteMessage> {

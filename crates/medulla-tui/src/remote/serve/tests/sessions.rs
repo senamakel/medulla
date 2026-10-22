@@ -8,6 +8,39 @@ use super::support::*;
 use medulla::protocol::{AgentUsage, RemoteSessionRow, RemoteSessionState};
 
 #[test]
+fn session_usage_matches_classified_descendant_and_aggregated_tree() {
+    use medulla::resources::agents::{
+        discover_agents, AgentOrigin, KnownProcessRoot, ProcessRecord, ProcessUsage,
+    };
+    let process = |pid, ppid, argv: &[&str], cpu, rss| ProcessRecord {
+        pid,
+        ppid,
+        exe: None,
+        argv: Some(argv.iter().map(|arg| (*arg).to_owned()).collect()),
+        cwd: None,
+        started_at_secs: pid as u64,
+        usage: ProcessUsage { cpu_percent: cpu, rss_bytes: rss, threads: 1, io: None },
+    };
+    let processes = vec![
+        process(10, None, &["pty-host"], 1.0, 100),
+        process(11, Some(10), &["/usr/bin/env", "claude"], 4.0, 200),
+        process(12, Some(11), &["git", "status"], 2.0, 50),
+    ];
+    let roots = vec![KnownProcessRoot {
+        pid: 10,
+        started_at_secs: 10,
+        origin: AgentOrigin::Session { id: "w_10".into() },
+    }];
+    let agents = discover_agents(&processes, &roots, 99, 20);
+    let agent = super::super::classified_session_agent(&agents, "w_10")
+        .expect("the discovered child agent belongs to the session root");
+    assert_eq!(agent.pid, Some(11));
+    assert_eq!(agent.kind, medulla::resources::agents::AgentKind::Claude);
+    assert_eq!(agent.usage.cpu_percent, 6.0);
+    assert_eq!(agent.usage.rss_bytes, 250);
+}
+
+#[test]
 fn sessions_usage_is_trimmed_to_the_single_message_budget() {
     let row = |id: &str, pid| RemoteSessionRow {
         id: id.into(),
