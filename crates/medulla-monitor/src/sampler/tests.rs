@@ -4,7 +4,10 @@ use std::time::Duration;
 
 use tokio::sync::{mpsc, watch};
 
-use super::{spawn_sampler, update_interval, History, ResourceSnapshot, ResourceSource};
+use super::{
+    spawn_sampler, spawn_sampler_with_disk_options, update_disk_options, update_interval,
+    DiskOptions, DiskSnapshot, History, ResourceSnapshot, ResourceSource,
+};
 
 #[derive(Clone)]
 struct SequenceSource(Arc<AtomicUsize>);
@@ -122,6 +125,107 @@ async fn repeated_unchanged_interval_updates_do_not_starve_samples() {
     }
     task.abort();
     panic!("unchanged interval updates starved the scheduled sample");
+}
+
+#[derive(Clone)]
+struct DiskOptionsSource(Arc<std::sync::Mutex<DiskOptions>>);
+
+impl ResourceSource for DiskOptionsSource {
+    fn sample(&mut self) -> ResourceSnapshot {
+        let options = self.0.lock().unwrap().clone();
+        let disks = [
+            ("loop0", "/boot", false, false),
+            ("sda", "/", true, true),
+            ("sdb", "/boot", true, true),
+            ("sdc", "/data", true, false),
+        ]
+        .into_iter()
+        .filter(|(device, mount, physical, in_fstab)| {
+            (!options.only_physical || *physical)
+                && (!options.use_fstab || *in_fstab)
+                && !options
+                    .filter
+                    .split(',')
+                    .filter_map(|filter| filter.strip_prefix("exclude="))
+                    .any(|excluded| excluded == *mount)
+                && (*device != "loop0" || !options.only_physical)
+        })
+        .map(|(device, mount, _, _)| DiskSnapshot {
+            device: device.into(),
+            mount: mount.into(),
+            total_bytes: 0,
+            used_bytes: 0,
+            read_bytes_per_second: 0.0,
+            write_bytes_per_second: 0.0,
+            busy_percent: None,
+        })
+        .collect();
+        ResourceSnapshot {
+            disks,
+            ..Default::default()
+        }
+    }
+
+    fn update_disk_options(&mut self, options: DiskOptions) {
+        *self.0.lock().unwrap() = options;
+    }
+}
+
+#[tokio::test]
+async fn disk_options_change_samples_without_restarting_the_sampler() {
+    let initial = DiskOptions::default();
+    let (options_tx, options_rx) = watch::channel(initial.clone());
+    let (interval_tx, interval_rx) = watch::channel(Some(Duration::from_millis(5)));
+    let (output_tx, mut output_rx) = mpsc::unbounded_channel();
+    let task = spawn_sampler_with_disk_options(
+        DiskOptionsSource(Arc::new(std::sync::Mutex::new(initial))),
+        interval_rx,
+        options_rx,
+        2,
+        move |snapshot| output_tx.send(snapshot).is_ok(),
+    );
+
+    async fn sample(
+        output_rx: &mut mpsc::UnboundedReceiver<Arc<ResourceSnapshot>>,
+    ) -> Arc<ResourceSnapshot> {
+        tokio::time::timeout(Duration::from_secs(1), output_rx.recv())
+            .await
+            .unwrap()
+            .unwrap()
+    }
+
+    assert_eq!(sample(&mut output_rx).await.disks.len(), 4);
+    assert!(update_disk_options(
+        &options_tx,
+        DiskOptions {
+            only_physical: true,
+            ..Default::default()
+        }
+    ));
+    assert_eq!(sample(&mut output_rx).await.disks.len(), 3);
+    assert!(update_disk_options(
+        &options_tx,
+        DiskOptions {
+            only_physical: true,
+            use_fstab: true,
+            ..Default::default()
+        }
+    ));
+    assert_eq!(sample(&mut output_rx).await.disks.len(), 2);
+    assert!(update_disk_options(
+        &options_tx,
+        DiskOptions {
+            only_physical: true,
+            use_fstab: true,
+            filter: "exclude=/boot".into(),
+        }
+    ));
+    let final_sample = sample(&mut output_rx).await;
+    assert_eq!(final_sample.disks.len(), 1);
+    assert_eq!(final_sample.disks[0].mount, "/");
+
+    drop(interval_tx);
+    task.abort();
 }
 
 #[test]

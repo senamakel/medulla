@@ -104,12 +104,13 @@ pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 10] = [
+pub const SETTINGS_SUBPAGES: [&str; 11] = [
     "Usage",
     "Appearance",
     "Subscriptions",
     "Status line",
     "Config",
+    "Resources",
     "Feedback",
     "Trace",
     "Context",
@@ -134,11 +135,12 @@ pub(in crate::ui::app) const SP_APPEARANCE: usize = 1;
 pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 2;
 pub(in crate::ui::app) const SP_STATUS_LINE: usize = 3;
 pub(in crate::ui::app) const SP_CONFIG: usize = 4;
-pub(in crate::ui::app) const SP_FEEDBACK: usize = 5;
-pub(in crate::ui::app) const SP_TRACE: usize = 6;
-pub(in crate::ui::app) const SP_CONTEXT: usize = 7;
-pub(in crate::ui::app) const SP_ACCOUNT: usize = 8;
-pub(in crate::ui::app) const SP_HELP: usize = 9;
+pub(in crate::ui::app) const SP_RESOURCES: usize = 5;
+pub(in crate::ui::app) const SP_FEEDBACK: usize = 6;
+pub(in crate::ui::app) const SP_TRACE: usize = 7;
+pub(in crate::ui::app) const SP_CONTEXT: usize = 8;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 9;
+pub(in crate::ui::app) const SP_HELP: usize = 10;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
@@ -690,6 +692,8 @@ pub struct App {
     /// the page entirely. Entering the pane hands `↑↓` to the content and makes
     /// the letter bindings deliberate rather than ambient.
     pub(in crate::ui::app) settings_focused: bool,
+    /// Selected Resources option while editing its Settings subpage.
+    pub(in crate::ui::app) resources_settings_index: usize,
     /// The selected row on the Appearance subpage.
     pub(in crate::ui::app) appearance_index: usize,
     /// The selected meter row on the Subscriptions subpage.

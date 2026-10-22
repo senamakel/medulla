@@ -299,6 +299,25 @@ fn clear_setting_removes_only_its_key() {
 }
 
 #[test]
+fn clear_setting_removes_only_its_key_from_json() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("config.json");
+    std::fs::write(
+        &path,
+        r#"{"resources":{"cpuBottom":true,"netAuto":false},"other":{"kept":true}}"#,
+    )
+    .expect("seed");
+
+    super::clear_setting(&path, "resources", "cpuBottom").expect("clear");
+
+    let saved: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).expect("read")).expect("reparse");
+    assert!(saved["resources"].get("cpuBottom").is_none());
+    assert_eq!(saved["resources"]["netAuto"], false);
+    assert_eq!(saved["other"]["kept"], true);
+}
+
+#[test]
 fn clear_setting_on_a_missing_file_is_a_no_op() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("absent.toml");

@@ -17,8 +17,8 @@ use ratatui::Frame;
 use crate::ui::multi_pane;
 
 use super::super::types::{
-    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK, SP_STATUS_LINE,
-    SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
+    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK, SP_RESOURCES,
+    SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
 };
 
 mod account;
@@ -62,6 +62,7 @@ impl App {
             SP_TRACE => self.draw_trace(f, content),
             SP_CONTEXT => self.draw_context(f, content),
             SP_ACCOUNT => self.draw_account(f, content),
+            SP_RESOURCES => self.draw_resources_settings(f, content),
             _ => self.draw_help(f, content),
         }
     }

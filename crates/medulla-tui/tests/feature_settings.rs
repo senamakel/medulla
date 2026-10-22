@@ -31,6 +31,169 @@ fn settings_app() -> App {
     app
 }
 
+#[test]
+fn resources_settings_page_exposes_every_resources_config_field() {
+    let mut app = settings_app();
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('o'));
+    assert_eq!(app.tab(), "Settings");
+    assert_eq!(app.settings_subpage(), "Resources");
+
+    let out = text_of(&draw(&mut app, 180, 80));
+    for field in [
+        "updateMs",
+        "shownBoxes",
+        "presets",
+        "preset",
+        "cpuBottom",
+        "memBelowNet",
+        "agentsLeft",
+        "cpuGraphUpper",
+        "cpuGraphLower",
+        "cpuInvertLower",
+        "cpuSingleGraph",
+        "tempScale",
+        "freqMode",
+        "showBattery",
+        "memGraphs",
+        "showDisks",
+        "showSwap",
+        "swapDisk",
+        "onlyPhysical",
+        "useFstab",
+        "disksFilter",
+        "ioMode",
+        "ioGraphCombined",
+        "ioGraphSpeeds",
+        "netAuto",
+        "netSync",
+        "netDownload",
+        "netUpload",
+        "netIface",
+        "swapUploadDownload",
+    ] {
+        assert!(
+            out.contains(field),
+            "Resources settings page missing {field}: {out}"
+        );
+    }
+    for group in ["GENERAL", "CPU", "MEM", "NET", "AGENTS"] {
+        assert!(
+            out.contains(group),
+            "Resources settings page missing {group} group: {out}"
+        );
+    }
+}
+
+#[test]
+fn resources_settings_interval_updates_live_and_persists() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let mut app = settings_app();
+    app.set_config_path(path.clone());
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('o'));
+    let _ = key(&mut app, KeyCode::Right);
+
+    assert_eq!(app.loaded.config.resources.update_interval_ms(), 2_100);
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    assert!(text_of(&draw(&mut app, 160, 40)).contains("2100ms"));
+    let path_text = path.to_str().unwrap();
+    let loaded =
+        medulla::config::load_config(Some(path_text), &Default::default(), dir.path()).unwrap();
+    assert_eq!(loaded.config.resources.update_interval_ms(), 2_100);
+}
+
+#[test]
+fn resources_enter_only_toggles_flag_rows() {
+    let mut l = loaded();
+    l.config.resources.update_ms = 2_000;
+    l.config.resources.shown_boxes = "cpu,mem".into();
+    l.config.resources.net_iface = Some("eth0".into());
+    let rt = Arc::new(MockRuntime::demo());
+    let mut app = App::new(rt, l);
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('o'));
+
+    // A numeric setting and a choice must wait for ←/→.
+    let _ = key(&mut app, KeyCode::Enter);
+    assert_eq!(app.loaded.config.resources.update_ms, 2_000);
+    let _ = key(&mut app, KeyCode::Char('j'));
+    let _ = key(&mut app, KeyCode::Enter);
+    assert_eq!(app.loaded.config.resources.shown_boxes, "cpu,mem");
+
+    // Optional and regular flags remain togglable with Enter.
+    for _ in 0..3 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Enter); // cpuBottom (Auto -> On)
+    assert_eq!(app.loaded.config.resources.cpu_bottom, Some(true));
+    for _ in 0..4 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Enter); // cpuInvertLower
+    assert!(app.loaded.config.resources.cpu_invert_lower);
+
+    // netIface is a choice sourced from detected interfaces, so Enter must
+    // leave the configured interface untouched.
+    for _ in 0..19 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+    let _ = key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        app.loaded.config.resources.net_iface.as_deref(),
+        Some("eth0")
+    );
+}
+
+#[test]
+fn resources_optional_layout_settings_can_return_to_auto_and_persist() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    std::fs::write(&path, "[resources]\ncpuBottom = true\nnetAuto = false\n").unwrap();
+    let mut app = settings_app();
+    app.set_config_path(path.clone());
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('o'));
+    for _ in 0..4 {
+        let _ = key(&mut app, KeyCode::Char('j'));
+    }
+
+    let _ = key(&mut app, KeyCode::Right); // Auto -> On
+    assert_eq!(app.loaded.config.resources.cpu_bottom, Some(true));
+    let _ = key(&mut app, KeyCode::Right); // On -> Off
+    assert_eq!(app.loaded.config.resources.cpu_bottom, Some(false));
+    let _ = key(&mut app, KeyCode::Right); // Off -> Auto
+    assert_eq!(app.loaded.config.resources.cpu_bottom, None);
+
+    let saved = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        !saved.contains("cpuBottom"),
+        "Auto removes the override: {saved}"
+    );
+    assert!(
+        saved.contains("netAuto = false"),
+        "unrelated settings survive: {saved}"
+    );
+    let loaded = medulla::config::load_config(
+        Some(path.to_str().unwrap()),
+        &Default::default(),
+        dir.path(),
+    )
+    .unwrap();
+    assert_eq!(loaded.config.resources.cpu_bottom, None);
+}
+
+#[test]
+fn resources_key_opens_settings_help() {
+    let mut app = settings_app();
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('?'));
+    let out = text_of(&draw(&mut app, 120, 40));
+    assert!(out.contains("Resources key help"), "{out}");
+    assert!(out.contains("←/→"), "{out}");
+}
+
 fn key(app: &mut App, code: KeyCode) -> Option<Cmd> {
     app.on_event(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)))
 }
@@ -60,6 +223,7 @@ fn settings_tab_renders_nav_and_default_usage_subpage() {
         "Subscriptions",
         "Status line",
         "Config",
+        "Resources",
         "Feedback",
         "Trace",
         "Context",
@@ -84,12 +248,14 @@ fn number_keys_jump_subpages() {
     assert_eq!(app.settings_subpage(), "Status line");
     let _ = key(&mut app, KeyCode::Char('5'));
     assert_eq!(app.settings_subpage(), "Config");
-    // Help is the last subpage, and past the nine a digit can reach now that
-    // Subscriptions is on the nav — so the arrows are what get there.
+    // Digits still reach the first nine rows, with Resources inserted before
+    // the diagnostic pages. The final two rows are reached with the nav arrows.
     let _ = key(&mut app, KeyCode::Char('9'));
+    assert_eq!(app.settings_subpage(), "Context");
+    // Reach Account, then Help by stepping back to the nav between moves.
+    let _ = key(&mut app, KeyCode::Esc);
+    let _ = key(&mut app, KeyCode::Down);
     assert_eq!(app.settings_subpage(), "Account");
-    // A digit also enters the pane, so getting to Help means stepping back out
-    // to the nav first — the arrows browse content once a page has focus.
     let _ = key(&mut app, KeyCode::Esc);
     let _ = key(&mut app, KeyCode::Down);
     assert_eq!(app.settings_subpage(), "Help");
@@ -513,6 +679,7 @@ fn each_settings_subpage_renders_its_signature() {
         ("Context", "Environment ·"),
         ("Account", "Account"),
         ("Help", "Keyboard & REPL help"),
+        ("Resources", "Sample interval"),
     ];
     for (name, sig) in signatures {
         let mut app = settings_app();

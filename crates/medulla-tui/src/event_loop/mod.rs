@@ -97,16 +97,13 @@ pub(crate) async fn run(
     spawn_update_checker(&app.loaded, &msg_tx);
     let (resource_interval_tx, resource_interval_rx) =
         tokio::sync::watch::channel(resource_sampling_period(&app));
+    let (resource_disk_options_tx, resource_disk_options_rx) =
+        tokio::sync::watch::channel(resource_disk_options(&app));
     let history_capacity = usize::from(terminal.size()?.width).saturating_mul(2);
-    medulla_tui::ui::resources::sampler::spawn_sampler(
-        medulla_tui::ui::resources::sampler::SystemResourceSource::default().with_disk_options(
-            medulla_monitor::DiskOptions {
-                only_physical: app.loaded.config.resources.only_physical,
-                use_fstab: app.loaded.config.resources.use_fstab,
-                filter: app.loaded.config.resources.disks_filter.clone(),
-            },
-        ),
+    medulla_tui::ui::resources::sampler::spawn_sampler_with_disk_options(
+        medulla_tui::ui::resources::sampler::SystemResourceSource::default(),
         resource_interval_rx,
+        resource_disk_options_rx,
         history_capacity,
         {
             let msg_tx = msg_tx.clone();
@@ -122,6 +119,10 @@ pub(crate) async fn run(
         medulla_tui::ui::resources::sampler::update_interval(
             &resource_interval_tx,
             resource_sampling_period(&app),
+        );
+        medulla_tui::ui::resources::sampler::update_disk_options(
+            &resource_disk_options_tx,
+            resource_disk_options(&app),
         );
         terminal.draw(|f| app.draw(f))?;
         if app.should_quit {
@@ -473,6 +474,15 @@ fn resource_sampling_period(app: &App) -> Option<Duration> {
         .any(|display| display != ResourceDisplay::Off);
     (status_line_needs_resources || footer_needs_resources || app.tab() == "Resources")
         .then(|| Duration::from_millis(app.loaded.config.resources.update_interval_ms()))
+}
+
+fn resource_disk_options(app: &App) -> medulla_monitor::DiskOptions {
+    let resources = &app.loaded.config.resources;
+    medulla_monitor::DiskOptions {
+        only_physical: resources.only_physical,
+        use_fstab: resources.use_fstab,
+        filter: resources.disks_filter.clone(),
+    }
 }
 
 /// Apply the UI-side consequences after a workflow definition is known to be

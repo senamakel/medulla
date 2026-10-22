@@ -233,9 +233,42 @@ impl App {
                 menu,
             );
         }
+        if state.help_open {
+            let help = Rect::new(
+                area.x.saturating_add(area.width.saturating_sub(62) / 2),
+                area.y.saturating_add(area.height.saturating_sub(11) / 2),
+                62.min(area.width),
+                11.min(area.height),
+            );
+            f.render_widget(
+                Paragraph::new("1–4 show or hide boxes\np/P change layout preset\n+/- change sample interval\na/y control network scaling\nb/n select network interface\nz reset network totals\no open Resources settings\n←/→ change a setting · Esc close")
+                    .block(Block::default().borders(Borders::ALL).title(" Resources key help ")),
+                help,
+            );
+        }
     }
 
     pub(in crate::ui::app) fn resources_key(&mut self, key: crossterm::event::KeyCode) -> bool {
+        if key == crossterm::event::KeyCode::Char('o') {
+            self.tab_index = crate::ui::app::TABS
+                .iter()
+                .position(|tab| *tab == "Settings")
+                .unwrap_or(0);
+            self.settings_index = crate::ui::app::types::SP_RESOURCES;
+            self.settings_focused = true;
+            self.set_status("Settings · Resources");
+            return true;
+        }
+        if key == crossterm::event::KeyCode::Char('?') {
+            self.resources.help_open = !self.resources.help_open;
+            return true;
+        }
+        if self.resources.help_open {
+            if key == crossterm::event::KeyCode::Esc {
+                self.resources.help_open = false;
+            }
+            return true;
+        }
         if self.agent_key(key) {
             return true;
         }

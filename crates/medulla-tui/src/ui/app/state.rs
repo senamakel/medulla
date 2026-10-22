@@ -79,6 +79,7 @@ impl App {
             account_usage: None,
             settings_index: 0,
             settings_focused: false,
+            resources_settings_index: 0,
             appearance_index: 0,
             subscriptions_index: 0,
             subscriptions: Default::default(),
