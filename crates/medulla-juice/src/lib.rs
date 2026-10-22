@@ -132,3 +132,6 @@ pub struct EmbeddedCompressionStats {
     pub events: u64,
     pub tokens: CompressionTokenTotals,
 }
+
+mod embedded;
+pub use embedded::read_embedded_stats;
