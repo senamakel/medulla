@@ -127,7 +127,7 @@ EOF
     sleep 1
   done
   printf '%s\n' "$pane" > "$RUN_DIR/resources-session.pane"
-  "$PYTHON_BIN" - "$RUN_DIR/resources-session.pane" "$provider_label" "$task_id" <<'PY' \
+  "$PYTHON_BIN" - "$RUN_DIR/resources-session.pane" "$provider_label" "$task_id" "$RUN_DIR/session.pid" <<'PY' \
     || fail "Resources did not attribute a running $HARNESS process to its session"
 import sys
 text = open(sys.argv[1], encoding="utf-8").read()
@@ -145,6 +145,7 @@ for line in text.splitlines():
             rows.append((line, fields[index - 1], origin))
 assert rows, f"no {sys.argv[2]} process row in Resources pane; provider lines={seen!r}"
 line, pid, origin = rows[0]
+open(sys.argv[4], "w", encoding="utf-8").write(pid)
 assert origin.lower() not in {"external", "host", "—"}, \
     f"{sys.argv[2]} row is not attributed to its harness session: {line!r}"
 if origin.lower().startswith("task "):
@@ -247,6 +248,22 @@ PY
   pane="$(capture_app)"
   printf '%s\n' "$pane" | grep -Fq '┌ CPU [1]' \
     && fail "CPU chart remained visible before sampler CPU measurement"
+
+  # The attribution proof has completed. Stop its provider process so the
+  # 60-second measurement covers the sampler over 1000 processes without an
+  # unrelated model turn adding CPU to the same Medulla PID.
+  local session_pid="$(cat "$RUN_DIR/session.pid")"
+  if kill -0 "$session_pid" 2>/dev/null; then
+    kill "$session_pid" 2>/dev/null || true
+    local session_deadline=$(( $(date +%s) + 10 ))
+    while kill -0 "$session_pid" 2>/dev/null && [ "$(date +%s)" -lt "$session_deadline" ]; do
+      sleep 0.25
+    done
+    kill -0 "$session_pid" 2>/dev/null \
+      && fail "proof harness process $session_pid did not stop before the performance sample"
+  fi
+  sleep 2
+  log "  proof harness process $session_pid ended before the sampler CPU measurement"
 
   # §7 of resources-tab.md specifies 1000 processes at a 2000ms cadence, with
   # sampler CPU p95 <=40ms per tick and <=2% of one core averaged over one
