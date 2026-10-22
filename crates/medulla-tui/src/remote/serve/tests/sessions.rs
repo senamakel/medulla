@@ -50,6 +50,41 @@ fn sessions_usage_is_trimmed_to_the_single_message_budget() {
     }));
 }
 
+#[test]
+fn oversized_base_session_lists_are_chunked_without_dropping_rows() {
+    let rows = (0..80)
+        .map(|index| RemoteSessionRow {
+            id: format!("session-{index:03}"),
+            label: format!("session label {index}"),
+            provider: "shell".into(),
+            preset: None,
+            state: RemoteSessionState::Running,
+            cwd: "/workspace/project".into(),
+            name: None,
+            thread_name: None,
+            started_at: 1_700_000_000_000,
+            last_output_at: 1_700_000_000_000,
+            busy: false,
+            working: false,
+            attention: None,
+            bracketed_paste: false,
+            last_error: None,
+            usage: None,
+        })
+        .collect::<Vec<_>>();
+    let messages = super::super::sessions_messages(&rows, 7);
+    assert!(messages.len() > 1);
+    let mut received = Vec::new();
+    for message in &messages {
+        assert!(encode_remote_message(message).len() <= medulla_link::MAX_MESSAGE_BYTES);
+        match message {
+            RemoteMessage::SessionsChunk { rows, .. } => received.extend(rows.iter().map(|row| row.id.clone())),
+            other => panic!("expected chunked list, got {other:?}"),
+        }
+    }
+    assert_eq!(received, rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>());
+}
+
 #[tokio::test]
 async fn hello_is_answered_with_what_this_host_can_do() {
     let (mut server, client) = fixture("/tmp");
