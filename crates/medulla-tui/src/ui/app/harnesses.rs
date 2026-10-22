@@ -1,6 +1,15 @@
 //! Collect facts for the Harnesses Settings page away from the render path.
 
-#[cfg(test)]
+pub(crate) fn collect_harnesses(
+    _config: &medulla::config::TuiConfig,
+    _sources: &[String],
+    _medulla_home: &std::path::Path,
+    _env: &std::collections::HashMap<String, String>,
+) -> super::types::HarnessesView {
+    super::types::HarnessesView::default()
+}
+
+#[cfg(all(test, unix))]
 mod tests {
     use super::collect_harnesses;
     use std::collections::HashMap;
