@@ -29,9 +29,7 @@
 
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
-use tinyflows::model::{InputType, WorkflowInput};
-
-use crate::workflows::WorkflowSummary;
+use super::{SkillInput, SkillWorkflow};
 
 /// The tool a generated skill instructs the model to call.
 const RUN_TOOL: &str = "mcp__medulla__workflow_run";
@@ -140,7 +138,7 @@ pub fn slug_for(workflow_id: &str) -> String {
 /// the generated content, so it changes if and only if that content does —
 /// which is what makes an install idempotent across releases that do not touch
 /// the template.
-pub fn render(summary: &WorkflowSummary) -> super::RenderedSkill {
+pub fn render(summary: &SkillWorkflow) -> super::RenderedSkill {
     let slug = slug_for(&summary.id);
     let description = description_for(summary);
     let content = skill_content(summary, &slug, &description);
@@ -160,7 +158,7 @@ pub fn render(summary: &WorkflowSummary) -> super::RenderedSkill {
 /// 123` than describe the work; the model-facing instructions are the same call
 /// with the typed text handed over as `$ARGUMENTS`. Returns the complete file,
 /// marker included, so it follows the same managed-file discipline.
-pub fn render_command(skill: &super::RenderedSkill, summary: &WorkflowSummary) -> String {
+pub fn render_command(skill: &super::RenderedSkill, summary: &SkillWorkflow) -> String {
     let mut out = String::new();
     out.push_str("---\n");
     out.push_str(&format!(
@@ -578,7 +576,7 @@ fn fallback_line(summary: &WorkflowSummary) -> String {
 /// names [`workflow_get`](GET_WORKFLOW_TOOL), which serves them whole. That
 /// pointer is why the skill can afford to be an index rather than a copy: the
 /// full text is one call away, and only fetched by a model that needs it.
-fn inputs_section(summary: &WorkflowSummary) -> String {
+fn inputs_section(summary: &SkillWorkflow) -> String {
     let mut condensed_any = description_was_condensed(summary);
     if summary.inputs.is_empty() {
         let mut out = String::from("No inputs — pass `\"inputs\": {}`.\n");
@@ -629,7 +627,7 @@ fn full_text_pointer() -> String {
 /// Written on one line rather than pretty-printed: a model reads the argument
 /// shape either way, and the indented form spends a line and its padding on
 /// every input the list below already names.
-fn call_example(summary: &WorkflowSummary) -> String {
+fn call_example(summary: &SkillWorkflow) -> String {
     let call = json!({ "id": summary.id, "inputs": example_input_map(summary) });
     format!(
         "{RUN_TOOL}\n{}",
@@ -642,15 +640,15 @@ fn call_example(summary: &WorkflowSummary) -> String {
 /// An input with a default shows its default (so the example is runnable as
 /// written); everything else shows a type-shaped placeholder the model is meant
 /// to replace, not a plausible-looking invented value.
-fn example_input_map(summary: &WorkflowSummary) -> Map<String, Value> {
+fn example_input_map(summary: &SkillWorkflow) -> Map<String, Value> {
     let mut map = Map::new();
     for input in &summary.inputs {
         let value = match (&input.default, input.ty) {
             (Some(default), _) => default.clone(),
-            (None, InputType::String) => Value::String(format!("<{}>", input.name)),
-            (None, InputType::Number) => json!(0),
-            (None, InputType::Boolean) => json!(false),
-            (None, InputType::Json) => json!({}),
+            (None, "string") => Value::String(format!("<{}>", input.name)),
+            (None, "number") => json!(0),
+            (None, "boolean") => json!(false),
+            (None, _) => json!({}),
         };
         map.insert(input.name.clone(), value);
     }
@@ -659,7 +657,7 @@ fn example_input_map(summary: &WorkflowSummary) -> Map<String, Value> {
 
 /// The `argument-hint` line: required inputs in angle brackets, optional in
 /// square ones, matching what both harnesses show beside a slash command.
-fn argument_hint(inputs: &[WorkflowInput]) -> String {
+fn argument_hint(inputs: &[SkillInput]) -> String {
     if inputs.is_empty() {
         return "(no inputs)".to_string();
     }
