@@ -166,3 +166,25 @@ fn detailed_usage_preserves_categories_and_model_attribution() {
     assert_eq!(row.usage.cache_write_tokens, Some(15));
     assert_eq!(row.usage.reasoning_tokens, Some(7));
 }
+
+#[test]
+fn detailed_usage_keeps_reported_and_missing_providers_in_separate_rows() {
+    use crate::protocol::HarnessProvider;
+
+    let mut attributed = end("reasoning", Some("claude-sonnet-4-6"), Some((11, 3)));
+    let TuiEvent::InferenceEnd { provider, .. } = &mut attributed else {
+        unreachable!();
+    };
+    *provider = Some(HarnessProvider::Claude);
+    let events = vec![env(1, attributed), env(2, end("reasoning", Some("claude-sonnet-4-6"), Some((7, 2))))];
+
+    let details = detailed_usage(&events);
+    assert_eq!(details.len(), 2);
+    let attributed = details
+        .iter()
+        .find(|row| row.provider == Some(HarnessProvider::Claude))
+        .unwrap();
+    assert_eq!(attributed.usage.input_tokens, 11);
+    let unattributed = details.iter().find(|row| row.provider.is_none()).unwrap();
+    assert_eq!(unattributed.usage.input_tokens, 7);
+}
