@@ -1,23 +1,14 @@
-//! Pluggable context compression primitives for Medulla.
+//! Context compression primitives and embedded-runtime savings.
 //!
-//! This crate currently provides only a passthrough compressor and metadata
-//! estimates. Token counts use TinyJuice's documented heuristic of roughly
-//! four Unicode characters per token; they are estimates, not provider counts.
+//! The synchronous standalone adapter performs faithful JSON table
+//! reformatting through the pinned TinyJuice release when `tinyjuice` is
+//! explicitly enabled. It otherwise preserves input exactly. Embedded turns
+//! use OpenHuman's native tool-result middleware when the same feature is
+//! enabled; this includes its broader routing and recovery behavior.
 //!
-//! Compression is not wired into either host integration yet:
-//!
-//! - Embedded OpenHuman's `ToolHook::after_tool` returns `()`, and
-//!   `after_tool_context` can only append text. Neither can replace a tool
-//!   result with compressed content. See
-//!   `crates/medulla-core/src/daemon/providers/embed/hooks.rs` and the vendored
-//!   OpenHuman `agent/hooks.rs`.
-//! - Claude and Codex use Medulla's report-only `PostToolUse` hook shim. It
-//!   writes no replacement content to stdout. See
-//!   `crates/medulla-tui/src/commands/hook.rs`.
-//!
-//! These integration seams need host API changes before a compressor can
-//! replace tool results. This crate deliberately has no host or compressor
-//! dependencies.
+//! The built-in Claude and Codex CLI hooks remain report-only and preserve
+//! silent stdout. Persisted embedded savings are workspace-wide estimated token
+//! totals, not per-session/provider measurements, and contain no byte counts.
 
 /// Text passed to a [`Compressor`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,3 +76,53 @@ fn estimate_tokens(text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "tinyjuice")]
+mod tinyjuice;
+#[cfg(feature = "tinyjuice")]
+pub use tinyjuice::TinyJuice;
+
+/// Dispatches to TinyJuice when explicitly enabled, otherwise preserving input.
+pub fn compress(input: &CompressInput<'_>) -> Compressed {
+    #[cfg(feature = "tinyjuice")]
+    {
+        TinyJuice.compress(input)
+    }
+    #[cfg(not(feature = "tinyjuice"))]
+    {
+        Passthrough.compress(input)
+    }
+}
+
+impl CompressionStats {
+    /// Returns approximate token totals, not provider-billed token counts.
+    pub fn token_totals(self) -> CompressionTokenTotals {
+        CompressionTokenTotals {
+            before_tokens: self.before_tokens,
+            after_tokens: self.after_tokens,
+        }
+    }
+}
+
+/// Approximate token totals for a standalone compression operation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CompressionTokenTotals {
+    pub before_tokens: u64,
+    pub after_tokens: u64,
+}
+
+impl CompressionTokenTotals {
+    pub fn saved_tokens(self) -> u64 {
+        self.before_tokens.saturating_sub(self.after_tokens)
+    }
+}
+
+/// Persisted aggregate for successful embedded-runtime compression events.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EmbeddedCompressionStats {
+    pub events: u64,
+    pub tokens: CompressionTokenTotals,
+}
+
+mod embedded;
+pub use embedded::read_embedded_stats;

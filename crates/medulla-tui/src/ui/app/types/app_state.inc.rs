@@ -134,6 +134,9 @@ pub struct App {
     pub(in crate::ui::app) harnesses_view: Option<super::HarnessesView>,
     /// The latest subscription-usage readings, shown in the sidebar and on the
     /// Subscriptions subpage. Empty until the first sample lands.
+    pub(in crate::ui::app) compression: Option<medulla::juice::EmbeddedCompressionStats>,
+    pub(in crate::ui::app) compression_loading: bool,
+    pub(in crate::ui::app) compression_refreshed_at: u64,
     pub(in crate::ui::app) subscriptions: medulla::subscriptions::SubscriptionSnapshot,
     /// Whether a subscription sample is in flight, so a slow probe cannot be
     /// queued behind itself by the refresh tick.
