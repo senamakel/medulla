@@ -119,7 +119,7 @@ async fn app_server_connection_registration_tracks_the_pooled_child_lifetime() {
     let fake = fake_app_server(&dir, TurnScript::Reply("unused"));
     let registry = medulla_monitor::agents::agent_registry();
     let connection = Connection::open(&AppServerSpec {
-        bin: fake.bin,
+        bin: fake.bin.clone(),
         args: Vec::new(),
         env: HashMap::from([
             ("PATH".into(), std::env::var("PATH").unwrap_or_default()),
