@@ -140,7 +140,11 @@ fn medulla_and_unowned_tool_descendants_are_not_external() {
         process(3, Some(1), "/usr/bin/claude", &["claude"], 3),
     ];
 
-    assert!(discover_agents(&processes, &[], 1, 50).is_empty());
+    let agents = discover_agents(&processes, &[], 1, 50);
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].kind, AgentKind::EmbeddedOpenhuman);
+    assert_eq!(agents[0].children.len(), 1);
+    assert_eq!(agents[0].children[0].pid, 2);
 }
 
 #[test]

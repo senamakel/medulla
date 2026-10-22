@@ -9,7 +9,7 @@ pub use types::{
     AgentDiscoveryOptions, AgentKind, AgentOrigin, AgentProcess, IoCounters, KnownProcessRoot,
     ProcessNode, ProcessRecord, ProcessUsage,
 };
-pub use registry::registered_roots;
+pub use registry::{discover_registered_agents, registered_roots};
 
 #[cfg(test)]
 mod tests;

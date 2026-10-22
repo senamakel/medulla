@@ -1,4 +1,5 @@
 use super::{AgentOrigin, KnownProcessRoot};
+use super::{AgentDiscoveryOptions, AgentProcess, ProcessRecord};
 
 /// Snapshot currently registered launch roots for process discovery.
 ///
@@ -18,4 +19,20 @@ pub fn registered_roots() -> Vec<KnownProcessRoot> {
             },
         })
         .collect()
+}
+
+/// Discover agents using the launch roots currently owned by Medulla.
+pub fn discover_registered_agents(
+    processes: &[ProcessRecord],
+    medulla_pid: u32,
+    sampled_at_secs: u64,
+    options: AgentDiscoveryOptions,
+) -> Vec<AgentProcess> {
+    super::discover_agents_with_options(
+        processes,
+        &registered_roots(),
+        medulla_pid,
+        sampled_at_secs,
+        options,
+    )
 }
