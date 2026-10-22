@@ -18,6 +18,4 @@ reqwest = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 dirs = { workspace = true }
-
-[dev-dependencies]
 toml = { workspace = true }

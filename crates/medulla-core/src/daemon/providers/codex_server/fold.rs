@@ -407,7 +407,7 @@ fn turn_items_text(turn: Option<&Value>) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
-/// Read a `ThreadTokenUsage` into Medulla's two-number shape.
+/// Read a `ThreadTokenUsage` while preserving each reported token category.
 ///
 /// The `total` breakdown is the cumulative one, which is what a task reports.
 /// Missing counts read as zero rather than failing the parse: a run that
@@ -415,10 +415,21 @@ fn turn_items_text(turn: Option<&Value>) -> Option<String> {
 fn token_usage(usage: Option<&Value>) -> Option<TokenUsage> {
     let total = usage?.get("total")?;
     let count = |key: &str| total.get(key).and_then(Value::as_i64).unwrap_or(0);
-    let input = count("inputTokens") + count("cachedInputTokens");
-    let output = count("outputTokens") + count("reasoningOutputTokens");
-    (input > 0 || output > 0).then_some(TokenUsage {
+    let input = count("inputTokens");
+    let output = count("outputTokens");
+    let cache_read = total.get("cachedInputTokens").and_then(Value::as_i64);
+    let cache_write = total.get("cacheWriteInputTokens").and_then(Value::as_i64);
+    let reasoning = total.get("reasoningOutputTokens").and_then(Value::as_i64);
+    (input > 0
+        || output > 0
+        || cache_read.is_some()
+        || cache_write.is_some()
+        || reasoning.is_some())
+    .then_some(TokenUsage {
         input_tokens: input,
         output_tokens: output,
+        cache_read,
+        cache_write,
+        reasoning,
     })
 }

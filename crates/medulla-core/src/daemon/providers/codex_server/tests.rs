@@ -309,8 +309,10 @@ fn folds_cumulative_token_usage_latest_wins() {
         }),
     ));
     let usage = fold.snapshot().usage.expect("usage");
-    assert_eq!(usage.input_tokens, 25);
-    assert_eq!(usage.output_tokens, 10);
+    assert_eq!(usage.input_tokens, 20);
+    assert_eq!(usage.output_tokens, 9);
+    assert_eq!(usage.cache_read, Some(5));
+    assert_eq!(usage.reasoning, Some(1));
 }
 
 /// Codex retries some failures itself; surfacing one would end a turn that is

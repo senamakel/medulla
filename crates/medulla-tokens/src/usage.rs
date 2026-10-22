@@ -27,6 +27,55 @@ pub struct Usage {
         skip_serializing_if = "Option::is_none"
     )]
     pub cache_creation_tokens: Option<i64>,
+    /// Prompt tokens newly written into the provider's cache, when reported.
+    #[serde(
+        default,
+        rename = "cacheWriteTokens",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cache_write_tokens: Option<i64>,
+    /// Reasoning tokens included in the reported completion, when known.
+    #[serde(
+        default,
+        rename = "reasoningTokens",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning_tokens: Option<i64>,
+}
+
+impl From<Usage> for medulla_types::TokenUsage {
+    fn from(usage: Usage) -> Self {
+        Self {
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+            cache_read: usage.cache_read_tokens,
+            cache_write: usage.cache_write_tokens.or(usage.cache_creation_tokens),
+            reasoning: usage.reasoning_tokens,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Usage;
+
+    #[test]
+    fn rich_usage_converts_to_wire_usage_without_merging_categories() {
+        let wire: medulla_types::TokenUsage = Usage {
+            input_tokens: 11,
+            output_tokens: 7,
+            cache_read_tokens: Some(3),
+            cache_creation_tokens: Some(2),
+            cache_write_tokens: Some(2),
+            reasoning_tokens: Some(4),
+        }
+        .into();
+        assert_eq!(wire.input_tokens, 11);
+        assert_eq!(wire.output_tokens, 7);
+        assert_eq!(wire.cache_read, Some(3));
+        assert_eq!(wire.cache_write, Some(2));
+        assert_eq!(wire.reasoning, Some(4));
+    }
 }
 
 impl Usage {

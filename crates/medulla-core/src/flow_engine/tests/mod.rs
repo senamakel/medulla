@@ -81,6 +81,10 @@ impl HarnessDispatch for RecordingDispatch {
                 usage: crate::protocol::TokenUsage {
                     input_tokens: 0,
                     output_tokens: 0,
+
+                    cache_read: None,
+                    cache_write: None,
+                    reasoning: None,
                 },
                 harness: None,
                 session_id: None,

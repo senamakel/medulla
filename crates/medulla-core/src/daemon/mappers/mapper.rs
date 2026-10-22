@@ -107,6 +107,10 @@ impl HarnessLineMapper {
                         let previous = self.usage.unwrap_or(TokenUsage {
                             input_tokens: 0,
                             output_tokens: 0,
+
+                            cache_read: None,
+                            cache_write: None,
+                            reasoning: None,
                         });
                         // OpenCode's step-finish usage is per-step; Claude and
                         // Codex emit cumulative snapshots. Preserve total usage
@@ -124,6 +128,18 @@ impl HarnessLineMapper {
                                         output_tokens: previous
                                             .output_tokens
                                             .saturating_add(usage.output_tokens),
+                                        cache_read: add_optional(
+                                            previous.cache_read,
+                                            usage.cache_read,
+                                        ),
+                                        cache_write: add_optional(
+                                            previous.cache_write,
+                                            usage.cache_write,
+                                        ),
+                                        reasoning: add_optional(
+                                            previous.reasoning,
+                                            usage.reasoning,
+                                        ),
                                     },
                                 )
                             }
@@ -137,6 +153,12 @@ impl HarnessLineMapper {
                                     output_tokens: previous
                                         .output_tokens
                                         .saturating_add(usage.output_tokens),
+                                    cache_read: add_optional(previous.cache_read, usage.cache_read),
+                                    cache_write: add_optional(
+                                        previous.cache_write,
+                                        usage.cache_write,
+                                    ),
+                                    reasoning: add_optional(previous.reasoning, usage.reasoning),
                                 },
                             ),
                             Provider::Codex => {
@@ -249,5 +271,13 @@ impl HarnessLineMapper {
                 !duplicate
             })
             .collect()
+    }
+}
+
+fn add_optional(previous: Option<i64>, current: Option<i64>) -> Option<i64> {
+    match (previous, current) {
+        (Some(previous), Some(current)) => Some(previous.saturating_add(current)),
+        (Some(value), None) | (None, Some(value)) => Some(value),
+        (None, None) => None,
     }
 }

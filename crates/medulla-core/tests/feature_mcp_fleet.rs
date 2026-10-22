@@ -53,6 +53,10 @@ impl FleetOps for RecordingFleet {
             usage: TokenUsage {
                 input_tokens: 11,
                 output_tokens: 22,
+
+                cache_read: None,
+                cache_write: None,
+                reasoning: None,
             },
             harness: None,
             session_id: None,

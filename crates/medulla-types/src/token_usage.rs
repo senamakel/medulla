@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 /// Token usage a responder reports for a completed task (child harness
 /// consumption, surfaced to the orchestrator).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenUsage {
     /// Tokens the child harness consumed as input/prompt.
     #[serde(rename = "inputTokens")]
@@ -9,6 +9,27 @@ pub struct TokenUsage {
     /// Tokens the child harness produced as output/completion.
     #[serde(rename = "outputTokens")]
     pub output_tokens: i64,
+    /// Cached prompt tokens, when reported.
+    #[serde(
+        default,
+        rename = "cacheReadTokens",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cache_read: Option<i64>,
+    /// Prompt tokens written to cache, when reported.
+    #[serde(
+        default,
+        rename = "cacheWriteTokens",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cache_write: Option<i64>,
+    /// Reasoning tokens included in output, when reported.
+    #[serde(
+        default,
+        rename = "reasoningTokens",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning: Option<i64>,
 }
 
 /// The metering window a paid harness seat renews its allowance on.

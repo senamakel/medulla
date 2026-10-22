@@ -101,6 +101,10 @@ fn a_successful_task_reports_its_reply_and_usage() {
             usage: crate::protocol::TokenUsage {
                 input_tokens: 3,
                 output_tokens: 5,
+
+                cache_read: None,
+                cache_write: None,
+                reasoning: None,
             },
             harness: None,
             session_id: None,
@@ -128,6 +132,10 @@ fn a_result_reports_the_session_that_served_the_task() {
             usage: crate::protocol::TokenUsage {
                 input_tokens: 0,
                 output_tokens: 0,
+
+                cache_read: None,
+                cache_write: None,
+                reasoning: None,
             },
             harness: None,
             session_id: Some("sess-42".to_string()),
@@ -150,6 +158,10 @@ fn a_result_claims_no_session_the_worker_did_not_report() {
             usage: crate::protocol::TokenUsage {
                 input_tokens: 0,
                 output_tokens: 0,
+
+                cache_read: None,
+                cache_write: None,
+                reasoning: None,
             },
             harness: None,
             session_id: session_id.map(str::to_string),
