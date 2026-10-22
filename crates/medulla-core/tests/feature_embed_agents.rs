@@ -9,6 +9,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
+// OpenHuman's native embedding keeps an account/runtime singleton in-process,
+// so scenarios that start it must not overlap within this integration-test
+// binary. The scenarios still run on their own large-stack worker threads.
+static EMBED_RUNTIME_TEST_LOCK: Mutex<()> = Mutex::new(());
+
 async fn wait_for_pid(path: &std::path::Path) -> u32 {
     tokio::time::timeout(std::time::Duration::from_secs(10), async {
         loop {
@@ -161,6 +166,9 @@ fn options(
 
 #[test]
 fn native_agents_keep_each_workers_context_private_and_resume_their_own_session() {
+    let _runtime_lock = EMBED_RUNTIME_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     std::thread::Builder::new()
         .stack_size(medulla::tokio_tuning::WORKER_STACK_BYTES)
         .spawn(native_agents_scenario)
@@ -172,6 +180,9 @@ fn native_agents_keep_each_workers_context_private_and_resume_their_own_session(
 #[test]
 #[cfg(target_os = "linux")]
 fn embedded_openhuman_shell_process_is_nested_under_a_pidless_row() {
+    let _runtime_lock = EMBED_RUNTIME_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     std::thread::Builder::new()
         .stack_size(medulla::tokio_tuning::WORKER_STACK_BYTES)
         .spawn(embedded_openhuman_shell_scenario)
