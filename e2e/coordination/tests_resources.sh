@@ -48,6 +48,7 @@ PY
 
 main() {
   RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/medulla-resources-e2e-XXXXXX")"
+  EXTERNAL_DIR="${TMPDIR:-/tmp}/coordination-external-$$"
   e2e_init
   boot_llm "export MOCK_LLM_RESPONSE_DELAY_MS=15000"
 
@@ -149,12 +150,12 @@ PY
 
   # A second process has the harness executable basename but was started by
   # tmux, outside Medulla. It has no registry entry and must render as external.
-  mkdir -p "$RUN_DIR/external-bin"
+  mkdir -p "$EXTERNAL_DIR"
   local external_name="$HARNESS"
-  cp "$(command -v python3)" "$RUN_DIR/external-bin/$external_name"
+  cp "$(command -v python3)" "$EXTERNAL_DIR/$external_name"
   cat > "$RUN_DIR/external.cmd" <<EOF
 #!/usr/bin/env bash
-"$RUN_DIR/external-bin/$external_name" -c 'import time; time.sleep(180)' >/dev/null 2>&1 &
+"$EXTERNAL_DIR/$external_name" -c 'import time; time.sleep(180)' >/dev/null 2>&1 &
 echo \$! > $(printf %q "$RUN_DIR/external.pid")
 wait
 EOF
