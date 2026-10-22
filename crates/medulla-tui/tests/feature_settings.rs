@@ -24,6 +24,11 @@ fn loaded() -> LoadedConfig {
     l
 }
 
+fn focus_settings_page(app: &mut App, name: &str) {
+    let _ = app.focus_settings_subpage(name);
+    assert_eq!(app.settings_subpage(), name);
+}
+
 fn settings_app() -> App {
     let rt = Arc::new(MockRuntime::demo());
     let mut app = App::new(rt, loaded());
@@ -120,7 +125,7 @@ fn arrow_keys_move_subpage_selector() {
 #[test]
 fn status_line_selection_scrolls_into_view_on_a_short_terminal() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('4'));
+    focus_settings_page(&mut app, "Status line");
     // Walk to the final path-style qualifier. Thread name and worktree each add
     // two rows ahead of the path group, so this must cover the complete
     // status-line catalog.
@@ -139,7 +144,7 @@ fn status_line_selection_scrolls_into_view_on_a_short_terminal() {
 #[test]
 fn a_status_line_field_is_headed_described_and_its_choices_spelled_out() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('4'));
+    focus_settings_page(&mut app, "Status line");
     // Down four times: the harness group's "spelled" row.
     for _ in 0..4 {
         let _ = key(&mut app, KeyCode::Down);
@@ -171,7 +176,7 @@ fn a_status_line_field_is_headed_described_and_its_choices_spelled_out() {
 #[test]
 fn appearance_cycling_changes_live_theme() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2')); // Appearance
+    focus_settings_page(&mut app, "Appearance"); // Appearance
     assert_eq!(app.theme_primary(), Color::Red);
     // The primary role is selected first; Right enters the next editor color.
     let _ = key(&mut app, KeyCode::Right);
@@ -190,7 +195,7 @@ fn appearance_cycling_changes_live_theme() {
 #[test]
 fn appearance_jk_selects_role_before_cycling() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2')); // Appearance
+    focus_settings_page(&mut app, "Appearance"); // Appearance
     let primary_before = app.theme_primary();
     // Move off the primary role, then cycle: primary must be untouched.
     let _ = key(&mut app, KeyCode::Char('j')); // select accent
@@ -204,7 +209,7 @@ fn appearance_persists_theme_to_injected_path() {
     let path = dir.path().join("config.toml");
     let mut app = settings_app();
     app.set_config_path(path.clone());
-    let _ = key(&mut app, KeyCode::Char('2')); // Appearance
+    focus_settings_page(&mut app, "Appearance"); // Appearance
     let _ = key(&mut app, KeyCode::Right); // cycle primary
     let text = std::fs::read_to_string(&path).unwrap();
     assert!(text.contains("[theme]"), "theme section written: {text}");
@@ -222,7 +227,7 @@ fn appearance_blink_status_reports_the_boolean_value() {
     let path = dir.path().join("config.toml");
     let mut app = settings_app();
     app.set_config_path(path.clone());
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     for _ in 0..5 {
         let _ = key(&mut app, KeyCode::Char('j'));
     }
@@ -241,7 +246,7 @@ fn appearance_cycles_the_attention_blink_rate_in_seconds() {
     let path = dir.path().join("config.toml");
     let mut app = settings_app();
     app.set_config_path(path.clone());
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     // Five colour rows and the blink toggle land on the rate.
     for _ in 0..6 {
         let _ = key(&mut app, KeyCode::Char('j'));
@@ -267,7 +272,7 @@ fn appearance_cycles_custom_attention_blink_rates_from_each_end() {
     let mut app = settings_app();
     app.set_config_path(path);
     app.set_attention_blink_ms(1_100);
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     for _ in 0..6 {
         let _ = key(&mut app, KeyCode::Char('j'));
     }
@@ -289,7 +294,7 @@ fn appearance_cycles_and_persists_process_indicators() {
     let path = dir.path().join("config.toml");
     let mut app = settings_app();
     app.set_config_path(path.clone());
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     // Five color rows and the two attention controls precede resources.
     for _ in 0..7 {
         let _ = key(&mut app, KeyCode::Char('j'));
@@ -310,7 +315,7 @@ fn appearance_cycles_and_persists_the_sidebar_layout() {
     let path = dir.path().join("config.toml");
     let mut app = settings_app();
     app.set_config_path(path.clone());
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     // Five color rows, the two attention controls, and the seven option rows
     // before it.
     for _ in 0..14 {
@@ -347,7 +352,7 @@ fn appearance_sidebar_grouping_wraps_backwards() {
     // Left from the default is the last value, not a stuck row: the cycle is
     // how every other control on this page behaves.
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     for _ in 0..14 {
         let _ = key(&mut app, KeyCode::Char('j'));
     }
@@ -364,7 +369,7 @@ fn appearance_persists_process_indicators_to_json() {
     std::fs::write(&path, r#"{"unrelated":{"kept":true}}"#).unwrap();
     let mut app = settings_app();
     app.set_config_path(path.clone());
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     // Five color rows and the two attention controls precede resources.
     for _ in 0..7 {
         let _ = key(&mut app, KeyCode::Char('j'));
@@ -456,7 +461,7 @@ fn appearance_cycles_and_persists_device_indicators_independently() {
     let path = dir.path().join("config.toml");
     let mut app = settings_app();
     app.set_config_path(path.clone());
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     // Five color rows, the two attention controls, three process indicators,
     // and Session titles lands on Device CPU.
     for _ in 0..11 {
@@ -633,7 +638,7 @@ fn tab_leaves_the_settings_tab_from_both_focus_states() {
 #[test]
 fn appearance_opens_on_options_with_a_footer_for_the_selected_row() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     let out = text_of(&draw(&mut app, 150, 45));
 
     for group in ["Colors", "Attention", "Status line", "Sessions sidebar"] {
@@ -655,7 +660,7 @@ fn appearance_opens_on_options_with_a_footer_for_the_selected_row() {
 #[test]
 fn appearance_keeps_the_sidebar_settings_in_one_group() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     let out = text_of(&draw(&mut app, 150, 45));
 
     assert!(!out.contains("Agents sidebar"), "one sidebar group: {out}");
@@ -673,7 +678,7 @@ fn appearance_keeps_the_sidebar_settings_in_one_group() {
 #[test]
 fn appearance_puts_the_switches_beside_the_preview_when_it_fits() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     let out = text_of(&draw(&mut app, 150, 45));
 
     assert!(out.contains("Blink rate"), "the switches are drawn: {out}");
@@ -692,7 +697,7 @@ fn appearance_puts_the_switches_beside_the_preview_when_it_fits() {
 #[test]
 fn appearance_folds_to_tabs_on_a_narrow_pane() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     let out = text_of(&draw(&mut app, 90, 45));
 
     assert!(
@@ -720,7 +725,7 @@ fn appearance_folds_to_tabs_on_a_narrow_pane() {
 #[test]
 fn appearance_preview_follows_the_sidebar_grouping() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     assert!(
         text_of(&draw(&mut app, 150, 45)).contains("workstation"),
         "the default grouping sections the sample by host"
@@ -745,7 +750,7 @@ fn appearance_preview_follows_the_sidebar_grouping() {
 #[test]
 fn appearance_preview_shows_the_indicators_that_are_switched_on() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('2'));
+    focus_settings_page(&mut app, "Appearance");
     assert!(
         text_of(&draw(&mut app, 150, 45)).contains("no process indicators are switched on"),
         "the default config enables none of them"
@@ -769,7 +774,7 @@ fn appearance_preview_shows_the_indicators_that_are_switched_on() {
 #[test]
 fn status_line_puts_every_field_beside_the_preview() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('4'));
+    focus_settings_page(&mut app, "Status line");
     let out = text_of(&draw(&mut app, 140, 40));
 
     assert!(
@@ -799,7 +804,7 @@ fn status_line_puts_every_field_beside_the_preview() {
 #[test]
 fn status_line_describes_the_selected_field_in_the_footer() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('4'));
+    focus_settings_page(&mut app, "Status line");
     let out = text_of(&draw(&mut app, 140, 40));
 
     assert!(
@@ -826,7 +831,7 @@ fn status_line_describes_the_selected_field_in_the_footer() {
 #[test]
 fn status_line_folds_to_tabs_on_a_narrow_pane() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('4'));
+    focus_settings_page(&mut app, "Status line");
     let out = text_of(&draw(&mut app, 90, 40));
 
     assert!(
@@ -862,7 +867,7 @@ fn status_line_folds_to_tabs_on_a_narrow_pane() {
 #[test]
 fn status_line_preview_reports_a_plausible_age_on_the_alert_row() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('4'));
+    focus_settings_page(&mut app, "Status line");
 
     let out = text_of(&draw(&mut app, 140, 40));
     assert!(out.contains("45s"), "the sample's age is fixed: {out}");
@@ -872,7 +877,7 @@ fn status_line_preview_reports_a_plausible_age_on_the_alert_row() {
 #[test]
 fn status_line_preview_redraws_as_the_selected_field_changes() {
     let mut app = settings_app();
-    let _ = key(&mut app, KeyCode::Char('4'));
+    focus_settings_page(&mut app, "Status line");
     let before = text_of(&draw(&mut app, 140, 40));
 
     // The state glyph's position is the selected row; hide it.
