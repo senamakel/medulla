@@ -527,7 +527,9 @@ impl LinuxResourceMonitor {
             let Ok(stat) = fs::read_to_string(stat_path) else {
                 continue;
             };
-            let Some(now) = parse_block_stat(&stat) else { continue };
+            let Some(now) = parse_block_stat(&stat) else {
+                continue;
+            };
             if let Some(old) = self.previous.insert(name.clone(), now) {
                 io.insert(name, io_delta(old, now, seconds));
             }
@@ -574,6 +576,10 @@ fn io_delta(old: (u64, u64, u64), new: (u64, u64, u64), seconds: f64) -> IoReadi
 
 #[cfg(target_os = "linux")]
 fn parse_block_stat(contents: &str) -> Option<(u64, u64, u64)> {
-    let values: Vec<u64> = contents.split_whitespace().map(str::parse).collect::<Result<_, _>>().ok()?;
+    let values: Vec<u64> = contents
+        .split_whitespace()
+        .map(str::parse)
+        .collect::<Result<_, _>>()
+        .ok()?;
     (values.len() >= 10).then(|| (values[2], values[6], values[9]))
 }
