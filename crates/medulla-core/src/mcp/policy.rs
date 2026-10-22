@@ -18,7 +18,7 @@ pub(super) fn policy_from_loaded(
         .map(|preset| preset.id.clone())
         .collect();
     crate::workflows::ops::HostPolicy {
-        launch: crate::harness_hooks::LaunchPolicy::from_config(&loaded.config),
+        launch: crate::harness_hooks::launch_policy(&loaded.config),
         workflows: loaded.config.workflows,
         custom_harnesses,
         custom_harness_configs,

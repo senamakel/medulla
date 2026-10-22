@@ -22,7 +22,7 @@ use serde_json::{Map, Value};
 
 use super::types::CodexOverridesError;
 use super::PROVIDER_ID;
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 /// The JSON config document `codex-acp` merges into every session it opens.
 pub const CONFIG_ENV: &str = "CODEX_CONFIG";

@@ -59,7 +59,7 @@ use std::path::Path;
 use fs2::FileExt;
 use tempfile::NamedTempFile;
 
-use crate::harness_hooks::types::HookEvent;
+use crate::harness_hooks::HookEvent;
 
 /// The source Codex keys a `-c hooks=…` command-line override under.
 ///

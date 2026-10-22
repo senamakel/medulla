@@ -250,7 +250,7 @@ pub(super) fn run_cmd(
                 inputs,
                 _config.workflows.clone(),
                 custom_harnesses,
-                medulla::harness_hooks::LaunchPolicy::from_config(_config),
+                medulla::harness_hooks::launch_policy(_config),
                 msg_tx,
             )
         }
@@ -282,7 +282,7 @@ pub(super) fn run_cmd(
             instruction,
             run_id,
             _config.workflows.clone(),
-            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            medulla::harness_hooks::launch_policy(_config),
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
@@ -290,7 +290,7 @@ pub(super) fn run_cmd(
             workflow,
             run_id,
             _config.workflows.clone(),
-            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            medulla::harness_hooks::launch_policy(_config),
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
@@ -312,7 +312,7 @@ pub(super) fn run_cmd(
             workflow,
             instruction,
             _config.workflows.clone(),
-            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            medulla::harness_hooks::launch_policy(_config),
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
@@ -323,7 +323,7 @@ pub(super) fn run_cmd(
             thread,
             instruction,
             _config.workflows.clone(),
-            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            medulla::harness_hooks::launch_policy(_config),
             msg_tx,
         ),
         Cmd::RefreshFleet => {

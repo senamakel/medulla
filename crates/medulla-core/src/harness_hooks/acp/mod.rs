@@ -17,9 +17,9 @@
 
 use serde_json::{json, Map, Value};
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
-use super::types::HooksConfig;
+use medulla_harness::harness_hooks::{HookEvent, HooksConfig};
 
 mod runner;
 mod types;
@@ -41,14 +41,14 @@ pub use types::AcpDelivery;
 /// [`AcpDelivery::notes`] rather than failing or staying silent.
 pub fn delivery(provider: HarnessProvider, hooks: &HooksConfig) -> AcpDelivery {
     let mut delivery = AcpDelivery {
-        notes: super::hook_injection(provider, hooks).notes(),
+        notes: medulla_harness::harness_hooks::hook_injection(provider, hooks).notes(),
         ..AcpDelivery::default()
     };
     let applicable = hooks.for_provider(provider);
     if applicable.is_empty() {
         return delivery;
     }
-    let document = super::native::hook_document(&applicable);
+    let document = medulla_harness::harness_hooks::native_hook_document(&applicable);
     match provider {
         HarnessProvider::Claude => {
             delivery.session_meta = Some(claude_session_meta(&document));
@@ -56,7 +56,7 @@ pub fn delivery(provider: HarnessProvider, hooks: &HooksConfig) -> AcpDelivery {
         HarnessProvider::Codex => {
             delivery.local_post_tool_use = applicable
                 .into_iter()
-                .filter(|hook| hook.event == super::types::HookEvent::PostToolUse)
+                .filter(|hook| hook.event == HookEvent::PostToolUse)
                 .cloned()
                 .collect();
             let unsupported =

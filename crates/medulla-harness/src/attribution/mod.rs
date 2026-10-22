@@ -7,8 +7,8 @@
 //!
 //! # Configuration
 //!
-//! Attribution is config-driven: the `[attribution] commit` config key
-//! ([`crate::config::AttributionConfig`]), on by default.
+//! Attribution is config-driven: the `[attribution] commit` config key in
+//! core's `TuiConfig`, on by default.
 //! Callers resolve it from the loaded config and pass it in — this module never
 //! reads the environment or the filesystem to decide.
 //!
@@ -50,7 +50,7 @@
 
 use std::collections::HashMap;
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 #[cfg(test)]
 mod tests;
@@ -81,8 +81,7 @@ pub fn attribution_trailer() -> String {
 
 /// Extra CLI arguments that make `provider` attribute its commits to Medulla.
 ///
-/// `enabled` is the resolved `attribution.commit` config value — see
-/// [`crate::config::AttributionConfig`]. Returns an empty vector when
+/// `enabled` is the resolved `attribution.commit` config value. Returns an empty vector when
 /// attribution is off, or when the provider has no mechanism to retarget its
 /// trailer (Codex, Opencode). Callers prepend these to the child argv alongside
 /// `MEDULLA_<P>_ARGS`.
@@ -121,7 +120,7 @@ fn claude_settings_json() -> String {
 /// The hook is gated at runtime by `MEDULLA_ATTRIBUTION`.
 ///
 /// `enabled` is the resolved `attribution.commit` config value — see
-/// [`crate::config::AttributionConfig`].
+/// core's resolved `[attribution] commit` config value.
 ///
 /// The hook directory is shared process-wide and outlives every child, so this
 /// is safe to call for concurrent spawns and needs no cleanup from the caller

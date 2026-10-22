@@ -13,7 +13,7 @@
 //! Every built-in runs the same command — `medulla hook <Event>` — against the
 //! Medulla binary that launched the harness. The shim reads the harness's native
 //! payload on stdin and forwards it to the control socket the spawn was already
-//! handed (see [`crate::control_socket`]), authenticating with a hook-only grant
+//! handed by core's control socket, authenticating with a hook-only grant
 //! scoped to that one spawn ([`super::seed_hook_grant`]). It writes nothing to
 //! stdout and always exits zero: a hook that failed loudly would interrupt the
 //! operator's session to report that Medulla's own bookkeeping had a bad day.
@@ -38,7 +38,7 @@
 //! and a built-in Medulla installs everywhere must not be able to change what a
 //! session does. Reporting hooks can only be late, never wrong.
 
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
 
 use super::types::{HookEvent, HookHandler, HookSpec};
 

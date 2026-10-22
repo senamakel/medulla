@@ -8,14 +8,14 @@
 pub mod access;
 
 pub mod analytics;
-pub mod attribution;
+pub use medulla_harness::attribution;
 pub mod auth;
 pub mod bridge;
 pub mod client;
 pub mod clipboard;
 pub mod clock;
 pub mod codex_app_server;
-pub mod codex_overrides;
+pub use medulla_harness::codex_overrides;
 pub mod config;
 pub mod control_socket;
 pub mod daemon;

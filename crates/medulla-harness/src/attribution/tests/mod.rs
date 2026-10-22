@@ -8,5 +8,4 @@ mod policy;
 use super::{
     attribution_args, attribution_trailer, prepare_commit_msg, ATTRIBUTION_EMAIL, ATTRIBUTION_NAME,
 };
-use crate::config::AttributionConfig;
-use crate::protocol::HarnessProvider;
+use medulla_types::HarnessProvider;
