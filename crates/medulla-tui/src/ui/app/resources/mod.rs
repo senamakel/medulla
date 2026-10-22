@@ -315,7 +315,7 @@ fn draw_mem_panel(
             busy_percent: None,
         });
     }
-    if config.show_disks {
+    if config.show_disks && !config.io_mode {
         for disk in disks
             .iter()
             .take(area.height.saturating_sub(lines.len() as u16) as usize)
@@ -350,7 +350,11 @@ fn draw_mem_panel(
     let graph_rows = if config.io_mode && config.show_disks {
         4
     } else if config.mem_graphs {
-        2
+        if config.show_swap && snapshot.swap_total_bytes > 0 {
+            5
+        } else {
+            4
+        }
     } else {
         0
     };
@@ -410,53 +414,40 @@ fn draw_mem_panel(
                 );
             }
         } else if config.mem_graphs {
-            let used: Vec<f32> = snapshot
-                .history
-                .memory_used_bytes
-                .iter()
-                .map(|v| {
-                    if total == 0 {
-                        0.0
-                    } else {
-                        *v as f32 * 100.0 / total as f32
-                    }
-                })
-                .collect();
-            let swap: Vec<f32> = if config.show_swap {
-                snapshot
-                    .history
-                    .swap_used_bytes
+            let percent = |history: &crate::ui::resources::sampler::History<u64>| {
+                history
                     .iter()
-                    .map(|v| {
-                        if snapshot.swap_total_bytes == 0 {
-                            0.0
-                        } else {
-                            *v as f32 * 100.0 / snapshot.swap_total_bytes as f32
-                        }
-                    })
-                    .collect()
-            } else {
-                snapshot
-                    .history
-                    .memory_available_bytes
-                    .iter()
-                    .map(|v| {
+                    .map(|value| {
                         if total == 0 {
                             0.0
                         } else {
-                            *v as f32 * 100.0 / total as f32
+                            *value as f32 * 100.0 / total as f32
                         }
                     })
-                    .collect()
+                    .collect::<Vec<_>>()
             };
-            frame.render_widget(
-                crate::ui::plot::Graph::new(&used),
-                Rect::new(area.x, area.y, area.width, 1),
-            );
-            frame.render_widget(
-                crate::ui::plot::Graph::new(&swap),
-                Rect::new(area.x, area.y + 1, area.width, 1),
-            );
+            let mut series = vec![
+                percent(&snapshot.history.memory_used_bytes),
+                percent(&snapshot.history.memory_available_bytes),
+                percent(&snapshot.history.memory_cached_bytes),
+                percent(&snapshot.history.memory_free_bytes),
+            ];
+            if config.show_swap && snapshot.swap_total_bytes > 0 {
+                series.push(
+                    snapshot
+                        .history
+                        .swap_used_bytes
+                        .iter()
+                        .map(|value| *value as f32 * 100.0 / snapshot.swap_total_bytes as f32)
+                        .collect(),
+                );
+            }
+            for (row, values) in series.iter().take(graph_rows as usize).enumerate() {
+                frame.render_widget(
+                    crate::ui::plot::Graph::new(values),
+                    Rect::new(area.x, area.y + row as u16, area.width, 1),
+                );
+            }
         }
         lines.insert(
             0,

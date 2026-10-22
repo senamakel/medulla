@@ -332,11 +332,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             );
             if mem_graphs && (!io_mode || !show_disks) {
                 let mem = app.resources.rects.mem;
-                let wanted_graph_rows = if show_swap {
-                    5
-                } else {
-                    4
-                };
+                let wanted_graph_rows = if show_swap { 5 } else { 4 };
                 let graph_rows = wanted_graph_rows.min(mem.height.saturating_sub(2) as usize);
                 let visible_graph_rows = (mem.y + 1..mem.y + 1 + graph_rows as u16)
                     .filter(|y| {
