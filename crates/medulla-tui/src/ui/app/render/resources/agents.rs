@@ -261,6 +261,7 @@ pub(in crate::ui::app) fn draw_agents(
     frame: &mut Frame,
     area: Rect,
     snapshot: &ResourceSnapshot,
+    remote_hosts: &[(String, Vec<medulla::protocol::RemoteSessionRow>)],
     state: &mut ResourcesState,
 ) {
     let rows = visible_rows(snapshot, state);
@@ -327,7 +328,7 @@ pub(in crate::ui::app) fn draw_agents(
             "Runtime",
         ])
     };
-    let table_rows: Vec<Row> = rows
+    let mut table_rows: Vec<Row> = rows
         .iter()
         .map(|row| {
             let graph = state
@@ -384,12 +385,71 @@ pub(in crate::ui::app) fn draw_agents(
             item
         })
         .collect();
+    let mut remote_count = 0usize;
+    let mut remote_cpu = 0.0;
+    let mut remote_memory = 0u64;
+    for (host, sessions) in remote_hosts {
+        let remote_agents: Vec<_> = sessions
+            .iter()
+            .filter_map(|session| {
+                let usage = session.usage.as_ref()?;
+                let filter = state.agent_filter.as_deref()?;
+                let query = filter.strip_prefix('!').unwrap_or(filter).to_lowercase();
+                format!("{} {} {} {}", usage.pid, usage.kind, host, session.cwd)
+                    .to_lowercase()
+                    .contains(&query)
+                    .then_some((session, usage))
+            })
+            .chain(sessions.iter().filter_map(|session| {
+                if state.agent_filter.is_some() {
+                    return None;
+                }
+                session.usage.as_ref().map(|usage| (session, usage))
+            }))
+            .collect();
+        if remote_agents.is_empty() {
+            continue;
+        }
+        table_rows.push(
+            Row::new(vec![format!("Remote · {host}")])
+                .style(Style::default().add_modifier(Modifier::BOLD)),
+        );
+        for (session, usage) in remote_agents {
+            remote_count += 1;
+            remote_cpu += usage.cpu;
+            remote_memory += usage.rss;
+            let origin = format!("Remote{{{host}}}");
+            let history = mini_graph(&usage.cpu_history);
+            let cells = if compact {
+                vec![
+                    usage.pid.to_string(),
+                    format!("{} · {origin}", usage.kind),
+                    format!("{:.1}", usage.cpu),
+                    bytes(usage.rss),
+                    duration(0),
+                ]
+            } else {
+                vec![
+                    usage.pid.to_string(),
+                    usage.kind.clone(),
+                    origin,
+                    shorten(&session.cwd, 25),
+                    usage.threads.to_string(),
+                    bytes(usage.rss),
+                    format!("{:.1}", usage.cpu),
+                    history,
+                    duration(0),
+                ]
+            };
+            table_rows.push(Row::new(cells));
+        }
+    }
     let follow = state
         .agent_follow
         .map(|(pid, _)| format!(" · FOLLOW PID {pid}"))
         .unwrap_or_default();
     let title = format!(" Agents{follow} · {} · {} · CPU {:.1}% · Mem {} · ←/→ sort r reverse e tree f filter Enter detail F follow t/k/s signal ",
-            rows.len(), kind_counts(&rows), rows.iter().map(|r| r.cpu).sum::<f64>(), bytes(rows.iter().map(|r| r.memory).sum()));
+            rows.len() + remote_count, kind_counts(&rows), rows.iter().map(|r| r.cpu).sum::<f64>() + remote_cpu, bytes(rows.iter().map(|r| r.memory).sum::<u64>() + remote_memory));
     let widths = if compact {
         vec![
             ratatui::layout::Constraint::Length(7),

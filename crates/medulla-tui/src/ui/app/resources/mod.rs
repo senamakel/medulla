@@ -20,6 +20,11 @@ use super::types::App;
 
 impl App {
     pub(super) fn draw_resources(&mut self, f: &mut Frame, area: Rect) {
+        let remote_agents: Vec<_> = self
+            .remote_hosts
+            .iter()
+            .map(|(host, state)| (host.clone(), state.rows.clone()))
+            .collect();
         let state = &mut self.resources;
         let rects = layout::calc_sizes(area, state.shown, &state.opts);
         state.rects = rects;
@@ -30,6 +35,7 @@ impl App {
                     f,
                     area,
                     &self.resource_snapshot,
+                    &remote_agents,
                     state,
                 );
                 return;
@@ -207,6 +213,7 @@ impl App {
                             f,
                             inner,
                             &self.resource_snapshot,
+                            &remote_agents,
                             state,
                         );
                     }
