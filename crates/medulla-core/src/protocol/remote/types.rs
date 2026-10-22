@@ -57,7 +57,7 @@ pub struct RemoteAttention {
 /// serve views that act on the *local* filesystem, and a client cannot act on
 /// the far side's. Adding them later is additive; sending them now would be
 /// inventing a contract nothing reads.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteSessionRow {
     /// The daemon's own session id (`w_…`), unique on that host.
@@ -183,7 +183,7 @@ pub struct RemoteCapabilities {
 /// it, travel on [`medulla.screen.v1`](super::super::screen) — which already
 /// models a synchronised screen and already has somewhere for input to go, and
 /// which a remote session shares verbatim with a locally-watched one.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RemoteMessage {
     /// Client → daemon: I am here; what can you do?
@@ -241,7 +241,7 @@ pub enum RemoteMessage {
 }
 
 /// A remote message with its version tag, as it appears on the wire.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemoteEnvelope {
     /// Wire version tag ([`REMOTE_PROTO`]).
     pub remote_version: String,
