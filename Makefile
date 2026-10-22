@@ -78,8 +78,8 @@ e2e-live: ## Run the live staging + OpenRouter suite (needs E2E_LIVE=1 and OPENR
 # machine's glibc — see e2e/remote-hosts/Dockerfile.
 e2e-remote-hosts: ## Run the remote-host suite: real sshd, real UDP, two containers
 	cargo build -p medulla-tui --bin medulla
-	docker compose -f e2e/remote-hosts/compose.yaml build
-	docker compose -f e2e/remote-hosts/compose.yaml up \
+	MEDULLA_TARGET_DIR="$$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')" docker compose -f e2e/remote-hosts/compose.yaml build
+	MEDULLA_TARGET_DIR="$$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')" docker compose -f e2e/remote-hosts/compose.yaml up \
 	  --abort-on-container-exit --exit-code-from client --force-recreate; \
 	status=$$?; \
 	docker compose -f e2e/remote-hosts/compose.yaml down -v; \

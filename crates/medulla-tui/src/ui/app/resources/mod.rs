@@ -20,6 +20,11 @@ use super::types::App;
 
 impl App {
     pub(super) fn draw_resources(&mut self, f: &mut Frame, area: Rect) {
+        let remote_agents: Vec<_> = self
+            .remote_hosts
+            .iter()
+            .map(|(host, state)| (host.clone(), state.rows.clone()))
+            .collect();
         let state = &mut self.resources;
         let rects = layout::calc_sizes(area, state.shown, &state.opts);
         state.rects = rects;
@@ -30,6 +35,7 @@ impl App {
                     f,
                     area,
                     &self.resource_snapshot,
+                    &remote_agents,
                     state,
                 );
                 return;
@@ -207,6 +213,7 @@ impl App {
                             f,
                             inner,
                             &self.resource_snapshot,
+                            &remote_agents,
                             state,
                         );
                     }
@@ -420,11 +427,17 @@ impl App {
                 }
                 KeyCode::Enter => {
                     self.resources.agent_filter_editing = false;
-                    let rows = crate::ui::app::render::resources::visible_rows(
+                    let remote_hosts: Vec<_> = self
+                        .remote_hosts
+                        .iter()
+                        .map(|(id, host)| (id.clone(), host.rows.clone()))
+                        .collect();
+                    let rows = crate::ui::app::render::resources::visible_rows_with_remote(
                         &self.resource_snapshot,
+                        &remote_hosts,
                         &self.resources,
                     );
-                    self.resources.agent_selected = rows.first().map(|row| (row.pid, row.started));
+                    self.resources.agent_selected = rows.first().map(|row| row.identity());
                 }
                 KeyCode::Backspace => {
                     self.resources.agent_filter.as_mut().map(String::pop);
@@ -442,14 +455,21 @@ impl App {
             self.resources.agent_detail = false;
             return true;
         }
-        let rows = crate::ui::app::render::resources::visible_rows(
+        let remote_hosts: Vec<_> = self
+            .remote_hosts
+            .iter()
+            .map(|(id, host)| (id.clone(), host.rows.clone()))
+            .collect();
+        let rows = crate::ui::app::render::resources::visible_rows_with_remote(
             &self.resource_snapshot,
+            &remote_hosts,
             &self.resources,
         );
         let selected = self
             .resources
             .agent_selected
-            .and_then(|id| rows.iter().position(|row| (row.pid, row.started) == id))
+            .as_ref()
+            .and_then(|id| rows.iter().position(|row| row.identity() == *id))
             .unwrap_or(0);
         match key {
             KeyCode::Left | KeyCode::Right => {
@@ -489,9 +509,9 @@ impl App {
                     KeyCode::End => rows.len().saturating_sub(1),
                     _ => selected,
                 };
-                self.resources.agent_selected = rows.get(next).map(|row| (row.pid, row.started));
+                self.resources.agent_selected = rows.get(next).map(|row| row.identity());
                 if self.resources.agent_follow.is_some() {
-                    self.resources.agent_follow = self.resources.agent_selected;
+                    self.resources.agent_follow = self.resources.agent_selected.clone();
                 }
                 true
             }
@@ -509,13 +529,21 @@ impl App {
                 true
             }
             KeyCode::Char('F') => {
-                let identity = rows.get(selected).map(|row| (row.pid, row.started));
-                self.resources.agent_follow = match (self.resources.agent_follow, identity) {
+                let identity = rows
+                    .get(selected)
+                    .filter(|row| !row.remote)
+                    .map(|row| row.identity());
+                if identity.is_none() {
+                    self.set_status("Follow is available for local agents only");
+                    return true;
+                }
+                self.resources.agent_follow = match (self.resources.agent_follow.clone(), identity)
+                {
                     (Some(following), Some(selected)) if following == selected => None,
                     (_, selected) => selected,
                 };
                 if self.resources.agent_follow.is_some() {
-                    self.resources.agent_selected = self.resources.agent_follow;
+                    self.resources.agent_selected = self.resources.agent_follow.clone();
                 }
                 true
             }
