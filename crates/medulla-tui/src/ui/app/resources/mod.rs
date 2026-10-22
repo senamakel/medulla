@@ -214,6 +214,9 @@ impl App {
     }
 
     pub(in crate::ui::app) fn resources_key(&mut self, key: crossterm::event::KeyCode) -> bool {
+        if self.agent_key(key) {
+            return true;
+        }
         if !self.resources.key(key) {
             return false;
         }
@@ -329,6 +332,74 @@ impl App {
             self.set_status("Resources settings changed (not persisted)");
         }
         true
+    }
+
+    fn agent_key(&mut self, key: crossterm::event::KeyCode) -> bool {
+        use crossterm::event::KeyCode;
+        use types::{AgentSignal, AgentSort};
+        if self.resources.agent_signal_armed.is_some() {
+            let armed = self.resources.agent_signal_armed.take().expect("armed signal");
+            if key == KeyCode::Char('y') {
+                let still_current = self.resource_snapshot.processes.iter().any(|process| process.pid == armed.0 && process.start_time == armed.1);
+                if still_current {
+                    match (self.resources.agent_signal_fn)(armed.0, armed.2) {
+                        Ok(()) => self.set_status(format!("Signal sent to PID {}", armed.0)),
+                        Err(error) => self.set_status(format!("Signal failed: {error}")),
+                    }
+                } else { self.set_status("Process exited before signal was confirmed"); }
+            } else { self.set_status("Process signal cancelled"); }
+            return true;
+        }
+        if self.resources.agent_filter_editing {
+            match key {
+                KeyCode::Esc => { self.resources.agent_filter_editing = false; }
+                KeyCode::Enter => { self.resources.agent_filter_editing = false; self.resources.agent_selected = crate::ui::app::render::resources::agents::visible_rows(&self.resource_snapshot, &self.resources).first().map(|r| (r.pid,r.started)); }
+                KeyCode::Backspace => { self.resources.agent_filter.as_mut().map(String::pop); }
+                KeyCode::Char(c) => self.resources.agent_filter.get_or_insert_with(String::new).push(c),
+                _ => {}
+            }
+            return true;
+        }
+        if self.resources.agent_detail && key == KeyCode::Esc { self.resources.agent_detail = false; return true; }
+        let rows = crate::ui::app::render::resources::agents::visible_rows(&self.resource_snapshot, &self.resources);
+        let selected = self.resources.agent_selected.and_then(|id| rows.iter().position(|row| (row.pid,row.started) == id)).unwrap_or(0);
+        match key {
+            KeyCode::Left | KeyCode::Right => {
+                self.resources.agent_sort = match (self.resources.agent_sort, key == KeyCode::Right) {
+                    (AgentSort::Pid,true) => AgentSort::Kind, (AgentSort::Kind,true) => AgentSort::Origin, (AgentSort::Origin,true) => AgentSort::Workspace,
+                    (AgentSort::Workspace,true) => AgentSort::Threads, (AgentSort::Threads,true) => AgentSort::Memory, (AgentSort::Memory,true) => AgentSort::Cpu,
+                    (AgentSort::Cpu,true) => AgentSort::Runtime, (AgentSort::Runtime,true) => AgentSort::Pid,
+                    (AgentSort::Pid,false) => AgentSort::Runtime, (AgentSort::Runtime,false) => AgentSort::Cpu, (AgentSort::Cpu,false) => AgentSort::Memory,
+                    (AgentSort::Memory,false) => AgentSort::Threads, (AgentSort::Threads,false) => AgentSort::Workspace, (AgentSort::Workspace,false) => AgentSort::Origin,
+                    (AgentSort::Origin,false) => AgentSort::Kind, (AgentSort::Kind,false) => AgentSort::Pid,
+                }; true
+            }
+            KeyCode::Up | KeyCode::Down | KeyCode::PageUp | KeyCode::PageDown | KeyCode::Home | KeyCode::End => {
+                let next = match key { KeyCode::Up => selected.saturating_sub(1), KeyCode::Down => (selected+1).min(rows.len().saturating_sub(1)), KeyCode::PageUp => selected.saturating_sub(10), KeyCode::PageDown => (selected+10).min(rows.len().saturating_sub(1)), KeyCode::Home => 0, KeyCode::End => rows.len().saturating_sub(1), _ => selected };
+                self.resources.agent_selected = rows.get(next).map(|row| (row.pid,row.started)); true
+            }
+            KeyCode::Char('r') => { self.resources.agent_reverse = !self.resources.agent_reverse; true }
+            KeyCode::Char('e') => { self.resources.agent_tree = !self.resources.agent_tree; true }
+            KeyCode::Char('f') | KeyCode::Char('/') => { self.resources.agent_filter_editing = true; self.resources.agent_filter.get_or_insert_with(String::new); true }
+            KeyCode::Char('F') => { self.resources.agent_follow = !self.resources.agent_follow; true }
+            KeyCode::Enter => {
+                if let Some(row) = rows.get(selected) {
+                    if let Some(session) = row.session_id.as_deref() {
+                        self.tab_index = crate::ui::app::types::TABS.iter().position(|tab| *tab == "Sessions").unwrap_or(0);
+                        self.select_session_row(session);
+                    } else { self.resources.agent_detail = true; }
+                }
+                true
+            }
+            KeyCode::Char('t' | 'k' | 's') => {
+                if let Some(row) = rows.get(selected) {
+                    let signal = match key { KeyCode::Char('t') => AgentSignal::Terminate, KeyCode::Char('k') => AgentSignal::Kill, _ => AgentSignal::Stop };
+                    self.resources.agent_signal_armed = Some((row.pid,row.started,signal));
+                }
+                true
+            }
+            _ => false,
+        }
     }
 
     pub(in crate::ui::app) fn resources_click(&mut self, x: u16, y: u16) -> bool {
