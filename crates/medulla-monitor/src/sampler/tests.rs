@@ -327,6 +327,28 @@ fn process_io_peak_decays_instead_of_resetting_to_each_sample() {
     assert_eq!(source.update_disk_peak(0.0, 0.0), 90.0);
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn process_snapshots_include_executable_and_command_for_unregistered_agents() {
+    let mut source = super::SystemResourceSource::default();
+    let snapshot = source.sample();
+    let pid = std::process::id();
+    let process = snapshot
+        .processes
+        .iter()
+        .find(|process| process.pid == pid)
+        .unwrap_or_else(|| panic!("sampler omitted its own process {pid}"));
+
+    assert!(
+        process.exe.as_deref().is_some_and(|exe| !exe.is_empty()),
+        "the process snapshot must include the executable used to classify unregistered agents: {process:?}"
+    );
+    assert!(
+        !process.cmd.is_empty(),
+        "the process snapshot must include argv used to classify unregistered agents: {process:?}"
+    );
+}
+
 #[test]
 fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
     let disks = [
