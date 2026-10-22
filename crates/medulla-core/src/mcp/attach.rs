@@ -416,8 +416,6 @@ pub fn supports_cli_attach(provider: HarnessProvider) -> bool {
     medulla_harness::mcp::supports_cli_attach(provider)
 }
 
-/// Per-invocation Codex configuration for one explicitly attached server.
-
 #[cfg(test)]
 #[path = "attach_tests.rs"]
 mod tests;

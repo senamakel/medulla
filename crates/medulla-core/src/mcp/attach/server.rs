@@ -162,12 +162,6 @@ pub const SERVER_COMMAND_ENV: &str = "MEDULLA_MCP_COMMAND";
 /// every workflow run that session starts, so an operator can see which of the
 /// harnesses on their rail is responsible for a run.
 ///
-/// Untrusted in the sense that anything in the process tree can rewrite it: it
-/// is an attribution hint, never an authorization. Nothing is granted on the
-/// strength of it, and the worst a forged value can do is file a run under the
-/// wrong session in a list.
-pub const ORIGIN_SESSION_ENV: &str = "MEDULLA_ORIGIN_SESSION";
-
 /// Proof that this MCP subprocess was attached by a Medulla launch seam.
 ///
 /// User- and project-level MCP registrations do not carry this value. The
@@ -176,6 +170,7 @@ pub const ORIGIN_SESSION_ENV: &str = "MEDULLA_ORIGIN_SESSION";
 /// surface. This is a provenance guard against accidental ambient discovery,
 /// not a privilege boundary against another process running as the same OS
 /// user: such a process can inspect and reproduce any child environment.
+pub const ORIGIN_SESSION_ENV: &str = "MEDULLA_ORIGIN_SESSION";
 
 /// The binary a spawned tool server runs.
 ///
