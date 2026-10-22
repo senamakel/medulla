@@ -110,12 +110,12 @@ pub const SETTINGS_SUBPAGES: [&str; 11] = [
     "Subscriptions",
     "Status line",
     "Config",
+    "Resources",
     "Feedback",
     "Trace",
     "Context",
     "Account",
     "Help",
-    "Resources",
 ];
 
 /// The left-nav group headings, as `(heading, first subpage index)`.
@@ -135,12 +135,12 @@ pub(in crate::ui::app) const SP_APPEARANCE: usize = 1;
 pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 2;
 pub(in crate::ui::app) const SP_STATUS_LINE: usize = 3;
 pub(in crate::ui::app) const SP_CONFIG: usize = 4;
-pub(in crate::ui::app) const SP_FEEDBACK: usize = 5;
-pub(in crate::ui::app) const SP_TRACE: usize = 6;
-pub(in crate::ui::app) const SP_CONTEXT: usize = 7;
-pub(in crate::ui::app) const SP_ACCOUNT: usize = 8;
-pub(in crate::ui::app) const SP_HELP: usize = 9;
-pub(in crate::ui::app) const SP_RESOURCES: usize = 10;
+pub(in crate::ui::app) const SP_RESOURCES: usize = 5;
+pub(in crate::ui::app) const SP_FEEDBACK: usize = 6;
+pub(in crate::ui::app) const SP_TRACE: usize = 7;
+pub(in crate::ui::app) const SP_CONTEXT: usize = 8;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 9;
+pub(in crate::ui::app) const SP_HELP: usize = 10;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
