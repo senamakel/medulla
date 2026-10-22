@@ -31,6 +31,58 @@ fn settings_app() -> App {
     app
 }
 
+#[test]
+fn resources_settings_page_exposes_every_resources_config_field() {
+    let mut app = settings_app();
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('o'));
+    assert_eq!(app.tab(), "Settings");
+    assert_eq!(app.settings_subpage(), "Resources");
+
+    let out = text_of(&draw(&mut app, 180, 80));
+    for field in [
+        "updateMs", "shownBoxes", "presets", "preset", "cpuBottom", "memBelowNet",
+        "agentsLeft", "cpuGraphUpper", "cpuGraphLower", "cpuInvertLower",
+        "cpuSingleGraph", "tempScale", "freqMode", "showBattery", "memGraphs",
+        "showDisks", "showSwap", "swapDisk", "onlyPhysical", "useFstab",
+        "disksFilter", "ioMode", "ioGraphCombined", "ioGraphSpeeds", "netAuto",
+        "netSync", "netDownload", "netUpload", "netIface", "swapUploadDownload",
+    ] {
+        assert!(out.contains(field), "Resources settings page missing {field}: {out}");
+    }
+    for group in ["GENERAL", "CPU", "MEM", "NET", "AGENTS"] {
+        assert!(out.contains(group), "Resources settings page missing {group} group: {out}");
+    }
+}
+
+#[test]
+fn resources_settings_interval_updates_live_and_persists() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let mut app = settings_app();
+    app.set_config_path(path.clone());
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('o'));
+    let _ = key(&mut app, KeyCode::Right);
+
+    assert_eq!(app.loaded.config.resources.update_interval_ms(), 2_100);
+    assert_eq!(app.resources.interval_ms, 2_100);
+    let path_text = path.to_str().unwrap();
+    let loaded = medulla::config::load_config(Some(path_text), &Default::default(), dir.path())
+        .unwrap();
+    assert_eq!(loaded.config.resources.update_interval_ms(), 2_100);
+}
+
+#[test]
+fn resources_key_opens_settings_help() {
+    let mut app = settings_app();
+    app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
+    let _ = key(&mut app, KeyCode::Char('?'));
+    let out = text_of(&draw(&mut app, 120, 40));
+    assert!(out.contains("Resources key help"), "{out}");
+    assert!(out.contains("←/→"), "{out}");
+}
+
 fn key(app: &mut App, code: KeyCode) -> Option<Cmd> {
     app.on_event(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)))
 }
