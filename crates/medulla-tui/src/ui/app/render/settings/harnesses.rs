@@ -5,7 +5,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-pub(super) use super::super::types::{DetectedProvider, HarnessesView};
+pub(super) use super::super::super::types::{DetectedProvider, HarnessesView};
 
 impl HarnessesView {
     /// Build configuration facts without probing the host or reading files.

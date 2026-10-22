@@ -1,7 +1,8 @@
 //! The Tokens Settings section and its injected, side-effect-free view data.
 
 use medulla::protocol::HarnessProvider;
-use medulla::subscriptions::{MeterId, SubscriptionSnapshot};
+use medulla::config::MeterId;
+use medulla::subscriptions::SubscriptionSnapshot;
 use medulla::ui::events::Usage;
 use ratatui::Frame;
 use ratatui::layout::Rect;
