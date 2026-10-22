@@ -113,8 +113,9 @@ EOF
   esac
   pane="$(capture_app)"
   printf '%s\n' "$pane" > "$RUN_DIR/resources-initial.pane"
-  for title in 'CPU' 'Mem' 'Net' 'Agents'; do
-    printf '%s\n' "$pane" | grep -q "$title" || fail "Resources screen is missing $title title"
+  for title in 'CPU [1]' 'Mem [2]' 'Net [3]' 'Agents [4]'; do
+    printf '%s\n' "$pane" | grep -Fq "┌ $title" \
+      || fail "Resources screen is missing the $title box title"
   done
 
   # The workflow ID is the process registry's task origin until the provider
@@ -205,7 +206,8 @@ PY
   sleep 2
   pane="$(capture_app)"
   printf '%s\n' "$pane" > "$RUN_DIR/resources-agents-hidden.pane"
-  printf '%s\n' "$pane" | grep -q 'Agents' && fail "Agents title remained after pressing 4"
+  printf '%s\n' "$pane" | grep -Fq '┌ Agents [4]' \
+    && fail "Agents box title remained after pressing 4"
   assert_panel_width "$RUN_DIR/resources-agents-hidden.pane" 'Mem [2]' 120
   assert_panel_width "$RUN_DIR/resources-agents-hidden.pane" 'Net [3]' 120
   tmux send-keys -t "$SESSION:resources" 4
