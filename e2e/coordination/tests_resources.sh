@@ -157,27 +157,58 @@ EOF
   tmux send-keys -t "$SESSION:resources" +
   wait_app_regex 'CPU.*2100ms' \
     || fail "pressing + did not advance interval label from 2000ms to 2100ms"
+  tmux send-keys -t "$SESSION:resources" -
+  wait_app_regex 'CPU.*2000ms' \
+    || fail "pressing - did not restore the 2000ms sampler interval"
   log "  Agents visibility, Mem/Net width, and interval controls passed"
 
-  # §7 of resources-tab.md sets the default-cadence average at <=2% of one
-  # core over one minute. Measure the real Medulla process in /proc while the
-  # Resources view is active. This is a conservative upper bound that includes
-  # the rest of the app; Linux is the CI fixture and the result is logged.
+  # §7 of resources-tab.md specifies 1000 processes at a 2000ms cadence, with
+  # sampler CPU p95 <=40ms per tick and <=2% of one core averaged over one
+  # minute. Keep 1000 unclassified sleepers alive so they exercise the real
+  # process walk without filling the Agents table. Process-level /proc stats
+  # conservatively include the rest of Medulla as well as the sampler.
   local perf_seconds="${E2E_RESOURCE_PERF_SECONDS:-60}"
   local app_pid="$(cat "$RUN_DIR/app.pid")"
-  "$PYTHON_BIN" - "$app_pid" "$perf_seconds" <<'PY' || fail "Resources process exceeded the 2% one-core budget"
-import os, sys, time
+  "$PYTHON_BIN" - "$app_pid" "$perf_seconds" <<'PY' || fail "Resources process exceeded the sampler CPU budget"
+import os, subprocess, sys, time
 pid, duration = sys.argv[1], float(sys.argv[2])
-def cpu_ticks():
-    fields = open(f"/proc/{pid}/stat").read().split()
-    return int(fields[13]) + int(fields[14])
-ticks = os.sysconf("SC_CLK_TCK")
-before_ticks, before_time = cpu_ticks(), time.monotonic()
-time.sleep(duration)
-after_ticks, after_time = cpu_ticks(), time.monotonic()
-percent = (after_ticks - before_ticks) / ticks / (after_time - before_time) * 100
-print(f"[e2e] Medulla Resources process CPU: {percent:.3f}% of one core over {after_time-before_time:.1f}s (budget <=2.000%)")
-assert percent <= 2.0, f"process CPU {percent:.3f}% exceeds 2% budget"
+fixtures = []
+try:
+    for _ in range(1000):
+        fixtures.append(subprocess.Popen(["sleep", "120"], stdin=subprocess.DEVNULL,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+    assert len(fixtures) == 1000, f"only started {len(fixtures)} process fixtures"
+    ticks = os.sysconf("SC_CLK_TCK")
+    def cpu_ticks():
+        fields = open(f"/proc/{pid}/stat").read().split()
+        return int(fields[13]) + int(fields[14])
+    if int(duration) < 2:
+        raise ValueError("perf sampling must span at least one sampler tick")
+    interval = 2.0
+    count = max(1, int(duration // interval))
+    points = [cpu_ticks()]
+    start = time.monotonic()
+    for _ in range(count):
+        time.sleep(interval)
+        points.append(cpu_ticks())
+    elapsed = time.monotonic() - start
+    tick_ms = [(points[i + 1] - points[i]) / ticks * 1000 for i in range(count)]
+    average_pct = sum(tick_ms) / (elapsed * 10)
+    ordered = sorted(tick_ms)
+    p95 = ordered[min(len(ordered) - 1, int(0.95 * len(ordered)))]
+    print(f"[e2e] process fixture: {len(fixtures)} unclassified sleepers; Medulla CPU p95={p95:.1f}ms/tick, average={average_pct:.3f}% of one core over {elapsed:.1f}s (limits: <=40ms/tick, <=2.000%)")
+    assert p95 <= 40.0, f"Medulla CPU p95 {p95:.1f}ms per 2s tick exceeds 40ms"
+    assert average_pct <= 2.0, f"Medulla CPU average {average_pct:.3f}% exceeds 2% of one core"
+finally:
+    for proc in fixtures:
+        if proc.poll() is None:
+            proc.terminate()
+    for proc in fixtures:
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 PY
 
   log "PASS: Resources live process scenarios ($HARNESS)"
