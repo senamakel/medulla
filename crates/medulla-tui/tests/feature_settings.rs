@@ -41,17 +41,47 @@ fn resources_settings_page_exposes_every_resources_config_field() {
 
     let out = text_of(&draw(&mut app, 180, 80));
     for field in [
-        "updateMs", "shownBoxes", "presets", "preset", "cpuBottom", "memBelowNet",
-        "agentsLeft", "cpuGraphUpper", "cpuGraphLower", "cpuInvertLower",
-        "cpuSingleGraph", "tempScale", "freqMode", "showBattery", "memGraphs",
-        "showDisks", "showSwap", "swapDisk", "onlyPhysical", "useFstab",
-        "disksFilter", "ioMode", "ioGraphCombined", "ioGraphSpeeds", "netAuto",
-        "netSync", "netDownload", "netUpload", "netIface", "swapUploadDownload",
+        "updateMs",
+        "shownBoxes",
+        "presets",
+        "preset",
+        "cpuBottom",
+        "memBelowNet",
+        "agentsLeft",
+        "cpuGraphUpper",
+        "cpuGraphLower",
+        "cpuInvertLower",
+        "cpuSingleGraph",
+        "tempScale",
+        "freqMode",
+        "showBattery",
+        "memGraphs",
+        "showDisks",
+        "showSwap",
+        "swapDisk",
+        "onlyPhysical",
+        "useFstab",
+        "disksFilter",
+        "ioMode",
+        "ioGraphCombined",
+        "ioGraphSpeeds",
+        "netAuto",
+        "netSync",
+        "netDownload",
+        "netUpload",
+        "netIface",
+        "swapUploadDownload",
     ] {
-        assert!(out.contains(field), "Resources settings page missing {field}: {out}");
+        assert!(
+            out.contains(field),
+            "Resources settings page missing {field}: {out}"
+        );
     }
     for group in ["GENERAL", "CPU", "MEM", "NET", "AGENTS"] {
-        assert!(out.contains(group), "Resources settings page missing {group} group: {out}");
+        assert!(
+            out.contains(group),
+            "Resources settings page missing {group} group: {out}"
+        );
     }
 }
 
@@ -69,8 +99,8 @@ fn resources_settings_interval_updates_live_and_persists() {
     app.tab_index = TABS.iter().position(|t| *t == "Resources").unwrap();
     assert!(text_of(&draw(&mut app, 160, 40)).contains("2100ms"));
     let path_text = path.to_str().unwrap();
-    let loaded = medulla::config::load_config(Some(path_text), &Default::default(), dir.path())
-        .unwrap();
+    let loaded =
+        medulla::config::load_config(Some(path_text), &Default::default(), dir.path()).unwrap();
     assert_eq!(loaded.config.resources.update_interval_ms(), 2_100);
 }
 
