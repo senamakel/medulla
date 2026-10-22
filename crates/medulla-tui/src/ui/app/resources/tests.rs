@@ -344,6 +344,16 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                     visible_graph_rows, graph_rows,
                     "memory series missing at {width}x{height}"
                 );
+                for label in if show_swap {
+                    ["USED", "AVAIL", "CACHE", "FREE", "SWAP"].as_slice()
+                } else {
+                    ["USED", "AVAIL", "CACHE", "FREE"].as_slice()
+                } {
+                    assert!(
+                        text.contains(label),
+                        "memory history series {label} missing at {width}x{height}: {text}"
+                    );
+                }
             }
             if !mem_graphs && !io_mode {
                 assert!(

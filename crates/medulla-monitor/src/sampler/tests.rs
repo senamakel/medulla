@@ -150,11 +150,42 @@ fn resource_history_keeps_each_memory_series_for_graphs() {
     let mut history = super::ResourceHistory::default();
     history.push(&sample, 8);
 
-    assert_eq!(history.memory_used_bytes.iter().copied().collect::<Vec<_>>(), [10]);
-    assert_eq!(history.memory_available_bytes.iter().copied().collect::<Vec<_>>(), [20]);
-    assert_eq!(history.memory_cached_bytes.iter().copied().collect::<Vec<_>>(), [30]);
-    assert_eq!(history.memory_free_bytes.iter().copied().collect::<Vec<_>>(), [40]);
-    assert_eq!(history.swap_used_bytes.iter().copied().collect::<Vec<_>>(), [50]);
+    assert_eq!(
+        history
+            .memory_used_bytes
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [10]
+    );
+    assert_eq!(
+        history
+            .memory_available_bytes
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [20]
+    );
+    assert_eq!(
+        history
+            .memory_cached_bytes
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [30]
+    );
+    assert_eq!(
+        history
+            .memory_free_bytes
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        [40]
+    );
+    assert_eq!(
+        history.swap_used_bytes.iter().copied().collect::<Vec<_>>(),
+        [50]
+    );
 }
 
 #[test]

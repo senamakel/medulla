@@ -427,25 +427,30 @@ fn draw_mem_panel(
                     .collect::<Vec<_>>()
             };
             let mut series = vec![
-                percent(&snapshot.history.memory_used_bytes),
-                percent(&snapshot.history.memory_available_bytes),
-                percent(&snapshot.history.memory_cached_bytes),
-                percent(&snapshot.history.memory_free_bytes),
+                ("USED ", percent(&snapshot.history.memory_used_bytes)),
+                ("AVAIL", percent(&snapshot.history.memory_available_bytes)),
+                ("CACHE", percent(&snapshot.history.memory_cached_bytes)),
+                ("FREE ", percent(&snapshot.history.memory_free_bytes)),
             ];
             if config.show_swap && snapshot.swap_total_bytes > 0 {
-                series.push(
+                series.push((
+                    "SWAP ",
                     snapshot
                         .history
                         .swap_used_bytes
                         .iter()
                         .map(|value| *value as f32 * 100.0 / snapshot.swap_total_bytes as f32)
                         .collect(),
-                );
+                ));
             }
-            for (row, values) in series.iter().take(graph_rows as usize).enumerate() {
+            for (row, (label, values)) in series.iter().take(graph_rows as usize).enumerate() {
                 frame.render_widget(
                     crate::ui::plot::Graph::new(values),
                     Rect::new(area.x, area.y + row as u16, area.width, 1),
+                );
+                frame.render_widget(
+                    Paragraph::new(*label).style(Style::default().fg(Color::DarkGray)),
+                    Rect::new(area.x, area.y + row as u16, 5.min(area.width), 1),
                 );
             }
         }
