@@ -14,7 +14,7 @@ mod tests;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+use sysinfo::{Disks, Networks, Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tokio::sync::watch;
 
 /// A source of resource snapshots, injectable to test task ordering without
@@ -250,6 +250,30 @@ fn may_be_agent_process(name: &str) -> bool {
     )
 }
 
+#[cfg(target_os = "linux")]
+fn pids_in_process_trees(
+    processes: impl IntoIterator<Item = (Pid, Option<Pid>)>,
+    roots: impl IntoIterator<Item = Pid>,
+) -> Vec<Pid> {
+    let mut children = std::collections::HashMap::<Pid, Vec<Pid>>::new();
+    for (pid, parent) in processes {
+        if let Some(parent) = parent {
+            children.entry(parent).or_default().push(pid);
+        }
+    }
+    let mut pending = roots.into_iter().collect::<Vec<_>>();
+    let mut included = std::collections::HashSet::new();
+    while let Some(pid) = pending.pop() {
+        if !included.insert(pid) {
+            continue;
+        }
+        if let Some(descendants) = children.get(&pid) {
+            pending.extend(descendants.iter().copied());
+        }
+    }
+    included.into_iter().collect()
+}
+
 impl ResourceSource for SystemResourceSource {
     fn sample(&mut self) -> ResourceSnapshot {
         let now = Instant::now();
@@ -261,10 +285,7 @@ impl ResourceSource for SystemResourceSource {
         self.system.refresh_cpu_all();
         self.system.refresh_memory();
         let process_refresh = {
-            let refresh = ProcessRefreshKind::nothing()
-                .with_cpu()
-                .with_memory()
-                .with_disk_usage();
+            let refresh = ProcessRefreshKind::nothing();
             #[cfg(target_os = "linux")]
             {
                 refresh
@@ -272,6 +293,9 @@ impl ResourceSource for SystemResourceSource {
             #[cfg(not(target_os = "linux"))]
             {
                 refresh
+                    .with_cpu()
+                    .with_memory()
+                    .with_disk_usage()
                     .with_exe(UpdateKind::OnlyIfNotSet)
                     .with_cmd(UpdateKind::OnlyIfNotSet)
             }
@@ -303,6 +327,28 @@ impl ResourceSource for SystemResourceSource {
                 .filter(|(_, process)| should_refresh_task_details(process.exe(), process.cmd()))
                 .map(|(pid, _)| *pid)
                 .collect();
+            let mut process_metric_pids = pids_in_process_trees(
+                self.system
+                    .processes()
+                    .iter()
+                    .map(|(pid, process)| (*pid, process.parent())),
+                agent_pids.iter().copied(),
+            );
+            if let Ok(current_pid) = sysinfo::get_current_pid() {
+                process_metric_pids.push(current_pid);
+            }
+            process_metric_pids.sort_unstable();
+            process_metric_pids.dedup();
+            if !process_metric_pids.is_empty() {
+                self.system.refresh_processes_specifics(
+                    ProcessesToUpdate::Some(&process_metric_pids),
+                    true,
+                    ProcessRefreshKind::nothing()
+                        .with_cpu()
+                        .with_memory()
+                        .with_disk_usage(),
+                );
+            }
             if !agent_pids.is_empty() {
                 self.system.refresh_processes_specifics(
                     ProcessesToUpdate::Some(&agent_pids),
@@ -311,6 +357,12 @@ impl ResourceSource for SystemResourceSource {
                 );
             }
         }
+        #[cfg(target_os = "linux")]
+        let process_metric_pids = process_metric_pids
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>();
+        #[cfg(not(target_os = "linux"))]
+        let process_metric_pids = self.system.processes().keys().copied().collect::<std::collections::HashSet<_>>();
         self.disks.refresh(true);
         self.networks.refresh(true);
         let networks = self
@@ -359,7 +411,9 @@ impl ResourceSource for SystemResourceSource {
             .processes()
             .iter()
             .filter(|(pid, _)| !task_pids.contains(&pid.as_u32()))
-            .map(|(pid, process)| ProcessSnapshot {
+            .map(|(pid, process)| {
+                let has_metrics = process_metric_pids.contains(pid);
+                ProcessSnapshot {
                 pid: pid.as_u32(),
                 ppid: process.parent().map(|parent| parent.as_u32()),
                 exe: process
@@ -375,19 +429,20 @@ impl ResourceSource for SystemResourceSource {
                     .map(|path| path.to_string_lossy().into_owned()),
                 start_time: process.start_time(),
                 owner_uid: effective_user_id(process),
-                cpu_percent: f64::from(process.cpu_usage()),
-                memory_bytes: process.memory(),
-                disk_read_bytes: if baseline_ready {
+                cpu_percent: if has_metrics { f64::from(process.cpu_usage()) } else { 0.0 },
+                memory_bytes: if has_metrics { process.memory() } else { 0 },
+                disk_read_bytes: if baseline_ready && has_metrics {
                     process.disk_usage().read_bytes
                 } else {
                     0
                 },
-                disk_written_bytes: if baseline_ready {
+                disk_written_bytes: if baseline_ready && has_metrics {
                     process.disk_usage().written_bytes
                 } else {
                     0
                 },
                 threads: process.tasks().map_or(0, |tasks| tasks.len()),
+                }
             })
             .collect();
         let process_index = std::sync::Arc::new(
