@@ -18,6 +18,7 @@ use medulla::config::{
 use medulla::runtime::mock::MockRuntime;
 use medulla::subscriptions::{MeterReading, SubscriptionSnapshot};
 use medulla_tui::ui::app::{App, Cmd, TABS};
+use medulla_monitor::sampler::ResourceSnapshot;
 
 fn loaded() -> LoadedConfig {
     let mut loaded = LoadedConfig::defaults("medulla.tui.json".into());
@@ -418,10 +419,10 @@ fn the_device_and_meter_blocks_share_one_right_edge() {
             ..AppearanceConfig::default()
         },
     );
-    app.set_device_snapshot(medulla_tui::ui::resources::DeviceSnapshot {
-        cpu_fraction: Some(0.42),
+    app.set_resource_snapshot(std::sync::Arc::new(ResourceSnapshot {
+        cpu_percent: 42.0,
         ..Default::default()
-    });
+    }));
     let out = text_of(&draw(&mut app, 140, 40));
     // One footer, one layout: both blocks put their bar and percentage in the
     // same columns against the rail's border.
