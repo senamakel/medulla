@@ -520,7 +520,7 @@ mod tests {
     #[test]
     fn tree_mode_nests_child_processes_under_agent_rows() {
         let snapshot = ResourceSnapshot::default().with_processes(vec![
-            process(10, "claude", 10.0),
+            process(10, "claude", 10.0, 4000),
             ProcessSnapshot {
                 pid: 11,
                 ppid: Some(10),
