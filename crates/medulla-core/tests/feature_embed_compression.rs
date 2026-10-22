@@ -130,6 +130,8 @@ fn loaded_tinyjuice_module_compresses_the_second_request_and_records_workspace_t
 }
 
 fn enabled_scenario() {
+    let standalone = medulla::juice::compress(&medulla::juice::CompressInput::new(FIXTURE));
+    eprintln!("standalone {} -> {}", FIXTURE.len(), standalone.text.len());
     medulla::tokio_tuning::build_runtime().unwrap().block_on(async {
         let (requests, home, _cwd) = run_fixture(std::sync::Arc::new(EmbedHost::default().with_compression_enabled(true))).await;
         let completions: Vec<_> = requests.iter().filter(|request| request.method == wiremock::http::Method::POST && request.url.path() == "/v1/chat/completions").collect();
