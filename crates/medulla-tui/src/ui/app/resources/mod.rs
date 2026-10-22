@@ -337,11 +337,7 @@ fn draw_mem_panel(
         }
     }
     let graph_rows = if config.io_mode && config.show_disks {
-        if config.io_graph_combined {
-            1
-        } else {
-            2
-        }
+        4
     } else if config.mem_graphs {
         2
     } else {
@@ -390,11 +386,16 @@ fn draw_mem_panel(
             } else {
                 frame.render_widget(
                     crate::ui::plot::Graph::new(&reads),
-                    Rect::new(area.x, area.y, area.width, 1),
+                    Rect::new(area.x, area.y, area.width, graph_rows / 2),
                 );
                 frame.render_widget(
                     crate::ui::plot::Graph::new(&writes),
-                    Rect::new(area.x, area.y + 1, area.width, 1),
+                    Rect::new(
+                        area.x,
+                        area.y + graph_rows / 2,
+                        area.width,
+                        graph_rows - graph_rows / 2,
+                    ),
                 );
             }
         } else if config.show_disks {
