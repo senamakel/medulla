@@ -12,7 +12,7 @@ mod model;
 mod picker;
 mod rail_hit;
 
-pub(crate) use harnesses::{DetectedProvider, HarnessesView};
+pub use harnesses::{DetectedProvider, HarnessesView};
 pub use model::*;
 pub(in crate::ui::app) use picker::*;
 pub(in crate::ui::app) use rail_hit::{RailHit, RailHitTarget};

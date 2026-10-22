@@ -14,8 +14,8 @@ use medulla::config::LoadedConfig;
 use medulla::runtime::{ContextItem, Runtime};
 
 use super::types::{
-    App, Cmd, PaneView, ResumePicker, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_SUBSCRIPTIONS,
-    SP_USAGE, TABS,
+    App, Cmd, PaneView, ResumePicker, SETTINGS_SUBPAGES, SP_CONTEXT, SP_FEEDBACK, SP_HARNESSES,
+    SP_SUBSCRIPTIONS, SP_USAGE, TABS,
 };
 
 include!("state_constructor.inc.rs");

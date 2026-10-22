@@ -355,7 +355,7 @@ pub(super) fn run_cmd(
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let result = tokio::task::spawn_blocking(move || {
-                    crate::ui::app::harnesses::collect_harnesses(&config, &sources, &home, &env)
+                    medulla_tui::ui::app::collect_harnesses(&config, &sources, &home, &env)
                 })
                 .await;
                 match result {

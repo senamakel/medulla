@@ -44,7 +44,9 @@ mod workflows;
 mod tests;
 
 pub use crate::ui::util::SPINNER;
+pub use harnesses::collect_harnesses;
 pub use types::{App, Cmd, SETTINGS_SUBPAGES, TABS};
+pub use types::{DetectedProvider, HarnessesView};
 // The pane keys its threads by workflow id with one sentinel for the workflow
 // that does not exist yet; the dispatch that runs a turn needs the same mapping
 // to find that thread's saved transcript.
