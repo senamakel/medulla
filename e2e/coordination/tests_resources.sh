@@ -131,7 +131,7 @@ import sys
 text = open(sys.argv[1], encoding="utf-8").read()
 rows = []
 for line in text.splitlines():
-    fields = line.strip(" │").split()
+    fields = line.replace("│", " ").split()
     if len(fields) >= 3 and fields[0].isdigit() and fields[1].lower() == sys.argv[2].lower():
         rows.append((line, fields))
 assert rows, f"no {sys.argv[2]} process row in Resources pane"
