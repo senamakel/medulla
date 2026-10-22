@@ -360,6 +360,7 @@ async fn a_turn_streams_its_events_and_settles_on_the_result_frame() {
         .iter()
         .any(|e| matches!(e, StreamEvent::Result { .. })));
     session.close().await;
+    drop(session);
     assert!(medulla_monitor::agents::agent_registry()
         .snapshot()
         .into_iter()
