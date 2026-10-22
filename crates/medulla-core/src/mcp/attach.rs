@@ -216,6 +216,12 @@ impl ServerSpec {
     }
 }
 
+impl McpEndpoint for ServerSpec {
+    fn endpoint(&self, session: &str) -> Option<McpServerSpec> {
+        Some(self.clone().for_session(session).render_spec())
+    }
+}
+
 /// The real environment of *this* process — the daemon or TUI itself, not any
 /// task's spawn environment — read only to resolve where this account's own
 /// runtime state lives ([`crate::home::medulla_home`]).
@@ -788,8 +794,7 @@ pub fn attach_cli(
             ));
         }
     }
-    let spec = server_spec(tool_mode.as_deref(), fleet, workflows_on)
-        .map(|spec| spec.for_session(session));
+    let spec = server_spec(tool_mode.as_deref(), fleet, workflows_on);
     let Some(spec) = spec else {
         // A grant was minted for a session that will not carry it. Given back
         // rather than left in the registry, where it would be a live token
@@ -799,19 +804,22 @@ pub fn attach_cli(
         }
         return None;
     };
+    let registration = spec
+        .endpoint(session)
+        .expect("a resolved MCP endpoint always produces a renderable server spec");
     if provider == HarnessProvider::Codex {
         // Codex accepts the same `-c key=value` overrides in interactive and
         // `exec` modes. The launch marker is forwarded by name so its random
         // value does not land in `/proc/<pid>/cmdline`; fleet credentials stay
         // withheld because Codex has no verified server-only secret carrier.
-        let attached = spec
+        let attached = registration
             .env
             .iter()
             .find(|(key, _)| key == ATTACHED_ENV)
             .map(|(_, value)| value.clone())
             .expect("every server spec carries its attachment marker");
         env.insert(ATTACHED_ENV.to_string(), attached);
-        args.extend(codex_config_args(&spec));
+        args.extend(render_codex_config_args(&registration));
         return None;
     }
 
@@ -820,7 +828,7 @@ pub fn attach_cli(
         // Nothing secret to keep off argv or out of the harness's own
         // environment, so the simplest registration — inline, no file to
         // clean up later — is also the safe one.
-        args.push(spec.claude_mcp_config());
+        args.push(claude_mcp_config(&registration));
         return granted.then(|| session.to_string());
     }
     match spec.write_config_file(session) {
@@ -834,7 +842,7 @@ pub fn attach_cli(
             // renders `secret_env` — but a session with no way to reach its
             // grant has no use for one, so it is given back rather than left
             // a live token nothing can ever redeem.
-            args.push(spec.claude_mcp_config());
+            args.push(claude_mcp_config(&registration));
             if granted {
                 revoke_session(session);
             }
@@ -854,9 +862,7 @@ pub fn supports_cli_attach(provider: HarnessProvider) -> bool {
 }
 
 /// Per-invocation Codex configuration for one explicitly attached server.
-fn codex_config_args(spec: &ServerSpec) -> Vec<String> {
-    render_codex_config_args(&spec.render_spec())
-}
+
 
 #[cfg(test)]
 #[path = "attach_tests.rs"]
