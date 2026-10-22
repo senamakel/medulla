@@ -61,6 +61,8 @@ fn settings_tab_renders_nav_and_default_usage_subpage() {
     // Left nav lists every subpage.
     for name in [
         "Usage",
+        "Tokens",
+        "Harnesses",
         "Appearance",
         "Subscriptions",
         "Status line",
@@ -517,6 +519,8 @@ fn each_settings_subpage_renders_its_signature() {
     // Trace and Context moved under Settings > DEBUG.
     let signatures = [
         ("Usage", "This session"),
+        ("Tokens", "Token usage"),
+        ("Harnesses", "Harnesses"),
         ("Appearance", "Appearance"),
         ("Status line", "as on the rail"),
         ("Config", "Effective configuration ·"),
