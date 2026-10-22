@@ -43,6 +43,33 @@ fn known_event_round_trips() {
     assert_eq!(ev, back);
 }
 
+#[test]
+fn inference_provider_attribution_round_trips_and_legacy_events_default_to_none() {
+    let attributed = serde_json::json!({
+        "kind": "inference_end",
+        "tier": "reasoning",
+        "op": "execute_step",
+        "model": "claude-sonnet-4-6",
+        "provider": "claude",
+        "durationMs": 1,
+        "usage": { "inputTokens": 1, "outputTokens": 2 }
+    });
+    let event: TuiEvent = serde_json::from_value(attributed).unwrap();
+    let serialized = serde_json::to_value(&event).unwrap();
+    assert_eq!(serialized["provider"], "claude");
+
+    let legacy = serde_json::json!({
+        "kind": "inference_end",
+        "tier": "reasoning",
+        "op": "execute_step",
+        "model": "claude-sonnet-4-6",
+        "durationMs": 1
+    });
+    let event: TuiEvent = serde_json::from_value(legacy).unwrap();
+    let serialized = serde_json::to_value(event).unwrap();
+    assert!(serialized.get("provider").is_none());
+}
+
 /// One representative JSON per kind, exercising every deserialize arm.
 fn one_of_each() -> Vec<(&'static str, TuiEvent)> {
     vec![

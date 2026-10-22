@@ -117,6 +117,71 @@ fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
 }
 
 #[test]
+fn tokens_app_renders_pricing_only_for_provider_attributed_events() {
+    use crate::ui::app::types::{App, SETTINGS_SUBPAGES, tab_pos};
+    use medulla::config::LoadedConfig;
+    use medulla::runtime::Runtime;
+    use medulla::runtime::mock::MockRuntime;
+    use std::sync::Arc;
+
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.snapshot.session_id = "runtime-session-42".into();
+    app.snapshot.events = vec![
+        serde_json::from_value(serde_json::json!({
+            "seq": 1,
+            "at": 1,
+            "event": {
+                "kind": "inference_end",
+                "tier": "reasoning",
+                "op": "execute_step",
+                "model": "claude-sonnet-4-6",
+                "provider": "claude",
+                "durationMs": 1,
+                "usage": {
+                    "inputTokens": 1_000_000,
+                    "outputTokens": 200_000,
+                    "cacheReadTokens": 100_000,
+                    "cacheWriteTokens": 100_000,
+                    "reasoningTokens": 50_000
+                }
+            }
+        }))
+        .unwrap(),
+        serde_json::from_value(serde_json::json!({
+            "seq": 2,
+            "at": 2,
+            "event": {
+                "kind": "inference_end",
+                "tier": "reasoning",
+                "op": "execute_step",
+                "model": "claude-sonnet-4-6",
+                "durationMs": 1,
+                "usage": { "inputTokens": 1_000_000, "outputTokens": 200_000 }
+            }
+        }))
+        .unwrap(),
+    ];
+    app.tab_index = tab_pos("Settings");
+    app.settings_index = SETTINGS_SUBPAGES
+        .iter()
+        .position(|name| *name == "Tokens")
+        .unwrap();
+
+    let output = rendered(|frame, _| app.draw(frame));
+    for expected in [
+        "runtime-session-42",
+        "Claude",
+        "claude-sonnet-4-6",
+        "cost $6.4050",
+        "unknown provider",
+        "cost unavailable",
+    ] {
+        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+    }
+}
+
+#[test]
 fn harnesses_view_renders_injected_detection_routing_budget_and_customizations() {
     let view = harnesses::HarnessesView {
         providers: vec![
