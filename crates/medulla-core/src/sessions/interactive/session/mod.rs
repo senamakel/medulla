@@ -89,7 +89,8 @@ impl InteractiveSession {
         let mut env = spec.env.clone();
         let hook_grant_session = format!("interactive-{}", uuid::Uuid::new_v4());
         let hook_grant = crate::harness_hooks::seed_hook_grant(hook_grant_session, &mut env);
-        let mut child = Command::new(&spec.bin)
+        let mut command = Command::new(&spec.bin);
+        command
             .args(&args)
             .current_dir(&spec.cwd)
             .env_clear()
@@ -97,9 +98,24 @@ impl InteractiveSession {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|err| format!("failed to start {}: {err}", spec.bin))?;
+            .kill_on_drop(true);
+
+        // ETXTBSY (26) is a transient Unix race: another process can briefly
+        // hold a newly written executable open while this session starts it.
+        // Retry for up to a second, matching the headless provider path.
+        let mut spawn_tries = 0;
+        let mut child = loop {
+            match command.spawn() {
+                Ok(child) => break child,
+                Err(err) if is_text_file_busy(&err) && spawn_tries < 50 => {
+                    spawn_tries += 1;
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Err(err) => {
+                    return Err(format!("failed to start {}: {err}", spec.bin));
+                }
+            }
+        };
 
         let stdin = child.stdin.take().ok_or("child has no stdin")?;
         let stdout = child.stdout.take().ok_or("child has no stdout")?;
@@ -276,6 +292,16 @@ impl InteractiveSession {
             }
         }
     }
+}
+
+#[cfg(unix)]
+fn is_text_file_busy(err: &std::io::Error) -> bool {
+    err.raw_os_error() == Some(26)
+}
+
+#[cfg(not(unix))]
+fn is_text_file_busy(_err: &std::io::Error) -> bool {
+    false
 }
 
 mod types;

@@ -25,6 +25,7 @@ fn end(tier: &str, model: Option<&str>, usage: Option<(i64, i64)>) -> TuiEvent {
         tier: tier.into(),
         op: "execute_step".into(),
         model: model.map(Into::into),
+        provider: None,
         duration_ms: 1,
         usage: usage.map(|(i, o)| Usage {
             input_tokens: i,
@@ -104,4 +105,89 @@ fn observed_model_returns_most_recent_for_tier() {
     assert_eq!(observed_model(&events, "reasoning"), Some("new"));
     assert_eq!(observed_model(&events, "orchestrator"), Some("other"));
     assert_eq!(observed_model(&events, "compress"), None);
+}
+
+#[test]
+fn detailed_usage_preserves_categories_and_model_attribution() {
+    let events = vec![
+        env(
+            1,
+            TuiEvent::InferenceEnd {
+                tier: "reasoning".into(),
+                op: "execute_step".into(),
+                model: Some("claude-sonnet-4-6".into()),
+                provider: None,
+                duration_ms: 1,
+                usage: Some(Usage {
+                    input_tokens: 100,
+                    output_tokens: 20,
+                    cache_read_tokens: Some(30),
+                    cache_write_tokens: Some(10),
+                    reasoning_tokens: Some(5),
+                    ..Default::default()
+                }),
+                content: None,
+                reasoning: None,
+                tool_calls: None,
+            },
+        ),
+        env(
+            2,
+            TuiEvent::InferenceEnd {
+                tier: "reasoning".into(),
+                op: "execute_step".into(),
+                model: Some("claude-sonnet-4-6".into()),
+                provider: None,
+                duration_ms: 1,
+                usage: Some(Usage {
+                    input_tokens: 50,
+                    output_tokens: 10,
+                    cache_read_tokens: Some(15),
+                    cache_write_tokens: Some(5),
+                    reasoning_tokens: Some(2),
+                    ..Default::default()
+                }),
+                content: None,
+                reasoning: None,
+                tool_calls: None,
+            },
+        ),
+    ];
+
+    let details = detailed_usage(&events);
+    assert_eq!(details.len(), 1);
+    let row = &details[0];
+    assert_eq!(row.tier, "reasoning");
+    assert_eq!(row.provider, None);
+    assert_eq!(row.model.as_deref(), Some("claude-sonnet-4-6"));
+    assert_eq!(row.usage.input_tokens, 150);
+    assert_eq!(row.usage.output_tokens, 30);
+    assert_eq!(row.usage.cache_read_tokens, Some(45));
+    assert_eq!(row.usage.cache_write_tokens, Some(15));
+    assert_eq!(row.usage.reasoning_tokens, Some(7));
+}
+
+#[test]
+fn detailed_usage_keeps_reported_and_missing_providers_in_separate_rows() {
+    use crate::protocol::HarnessProvider;
+
+    let mut attributed = end("reasoning", Some("claude-sonnet-4-6"), Some((11, 3)));
+    let TuiEvent::InferenceEnd { provider, .. } = &mut attributed else {
+        unreachable!();
+    };
+    *provider = Some(HarnessProvider::Claude);
+    let events = vec![
+        env(1, attributed),
+        env(2, end("reasoning", Some("claude-sonnet-4-6"), Some((7, 2)))),
+    ];
+
+    let details = detailed_usage(&events);
+    assert_eq!(details.len(), 2);
+    let attributed = details
+        .iter()
+        .find(|row| row.provider == Some(HarnessProvider::Claude))
+        .unwrap();
+    assert_eq!(attributed.usage.input_tokens, 11);
+    let unattributed = details.iter().find(|row| row.provider.is_none()).unwrap();
+    assert_eq!(unattributed.usage.input_tokens, 7);
 }

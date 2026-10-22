@@ -6,6 +6,10 @@
 * [One terminal, not a pile of them](why-one-terminal.md)
 * [Availability](availability.md)
 
+## Product
+
+* [One product, composable primitives](features/one-product.md)
+
 ## Features
 
 * [Sessions](features/sessions.md)

@@ -250,7 +250,7 @@ pub(super) fn run_cmd(
                 inputs,
                 _config.workflows.clone(),
                 custom_harnesses,
-                medulla::harness_hooks::LaunchPolicy::from_config(_config),
+                medulla::harness_hooks::launch_policy(_config),
                 msg_tx,
             )
         }
@@ -282,7 +282,7 @@ pub(super) fn run_cmd(
             instruction,
             run_id,
             _config.workflows.clone(),
-            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            medulla::harness_hooks::launch_policy(_config),
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
@@ -290,7 +290,7 @@ pub(super) fn run_cmd(
             workflow,
             run_id,
             _config.workflows.clone(),
-            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            medulla::harness_hooks::launch_policy(_config),
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
@@ -312,7 +312,7 @@ pub(super) fn run_cmd(
             workflow,
             instruction,
             _config.workflows.clone(),
-            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            medulla::harness_hooks::launch_policy(_config),
             msg_tx,
         ),
         #[cfg(feature = "workflows")]
@@ -323,7 +323,7 @@ pub(super) fn run_cmd(
             thread,
             instruction,
             _config.workflows.clone(),
-            medulla::harness_hooks::LaunchPolicy::from_config(_config),
+            medulla::harness_hooks::launch_policy(_config),
             msg_tx,
         ),
         Cmd::RefreshFleet => {
@@ -337,12 +337,48 @@ pub(super) fn run_cmd(
                 }
             });
         }
+        Cmd::LoadCompressionStats { workspace } => {
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                let result = tokio::task::spawn_blocking(move || {
+                    medulla::juice::read_embedded_stats(&workspace)
+                })
+                .await
+                .map_err(|error| error.to_string())
+                .and_then(|result| result.map_err(|error| error.to_string()));
+                let _ = tx.send(AppMsg::CompressionStatsLoaded(result));
+            });
+        }
         Cmd::LoadSubscriptions(account) => {
             let config = _config.subscriptions.clone();
             let tx = msg_tx.clone();
             tokio::spawn(async move {
                 let snapshot = medulla::subscriptions::sample(&config, account.as_ref()).await;
                 let _ = tx.send(AppMsg::SubscriptionsLoaded(Box::new(snapshot)));
+            });
+        }
+        Cmd::LoadHarnesses {
+            sources,
+            medulla_home,
+        } => {
+            let config = _config.clone();
+            let env: std::collections::HashMap<String, String> = std::env::vars().collect();
+            let home = medulla_home.unwrap_or_else(|| medulla::home::medulla_home(&env));
+            let tx = msg_tx.clone();
+            tokio::spawn(async move {
+                let result = tokio::task::spawn_blocking(move || {
+                    medulla_tui::ui::app::collect_harnesses(&config, &sources, &home, &env)
+                })
+                .await;
+                match result {
+                    Ok(view) => {
+                        let _ = tx.send(AppMsg::HarnessesLoaded(view));
+                    }
+                    Err(error) => {
+                        let _ =
+                            tx.send(AppMsg::Status(format!("Harness detection failed: {error}")));
+                    }
+                }
             });
         }
         Cmd::LoadUsage => {

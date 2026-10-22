@@ -2,7 +2,7 @@
 
 use serde_json::{Map, Value};
 
-use crate::harness_hooks::HookSpec;
+use medulla_harness::harness_hooks::HookSpec;
 
 /// What an ACP-dispatched spawn carries so the operator's hooks run, and what it
 /// could not carry.

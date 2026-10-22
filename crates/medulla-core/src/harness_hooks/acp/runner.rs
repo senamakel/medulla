@@ -16,7 +16,7 @@ use regex::Regex;
 use serde_json::{json, Map, Value};
 use tokio::io::AsyncWriteExt;
 
-use crate::harness_hooks::HookSpec;
+use medulla_harness::harness_hooks::HookSpec;
 
 /// Run matching `PostToolUse` hooks without allowing a hook failure to fail a turn.
 ///

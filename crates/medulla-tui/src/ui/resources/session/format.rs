@@ -3,7 +3,7 @@
 //! Kept apart from sampling so the wording is a pure function of an injected
 //! [`SessionSnapshot`] and can be asserted exactly.
 
-use super::types::SessionSnapshot;
+use medulla_monitor::SessionSnapshot;
 
 /// The session's cost as title segments: CPU, then memory, then disk I/O.
 ///

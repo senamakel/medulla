@@ -1,0 +1,62 @@
+[
+  {
+    "record_identifier_with_long_repeated_key_name": "row-0-é",
+    "measurement_value_with_long_key": 0,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-1-é",
+    "measurement_value_with_long_key": 1,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-2-é",
+    "measurement_value_with_long_key": 2,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-3-é",
+    "measurement_value_with_long_key": 3,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-4-é",
+    "measurement_value_with_long_key": 4,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-5-é",
+    "measurement_value_with_long_key": 5,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-6-é",
+    "measurement_value_with_long_key": 6,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-7-é",
+    "measurement_value_with_long_key": 7,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-8-é",
+    "measurement_value_with_long_key": 8,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-9-é",
+    "measurement_value_with_long_key": 9,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-10-é",
+    "measurement_value_with_long_key": 10,
+    "status_label_with_long_key": "accepted"
+  },
+  {
+    "record_identifier_with_long_repeated_key_name": "row-11-é",
+    "measurement_value_with_long_key": 11,
+    "status_label_with_long_key": "accepted"
+  }
+]

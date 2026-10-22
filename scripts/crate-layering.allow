@@ -1,0 +1,2 @@
+# One exception per line: <crate-package> <dependency-name>.
+# Keep empty unless an issue explicitly justifies an exception.

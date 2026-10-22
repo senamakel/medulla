@@ -2535,12 +2535,14 @@ dependencies = [
  "dirs 6.0.0",
  "fs2",
  "futures",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
  "libc",
+ "medulla-harness",
+ "medulla-juice",
  "medulla-link",
+ "medulla-providers",
+ "medulla-pty",
+ "medulla-tokens",
+ "medulla-types",
  "openhuman-embed",
  "regex",
  "reqwest 0.12.28",
@@ -2563,6 +2565,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "medulla-harness"
+version = "0.13.0"
+dependencies = [
+ "anyhow",
+ "dirs 6.0.0",
+ "fs2",
+ "medulla-providers",
+ "medulla-types",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml 0.8.23",
+ "toml_edit",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "medulla-juice"
+version = "0.13.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tinyjuice",
+]
+
+[[package]]
 name = "medulla-link"
 version = "0.13.0"
 dependencies = [
@@ -2581,6 +2614,66 @@ dependencies = [
 ]
 
 [[package]]
+name = "medulla-monitor"
+version = "0.13.0"
+dependencies = [
+ "serde",
+ "sysinfo 0.37.2",
+]
+
+[[package]]
+name = "medulla-providers"
+version = "0.13.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "futures",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "medulla-types",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "medulla-pty"
+version = "0.13.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "medulla-types",
+ "portable-pty",
+ "serde",
+ "serde_json",
+ "tokio",
+ "unicode-segmentation",
+ "vt100",
+ "vte",
+]
+
+[[package]]
+name = "medulla-tokens"
+version = "0.13.0"
+dependencies = [
+ "dirs 6.0.0",
+ "futures",
+ "medulla-types",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "toml 0.8.23",
+]
+
+[[package]]
 name = "medulla-tui"
 version = "0.13.0"
 dependencies = [
@@ -2592,13 +2685,17 @@ dependencies = [
  "futures",
  "libc",
  "medulla",
+ "medulla-harness",
+ "medulla-juice",
  "medulla-link",
+ "medulla-monitor",
+ "medulla-providers",
+ "medulla-pty",
  "portable-pty",
  "ratatui",
  "rustls",
  "serde",
  "serde_json",
- "sysinfo 0.37.2",
  "tempfile",
  "tokio",
  "toml 0.8.23",
@@ -2607,6 +2704,14 @@ dependencies = [
  "uuid",
  "vt100",
  "vte",
+]
+
+[[package]]
+name = "medulla-types"
+version = "0.13.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3079,6 +3184,7 @@ dependencies = [
  "tinychannels-bus",
  "tinychannels-runtime",
  "tinycomputer-accessibility",
+ "tinycomputer-bus",
  "tinyconnectors",
  "tinyconnectors-bus",
  "tinyflows-drivers",
@@ -5056,13 +5162,20 @@ name = "tinybus"
 version = "0.1.3"
 dependencies = [
  "async-trait",
+ "flate2",
+ "libc",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "tar",
+ "tempfile",
  "thiserror 2.0.21",
  "tinybus-macros",
  "tokio",
+ "toml 1.1.8+spec-1.1.0",
  "tracing",
+ "ureq",
+ "zip",
 ]
 
 [[package]]
@@ -5117,6 +5230,14 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "tinycomputer-bus"
+version = "0.10.1"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

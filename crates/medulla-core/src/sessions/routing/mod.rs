@@ -9,6 +9,7 @@
 //! conversation over a stdin channel it does not have.
 
 use crate::protocol::HarnessProvider;
+pub use medulla_providers::can_resume;
 
 use super::types::{SessionClass, SessionPolicy};
 
@@ -33,15 +34,6 @@ impl Transport {
 /// [`Transport::OneShot`], and their continuity comes from session resume.
 pub fn can_run_interactive(provider: HarnessProvider) -> bool {
     matches!(provider, HarnessProvider::Claude)
-}
-
-/// Whether a provider can resume a previously captured session id.
-///
-/// `claude --resume <id>` and `codex exec resume <id>` both can. `opencode` has
-/// no resume flag, so an unbound `opencode` session runs each turn fresh —
-/// which degrades continuity but never correctness.
-pub fn can_resume(provider: HarnessProvider) -> bool {
-    matches!(provider, HarnessProvider::Claude | HarnessProvider::Codex)
 }
 
 /// Resolve the lifetime class for one stimulus.

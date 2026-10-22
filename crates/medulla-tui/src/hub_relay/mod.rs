@@ -237,7 +237,7 @@ fn workflows_config(
         .ok()
         .and_then(|text| toml::from_str::<medulla::config::TuiConfig>(&text).ok())
         .unwrap_or_default();
-    let launch = medulla::harness_hooks::LaunchPolicy::from_config(&config);
+    let launch = medulla::harness_hooks::launch_policy(&config);
     (config.workflows, launch)
 }
 

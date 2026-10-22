@@ -19,8 +19,8 @@
 //!   what makes its row blink.
 //! - [`handle`] — [`SessionHandle`], one session's own state and its own locks.
 //! - [`manager`] — [`PtyManager`], the registry of those handles.
-//! - [`cell_text`] — the inline string one screen cell's text is stored in.
-//! - [`sync`] — poison-tolerant lock helpers.
+//! - [`medulla_pty::cell_text`] — the inline string one screen cell's text is stored in.
+//! - [`medulla_pty::sync`] — poison-tolerant lock helpers.
 //! - [`types`] — the data model.
 //!
 //! The split between [`handle`] and [`manager`] is what makes this survive a
@@ -31,14 +31,11 @@
 //! docs for the details.
 
 pub mod attention;
-pub mod cell_text;
 pub(crate) mod checkout;
 pub mod dialog;
-pub mod handle;
 pub mod inject;
 pub mod launch;
 pub mod manager;
-mod sync;
 pub mod types;
 
 // Unix-only: every test here drives a real child on a real pseudo-terminal
@@ -48,8 +45,10 @@ pub mod types;
 mod tests;
 
 pub use attention::{lifecycle_cue, row_cue, AttentionKind, HarnessAttention, ATTENTION_GLYPH};
-pub use cell_text::CellText;
-pub use handle::SessionHandle;
 pub use inject::inject_prompt;
-pub use manager::{PtyManager, ScreenCell, ScreenSnapshot};
+pub use manager::PtyManager;
+pub use medulla_pty::cell_text;
+pub use medulla_pty::worker::pty::handle;
+pub use medulla_pty::worker::pty::handle::SessionHandle;
+pub use medulla_pty::{CellText, ScreenCell, ScreenSnapshot};
 pub use types::{CloseAttempt, LaunchSpec, PtyState, SessionControl, SessionOrigin, SessionRow};

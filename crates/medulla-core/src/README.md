@@ -23,7 +23,6 @@ The Rust module tree for the `medulla` SDK crate. `lib.rs` defines the public su
 - [`history_upload/`](./history_upload/) — Sharing local coding-agent history to earn onboarding credit.
 - [`home/`](./home/) — The Medulla home directory and the early `.env` loader.
 - [`hub/`](./hub/) — The task-sender hub — the outbound half of the harness plane.
-- [`inference_proxy/`](./inference_proxy/) — A loopback HTTP proxy that owns Medulla's OpenRouter attribution, so traffic Medulla orchestrated is credited to Medulla rather than to the harness that composed the request.
 - [`init/`](./init/) — Workspace initialisation: registering a directory and authoring its `MEDULLA.md`.
 - [`logging/`](./logging/) — The one line-sink type every subsystem narrates through.
 - [`mcp/`](./mcp/) — Medulla's Model Context Protocol server, offered to the harnesses it spawns: `workflow_*` authoring/run tools and the `fleet_*` verbs.

@@ -237,6 +237,18 @@ fn decodes_a_full_frame() {
 }
 
 #[test]
+fn old_peer_reply_frame_decodes_usage_without_optional_categories() {
+    let body = r#"{"proto":"medulla-task/1","kind":"reply","taskId":"old-peer","text":"done","usage":{"inputTokens":9,"outputTokens":2}}"#;
+    let frame = decode_task_frame(body).expect("legacy frame remains decodable");
+    let usage = frame.usage.expect("usage is present");
+    assert_eq!(usage.input_tokens, 9);
+    assert_eq!(usage.output_tokens, 2);
+    assert_eq!(usage.cache_read, None);
+    assert_eq!(usage.cache_write, None);
+    assert_eq!(usage.reasoning, None);
+}
+
+#[test]
 fn carries_a_model_hint_through_encode_and_decode() {
     let body = encode_task_frame(EncodeFrameInput {
         transport: None,

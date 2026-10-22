@@ -12,8 +12,8 @@ use crate::mcp::{McpSession, RpcError};
 use crate::workflows::authoring::GraphHandle;
 use crate::workflows::ops::{self, StepDetail, Wait};
 
-use super::evolve::ToolMode;
 use super::{run_detail, run_progress};
+use medulla_types::ToolMode;
 
 /// Every tool this server exposes, in the order a model meets them.
 ///

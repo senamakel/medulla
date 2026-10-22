@@ -2,6 +2,15 @@
 
 use super::*;
 
+#[test]
+fn protocol_env_does_not_depend_on_config() {
+    let source = include_str!("env.rs");
+    assert!(
+        !source.contains("use crate::config"),
+        "protocol::env must not depend on config"
+    );
+}
+
 fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
     pairs
         .iter()

@@ -256,7 +256,7 @@ fn intro_lines(intro: Intro, width: usize) -> Vec<TLine<'static>> {
     let dim = Style::default().add_modifier(Modifier::DIM);
     let (blurb, samples) = match intro {
         Intro::NothingSelected => {
-            return vec![TLine::from(Span::styled("Select a workflow first.", dim))]
+            return vec![TLine::from(Span::styled("Select a workflow first.", dim))];
         }
         Intro::New => (
             "Describe what you want to happen and the copilot will build the \
