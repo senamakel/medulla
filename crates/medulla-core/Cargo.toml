@@ -16,6 +16,8 @@ default = ["workflows"]
 # slim build can drop the engine and its jq expression stack; on by default
 # because the shipped TUI exposes workflows.
 workflows = ["dep:tinyflows"]
+# Opts embedded runtime tool-output compaction into the pinned TinyJuice module.
+tinyjuice = ["medulla-juice/tinyjuice", "openhuman-embed/modules"]
 # Test-only. Restores a single escape hatch — `MEDULLA_API_URL` — so the offline
 # end-to-end suites can point a spawned `medulla` binary at a local stub backend.
 # Off by default and never enabled for a shipped build, so the endpoint stays
@@ -24,9 +26,15 @@ workflows = ["dep:tinyflows"]
 test-endpoint-override = []
 
 [dependencies]
+medulla-types = { workspace = true }
+medulla-juice = { workspace = true }
+medulla-providers = { path = "../medulla-providers", features = ["proxy"] }
+medulla-tokens = { workspace = true }
 # The host-link transport (docs/host-link-protocol.md) — how this SDK reaches a
 # remote host. See `crates/medulla-core/src/bridge/link.rs`.
 medulla-link = { workspace = true }
+medulla-pty = { workspace = true }
+medulla-harness = { workspace = true }
 # The backend transport. `client` is a typed surface over this, not a second
 # HTTP client: credential headers, the `{success,data}` envelope, path
 # percent-encoding, and the not-exposed-route gate all live in the SDK.
@@ -43,16 +51,6 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }
-# The loopback inference proxy's server half. `reqwest` is the client half and
-# already links hyper 1.x, so these add no new tree — only the server feature of
-# a crate the graph resolves anyway. Deliberately NOT axum: pulling a router
-# framework into the workspace for one listener with two mount points would
-# link far more than it saves.
-hyper = { workspace = true }
-hyper-util = { workspace = true }
-http = { workspace = true }
-http-body-util = { workspace = true }
-bytes = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 base64 = { workspace = true }
@@ -75,6 +73,7 @@ sysinfo = { workspace = true }
 libc = "0.2"
 
 [dev-dependencies]
+bytes = { workspace = true }
 # `test-util` gives the tests a paused clock. The host-link timeout gate
 # (docs/host-link-protocol.md §6.3) is tested over multi-second windows, which
 # only stay a unit test because time can be advanced rather than waited out.

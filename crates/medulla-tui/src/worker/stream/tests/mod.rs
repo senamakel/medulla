@@ -13,6 +13,5 @@
 //!   who may watch what, and starting or stopping the stream that answers.
 //!   Async and pty-backed.
 
-mod conversion;
 mod dispatch;
 mod sampler;

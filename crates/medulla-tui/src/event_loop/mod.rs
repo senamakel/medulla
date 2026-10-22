@@ -233,6 +233,7 @@ pub(crate) async fn run(
                             );
                         }
                     }
+                    AppMsg::CompressionStatsLoaded(result) => app.set_compression_stats(result),
                     AppMsg::SubscriptionsLoaded(snapshot) => {
                         if let Some(cmd) = app.set_subscriptions(*snapshot) {
                             run_cmd(
@@ -244,6 +245,7 @@ pub(crate) async fn run(
                             );
                         }
                     }
+                    AppMsg::HarnessesLoaded(view) => app.set_harnesses_view(view),
                     AppMsg::OpenResume(chats) => app.open_resume(chats),
                     AppMsg::LoggedOut => {
                         // The runtime's own clear already landed (that is
@@ -432,6 +434,9 @@ pub(crate) async fn run(
                 // on a timer of their own: `due_subscription_refresh` is the
                 // one place that knows whether a sample is switched on, stale,
                 // and not already running.
+                if let Some(cmd) = app.due_compression_refresh((medulla::clock::now_millis().max(0) as u64) / 1000) {
+                    run_cmd(cmd, &runtime, &app.loaded.config, &msg_tx, local_hosts.as_ref());
+                }
                 if let Some(cmd) = app.due_subscription_refresh() {
                     run_cmd(
                         cmd,

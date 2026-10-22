@@ -117,6 +117,9 @@ fn the_context_meter_reports_in_out_and_cache_when_known() {
         output_tokens: 1_500,
         cache_read_tokens: Some(18_000),
         cache_creation_tokens: None,
+        cache_write_tokens: None,
+
+        reasoning_tokens: None,
     });
     let line = context_meter(&usage, 32_000).expect("a used lane has a meter");
     // The window is named, then the breakdown in one bracket.
@@ -140,6 +143,9 @@ fn the_meter_names_a_million_token_window_without_spurious_precision() {
         output_tokens: 900,
         cache_read_tokens: Some(20_000),
         cache_creation_tokens: None,
+        cache_write_tokens: None,
+
+        reasoning_tokens: None,
     });
     let line = context_meter(&usage, 1_000_000).expect("meter");
     // `1M`, not `1.0M`: a decimal point with nothing after it reads as

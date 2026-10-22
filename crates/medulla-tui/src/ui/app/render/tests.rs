@@ -21,6 +21,46 @@ fn app() -> App {
 }
 
 #[test]
+fn status_line_renders_the_injected_process_snapshot() {
+    use crate::ui::resources::ResourceSnapshot;
+    use medulla::config::ResourceDisplay;
+
+    let mut app = app();
+    app.loaded.config.appearance.cpu = ResourceDisplay::Percent;
+    app.resource_monitor.inject(ResourceSnapshot {
+        cpu_fraction: 0.25,
+        memory_bytes: 0,
+        total_memory_bytes: 0,
+        disk_read_bytes_per_second: 0.0,
+        disk_write_bytes_per_second: 0.0,
+        disk_peak_bytes_per_second: 1.0,
+    });
+    let mut terminal =
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 24)).expect("terminal");
+
+    terminal.draw(|f| app.draw(f)).expect("draw");
+    let buffer = terminal.backend().buffer();
+    let status_start = usize::from(buffer.area.width) * usize::from(buffer.area.height - 1);
+    let status_line: String = buffer
+        .content()
+        .iter()
+        .skip(status_start)
+        .take(usize::from(buffer.area.width))
+        .map(|cell| cell.symbol())
+        .collect();
+
+    let expected_left = "○ api.tinyhumans.ai    CPU 25%";
+    let expected_right = "Ready";
+    let padding = usize::from(buffer.area.width)
+        - expected_left.chars().count()
+        - expected_right.chars().count();
+    assert_eq!(
+        status_line,
+        format!("{expected_left}{}{expected_right}", " ".repeat(padding))
+    );
+}
+
+#[test]
 fn compact_tab_labels_shorten_the_current_wide_destinations() {
     assert_eq!(super::compact_tab_label("Sessions", true), "Sess");
     assert_eq!(super::compact_tab_label("Workflows", true), "Flows");

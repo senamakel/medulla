@@ -50,6 +50,6 @@ A remote host is a `[[remoteHosts]]` entry in your config. The first time you op
 * [One terminal, not a pile of them](why-one-terminal.md): what a multiplexer and an ssh session cannot do, and what Medulla does instead.
 * [Availability](availability.md): early alpha and how to request access.
 
-The Features section covers what Medulla does day to day: [sessions](features/sessions.md), [remote machines](features/remote-hosts.md), [harnesses](features/harnesses.md), [attention cues](features/attention.md), and [workflows](features/workflows.md).
+The Features section covers what Medulla does day to day: [sessions](features/sessions.md), [remote machines](features/remote-hosts.md), [harnesses](features/harnesses.md), [attention cues](features/attention.md), and [workflows](features/workflows.md). [One product, composable primitives](features/one-product.md) explains how these capabilities fit together in the Rust workspace.
 
 Running it yourself? The [Developers](developers/) section covers installing the [binary](developers/getting-started.md), the [TUI](developers/the-tui.md), the [CLI](developers/cli-reference.md), [configuration](developers/configuration.md), the [host link protocol](developers/host-link-protocol.md), and the [Rust SDK](developers/sdk.md).

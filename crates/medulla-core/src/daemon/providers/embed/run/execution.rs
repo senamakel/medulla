@@ -235,10 +235,16 @@ pub async fn run_local_task(options: RunTaskOptions) -> Result<RunTaskResult, St
         events: sink.emitted(),
         usage: turn
             .usage
-            .filter(|usage| usage.input_tokens > 0 || usage.output_tokens > 0)
+            .filter(|usage| {
+                usage.input_tokens > 0 || usage.output_tokens > 0 || usage.cached_input_tokens > 0
+            })
             .map(|usage| crate::protocol::TokenUsage {
                 input_tokens: usage.input_tokens.min(i64::MAX as u64) as i64,
                 output_tokens: usage.output_tokens.min(i64::MAX as u64) as i64,
+                cache_read: (usage.cached_input_tokens > 0)
+                    .then_some(usage.cached_input_tokens.min(i64::MAX as u64) as i64),
+                cache_write: None,
+                reasoning: None,
             }),
         session_id: Some(thread_id),
     })

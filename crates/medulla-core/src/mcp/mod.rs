@@ -61,6 +61,7 @@ pub use attach::{
     server_command, sweep_stale_config_files, ServerSpec, ATTACHED_ENV, SERVER_COMMAND_ENV,
 };
 pub use backend::{FleetBackend, OfflineFleet};
+pub use medulla_harness::mcp::{McpEndpoint, McpServerSpec};
 pub use tools::{
     tool_definitions, ToolMode, FLEET_TOOL_NAMES, TOOL_MODE_ENV, TOOL_NAMES, TOOL_SCOPE_ENV,
 };

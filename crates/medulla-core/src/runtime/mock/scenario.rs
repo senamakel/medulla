@@ -72,6 +72,7 @@ impl MockRuntime {
                 tier: "orchestrator".into(),
                 op: "orchestrate".into(),
                 model: Some("gpt-4o".into()),
+                provider: None,
                 duration_ms: 820,
                 usage: Some(Usage {
                     input_tokens: 1200,
@@ -80,6 +81,9 @@ impl MockRuntime {
                     // the context meter's cache segment.
                     cache_read_tokens: Some(840),
                     cache_creation_tokens: None,
+                    cache_write_tokens: None,
+
+                    reasoning_tokens: None,
                 }),
                 content: None,
                 reasoning: None,
@@ -121,6 +125,9 @@ impl MockRuntime {
                         output_tokens: 420,
                         cache_read_tokens: Some(5_100),
                         cache_creation_tokens: None,
+                        cache_write_tokens: None,
+
+                        reasoning_tokens: None,
                     }),
                     depth: 2,
                     contract: None,
@@ -151,6 +158,9 @@ impl MockRuntime {
                         output_tokens: 420,
                         cache_read_tokens: Some(5_100),
                         cache_creation_tokens: None,
+                        cache_write_tokens: None,
+
+                        reasoning_tokens: None,
                     }),
                     depth: 2,
                     contract: None,

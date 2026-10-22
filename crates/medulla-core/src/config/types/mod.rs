@@ -11,12 +11,16 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use medulla_providers::{
+    BudgetConfig, ProviderBudgetConfig, RouterConfig, RouterProviderConfig,
+};
+
 use super::urls::PROD_BACKEND_BASE_URL;
 use super::AppearanceConfig;
 use super::ResourcesConfig;
 use super::SubscriptionsConfig;
 use crate::harness_hooks::HooksConfig;
-use crate::protocol::{BudgetWindow, HarnessProvider};
+use crate::protocol::HarnessProvider;
 use crate::runtime::fleet::{
     AgentDeclaration, CapacitySnapshot, HarnessDescriptor, HostDescriptor, WorkspaceDescriptor,
 };

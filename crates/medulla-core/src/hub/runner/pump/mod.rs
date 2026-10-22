@@ -138,6 +138,10 @@ pub(super) async fn route_frame(
                     usage: frame.usage.unwrap_or(TokenUsage {
                         input_tokens: 0,
                         output_tokens: 0,
+
+                        cache_read: None,
+                        cache_write: None,
+                        reasoning: None,
                     }),
                     harness: frame.harness,
                     // Carried through rather than re-derived: the worker is the

@@ -16,7 +16,10 @@
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
 pub use device::{device_lines, device_width_hint};
-pub use medulla_monitor::{DeviceSnapshot, ResourceSnapshot, SessionSnapshot};
+pub use medulla_monitor::{
+    DeviceMonitor, DeviceSnapshot, ResourceMonitor, ResourceSnapshot, SessionMonitor,
+    SessionSnapshot,
+};
 pub use session::{session_segments, session_usage};
 
 mod device;

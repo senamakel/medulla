@@ -381,13 +381,13 @@ pub const MCP_GRANT_ENV: &str = "MEDULLA_MCP_GRANT";
 /// only because the token it names is minted with
 /// [`super::grants::Grant::hook_only`], which carries no authority beyond
 /// attributing a report to its own session.
-pub const HOOK_SOCKET_ENV: &str = "MEDULLA_HOOK_SOCKET";
+pub use medulla_harness::HOOK_SOCKET_ENV;
 
 /// Environment variable carrying the hook-only grant token for that socket.
 ///
 /// See [`HOOK_SOCKET_ENV`] for why this is a plain environment variable rather
 /// than following the fleet grant's file-based handoff.
-pub const HOOK_GRANT_ENV: &str = "MEDULLA_HOOK_GRANT";
+pub use medulla_harness::HOOK_GRANT_ENV;
 
 /// Internal handoff naming the parent control socket for a nested ACP session.
 ///

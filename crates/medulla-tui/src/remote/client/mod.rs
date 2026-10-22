@@ -40,7 +40,7 @@ pub use bootstrap::{bootstrap, remote_command, ssh_argv, BootstrapError, Bootstr
 pub use task::{RemoteRequest, RemoteUpdate};
 
 use crate::worker::pty::ScreenSnapshot;
-use crate::worker::stream::snapshot_from_grid;
+use medulla_pty::convert::snapshot_from_grid;
 
 /// The bridge address the daemon is known by on this side.
 const HOST_ADDRESS: &str = "medulla-host";

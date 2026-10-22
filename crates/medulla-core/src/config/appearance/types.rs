@@ -2,20 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Formats available for one local-process resource in the TUI status line.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum ResourceDisplay {
-    /// Do not render this resource.
-    #[default]
-    Off,
-    /// Render the resource as a percentage.
-    Percent,
-    /// Render the resource's native value, such as bytes or bytes per second.
-    Value,
-    /// Render a compact bar with a percentage or rate beside it.
-    Bar,
-}
+pub use medulla_tokens::ResourceDisplay;
 
 /// How the Agents sidebar sections its agent rows.
 ///

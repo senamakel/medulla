@@ -8,14 +8,14 @@
 pub mod access;
 
 pub mod analytics;
-pub mod attribution;
+pub use medulla_harness::attribution;
 pub mod auth;
 pub mod bridge;
 pub mod client;
 pub mod clipboard;
 pub mod clock;
 pub mod codex_app_server;
-pub mod codex_overrides;
+pub use medulla_harness::codex_overrides;
 pub mod config;
 pub mod control_socket;
 pub mod daemon;
@@ -29,7 +29,7 @@ pub mod harness_work;
 pub mod history_upload;
 pub mod home;
 pub mod hub;
-pub mod inference_proxy;
+pub use medulla_providers::proxy as inference_proxy;
 pub mod init;
 pub mod logging;
 /// Medulla's own MCP server, offered to the harnesses it spawns.
@@ -44,6 +44,7 @@ pub mod onboarding;
 pub(crate) mod persistence;
 pub mod protocol;
 pub mod resources;
+pub use medulla_juice as juice;
 pub mod runtime;
 pub mod session_history;
 pub mod sessions;

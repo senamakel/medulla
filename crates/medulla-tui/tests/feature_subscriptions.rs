@@ -87,7 +87,7 @@ fn settings_app(config: SubscriptionsConfig) -> App {
     // Entering the page asks for a sample; delivering it is what clears the
     // in-flight flag, so the keys under test are not swallowed by the guard
     // that stops a refresh being queued behind itself.
-    let _ = key(&mut app, KeyCode::Char('3'));
+    let _ = app.focus_settings_subpage("Subscriptions");
     let _ = app.set_subscriptions(sample());
     app
 }

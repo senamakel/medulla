@@ -20,6 +20,7 @@ default = ["workflows"]
 # and out with the engine behind them. Without this the `cfg` blocks here would
 # silently evaluate false, since a crate only sees its *own* features.
 workflows = ["medulla/workflows"]
+tinyjuice = ["medulla/tinyjuice", "medulla-juice/tinyjuice"]
 # Mirrors the SDK's test-only endpoint hatch; see its note there. The e2e login
 # suite is `#[ignore]`d unless this is on, because it cannot reach its stub
 # backend without it.
@@ -27,9 +28,13 @@ test-endpoint-override = ["medulla/test-endpoint-override"]
 
 [dependencies]
 medulla = { workspace = true, default-features = false }
+medulla-juice = { workspace = true }
+medulla-harness = { workspace = true }
+medulla-providers = { path = "../medulla-providers" }
 # The host-link transport: `main.rs` brings the link up before handing the
 # worker loop a bridge over it.
 medulla-link = { workspace = true }
+medulla-pty = { workspace = true }
 medulla-monitor = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

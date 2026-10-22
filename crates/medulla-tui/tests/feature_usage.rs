@@ -48,6 +48,7 @@ fn script_usage(rt: &Arc<MockRuntime>) {
         tier: "orchestrator".into(),
         op: "decide".into(),
         model: Some("orchestrator-model".into()),
+        provider: None,
         duration_ms: 10,
         usage: Some(Usage {
             input_tokens: 1200,
@@ -62,6 +63,7 @@ fn script_usage(rt: &Arc<MockRuntime>) {
         tier: "reasoning".into(),
         op: "execute".into(),
         model: None,
+        provider: None,
         duration_ms: 10,
         usage: Some(Usage {
             input_tokens: 800,
