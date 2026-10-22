@@ -101,6 +101,7 @@ pub struct RemoteServer {
     /// Host process sampler and bounded per-session CPU history for usage rows.
     resource_source: medulla_monitor::sampler::SystemResourceSource,
     usage_sampled_at: Option<Instant>,
+    usage_interval: Duration,
     usage_history: std::collections::HashMap<(u32, u64), Vec<f64>>,
     usage_cache: std::collections::HashMap<String, medulla::protocol::AgentUsage>,
     log: Option<LogFn>,
@@ -125,6 +126,7 @@ impl RemoteServer {
             last_rows: Vec::new(),
             resource_source: medulla_monitor::sampler::SystemResourceSource::default(),
             usage_sampled_at: None,
+            usage_interval: Duration::from_millis(2_000),
             usage_history: std::collections::HashMap::new(),
             usage_cache: std::collections::HashMap::new(),
             log: None,
@@ -134,6 +136,12 @@ impl RemoteServer {
     /// Offer `workspaces` on the client's workspace step.
     pub fn with_workspaces(mut self, workspaces: Vec<String>) -> Self {
         self.capabilities.workspaces = workspaces;
+        self
+    }
+
+    /// Set the minimum time between process usage samples and broadcasts.
+    pub fn with_usage_interval(mut self, interval: Duration) -> Self {
+        self.usage_interval = interval.max(Duration::from_millis(1));
         self
     }
 
@@ -439,7 +447,7 @@ impl RemoteServer {
         let now = Instant::now();
         let sample = self
             .usage_sampled_at
-            .is_none_or(|last| now.duration_since(last) >= Duration::from_millis(2_000));
+            .is_none_or(|last| now.duration_since(last) >= self.usage_interval);
         let snapshot = if sample {
             self.usage_sampled_at = Some(now);
             Some(medulla_monitor::sampler::ResourceSource::sample(
