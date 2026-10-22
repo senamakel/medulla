@@ -28,6 +28,15 @@ This specification focuses on these production direct links. The crate also
 retains a forwarder route for coordination tests; it is not a deployed
 bootstrap, as described in Appendix A.
 
+Session control uses the additive `medulla.remote.v1` messages on reliable
+channel 0. A `Sessions` row may include optional classified process usage
+(kind, PID, CPU, resident memory, thread count, start time, and a short CPU
+history). Hosts sample and publish it no faster than `[resources].updateMs`
+(default 2000 ms); it is omitted when unavailable. The field is optional so
+older and newer clients remain interoperable. Senders trim history and omit
+usage as needed to keep the complete `Sessions` message within channel 0's
+single-message datagram budget; channel 0 cannot fragment a message.
+
 This document is normative. Both endpoints live in the `medulla-link` crate and
 code against it. Where this document and the implementation disagree, this
 document is right.

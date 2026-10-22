@@ -468,26 +468,28 @@ impl RemoteServer {
                     .bracketed_paste(&row.id)
                     .unwrap_or(false);
                 let mut wire = wire_row(row, bracketed);
-                if let Some(pid) = self.sessions.sessions.pid(&row.id) {
-                    if let Some(process) = snapshot.as_ref().and_then(|snapshot| {
-                        snapshot.processes.iter().find(|process| process.pid == pid)
-                    }) {
-                        let identity = (pid, process.start_time);
-                        let history = self.usage_history.entry(identity).or_default();
-                        history.push(process.cpu_percent);
-                        if history.len() > 32 {
-                            history.remove(0);
+                if row.provider != medulla::protocol::HarnessProvider::Shell {
+                    if let Some(pid) = self.sessions.sessions.pid(&row.id) {
+                        if let Some(process) = snapshot.as_ref().and_then(|snapshot| {
+                            snapshot.processes.iter().find(|process| process.pid == pid)
+                        }) {
+                            let identity = (pid, process.start_time);
+                            let history = self.usage_history.entry(identity).or_default();
+                            history.push(process.cpu_percent);
+                            if history.len() > 32 {
+                                history.remove(0);
+                            }
+                            let usage = medulla::protocol::AgentUsage {
+                                kind: sessions::agent_kind(&row.provider.as_wire()),
+                                pid,
+                                cpu: process.cpu_percent,
+                                rss: process.memory_bytes,
+                                threads: process.threads,
+                                started_at: process.start_time,
+                                cpu_history: history.clone(),
+                            };
+                            self.usage_cache.insert(row.id.clone(), usage);
                         }
-                        let usage = medulla::protocol::AgentUsage {
-                            kind: sessions::agent_kind(&row.provider.as_wire()),
-                            pid,
-                            cpu: process.cpu_percent,
-                            rss: process.memory_bytes,
-                            threads: process.threads,
-                            started_at: process.start_time,
-                            cpu_history: history.clone(),
-                        };
-                        self.usage_cache.insert(row.id.clone(), usage);
                     }
                 }
                 wire.usage = self.usage_cache.get(&row.id).cloned();
