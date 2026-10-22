@@ -175,6 +175,48 @@ fn harnesses_view_explains_empty_detection_without_host_probes() {
 }
 
 #[test]
+fn selected_harnesses_page_uses_the_collected_app_snapshot() {
+    use crate::ui::app::types::{tab_pos, App, DetectedProvider, HarnessesView};
+    use medulla::config::LoadedConfig;
+    use medulla::runtime::mock::MockRuntime;
+    use medulla::runtime::Runtime;
+    use std::sync::Arc;
+
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.tab_index = tab_pos("Settings");
+    app.settings_index = SETTINGS_SUBPAGES
+        .iter()
+        .position(|name| *name == "Harnesses")
+        .unwrap();
+    app.set_harnesses_view(HarnessesView {
+        providers: vec![DetectedProvider {
+            name: "Codex".into(),
+            version: None,
+        }],
+        detection_complete: true,
+        routing: vec![("reasoning".into(), "routed-model".into())],
+        budgets: vec![("codex".into(), "remaining 9000".into())],
+        customizations: vec![
+            "Codex overrides: enabled for 1 preset".into(),
+            "skills: 3 managed skills attached".into(),
+        ],
+    });
+
+    let output = rendered(|frame, _| app.draw(frame));
+    for expected in [
+        "Codex",
+        "version unavailable",
+        "routed-model",
+        "remaining 9000",
+        "Codex overrides: enabled for 1 preset",
+        "skills: 3 managed skills attached",
+    ] {
+        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+    }
+}
+
+#[test]
 fn settings_dispatch_renders_both_new_sections_by_selection() {
     use crate::ui::app::types::{App, tab_pos};
     use medulla::config::LoadedConfig;

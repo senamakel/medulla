@@ -5,30 +5,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-
-/// A provider detected by a collector outside the render path.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct DetectedProvider {
-    /// Human-facing provider name.
-    pub name: String,
-    /// Version reported by the collector, when available.
-    pub version: Option<String>,
-}
-
-/// Facts collected before rendering the Harnesses page.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(super) struct HarnessesView {
-    /// Detected providers and versions, if a provider scan has completed.
-    pub providers: Vec<DetectedProvider>,
-    /// Whether the provider scan completed, including an empty result.
-    pub detection_complete: bool,
-    /// Tier-to-model routing rows.
-    pub routing: Vec<(String, String)>,
-    /// Provider budget descriptions.
-    pub budgets: Vec<(String, String)>,
-    /// Applied customization descriptions supplied by the caller.
-    pub customizations: Vec<String>,
-}
+pub(super) use super::super::types::{DetectedProvider, HarnessesView};
 
 impl HarnessesView {
     /// Build configuration facts without probing the host or reading files.
