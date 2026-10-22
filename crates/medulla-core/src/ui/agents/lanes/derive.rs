@@ -1,103 +1,11 @@
-//! The event-stream fold: turn the flat event log into the orchestrator lane
-//! plus one lane per connected roster agent / anonymous task / peer session.
-//! A port of the TS `deriveAgentLanes` essentials. Owns [`derive_agent_lanes`]
-//! and the private lane-collection machinery it drives.
-//!
-//! **The reasoning tier is not a lane.** Since the manager refactor the tier
-//! between the orchestrator and a harness task is 0..N concurrent *managers*,
-//! and the backend deliberately does not stream them: what reaches this client
-//! is the orchestrator and the agents it is managing. A manager is an
-//! implementation detail of how the orchestrator fanned work out, not a
-//! participant the operator talks to or steers, and rendering one lane labelled
-//! "reasoning" for N of them described the pre-4.0.0 topology anyway. Inference
-//! turns on the `reasoning` and `compress` tiers are therefore dropped here
-//! rather than folded into a lane nothing feeds. They remain visible verbatim
-//! under Settings › Trace, which is where a hidden layer belongs.
-
 use std::collections::HashMap;
 
 use crate::runtime::AgentDescriptor;
 use crate::ui::events::{EventEnvelope, TuiEvent};
 
 use super::fmt::{event_kind_color, tokens_suffix, tool_line};
-use super::types::{AgentLane, AgentRole, TaskState, TaskStatus, TurnBlock};
-
-impl Lanes {
-    fn new() -> Self {
-        Lanes {
-            order: Vec::new(),
-            map: HashMap::new(),
-        }
-    }
-    fn insert(&mut self, lane: AgentLane) {
-        if !self.map.contains_key(&lane.key) {
-            self.order.push(lane.key.clone());
-        }
-        self.map.insert(lane.key.clone(), lane);
-    }
-    fn get_mut(&mut self, key: &str) -> Option<&mut AgentLane> {
-        self.map.get_mut(key)
-    }
-    fn contains(&self, key: &str) -> bool {
-        self.map.contains_key(key)
-    }
-    fn into_ordered(self) -> Vec<AgentLane> {
-        let mut map = self.map;
-        self.order
-            .into_iter()
-            .filter_map(|k| map.remove(&k))
-            .collect()
-    }
-}
-
-/// Build a fresh worker-role lane with all optional fields cleared.
-fn new_agent_lane(key: String, label: String) -> AgentLane {
-    AgentLane {
-        key,
-        label,
-        role: AgentRole::Agent,
-        turns: Vec::new(),
-        last_at: 0,
-        tasks: Vec::new(),
-        context_tokens: None,
-        usage: Default::default(),
-        harness_label: None,
-        agent_id: None,
-        session_id: None,
-        parent_agent_id: None,
-        descriptor: None,
-        active_tasks: 0,
-        work: None,
-    }
-}
-
-/// Find-or-create the task by id, bump its turn count/timestamp, optionally push a
-/// block, and return its index.
-fn touch_task(lane: &mut AgentLane, task_id: &str, at: i64, block: Option<TurnBlock>) -> usize {
-    let idx = match lane.tasks.iter().position(|t| t.task_id == task_id) {
-        Some(i) => i,
-        None => {
-            lane.tasks.push(TaskState {
-                task_id: task_id.to_string(),
-                status: TaskStatus::Running,
-                turns: 0,
-                last_at: at,
-                turn_blocks: Vec::new(),
-                attention: None,
-                question_id: None,
-                work: None,
-            });
-            lane.tasks.len() - 1
-        }
-    };
-    let task = &mut lane.tasks[idx];
-    task.turns += 1;
-    task.last_at = at;
-    if let Some(b) = block {
-        task.turn_blocks.push(b);
-    }
-    idx
-}
+use super::helpers::{ensure_lane, ensure_session_lane, new_agent_lane, touch_task, Lanes};
+use super::types::{AgentLane, AgentRole, TurnBlock};
 
 /// Fold the event stream into lanes. Tier turns come from `inference_end`;
 /// worker turns from the `task_*` events; session lanes from session/peer events.
@@ -511,48 +419,3 @@ pub fn derive_agent_lanes(
     out
 }
 
-/// Ensure a worker lane exists for `key`, seeding it from `task_agent` when absent.
-fn ensure_lane(
-    workers: &mut Lanes,
-    key: &str,
-    task_id: &str,
-    task_agent: &HashMap<String, String>,
-    at: i64,
-) {
-    if !workers.contains(key) {
-        // The fallback is an agent id, which for a host-link peer *is* its
-        // address — so it gets the same treatment as one.
-        let mut lane = new_agent_lane(
-            key.to_string(),
-            task_agent
-                .get(task_id)
-                .map(|id| crate::ui::util::short_if_address(id))
-                .unwrap_or_else(|| task_id.to_string()),
-        );
-        lane.last_at = at;
-        if let Some(a) = task_agent.get(task_id) {
-            lane.agent_id = Some(a.clone());
-        }
-        workers.insert(lane);
-    }
-}
-
-/// Ensure a session lane exists for `key`, tagging its parent machine.
-fn ensure_session_lane(workers: &mut Lanes, key: &str, agent_id: &str, session_id: &str, at: i64) {
-    if !workers.contains(key) {
-        // A session id is a UUID — 36 characters of the same opaque noise an
-        // address is, and it sits in the same rail measuring the same sidebar.
-        // Shortened unconditionally rather than sniffed: we know what this is.
-        let mut lane = new_agent_lane(
-            key.to_string(),
-            format!("↳ {}", crate::ui::util::short_address(session_id)),
-        );
-        lane.last_at = at;
-        lane.session_id = Some(session_id.to_string());
-        lane.parent_agent_id = Some(agent_id.to_string());
-        workers.insert(lane);
-    }
-}
-
-mod types;
-use types::Lanes;
