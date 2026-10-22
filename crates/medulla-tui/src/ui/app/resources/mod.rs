@@ -398,7 +398,7 @@ fn draw_mem_panel(
                     ),
                 );
             }
-        } else if config.show_disks {
+        } else if config.mem_graphs {
             let used: Vec<f32> = snapshot
                 .history
                 .memory_used_bytes
