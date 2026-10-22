@@ -372,7 +372,8 @@ fn draw_net_panel(
     let narrow = area.width <= 45;
     if narrow {
         lines.push(Line::from(format!(
-            "↓ {}  ↑ {}",
+            "{} ↓ {}  ↑ {}",
+            selected.interface,
             net_rate(download),
             net_rate(upload)
         )));
