@@ -328,14 +328,14 @@ pub(in crate::ui::app) fn draw_agents(
         if !snapshot
             .processes
             .iter()
-            .any(|process| (process.pid, process.start_time) == following)
+            .any(|process| (process.pid, process.start_time) == (following.pid, following.started) && following.host.is_none())
         {
             state.agent_follow = None;
-            if state.agent_selected == Some(following) {
+            if state.agent_selected.as_ref() == Some(&following) {
                 state.agent_selected = None;
             }
-        } else if rows.iter().any(|row| (row.pid, row.started) == following) {
-            state.agent_selected = Some(following);
+        } else if rows.iter().any(|row| row.identity() == following) {
+            state.agent_selected = Some(following.clone());
         }
     }
     let now = std::time::Instant::now();
@@ -343,7 +343,7 @@ pub(in crate::ui::app) fn draw_agents(
         .agent_last_sample
         .is_none_or(|last| now.duration_since(last).as_millis() >= u128::from(state.interval_ms));
     let current: std::collections::HashSet<_> =
-        rows.iter().map(|row| (row.pid, row.started)).collect();
+        rows.iter().map(AgentRow::identity).collect();
     state
         .agent_cpu_history
         .retain(|identity, _| current.contains(identity));
@@ -351,7 +351,7 @@ pub(in crate::ui::app) fn draw_agents(
         for row in &rows {
             let history = state
                 .agent_cpu_history
-                .entry((row.pid, row.started))
+                .entry(row.identity())
                 .or_default();
             history.push(row.cpu);
             if history.len() > 24 {
@@ -365,7 +365,7 @@ pub(in crate::ui::app) fn draw_agents(
             frame,
             area,
             rows.iter()
-                .find(|r| Some((r.pid, r.started)) == state.agent_selected),
+                .find(|r| Some(r.identity()) == state.agent_selected),
         );
         draw_signal_confirmation(frame, area, snapshot, state);
         return;
@@ -392,7 +392,7 @@ pub(in crate::ui::app) fn draw_agents(
         .map(|row| {
             let graph = state
                 .agent_cpu_history
-                .get(&(row.pid, row.started))
+                .get(&row.identity())
                 .map(|history| mini_graph(history))
                 .unwrap_or_default();
             let workspace = shorten(&row.workspace, if compact { 18 } else { 25 });
@@ -434,7 +434,7 @@ pub(in crate::ui::app) fn draw_agents(
                 ]
             };
             let mut item = Row::new(cells);
-            if Some((row.pid, row.started)) == selected {
+            if Some(row.identity()) == selected {
                 item = item.style(
                     Style::default()
                         .fg(Color::Cyan)
