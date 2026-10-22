@@ -370,7 +370,7 @@ pub(in crate::ui::app) fn draw_agents(
         draw_signal_confirmation(frame, area, snapshot, state);
         return;
     }
-    let selected = state.agent_selected;
+    let selected = state.agent_selected.clone();
     let compact = area.width < 105;
     let header = if compact {
         Row::new(["PID", "Agent / Origin", "CPU", "Mem", "Run"])
@@ -387,7 +387,7 @@ pub(in crate::ui::app) fn draw_agents(
             "Runtime",
         ])
     };
-    let mut table_rows: Vec<Row> = rows
+    let table_rows: Vec<Row> = rows
         .iter()
         .map(|row| {
             let graph = state
