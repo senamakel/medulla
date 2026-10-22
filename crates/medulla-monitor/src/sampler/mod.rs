@@ -527,14 +527,7 @@ impl LinuxResourceMonitor {
             let Ok(stat) = fs::read_to_string(stat_path) else {
                 continue;
             };
-            let v: Vec<u64> = stat
-                .split_whitespace()
-                .filter_map(|v| v.parse().ok())
-                .collect();
-            if v.len() < 10 {
-                continue;
-            }
-            let now = (v[2], v[6], v[9]);
+            let Some(now) = parse_block_stat(&stat) else { continue };
             if let Some(old) = self.previous.insert(name.clone(), now) {
                 io.insert(name, io_delta(old, now, seconds));
             }
@@ -577,4 +570,10 @@ fn io_delta(old: (u64, u64, u64), new: (u64, u64, u64), seconds: f64) -> IoReadi
         write_rate: new.1.saturating_sub(old.1).saturating_mul(512) as f64 / seconds,
         busy: (new.2.saturating_sub(old.2) as f64 / seconds / 10.0).clamp(0.0, 100.0),
     }
+}
+
+#[cfg(target_os = "linux")]
+fn parse_block_stat(contents: &str) -> Option<(u64, u64, u64)> {
+    let values: Vec<u64> = contents.split_whitespace().map(str::parse).collect::<Result<_, _>>().ok()?;
+    (values.len() >= 10).then(|| (values[2], values[6], values[9]))
 }

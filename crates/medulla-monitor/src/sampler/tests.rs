@@ -264,7 +264,9 @@ fn linux_meminfo_reports_available_and_cached_with_legacy_fallback() {
 #[cfg(target_os = "linux")]
 #[test]
 fn linux_block_stat_deltas_report_read_write_rates_and_busy_percent() {
-    let reading = super::io_delta((100, 200, 300), (110, 220, 450), 2.0);
+    let before = super::parse_block_stat("8 0 100 500 8 0 200 900 0 300 1400").unwrap();
+    let after = super::parse_block_stat("8 0 110 700 8 0 220 1300 0 450 2000").unwrap();
+    let reading = super::io_delta(before, after, 2.0);
     assert_eq!(reading.read_rate, 2_560.0);
     assert_eq!(reading.write_rate, 5_120.0);
     assert_eq!(reading.busy, 7.5);
