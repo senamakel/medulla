@@ -118,8 +118,8 @@ EOF
       || fail "Resources screen is missing the $title box title"
   done
 
-  # The workflow ID is the process registry's task origin until the provider
-  # reports a native session id. Wait for that exact origin in production text.
+  # The workflow run is the process registry's task origin until the provider
+  # reports a native session id. Wait for the launched run's provider row.
   local task_id="resources-proof" deadline=$(( $(date +%s) + READY_TIMEOUT_S ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     pane="$(capture_app)"
@@ -139,15 +139,25 @@ for line in text.splitlines():
         seen.append(fields)
     for index, token in enumerate(fields):
         if token.lower() == sys.argv[2].lower() and index >= 1 and index + 1 < len(fields) and fields[index - 1].isdigit():
-            rows.append((line, fields[index - 1], fields[index + 1]))
+            origin = fields[index + 1]
+            if origin.lower() == "task" and index + 2 < len(fields):
+                origin = f"task {fields[index + 2]}"
+            rows.append((line, fields[index - 1], origin))
 assert rows, f"no {sys.argv[2]} process row in Resources pane; provider lines={seen!r}"
 line, pid, origin = rows[0]
-assert origin.lower() not in {"external", "host", "task", "—"}, \
+assert origin.lower() not in {"external", "host", "—"}, \
     f"{sys.argv[2]} row is not attributed to its harness session: {line!r}"
-assert sys.argv[3] not in origin, f"expected the provider's concrete session id, got task origin {origin!r}"
-print(f"[e2e] session id {origin} for PID {pid}: {line.strip()}")
+if origin.lower().startswith("task "):
+    assert origin.startswith("task wf:run-"), \
+        f"expected this workflow's run origin, got {origin!r}"
+    assert sys.argv[3] in text and f"{sys.argv[3]}: succeeded" in text, \
+        f"the attributed workflow run did not complete successfully: {sys.argv[3]!r}"
+    print(f"[e2e] workflow run origin {origin} for PID {pid}: {line.strip()}")
+else:
+    assert sys.argv[3] not in origin, f"unexpected workflow task origin {origin!r}"
+    print(f"[e2e] provider session id {origin} for PID {pid}: {line.strip()}")
 PY
-  log "  dispatched $HARNESS process is visible with its provider session id"
+  log "  dispatched $HARNESS process is visible with its session or exact workflow-run origin"
 
   # A second process has the harness executable basename but was started by
   # tmux, outside Medulla. It has no registry entry and must render as external.
