@@ -38,7 +38,9 @@ pub fn read_embedded_stats(workspace: &Path) -> io::Result<Option<EmbeddedCompre
     let parsed: SavingsFile = serde_json::from_slice(&bytes)
         .map_err(|error| invalid_data(format!("invalid embedded compression stats: {error}")))?;
     if parsed.total.compacted_tokens > parsed.total.original_tokens {
-        return Err(invalid_data("compacted token count exceeds original token count"));
+        return Err(invalid_data(
+            "compacted token count exceeds original token count",
+        ));
     }
     Ok(Some(EmbeddedCompressionStats {
         events: parsed.total.events,

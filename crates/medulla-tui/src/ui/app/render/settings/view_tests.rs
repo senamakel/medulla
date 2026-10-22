@@ -92,7 +92,10 @@ fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
         },
         compression: Some(medulla::juice::EmbeddedCompressionStats {
             events: 2,
-            tokens: medulla::juice::CompressionTokenTotals { before_tokens: 1200, after_tokens: 300 },
+            tokens: medulla::juice::CompressionTokenTotals {
+                before_tokens: 1200,
+                after_tokens: 300,
+            },
         }),
     };
     let output = rendered(|frame, area| tokens::draw_tokens(frame, area, &view));
@@ -386,13 +389,17 @@ fn existing_usage_page_still_uses_the_legacy_input_output_presentation() {
 
 #[test]
 fn tokens_view_explains_absent_embedded_compression_without_invented_zeroes() {
-    let output = rendered(|frame, area| tokens::draw_tokens(frame, area, &tokens::TokensView::default()));
+    let output =
+        rendered(|frame, area| tokens::draw_tokens(frame, area, &tokens::TokensView::default()));
     for expected in [
         "Local embedded workspace compression",
         "No embedded compression savings reported.",
         "Claude/Codex hooks report usage but do not compress tool output.",
     ] {
-        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+        assert!(
+            output.contains(expected),
+            "missing {expected:?} in:\n{output}"
+        );
     }
     assert!(!output.contains("0 saved"));
     assert!(!output.contains("bytes saved"));

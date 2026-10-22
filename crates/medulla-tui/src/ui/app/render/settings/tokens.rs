@@ -80,11 +80,18 @@ pub(super) fn draw_tokens(f: &mut Frame, area: Rect, view: &TokensView) {
     lines.push(Line::from(""));
     lines.push(Line::from("Local embedded workspace compression"));
     if let Some(stats) = view.compression {
-        lines.push(Line::from(format!("  {} estimated tokens before · {} after · {} saved", stats.tokens.before_tokens, stats.tokens.after_tokens, stats.tokens.saved_tokens())));
+        lines.push(Line::from(format!(
+            "  {} estimated tokens before · {} after · {} saved",
+            stats.tokens.before_tokens,
+            stats.tokens.after_tokens,
+            stats.tokens.saved_tokens()
+        )));
         lines.push(Line::from(format!("  {} compression events", stats.events)));
     } else {
         lines.push(Line::from("  No embedded compression savings reported."));
-        lines.push(Line::from("  Claude/Codex hooks report usage but do not compress tool output."));
+        lines.push(Line::from(
+            "  Claude/Codex hooks report usage but do not compress tool output.",
+        ));
     }
 
     lines.push(Line::from(""));

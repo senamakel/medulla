@@ -13,8 +13,8 @@
 mod account;
 mod appearance;
 mod changes;
-mod compression;
 mod commands;
+mod compression;
 mod decisions;
 mod feedback;
 mod harness_workspace;

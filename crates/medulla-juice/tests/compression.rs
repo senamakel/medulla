@@ -14,20 +14,43 @@ fn reformats_json_table_losslessly_and_reports_unicode_token_estimates() {
                 serde_json::Value::String(text) => text.clone(),
                 other => other.to_string(),
             };
-            assert!(result.text.contains(&rendered), "missing {rendered:?} in {}", result.text);
+            assert!(
+                result.text.contains(&rendered),
+                "missing {rendered:?} in {}",
+                result.text
+            );
         }
     }
     assert_eq!(result.stats.before_bytes, FIXTURE.len());
     assert_eq!(result.stats.after_bytes, result.text.len());
-    assert_eq!(result.stats.before_tokens, FIXTURE.chars().count().div_ceil(4) as u64);
-    assert_eq!(result.stats.after_tokens, result.text.chars().count().div_ceil(4) as u64);
+    assert_eq!(
+        result.stats.before_tokens,
+        FIXTURE.chars().count().div_ceil(4) as u64
+    );
+    assert_eq!(
+        result.stats.after_tokens,
+        result.text.chars().count().div_ceil(4) as u64
+    );
 }
 
 #[cfg(feature = "tinyjuice")]
 #[test]
 fn preserves_inputs_that_are_not_faithfully_reformatted() {
-    let too_many_rows = format!("[{}]", (0..45).map(|n| format!("{{\"key\":\"{n}\",\"repeated_long_field_name\":\"value\"}}")).collect::<Vec<_>>().join(","));
-    for input in ["", "  \n", "{broken", "plain text", "42", too_many_rows.as_str()] {
+    let too_many_rows = format!(
+        "[{}]",
+        (0..45)
+            .map(|n| format!("{{\"key\":\"{n}\",\"repeated_long_field_name\":\"value\"}}"))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    for input in [
+        "",
+        "  \n",
+        "{broken",
+        "plain text",
+        "42",
+        too_many_rows.as_str(),
+    ] {
         let result = medulla_juice::compress(&CompressInput::new(input));
         assert_eq!(result.text, input);
     }

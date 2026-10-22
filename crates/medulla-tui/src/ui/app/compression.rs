@@ -1,5 +1,5 @@
-use super::types::{App, Cmd};
 use super::types::SP_TOKENS;
+use super::types::{App, Cmd};
 
 const REFRESH_SECONDS: u64 = 5;
 
@@ -17,7 +17,9 @@ impl App {
         self.compression_refreshed_at = now_seconds;
         let env: std::collections::HashMap<String, String> = std::env::vars().collect();
         Some(Cmd::LoadCompressionStats {
-            workspace: medulla::home::medulla_home(&env).join("embed").join("workspace"),
+            workspace: medulla::home::medulla_home(&env)
+                .join("embed")
+                .join("workspace"),
         })
     }
 
@@ -28,7 +30,9 @@ impl App {
         self.compression_loading = false;
         match result {
             Ok(stats) => self.compression = stats,
-            Err(error) => self.set_status(format!("embedded compression stats unavailable: {error}")),
+            Err(error) => {
+                self.set_status(format!("embedded compression stats unavailable: {error}"))
+            }
         }
     }
 }
@@ -62,12 +66,18 @@ mod tests {
         let mut app = app();
         app.tab_index = super::super::types::tab_pos("Settings");
         app.settings_index = super::super::types::SP_TOKENS;
-        assert!(matches!(app.due_compression_refresh(10), Some(Cmd::LoadCompressionStats { .. })));
+        assert!(matches!(
+            app.due_compression_refresh(10),
+            Some(Cmd::LoadCompressionStats { .. })
+        ));
         assert!(app.compression_loading);
         assert!(app.due_compression_refresh(20).is_none());
         app.compression_loading = false;
         assert!(app.due_compression_refresh(14).is_none());
-        assert!(matches!(app.due_compression_refresh(15), Some(Cmd::LoadCompressionStats { .. })));
+        assert!(matches!(
+            app.due_compression_refresh(15),
+            Some(Cmd::LoadCompressionStats { .. })
+        ));
         app.tab_index = super::super::types::tab_pos("Sessions");
         app.compression_loading = false;
         assert!(app.due_compression_refresh(30).is_none());
