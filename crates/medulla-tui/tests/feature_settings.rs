@@ -168,12 +168,14 @@ fn number_keys_jump_subpages() {
     assert_eq!(app.settings_subpage(), "Status line");
     let _ = key(&mut app, KeyCode::Char('5'));
     assert_eq!(app.settings_subpage(), "Config");
-    // Help is the last subpage, and past the nine a digit can reach now that
-    // Subscriptions is on the nav — so the arrows are what get there.
+    // Digits still reach the first nine rows, with Resources inserted before
+    // the diagnostic pages. The final two rows are reached with the nav arrows.
     let _ = key(&mut app, KeyCode::Char('9'));
+    assert_eq!(app.settings_subpage(), "Context");
+    // Reach Account, then Help by stepping back to the nav between moves.
+    let _ = key(&mut app, KeyCode::Esc);
+    let _ = key(&mut app, KeyCode::Down);
     assert_eq!(app.settings_subpage(), "Account");
-    // A digit also enters the pane, so getting to Help means stepping back out
-    // to the nav first — the arrows browse content once a page has focus.
     let _ = key(&mut app, KeyCode::Esc);
     let _ = key(&mut app, KeyCode::Down);
     assert_eq!(app.settings_subpage(), "Help");
