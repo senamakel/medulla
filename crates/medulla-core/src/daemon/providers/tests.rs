@@ -34,6 +34,7 @@ async fn direct_runs_report_the_session_before_workspace_context() {
     std::fs::set_permissions(&harness, std::fs::Permissions::from_mode(0o755)).unwrap();
     let order = Arc::new(Mutex::new(Vec::new()));
     let options = RunTaskOptions {
+        task_id: None,
         embed: Default::default(),
         budget: None,
         origin: super::types::RunTaskOrigin::DelegatedTask,
@@ -629,6 +630,7 @@ fn idle_probe_options(
     std::fs::write(&harness, body).unwrap();
     std::fs::set_permissions(&harness, std::fs::Permissions::from_mode(0o755)).unwrap();
     let options = RunTaskOptions {
+        task_id: None,
         embed: Default::default(),
         budget: None,
         // A watchdog test drives a delegated task, exactly like a peer would.

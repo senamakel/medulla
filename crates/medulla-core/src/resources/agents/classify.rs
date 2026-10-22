@@ -96,7 +96,7 @@ pub fn discover_agents_with_options(
             stack.extend(node.children.iter());
         }
         agents.push(AgentProcess {
-            pid: process.pid,
+            pid: Some(process.pid),
             kind,
             origin,
             exe: process.exe.clone(),
@@ -107,8 +107,61 @@ pub fn discover_agents_with_options(
             children: child_nodes,
         });
     }
-    agents.sort_by_key(|agent| agent.pid);
+    if let Some(embedded) = embedded_openhuman(medulla_pid, sampled_at_secs, &children, &by_pid, &known) {
+        agents.push(embedded);
+    }
+    agents.sort_by_key(|agent| agent.pid.unwrap_or(0));
     agents
+}
+
+fn embedded_openhuman(
+    medulla_pid: u32,
+    sampled_at_secs: u64,
+    children: &HashMap<u32, Vec<u32>>,
+    by_pid: &HashMap<u32, &ProcessRecord>,
+    known: &HashMap<u32, (&KnownProcessRoot, bool)>,
+) -> Option<AgentProcess> {
+    let root = *by_pid.get(&medulla_pid)?;
+    let direct_children = children
+        .get(&medulla_pid)?
+        .iter()
+        .copied()
+        .filter(|pid| {
+            if known.get(pid).is_some_and(|(_, current)| *current) {
+                return false;
+            }
+            by_pid
+                .get(pid)
+                .and_then(|process| classify(process))
+                .map_or(true, |kind| kind == AgentKind::Shell)
+        })
+        .collect::<Vec<_>>();
+    if direct_children.is_empty() {
+        return None;
+    }
+
+    let mut visiting = HashSet::from([medulla_pid]);
+    let nested = direct_children
+        .into_iter()
+        .filter_map(|pid| make_node(pid, children, by_pid, &mut visiting))
+        .collect::<Vec<_>>();
+    let mut usage = root.usage;
+    let mut stack = nested.iter().collect::<Vec<_>>();
+    while let Some(node) = stack.pop() {
+        add_usage(&mut usage, node.usage);
+        stack.extend(node.children.iter());
+    }
+    Some(AgentProcess {
+        pid: None,
+        kind: AgentKind::EmbeddedOpenhuman,
+        origin: AgentOrigin::Headless,
+        exe: None,
+        cwd: root.cwd.clone(),
+        started_at_secs: root.started_at_secs,
+        runtime_secs: sampled_at_secs.saturating_sub(root.started_at_secs),
+        usage,
+        children: nested,
+    })
 }
 
 fn classify(process: &ProcessRecord) -> Option<AgentKind> {

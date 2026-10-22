@@ -92,7 +92,7 @@ fn env_npx_node_acp_chain_is_one_claude_acp_agent() {
     let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].pid, 22);
+    assert_eq!(agents[0].pid, Some(22));
     assert_eq!(agents[0].kind, AgentKind::ClaudeAcp);
     assert_eq!(agents[0].origin, AgentOrigin::External);
 }
@@ -107,7 +107,7 @@ fn external_claude_is_classified_and_unrelated_node_is_ignored() {
     let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].pid, 30);
+    assert_eq!(agents[0].pid, Some(30));
     assert_eq!(agents[0].kind, AgentKind::Claude);
     assert_eq!(agents[0].origin, AgentOrigin::External);
 }
@@ -144,6 +144,27 @@ fn medulla_and_unowned_tool_descendants_are_not_external() {
 }
 
 #[test]
+fn embedded_openhuman_share_contains_medullas_direct_shell_tool_children() {
+    let processes = vec![
+        process(1, None, "/usr/bin/medulla", &["medulla"], 1),
+        process(2, Some(1), "/usr/bin/bash", &["bash", "-lc", "echo hi"], 2),
+        process(3, Some(2), "/usr/bin/git", &["git", "status"], 3),
+        process(4, Some(1), "/usr/bin/curl", &["curl", "https://example.test"], 4),
+    ];
+
+    let agents = discover_agents(&processes, &[], 1, 50);
+
+    assert_eq!(agents.len(), 1);
+    let embedded = &agents[0];
+    assert_eq!(embedded.kind, AgentKind::EmbeddedOpenhuman);
+    assert_eq!(embedded.pid, None);
+    assert_eq!(embedded.children.len(), 2);
+    assert_eq!(embedded.children[0].pid, 2);
+    assert_eq!(embedded.children[0].children[0].pid, 3);
+    assert_eq!(embedded.children[1].pid, 4);
+}
+
+#[test]
 fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
     let processes = vec![
         process(
@@ -159,7 +180,7 @@ fn wrappers_are_not_classified_when_their_deepest_harness_is_visible() {
     let agents = discover_agents(&processes, &[], 1, 50);
 
     assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].pid, 51);
+    assert_eq!(agents[0].pid, Some(51));
     assert_eq!(agents[0].kind, AgentKind::CodexAcp);
 }
 

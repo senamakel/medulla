@@ -96,6 +96,8 @@ pub struct Connection {
     alive: AtomicBool,
     /// Retained so dropping the connection kills the child.
     child: Mutex<Option<Child>>,
+    /// Keeps the process discoverable for the lifetime of the pooled child.
+    _agent_registration: Option<medulla_monitor::agents::RegistrationGuard>,
 }
 
 impl Connection {
@@ -122,6 +124,14 @@ impl Connection {
         let mut child = command
             .spawn()
             .map_err(|error| AppServerError::Process(format!("spawn {}: {error}", spec.bin)))?;
+        let agent_registration = child.id().and_then(|pid| {
+            medulla_monitor::agents::agent_registry().register(
+                pid,
+                None,
+                None,
+                "codex-app-server",
+            )
+        });
         let stdin = child
             .stdin
             .take()
@@ -139,6 +149,7 @@ impl Connection {
             next_id: AtomicI64::new(1),
             alive: AtomicBool::new(true),
             child: Mutex::new(Some(child)),
+            _agent_registration: agent_registration,
         });
 
         // Writer: one task owns stdin, so concurrent callers never interleave

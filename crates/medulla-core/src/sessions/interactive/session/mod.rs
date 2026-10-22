@@ -122,6 +122,14 @@ impl InteractiveSession {
                 Err(err) => return Err(format!("failed to start {}: {err}", spec.bin)),
             }
         };
+        let agent_registration = child.id().and_then(|pid| {
+            medulla_monitor::agents::agent_registry().register(
+                pid,
+                None,
+                None,
+                spec.provider.as_str(),
+            )
+        });
 
         let stdin = child.stdin.take().ok_or("child has no stdin")?;
         let stdout = child.stdout.take().ok_or("child has no stdout")?;
@@ -165,6 +173,7 @@ impl InteractiveSession {
             harness_session_id: Mutex::new(None),
             interrupt_seq: AtomicU64::new(0),
             _hook_grant: hook_grant,
+            _agent_registration: agent_registration,
         }))
     }
 

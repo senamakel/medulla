@@ -261,6 +261,7 @@ fn disabling_workflows_keeps_the_fleet_family_on_the_session_grant() {
 /// A `RunTaskOptions` carrying `attribution`, with everything else inert.
 fn attribution_options(attribution: bool) -> RunTaskOptions {
     RunTaskOptions {
+        task_id: None,
         embed: Default::default(),
         budget: None,
         origin: crate::daemon::providers::RunTaskOrigin::DelegatedTask,

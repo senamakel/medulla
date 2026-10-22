@@ -88,6 +88,9 @@ fn spawn(request: PtyRequest) -> anyhow::Result<PtyHarness> {
     }
 
     let mut child = pair.slave.spawn_command(cmd)?;
+    let agent_registration = child.process_id().and_then(|pid| {
+        medulla_monitor::agents::agent_registry().register(pid, None, None, &request.bin)
+    });
     // Drop our handle on the slave: once the child's own copy closes, the master
     // sees EOF and the reader thread can finish.
     drop(pair.slave);
@@ -193,7 +196,10 @@ fn spawn(request: PtyRequest) -> anyhow::Result<PtyHarness> {
         done: done_rx,
         kill: kill_tx,
         drained: drained_rx,
-        restore: Box::new(move || drop(guard)),
+        restore: Box::new(move || {
+            drop(agent_registration);
+            drop(guard);
+        }),
     })
 }
 

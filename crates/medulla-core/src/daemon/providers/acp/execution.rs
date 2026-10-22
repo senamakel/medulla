@@ -208,6 +208,16 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     // authority while the harness is still running.
     let mut agent_env = acp_env(&options)?;
     let _hook_grant = crate::harness_hooks::seed_hook_grant(&session_key, &mut agent_env);
+    // `agent-client-protocol` owns the child it starts inside ConnectTo. Its
+    // public `spawn_process` exposes a PID, but its connection builder does not
+    // accept an already spawned child, so use the SDK-supported env overlay as
+    // a unique marker and match the process after the connection starts.
+    const REGISTRY_MARKER: &str = "MEDULLA_AGENT_REGISTRY_MARKER";
+    let registry_marker = uuid::Uuid::new_v4().to_string();
+    agent_env.insert(REGISTRY_MARKER.to_string(), registry_marker.clone());
+    let registry_task_id = options.task_id.clone();
+    let registry_session_id = options.resume_session_id.clone();
+    let registry_provider = options.provider.as_str().to_string();
     // The ACP server process receives `agent_env`; the local PostToolUse
     // fallback spawns hooks from this same process, so it gets the same
     // per-session environment — the hook grant and task-specific router /
@@ -239,7 +249,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     let provider = options.provider;
     let timeout = Duration::from_millis(options.timeout_ms);
 
-    let result = agent_client_protocol::Client
+    let run = agent_client_protocol::Client
         .builder()
         .on_receive_notification(
             async move |notification: SessionNotification, _cx| {
@@ -419,8 +429,27 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                 usage: None,
                 session_id: Some(session_id.to_string()),
             })
-        })
-        .await;
+        });
+    tokio::pin!(run);
+    let (result, _agent_registration) = loop {
+        tokio::select! {
+            result = &mut run => break (result, None),
+            _ = tokio::time::sleep(Duration::from_millis(25)) => {
+                if let Some((pid, started_at_secs)) = process_with_marker(REGISTRY_MARKER, &registry_marker) {
+                    let guard = medulla_monitor::agents::agent_registry().register_at(
+                        medulla_monitor::agents::AgentRegistration {
+                            pid,
+                            started_at_secs,
+                            task_id: registry_task_id.clone(),
+                            session_id: registry_session_id.clone(),
+                            provider: registry_provider.clone(),
+                        },
+                    );
+                    break (run.await, Some(guard));
+                }
+            }
+        }
+    };
 
     // The session is over, so its grant should stop working — a token that
     // outlived the harness it was minted for is a capability nobody is holding.
@@ -431,6 +460,34 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
     }
 
     result.map_err(|error| format!("{} ACP error: {error}", provider.as_str()))
+}
+
+/// Find the ACP SDK child by its per-run environment marker.
+fn process_with_marker(key: &str, value: &str) -> Option<(u32, u64)> {
+    use std::ffi::OsStr;
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_environ(),
+    );
+    let prefix = format!("{key}=");
+    system
+        .processes()
+        .values()
+        .filter(|process| {
+            process.environ().iter().any(|entry| {
+                let entry = entry.as_os_str();
+                entry
+                    .to_str()
+                    .is_some_and(|entry| entry.strip_prefix(&prefix) == Some(value))
+                    || entry == OsStr::new(&format!("{prefix}{value}"))
+            })
+        })
+        .min_by_key(|process| process.start_time())
+        .map(|process| (process.pid().as_u32(), process.start_time()))
 }
 
 /// Construct the ACP server command for a supported harness.

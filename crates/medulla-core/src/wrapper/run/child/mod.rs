@@ -67,6 +67,7 @@ pub(super) fn spawn_child_with(
                         kill: Some(harness.kill),
                         drained: Some(harness.drained),
                         restore: Some(harness.restore),
+                        _agent_registration: None,
                     })
                 }
                 Err(err) => {
@@ -111,6 +112,12 @@ fn spawn_stdio(
     let mut child = command
         .spawn()
         .map_err(|err| anyhow::anyhow!("failed to start {bin}: {err}"))?;
+    let agent_registration = medulla_monitor::agents::agent_registry().register(
+        child.id(),
+        None,
+        None,
+        bin,
+    );
 
     // A single task owns the pipe so injected writes never interleave.
     let input = if inject {
@@ -149,6 +156,7 @@ fn spawn_stdio(
         kill: Some(kill_tx),
         drained: None,
         restore: None,
+        _agent_registration: agent_registration,
     })
 }
 
