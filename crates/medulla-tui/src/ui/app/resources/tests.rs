@@ -308,6 +308,34 @@ fn network_panel_renders_at_desktop_and_narrow_widths() {
                 text.contains("Top ↓4.0K ↑2.0K"),
                 "directional receive/transmit peaks absent: {text}"
             );
+            let mut swapped = config.clone();
+            swapped.swap_upload_download = true;
+            terminal
+                .draw(|frame| {
+                    draw_net_panel(
+                        frame,
+                        Rect::new(0, 0, width, 8),
+                        &snapshot,
+                        &swapped,
+                        Some("eth0"),
+                        (0, 0),
+                        10_240.0,
+                        10_240.0,
+                        false,
+                    )
+                })
+                .unwrap();
+            let swapped_text = terminal
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+            assert!(
+                swapped_text.contains("Top ↓2.0K ↑4.0K  Total ↓4.0K ↑8.0K"),
+                "swapped top/totals must follow displayed directions: {swapped_text}"
+            );
         }
     }
 }

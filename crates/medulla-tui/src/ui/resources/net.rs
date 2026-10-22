@@ -101,22 +101,17 @@ pub fn cycle_interface(
     Some(up[next].to_owned())
 }
 
-/// Pick the first active non-loopback interface with observed traffic.
+/// Pick the first up, non-loopback interface with observed traffic.
 pub fn default_interface(interfaces: &[medulla_monitor::NetworkSnapshot]) -> Option<&str> {
     interfaces
         .iter()
         .filter(|interface| {
-            interface.connected
+            interface.up
                 && !is_loopback(&interface.interface)
                 && (interface.total_received_bytes > 0
                     || interface.total_transmitted_bytes > 0
                     || interface.received_bytes_per_second > 0.0
                     || interface.transmitted_bytes_per_second > 0.0)
-        })
-        .max_by_key(|interface| {
-            interface
-                .total_received_bytes
-                .saturating_add(interface.total_transmitted_bytes)
         })
         .map(|interface| interface.interface.as_str())
 }
@@ -165,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn default_interface_requires_up_non_loopback_with_traffic() {
+    fn default_interface_picks_first_up_non_loopback_with_traffic() {
         let samples = vec![
             medulla_monitor::NetworkSnapshot {
                 interface: "lo".into(),
@@ -184,8 +179,8 @@ mod tests {
                 ip_addresses: vec![],
                 received_bytes_per_second: 0.0,
                 transmitted_bytes_per_second: 0.0,
-                total_received_bytes: 0,
-                total_transmitted_bytes: 0,
+                total_received_bytes: 1_000_000,
+                total_transmitted_bytes: 1_000_000,
             },
             medulla_monitor::NetworkSnapshot {
                 interface: "wlan0".into(),
@@ -195,6 +190,16 @@ mod tests {
                 received_bytes_per_second: 4.0,
                 transmitted_bytes_per_second: 0.0,
                 total_received_bytes: 4,
+                total_transmitted_bytes: 0,
+            },
+            medulla_monitor::NetworkSnapshot {
+                interface: "enp2s0".into(),
+                up: true,
+                connected: true,
+                ip_addresses: vec![],
+                received_bytes_per_second: 8.0,
+                transmitted_bytes_per_second: 0.0,
+                total_received_bytes: 50,
                 total_transmitted_bytes: 0,
             },
         ];

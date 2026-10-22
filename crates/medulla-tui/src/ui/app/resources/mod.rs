@@ -404,6 +404,23 @@ fn draw_net_panel(
             selected.transmitted_bytes_per_second,
         )
     };
+    let (top_download, top_upload) = network_top(snapshot, &selected.interface);
+    let (total_download, total_upload) = if config.swap_upload_download {
+        (
+            selected.total_transmitted_bytes,
+            selected.total_received_bytes,
+        )
+    } else {
+        (
+            selected.total_received_bytes,
+            selected.total_transmitted_bytes,
+        )
+    };
+    let (top_download, top_upload) = if config.swap_upload_download {
+        (top_upload, top_download)
+    } else {
+        (top_download, top_upload)
+    };
     let mut lines = Vec::new();
     let narrow = area.width <= 45;
     if narrow {
@@ -420,14 +437,20 @@ fn draw_net_panel(
         )));
         lines.push(Line::from(format!(
             "Top ↓{} ↑{}  Total ↓{} ↑{}",
-            net_rate(network_top(snapshot, &selected.interface).0),
-            net_rate(network_top(snapshot, &selected.interface).1),
-            net_bytes(selected.total_received_bytes.saturating_sub(zero_received)),
+            net_rate(top_download),
+            net_rate(top_upload),
             net_bytes(
-                selected
-                    .total_transmitted_bytes
-                    .saturating_sub(zero_transmitted)
-            )
+                total_download.saturating_sub(if config.swap_upload_download {
+                    zero_transmitted
+                } else {
+                    zero_received
+                })
+            ),
+            net_bytes(total_upload.saturating_sub(if config.swap_upload_download {
+                zero_received
+            } else {
+                zero_transmitted
+            }))
         )));
     } else {
         let address = selected
@@ -448,14 +471,20 @@ fn draw_net_panel(
         )));
         lines.push(Line::from(format!(
             "Top ↓{} ↑{}  Total ↓{} ↑{}",
-            net_rate(network_top(snapshot, &selected.interface).0),
-            net_rate(network_top(snapshot, &selected.interface).1),
-            net_bytes(selected.total_received_bytes.saturating_sub(zero_received)),
+            net_rate(top_download),
+            net_rate(top_upload),
             net_bytes(
-                selected
-                    .total_transmitted_bytes
-                    .saturating_sub(zero_transmitted)
-            )
+                total_download.saturating_sub(if config.swap_upload_download {
+                    zero_transmitted
+                } else {
+                    zero_received
+                })
+            ),
+            net_bytes(total_upload.saturating_sub(if config.swap_upload_download {
+                zero_received
+            } else {
+                zero_transmitted
+            }))
         )));
     }
     let graph_rows = if area.height >= 3 { 2 } else { 0 };
