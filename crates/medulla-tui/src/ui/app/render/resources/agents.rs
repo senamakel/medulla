@@ -406,7 +406,7 @@ pub(in crate::ui::app) fn draw_agents(
             continue;
         }
         table_rows.push(
-            Row::new(vec![format!("Remote · {host}")])
+            Row::new(vec!["Remote".to_string(), host.clone()])
                 .style(Style::default().add_modifier(Modifier::BOLD)),
         );
         for (session, usage) in remote_agents {
@@ -775,10 +775,11 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         for expected in [
-            "Remote · alpha",
+            "Remote",
+            "alpha",
             "Remote{alpha}",
             "Claude",
-            "Remote · beta",
+            "beta",
             "Remote{beta}",
             "Codex",
         ] {
