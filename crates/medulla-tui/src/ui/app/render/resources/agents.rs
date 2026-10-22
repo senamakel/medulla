@@ -9,10 +9,11 @@ use ratatui::{
     Frame,
 };
 
-use crate::ui::app::resources::types::{AgentSignal, AgentSort, ResourcesState};
+use crate::ui::app::resources::types::{AgentIdentity, AgentSignal, AgentSort, ResourcesState};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::ui::app) struct AgentRow {
+    pub host: Option<String>,
     pub pid: u32,
     pub started: u64,
     pub kind: String,
@@ -28,6 +29,12 @@ pub(in crate::ui::app) struct AgentRow {
     pub external: bool,
     pub remote: bool,
     pub depth: usize,
+}
+
+impl AgentRow {
+    fn identity(&self) -> AgentIdentity {
+        AgentIdentity { host: self.host.clone(), pid: self.pid, started: self.started }
+    }
 }
 
 pub(in crate::ui::app) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
@@ -66,6 +73,7 @@ pub(in crate::ui::app) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
                 )
             });
             Some(AgentRow {
+                host: None,
                 pid: process.pid,
                 started: process.start_time,
                 kind,
@@ -162,6 +170,56 @@ pub(in crate::ui::app) fn visible_rows(
     rows
 }
 
+pub(in crate::ui::app) fn visible_rows_with_remote(
+    snapshot: &ResourceSnapshot,
+    remote_hosts: &[(String, Vec<medulla::protocol::RemoteSessionRow>)],
+    state: &ResourcesState,
+) -> Vec<AgentRow> {
+    let mut rows = visible_rows(snapshot, state);
+    for (host, sessions) in remote_hosts {
+        for session in sessions {
+            let Some(usage) = &session.usage else { continue };
+            let row = AgentRow {
+                host: Some(host.clone()),
+                pid: usage.pid,
+                started: usage.started_at,
+                kind: usage.kind.clone(),
+                origin: format!("Remote{{{host}}}"),
+                workspace: session.cwd.clone(),
+                threads: usage.threads,
+                memory: usage.rss,
+                cpu: usage.cpu,
+                runtime: (medulla::clock::now_millis()
+                    - usage.started_at.saturating_mul(1000) as i64)
+                    .max(0) as u64 / 1000,
+                ppid: None,
+                session_id: Some(format!("{}::{}", host, session.id)),
+                task_id: None,
+                external: false,
+                remote: true,
+                depth: 0,
+            };
+            if matches_filter(&row, state.agent_filter.as_deref()) {
+                rows.push(row);
+            }
+        }
+    }
+    rows.sort_by(|a, b| compare(a, b, state.agent_sort));
+    if state.agent_reverse { rows.reverse(); }
+    rows
+}
+
+fn matches_filter(row: &AgentRow, filter: Option<&str>) -> bool {
+    let Some(filter) = filter else { return true };
+    let (regex, pattern) = filter.strip_prefix('!').map_or((false, filter), |pattern| (true, pattern));
+    if regex {
+        regex::Regex::new(&format!("(?i){pattern}")).is_ok_and(|pattern| pattern.is_match(&row.kind))
+    } else {
+        format!("{} {} {} {}", row.pid, row.kind, row.origin, row.workspace)
+            .to_lowercase().contains(&pattern.to_lowercase())
+    }
+}
+
 fn tree_rows(snapshot: &ResourceSnapshot, agents: Vec<AgentRow>) -> Vec<AgentRow> {
     let all_agents: std::collections::HashMap<u32, AgentRow> =
         agents.iter().cloned().map(|row| (row.pid, row)).collect();
@@ -217,6 +275,7 @@ fn append_children(
                 .get(&process.pid)
                 .cloned()
                 .unwrap_or_else(|| AgentRow {
+                    host: None,
                     pid: process.pid,
                     started: process.start_time,
                     kind: "Process".into(),
@@ -264,7 +323,7 @@ pub(in crate::ui::app) fn draw_agents(
     remote_hosts: &[(String, Vec<medulla::protocol::RemoteSessionRow>)],
     state: &mut ResourcesState,
 ) {
-    let rows = visible_rows(snapshot, state);
+    let rows = visible_rows_with_remote(snapshot, remote_hosts, state);
     if let Some(following) = state.agent_follow {
         if !snapshot
             .processes
@@ -385,64 +444,9 @@ pub(in crate::ui::app) fn draw_agents(
             item
         })
         .collect();
-    let mut remote_count = 0usize;
-    let mut remote_cpu = 0.0;
-    let mut remote_memory = 0u64;
-    for (host, sessions) in remote_hosts {
-        let remote_agents: Vec<_> = sessions
-            .iter()
-            .filter_map(|session| {
-                let usage = session.usage.as_ref()?;
-                let matches = state.agent_filter.as_deref().is_none_or(|filter| {
-                    let query = filter.strip_prefix('!').unwrap_or(filter).to_lowercase();
-                    format!("{} {} {} {}", usage.pid, usage.kind, host, session.cwd)
-                        .to_lowercase()
-                        .contains(&query)
-                });
-                matches.then_some((session, usage))
-            })
-            .collect();
-        if remote_agents.is_empty() {
-            continue;
-        }
-        table_rows.push(
-            Row::new(vec!["Remote".to_string(), host.clone()])
-                .style(Style::default().add_modifier(Modifier::BOLD)),
-        );
-        for (session, usage) in remote_agents {
-            remote_count += 1;
-            remote_cpu += usage.cpu;
-            remote_memory += usage.rss;
-            let origin = format!("Remote{{{host}}}");
-            let history = mini_graph(&usage.cpu_history);
-            let runtime = medulla::clock::now_millis()
-                .saturating_sub((usage.started_at.saturating_mul(1000)) as i64)
-                .max(0) as u64
-                / 1000;
-            let cells = if compact {
-                vec![
-                    usage.pid.to_string(),
-                    format!("{} · {origin}", usage.kind),
-                    format!("{:.1}", usage.cpu),
-                    bytes(usage.rss),
-                    duration(runtime),
-                ]
-            } else {
-                vec![
-                    usage.pid.to_string(),
-                    usage.kind.clone(),
-                    origin,
-                    shorten(&session.cwd, 25),
-                    usage.threads.to_string(),
-                    bytes(usage.rss),
-                    format!("{:.1}", usage.cpu),
-                    history,
-                    duration(runtime),
-                ]
-            };
-            table_rows.push(Row::new(cells));
-        }
-    }
+    let remote_count = rows.iter().filter(|row| row.remote).count();
+    let remote_cpu = rows.iter().filter(|row| row.remote).map(|row| row.cpu).sum::<f64>();
+    let remote_memory = rows.iter().filter(|row| row.remote).map(|row| row.memory).sum::<u64>();
     let follow = state
         .agent_follow
         .map(|(pid, _)| format!(" · FOLLOW PID {pid}"))
