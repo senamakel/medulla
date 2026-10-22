@@ -118,9 +118,9 @@ impl super::super::super::types::App {
         let rows = medulla::ui::stream::detailed_usage(&self.snapshot.events)
             .into_iter()
             .map(|usage| TokenUsageRow {
-                session: "current session".into(),
+                session: self.snapshot.session_id.clone(),
                 tier: usage.tier,
-                provider: None,
+                provider: usage.provider,
                 model: usage.model,
                 usage: usage.usage,
             })

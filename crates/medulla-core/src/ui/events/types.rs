@@ -84,6 +84,8 @@ pub enum TuiEvent {
         op: String,
         /// Concrete model identifier, when known.
         model: Option<String>,
+        /// Provider attribution, when explicitly reported by the source.
+        provider: Option<crate::protocol::HarnessProvider>,
         /// Wall-clock inference duration in milliseconds.
         duration_ms: i64,
         /// Token accounting reported by the provider.
