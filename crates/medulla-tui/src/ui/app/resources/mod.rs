@@ -178,14 +178,13 @@ impl App {
             return false;
         }
         if key == crossterm::event::KeyCode::Char('z') {
-            if let Some(interface) = self.resources.net_iface.as_deref().and_then(|name| {
-                self.resource_snapshot
-                    .networks
-                    .iter()
-                    .find(|entry| entry.interface == name)
-            }) {
+            let current = self.resources.net_iface.as_deref().or_else(|| {
+                crate::ui::resources::net::default_interface(&self.resource_snapshot.networks)
+            });
+            if let Some(interface) = current.and_then(|name| self.resource_snapshot.networks.iter().find(|entry| entry.interface == name)) {
                 self.resources.net_zero_received = interface.total_received_bytes;
                 self.resources.net_zero_transmitted = interface.total_transmitted_bytes;
+                self.resources.net_iface = Some(interface.interface.clone());
             }
         }
         if matches!(key, crossterm::event::KeyCode::Char('b' | 'n')) {

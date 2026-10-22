@@ -258,6 +258,30 @@ fn resources_draw_empty_titled_panels_until_data_views_land() {
 }
 
 #[test]
+fn network_panel_renders_at_desktop_and_narrow_widths() {
+    let mut loaded = LoadedConfig::defaults("test.json".into());
+    loaded.config.resources.shown_boxes = "net".into();
+    let mut snapshot = crate::ui::resources::sampler::ResourceSnapshot::default();
+    snapshot.networks.push(crate::ui::resources::sampler::NetworkSnapshot {
+        interface: "eth0".into(), up: true, ip_addresses: vec!["192.0.2.2".into()],
+        received_bytes_per_second: 4096.0, transmitted_bytes_per_second: 2048.0,
+        total_received_bytes: 8192, total_transmitted_bytes: 4096,
+    });
+    let mut history = crate::ui::resources::sampler::ResourceHistory::default();
+    history.push(&snapshot, 8);
+    let snapshot = snapshot.with_history(Arc::new(history));
+    for width in [170, 45] {
+        let mut app = App::new(Arc::new(MockRuntime::empty()), loaded.clone());
+        app.set_resource_snapshot(Arc::new(snapshot.clone()));
+        let mut terminal = Terminal::new(TestBackend::new(width, 42)).unwrap();
+        terminal.draw(|frame| app.draw_resources(frame, Rect::new(0, 0, width, 42))).unwrap();
+        let text = terminal.backend().buffer().content().iter().map(|cell| cell.symbol()).collect::<String>();
+        assert!(text.contains("eth0"), "interface absent at width {width}");
+        assert!(text.contains("Total"), "totals absent at width {width}");
+    }
+}
+
+#[test]
 fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
     let mut loaded = LoadedConfig::defaults("test.json".into());
     loaded.config.resources.shown_boxes = "mem".into();
