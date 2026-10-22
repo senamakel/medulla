@@ -2,15 +2,48 @@
 
 This page is about the code: how the crates are put together, where a session lives, and how a remote host is reached. [One terminal, not a pile of them](../why-one-terminal.md) is the product argument.
 
-## Three crates
+## Crates and dependency direction
 
-The repository is a three-crate [Cargo](https://doc.rust-lang.org/cargo/) workspace, split so that logic, rendering, and the wire can each be read and tested on their own:
+The [Cargo](https://doc.rust-lang.org/cargo/) workspace is one product assembled from small primitives. Each crate can be read and tested on its own; the SDK composes them, and the terminal app presents them. Arrows below point from a crate to the crates it depends on:
 
-* [`crates/medulla-link/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-link/) is `medulla-link`, the host link transport. It has no dependency on the SDK, so the protocol can be read and conformance-tested without the rest.
-* [`crates/medulla-core/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-core/) is the `medulla` SDK crate, a UI-free logic library: config loading, auth, the backend client, harness detection and launch arguments, session history, the clipboard writers, the inference proxy, workflows, the MCP server, and the daemon. It is reusable from any Rust program.
-* [`crates/medulla-tui/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-tui/) is `medulla-tui`, which ships the `medulla` binary: the [ratatui](https://ratatui.rs/) app, the PTY layer, the remote client and server, and the CLI dispatch. Process and terminal wiring live here so the SDK stays free of `portable-pty`, `vt100`, and `crossterm`.
+```mermaid
+graph BT
+  types[medulla-types]
+  providers[medulla-providers] --> types
+  harness[medulla-harness] --> types
+  harness --> providers
+  pty[medulla-pty] --> types
+  tokens[medulla-tokens] --> types
+  monitor[medulla-monitor]
+  link[medulla-link]
+  juice[medulla-juice]
+  sdk[medulla SDK: medulla] --> types
+  sdk --> providers
+  sdk --> harness
+  sdk --> pty
+  sdk --> tokens
+  sdk --> monitor
+  sdk --> link
+  sdk --> juice
+  tui[medulla-tui] --> sdk
+```
 
-The SDK never depends on the TUI.
+More precisely, `medulla-providers` depends on `medulla-types`; `medulla-harness` depends on `medulla-types` and `medulla-providers`; and `medulla-pty` and `medulla-tokens` depend on `medulla-types`. `medulla-monitor`, `medulla-link`, and `medulla-juice` are standalone primitives. The `medulla` SDK composes these crates, and `medulla-tui` depends on the SDK and the primitives it uses directly. Primitive crates do not depend on `medulla` or `medulla-tui`; only `medulla-tui` owns terminal rendering and input.
+
+| Crate | Product primitive and responsibility |
+| --- | --- |
+| [`crates/medulla-types/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-types/) (`medulla-types`) | Shared value types used across primitive boundaries. |
+| [`crates/medulla-providers/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-providers/) (`medulla-providers`) | Provider registry and invocation shaping for harnesses and model routes. |
+| [`crates/medulla-harness/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-harness/) (`medulla-harness`) | Harness customization, launch configuration, and attribution helpers. |
+| [`crates/medulla-monitor/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-monitor/) (`medulla-monitor`) | Host resource monitoring primitives. |
+| [`crates/medulla-link/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-link/) (`medulla-link`) | Host link transport for remote sessions. |
+| [`crates/medulla-juice/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-juice/) (`medulla-juice`) | Pluggable context compression primitives. |
+| [`crates/medulla-pty/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-pty/) (`medulla-pty`) | PTY screen model, codec, and terminal conversion primitives. |
+| [`crates/medulla-tokens/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-tokens/) (`medulla-tokens`) | Token accounting and subscription meters. |
+| [`crates/medulla-core/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-core/) (`medulla`) | SDK composition: account and backend clients, daemon, session and workflow logic, and integration state. It is reusable without the TUI. |
+| [`crates/medulla-tui/`](https://github.com/tinyhumansai/medulla/tree/main/crates/medulla-tui/) (`medulla-tui`) | The `medulla` binary: terminal UI, CLI dispatch, PTY process wiring, and remote client/server. |
+
+The SDK never depends on the TUI. The lower-level primitives remain reusable without pulling in the application or its terminal UI dependencies.
 
 ## A session is a PTY
 
