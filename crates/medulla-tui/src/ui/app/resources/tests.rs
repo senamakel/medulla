@@ -354,10 +354,10 @@ fn network_border_auto_and_sync_controls_are_clickable() {
     terminal
         .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
         .unwrap();
-    assert!(!app.resources.net_auto);
+    assert!(app.resources.net_auto);
     let auto = app.resources.hits.net_auto;
     app.resources_click(auto.x, auto.y);
-    assert!(app.resources.net_auto);
+    assert!(!app.resources.net_auto);
     let sync = app.resources.hits.net_sync;
     app.resources_click(sync.x, sync.y);
     assert!(app.resources.net_sync);
