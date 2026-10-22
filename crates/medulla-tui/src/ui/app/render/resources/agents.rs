@@ -387,7 +387,7 @@ pub(in crate::ui::app) fn draw_agents(
             "Runtime",
         ])
     };
-    let table_rows: Vec<Row> = rows
+    let agent_table_rows: Vec<Row> = rows
         .iter()
         .map(|row| {
             let graph = state
@@ -444,6 +444,24 @@ pub(in crate::ui::app) fn draw_agents(
             item
         })
         .collect();
+    let mut table_rows = Vec::new();
+    let mut display_indices = Vec::with_capacity(rows.len());
+    let mut last_remote_host: Option<&str> = None;
+    for (row, item) in rows.iter().zip(agent_table_rows) {
+        if let Some(host) = row.host.as_deref() {
+            if last_remote_host != Some(host) {
+                table_rows.push(
+                    Row::new(vec!["Remote".to_owned(), host.to_owned()])
+                        .style(Style::default().add_modifier(Modifier::BOLD)),
+                );
+            }
+            last_remote_host = Some(host);
+        } else {
+            last_remote_host = None;
+        }
+        display_indices.push(table_rows.len());
+        table_rows.push(item);
+    }
     let follow = state
         .agent_follow
         .as_ref()
@@ -476,9 +494,8 @@ pub(in crate::ui::app) fn draw_agents(
         .header(header.style(Style::default().add_modifier(Modifier::BOLD)))
         .block(Block::default().borders(Borders::ALL).title(title))
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
-    let selected_index = selected.and_then(|identity| {
-        rows.iter()
-            .position(|row| row.identity() == identity)
+    let selected_index = selected.as_ref().and_then(|identity| {
+        rows.iter().position(|row| row.identity() == *identity).map(|index| display_indices[index])
     });
     let mut table_state = ratatui::widgets::TableState::default();
     table_state.select(selected_index);
@@ -790,6 +807,32 @@ mod tests {
                 "missing {expected:?}:\n{rendered}"
             );
         }
+    }
+
+    #[test]
+    fn remote_agents_share_regex_filter_semantics_and_have_host_scoped_identity() {
+        let row = |id: &str, kind: &str, pid| medulla::protocol::RemoteSessionRow {
+            id: id.into(), label: kind.into(), provider: kind.to_lowercase(), preset: None,
+            state: medulla::protocol::RemoteSessionState::Running, cwd: "/work".into(),
+            name: None, thread_name: None, started_at: 1_700_000_000_000,
+            last_output_at: 1_700_000_000_000, busy: false, working: false,
+            attention: None, bracketed_paste: false, last_error: None,
+            usage: Some(medulla::protocol::AgentUsage {
+                kind: kind.into(), pid, cpu: 1.0, rss: 1_024, threads: 2,
+                started_at: 1_700_000_000, cpu_history: vec![],
+            }),
+        };
+        let hosts = vec![
+            ("alpha".into(), vec![row("w_same", "Claude", 55)]),
+            ("beta".into(), vec![row("w_same", "Codex", 55)]),
+        ];
+        let mut state = ResourcesState::default();
+        state.agent_filter = Some("!^cod".into());
+        let rows = visible_rows_with_remote(&ResourceSnapshot::default(), &hosts, &state);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].kind, "Codex");
+        assert_eq!(rows[0].host.as_deref(), Some("beta"));
+        assert_eq!(rows[0].session_id.as_deref(), Some("beta/w_same"));
     }
 
     #[test]
