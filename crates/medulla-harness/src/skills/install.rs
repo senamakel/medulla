@@ -22,7 +22,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use super::render::{parse_marker, render, render_command, slug_for, SLUG_PREFIX};
+use super::marker::parse_marker;
+use super::render::{render, render_command, slug_for, SLUG_PREFIX};
 use super::targets::{
     command_path, commands_dir, dedupe_by_skills_dir, legacy_codex_skills_dir, skill_path,
     skills_dir, target_root,
