@@ -19,11 +19,11 @@
 //! dim line about the row you are actually on, and the effect has a tab of its
 //! own.
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
 use super::rendered_height;
 use crate::ui::app::types::App;

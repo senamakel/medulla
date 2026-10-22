@@ -1,10 +1,10 @@
 //! The Harnesses Settings section and its injected, side-effect-free view data.
 
 use medulla::config::TuiConfig;
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
 /// A provider detected by a collector outside the render path.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,37 +49,37 @@ impl HarnessesView {
         if let Some(budget) = &config.budget {
             let mut rows: Vec<_> = budget.providers.iter().collect();
             rows.sort_by(|a, b| a.0.cmp(b.0));
-            view.budgets.extend(rows.into_iter().map(|(provider, budget)| {
-                let mut details = Vec::new();
-                if let Some(seat) = &budget.seat {
-                    details.push(format!("seat {seat}"));
-                }
-                if let Some(used) = budget.used_tokens {
-                    details.push(format!("used {used}"));
-                }
-                if let Some(limit) = budget.limit_tokens {
-                    details.push(format!("limit {limit}"));
-                }
-                if let Some(remaining) = budget.remaining_tokens {
-                    details.push(format!("remaining {remaining}"));
-                }
-                (
-                    provider.clone(),
-                    if details.is_empty() {
-                        "budget configured; values unavailable".into()
-                    } else {
-                        details.join(" · ")
-                    },
-                )
-            }));
+            view.budgets
+                .extend(rows.into_iter().map(|(provider, budget)| {
+                    let mut details = Vec::new();
+                    if let Some(seat) = &budget.seat {
+                        details.push(format!("seat {seat}"));
+                    }
+                    if let Some(used) = budget.used_tokens {
+                        details.push(format!("used {used}"));
+                    }
+                    if let Some(limit) = budget.limit_tokens {
+                        details.push(format!("limit {limit}"));
+                    }
+                    if let Some(remaining) = budget.remaining_tokens {
+                        details.push(format!("remaining {remaining}"));
+                    }
+                    (
+                        provider.clone(),
+                        if details.is_empty() {
+                            "budget configured; values unavailable".into()
+                        } else {
+                            details.join(" · ")
+                        },
+                    )
+                }));
         }
         view.customizations.push(format!(
             "hooks: {} in effective configuration",
             config.hooks.hooks.len()
         ));
-        view.customizations.push(format!(
-            "Codex overrides: not reported by loaded settings"
-        ));
+        view.customizations
+            .push("Codex overrides: not reported by loaded settings".into());
         view.customizations.push(format!(
             "attribution: commits {}",
             if config.attribution.commit {

@@ -1,12 +1,12 @@
 //! The Tokens Settings section and its injected, side-effect-free view data.
 
-use medulla::subscriptions::{MeterId, SubscriptionSnapshot};
 use medulla::protocol::HarnessProvider;
+use medulla::subscriptions::{MeterId, SubscriptionSnapshot};
 use medulla::ui::events::Usage;
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
 /// One accumulated session/tier/model usage row supplied to the renderer.
 #[derive(Debug, Clone, PartialEq)]
@@ -55,7 +55,11 @@ pub(super) fn draw_tokens(f: &mut Frame, area: Rect, view: &TokensView) {
         lines.push(Line::from(format!(
             "  cache read {} · cache write {} · reasoning {}",
             value(row.usage.cache_read_tokens),
-            value(row.usage.cache_write_tokens.or(row.usage.cache_creation_tokens)),
+            value(
+                row.usage
+                    .cache_write_tokens
+                    .or(row.usage.cache_creation_tokens)
+            ),
             value(row.usage.reasoning_tokens)
         )));
         let estimate = row

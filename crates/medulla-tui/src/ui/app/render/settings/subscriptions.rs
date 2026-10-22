@@ -8,16 +8,16 @@
 //! went wrong — the rail has none, and a bare em dash there is a question this
 //! page answers.
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Frame;
 
 use medulla::config::{MeterId, MeterSource, ResourceDisplay};
 use medulla::subscriptions::MeterReading;
 
-use super::super::super::subscriptions::{refresh_label, REFRESH_ROW, SUBSCRIPTION_ROWS};
+use super::super::super::subscriptions::{REFRESH_ROW, SUBSCRIPTION_ROWS, refresh_label};
 use super::super::super::types::App;
 
 impl App {

@@ -1,9 +1,9 @@
 //! Deterministic Settings view tests. The page renderers accept their data so
 //! these tests never inspect the host or sample a provider account.
 
+use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
-use ratatui::Terminal;
 
 use super::{harnesses, tokens};
 use crate::ui::app::types::{SETTINGS_GROUPS, SETTINGS_SUBPAGES};
@@ -83,7 +83,10 @@ fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
                 },
             },
         ],
-        subscriptions: SubscriptionSnapshot { meters, sampled_at: 1 },
+        subscriptions: SubscriptionSnapshot {
+            meters,
+            sampled_at: 1,
+        },
     };
     let output = rendered(|frame, area| tokens::draw_tokens(frame, area, &view));
 
@@ -103,7 +106,10 @@ fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
         "not-in-pricing-table",
         "cost unavailable",
     ] {
-        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+        assert!(
+            output.contains(expected),
+            "missing {expected:?} in:\n{output}"
+        );
     }
 }
 
@@ -148,24 +154,64 @@ fn harnesses_view_renders_injected_detection_routing_budget_and_customizations()
         "MCP: fleet tools enabled",
         "skills: 3 attached",
     ] {
-        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+        assert!(
+            output.contains(expected),
+            "missing {expected:?} in:\n{output}"
+        );
     }
 }
 
 #[test]
 fn harnesses_view_explains_empty_detection_without_host_probes() {
-    let view = harnesses::HarnessesView::default();
+    let view = harnesses::HarnessesView {
+        detection_complete: true,
+        ..Default::default()
+    };
     let output = rendered(|frame, area| harnesses::draw_harnesses(frame, area, &view));
     assert!(output.contains("No providers detected"));
 }
 
 #[test]
-fn existing_usage_page_still_uses_the_legacy_input_output_presentation() {
-    use crate::ui::app::types::SETTINGS_SUBPAGES;
-    use crate::ui::app::App;
+fn settings_dispatch_renders_both_new_sections_by_selection() {
+    use crate::ui::app::types::{App, tab_pos};
     use medulla::config::LoadedConfig;
-    use medulla::runtime::mock::MockRuntime;
     use medulla::runtime::Runtime;
+    use medulla::runtime::mock::MockRuntime;
+    use std::sync::Arc;
+
+    let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
+    let mut app = App::new(runtime, LoadedConfig::defaults("medulla.tui.json".into()));
+    app.tab_index = tab_pos("Settings");
+    let tokens = SETTINGS_SUBPAGES
+        .iter()
+        .position(|name| *name == "Tokens")
+        .unwrap();
+    app.settings_index = tokens;
+    let output = rendered(|frame, _| app.draw(frame));
+    assert!(
+        output.contains("Tokens"),
+        "selected Tokens page was not drawn"
+    );
+
+    let harnesses = SETTINGS_SUBPAGES
+        .iter()
+        .position(|name| *name == "Harnesses")
+        .unwrap();
+    app.settings_index = harnesses;
+    let output = rendered(|frame, _| app.draw(frame));
+    assert!(
+        output.contains("Harnesses"),
+        "selected Harnesses page was not drawn"
+    );
+}
+
+#[test]
+fn existing_usage_page_still_uses_the_legacy_input_output_presentation() {
+    use crate::ui::app::App;
+    use crate::ui::app::types::SETTINGS_SUBPAGES;
+    use medulla::config::LoadedConfig;
+    use medulla::runtime::Runtime;
+    use medulla::runtime::mock::MockRuntime;
     use std::sync::Arc;
 
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());

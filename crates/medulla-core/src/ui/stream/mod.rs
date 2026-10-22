@@ -10,8 +10,8 @@
 #[cfg(test)]
 mod tests;
 
-pub use medulla_tokens::{TierUsage, UsageFold};
 use medulla_tokens::Usage;
+pub use medulla_tokens::{TierUsage, UsageFold};
 
 use crate::ui::events::{EventEnvelope, TuiEvent};
 

@@ -8,7 +8,7 @@
 use ratatui::style::Style;
 use ratatui::text::{Line as TLine, Span};
 
-use crate::ui::app::appearance::{AppearanceControl, APPEARANCE_ROWS, APPEARANCE_TABLE};
+use crate::ui::app::appearance::{APPEARANCE_ROWS, APPEARANCE_TABLE, AppearanceControl};
 use crate::ui::app::types::App;
 
 /// Width of the label column, wide enough for the longest row name.
