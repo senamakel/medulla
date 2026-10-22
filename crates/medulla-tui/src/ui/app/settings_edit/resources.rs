@@ -83,13 +83,6 @@ const ROWS: &[Row] = &[
         Kind::OptionalFlag,
     ),
     row(
-        "AGENTS",
-        "agentsLeft",
-        "Agents on left",
-        "Place Agents on the left; Auto follows the preset.",
-        Kind::OptionalFlag,
-    ),
-    row(
         "CPU",
         "cpuGraphUpper",
         "Upper graph",
@@ -254,6 +247,13 @@ const ROWS: &[Row] = &[
         "Swap displayed download and upload directions.",
         Kind::Flag,
     ),
+    row(
+        "AGENTS",
+        "agentsLeft",
+        "Agents on left",
+        "Place Agents on the left; Auto follows the preset.",
+        Kind::OptionalFlag,
+    ),
 ];
 
 const fn row(
@@ -278,6 +278,7 @@ impl App {
         let cfg = &self.loaded.config.resources;
         let mut lines = Vec::new();
         let mut group = "";
+        let mut selected_line = 0;
         for (index, row) in ROWS.iter().enumerate() {
             if row.group != group {
                 group = row.group;
@@ -287,6 +288,9 @@ impl App {
                 )));
             }
             let value = display(cfg, *row);
+            if index == selected {
+                selected_line = lines.len();
+            }
             let style = if index == selected {
                 self.theme.selection()
             } else {
@@ -309,9 +313,12 @@ impl App {
         lines.push(Line::from(
             "↑↓ select · ←→ change · Enter toggle · writes [resources]",
         ));
+        let visible = usize::from(area.height.saturating_sub(4)).max(1);
+        let scroll = selected_line.saturating_sub(visible.saturating_sub(1));
         f.render_widget(
             Paragraph::new(Text::from(lines))
                 .wrap(Wrap { trim: false })
+                .scroll((scroll.min(u16::MAX as usize) as u16, 0))
                 .block(self.content_panel("Resources")),
             area,
         );
@@ -342,7 +349,15 @@ impl App {
                 cfg.shown_boxes = cycle(&cfg.shown_boxes, choices(row), delta).to_owned()
             }
             "presets" => cfg.presets = cycle(&cfg.presets, choices(row), delta).to_owned(),
-            "preset" => cfg.preset = step(cfg.preset as u64, delta, 0, 9, 1) as usize,
+            "preset" => {
+                let max = cfg
+                    .presets
+                    .split_whitespace()
+                    .count()
+                    .saturating_sub(1)
+                    .min(9) as u64;
+                cfg.preset = step(cfg.preset as u64, delta, 0, max, 1) as usize;
+            }
             "cpuBottom" => cfg.cpu_bottom = optional_flag(cfg.cpu_bottom, delta),
             "memBelowNet" => cfg.mem_below_net = optional_flag(cfg.mem_below_net, delta),
             "agentsLeft" => cfg.agents_left = optional_flag(cfg.agents_left, delta),
