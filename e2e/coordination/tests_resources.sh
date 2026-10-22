@@ -133,6 +133,8 @@ assert any("external" not in line.lower() for line in rows), f"{sys.argv[2]} is 
 print(f"[e2e] session-attributed process row: {rows[0].strip()}")
 PY
   log "  dispatched $HARNESS process is visible with session origin $task_id"
+  await_owner resources_task
+  [ "$OWNER_RC" = "0" ] || fail "session-attribution task exited $OWNER_RC"
 
   # A second process advertises the harness name in argv but was started by
   # tmux, outside Medulla. It has no registry entry and must render as external.
