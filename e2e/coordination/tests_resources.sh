@@ -220,6 +220,15 @@ PY
     || fail "pressing - did not restore the 2000ms sampler interval"
   log "  Agents visibility, Mem/Net width, and interval controls passed"
 
+  # Keep the production sampler running in the same Medulla process, but hide
+  # the full-width CPU chart so its terminal repaint cost does not dominate the
+  # sampler process-CPU measurement below.
+  tmux send-keys -t "$SESSION:resources" 1
+  sleep 1
+  pane="$(capture_app)"
+  printf '%s\n' "$pane" | grep -Fq '┌ CPU [1]' \
+    && fail "CPU chart remained visible before sampler CPU measurement"
+
   # §7 of resources-tab.md specifies 1000 processes at a 2000ms cadence, with
   # sampler CPU p95 <=40ms per tick and <=2% of one core averaged over one
   # minute. Keep 1000 unclassified sleepers alive so they exercise the real
@@ -254,7 +263,7 @@ try:
     average_pct = sum(tick_ms) / (elapsed * 10)
     ordered = sorted(tick_ms)
     p95 = ordered[min(len(ordered) - 1, int(0.95 * len(ordered)))]
-    print(f"[e2e] process fixture: {len(fixtures)} unclassified sleepers; Medulla CPU p95={p95:.1f}ms/tick, average={average_pct:.3f}% of one core over {elapsed:.1f}s (limits: <=40ms/tick, <=2.000%)")
+    print(f"[e2e] process fixture: {len(fixtures)} unclassified sleepers; {len(tick_ms)} Medulla process CPU samples at {interval:.0f}s cadence; p95={p95:.1f}ms/tick, max={max(tick_ms):.1f}ms/tick, average={average_pct:.3f}% of one core over {elapsed:.1f}s (limits: <=40ms/tick, <=2.000%)")
     assert p95 <= 40.0, f"Medulla CPU p95 {p95:.1f}ms per 2s tick exceeds 40ms"
     assert average_pct <= 2.0, f"Medulla CPU average {average_pct:.3f}% exceeds 2% of one core"
 finally:
