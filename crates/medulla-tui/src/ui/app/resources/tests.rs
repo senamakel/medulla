@@ -1,7 +1,7 @@
 use super::{
     draw_net_panel,
     layout::calc_sizes,
-    types::{LayoutOptions, ResourcesState, ShownBoxes},
+    types::{AgentSignal, LayoutOptions, ResourcesState, ShownBoxes},
 };
 use crate::ui::app::App;
 use crossterm::event::KeyCode;
@@ -952,7 +952,7 @@ fn agent_rows_render_with_classification_at_desktop_and_narrow_sizes() {
 }
 
 static SIGNALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-fn test_signal(_pid: u32, _signal: types::AgentSignal) -> std::io::Result<()> {
+fn test_signal(_pid: u32, _signal: AgentSignal) -> std::io::Result<()> {
     SIGNALS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     Ok(())
 }
