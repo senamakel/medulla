@@ -138,7 +138,7 @@ fn enabled_scenario() {
         let mut contents = Vec::new();
         tool_contents(&second, &mut contents);
         let sent = contents.join("\n");
-        assert!(sent.len() < FIXTURE.len(), "module left full output unchanged");
+        assert!(sent.len() < FIXTURE.len(), "module left full output unchanged: sent {} of {}, recovery tool {}, bodies={:?}", sent.len(), FIXTURE.len(), requests.iter().any(|request| String::from_utf8_lossy(&request.body).contains("juice_retrieve")), completions.iter().map(|r| (r.url.path().to_owned(), r.body.len())).collect::<Vec<_>>());
         assert!(requests.iter().any(|request| String::from_utf8_lossy(&request.body).contains("juice_retrieve")), "recovery tool not advertised");
         let env = HashMap::from([("MEDULLA_HOME".to_owned(), home.path().to_string_lossy().into_owned())]);
         let workspace = medulla::home::medulla_home(&env).join("embed/workspace");
