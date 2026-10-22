@@ -851,8 +851,10 @@ mod tests {
             ("alpha".into(), vec![row("w_same", "Claude", 55)]),
             ("beta".into(), vec![row("w_same", "Codex", 55)]),
         ];
-        let mut state = ResourcesState::default();
-        state.agent_filter = Some("!^cod".into());
+        let state = ResourcesState {
+            agent_filter: Some("!^cod".into()),
+            ..ResourcesState::default()
+        };
         let rows = visible_rows_with_remote(&ResourceSnapshot::default(), &hosts, &state);
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].kind, "Codex");
