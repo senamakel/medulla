@@ -96,7 +96,6 @@ EOF
   # and the sole configured harness, then type the isolated workspace.
   tmux send-keys -t "$SESSION:resources" C-t
   sleep 1
-  tmux send-keys -t "$SESSION:resources" Enter
   if ! wait_app_regex 'Claude Code|Codex|OpenCode' 30; then
     capture_app > "$RUN_DIR/harness-picker.pane"
     fail "session picker did not offer the configured $HARNESS harness"
