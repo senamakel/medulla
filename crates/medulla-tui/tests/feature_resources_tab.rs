@@ -7,7 +7,7 @@ use medulla_tui::ui::{
     app::{App, TABS},
     resources::sampler,
 };
-use ratatui::{backend::TestBackend, layout::Rect, Terminal};
+use ratatui::{backend::TestBackend, Terminal};
 
 fn process(pid: u32, command: &str, cpu: f64) -> ProcessSnapshot {
     ProcessSnapshot {

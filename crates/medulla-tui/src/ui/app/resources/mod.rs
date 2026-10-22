@@ -24,6 +24,16 @@ impl App {
         let rects = layout::calc_sizes(area, state.shown, &state.opts);
         state.rects = rects;
         if let Some(required) = rects.too_small {
+            if state.shown.agents && area.width >= 44 && area.height >= 10 {
+                state.rects.agents = area;
+                crate::ui::app::render::resources::draw_agents(
+                    f,
+                    area,
+                    &self.resource_snapshot,
+                    state,
+                );
+                return;
+            }
             f.render_widget(
                 Paragraph::new(format!(
                     "Terminal too small for Resources (minimum {required}x8)"
