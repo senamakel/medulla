@@ -203,6 +203,30 @@ impl SystemResourceSource {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn should_refresh_task_details(exe: Option<&std::path::Path>, cmd: &[std::ffi::OsString]) -> bool {
+    let Some(basename) = exe
+        .and_then(std::path::Path::file_name)
+        .and_then(std::ffi::OsStr::to_str)
+    else {
+        return false;
+    };
+    let basename = basename.to_ascii_lowercase();
+    let basename = basename.strip_suffix(".exe").unwrap_or(&basename);
+    match basename {
+        "claude" | "codex" | "opencode" | "openhuman-core" | "sh" | "bash" | "zsh" | "fish"
+        | "pwsh" | "powershell" => true,
+        "node" | "npx" | "env" => cmd.iter().any(|arg| {
+            let arg = arg.to_string_lossy();
+            arg.contains("@agentclientprotocol/claude-agent-acp")
+                || arg.contains("claude-agent-acp")
+                || arg.contains("@agentclientprotocol/codex-acp")
+                || arg.contains("codex-acp")
+        }),
+        _ => false,
+    }
+}
+
 impl ResourceSource for SystemResourceSource {
     fn sample(&mut self) -> ResourceSnapshot {
         let now = Instant::now();
@@ -221,9 +245,27 @@ impl ResourceSource for SystemResourceSource {
                 .with_memory()
                 .with_disk_usage()
                 .with_exe(UpdateKind::OnlyIfNotSet)
-                .with_cmd(UpdateKind::OnlyIfNotSet)
-                .with_tasks(),
+                .with_cmd(UpdateKind::OnlyIfNotSet),
         );
+        #[cfg(target_os = "linux")]
+        {
+            let agent_pids: Vec<_> = self
+                .system
+                .processes()
+                .iter()
+                .filter(|(_, process)| {
+                    should_refresh_task_details(process.exe(), process.cmd())
+                })
+                .map(|(pid, _)| *pid)
+                .collect();
+            if !agent_pids.is_empty() {
+                self.system.refresh_processes_specifics(
+                    ProcessesToUpdate::Some(&agent_pids),
+                    true,
+                    ProcessRefreshKind::nothing().with_tasks(),
+                );
+            }
+        }
         self.disks.refresh(true);
         self.networks.refresh(true);
         let networks = self
