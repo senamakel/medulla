@@ -288,6 +288,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             (true, true, true, true, ""),
             (true, true, true, false, "/mnt/data:1"),
             (true, false, false, false, ""),
+            (true, false, true, false, ""),
         ] {
             let mut configured = loaded.clone();
             configured.config.resources.mem_graphs = mem_graphs;
@@ -349,7 +350,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
                     );
                 }
             }
-            if io_mode {
+            if io_mode && show_disks {
                 assert!(
                     text.contains(if combined { "IO READ+WRITE" } else { "IO READ" }),
                     "IO graph labels missing at {width}x{height}: {text}"
