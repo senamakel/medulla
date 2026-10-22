@@ -187,7 +187,7 @@ async fn wrapper_stdio_child_registration_lives_until_the_session_drops() {
     assert_eq!(registration.session_id, None);
 
     session.kill.take().unwrap().send(()).unwrap();
-    assert_eq!(session.done.await.unwrap(), 128 + 9);
+    assert_eq!((&mut session.done).await.unwrap(), 128 + 9);
     drop(session);
     assert!(registry
         .snapshot()

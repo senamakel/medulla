@@ -258,7 +258,7 @@ pub async fn run_acp_task(options: RunTaskOptions) -> Result<RunTaskResult, Stri
                 let _ = handle.set_session_id(session_id.clone());
             }
             callback(session_id);
-        }) as super::types::OnSession
+        }) as crate::daemon::providers::types::OnSession
     });
     let provider = options.provider;
     let timeout = Duration::from_millis(options.timeout_ms);

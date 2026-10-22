@@ -33,7 +33,9 @@ async fn direct_runs_report_the_session_before_workspace_context() {
     .unwrap();
     std::fs::set_permissions(&harness, std::fs::Permissions::from_mode(0o755)).unwrap();
     let order = Arc::new(Mutex::new(Vec::new()));
-    let registry_during_session = Arc::new(Mutex::new(None));
+    let registry_during_session = Arc::new(Mutex::new(
+        None::<medulla_monitor::agents::AgentRegistration>,
+    ));
     let options = RunTaskOptions {
         task_id: None,
         embed: Default::default(),
@@ -66,14 +68,13 @@ async fn direct_runs_report_the_session_before_workspace_context() {
             let order = order.clone();
             let registry_during_session = registry_during_session.clone();
             Box::new(move |session_id| {
-                *registry_during_session.lock().unwrap() = Some(
-                    medulla_monitor::agents::agent_registry()
-                        .snapshot()
-                        .into_iter()
-                        .find(|registration| {
-                            registration.session_id.as_deref() == Some(&session_id)
-                        }),
-                );
+                if let Some(registration) = medulla_monitor::agents::agent_registry()
+                    .snapshot()
+                    .into_iter()
+                    .find(|registration| registration.session_id.as_deref() == Some(&session_id))
+                {
+                    *registry_during_session.lock().unwrap() = Some(registration);
+                }
                 order.lock().unwrap().push(format!("session:{session_id}"));
             })
         }),
