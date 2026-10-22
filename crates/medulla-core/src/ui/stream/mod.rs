@@ -38,7 +38,7 @@ pub struct DetailedUsage {
 /// category is reported, later events without that category do not erase it.
 pub fn detailed_usage(events: &[EventEnvelope]) -> Vec<DetailedUsage> {
     let mut rows: std::collections::BTreeMap<
-        (String, Option<crate::protocol::HarnessProvider>, Option<String>),
+        (String, Option<String>, Option<String>),
         Usage,
     > = std::collections::BTreeMap::new();
     for envelope in events {
@@ -53,7 +53,11 @@ pub fn detailed_usage(events: &[EventEnvelope]) -> Vec<DetailedUsage> {
             continue;
         };
         let total = rows
-            .entry((tier.clone(), *provider, model.clone()))
+            .entry((
+                tier.clone(),
+                provider.map(|provider| provider.as_str().to_string()),
+                model.clone(),
+            ))
             .or_default();
         total.input_tokens += usage.input_tokens;
         total.output_tokens += usage.output_tokens;
@@ -68,7 +72,9 @@ pub fn detailed_usage(events: &[EventEnvelope]) -> Vec<DetailedUsage> {
     rows.into_iter()
         .map(|((tier, provider, model), usage)| DetailedUsage {
             tier,
-            provider,
+            provider: provider
+                .as_deref()
+                .and_then(crate::protocol::HarnessProvider::from_wire),
             model,
             usage,
         })
