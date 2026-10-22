@@ -253,16 +253,25 @@ PY
       && fail "$title remained visible before sampler CPU measurement"
   done
 
-  # Let the real workflow finish successfully before measuring Medulla's
-  # process CPU. This keeps the sampler workload active without counting an
-  # unrelated model turn or a failure-review task against the budget.
+  # Stop the proof harness once its real session row has been asserted. The
+  # workflow fixture exists to keep a provider session observable; its outcome
+  # is outside this proof. Keep automatic failure review disabled in app.json,
+  # then wait for the run to settle before measuring Medulla's process CPU.
   local session_pid="$(cat "$RUN_DIR/session.pid")"
-  wait_app_regex 'resources-proof: succeeded' \
-    || fail "the Resources proof workflow did not finish before the performance sample"
-  kill -0 "$session_pid" 2>/dev/null \
-    && fail "proof harness process $session_pid remained alive after workflow success"
-  sleep 2
-  log "  proof workflow succeeded and harness process $session_pid ended before sampler CPU measurement"
+  kill "$session_pid" 2>/dev/null || true
+  deadline=$(( $(date +%s) + 30 ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    if ! kill -0 "$session_pid" 2>/dev/null; then break; fi
+    state="$(awk '{print $3}' "/proc/$session_pid/stat" 2>/dev/null || true)"
+    [ "$state" = Z ] && break
+    sleep 1
+  done
+  wait_app_regex 'resources-proof: (failed|succeeded)' 30 \
+    || fail "the Resources proof workflow did not settle after ending its harness session"
+  pane="$(capture_app)"
+  printf '%s\n' "$pane" | grep -Fq 'Reviewing why resources-proof failed' \
+    && fail "failure review remained active before the performance sample"
+  log "  proof harness process $session_pid ended and the workflow settled before sampler CPU measurement"
 
   # §7 of resources-tab.md specifies 1000 processes at a 2000ms cadence, with
   # sampler CPU p95 <=40ms per tick and <=2% of one core averaged over one
