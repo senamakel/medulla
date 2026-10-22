@@ -44,7 +44,7 @@ use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, TableLike, Value a
 
 use super::types::SkillScope;
 use super::SkillTarget;
-use crate::workflows::mcp::{ToolMode, TOOL_MODE_ENV};
+use medulla_types::{ToolMode, TOOL_MODE_ENV};
 
 /// The server key written into every harness config.
 const SERVER_NAME: &str = "medulla";
