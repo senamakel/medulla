@@ -105,7 +105,7 @@ pub fn cycle_interface(
 pub fn default_interface(interfaces: &[medulla_monitor::NetworkSnapshot]) -> Option<&str> {
     interfaces
         .iter()
-        .filter(|interface| {
+        .find(|interface| {
             interface.up
                 && !is_loopback(&interface.interface)
                 && (interface.total_received_bytes > 0
