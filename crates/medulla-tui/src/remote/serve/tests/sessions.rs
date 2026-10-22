@@ -128,6 +128,90 @@ fn oversized_base_session_lists_are_chunked_without_dropping_rows() {
     );
 }
 
+#[test]
+fn oversized_usage_lists_keep_usage_on_chunks_that_fit_it() {
+    let rows = (0..80)
+        .map(|index| RemoteSessionRow {
+            id: format!("agent-{index:03}"),
+            label: format!("agent {index}"),
+            provider: "claude".into(),
+            preset: None,
+            state: RemoteSessionState::Running,
+            cwd: "/workspace/project".into(),
+            name: None,
+            thread_name: None,
+            started_at: 1_700_000_000_000,
+            last_output_at: 1_700_000_000_000,
+            busy: true,
+            working: true,
+            attention: None,
+            bracketed_paste: false,
+            last_error: None,
+            usage: Some(AgentUsage {
+                kind: "Claude".into(),
+                pid: 10_000 + index,
+                cpu: 4.5,
+                rss: 1024,
+                threads: 5,
+                started_at: 1_700_000_000,
+                cpu_history: vec![4.5; 32],
+            }),
+        })
+        .collect::<Vec<_>>();
+    let messages = super::super::sessions_messages(&rows, 8);
+    assert!(messages.len() > 1);
+    let mut received = Vec::new();
+    for message in &messages {
+        assert!(encode_remote_message(message).len() <= medulla_link::MAX_MESSAGE_BYTES);
+        let RemoteMessage::SessionsChunk { rows, .. } = message else {
+            panic!("expected bounded chunks")
+        };
+        assert!(rows.iter().all(|row| row.usage.is_some()), "a chunk that fits its usage should retain it");
+        received.extend(rows.iter().map(|row| row.id.clone()));
+    }
+    assert_eq!(received, rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>());
+}
+
+#[test]
+fn oversized_multibyte_session_fields_are_safely_bounded() {
+    let mut row = RemoteSessionRow {
+        id: "unicode-row".into(),
+        label: "界".repeat(2048),
+        provider: "shell".into(),
+        preset: Some("é".repeat(2048)),
+        state: RemoteSessionState::Running,
+        cwd: "/workspace".into(),
+        name: None,
+        thread_name: None,
+        started_at: 1_700_000_000_000,
+        last_output_at: 1_700_000_000_000,
+        busy: false,
+        working: false,
+        attention: Some(medulla::protocol::RemoteAttention {
+            summary: "é漢".repeat(2048),
+            kind: "permission".into(),
+        }),
+        bracketed_paste: false,
+        last_error: None,
+        usage: None,
+    };
+    let messages = super::super::sessions_messages(&[row.clone()], 9);
+    assert_eq!(messages.len(), 1);
+    assert!(encode_remote_message(&messages[0]).len() <= medulla_link::MAX_MESSAGE_BYTES);
+    let RemoteMessage::SessionsChunk { rows, .. } = &messages[0] else {
+        panic!("oversized row should use a bounded chunk")
+    };
+    row = rows[0].clone();
+    assert_eq!(row.id, "unicode-row");
+    assert!(row.label.len() < "界".repeat(2048).len());
+    assert!(row.preset.unwrap().len() < "é".repeat(2048).len());
+    assert!(row.attention.unwrap().summary.len() < "é漢".repeat(2048).len());
+
+    let mut boundary = "é漢".to_owned();
+    super::super::truncate_to_char_boundary(&mut boundary, 3);
+    assert_eq!(boundary, "é");
+}
+
 #[tokio::test]
 async fn hello_is_answered_with_what_this_host_can_do() {
     let (mut server, client) = fixture("/tmp");

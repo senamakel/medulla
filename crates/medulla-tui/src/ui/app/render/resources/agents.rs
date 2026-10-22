@@ -180,7 +180,10 @@ pub(in crate::ui::app) fn visible_rows_with_remote(
     state: &ResourcesState,
 ) -> Vec<AgentRow> {
     let mut rows = visible_rows(snapshot, state);
-    for (host, sessions) in remote_hosts {
+    let mut hosts: Vec<_> = remote_hosts.iter().collect();
+    hosts.sort_by(|(a, _), (b, _)| a.cmp(b));
+    for (host, sessions) in hosts {
+        let mut host_rows = Vec::new();
         for session in sessions {
             let Some(usage) = &session.usage else {
                 continue;
@@ -207,13 +210,14 @@ pub(in crate::ui::app) fn visible_rows_with_remote(
                 depth: 0,
             };
             if matches_filter(&row, state.agent_filter.as_deref()) {
-                rows.push(row);
+                host_rows.push(row);
             }
         }
-    }
-    rows.sort_by(|a, b| compare(a, b, state.agent_sort));
-    if state.agent_reverse {
-        rows.reverse();
+        host_rows.sort_by(|a, b| compare(a, b, state.agent_sort));
+        if state.agent_reverse {
+            host_rows.reverse();
+        }
+        rows.extend(host_rows);
     }
     rows
 }
@@ -817,6 +821,40 @@ mod tests {
                 "missing {expected:?}:\n{rendered}"
             );
         }
+        assert_eq!(rendered.matches("Remote").count(), 2, "each host gets one heading:\n{rendered}");
+        assert!(rendered.find("alpha").unwrap() < rendered.find("beta").unwrap());
+    }
+
+    #[test]
+    fn remote_host_groups_preserve_local_agent_tree_order() {
+        let mut parent = process(100, "claude", 1.0, 100);
+        parent.ppid = None;
+        let mut child = process(50, "codex-acp", 2.0, 200);
+        child.ppid = Some(100);
+        let snapshot = ResourceSnapshot::default().with_processes(vec![parent, child]);
+        let remote = |id: &str, kind: &str, pid| medulla::protocol::RemoteSessionRow {
+            id: id.into(), label: kind.into(), provider: kind.to_lowercase(), preset: None,
+            state: medulla::protocol::RemoteSessionState::Running, cwd: "/work".into(),
+            name: None, thread_name: None, started_at: 1_700_000_000_000,
+            last_output_at: 1_700_000_000_000, busy: false, working: false,
+            attention: None, bracketed_paste: false, last_error: None,
+            usage: Some(medulla::protocol::AgentUsage {
+                kind: kind.into(), pid, cpu: pid as f64, rss: 1_024, threads: 1,
+                started_at: 1_700_000_000, cpu_history: vec![],
+            }),
+        };
+        // Deliberately pass hosts and rows out of display order. Remote hosts
+        // group by host, but local tree order is kept exactly as discovered.
+        let hosts = vec![
+            ("beta".into(), vec![remote("b", "Beta", 1)]),
+            ("alpha".into(), vec![remote("a2", "Alpha", 999), remote("a1", "Alpha", 2)]),
+        ];
+        let state = ResourcesState { agent_tree: true, ..ResourcesState::default() };
+        let rows = visible_rows_with_remote(&snapshot, &hosts, &state);
+        assert_eq!(
+            rows.iter().map(|row| (row.host.as_deref(), row.pid)).collect::<Vec<_>>(),
+            [(None, 100), (None, 50), (Some("alpha"), 2), (Some("alpha"), 999), (Some("beta"), 1)],
+        );
     }
 
     #[test]

@@ -566,7 +566,6 @@ impl RemoteServer {
             .retain(|identity, _| current.contains(identity));
         self.usage_cache
             .retain(|id, _| rows.iter().any(|row| &row.id == id));
-        trim_usage_to_message_budget(&mut rows);
         rows
     }
 
@@ -642,42 +641,22 @@ fn sessions_messages(rows: &[RemoteSessionRow], batch_id: u64) -> Vec<RemoteMess
             groups.push(std::mem::take(&mut group));
             candidate = vec![row.clone()];
         }
-        while !candidate_fits(&candidate) {
-            let Some(usage) = row.usage.as_mut() else {
-                break;
-            };
-            if !usage.cpu_history.is_empty() {
-                usage.cpu_history.remove(0);
-            } else {
-                row.usage = None;
-            }
+        if !candidate_fits(&candidate) {
+            candidate = vec![row.clone()];
+            shrink_session_row_to_fit(&mut row, &candidate_fits);
             candidate = vec![row.clone()];
         }
-        // Keep every session row. Session text is normally short; bound
-        // unusually long descriptive fields only when one row cannot fit.
-        while !candidate_fits(&candidate) {
-            let field = [
-                &mut row.label,
-                &mut row.cwd,
-                &mut row.name.get_or_insert_default(),
-                &mut row.thread_name.get_or_insert_default(),
-                &mut row.last_error.get_or_insert_default(),
-            ];
-            let longest = field.into_iter().max_by_key(|value| value.len());
-            let Some(value) = longest else { break };
-            if value.len() <= 16 {
-                break;
-            }
-            value.truncate(value.len() / 2);
-            candidate = vec![row.clone()];
-        }
+        assert!(
+            candidate_fits(&candidate),
+            "a session row's stable id exceeds the remote datagram budget"
+        );
         group.push(row);
     }
     if !group.is_empty() || groups.is_empty() {
         groups.push(group);
     }
     let count = groups.len().min(u16::MAX as usize) as u16;
-    groups
+    let messages: Vec<_> = groups
         .into_iter()
         .enumerate()
         .map(|(index, rows)| RemoteMessage::SessionsChunk {
@@ -686,7 +665,72 @@ fn sessions_messages(rows: &[RemoteSessionRow], batch_id: u64) -> Vec<RemoteMess
             count,
             rows,
         })
-        .collect()
+        .collect();
+    assert!(messages.iter().all(|message| {
+        encode_remote_message(message).len() <= medulla_link::MAX_MESSAGE_BYTES
+    }));
+    messages
+}
+
+fn shrink_session_row_to_fit(
+    row: &mut RemoteSessionRow,
+    fits: &impl Fn(&[RemoteSessionRow]) -> bool,
+) {
+    loop {
+        if fits(std::slice::from_ref(row)) {
+            return;
+        }
+        if let Some(usage) = row.usage.as_mut() {
+            if !usage.cpu_history.is_empty() {
+                usage.cpu_history.remove(0);
+                continue;
+            }
+            row.usage = None;
+            continue;
+        }
+        let fields = [
+            (row.label.len(), 0),
+            (row.provider.len(), 1),
+            (row.cwd.len(), 2),
+            (row.preset.as_ref().map_or(0, String::len), 3),
+            (row.name.as_ref().map_or(0, String::len), 4),
+            (row.thread_name.as_ref().map_or(0, String::len), 5),
+            (row.last_error.as_ref().map_or(0, String::len), 6),
+            (
+                row.attention.as_ref().map_or(0, |attention| attention.summary.len()),
+                7,
+            ),
+            (
+                row.attention.as_ref().map_or(0, |attention| attention.kind.len()),
+                8,
+            ),
+        ];
+        let Some((length, index)) = fields.into_iter().max_by_key(|(length, _)| *length) else {
+            return;
+        };
+        if length == 0 {
+            return;
+        }
+        let value = match index {
+            0 => &mut row.label,
+            1 => &mut row.provider,
+            2 => &mut row.cwd,
+            3 => row.preset.as_mut().expect("non-empty preset"),
+            4 => row.name.as_mut().expect("non-empty name"),
+            5 => row.thread_name.as_mut().expect("non-empty thread name"),
+            6 => row.last_error.as_mut().expect("non-empty error"),
+            7 => &mut row.attention.as_mut().expect("non-empty attention").summary,
+            _ => &mut row.attention.as_mut().expect("non-empty attention").kind,
+        };
+        truncate_to_char_boundary(value, value.len() / 2);
+    }
+}
+
+fn truncate_to_char_boundary(value: &mut String, mut target: usize) {
+    while !value.is_char_boundary(target) {
+        target -= 1;
+    }
+    value.truncate(target);
 }
 
 /// Trim only optional usage until the one-message envelope fits. Oversized
