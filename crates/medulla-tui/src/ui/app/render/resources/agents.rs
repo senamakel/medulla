@@ -33,7 +33,11 @@ pub(in crate::ui::app) struct AgentRow {
 
 impl AgentRow {
     pub(in crate::ui::app) fn identity(&self) -> AgentIdentity {
-        AgentIdentity { host: self.host.clone(), pid: self.pid, started: self.started }
+        AgentIdentity {
+            host: self.host.clone(),
+            pid: self.pid,
+            started: self.started,
+        }
     }
 }
 
@@ -178,7 +182,9 @@ pub(in crate::ui::app) fn visible_rows_with_remote(
     let mut rows = visible_rows(snapshot, state);
     for (host, sessions) in remote_hosts {
         for session in sessions {
-            let Some(usage) = &session.usage else { continue };
+            let Some(usage) = &session.usage else {
+                continue;
+            };
             let row = AgentRow {
                 host: Some(host.clone()),
                 pid: usage.pid,
@@ -191,7 +197,8 @@ pub(in crate::ui::app) fn visible_rows_with_remote(
                 cpu: usage.cpu,
                 runtime: (medulla::clock::now_millis()
                     - usage.started_at.saturating_mul(1000) as i64)
-                    .max(0) as u64 / 1000,
+                    .max(0) as u64
+                    / 1000,
                 ppid: None,
                 session_id: Some(format!("{}::{}", host, session.id)),
                 task_id: None,
@@ -205,18 +212,24 @@ pub(in crate::ui::app) fn visible_rows_with_remote(
         }
     }
     rows.sort_by(|a, b| compare(a, b, state.agent_sort));
-    if state.agent_reverse { rows.reverse(); }
+    if state.agent_reverse {
+        rows.reverse();
+    }
     rows
 }
 
 fn matches_filter(row: &AgentRow, filter: Option<&str>) -> bool {
     let Some(filter) = filter else { return true };
-    let (regex, pattern) = filter.strip_prefix('!').map_or((false, filter), |pattern| (true, pattern));
+    let (regex, pattern) = filter
+        .strip_prefix('!')
+        .map_or((false, filter), |pattern| (true, pattern));
     if regex {
-        regex::Regex::new(&format!("(?i){pattern}")).is_ok_and(|pattern| pattern.is_match(&row.kind))
+        regex::Regex::new(&format!("(?i){pattern}"))
+            .is_ok_and(|pattern| pattern.is_match(&row.kind))
     } else {
         format!("{} {} {} {}", row.pid, row.kind, row.origin, row.workspace)
-            .to_lowercase().contains(&pattern.to_lowercase())
+            .to_lowercase()
+            .contains(&pattern.to_lowercase())
     }
 }
 
@@ -325,11 +338,10 @@ pub(in crate::ui::app) fn draw_agents(
 ) {
     let rows = visible_rows_with_remote(snapshot, remote_hosts, state);
     if let Some(following) = state.agent_follow.clone() {
-        if !snapshot
-            .processes
-            .iter()
-            .any(|process| (process.pid, process.start_time) == (following.pid, following.started) && following.host.is_none())
-        {
+        if !snapshot.processes.iter().any(|process| {
+            (process.pid, process.start_time) == (following.pid, following.started)
+                && following.host.is_none()
+        }) {
             state.agent_follow = None;
             if state.agent_selected.as_ref() == Some(&following) {
                 state.agent_selected = None;
@@ -342,17 +354,13 @@ pub(in crate::ui::app) fn draw_agents(
     let sample_due = state
         .agent_last_sample
         .is_none_or(|last| now.duration_since(last).as_millis() >= u128::from(state.interval_ms));
-    let current: std::collections::HashSet<_> =
-        rows.iter().map(AgentRow::identity).collect();
+    let current: std::collections::HashSet<_> = rows.iter().map(AgentRow::identity).collect();
     state
         .agent_cpu_history
         .retain(|identity, _| current.contains(identity));
     if sample_due {
         for row in &rows {
-            let history = state
-                .agent_cpu_history
-                .entry(row.identity())
-                .or_default();
+            let history = state.agent_cpu_history.entry(row.identity()).or_default();
             history.push(row.cpu);
             if history.len() > 24 {
                 history.remove(0);
@@ -495,7 +503,9 @@ pub(in crate::ui::app) fn draw_agents(
         .block(Block::default().borders(Borders::ALL).title(title))
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
     let selected_index = selected.as_ref().and_then(|identity| {
-        rows.iter().position(|row| row.identity() == *identity).map(|index| display_indices[index])
+        rows.iter()
+            .position(|row| row.identity() == *identity)
+            .map(|index| display_indices[index])
     });
     let mut table_state = ratatui::widgets::TableState::default();
     table_state.select(selected_index);
@@ -812,14 +822,29 @@ mod tests {
     #[test]
     fn remote_agents_share_regex_filter_semantics_and_have_host_scoped_identity() {
         let row = |id: &str, kind: &str, pid| medulla::protocol::RemoteSessionRow {
-            id: id.into(), label: kind.into(), provider: kind.to_lowercase(), preset: None,
-            state: medulla::protocol::RemoteSessionState::Running, cwd: "/work".into(),
-            name: None, thread_name: None, started_at: 1_700_000_000_000,
-            last_output_at: 1_700_000_000_000, busy: false, working: false,
-            attention: None, bracketed_paste: false, last_error: None,
+            id: id.into(),
+            label: kind.into(),
+            provider: kind.to_lowercase(),
+            preset: None,
+            state: medulla::protocol::RemoteSessionState::Running,
+            cwd: "/work".into(),
+            name: None,
+            thread_name: None,
+            started_at: 1_700_000_000_000,
+            last_output_at: 1_700_000_000_000,
+            busy: false,
+            working: false,
+            attention: None,
+            bracketed_paste: false,
+            last_error: None,
             usage: Some(medulla::protocol::AgentUsage {
-                kind: kind.into(), pid, cpu: 1.0, rss: 1_024, threads: 2,
-                started_at: 1_700_000_000, cpu_history: vec![],
+                kind: kind.into(),
+                pid,
+                cpu: 1.0,
+                rss: 1_024,
+                threads: 2,
+                started_at: 1_700_000_000,
+                cpu_history: vec![],
             }),
         };
         let hosts = vec![

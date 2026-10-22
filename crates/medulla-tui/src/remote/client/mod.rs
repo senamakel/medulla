@@ -321,20 +321,33 @@ impl RemoteHost {
                         self.sessions_chunks = None;
                         self.rows = rows;
                     }
-                    RemoteMessage::SessionsChunk { batch_id, index, count, rows } => {
+                    RemoteMessage::SessionsChunk {
+                        batch_id,
+                        index,
+                        count,
+                        rows,
+                    } => {
                         if count == 0 || count > 4096 || index >= count {
                             self.sessions_chunks = None;
                             continue;
                         }
-                        if self.sessions_chunks.as_ref().is_none_or(|(current, chunks)| {
-                            *current != batch_id || chunks.len() != count as usize
-                        }) {
+                        if self
+                            .sessions_chunks
+                            .as_ref()
+                            .is_none_or(|(current, chunks)| {
+                                *current != batch_id || chunks.len() != count as usize
+                            })
+                        {
                             self.sessions_chunks = Some((batch_id, vec![None; count as usize]));
                         }
                         if let Some((_, chunks)) = self.sessions_chunks.as_mut() {
                             chunks[index as usize] = Some(rows);
                             if chunks.iter().all(Option::is_some) {
-                                self.rows = chunks.iter_mut().filter_map(Option::take).flatten().collect();
+                                self.rows = chunks
+                                    .iter_mut()
+                                    .filter_map(Option::take)
+                                    .flatten()
+                                    .collect();
                                 self.sessions_chunks = None;
                             }
                         }

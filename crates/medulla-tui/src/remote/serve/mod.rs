@@ -607,12 +607,17 @@ fn classified_session_agent<'a>(
     session_id: &str,
 ) -> Option<&'a medulla::resources::agents::AgentProcess> {
     agents.iter().find(|agent| {
-        agent.origin == (AgentOrigin::Session { id: session_id.to_owned() })
+        agent.origin
+            == (AgentOrigin::Session {
+                id: session_id.to_owned(),
+            })
     })
 }
 
 fn sessions_messages(rows: &[RemoteSessionRow], batch_id: u64) -> Vec<RemoteMessage> {
-    let whole = RemoteMessage::Sessions { rows: rows.to_vec() };
+    let whole = RemoteMessage::Sessions {
+        rows: rows.to_vec(),
+    };
     if encode_remote_message(&whole).len() <= medulla_link::MAX_MESSAGE_BYTES {
         return vec![whole];
     }
@@ -651,10 +656,18 @@ fn sessions_messages(rows: &[RemoteSessionRow], batch_id: u64) -> Vec<RemoteMess
         // Keep every session row. Session text is normally short; bound
         // unusually long descriptive fields only when one row cannot fit.
         while !candidate_fits(&candidate) {
-            let field = [&mut row.label, &mut row.cwd, &mut row.name.get_or_insert_default(), &mut row.thread_name.get_or_insert_default(), &mut row.last_error.get_or_insert_default()];
+            let field = [
+                &mut row.label,
+                &mut row.cwd,
+                &mut row.name.get_or_insert_default(),
+                &mut row.thread_name.get_or_insert_default(),
+                &mut row.last_error.get_or_insert_default(),
+            ];
             let longest = field.into_iter().max_by_key(|value| value.len());
             let Some(value) = longest else { break };
-            if value.len() <= 16 { break; }
+            if value.len() <= 16 {
+                break;
+            }
             value.truncate(value.len() / 2);
             candidate = vec![row.clone()];
         }
@@ -703,6 +716,8 @@ fn trim_usage_to_message_budget(rows: &mut [RemoteSessionRow]) {
             }
         } else if let Some(row) = rows.iter_mut().rev().find(|row| row.usage.is_some()) {
             row.usage = None;
-        } else { break; }
+        } else {
+            break;
+        }
     }
 }

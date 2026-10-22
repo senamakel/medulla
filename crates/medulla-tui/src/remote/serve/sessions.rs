@@ -21,17 +21,6 @@ pub fn wire_choice(choice: &HarnessChoice) -> RemoteHarnessChoice {
     }
 }
 
-/// Match the Agents pane's display classification for a harness provider.
-pub fn agent_kind(provider: &str) -> String {
-    match medulla::protocol::HarnessProvider::from_wire(provider) {
-        Some(medulla::protocol::HarnessProvider::Claude) => "Claude".into(),
-        Some(medulla::protocol::HarnessProvider::Codex) => "Codex".into(),
-        Some(medulla::protocol::HarnessProvider::Opencode) => "OpenCode".into(),
-        Some(medulla::protocol::HarnessProvider::Openhuman) => "OpenHuman".into(),
-        Some(_) | None => provider.to_owned(),
-    }
-}
-
 /// Find the local choice a client's request names.
 ///
 /// Resolved **by id against what this host offers**, never reconstructed from

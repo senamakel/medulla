@@ -2,8 +2,8 @@ use super::{
     draw_net_panel,
     layout::calc_sizes,
     types::{
-        AgentIdentity, AgentSignal, AgentSignalConfirmStage, AgentSignalConfirmation, LayoutOptions,
-        ResourcesState, ShownBoxes,
+        AgentIdentity, AgentSignal, AgentSignalConfirmStage, AgentSignalConfirmation,
+        LayoutOptions, ResourcesState, ShownBoxes,
     },
 };
 use crate::ui::app::App;
@@ -1059,7 +1059,11 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
     app.set_resource_snapshot(Arc::new(
         crate::ui::resources::sampler::ResourceSnapshot::default().with_processes(vec![process]),
     ));
-    app.resources.agent_selected = Some(AgentIdentity { host: None, pid: 44, started: 1 });
+    app.resources.agent_selected = Some(AgentIdentity {
+        host: None,
+        pid: 44,
+        started: 1,
+    });
     app.resources.agent_detail = true;
     app.resources.shown.cpu = false;
     app.resources.shown.mem = false;
@@ -1198,7 +1202,11 @@ fn enter_on_a_registered_session_agent_selects_its_sessions_rail_row() {
     app.set_resource_snapshot(Arc::new(
         crate::ui::resources::sampler::ResourceSnapshot::default().with_processes(vec![process]),
     ));
-    app.resources.agent_selected = Some(AgentIdentity { host: None, pid, started });
+    app.resources.agent_selected = Some(AgentIdentity {
+        host: None,
+        pid,
+        started,
+    });
 
     assert!(app.resources_key(KeyCode::Enter));
     let sessions_tab = crate::ui::app::types::TABS
@@ -1228,9 +1236,20 @@ fn agent_follow_tracks_identity_through_sorting_and_snapshot_reordering() {
         crate::ui::resources::sampler::ResourceSnapshot::default()
             .with_processes(processes.clone()),
     ));
-    app.resources.agent_selected = Some(AgentIdentity { host: None, pid: 119, started: 1 });
+    app.resources.agent_selected = Some(AgentIdentity {
+        host: None,
+        pid: 119,
+        started: 1,
+    });
     assert!(app.resources_key(KeyCode::Char('F')));
-    assert_eq!(app.resources.agent_follow, Some(AgentIdentity { host: None, pid: 119, started: 1 }));
+    assert_eq!(
+        app.resources.agent_follow,
+        Some(AgentIdentity {
+            host: None,
+            pid: 119,
+            started: 1
+        })
+    );
 
     let render = |app: &mut App| {
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
@@ -1246,7 +1265,14 @@ fn agent_follow_tracks_identity_through_sorting_and_snapshot_reordering() {
             .collect::<String>()
     };
     let first = render(&mut app);
-    assert_eq!(app.resources.agent_selected, Some(AgentIdentity { host: None, pid: 119, started: 1 }));
+    assert_eq!(
+        app.resources.agent_selected,
+        Some(AgentIdentity {
+            host: None,
+            pid: 119,
+            started: 1
+        })
+    );
     assert!(first.contains("FOLLOW PID 119"));
     assert!(
         first.contains("119"),
@@ -1260,7 +1286,14 @@ fn agent_follow_tracks_identity_through_sorting_and_snapshot_reordering() {
             .with_processes(processes.into_iter().rev().collect()),
     ));
     let reordered = render(&mut app);
-    assert_eq!(app.resources.agent_selected, Some(AgentIdentity { host: None, pid: 119, started: 1 }));
+    assert_eq!(
+        app.resources.agent_selected,
+        Some(AgentIdentity {
+            host: None,
+            pid: 119,
+            started: 1
+        })
+    );
     assert!(reordered.contains("FOLLOW PID 119"));
     assert!(
         reordered.contains("119"),

@@ -427,8 +427,16 @@ impl App {
                 }
                 KeyCode::Enter => {
                     self.resources.agent_filter_editing = false;
-                    let remote_hosts: Vec<_> = self.remote_hosts.iter().map(|(id, host)| (id.clone(), host.rows.clone())).collect();
-                    let rows = crate::ui::app::render::resources::visible_rows_with_remote(&self.resource_snapshot, &remote_hosts, &self.resources);
+                    let remote_hosts: Vec<_> = self
+                        .remote_hosts
+                        .iter()
+                        .map(|(id, host)| (id.clone(), host.rows.clone()))
+                        .collect();
+                    let rows = crate::ui::app::render::resources::visible_rows_with_remote(
+                        &self.resource_snapshot,
+                        &remote_hosts,
+                        &self.resources,
+                    );
                     self.resources.agent_selected = rows.first().map(|row| row.identity());
                 }
                 KeyCode::Backspace => {
@@ -447,8 +455,16 @@ impl App {
             self.resources.agent_detail = false;
             return true;
         }
-        let remote_hosts: Vec<_> = self.remote_hosts.iter().map(|(id, host)| (id.clone(), host.rows.clone())).collect();
-        let rows = crate::ui::app::render::resources::visible_rows_with_remote(&self.resource_snapshot, &remote_hosts, &self.resources);
+        let remote_hosts: Vec<_> = self
+            .remote_hosts
+            .iter()
+            .map(|(id, host)| (id.clone(), host.rows.clone()))
+            .collect();
+        let rows = crate::ui::app::render::resources::visible_rows_with_remote(
+            &self.resource_snapshot,
+            &remote_hosts,
+            &self.resources,
+        );
         let selected = self
             .resources
             .agent_selected
@@ -513,12 +529,16 @@ impl App {
                 true
             }
             KeyCode::Char('F') => {
-                let identity = rows.get(selected).filter(|row| !row.remote).map(|row| row.identity());
+                let identity = rows
+                    .get(selected)
+                    .filter(|row| !row.remote)
+                    .map(|row| row.identity());
                 if identity.is_none() {
                     self.set_status("Follow is available for local agents only");
                     return true;
                 }
-                self.resources.agent_follow = match (self.resources.agent_follow.clone(), identity) {
+                self.resources.agent_follow = match (self.resources.agent_follow.clone(), identity)
+                {
                     (Some(following), Some(selected)) if following == selected => None,
                     (_, selected) => selected,
                 };

@@ -19,7 +19,12 @@ fn session_usage_matches_classified_descendant_and_aggregated_tree() {
         argv: Some(argv.iter().map(|arg| (*arg).to_owned()).collect()),
         cwd: None,
         started_at_secs: pid as u64,
-        usage: ProcessUsage { cpu_percent: cpu, rss_bytes: rss, threads: 1, io: None },
+        usage: ProcessUsage {
+            cpu_percent: cpu,
+            rss_bytes: rss,
+            threads: 1,
+            io: None,
+        },
     };
     let processes = vec![
         process(10, None, &["pty-host"], 1.0, 100),
@@ -111,11 +116,16 @@ fn oversized_base_session_lists_are_chunked_without_dropping_rows() {
     for message in &messages {
         assert!(encode_remote_message(message).len() <= medulla_link::MAX_MESSAGE_BYTES);
         match message {
-            RemoteMessage::SessionsChunk { rows, .. } => received.extend(rows.iter().map(|row| row.id.clone())),
+            RemoteMessage::SessionsChunk { rows, .. } => {
+                received.extend(rows.iter().map(|row| row.id.clone()))
+            }
             other => panic!("expected chunked list, got {other:?}"),
         }
     }
-    assert_eq!(received, rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>());
+    assert_eq!(
+        received,
+        rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>()
+    );
 }
 
 #[tokio::test]
