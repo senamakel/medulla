@@ -60,3 +60,45 @@ fn dropping_an_old_guard_does_not_remove_a_reregistered_process_identity() {
 
     assert_eq!(registry.snapshot(), vec![replacement]);
 }
+
+#[test]
+fn spawn_idle_child_is_registered_with_origin_and_removed_when_guard_drops() {
+    let mut child = spawn_idle_child();
+    let registry = AgentRegistry::default();
+    let guard = registry
+        .register(
+            child.id(),
+            Some("task-child".into()),
+            Some("session-child".into()),
+            "claude",
+        )
+        .expect("the spawned child has a process start time");
+
+    let registration = registry.snapshot().pop().expect("child is registered");
+    assert_eq!(registration.pid, child.id());
+    assert_eq!(registration.task_id.as_deref(), Some("task-child"));
+    assert_eq!(registration.session_id.as_deref(), Some("session-child"));
+    assert_eq!(registration.provider, "claude");
+
+    drop(guard);
+    assert!(registry.snapshot().is_empty());
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn spawn_idle_child() -> std::process::Child {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", "Start-Sleep -Seconds 30"])
+            .spawn()
+            .expect("start idle child")
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("start idle child")
+    }
+}
