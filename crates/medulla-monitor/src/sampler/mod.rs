@@ -228,6 +228,22 @@ fn should_refresh_task_details(exe: Option<&std::path::Path>, cmd: &[std::ffi::O
 }
 
 #[cfg(target_os = "linux")]
+fn should_refresh_process_tree(exe: Option<&std::path::Path>, cmd: &[std::ffi::OsString]) -> bool {
+    let Some(basename) = exe
+        .and_then(std::path::Path::file_name)
+        .and_then(std::ffi::OsStr::to_str)
+    else {
+        return false;
+    };
+    let basename = basename.to_ascii_lowercase();
+    let basename = basename.strip_suffix(".exe").unwrap_or(&basename);
+    !matches!(
+        basename,
+        "sh" | "bash" | "zsh" | "fish" | "dash" | "pwsh" | "powershell"
+    ) && should_refresh_task_details(exe, cmd)
+}
+
+#[cfg(target_os = "linux")]
 fn may_be_agent_process(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     let name = name.strip_suffix(".exe").unwrap_or(&name);
@@ -262,6 +278,9 @@ fn pids_in_process_trees(
         }
     }
     let mut pending = roots.into_iter().collect::<Vec<_>>();
+    if pending.is_empty() {
+        return Vec::new();
+    }
     let mut included = std::collections::HashSet::new();
     while let Some(pid) = pending.pop() {
         if !included.insert(pid) {
@@ -327,13 +346,21 @@ impl ResourceSource for SystemResourceSource {
                 .filter(|(_, process)| should_refresh_task_details(process.exe(), process.cmd()))
                 .map(|(pid, _)| *pid)
                 .collect();
+            let agent_tree_roots: Vec<_> = self
+                .system
+                .processes()
+                .iter()
+                .filter(|(_, process)| should_refresh_process_tree(process.exe(), process.cmd()))
+                .map(|(pid, _)| *pid)
+                .collect();
             let mut process_metric_pids = pids_in_process_trees(
                 self.system
                     .processes()
                     .iter()
                     .map(|(pid, process)| (*pid, process.parent())),
-                agent_pids.iter().copied(),
+                agent_tree_roots,
             );
+            process_metric_pids.extend(agent_pids.iter().copied());
             if let Ok(current_pid) = sysinfo::get_current_pid() {
                 process_metric_pids.push(current_pid);
             }

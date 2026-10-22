@@ -439,6 +439,25 @@ fn agent_metric_refresh_includes_descendants_without_refreshing_unrelated_trees(
     );
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn shell_candidates_do_not_make_every_child_an_agent_metric() {
+    use std::ffi::OsString;
+    use std::path::Path;
+
+    assert!(!super::should_refresh_process_tree(
+        Some(Path::new("/usr/bin/bash")),
+        &[
+            OsString::from("bash"),
+            OsString::from("/app/tests_resources.sh")
+        ],
+    ));
+    assert!(super::should_refresh_process_tree(
+        Some(Path::new("/usr/local/bin/codex")),
+        &[OsString::from("codex")],
+    ));
+}
+
 #[test]
 fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
     let disks = [
