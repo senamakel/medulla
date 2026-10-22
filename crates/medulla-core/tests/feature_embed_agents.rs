@@ -24,6 +24,7 @@ async fn wait_for_pid(path: &std::path::Path) -> u32 {
     .unwrap_or_else(|_| panic!("PID file {} was not populated", path.display()))
 }
 
+#[cfg(target_os = "linux")]
 fn current_process_records() -> Vec<medulla::resources::agents::ProcessRecord> {
     use medulla::resources::agents::{ProcessRecord, ProcessUsage};
     use sysinfo::{ProcessesToUpdate, System};
@@ -51,6 +52,7 @@ fn current_process_records() -> Vec<medulla::resources::agents::ProcessRecord> {
         .collect()
 }
 
+#[cfg(target_os = "linux")]
 fn process_tree_contains(node: &medulla::resources::agents::ProcessNode, pid: u32) -> bool {
     node.pid == pid
         || node
@@ -168,6 +170,7 @@ fn native_agents_keep_each_workers_context_private_and_resume_their_own_session(
 }
 
 #[test]
+#[cfg(target_os = "linux")]
 fn embedded_openhuman_shell_process_is_nested_under_a_pidless_row() {
     std::thread::Builder::new()
         .stack_size(medulla::tokio_tuning::WORKER_STACK_BYTES)
