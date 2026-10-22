@@ -102,6 +102,7 @@ pub struct RemoteServer {
     resource_source: medulla_monitor::sampler::SystemResourceSource,
     usage_sampled_at: Option<Instant>,
     usage_history: std::collections::HashMap<(u32, u64), Vec<f64>>,
+    usage_cache: std::collections::HashMap<String, medulla::protocol::AgentUsage>,
     log: Option<LogFn>,
 }
 
@@ -125,6 +126,7 @@ impl RemoteServer {
             resource_source: medulla_monitor::sampler::SystemResourceSource::default(),
             usage_sampled_at: None,
             usage_history: std::collections::HashMap::new(),
+            usage_cache: std::collections::HashMap::new(),
             log: None,
         }
     }
@@ -435,9 +437,9 @@ impl RemoteServer {
     /// The session list as the client's rail draws it, freshly computed.
     fn current_rows(&mut self) -> Vec<RemoteSessionRow> {
         let now = Instant::now();
-        let sample = self.usage_sampled_at.is_none_or(|last| {
-            now.duration_since(last) >= Duration::from_millis(2_000)
-        });
+        let sample = self
+            .usage_sampled_at
+            .is_none_or(|last| now.duration_since(last) >= Duration::from_millis(2_000));
         let snapshot = if sample {
             self.usage_sampled_at = Some(now);
             Some(medulla_monitor::sampler::ResourceSource::sample(
@@ -446,7 +448,8 @@ impl RemoteServer {
         } else {
             None
         };
-        let mut rows: Vec<_> = self.sessions
+        let mut rows: Vec<_> = self
+            .sessions
             .sessions
             .rows()
             .iter()
@@ -467,31 +470,42 @@ impl RemoteServer {
                         if history.len() > 32 {
                             history.remove(0);
                         }
-                        wire.usage = Some(medulla::protocol::AgentUsage {
-                            kind: crate::ui::app::render::resources::agents::classify_provider(&row.provider.as_wire()),
+                        let usage = medulla::protocol::AgentUsage {
+                            kind: sessions::agent_kind(&row.provider.as_wire()),
                             pid,
                             cpu: process.cpu_percent,
                             rss: process.memory_bytes,
                             threads: process.threads,
                             started_at: process.start_time,
                             cpu_history: history.clone(),
-                        });
+                        };
+                        self.usage_cache.insert(row.id.clone(), usage);
                     }
                 }
+                wire.usage = self.usage_cache.get(&row.id).cloned();
                 wire
             })
             .collect();
         // Keep the process history bounded to live identities only.
         let current: std::collections::HashSet<_> = rows
             .iter()
-            .filter_map(|row| row.usage.as_ref().map(|usage| (usage.pid, usage.started_at)))
+            .filter_map(|row| {
+                row.usage
+                    .as_ref()
+                    .map(|usage| (usage.pid, usage.started_at))
+            })
             .collect();
-        self.usage_history.retain(|identity, _| current.contains(identity));
+        self.usage_history
+            .retain(|identity, _| current.contains(identity));
+        self.usage_cache
+            .retain(|id, _| rows.iter().any(|row| &row.id == id));
         // Usage has a strict per-host budget. Oldest points are always dropped
         // first; identity and latest readings remain intact.
         let mut total = 0usize;
         for row in &mut rows {
-            let Some(usage) = row.usage.as_mut() else { continue };
+            let Some(usage) = row.usage.as_mut() else {
+                continue;
+            };
             while usage.cpu_history.len() > 1
                 && serde_json::to_vec(usage).map_or(false, |bytes| bytes.len() > 1024)
             {

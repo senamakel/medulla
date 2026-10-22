@@ -50,7 +50,9 @@ fn session_rows_read_old_payloads_and_round_trip_agent_usage() {
     old.as_object_mut().unwrap().remove("usage");
     let decoded: RemoteSessionRow = serde_json::from_value(old).unwrap();
     assert_eq!(decoded.usage, None);
-    assert!(!serde_json::to_string(&decoded).unwrap().contains("\"usage\""));
+    assert!(!serde_json::to_string(&decoded)
+        .unwrap()
+        .contains("\"usage\""));
 
     let mut current = row();
     current.usage = Some(AgentUsage {
