@@ -84,7 +84,7 @@ PY
 #!/usr/bin/env bash
 set -euo pipefail
 $(harness_env "$app_home/harness-home")
-$(harness_transport_env)
+$(DAEMON_TRANSPORT=acp harness_transport_env)
 export HOME=$(printf %q "$app_home")
 export MEDULLA_HOME=$(printf %q "$app_home")
 export MEDULLA_USER=e2e
