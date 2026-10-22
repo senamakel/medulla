@@ -352,7 +352,10 @@ fn process_snapshots_include_executable_and_command_for_unregistered_agents() {
 #[cfg(target_os = "linux")]
 #[test]
 fn process_snapshots_include_executable_and_command_for_an_unregistered_child() {
-    let mut child = std::process::Command::new("sleep").arg("60").spawn().unwrap();
+    let mut child = std::process::Command::new("sleep")
+        .arg("60")
+        .spawn()
+        .unwrap();
     let pid = child.id();
     let snapshot = super::SystemResourceSource::default().sample();
     let process = snapshot
