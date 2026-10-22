@@ -1,11 +1,11 @@
 //! TokenMaxxxing leaderboard rendering: token burn, active days, rewards, and
 //! previous daily winners.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use super::super::super::types::App;
 use super::types::{LEADERBOARD, PREVIOUS_WINNERS};

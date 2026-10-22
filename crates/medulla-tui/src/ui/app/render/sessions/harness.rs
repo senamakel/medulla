@@ -11,11 +11,11 @@
 //! run in two sessions shows the transcript instead, because picking one of them
 //! would be showing work the operator did not point at.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::ui::harness_pane::FOCUS_CHORD_LABEL;
 use crate::worker::pty::ATTENTION_GLYPH;

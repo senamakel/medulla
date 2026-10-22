@@ -4,7 +4,7 @@ use ratatui::style::Modifier;
 
 use super::super::super::super::color;
 use super::super::workflow_run_elapsed;
-use super::{NOW, app, lane, none_waiting};
+use super::{app, lane, none_waiting, NOW};
 
 /// A reported run, as the control plane hands one to the rail.
 fn reported_run(
@@ -71,12 +71,10 @@ fn a_settled_run_row_stops_ageing_at_its_last_report() {
             run,
             last: true,
         });
-    assert!(
-        app()
-            .rail_row_line(&row, &[lane()], false, &none_waiting(), NOW + 600_000)
-            .to_string()
-            .contains("3s")
-    );
+    assert!(app()
+        .rail_row_line(&row, &[lane()], false, &none_waiting(), NOW + 600_000)
+        .to_string()
+        .contains("3s"));
 }
 
 #[test]

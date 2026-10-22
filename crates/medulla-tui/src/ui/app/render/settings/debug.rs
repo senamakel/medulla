@@ -4,11 +4,11 @@
 //! Both are diagnostic views of the current session rather than settings, which
 //! is why they sit under their own heading.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::ui::events::{EventEnvelope, TuiEvent};
 

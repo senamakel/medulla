@@ -136,23 +136,20 @@ fn progress_chatter_does_not_survive_the_restart() {
     );
 
     // In this session the operator can see what it was doing…
-    assert!(
-        app.copilot()
-            .expect("thread")
-            .turns
-            .iter()
-            .any(|turn| turn.role == TurnRole::Status)
-    );
+    assert!(app
+        .copilot()
+        .expect("thread")
+        .turns
+        .iter()
+        .any(|turn| turn.role == TurnRole::Status));
     // …and next session they see what it concluded.
     let restarted = app_with_home(home.path(), &workflows);
-    assert!(
-        !restarted
-            .copilot()
-            .expect("thread")
-            .turns
-            .iter()
-            .any(|turn| turn.role == TurnRole::Status)
-    );
+    assert!(!restarted
+        .copilot()
+        .expect("thread")
+        .turns
+        .iter()
+        .any(|turn| turn.role == TurnRole::Status));
 }
 
 #[test]

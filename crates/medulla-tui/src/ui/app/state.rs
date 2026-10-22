@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ratatui::layout::Rect;
 
-use crate::ui::agents::{AgentLane, derive_agent_lanes, merge_host_activity, merge_host_roster};
+use crate::ui::agents::{derive_agent_lanes, merge_host_activity, merge_host_roster, AgentLane};
 use crate::ui::command::CommandSpec;
 use crate::ui::composer::Draft;
 use crate::ui::fleet::{merge_capacity, registry_capacity};

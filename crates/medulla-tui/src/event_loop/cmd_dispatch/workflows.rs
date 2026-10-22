@@ -13,13 +13,13 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
 
 use medulla::daemon::embedded::EmbeddedDaemonOptions;
-use medulla::flow_engine::{CapabilitySettings, HostServices, folding_sink};
+use medulla::flow_engine::{folding_sink, CapabilitySettings, HostServices};
 use medulla::workflows::{
-    LOCAL_WORKER_ADDRESS, LocalWorkflowHost, RunContext, StoreWorkflowResolver, run_workflow,
+    run_workflow, LocalWorkflowHost, RunContext, StoreWorkflowResolver, LOCAL_WORKER_ADDRESS,
 };
 
 use super::super::types::PendingFrame;

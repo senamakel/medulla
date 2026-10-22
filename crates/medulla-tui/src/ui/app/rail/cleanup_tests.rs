@@ -3,7 +3,7 @@
 use medulla::control_socket::{HarnessRunStatus, RunReport};
 
 use super::tests::{hosting_app, stub_session};
-use super::{RailRow, SessionRailRow, run_rows_under};
+use super::{run_rows_under, RailRow, SessionRailRow};
 use crate::ui::harness_pane::HarnessFocus;
 use crate::worker::pty::PtyState;
 

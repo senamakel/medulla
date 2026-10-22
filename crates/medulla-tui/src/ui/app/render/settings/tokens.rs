@@ -4,10 +4,10 @@ use medulla::config::MeterId;
 use medulla::protocol::HarnessProvider;
 use medulla::subscriptions::SubscriptionSnapshot;
 use medulla::ui::events::Usage;
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 /// One accumulated session/tier/model usage row supplied to the renderer.
 #[derive(Debug, Clone, PartialEq)]

@@ -10,11 +10,11 @@
 //! wide enough to spare the columns; otherwise the transcript keeps the whole
 //! width and the same information stays reachable as the header headline.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use medulla::harness_work::WorkSnapshot;
 

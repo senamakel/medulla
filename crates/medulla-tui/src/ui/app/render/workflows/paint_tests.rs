@@ -207,12 +207,10 @@ fn a_selected_cell_renders_reversed() {
 
     let lines = canvas.into_lines();
 
-    assert!(
-        lines[0].spans[0]
-            .style
-            .add_modifier
-            .contains(Modifier::REVERSED)
-    );
+    assert!(lines[0].spans[0]
+        .style
+        .add_modifier
+        .contains(Modifier::REVERSED));
 }
 
 #[test]

@@ -9,15 +9,15 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::Runtime;
 use medulla::runtime::mock::MockRuntime;
+use medulla::runtime::Runtime;
 use medulla::ui::workflows::Move;
 use medulla::workflows::{RunRecord, RunStatus, RunStep, WorkflowRecord, WorkflowStore};
-use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::Terminal;
 use serde_json::json;
 
-use super::super::super::types::{App, TABS, WorkflowFocus};
+use super::super::super::types::{App, WorkflowFocus, TABS};
 
 /// A workflow branching two ways and merging again.
 fn diamond(id: &str) -> WorkflowRecord {

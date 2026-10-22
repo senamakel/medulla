@@ -1,9 +1,9 @@
 //! Deterministic Settings view tests. The page renderers accept their data so
 //! these tests never inspect the host or sample a provider account.
 
-use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
+use ratatui::Terminal;
 
 use super::{harnesses, tokens};
 use crate::ui::app::types::{SETTINGS_GROUPS, SETTINGS_SUBPAGES};
@@ -118,10 +118,10 @@ fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
 
 #[test]
 fn tokens_app_renders_pricing_only_for_provider_attributed_events() {
-    use crate::ui::app::types::{App, SETTINGS_SUBPAGES, tab_pos};
+    use crate::ui::app::types::{tab_pos, App, SETTINGS_SUBPAGES};
     use medulla::config::LoadedConfig;
-    use medulla::runtime::Runtime;
     use medulla::runtime::mock::MockRuntime;
+    use medulla::runtime::Runtime;
     use std::sync::Arc;
 
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
@@ -177,7 +177,10 @@ fn tokens_app_renders_pricing_only_for_provider_attributed_events() {
         "unknown provider",
         "cost unavailable",
     ] {
-        assert!(output.contains(expected), "missing {expected:?} in:\n{output}");
+        assert!(
+            output.contains(expected),
+            "missing {expected:?} in:\n{output}"
+        );
     }
     assert_eq!(
         output.matches("input 1000000").count(),
@@ -246,10 +249,10 @@ fn harnesses_view_explains_empty_detection_without_host_probes() {
 
 #[test]
 fn selected_harnesses_page_uses_the_collected_app_snapshot() {
-    use crate::ui::app::types::{App, DetectedProvider, HarnessesView, tab_pos};
+    use crate::ui::app::types::{tab_pos, App, DetectedProvider, HarnessesView};
     use medulla::config::LoadedConfig;
-    use medulla::runtime::Runtime;
     use medulla::runtime::mock::MockRuntime;
+    use medulla::runtime::Runtime;
     use std::sync::Arc;
 
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
@@ -289,10 +292,10 @@ fn selected_harnesses_page_uses_the_collected_app_snapshot() {
 
 #[test]
 fn entering_harnesses_queues_local_collection_with_loaded_sources() {
-    use crate::ui::app::types::{App, Cmd, tab_pos};
+    use crate::ui::app::types::{tab_pos, App, Cmd};
     use medulla::config::LoadedConfig;
-    use medulla::runtime::Runtime;
     use medulla::runtime::mock::MockRuntime;
+    use medulla::runtime::Runtime;
     use std::sync::Arc;
 
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
@@ -318,10 +321,10 @@ fn entering_harnesses_queues_local_collection_with_loaded_sources() {
 
 #[test]
 fn settings_dispatch_renders_both_new_sections_by_selection() {
-    use crate::ui::app::types::{App, tab_pos};
+    use crate::ui::app::types::{tab_pos, App};
     use medulla::config::LoadedConfig;
-    use medulla::runtime::Runtime;
     use medulla::runtime::mock::MockRuntime;
+    use medulla::runtime::Runtime;
     use std::sync::Arc;
 
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());
@@ -352,11 +355,11 @@ fn settings_dispatch_renders_both_new_sections_by_selection() {
 
 #[test]
 fn existing_usage_page_still_uses_the_legacy_input_output_presentation() {
-    use crate::ui::app::App;
     use crate::ui::app::types::SETTINGS_SUBPAGES;
+    use crate::ui::app::App;
     use medulla::config::LoadedConfig;
-    use medulla::runtime::Runtime;
     use medulla::runtime::mock::MockRuntime;
+    use medulla::runtime::Runtime;
     use std::sync::Arc;
 
     let runtime: Arc<dyn Runtime> = Arc::new(MockRuntime::demo());

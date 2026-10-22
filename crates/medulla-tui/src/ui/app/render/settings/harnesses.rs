@@ -3,10 +3,10 @@
 #[cfg(test)]
 pub(super) use super::super::super::types::DetectedProvider;
 pub(super) use super::super::super::types::HarnessesView;
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 impl super::super::super::types::App {
     /// Render cached facts, falling back to the effective configuration while collection runs.

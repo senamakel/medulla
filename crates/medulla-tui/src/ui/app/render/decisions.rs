@@ -1,10 +1,10 @@
 //! Prepared-decision modal rendering.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::ui::decisions::DecisionKind;
 use crate::ui::util::clip;

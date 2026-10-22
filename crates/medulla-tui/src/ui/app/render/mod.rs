@@ -5,14 +5,14 @@
 //! reused by the per-tab submodules. Each tab's body lives in a sibling module,
 //! and [`frame_state`] owns the per-frame reset every draw opens with.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line as TLine, Span};
 use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::ui::agents::Line as StyledLine;
-use crate::ui::events::{EventEnvelope, TuiEvent, describe_event};
+use crate::ui::events::{describe_event, EventEnvelope, TuiEvent};
 use crate::ui::util::{clip, clock};
 use crate::worker::pty::ATTENTION_GLYPH;
 

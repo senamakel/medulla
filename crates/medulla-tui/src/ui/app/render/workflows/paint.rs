@@ -256,7 +256,11 @@ impl Canvas {
             for cell in row {
                 let ch = if cell.wire != 0 && cell.ch == ' ' {
                     let ch = wire_char(cell.wire);
-                    if cell.dashed { dashed_char(ch) } else { ch }
+                    if cell.dashed {
+                        dashed_char(ch)
+                    } else {
+                        ch
+                    }
                 } else {
                     cell.ch
                 };

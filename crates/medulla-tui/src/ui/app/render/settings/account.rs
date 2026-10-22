@@ -1,11 +1,11 @@
 //! The Account subpage: which backend this session is signed in to, who it is
 //! signed in as, and the logout action.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use super::super::super::types::App;
 

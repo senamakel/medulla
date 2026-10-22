@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use medulla::ui::checkout::Checkout;
 use medulla::ui::git_review::{
-    ChangeOrigin, CommentAnchor, Hunk, ReviewComments, hunks, next_hunk, origin_label,
-    previous_hunk,
+    hunks, next_hunk, origin_label, previous_hunk, ChangeOrigin, CommentAnchor, Hunk,
+    ReviewComments,
 };
 
 use super::repository;

@@ -18,7 +18,7 @@ use ratatui::text::{Line as TLine, Span};
 use medulla::config::{SidebarGrouping, SidebarSort};
 
 use crate::ui::app::types::App;
-use crate::ui::resources::{DeviceSnapshot, ResourceSnapshot, device_lines, segments};
+use crate::ui::resources::{device_lines, segments, DeviceSnapshot, ResourceSnapshot};
 
 /// The widest the sample sidebar is drawn, matching a comfortable rail.
 pub(super) const SAMPLE_WIDTH: usize = 34;

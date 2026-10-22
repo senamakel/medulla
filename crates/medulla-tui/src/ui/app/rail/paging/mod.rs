@@ -6,7 +6,7 @@
 
 use medulla::control_socket::HarnessRunRegistry;
 
-use super::{AgentGroup, RailAnchor, RailRow, run_rows_under};
+use super::{run_rows_under, AgentGroup, RailAnchor, RailRow};
 use crate::ui::agents::AgentLane;
 
 /// Push one agent's selected session rows and its optional paging control.

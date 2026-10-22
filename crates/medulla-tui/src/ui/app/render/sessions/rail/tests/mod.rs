@@ -6,8 +6,8 @@ mod wrap_tests;
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::Runtime;
 use medulla::runtime::mock::MockRuntime;
+use medulla::runtime::Runtime;
 use medulla::ui::agents::{AgentLane, AgentRole};
 use ratatui::style::{Color, Modifier};
 use unicode_width::UnicodeWidthStr;

@@ -5,7 +5,7 @@ use crate::ui::clipboard::{copy_for_operator, copy_to_clipboard, current_platfor
 use crate::ui::command::{self, CopyScope};
 use crate::ui::composer::Draft;
 
-use super::super::types::{App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES, tab_pos};
+use super::super::types::{tab_pos, App, Cmd, Prompt, PromptKind, SETTINGS_SUBPAGES};
 
 impl App {
     /// The task under the Sessions rail cursor, when a `Sub` (task) row is selected.

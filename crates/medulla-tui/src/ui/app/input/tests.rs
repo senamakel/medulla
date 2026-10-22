@@ -5,15 +5,15 @@ use std::sync::Arc;
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use medulla::config::LoadedConfig;
-use medulla::runtime::Runtime;
 use medulla::runtime::mock::MockRuntime;
+use medulla::runtime::Runtime;
 use medulla::ui::agents::AgentRow;
 use medulla::ui::events::{EventEnvelope, TuiEvent};
-use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::Terminal;
 
 use super::super::rail::RailRow;
-use super::super::types::{App, Cmd, tab_pos};
+use super::super::types::{tab_pos, App, Cmd};
 use super::nav::SUBTASK_PAGE;
 
 /// An app whose event stream is only the tasks these tests are about, so the

@@ -6,7 +6,7 @@ use medulla::config::{
     ControlStyle, FieldPlacement, FieldVisibility, HarnessNameStyle, PathStyle, StatusLineConfig,
 };
 
-use super::tests::{NOW, app, harness_row};
+use super::tests::{app, harness_row, NOW};
 
 /// Build an app with an explicit status-line layout applied.
 fn app_with(cfg: StatusLineConfig) -> App {
@@ -113,11 +113,9 @@ fn the_harness_name_and_control_state_have_compact_spellings() {
         harness_style: HarnessNameStyle::Long,
         ..StatusLineConfig::default()
     });
-    assert!(
-        long.own_session_lines(&row, false, 48, NOW)[0]
-            .to_string()
-            .starts_with("● Codex · unmanaged")
-    );
+    assert!(long.own_session_lines(&row, false, 48, NOW)[0]
+        .to_string()
+        .starts_with("● Codex · unmanaged"));
 
     let icons = app_with(StatusLineConfig {
         harness_style: HarnessNameStyle::Icon,
@@ -230,11 +228,9 @@ fn an_on_alert_field_appears_only_for_a_harness_that_needs_attention() {
 
     let mut errored = harness_row("/workspace/medulla");
     errored.last_error = Some("spawn failed".into());
-    assert!(
-        app.own_session_lines(&errored, false, 48, NOW)[0]
-            .to_string()
-            .ends_with("/workspace/medulla")
-    );
+    assert!(app.own_session_lines(&errored, false, 48, NOW)[0]
+        .to_string()
+        .ends_with("/workspace/medulla"));
 }
 
 #[test]

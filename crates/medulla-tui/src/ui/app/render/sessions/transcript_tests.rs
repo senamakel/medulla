@@ -8,12 +8,12 @@ use medulla::harness_work::{HarnessSessionInfo, WorkSnapshot};
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::{AgentDeclaration, Runtime};
 use medulla::ui::agents::{AgentLane, AgentRole, TurnBlock};
-use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
+use ratatui::Terminal;
 
-use crate::ui::app::App;
 use crate::ui::app::rail::{HostRailRow, RailRow};
+use crate::ui::app::App;
 
 use super::types::Selection;
 
@@ -497,8 +497,8 @@ fn moving_the_cursor_off_a_session_puts_its_pane_back_to_the_harness() {
     // A view is opened about one session. Left standing across a selection
     // change it would describe the previous harness's work under the new one's
     // title — the two are different repositories as often as not.
-    use crate::ui::app::rail::SessionRailRow;
     use crate::ui::app::rail::tests::{hosting_app, stub_session};
+    use crate::ui::app::rail::SessionRailRow;
     use crate::ui::app::types::PaneView;
 
     let row_for = |id: &str| {

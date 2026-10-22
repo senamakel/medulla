@@ -11,7 +11,7 @@ use super::super::tests::{app, stub_session};
 use super::super::{
     AgentGroup, AgentRailRow, GroupRailRow, HostGroup, HostRailRow, SessionRailRow,
 };
-use super::{Section, SectionHeader, flatten_agents, order_sections, sort_agents, sort_sessions};
+use super::{flatten_agents, order_sections, sort_agents, sort_sessions, Section, SectionHeader};
 use crate::ui::app::App;
 
 /// Three agents across two checkouts and two harnesses, in declaration order.
@@ -157,11 +157,9 @@ fn grouping_by_harness_sections_by_the_cli_each_agent_runs() {
         .find(|(label, _)| label.as_deref() == Some("claude"))
         .expect("the claude agents are sectioned together");
     assert_eq!(claude.1, vec!["zed".to_string(), "mint".to_string()]);
-    assert!(
-        sections
-            .iter()
-            .any(|(label, agents)| label.as_deref() == Some("codex") && agents == &["acorn"])
-    );
+    assert!(sections
+        .iter()
+        .any(|(label, agents)| label.as_deref() == Some("codex") && agents == &["acorn"]));
 }
 
 #[test]

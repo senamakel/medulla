@@ -11,11 +11,11 @@
 //!
 //! `i` opens and closes it; the graph is what it closes back to.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use medulla::ui::workflows::{note_rows, proposal_detail, run_overview};
 

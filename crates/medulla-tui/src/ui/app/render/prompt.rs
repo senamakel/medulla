@@ -1,11 +1,11 @@
 //! Overlay and composer rendering for [`App`]: the inline prompt overlay, the
 //! Chat composer, and the resume-picker modal.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::Frame;
 
 use super::super::types::App;
 

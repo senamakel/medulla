@@ -1,6 +1,6 @@
 //! Stable cursor identity tests for the Sessions rail.
 
-use super::{RailAnchor, RailRow, SessionRailRow, rail_anchor, resolve_rail_cursor};
+use super::{rail_anchor, resolve_rail_cursor, RailAnchor, RailRow, SessionRailRow};
 use crate::ui::agents::{AgentLane, AgentRole, TaskState, TaskStatus};
 
 /// A local session row, keyed by the PTY id its anchor is built from.

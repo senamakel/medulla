@@ -7,17 +7,17 @@ use ratatui::text::{Line as TLine, Span};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::ui::agents::AgentLane;
-use crate::ui::util::{SPINNER, slug};
+use crate::ui::util::{slug, SPINNER};
 use crate::worker::pty::{
-    ATTENTION_GLYPH, AttentionKind, HarnessAttention, PtyState, SessionControl, SessionRow,
+    AttentionKind, HarnessAttention, PtyState, SessionControl, SessionRow, ATTENTION_GLYPH,
 };
 
-use super::super::super::super::rail::{NEW_SESSION_LABEL, RailRow};
+use super::super::super::super::rail::{RailRow, NEW_SESSION_LABEL};
 use super::super::super::super::types::App;
 use super::super::super::color;
-use super::CONT_INDENT;
 use super::harness_line;
 use super::wrap::{home_dir, wrap_line};
+use super::CONT_INDENT;
 
 /// Maximum terminal-cell width reserved for a session title in an agent label.
 ///

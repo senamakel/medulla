@@ -14,7 +14,7 @@ use crossterm::event::KeyCode;
 
 use medulla::ui::workflows::Move;
 
-use crate::ui::composer::{Draft, delete_before, insert_at};
+use crate::ui::composer::{delete_before, insert_at, Draft};
 
 use super::super::types::{App, Cmd, WorkflowFocus};
 

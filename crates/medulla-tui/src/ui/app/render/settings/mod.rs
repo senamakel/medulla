@@ -9,10 +9,10 @@
 //! Each subpage's body lives in its own submodule; this one owns only the split,
 //! the nav, and the dispatch.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line as TLine, Text};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::ui::multi_pane;
 

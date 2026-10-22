@@ -1,8 +1,8 @@
 //! The Settings tab's left-hand navigation: group headings over the flat,
 //! selectable subpage list.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
+use ratatui::Frame;
 
 use crate::ui::multi_pane;
 

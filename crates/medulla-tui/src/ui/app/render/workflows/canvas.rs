@@ -20,11 +20,11 @@
 //! literal — it only travels the edges that run actually took — and with no run
 //! it is an idle drift that makes the shape of the graph easier to follow.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Color;
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 use unicode_width::UnicodeWidthStr;
 
 use medulla::ui::workflows::{GraphLayout, PlacedNode, RunOverlay};
@@ -114,7 +114,11 @@ impl App {
         let room = wants
             .min(spare)
             .min(area.height * (MAX_SHARE - 1) / MAX_SHARE);
-        if room < MIN_PREVIEW { 0 } else { room }
+        if room < MIN_PREVIEW {
+            0
+        } else {
+            room
+        }
     }
 
     /// Draw only the graph panel, leaving pane allocation to the canvas view.

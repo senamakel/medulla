@@ -18,11 +18,11 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::ui::harness_pane::{
-    FOCUS_CHORD_LABEL, HarnessFocus,
     keys::{encode, is_focus_chord},
+    HarnessFocus, FOCUS_CHORD_LABEL,
 };
-use crate::worker::pty::SessionControl;
 use crate::worker::pty::launch::bracket_paste;
+use crate::worker::pty::SessionControl;
 
 use super::super::types::{App, PaneView};
 

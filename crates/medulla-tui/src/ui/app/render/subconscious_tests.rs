@@ -8,10 +8,10 @@
 use std::sync::Arc;
 
 use medulla::config::LoadedConfig;
-use medulla::runtime::Runtime;
 use medulla::runtime::mock::MockRuntime;
-use ratatui::Terminal;
+use medulla::runtime::Runtime;
 use ratatui::backend::TestBackend;
+use ratatui::Terminal;
 
 use crate::ui::app::{App, TABS};
 

@@ -7,14 +7,14 @@
 //! agree only by inspection. What this module owns is the part that is genuinely
 //! specific: turning a workflow, and the runs nested under it, into rows.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
+use ratatui::Frame;
 
 use crate::ui::multi_pane::{self, NavRow};
 
 use super::super::super::types::{App, WorkflowFocus};
-use super::super::super::workflows::{NEW_LABEL, WorkflowRailRow};
+use super::super::super::workflows::{WorkflowRailRow, NEW_LABEL};
 
 /// How far a run sits under the workflow it belongs to.
 const RUN_INDENT: usize = 2;

@@ -9,7 +9,7 @@
 //! than an index into a flattened list, because the run rows only exist while
 //! their workflow is selected.
 
-use medulla::ui::workflows::{WorkflowRow, run_rows, workflow_rows};
+use medulla::ui::workflows::{run_rows, workflow_rows, WorkflowRow};
 use medulla::workflows::RunStatus;
 
 use super::super::types::App;

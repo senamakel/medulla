@@ -11,7 +11,7 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
-use medulla::ui::workflows::{Progress, classify_progress};
+use medulla::ui::workflows::{classify_progress, Progress};
 
 /// The most frames drawn, newest last.
 ///

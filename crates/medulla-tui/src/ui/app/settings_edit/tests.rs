@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use medulla::config::{LoadedConfig, TuiConfig};
-use medulla::runtime::Runtime;
 use medulla::runtime::mock::MockRuntime;
+use medulla::runtime::Runtime;
 
 use super::super::types::App;
 use super::{SettingKind, SettingValue};

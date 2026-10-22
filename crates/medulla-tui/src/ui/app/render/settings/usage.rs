@@ -1,10 +1,10 @@
 //! The Usage subpage: this session's token spend, and the account totals.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::ui::stream;
 use crate::ui::util::clip;

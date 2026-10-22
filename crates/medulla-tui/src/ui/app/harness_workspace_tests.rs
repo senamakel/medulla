@@ -1,7 +1,7 @@
 //! Focused tests for bounded folder completion and fuzzy ranking.
 
-use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::Terminal;
 
 use super::harness_workspace::{
     absolute, folder_completions, fuzzy_subsequence_score, match_score, workspace_match_score,
@@ -271,11 +271,9 @@ fn saving_a_named_favorite_persists_it_and_makes_its_name_searchable() {
         app.loaded.config.harness.favorite_workspaces[0].path,
         workspace.to_string_lossy()
     );
-    assert!(
-        std::fs::read_to_string(config)
-            .unwrap()
-            .contains("favoriteWorkspaces")
-    );
+    assert!(std::fs::read_to_string(config)
+        .unwrap()
+        .contains("favoriteWorkspaces"));
 
     let picker = app.session_picker.as_mut().unwrap();
     picker.workspace_query = "daily".into();

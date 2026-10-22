@@ -22,8 +22,8 @@
 //! - [`inspector`] — the selected node's declaration, and its run detail.
 //! - [`copilot`] — the conversation that edits the graph.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::Frame;
 
 use super::super::types::{App, WorkflowFocus, WorkflowView};
 

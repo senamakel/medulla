@@ -4,11 +4,11 @@
 //! `app::changes` has already collected and keeps the diff viewport following
 //! the review cursor.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::Frame;
 
 use medulla::ui::git_review::CommentAnchor;
 

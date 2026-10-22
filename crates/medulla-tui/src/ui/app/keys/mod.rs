@@ -18,7 +18,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::types::{App, Cmd, TABS};
 use crate::ui::command::CopyScope;
-use crate::ui::composer::{PromptAction, edit_prompt};
+use crate::ui::composer::{edit_prompt, PromptAction};
 
 mod changes;
 mod harness;

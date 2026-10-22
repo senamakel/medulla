@@ -15,7 +15,7 @@ use medulla::config::StatusLineConfig;
 use ratatui::style::Style;
 use ratatui::text::{Line as TLine, Span};
 
-use crate::ui::app::status_line::{STATUS_LINE_ROWS, status_line_group};
+use crate::ui::app::status_line::{status_line_group, STATUS_LINE_ROWS};
 use crate::ui::app::types::App;
 
 impl App {

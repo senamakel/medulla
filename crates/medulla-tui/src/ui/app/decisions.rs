@@ -3,7 +3,7 @@
 use crossterm::event::KeyCode;
 
 use crate::ui::composer::Draft;
-use crate::ui::decisions::{DecisionItem, decision_items};
+use crate::ui::decisions::{decision_items, DecisionItem};
 
 use super::types::{App, Prompt, PromptKind};
 

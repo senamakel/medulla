@@ -22,7 +22,7 @@
 use medulla::config::ResourceDisplay::{self, Bar, Off, Percent, Value};
 
 use crate::ui::theme::{
-    PALETTE, THEME_ROLES, blink_ms_from_seconds, blink_seconds, color_to_string,
+    blink_ms_from_seconds, blink_seconds, color_to_string, PALETTE, THEME_ROLES,
 };
 
 use super::types::App;

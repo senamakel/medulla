@@ -176,7 +176,10 @@ fn detailed_usage_keeps_reported_and_missing_providers_in_separate_rows() {
         unreachable!();
     };
     *provider = Some(HarnessProvider::Claude);
-    let events = vec![env(1, attributed), env(2, end("reasoning", Some("claude-sonnet-4-6"), Some((7, 2))))];
+    let events = vec![
+        env(1, attributed),
+        env(2, end("reasoning", Some("claude-sonnet-4-6"), Some((7, 2)))),
+    ];
 
     let details = detailed_usage(&events);
     assert_eq!(details.len(), 2);

@@ -5,11 +5,11 @@
 //! URLs, model names, peers — remains file-managed and is shown below so the
 //! effective values are still inspectable without leaving the app.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use super::super::super::settings_edit::SettingKind;
 use super::super::super::types::App;

@@ -11,7 +11,7 @@
 use medulla::config::TuiConfig;
 
 use super::AppMsg;
-use medulla_tui::remote::client::{RemoteRequest, RemoteUpdate, task};
+use medulla_tui::remote::client::{task, RemoteRequest, RemoteUpdate};
 
 /// Dial `host_id` and keep serving it until the App drops its request channel.
 ///

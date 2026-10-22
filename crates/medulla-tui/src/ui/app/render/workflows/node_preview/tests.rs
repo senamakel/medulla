@@ -5,7 +5,7 @@ use serde_json::json;
 
 use medulla::workflows::{RunRecord, RunStatus, RunStep};
 
-use super::{AgentDefaults, kind_lines, run_header, run_lines};
+use super::{kind_lines, run_header, run_lines, AgentDefaults};
 
 /// Flatten styled lines into the text an operator reads.
 fn text(lines: Vec<Line<'static>>) -> String {

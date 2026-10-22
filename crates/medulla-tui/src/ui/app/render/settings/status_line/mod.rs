@@ -25,11 +25,11 @@
 //! descriptions into it is what let the list above shrink from three lines per
 //! group to one.
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::ui::app::render::sessions::RAIL_MAX_CONTENT;
 

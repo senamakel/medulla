@@ -37,10 +37,8 @@ pub struct DetailedUsage {
 /// Optional categories remain absent when no event reports them. Once a
 /// category is reported, later events without that category do not erase it.
 pub fn detailed_usage(events: &[EventEnvelope]) -> Vec<DetailedUsage> {
-    let mut rows: std::collections::BTreeMap<
-        (String, Option<String>, Option<String>),
-        Usage,
-    > = std::collections::BTreeMap::new();
+    let mut rows: std::collections::BTreeMap<(String, Option<String>, Option<String>), Usage> =
+        std::collections::BTreeMap::new();
     for envelope in events {
         let TuiEvent::InferenceEnd {
             tier,

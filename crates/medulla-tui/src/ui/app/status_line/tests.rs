@@ -6,10 +6,10 @@ use medulla::config::{
     AppearanceConfig, ControlStyle, FieldPlacement, HarnessNameStyle, LoadedConfig, PathStyle,
     StatusLineConfig, TuiConfig,
 };
-use medulla::runtime::Runtime;
 use medulla::runtime::mock::MockRuntime;
+use medulla::runtime::Runtime;
 
-use super::{STATUS_LINE_ROWS, StatusLineField};
+use super::{StatusLineField, STATUS_LINE_ROWS};
 use crate::ui::app::App;
 
 fn app(path: &std::path::Path) -> App {

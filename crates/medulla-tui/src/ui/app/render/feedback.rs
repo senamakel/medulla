@@ -5,11 +5,11 @@
 //! session) the whole tab collapses to a single hint panel rather than showing
 //! an empty list, which would read as "no one has filed anything".
 
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use medulla::client::{FeedbackItem, FeedbackStatus, FeedbackType};
 

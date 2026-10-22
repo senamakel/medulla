@@ -1,11 +1,11 @@
 //! The Help subpage: the keyboard reference, and the command list rendered from
 //! the catalog itself so it cannot drift from what the composer accepts.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line as TLine, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::ui::harness_pane::FOCUS_CHORD_LABEL;
 

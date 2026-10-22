@@ -10,7 +10,7 @@ use medulla::protocol::HarnessProvider;
 use medulla::runtime::mock::MockRuntime;
 use medulla::runtime::{AgentDeclaration, Runtime, WorkerInfo};
 
-use super::{AgentGroup, AgentRailRow, GroupRailRow, NEW_SESSION_LABEL, RailRow};
+use super::{AgentGroup, AgentRailRow, GroupRailRow, RailRow, NEW_SESSION_LABEL};
 use crate::ui::app::App;
 use crate::worker::pty::PtyManager;
 
@@ -453,9 +453,8 @@ fn no_remote_hosts_means_no_remote_rows() {
         std::sync::Arc::new(medulla::runtime::mock::MockRuntime::demo());
     let loaded = medulla::config::LoadedConfig::defaults("medulla.tui.json".into());
     let app = crate::ui::app::App::new(rt, loaded);
-    assert!(
-        app.host_tree()
-            .iter()
-            .all(|row| row.kind == medulla::ui::hosts::HostKind::Local)
-    );
+    assert!(app
+        .host_tree()
+        .iter()
+        .all(|row| row.kind == medulla::ui::hosts::HostKind::Local));
 }

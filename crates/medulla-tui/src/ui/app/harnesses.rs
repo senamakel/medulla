@@ -255,16 +255,14 @@ mod tests {
             view.providers[0].version.as_deref(),
             Some("Claude Code 2.4.1")
         );
-        assert!(
-            view.configuration
-                .iter()
-                .any(|fact| fact.contains("Codex overrides configured for 1"))
-        );
-        assert!(
-            view.live_facts
-                .iter()
-                .any(|fact| fact.contains("No managed skills installed"))
-        );
+        assert!(view
+            .configuration
+            .iter()
+            .any(|fact| fact.contains("Codex overrides configured for 1")));
+        assert!(view
+            .live_facts
+            .iter()
+            .any(|fact| fact.contains("No managed skills installed")));
     }
 
     #[test]

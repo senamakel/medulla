@@ -13,7 +13,7 @@
 
 use crate::ui::agents::Line as StyledLine;
 
-use super::super::super::rail::{NEW_SESSION_LABEL, RailRow};
+use super::super::super::rail::{RailRow, NEW_SESSION_LABEL};
 use super::super::super::types::App;
 use super::types::Selection;
 
