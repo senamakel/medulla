@@ -388,7 +388,7 @@ impl App {
                         &self.resource_snapshot,
                         &self.resources,
                     );
-                    self.resources.agent_selected = rows.first().map(|row| (row.pid,row.started));
+                    self.resources.agent_selected = rows.first().map(|row| (row.pid, row.started));
                 }
                 KeyCode::Backspace => {
                     self.resources.agent_filter.as_mut().map(String::pop);

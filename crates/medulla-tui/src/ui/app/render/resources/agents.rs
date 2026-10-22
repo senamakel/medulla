@@ -515,14 +515,46 @@ mod tests {
     fn registry_classifies_session_task_and_host_origins() {
         let registry = medulla_monitor::agents::agent_registry();
         let registrations = [
-            medulla_monitor::agents::AgentRegistration { pid: 987_101, started_at_secs: 100, task_id: None, session_id: Some("session-label".into()), provider: "claude".into() },
-            medulla_monitor::agents::AgentRegistration { pid: 987_102, started_at_secs: 100, task_id: Some("task-7".into()), session_id: None, provider: "codex-acp".into() },
-            medulla_monitor::agents::AgentRegistration { pid: 987_103, started_at_secs: 100, task_id: None, session_id: None, provider: "openhuman".into() },
+            medulla_monitor::agents::AgentRegistration {
+                pid: 987_101,
+                started_at_secs: 100,
+                task_id: None,
+                session_id: Some("session-label".into()),
+                provider: "claude".into(),
+            },
+            medulla_monitor::agents::AgentRegistration {
+                pid: 987_102,
+                started_at_secs: 100,
+                task_id: Some("task-7".into()),
+                session_id: None,
+                provider: "codex-acp".into(),
+            },
+            medulla_monitor::agents::AgentRegistration {
+                pid: 987_103,
+                started_at_secs: 100,
+                task_id: None,
+                session_id: None,
+                provider: "openhuman".into(),
+            },
         ];
-        let _guards: Vec<_> = registrations.iter().cloned().map(|registration| registry.register_at(registration)).collect();
-        let snapshot = ResourceSnapshot::default().with_processes(vec![process(987_101,"claude",1.0,1),process(987_102,"codex-acp",2.0,2),process(987_103,"openhuman",3.0,3),process(987_104,"aider",4.0,4)]);
+        let _guards: Vec<_> = registrations
+            .iter()
+            .cloned()
+            .map(|registration| registry.register_at(registration))
+            .collect();
+        let snapshot = ResourceSnapshot::default().with_processes(vec![
+            process(987_101, "claude", 1.0, 1),
+            process(987_102, "codex-acp", 2.0, 2),
+            process(987_103, "openhuman", 3.0, 3),
+            process(987_104, "aider", 4.0, 4),
+        ]);
         let rows = rows(&snapshot);
-        assert_eq!(rows.iter().map(|row| row.origin.as_str()).collect::<Vec<_>>(), ["session-label","task task-7","host","external"]);
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.origin.as_str())
+                .collect::<Vec<_>>(),
+            ["session-label", "task task-7", "host", "external"]
+        );
     }
 
     #[test]
