@@ -957,9 +957,11 @@ fn agent_rows_render_with_classification_at_desktop_and_narrow_sizes() {
 
 static SIGNALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static SIGNAL_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn test_process_owned(_pid: u32, _started: u64, uid: Option<&str>) -> bool {
     uid == Some("test-user")
 }
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn never_owned(_pid: u32, _started: u64, _uid: Option<&str>) -> bool {
     false
 }
@@ -973,6 +975,7 @@ fn test_signal(
     Ok(())
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn agent_kill_waits_for_confirmation_and_uses_injected_signal_function() {
     let _guard = SIGNAL_TEST_LOCK.lock().unwrap();
@@ -1094,6 +1097,7 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
     assert!(!text.contains("envsecret"));
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn external_agent_signal_requires_a_second_explicit_confirmation() {
     let _guard = SIGNAL_TEST_LOCK.lock().unwrap();
@@ -1118,6 +1122,7 @@ fn external_agent_signal_requires_a_second_explicit_confirmation() {
     assert!(app.resources.agent_signal_armed.is_none());
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn unowned_process_never_reaches_the_injected_signal_function() {
     let _guard = SIGNAL_TEST_LOCK.lock().unwrap();
@@ -1137,6 +1142,28 @@ fn unowned_process_never_reaches_the_injected_signal_function() {
     assert!(app.resources_key(KeyCode::Char('y')));
     assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
     assert!(app.resources.agent_signal_armed.is_none());
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[test]
+fn process_signals_are_disabled_on_unsupported_platforms() {
+    let _guard = SIGNAL_TEST_LOCK.lock().unwrap();
+    SIGNALS.store(0, std::sync::atomic::Ordering::SeqCst);
+    let mut app = App::new(
+        Arc::new(MockRuntime::empty()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(47, "claude", 10.0)]),
+    ));
+    app.resources.agent_signal_fn = test_signal;
+
+    assert!(app.resources_key(KeyCode::Char('k')));
+    assert!(app.resources.agent_signal_armed.is_none());
+    assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(app.resources_key(KeyCode::Char('y')));
+    assert_eq!(SIGNALS.load(std::sync::atomic::Ordering::SeqCst), 0);
 }
 
 #[cfg(unix)]
