@@ -540,7 +540,12 @@ impl RemoteServer {
 /// datagram. Session identity/state fields are never removed here.
 fn trim_usage_to_message_budget(rows: &mut [RemoteSessionRow]) {
     let limit = medulla_link::MAX_MESSAGE_BYTES;
-    while encode_remote_message(&RemoteMessage::Sessions { rows: rows.to_vec() }).len() > limit {
+    while encode_remote_message(&RemoteMessage::Sessions {
+        rows: rows.to_vec(),
+    })
+    .len()
+        > limit
+    {
         let oldest_history = rows
             .iter()
             .enumerate()

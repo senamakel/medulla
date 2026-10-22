@@ -5,6 +5,50 @@
 //! protocol to them; only the transport is swapped for an in-memory bridge.
 
 use super::support::*;
+use medulla::protocol::{AgentUsage, RemoteSessionRow, RemoteSessionState};
+
+#[test]
+fn sessions_usage_is_trimmed_to_the_single_message_budget() {
+    let row = |id: &str, pid| RemoteSessionRow {
+        id: id.into(),
+        label: "agent".into(),
+        provider: "claude".into(),
+        preset: None,
+        state: RemoteSessionState::Running,
+        cwd: "/workspace".into(),
+        name: None,
+        thread_name: None,
+        started_at: 1_700_000_000_000,
+        last_output_at: 1_700_000_000_000,
+        busy: true,
+        working: true,
+        attention: None,
+        bracketed_paste: false,
+        last_error: None,
+        usage: Some(AgentUsage {
+            kind: "Claude".into(),
+            pid,
+            cpu: 12.5,
+            rss: 1024,
+            threads: 5,
+            started_at: 1_700_000_000,
+            cpu_history: vec![12.5; 300],
+        }),
+    };
+    let mut rows = vec![row("w_1", 101), row("w_2", 202)];
+
+    super::super::trim_usage_to_message_budget(&mut rows);
+
+    let encoded = encode_remote_message(&RemoteMessage::Sessions { rows: rows.clone() });
+    assert!(encoded.len() <= medulla_link::MAX_MESSAGE_BYTES);
+    assert_eq!(rows.len(), 2, "usage trimming must preserve session rows");
+    assert!(rows.iter().all(|row| row.usage.is_some()));
+    assert!(rows.iter().all(|row| {
+        row.usage
+            .as_ref()
+            .is_some_and(|usage| usage.cpu_history.len() < 300)
+    }));
+}
 
 #[tokio::test]
 async fn hello_is_answered_with_what_this_host_can_do() {
