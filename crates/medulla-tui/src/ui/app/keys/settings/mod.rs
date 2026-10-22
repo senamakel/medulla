@@ -92,7 +92,8 @@ impl App {
                 }
                 KeyCode::Left | KeyCode::Right | KeyCode::Enter => {
                     let delta = if code == KeyCode::Left { -1 } else { 1 };
-                    self.set_status(self.adjust_resources_setting(delta));
+                    let status = self.adjust_resources_setting(delta);
+                    self.set_status(status);
                     SettingsKey::handled(None)
                 }
                 _ => SettingsKey::Unhandled,

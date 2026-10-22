@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{layout::Rect, Frame};
 
-use super::types::App;
+use crate::ui::app::types::App;
 
 #[derive(Clone, Copy)]
 enum Kind {
@@ -64,7 +64,7 @@ const fn row(group: &'static str, key: &'static str, label: &'static str, help: 
 }
 
 impl App {
-    pub(super) fn draw_resources_settings(&mut self, f: &mut Frame, area: Rect) {
+    pub(in crate::ui::app) fn draw_resources_settings(&mut self, f: &mut Frame, area: Rect) {
         let selected = self.resources_settings_index.min(ROWS.len() - 1);
         let cfg = &self.loaded.config.resources;
         let mut lines = Vec::new();
@@ -74,7 +74,7 @@ impl App {
                 group = row.group;
                 lines.push(Line::from(Span::styled(group, Style::default().add_modifier(Modifier::BOLD))));
             }
-            let value = display(cfg, row);
+            let value = display(cfg, *row);
             let style = if index == selected { self.theme.selection() } else { Style::default() };
             lines.push(Line::from(vec![
                 Span::styled(if index == selected { "▸ " } else { "  " }, style),
@@ -88,11 +88,11 @@ impl App {
         f.render_widget(Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }).block(self.content_panel("Resources")), area);
     }
 
-    pub(super) fn move_resources_settings(&mut self, up: bool) {
+    pub(in crate::ui::app) fn move_resources_settings(&mut self, up: bool) {
         self.resources_settings_index = if up { self.resources_settings_index.saturating_sub(1) } else { (self.resources_settings_index + 1).min(ROWS.len() - 1) };
     }
 
-    pub(super) fn adjust_resources_setting(&mut self, delta: i32) -> String {
+    pub(in crate::ui::app) fn adjust_resources_setting(&mut self, delta: i32) -> String {
         let row = ROWS[self.resources_settings_index.min(ROWS.len() - 1)];
         let cfg = &mut self.loaded.config.resources;
         match row.key {
