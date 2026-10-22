@@ -303,7 +303,7 @@ impl ResourceSource for SystemResourceSource {
         self.system
             .refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh);
         #[cfg(target_os = "linux")]
-        {
+        let process_metric_pids = {
             let possible_agent_pids: Vec<_> = self
                 .system
                 .processes()
@@ -356,13 +356,17 @@ impl ResourceSource for SystemResourceSource {
                     ProcessRefreshKind::nothing().with_tasks(),
                 );
             }
-        }
-        #[cfg(target_os = "linux")]
-        let process_metric_pids = process_metric_pids
-            .into_iter()
-            .collect::<std::collections::HashSet<_>>();
+            process_metric_pids
+                .into_iter()
+                .collect::<std::collections::HashSet<_>>()
+        };
         #[cfg(not(target_os = "linux"))]
-        let process_metric_pids = self.system.processes().keys().copied().collect::<std::collections::HashSet<_>>();
+        let process_metric_pids = self
+            .system
+            .processes()
+            .keys()
+            .copied()
+            .collect::<std::collections::HashSet<_>>();
         self.disks.refresh(true);
         self.networks.refresh(true);
         let networks = self
@@ -414,34 +418,38 @@ impl ResourceSource for SystemResourceSource {
             .map(|(pid, process)| {
                 let has_metrics = process_metric_pids.contains(pid);
                 ProcessSnapshot {
-                pid: pid.as_u32(),
-                ppid: process.parent().map(|parent| parent.as_u32()),
-                exe: process
-                    .exe()
-                    .map(|path| path.to_string_lossy().into_owned()),
-                cmd: process
-                    .cmd()
-                    .iter()
-                    .map(|arg| arg.to_string_lossy().into_owned())
-                    .collect(),
-                cwd: process
-                    .cwd()
-                    .map(|path| path.to_string_lossy().into_owned()),
-                start_time: process.start_time(),
-                owner_uid: effective_user_id(process),
-                cpu_percent: if has_metrics { f64::from(process.cpu_usage()) } else { 0.0 },
-                memory_bytes: if has_metrics { process.memory() } else { 0 },
-                disk_read_bytes: if baseline_ready && has_metrics {
-                    process.disk_usage().read_bytes
-                } else {
-                    0
-                },
-                disk_written_bytes: if baseline_ready && has_metrics {
-                    process.disk_usage().written_bytes
-                } else {
-                    0
-                },
-                threads: process.tasks().map_or(0, |tasks| tasks.len()),
+                    pid: pid.as_u32(),
+                    ppid: process.parent().map(|parent| parent.as_u32()),
+                    exe: process
+                        .exe()
+                        .map(|path| path.to_string_lossy().into_owned()),
+                    cmd: process
+                        .cmd()
+                        .iter()
+                        .map(|arg| arg.to_string_lossy().into_owned())
+                        .collect(),
+                    cwd: process
+                        .cwd()
+                        .map(|path| path.to_string_lossy().into_owned()),
+                    start_time: process.start_time(),
+                    owner_uid: effective_user_id(process),
+                    cpu_percent: if has_metrics {
+                        f64::from(process.cpu_usage())
+                    } else {
+                        0.0
+                    },
+                    memory_bytes: if has_metrics { process.memory() } else { 0 },
+                    disk_read_bytes: if baseline_ready && has_metrics {
+                        process.disk_usage().read_bytes
+                    } else {
+                        0
+                    },
+                    disk_written_bytes: if baseline_ready && has_metrics {
+                        process.disk_usage().written_bytes
+                    } else {
+                        0
+                    },
+                    threads: process.tasks().map_or(0, |tasks| tasks.len()),
                 }
             })
             .collect();
