@@ -2537,6 +2537,7 @@ dependencies = [
  "futures",
  "libc",
  "medulla-harness",
+ "medulla-juice",
  "medulla-link",
  "medulla-providers",
  "medulla-pty",
@@ -3182,6 +3183,7 @@ dependencies = [
  "tinychannels-bus",
  "tinychannels-runtime",
  "tinycomputer-accessibility",
+ "tinycomputer-bus",
  "tinyconnectors",
  "tinyconnectors-bus",
  "tinyflows-drivers",
@@ -5159,13 +5161,20 @@ name = "tinybus"
 version = "0.1.3"
 dependencies = [
  "async-trait",
+ "flate2",
+ "libc",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "tar",
+ "tempfile",
  "thiserror 2.0.21",
  "tinybus-macros",
  "tokio",
+ "toml 1.1.8+spec-1.1.0",
  "tracing",
+ "ureq",
+ "zip",
 ]
 
 [[package]]
@@ -5220,6 +5229,14 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "tinycomputer-bus"
+version = "0.10.1"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
