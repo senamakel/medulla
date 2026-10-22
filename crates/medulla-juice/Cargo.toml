@@ -18,3 +18,5 @@ tinyjuice = ["dep:tinyjuice"]
 serde = { workspace = true }
 serde_json = { workspace = true }
 tinyjuice = { path = "../../vendor/openhuman/vendor/tinyjuice", optional = true, default-features = false }
+
+tempfile = { workspace = true }
