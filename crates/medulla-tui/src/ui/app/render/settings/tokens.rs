@@ -1,8 +1,8 @@
 //! The Tokens Settings section and its injected, side-effect-free view data.
 
 use medulla::subscriptions::{MeterId, SubscriptionSnapshot};
-use medulla_tokens::{cost, Usage};
-use medulla_types::HarnessProvider;
+use medulla::protocol::HarnessProvider;
+use medulla::ui::events::Usage;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
@@ -61,9 +61,11 @@ pub(super) fn draw_tokens(f: &mut Frame, area: Rect, view: &TokensView) {
         let estimate = row
             .provider
             .zip(row.model.as_deref())
-            .and_then(|(provider, model)| cost(provider, model, &row.usage));
+            .and_then(|(provider, model)| {
+                medulla::ui::stream::usage_cost(provider, model, &row.usage)
+            });
         match estimate {
-            Some(estimate) => lines.push(Line::from(format!("  cost ${:.4}", estimate.usd))),
+            Some(estimate) => lines.push(Line::from(format!("  cost ${estimate:.4}"))),
             None => lines.push(Line::from("  cost unavailable")),
         }
     }
@@ -101,4 +103,27 @@ pub(super) fn draw_tokens(f: &mut Frame, area: Rect, view: &TokensView) {
 
 fn value(value: Option<i64>) -> String {
     value.map_or_else(|| "unknown".into(), |value| value.to_string())
+}
+
+impl super::super::super::types::App {
+    /// Build the current runtime usage snapshot, then pass detached data to the
+    /// page renderer. Provider attribution remains unknown unless an event
+    /// source explicitly reports it.
+    pub(super) fn draw_tokens(&mut self, f: &mut Frame, area: Rect) {
+        let rows = medulla::ui::stream::detailed_usage(&self.snapshot.events)
+            .into_iter()
+            .map(|usage| TokenUsageRow {
+                session: "current session".into(),
+                tier: usage.tier,
+                provider: None,
+                model: usage.model,
+                usage: usage.usage,
+            })
+            .collect();
+        let view = TokensView {
+            rows,
+            subscriptions: self.subscriptions.clone(),
+        };
+        draw_tokens(f, area, &view);
+    }
 }

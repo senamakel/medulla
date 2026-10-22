@@ -78,12 +78,7 @@ impl HarnessesView {
             config.hooks.hooks.len()
         ));
         view.customizations.push(format!(
-            "Codex overrides: {}",
-            if config.opencode.is_some() {
-                "not reported by loaded settings"
-            } else {
-                "not configured in loaded settings"
-            }
+            "Codex overrides: not reported by loaded settings"
         ));
         view.customizations.push(format!(
             "attribution: commits {}",
@@ -105,6 +100,14 @@ impl HarnessesView {
         view.customizations
             .push("skills: attachment state not reported".into());
         view
+    }
+}
+
+impl super::super::super::types::App {
+    /// Render the configuration facts available without running detection.
+    pub(super) fn draw_harnesses(&mut self, f: &mut Frame, area: Rect) {
+        let view = HarnessesView::from_config(&self.loaded.config);
+        draw_harnesses(f, area, &view);
     }
 }
 

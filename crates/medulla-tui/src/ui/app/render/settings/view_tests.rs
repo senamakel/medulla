@@ -10,7 +10,9 @@ use crate::ui::app::types::{SETTINGS_GROUPS, SETTINGS_SUBPAGES};
 
 fn rendered(draw: impl FnOnce(&mut ratatui::Frame<'_>, Rect)) -> String {
     let mut terminal = Terminal::new(TestBackend::new(100, 32)).expect("test terminal");
-    terminal.draw(draw).expect("render view");
+    terminal
+        .draw(|frame| draw(frame, frame.area()))
+        .expect("render view");
     terminal
         .backend()
         .buffer()
@@ -39,9 +41,10 @@ fn tokens_and_harnesses_are_general_settings_sections() {
 
 #[test]
 fn tokens_view_renders_categories_pricing_and_injected_subscription_meters() {
-    use medulla::subscriptions::{MeterId, MeterReading, SubscriptionSnapshot};
-    use medulla_tokens::Usage;
-    use medulla_types::HarnessProvider;
+    use medulla::config::MeterId;
+    use medulla::protocol::HarnessProvider;
+    use medulla::subscriptions::{MeterReading, SubscriptionSnapshot};
+    use medulla::ui::events::Usage;
     use std::collections::BTreeMap;
 
     let mut meters = BTreeMap::new();
@@ -117,6 +120,7 @@ fn harnesses_view_renders_injected_detection_routing_budget_and_customizations()
                 version: Some("0.123.0".into()),
             },
         ],
+        detection_complete: true,
         routing: vec![("reasoning".into(), "claude-sonnet-4-6".into())],
         budgets: vec![("claude".into(), "used 12000 / limit 50000".into())],
         customizations: vec![

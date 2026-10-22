@@ -17,8 +17,8 @@ use ratatui::Frame;
 use crate::ui::multi_pane;
 
 use super::super::types::{
-    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK, SP_STATUS_LINE,
-    SP_SUBSCRIPTIONS, SP_TRACE, SP_USAGE,
+    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_CONTEXT, SP_FEEDBACK, SP_HARNESSES,
+    SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_TOKENS, SP_TRACE, SP_USAGE,
 };
 
 mod account;
@@ -26,10 +26,12 @@ mod appearance;
 mod config;
 mod debug;
 mod help;
+mod harnesses;
 mod nav;
 mod status_line;
 mod subscriptions;
 mod usage;
+mod tokens;
 
 #[cfg(test)]
 mod view_tests;
@@ -57,6 +59,8 @@ impl App {
 
         match self.settings_index {
             SP_USAGE => self.draw_usage(f, content),
+            SP_TOKENS => self.draw_tokens(f, content),
+            SP_HARNESSES => self.draw_harnesses(f, content),
             SP_APPEARANCE => self.draw_appearance(f, content),
             SP_SUBSCRIPTIONS => self.draw_subscriptions(f, content),
             SP_STATUS_LINE => self.draw_status_line_settings(f, content),

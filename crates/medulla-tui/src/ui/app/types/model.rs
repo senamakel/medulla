@@ -97,8 +97,10 @@ pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 10] = [
+pub const SETTINGS_SUBPAGES: [&str; 12] = [
     "Usage",
+    "Tokens",
+    "Harnesses",
     "Appearance",
     "Subscriptions",
     "Status line",
@@ -123,15 +125,17 @@ pub const SETTINGS_GROUPS: [(&str, usize); 3] = [
 
 // Settings subpage indices.
 pub(in crate::ui::app) const SP_USAGE: usize = 0;
-pub(in crate::ui::app) const SP_APPEARANCE: usize = 1;
-pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 2;
-pub(in crate::ui::app) const SP_STATUS_LINE: usize = 3;
-pub(in crate::ui::app) const SP_CONFIG: usize = 4;
-pub(in crate::ui::app) const SP_FEEDBACK: usize = 5;
-pub(in crate::ui::app) const SP_TRACE: usize = 6;
-pub(in crate::ui::app) const SP_CONTEXT: usize = 7;
-pub(in crate::ui::app) const SP_ACCOUNT: usize = 8;
-pub(in crate::ui::app) const SP_HELP: usize = 9;
+pub(in crate::ui::app) const SP_TOKENS: usize = 1;
+pub(in crate::ui::app) const SP_HARNESSES: usize = 2;
+pub(in crate::ui::app) const SP_APPEARANCE: usize = 3;
+pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 4;
+pub(in crate::ui::app) const SP_STATUS_LINE: usize = 5;
+pub(in crate::ui::app) const SP_CONFIG: usize = 6;
+pub(in crate::ui::app) const SP_FEEDBACK: usize = 7;
+pub(in crate::ui::app) const SP_TRACE: usize = 8;
+pub(in crate::ui::app) const SP_CONTEXT: usize = 9;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 10;
+pub(in crate::ui::app) const SP_HELP: usize = 11;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.

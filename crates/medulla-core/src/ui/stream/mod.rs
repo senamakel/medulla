@@ -63,6 +63,18 @@ pub fn detailed_usage(events: &[EventEnvelope]) -> Vec<DetailedUsage> {
         .collect()
 }
 
+/// Estimate provider usage cost through the shared pricing snapshot.
+///
+/// `None` means provider/model pricing is unavailable or the report includes a
+/// category with no published price.
+pub fn usage_cost(
+    provider: crate::protocol::HarnessProvider,
+    model: &str,
+    usage: &Usage,
+) -> Option<f64> {
+    medulla_tokens::cost(provider, model, usage).map(|cost| cost.usd)
+}
+
 fn add_optional(total: &mut Option<i64>, value: Option<i64>) {
     if let Some(value) = value {
         *total = Some(total.unwrap_or_default() + value);
