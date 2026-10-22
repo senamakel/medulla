@@ -1,6 +1,7 @@
 //! Data types for the `lanes` module.
-#[allow(unused_imports)]
-use super::*;
+use std::collections::HashMap;
+
+use crate::ui::agents::types::AgentLane;
 /// Insertion-ordered lane collection.
 pub(super) struct Lanes {
     pub(super) order: Vec<String>,
