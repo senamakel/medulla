@@ -994,7 +994,12 @@ fn agent_kill_waits_for_confirmation_and_uses_injected_signal_function() {
 }
 
 static HIDDEN_SIGNALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-fn hidden_test_signal(_pid: u32, _signal: AgentSignal) -> std::io::Result<()> {
+fn hidden_test_signal(
+    _pid: u32,
+    _started: u64,
+    _uid: Option<&str>,
+    _signal: AgentSignal,
+) -> std::io::Result<()> {
     HIDDEN_SIGNALS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     Ok(())
 }
