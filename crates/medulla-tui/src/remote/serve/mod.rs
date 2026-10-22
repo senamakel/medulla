@@ -44,6 +44,7 @@ mod tests;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
 
 use medulla::bridge::Bridge;
 use medulla::daemon::LogFn;
@@ -97,6 +98,10 @@ pub struct RemoteServer {
     ///
     /// [`publish_sessions_if_changed`]: Self::publish_sessions_if_changed
     last_rows: Vec<RemoteSessionRow>,
+    /// Host process sampler and bounded per-session CPU history for usage rows.
+    resource_source: medulla_monitor::sampler::SystemResourceSource,
+    usage_sampled_at: Option<Instant>,
+    usage_history: std::collections::HashMap<(u32, u64), Vec<f64>>,
     log: Option<LogFn>,
 }
 
@@ -117,6 +122,9 @@ impl RemoteServer {
             capabilities,
             peers: HashSet::new(),
             last_rows: Vec::new(),
+            resource_source: medulla_monitor::sampler::SystemResourceSource::default(),
+            usage_sampled_at: None,
+            usage_history: std::collections::HashMap::new(),
             log: None,
         }
     }
@@ -425,8 +433,20 @@ impl RemoteServer {
     }
 
     /// The session list as the client's rail draws it, freshly computed.
-    fn current_rows(&self) -> Vec<RemoteSessionRow> {
-        self.sessions
+    fn current_rows(&mut self) -> Vec<RemoteSessionRow> {
+        let now = Instant::now();
+        let sample = self.usage_sampled_at.is_none_or(|last| {
+            now.duration_since(last) >= Duration::from_millis(2_000)
+        });
+        let snapshot = if sample {
+            self.usage_sampled_at = Some(now);
+            Some(medulla_monitor::sampler::ResourceSource::sample(
+                &mut self.resource_source,
+            ))
+        } else {
+            None
+        };
+        let mut rows: Vec<_> = self.sessions
             .sessions
             .rows()
             .iter()
@@ -436,9 +456,55 @@ impl RemoteServer {
                     .sessions
                     .bracketed_paste(&row.id)
                     .unwrap_or(false);
-                wire_row(row, bracketed)
+                let mut wire = wire_row(row, bracketed);
+                if let Some(pid) = self.sessions.sessions.pid(&row.id) {
+                    if let Some(process) = snapshot.as_ref().and_then(|snapshot| {
+                        snapshot.processes.iter().find(|process| process.pid == pid)
+                    }) {
+                        let identity = (pid, process.start_time);
+                        let history = self.usage_history.entry(identity).or_default();
+                        history.push(process.cpu_percent);
+                        if history.len() > 32 {
+                            history.remove(0);
+                        }
+                        wire.usage = Some(medulla::protocol::AgentUsage {
+                            kind: crate::ui::app::render::resources::agents::classify_provider(&row.provider.as_wire()),
+                            pid,
+                            cpu: process.cpu_percent,
+                            rss: process.memory_bytes,
+                            threads: process.threads,
+                            started_at: process.start_time,
+                            cpu_history: history.clone(),
+                        });
+                    }
+                }
+                wire
             })
-            .collect()
+            .collect();
+        // Keep the process history bounded to live identities only.
+        let current: std::collections::HashSet<_> = rows
+            .iter()
+            .filter_map(|row| row.usage.as_ref().map(|usage| (usage.pid, usage.started_at)))
+            .collect();
+        self.usage_history.retain(|identity, _| current.contains(identity));
+        // Usage has a strict per-host budget. Oldest points are always dropped
+        // first; identity and latest readings remain intact.
+        let mut total = 0usize;
+        for row in &mut rows {
+            let Some(usage) = row.usage.as_mut() else { continue };
+            while usage.cpu_history.len() > 1
+                && serde_json::to_vec(usage).map_or(false, |bytes| bytes.len() > 1024)
+            {
+                usage.cpu_history.remove(0);
+            }
+            let size = serde_json::to_vec(usage).map_or(1024, |bytes| bytes.len());
+            if total + size > 16 * 1024 {
+                row.usage = None;
+            } else {
+                total += size;
+            }
+        }
+        rows
     }
 
     /// Send `peer` the cached session list.
