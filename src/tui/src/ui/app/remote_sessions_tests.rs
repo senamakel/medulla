@@ -28,6 +28,7 @@ fn remote_row(id: &str) -> RemoteSessionRow {
         attention: None,
         bracketed_paste: true,
         last_error: None,
+        usage: None,
     }
 }
 

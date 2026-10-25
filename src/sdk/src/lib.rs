@@ -43,6 +43,7 @@ pub mod mcp;
 pub mod onboarding;
 pub(crate) mod persistence;
 pub mod protocol;
+pub mod resources;
 pub mod session_history;
 pub mod sessions;
 pub mod subscriptions;

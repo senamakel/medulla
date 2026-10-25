@@ -32,9 +32,12 @@ medulla = { workspace = true, default-features = false }
 medulla-link = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+regex = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 ratatui = { workspace = true }
+# The Resources tab's clock, in the operator's local time.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 crossterm = { workspace = true }
 portable-pty = { workspace = true }
 vt100 = { workspace = true }
@@ -61,4 +64,5 @@ unicode-width = { workspace = true }
 libc = "0.2"
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 tempfile = { workspace = true }

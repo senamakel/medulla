@@ -492,6 +492,7 @@ fn app_with_two_remote_hosts() -> App {
         attention: None,
         bracketed_paste: false,
         last_error: None,
+        usage: None,
     };
     app.remote_host_sessions("tower", vec![row("w_1")]);
     app.remote_host_sessions("gpu", vec![row("w_2")]);

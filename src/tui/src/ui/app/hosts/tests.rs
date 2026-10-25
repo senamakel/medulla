@@ -325,6 +325,7 @@ fn a_selection_scopes_which_sessions_the_rail_shows() {
         attention: None,
         bracketed_paste: false,
         last_error: None,
+        usage: None,
     };
     app.remote_host_connected("gpu-example-com", Default::default());
     app.remote_host_sessions("gpu-example-com", vec![row("w_1")]);

@@ -13,6 +13,7 @@ use serde_json::Value;
 
 use super::urls::PROD_BACKEND_BASE_URL;
 use super::AppearanceConfig;
+use super::ResourcesConfig;
 use super::SubscriptionsConfig;
 use crate::fleet::AgentDescriptor;
 use crate::fleet::{

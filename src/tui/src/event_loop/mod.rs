@@ -21,6 +21,7 @@ use medulla_tui::ui::app::{App, Cmd};
 use crate::terminal::set_mouse_capture;
 
 mod cmd_dispatch;
+mod resources;
 mod types;
 mod update_checker;
 
@@ -94,8 +95,12 @@ pub(crate) async fn run(
     // header banner. Disabled via `[update] check = false` or
     // `MEDULLA_NO_UPDATE_CHECK`.
     spawn_update_checker(&app.loaded, &msg_tx);
+    // Two readings per column, so a full-width graph is never short of history.
+    let history_capacity = usize::from(terminal.size()?.width).saturating_mul(2);
+    let resource_sampler = resources::ResourceSampler::spawn(&app, history_capacity, &msg_tx);
 
     loop {
+        resource_sampler.retune(&app);
         terminal.draw(|f| app.draw(f))?;
         if app.should_quit {
             break;
@@ -129,6 +134,7 @@ pub(crate) async fn run(
             }
             Some(msg) = msg_rx.recv() => {
                 match msg {
+                    AppMsg::Resources(snapshot) => app.set_resource_snapshot(snapshot),
                     AppMsg::Status(s) => app.set_status(s),
                     AppMsg::RemoteHostConnected {
                         host_id,

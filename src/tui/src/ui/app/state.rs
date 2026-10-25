@@ -28,6 +28,7 @@ impl App {
 
     /// [`App::new`], sharing the slot the in-process hub fills once it is up.
     pub fn with_hub(backend: Arc<dyn Backend>, hub: HubSlot, loaded: LoadedConfig) -> Self {
+        let resources = super::resources::ResourcesState::from_config(&loaded.config.resources);
         let theme = Theme::from_config(&loaded.config.theme);
         let harness_skip_permissions = loaded.config.harness.skip_permissions;
         let status_line_promotion_pending = loaded.config.status_line.is_none();
@@ -79,6 +80,7 @@ impl App {
             mouse_capture: true,
             account_usage: None,
             settings_index: 0,
+            resources_settings_index: 0,
             settings_focused: false,
             appearance_index: 0,
             subscriptions_index: 0,
@@ -93,6 +95,8 @@ impl App {
             resource_monitor: Default::default(),
             device_monitor: Default::default(),
             session_monitor: Default::default(),
+            resources,
+            resource_snapshot: Default::default(),
             status_line_index: 0,
             status_line_promotion_pending,
             config_index: 0,
@@ -180,6 +184,15 @@ impl App {
     /// they inject a snapshot instead of letting the rail sample the host.
     pub fn set_device_snapshot(&mut self, snapshot: crate::ui::resources::DeviceSnapshot) {
         self.device_monitor.inject(snapshot);
+    }
+
+    /// Replace the cached background resources reading without sampling on the caller.
+    pub fn set_resource_snapshot(
+        &mut self,
+        snapshot: std::sync::Arc<crate::ui::resources::sampler::ResourceSnapshot>,
+    ) {
+        self.resources.sample_network(&snapshot);
+        self.resource_snapshot = snapshot;
     }
 
     /// Configure Account logout with a testable home; without it, logout reports no writable location.

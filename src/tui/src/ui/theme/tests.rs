@@ -34,6 +34,7 @@ fn from_config_falls_back_per_field() {
         attention: Some("lightyellow".into()),
         attention_blink: Some(false),
         attention_blink_seconds: None,
+        resources: None,
     };
     let t = Theme::from_config(&cfg);
     assert_eq!(t.primary, Color::Rgb(0x12, 0x34, 0x56));

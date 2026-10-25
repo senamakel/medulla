@@ -21,6 +21,7 @@ mod frame_state;
 mod hosts;
 mod points;
 mod prompt;
+pub(super) mod resources;
 mod selection;
 mod session_modals;
 mod sessions;
@@ -241,6 +242,8 @@ impl App {
             "Tab views · TokenMaxxxing coming soon"
         } else if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
+        } else if self.tab() == "Resources" {
+            "Tab views · 1 CPU · 2 Mem · 3 Net · 4 Agents · p/P preset · +/- interval"
         } else if self.tab() == "Hosts" {
             "Tab views · ↑↓ hosts · a add · e edit · d remove · i issue key · s ssh · ⏎ connect · u use · H switch host"
         } else if workflows {
@@ -310,6 +313,7 @@ impl App {
             "Workflows" => self.draw_workflows_tab(f, area),
             "TokenMaxxxing" => self.draw_points(f, area),
             "Hosts" => self.draw_hosts_tab(f, area),
+            "Resources" => self.draw_resources(f, area),
             "Feedback" => self.draw_feedback(f, area),
             // Feedback is a Settings subpage as well as a tab.
             "Settings" => self.draw_settings(f, area),
@@ -326,6 +330,7 @@ fn compact_tab_label(name: &str, compact: bool) -> &str {
     match name {
         "Sessions" => "Sess",
         "Workflows" => "Flows",
+        "Resources" => "Res",
         "Feedback" => "Feed",
         "Settings" => "Set",
         _ => name,
