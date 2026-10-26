@@ -3,7 +3,6 @@
 //! [`rows`] lists the editable fields, [`types`] defines a row, [`values`] reads
 //! and formats them, and this module wires editing and drawing into `App`.
 
-use medulla::config::{ResourcesConfig, MAX_RESOURCES_UPDATE_MS, MIN_RESOURCES_UPDATE_MS};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
@@ -16,7 +15,7 @@ mod types;
 mod values;
 
 use rows::ROWS;
-use types::{Kind, Row};
+use types::Kind;
 use values::*;
 
 impl App {

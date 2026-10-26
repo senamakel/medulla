@@ -1,5 +1,7 @@
 //! The static table of editable Resources settings.
 
+use medulla::config::{MAX_RESOURCES_UPDATE_MS, MIN_RESOURCES_UPDATE_MS};
+
 use super::types::{row, Kind, Row};
 
 /// Every editable Resources setting, in display order.
