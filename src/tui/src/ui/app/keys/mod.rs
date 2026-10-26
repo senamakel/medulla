@@ -135,7 +135,9 @@ impl App {
             self.resources.menu_open = false;
             return None;
         }
-        if tab == "Resources" && self.resources_key(k.code) {
+        // Chorded keys belong to the global handlers below: ⌃T must open the
+        // session picker, not reach the Agents table's bare `t` binding.
+        if tab == "Resources" && !ctrl && !alt && self.resources_key(k.code) {
             return None;
         }
 
