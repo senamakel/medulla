@@ -1,8 +1,7 @@
 # Issue 33: TinyJuice compression through the embedded runtime
 
-Issue: `senamakel/medulla#33`, part of `tinyhumansai/medulla#18`.
+Issue: #33, part of the compression epic (#18).
 Prerequisites: #21 and #31 are on the epic branch.
-Implementation checkout: `/home/ubuntu/work/workflow-medulla/worktrees/epic-18-33-compression/medulla`.
 
 This is an implementation plan, not an implementation. Only this document was
 changed during planning. Follow the active user's canonical-upstream PR rules

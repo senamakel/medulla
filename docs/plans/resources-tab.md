@@ -1,18 +1,14 @@
 # Plan: Resources tab with a btop-style Agents pane
 
 > **Status: Implemented.** The UI and shared sampler landed through
-> [PR #58](https://github.com/senamakel/medulla/pull/58),
-> [PR #59](https://github.com/senamakel/medulla/pull/59),
-> [PR #60](https://github.com/senamakel/medulla/pull/60),
-> [PR #61](https://github.com/senamakel/medulla/pull/61), and its Windows test
-> follow-up [PR #62](https://github.com/senamakel/medulla/pull/62). The user
+> The UI, shared sampler, and Windows test follow-up have all landed. The user
 > guide is [Resources](../../gitbooks/features/resources.md).
 
 ## Problem
 
 Medulla has resource snippets in the Sessions view, but no host-wide history, no dedicated overview of CPU/memory/network activity, and no inventory of the coding-agent processes running on a host. The Resources tab will bring those views together: familiar btop-shaped resource boxes, with an Agents pane that classifies Medulla sessions and externally started coding agents. The tab must remain honest about platform data gaps and must not block drawing while it samples processes.
 
-This is a design contract for issues [#2–#12](https://github.com/senamakel/medulla/issues/2), not a claim that every field is available on every OS. `ship` means implement in this epic when the listed source can provide it; `later` means retain a clean model/UI seam but do not fake a value; `never` means intentionally out of product scope.
+This is a design contract for issues the Resources epic issues, not a claim that every field is available on every OS. `ship` means implement in this epic when the listed source can provide it; `later` means retain a clean model/UI seam but do not fake a value; `never` means intentionally out of product scope.
 
 ## What was verified before writing this
 
@@ -157,7 +153,7 @@ Budget at 2000 ms with 1000 processes: sampler CPU time p95 ≤40 ms per tick an
 
 ### 8. Follow-on research decisions
 
-These answer every `Research first` prompt in senamakel/medulla#2–#12; deferred items stay explicit so implementers do not turn an unknown into a compatibility claim.
+These answer every `Research first` prompt in the Resources epic issues; deferred items stay explicit so implementers do not turn an unknown into a compatibility claim.
 
 | Issue | Decision / evidence |
 |---|---|
