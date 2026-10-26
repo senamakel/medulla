@@ -1,131 +1,45 @@
 name: Release
 
-# One-click release: pick a semver bump, and this workflow updates
-# Cargo.toml/Cargo.lock, commits, pushes a matching vX.Y.Z tag *here*, builds
-# the `medulla` binary for each supported target, and publishes a GitHub
-# Release with the packaged binaries attached to the public distribution
-# repository (tinyhumansai/medulla) — not to this one.
-#
-# The split: this repository is the source; tinyhumansai/medulla is the public
-# docs and distribution surface, where `install.sh`, `install.ps1`, the GitBook
-# sources, and every release artifact live. Only build output crosses that
-# boundary — no source is ever pushed there.
-#
-# Always releases from main (checks out and pushes back to main regardless of
-# where it is dispatched). The release is created in this same workflow, so the
-# tag-push not firing other workflows is fine.
-#
-# main is branch-protected (required CI checks), which the default GITHUB_TOKEN
-# cannot bypass — the version-bump push would be rejected. The tag job instead
-# authenticates as the org's GitHub App: it binds to the `Production`
-# environment (home of the XGITHUB_APP_ID / XGITHUB_APP_PRIVATE_KEY secrets),
-# mints a short-lived installation token, and pushes with that. The app must be
-# allowed to bypass the protection rule (admin permission on the repo, or an
-# explicit bypass entry).
-#
-# The publish job mints a second token from the same app, scoped to the
-# distribution repository instead (`owner` + `repositories` on
-# create-github-app-token). That is what makes the cross-repository release
-# possible with no PAT anywhere.
-
 on:
   workflow_dispatch:
-    inputs:
-      bump:
-        description: Semver bump to apply
-        required: true
-        default: patch
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 permissions:
   contents: write
 
-env:
-  # Where releases are published. Actions variables, so the target can be
-  # repointed without editing this workflow; the literals are the fallback.
-  # Kept as two halves because `create-github-app-token` scopes by bare repo
-  # name while everything else wants the full `owner/name` slug.
-  RELEASE_REPO_OWNER: ${{ vars.RELEASE_REPO_OWNER || 'tinyhumansai' }}
-  RELEASE_REPO_NAME: ${{ vars.RELEASE_REPO_NAME || 'medulla' }}
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  # No e2e gate here any more: the docker/tmux harness suites moved back to CI,
-  # which runs them on every pull request and every push to main. This workflow
-  # always releases from main, so by the time it runs that commit has already
-  # been through all fifteen suite/harness combinations — re-running them here
-  # would gate on a result that is already known.
-  tag:
+  prepare:
+    name: Tag current main version
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Grants access to the environment-scoped GitHub App secrets.
-    environment: Production
     outputs:
-      tag: ${{ steps.bump.outputs.tag }}
-      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Mint GitHub App installation token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.XGITHUB_APP_ID }}
-          private-key: ${{ secrets.XGITHUB_APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@v7
         with:
-          ref: main
           fetch-depth: 0
-          # Persisted into the git credential config; the version-bump
-          # commit/tag push below authenticates as the app installation.
-          token: ${{ steps.app-token.outputs.token }}
 
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump version, commit, and tag
-        id: bump
+      - name: Read version and create tag
+        id: version
         run: |
           set -euo pipefail
-          current="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
-          IFS=. read -r major minor patch <<< "$current"
-          case "${{ inputs.bump }}" in
-            major) new_version="$((major + 1)).0.0" ;;
-            minor) new_version="${major}.$((minor + 1)).0" ;;
-            patch) new_version="${major}.${minor}.$((patch + 1))" ;;
-          esac
-          # First `version =` line is the shared [workspace.package] version
-          # (both member crates inherit it); mirror it into the lockfile's own
-          # workspace package entries so --locked builds stay consistent.
-          sed -i "0,/^version = \"${current}\"$/s//version = \"${new_version}\"/" Cargo.toml
-          python3 - "$current" "$new_version" <<'EOF'
-          import re, sys
-          current, new = sys.argv[1], sys.argv[2]
-          lock = open("Cargo.lock").read()
-          for name in ("medulla", "medulla-link", "medulla-tui"):
-              old = f'name = "{name}"\nversion = "{current}"'
-              if old not in lock:
-                  raise SystemExit(
-                      f"Cargo.lock has no {name} package at version {current}"
-                  )
-              lock = lock.replace(old, f'name = "{name}"\nversion = "{new}"', 1)
-          open("Cargo.lock", "w").write(lock)
-          EOF
-          tag="v${new_version}"
-          git add Cargo.toml Cargo.lock
-          git commit -m "chore(release): ${tag}"
-          # Annotated + explicit ref push: --follow-tags skips lightweight tags,
-          # which left the tag unpushed and broke the build jobs' checkout.
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+          tag="v${version}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Release tag ${tag} already exists" >&2
+            exit 1
+          fi
           git tag -a "${tag}" -m "${tag}"
-          git push origin HEAD:main "refs/tags/${tag}"
+          git push origin "refs/tags/${tag}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "version=${new_version}" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: tag
+    needs: prepare
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -136,8 +50,6 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-          # No Intel macOS: the macos-13 queue stalls for hours and GitHub is
-          # retiring Intel runners; Apple Silicon covers supported Macs.
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: windows-latest
@@ -145,16 +57,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.tag.outputs.tag }}
+          ref: ${{ needs.prepare.outputs.tag }}
           submodules: false
 
       - name: Initialize submodules
         run: bash scripts/init-submodules.sh
 
-      # The core is a default feature, so both Linux lanes compile it and its
-      # build scripts need the same system libraries every CI Linux lane
-      # installs. Guarded on the OS because the step is apt-based; macOS and
-      # Windows link schannel/Security instead and need nothing.
       - uses: ./.github/actions/native-deps
         if: runner.os == 'Linux'
 
@@ -165,36 +73,32 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
-          key: release-${{ matrix.target }}
+          key: release-${{ matrix.target }}-${{ hashFiles('.gitmodules', 'rust-toolchain.toml') }}
 
       - name: Build release binary
         run: cargo build --release --locked --target ${{ matrix.target }}
 
-      # Unix packaging: a `.tar.gz` + a `<hex>  <name>` `.sha256` (shasum format).
       - name: Package (unix)
         if: runner.os != 'Windows'
         run: |
           set -euo pipefail
-          pkg="medulla-${{ needs.tag.outputs.tag }}-${{ matrix.target }}"
-          mkdir "${pkg}"
-          cp "target/${{ matrix.target }}/release/medulla" "${pkg}/"
-          cp README.md config.example.toml "${pkg}/"
-          tar -czf "${pkg}.tar.gz" "${pkg}"
+          pkg="medulla-${{ needs.prepare.outputs.tag }}-${{ matrix.target }}"
+          mkdir "$pkg"
+          cp "target/${{ matrix.target }}/release/medulla" "$pkg/"
+          cp README.md config.example.toml "$pkg/"
+          tar -czf "${pkg}.tar.gz" "$pkg"
           shasum -a 256 "${pkg}.tar.gz" > "${pkg}.tar.gz.sha256"
 
-      # Windows packaging: a `.zip` (Compress-Archive) + a `.sha256` normalized
-      # to the same lowercase `<hex>  <name>` shape the unix files use.
       - name: Package (windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $pkg = "medulla-${{ needs.tag.outputs.tag }}-${{ matrix.target }}"
+          $pkg = "medulla-${{ needs.prepare.outputs.tag }}-${{ matrix.target }}"
           New-Item -ItemType Directory -Path $pkg | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/medulla.exe" "$pkg/"
           Copy-Item README.md,config.example.toml "$pkg/"
           Compress-Archive -Path $pkg -DestinationPath "$pkg.zip"
           $hash = (Get-FileHash "$pkg.zip" -Algorithm SHA256).Hash.ToLower()
-          # Single LF-terminated `<hex>  <name>` line, matching shasum's format.
           [System.IO.File]::WriteAllText("$pkg.zip.sha256", "$hash  $pkg.zip`n")
 
       - uses: actions/upload-artifact@v4
@@ -207,107 +111,60 @@ jobs:
             medulla-*.zip.sha256
           if-no-files-found: error
 
-  # Publishes to the public distribution repository. Nothing from this job's
-  # workspace but `dist/` (downloaded build artifacts) is uploaded, so that repo
-  # receives binaries, checksums, and a manifest — never source.
-  release:
-    needs: [tag, build]
+  publish:
+    needs: [prepare, build]
     runs-on: ubuntu-latest
-    # Grants access to the environment-scoped GitHub App secrets.
-    environment: Production
     steps:
-      # Scoped to the distribution repository rather than this one: `owner` +
-      # `repositories` narrows the installation token to exactly the repo the
-      # release is created in. The app is installed org-wide, so nothing beyond
-      # `contents: write` there is needed.
-      - name: Mint GitHub App token for ${{ env.RELEASE_REPO_OWNER }}/${{ env.RELEASE_REPO_NAME }}
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.XGITHUB_APP_ID }}
-          private-key: ${{ secrets.XGITHUB_APP_PRIVATE_KEY }}
-          owner: ${{ env.RELEASE_REPO_OWNER }}
-          repositories: ${{ env.RELEASE_REPO_NAME }}
-
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
-      # Build the update manifest from the packaged assets' `.sha256` files.
-      # Attached to the release so `releases/latest/download/latest.json` always
-      # serves the newest version's manifest (consumed by `medulla update`).
-      # The download URLs point at the distribution repository, which is where
-      # the assets are about to land.
       - name: Generate latest.json
         env:
-          TAG: ${{ needs.tag.outputs.tag }}
-          VERSION: ${{ needs.tag.outputs.version }}
-          RELEASE_REPO: ${{ env.RELEASE_REPO_OWNER }}/${{ env.RELEASE_REPO_NAME }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          python3 - <<'EOF'
+          python3 - <<'PY'
           import datetime, glob, json, os
 
           tag = os.environ["TAG"]
           version = os.environ["VERSION"]
-          repo = os.environ["RELEASE_REPO"]
+          repo = os.environ["REPOSITORY"]
           base = f"https://github.com/{repo}/releases/download/{tag}"
           prefix = f"medulla-{tag}-"
-
           platforms = {}
-          for sha_path in sorted(glob.glob("dist/*.sha256")):
-              asset = os.path.basename(sha_path)[: -len(".sha256")]
-              digest = open(sha_path).read().split()[0]
+          for path in sorted(glob.glob("dist/*.sha256")):
+              asset = os.path.basename(path)[:-len(".sha256")]
+              digest = open(path, encoding="utf-8").read().split()[0]
               stem = asset
               for ext in (".tar.gz", ".zip"):
                   if stem.endswith(ext):
-                      stem = stem[: -len(ext)]
+                      stem = stem[:-len(ext)]
                       break
-              triple = stem[len(prefix):] if stem.startswith(prefix) else stem
+              triple = stem[len(prefix):]
               platforms[triple] = {"url": f"{base}/{asset}", "sha256": digest}
-
           manifest = {
               "version": version,
               "tag": tag,
-              "pubDate": datetime.datetime.now(datetime.timezone.utc)
-              .strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "pubDate": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
               "notes": f"https://github.com/{repo}/releases/tag/{tag}",
               "platforms": platforms,
           }
-          with open("dist/latest.json", "w") as f:
+          if len(platforms) != 4:
+              raise SystemExit(f"Expected 4 release platforms; found {len(platforms)}")
+          with open("dist/latest.json", "w", encoding="utf-8") as f:
               json.dump(manifest, f, indent=2)
           print(json.dumps(manifest, indent=2))
-          EOF
+          PY
 
-      # `repository` + `token` send the release to the distribution repo. The
-      # tag is created there against its default branch; auto-generated notes
-      # are off because that repo's history is documentation, not the changes
-      # being shipped — the body points at the docs instead.
-      - name: Publish GitHub Release to ${{ env.RELEASE_REPO_OWNER }}/${{ env.RELEASE_REPO_NAME }}
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          repository: ${{ env.RELEASE_REPO_OWNER }}/${{ env.RELEASE_REPO_NAME }}
-          token: ${{ steps.app-token.outputs.token }}
-          tag_name: ${{ needs.tag.outputs.tag }}
-          target_commitish: main
-          name: medulla ${{ needs.tag.outputs.tag }}
-          generate_release_notes: false
-          body: |
-            Medulla ${{ needs.tag.outputs.version }}
-
-            **Install**
-
-            ```sh
-            curl -fsSL https://raw.githubusercontent.com/${{ env.RELEASE_REPO_OWNER }}/${{ env.RELEASE_REPO_NAME }}/main/install.sh | sh
-            ```
-
-            ```powershell
-            irm https://raw.githubusercontent.com/${{ env.RELEASE_REPO_OWNER }}/${{ env.RELEASE_REPO_NAME }}/main/install.ps1 | iex
-            ```
-
-            Already installed? `medulla update`.
-
-            Documentation: https://tinyhumans.gitbook.io/medulla
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Medulla ${{ needs.prepare.outputs.tag }}
+          generate_release_notes: true
           files: |
             dist/*.tar.gz
             dist/*.tar.gz.sha256
