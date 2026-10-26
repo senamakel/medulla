@@ -82,6 +82,7 @@ impl SessionHandle {
             modes: Mutex::new(TerminalModes::default()),
             io: Mutex::new(Some(SessionIo { master, writes })),
             pid: child.process_id(),
+            registration: Mutex::new(None),
             child: Mutex::new(Some(child)),
         }
     }
@@ -146,6 +147,7 @@ impl SessionHandle {
         // The screen is deliberately kept: the operator usually wants to read
         // how a session ended. Only the descriptors go.
         *lock(&self.io) = None;
+        *lock(&self.registration) = None;
         // The session's capability goes with it. A grant left in the registry
         // after its harness exits is a live token with no live session — and
         // the MCP server is a *subprocess* of the harness, so one that outlived
