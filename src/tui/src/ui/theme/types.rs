@@ -31,6 +31,9 @@ pub struct Theme {
     /// [`Theme`] stays [`Eq`]: the pulse is compared for equality all over the
     /// render tests, and a float field would make that comparison partial.
     pub attention_blink_ms: u64,
+    /// Background behind the whole interface, painted under every cell no
+    /// widget gave a colour of its own; `Color::Reset` keeps the terminal's.
+    pub background: Color,
     /// Colors and gradients used by resource panels and charts.
     pub resources: ResourcesTheme,
 }
@@ -48,8 +51,9 @@ pub struct ResourcesTheme {
     pub inactive_fg: Color,
     /// Body text inside resource boxes.
     pub main_fg: Color,
-    /// Background behind the whole Resources tab; `Color::Reset` keeps the
-    /// terminal's own.
+    /// Background behind the whole Resources tab; follows
+    /// [`Theme::background`] unless `mainBg` overrides it, and `Color::Reset`
+    /// keeps the terminal's own.
     pub main_bg: Color,
     /// Box titles.
     pub title: Color,
@@ -137,6 +141,15 @@ impl Default for ResourcesTheme {
     }
 }
 
+/// Resolve a configured background: an empty string asks for the terminal's
+/// own, anything unparseable or absent takes `fallback`.
+pub(crate) fn background_color(value: Option<&str>, fallback: Color) -> Color {
+    match value {
+        Some(value) if value.trim().is_empty() => Color::Reset,
+        value => value.and_then(parse_color).unwrap_or(fallback),
+    }
+}
+
 impl ResourcesTheme {
     pub(crate) fn from_config(cfg: &medulla::config::ResourcesThemeConfig) -> Self {
         let defaults = Self::default();
@@ -153,10 +166,7 @@ impl ResourcesTheme {
             graph_text: pick(&cfg.graph_text, defaults.graph_text),
             inactive_fg: pick(&cfg.inactive_fg, defaults.inactive_fg),
             main_fg: pick(&cfg.main_fg, defaults.main_fg),
-            main_bg: match cfg.main_bg.as_deref() {
-                Some(value) if value.trim().is_empty() => Color::Reset,
-                value => pick(&value.map(str::to_owned), defaults.main_bg),
-            },
+            main_bg: background_color(cfg.main_bg.as_deref(), defaults.main_bg),
             title: pick(&cfg.title, defaults.title),
             hi_fg: pick(&cfg.hi_fg, defaults.hi_fg),
             selected_bg: pick(&cfg.selected_bg, defaults.selected_bg),

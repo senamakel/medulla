@@ -63,6 +63,23 @@ pub(super) fn styled_to_tline(line: &StyledLine) -> TLine<'static> {
     TLine::from(Span::styled(text, style))
 }
 
+/// Give every cell still on the terminal's default background the theme's.
+///
+/// Done once over the finished frame rather than by each widget: `Clear`, an
+/// unstyled paragraph, and a harness's own default-coloured output all leave
+/// `Color::Reset` behind, and catching them here is the only way none slips
+/// through. Cells a widget coloured on purpose keep their colour.
+fn paint_background(buffer: &mut ratatui::buffer::Buffer, background: Color) {
+    if background == Color::Reset {
+        return;
+    }
+    for cell in buffer.content.iter_mut() {
+        if cell.bg == Color::Reset {
+            cell.bg = background;
+        }
+    }
+}
+
 impl App {
     /// Draw the whole screen: the shortcut hints, tabs, the active tab's
     /// content, the prompt overlay when applicable, and the identity/status
@@ -116,6 +133,7 @@ impl App {
             }
         }
         self.draw_status_line(f, rows[4]);
+        paint_background(f.buffer_mut(), self.theme.background);
         // Last: the pointer selection paints over whatever the tabs drew, and
         // reads its text back out of the finished buffer.
         self.paint_selection(f);

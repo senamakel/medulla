@@ -35,6 +35,10 @@ pub struct ThemeConfig {
     /// than rejected, so a typo slows the pulse instead of disabling the config.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attention_blink_seconds: Option<f64>,
+    /// Background behind the whole interface. Unset means solid black; an
+    /// empty string keeps the terminal's own background.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background: Option<String>,
     /// Optional btop-style resource panel colors and gradients.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resources: Option<ResourcesThemeConfig>,
