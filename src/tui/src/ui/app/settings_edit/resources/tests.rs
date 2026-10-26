@@ -1,6 +1,5 @@
 use medulla::config::ResourcesConfig;
 
-use super::types::Row;
 use super::*;
 
 #[test]

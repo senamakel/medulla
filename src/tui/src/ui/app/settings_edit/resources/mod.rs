@@ -3,6 +3,7 @@
 //! [`rows`] lists the editable fields, [`types`] defines a row, [`values`] reads
 //! and formats them, and this module wires editing and drawing into `App`.
 
+use medulla::config::{MAX_RESOURCES_UPDATE_MS, MIN_RESOURCES_UPDATE_MS};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Paragraph, Wrap};
