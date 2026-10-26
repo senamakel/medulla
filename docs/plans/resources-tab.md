@@ -1,7 +1,6 @@
 # Plan: Resources tab with a btop-style Agents pane
 
-> **Status: Implemented.** The UI and shared sampler landed through
-> The UI, shared sampler, and Windows test follow-up have all landed. The user
+> **Status: Implemented.** The UI and shared sampler landed (UI, shared sampler, Windows test follow-up). The user
 > guide is [Resources](../../gitbooks/features/resources.md).
 
 ## Problem
