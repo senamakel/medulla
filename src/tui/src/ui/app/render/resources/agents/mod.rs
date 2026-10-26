@@ -21,10 +21,12 @@ mod command;
 mod rows;
 #[cfg(test)]
 mod tests;
+mod types;
 
 use command::display_command;
 use rows::kind_counts;
-pub(in crate::ui::app) use rows::{rows, visible_rows_with_remote, AgentRow};
+pub(in crate::ui::app) use rows::{rows, visible_rows_with_remote};
+pub(in crate::ui::app) use types::AgentRow;
 
 pub(in crate::ui::app) fn draw_agents(
     frame: &mut Frame,
