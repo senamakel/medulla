@@ -55,7 +55,10 @@ pub(super) fn calc_sizes(area: Rect, shown: ShownBoxes, opts: &LayoutOptions) ->
             u32::from(area.height) * 40 / 100
         } else {
             u32::from(rest.height) * 72 / 100
-        } as u16;
+        }
+        // CPU takes at least 8 rows, so on a short area 40% of the whole height
+        // can exceed what is left; never ask for more than remains.
+        .min(u32::from(rest.height)) as u16;
         let net_h = rest.height.saturating_sub(mem_h);
         if opts.agents_left {
             out.agents = Rect::new(rest.x, rest.y, right_w, rest.height);
@@ -116,7 +119,10 @@ pub(super) fn calc_sizes(area: Rect, shown: ShownBoxes, opts: &LayoutOptions) ->
             u32::from(area.height) * 40 / 100
         } else {
             u32::from(rest.height) * 72 / 100
-        } as u16;
+        }
+        // CPU takes at least 8 rows, so on a short area 40% of the whole height
+        // can exceed what is left; never ask for more than remains.
+        .min(u32::from(rest.height)) as u16;
         out.mem = if opts.mem_below_net {
             Rect::new(rest.x, rest.y + rest.height - mh, rest.width, mh)
         } else {

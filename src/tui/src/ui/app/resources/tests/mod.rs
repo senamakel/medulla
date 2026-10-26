@@ -340,3 +340,18 @@ mod agent_rows;
 mod agents;
 mod controls;
 mod panels;
+
+#[test]
+fn short_terminals_without_agents_keep_every_panel_inside_the_area() {
+    let shown = ShownBoxes {
+        agents: false,
+        ..all()
+    };
+    for height in 8..=14 {
+        let area = Rect::new(0, 0, 100, height);
+        let boxes = calc_sizes(area, shown, &LayoutOptions::default());
+        for rect in [boxes.cpu, boxes.mem, boxes.net] {
+            assert!(rect.bottom() <= area.bottom(), "height {height}: {rect:?}");
+        }
+    }
+}
