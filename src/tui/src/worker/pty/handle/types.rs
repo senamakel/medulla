@@ -322,6 +322,12 @@ pub struct SessionHandle {
     ///
     /// `None` when the platform will not name the child.
     pub(super) pid: Option<u32>,
+    /// This process's entry in the agent launch registry, so the Resources tab
+    /// can tell a Medulla-owned harness from one started outside it.
+    ///
+    /// Dropped on [`reap`](SessionHandle::reap): a stale registration is harmless
+    /// (it is keyed by start time) but would keep an exited session "owned".
+    pub(super) registration: Mutex<Option<medulla::resources::launch::RegistrationGuard>>,
 }
 
 /// Terminal modes needed by the host but not exposed by [`vt100::Screen`].

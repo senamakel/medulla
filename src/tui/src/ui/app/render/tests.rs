@@ -235,3 +235,44 @@ fn a_cursor_on_an_oversized_line_holds_a_stable_scroll_offset() {
     assert_eq!(first, app.changes.scroll);
     assert_eq!(app.changes.scroll, 1, "the header row precedes the cursor");
 }
+
+/// The black background is the whole app's, not only the Resources tab's:
+/// every tab, the tab strip, the hints and the status line sit on it, while a
+/// cell a widget coloured on purpose (the selected tab) keeps its colour.
+#[test]
+fn every_tab_paints_the_theme_background_by_default() {
+    use ratatui::backend::TestBackend;
+    use ratatui::style::Color;
+    use ratatui::Terminal;
+
+    let mut app = app();
+    assert_eq!(app.theme.background, Color::Rgb(0, 0, 0));
+    let mut terminal = Terminal::new(TestBackend::new(120, 32)).unwrap();
+    for tab in crate::ui::app::types::TABS {
+        app.tab_index = tab_pos(tab);
+        terminal.draw(|frame| app.draw(frame)).unwrap();
+        let buffer = terminal.backend().buffer();
+        let reset = buffer
+            .content
+            .iter()
+            .filter(|cell| cell.bg == Color::Reset)
+            .count();
+        assert_eq!(
+            reset, 0,
+            "{tab} left {reset} cells on the terminal background"
+        );
+    }
+}
+
+/// An empty `background` hands the screen back to the terminal's own colour.
+#[test]
+fn an_empty_background_keeps_the_terminal_colour() {
+    use ratatui::style::Color;
+
+    let theme = crate::ui::theme::Theme::from_config(&medulla::config::ThemeConfig {
+        background: Some(String::new()),
+        ..Default::default()
+    });
+    assert_eq!(theme.background, Color::Reset);
+    assert_eq!(theme.resources.main_bg, Color::Reset);
+}

@@ -34,6 +34,8 @@ fn from_config_falls_back_per_field() {
         attention: Some("lightyellow".into()),
         attention_blink: Some(false),
         attention_blink_seconds: None,
+        background: None,
+        resources: None,
     };
     let t = Theme::from_config(&cfg);
     assert_eq!(t.primary, Color::Rgb(0x12, 0x34, 0x56));
@@ -158,6 +160,29 @@ fn persist_theme_preserves_unrelated_sections() {
     assert_eq!(reparsed["theme"]["primary"].as_str(), Some("red"));
     assert_eq!(reparsed["theme"]["attention"].as_str(), Some("yellow"));
     assert_eq!(reparsed["theme"]["attentionBlink"].as_bool(), Some(true));
+}
+
+/// Saving Appearance rewrites only the keys it owns: a hand-set `background`
+/// and the `[theme.resources]` table survive it.
+#[test]
+fn persist_theme_keeps_theme_keys_it_does_not_own() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    std::fs::write(
+        &path,
+        "[theme]\nbackground = \"#101010\"\n\n[theme.resources]\ncpuBox = \"#556d59\"\n",
+    )
+    .unwrap();
+
+    persist_theme(&path, &Theme::default()).unwrap();
+
+    let reparsed: toml::Table = toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(reparsed["theme"]["background"].as_str(), Some("#101010"));
+    assert_eq!(
+        reparsed["theme"]["resources"]["cpuBox"].as_str(),
+        Some("#556d59")
+    );
+    assert_eq!(reparsed["theme"]["primary"].as_str(), Some("red"));
 }
 
 /// A pulse configured in seconds becomes whole frames of the render clock, and

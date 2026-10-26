@@ -7,9 +7,9 @@ description: >-
 # Resources
 
 The Resources tab shows a live snapshot of this machine's CPU, memory and swap,
-disks, network interfaces, and discovered agent processes. Sampling runs in the
-background at the configured interval; changing tabs does not require opening
-the Resources page first. Press `?` on the tab for the short key-help overlay,
+disks, network interfaces, and discovered agent processes, on this machine and
+on each connected remote host. Sampling runs in the background at the
+configured interval while the tab is on screen, and pauses on every other tab. Press `?` on the tab for the short key-help overlay,
 or `o` to open Settings › Resources.
 
 ![Illustrative Resources tab screenshot with CPU, memory, network, and Agents panels. Values are sample data.](../../docs/screenshots/resources-overview.svg)
@@ -18,10 +18,14 @@ or `o` to open Settings › Resources.
 
 | Panel | What it shows |
 | --- | --- |
-| **CPU** | Overall and per-core utilization, with the selected CPU fields, frequency, and temperatures where the platform reports them. |
-| **Mem** | Memory and swap graphs, optional mounted disks, and optional disk activity. Disk filtering and graph ceilings can be configured in `[resources]`. |
-| **Net** | Received and transmitted rates and totals for the selected interface. Automatic scaling, shared scales, interface cycling, and resetting displayed totals are available. |
+| **CPU** | A full-height usage history beside a per-core box: an overall meter, each core's history, usage and temperature where reported, the CPU model and frequency on its border, and the load average. When the box is too small for it, the cores become text rows under the graph. A lower field the platform never reports, such as iowait on macOS, gives its half of the graph to the upper field. |
+| **Mem** | Total, used, available, cached, and free memory, each with its percentage and a history graph (or a meter with `memGraphs = false`), and swap. Beside a divider, every local volume as btop lists it, each under a divider headed by its name and size, with swap second: an IO row where the column has room and the volume has IO counters, then its used meter. On macOS this includes the system volumes (VM, Preboot, Update, and the rest) that Finder hides. Disk filtering and graph ceilings can be configured in `[resources]`. |
+| **Net** | Download history growing up and upload history growing down, each on its own scale, beside a box of current, peak, and total traffic each way. Automatic scaling, shared scales, interface cycling, and resetting displayed totals are available. The interface chosen by default is the first active one with a routable address. |
 | **Agents** | Recognized agent processes and supported shells, their ownership/origin, workspace, CPU and memory use, thread count, runtime, and recent CPU history. Tree mode can show descendants. |
+
+Each panel is a rounded box in the btop style. Its borders carry its
+controls as tags, `┐¹cpu┌┐menu┌`, with the hotkey letter highlighted; every
+tag can be clicked as well as pressed. A dimmed tag is a toggle that is off.
 
 The layout adapts to terminal size. If all panels do not fit, Medulla hides
 lower-priority panels as whole boxes and shows a hint; at very small sizes it
@@ -30,13 +34,21 @@ shows the minimum required size. The `cpuBottom`, `memBelowNet`, and
 
 ## Agents pane
 
-The pane classifies processes only when executable names or command-line
-signatures match known harnesses. Current kinds include Claude, Codex,
-Codex App Server, Claude ACP, Codex ACP, OpenCode, OpenCode ACP, OpenHuman
-Core, embedded OpenHuman, and supported shells. `Unknown` is used when argv is
-unavailable for an executable name the classifier supports; other
-unclassifiable processes are omitted. Medulla does not guess a kind from
-missing metadata. A recognized row may include child processes in tree mode.
+Each row is one harness: a process whose program is a known harness, named
+by its executable, by the name it was launched as (Claude's native build runs
+from a versioned file such as `versions/2.1.310`), or, under an interpreter
+such as `node` or `python3`, by the script it runs. A path or argument that
+merely mentions a harness does not count, so an editor installed under
+`Cursor.app` or an MCP server is not listed. Current kinds are Claude, Codex,
+Codex Server, Claude-ACP, Codex-ACP, OpenCode, OpenCode-ACP, OpenHuman (core
+and embedded), Gemini, Aider, Goose, Cursor Agent, and supported shells.
+`Unknown` is used when argv is unavailable for a program the classifier
+supports. A session Medulla launched stays listed even when its program is not
+one of these.
+
+A harness that re-runs itself, such as Codex's app-server daemon and the
+server it supervises, is one row. Each row's threads, memory, and CPU are
+the whole process tree's; tree mode lists the descendants beneath it.
 
 Origins explain which Medulla activity owns a process: `Session{id}`,
 `Task{id}`, `Headless`, `Remote{host}`, or `External`. Remote session usage is
@@ -77,8 +89,9 @@ network controls.
 | `b` / `n` | Select the previous / next available network interface. |
 | `z` | Reset the displayed network totals for the selected interface. |
 | `o` | Open Settings › Resources. |
+| `m` | Toggle the menu. |
 | `?` | Toggle key help. |
-| `Esc` | Close help. |
+| `Esc` | Close the menu or help. |
 
 ## Layout presets
 
@@ -157,6 +170,12 @@ between start and end; an empty `End` produces a solid start color.
 | `meterBg` | color | `#404040` |
 | `graphText` | color | `#606060` |
 | `inactiveFg` | color | `#404040` |
+| `mainFg` | color | `#cccccc` |
+| `mainBg` | color, or `""` for the terminal's own | the app-wide `[theme] background` (`#000000`) |
+| `title` | color | `#eeeeee` |
+| `hiFg` | color | `#b54040` |
+| `selectedBg` | color | `#6a2f2f` |
+| `selectedFg` | color | `#eeeeee` |
 | `cpuStart`, `cpuMid`, `cpuEnd` | colors | `#77ca9b`, `#cbc06c`, `#dc4c4c` |
 | `tempStart`, `tempMid`, `tempEnd` | colors | `#4897d4`, `#5474e8`, `#ff40b6` |
 | `usedStart`, `usedMid`, `usedEnd` | colors | `#592b26`, `#d9626d`, `#ff4769` |

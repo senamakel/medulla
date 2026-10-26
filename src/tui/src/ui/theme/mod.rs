@@ -72,6 +72,8 @@ impl Default for Theme {
             attention: Color::Yellow,
             attention_blink: true,
             attention_blink_ms: DEFAULT_BLINK_MS,
+            background: Color::Rgb(0, 0, 0),
+            resources: ResourcesTheme::default(),
         }
     }
 }
@@ -109,6 +111,22 @@ impl Theme {
         let pick = |s: &Option<String>, fallback: Color| {
             s.as_deref().and_then(parse_color).unwrap_or(fallback)
         };
+        let background = types::background_color(cfg.background.as_deref(), d.background);
+        // The Resources tab sits on the app's background unless its own
+        // `mainBg` says otherwise.
+        let mut resources = cfg
+            .resources
+            .as_ref()
+            .map(ResourcesTheme::from_config)
+            .unwrap_or_default();
+        if cfg
+            .resources
+            .as_ref()
+            .and_then(|r| r.main_bg.as_ref())
+            .is_none()
+        {
+            resources.main_bg = background;
+        }
         Theme {
             primary: pick(&cfg.primary, d.primary),
             accent: pick(&cfg.accent, d.accent),
@@ -120,7 +138,16 @@ impl Theme {
                 .attention_blink_seconds
                 .map(blink_ms_from_seconds)
                 .unwrap_or(d.attention_blink_ms),
+            background,
+            resources,
         }
+    }
+
+    /// Adapt resource colors to the detected terminal palette.
+    pub fn with_depth(mut self, depth: ColorDepth) -> Self {
+        self.background = depth.convert(self.background);
+        self.resources = self.resources.with_depth(depth);
+        self
     }
 
     /// Whether the attention pulse is in its bright phase on `frame`.
@@ -281,9 +308,11 @@ pub fn color_to_string(color: Color) -> String {
     }
 }
 
-/// Read-modify-write the `[theme]` section of a TOML config file at `path`,
-/// preserving every other section. Missing files (and parent dirs) are created.
-/// Comments are not preserved (the `toml` crate is value-based).
+/// Read-modify-write the `[theme]` keys Appearance owns in the config file at
+/// `path`, preserving every other section and every other `[theme]` key — a
+/// hand-set `background` or `[theme.resources]` table is not Appearance's to
+/// drop. Missing files (and parent dirs) are created. Comments are not
+/// preserved (the `toml` crate is value-based).
 pub fn persist_theme(path: &Path, theme: &Theme) -> anyhow::Result<()> {
     use toml::Value;
 
@@ -316,11 +345,17 @@ pub fn persist_theme(path: &Path, theme: &Theme) -> anyhow::Result<()> {
         "attentionBlinkSeconds".into(),
         Value::Float(blink_seconds(theme.attention_blink_ms)),
     );
-    medulla::config::persist_section(path, "theme", section)
+    for (key, value) in section {
+        medulla::config::persist_setting(path, "theme", &key, value)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests;
 
 mod types;
-pub use types::Theme;
+pub use types::{ResourcesTheme, Theme};
+
+mod gradient;
+pub use gradient::{truecolor_to_16, truecolor_to_256, ColorDepth, Gradient, TTY_PALETTE};

@@ -118,6 +118,26 @@ impl SessionHandle {
         }
     }
 
+    /// Register the child in the agent launch registry so process discovery
+    /// reports it as Medulla-owned rather than external.
+    ///
+    /// The registration carries the manager's session id so the Agents table can jump
+    /// to the session's row. A no-op when the platform will not name the child or the process has
+    /// already gone. The registration lasts until [`reap`](Self::reap).
+    pub(in super::super) fn register_launch(&self) {
+        let Some(pid) = self.pid else { return };
+        // The manager's own id, not the harness transcript id: the Sessions rail
+        // and Enter-to-session navigation are keyed by it.
+        let session_id = Some(self.meta.id.clone());
+        let guard = medulla::resources::launch::agent_registry().register(
+            pid,
+            None,
+            session_id,
+            self.meta.provider.as_str(),
+        );
+        *lock(&self.registration) = guard;
+    }
+
     /// Give this session the display name a person chose for it.
     ///
     /// Naming is not ownership and not provenance: renaming a session neither

@@ -40,7 +40,7 @@ pub use frames::{
     CODEX_SERVER_FLAVOR, MEDULLA_TASK_PROTO,
 };
 pub use remote::{
-    encode_remote_message, parse_remote_message, RemoteAttention, RemoteCapabilities,
+    encode_remote_message, parse_remote_message, AgentUsage, RemoteAttention, RemoteCapabilities,
     RemoteEnvelope, RemoteHarnessChoice, RemoteMessage, RemoteSessionRow, RemoteSessionState,
     REMOTE_PROTO,
 };

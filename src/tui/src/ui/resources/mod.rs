@@ -17,12 +17,16 @@
 
 use medulla::config::{AppearanceConfig, ResourceDisplay};
 
+pub use cpu::{CpuField, CpuMonitor, CpuReading, CpuSnapshot};
 pub use device::{device_lines, device_width_hint, DeviceMonitor};
 pub use session::{session_segments, session_usage, SessionMonitor, SessionSnapshot};
 pub use types::{DeviceSnapshot, ResourceMonitor, ResourceSnapshot};
 
+mod cpu;
 mod device;
+pub mod net;
 mod process_monitor;
+pub mod sampler;
 mod session;
 mod types;
 

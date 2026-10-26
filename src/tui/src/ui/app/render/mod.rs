@@ -21,6 +21,7 @@ mod frame_state;
 mod hosts;
 mod points;
 mod prompt;
+pub(super) mod resources;
 mod selection;
 mod session_modals;
 mod sessions;
@@ -60,6 +61,23 @@ pub(super) fn styled_to_tline(line: &StyledLine) -> TLine<'static> {
         line.text.clone()
     };
     TLine::from(Span::styled(text, style))
+}
+
+/// Give every cell still on the terminal's default background the theme's.
+///
+/// Done once over the finished frame rather than by each widget: `Clear`, an
+/// unstyled paragraph, and a harness's own default-coloured output all leave
+/// `Color::Reset` behind, and catching them here is the only way none slips
+/// through. Cells a widget coloured on purpose keep their colour.
+fn paint_background(buffer: &mut ratatui::buffer::Buffer, background: Color) {
+    if background == Color::Reset {
+        return;
+    }
+    for cell in buffer.content.iter_mut() {
+        if cell.bg == Color::Reset {
+            cell.bg = background;
+        }
+    }
 }
 
 impl App {
@@ -115,6 +133,7 @@ impl App {
             }
         }
         self.draw_status_line(f, rows[4]);
+        paint_background(f.buffer_mut(), self.theme.background);
         // Last: the pointer selection paints over whatever the tabs drew, and
         // reads its text back out of the finished buffer.
         self.paint_selection(f);
@@ -241,6 +260,8 @@ impl App {
             "Tab views · TokenMaxxxing coming soon"
         } else if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
+        } else if self.tab() == "Resources" {
+            "Tab views · 1 CPU · 2 Mem · 3 Net · 4 Agents · p/P preset · +/- interval"
         } else if self.tab() == "Hosts" {
             "Tab views · ↑↓ hosts · a add · e edit · d remove · i issue key · s ssh · ⏎ connect · u use · H switch host"
         } else if workflows {
@@ -310,6 +331,7 @@ impl App {
             "Workflows" => self.draw_workflows_tab(f, area),
             "TokenMaxxxing" => self.draw_points(f, area),
             "Hosts" => self.draw_hosts_tab(f, area),
+            "Resources" => self.draw_resources(f, area),
             "Feedback" => self.draw_feedback(f, area),
             // Feedback is a Settings subpage as well as a tab.
             "Settings" => self.draw_settings(f, area),
@@ -326,6 +348,7 @@ fn compact_tab_label(name: &str, compact: bool) -> &str {
     match name {
         "Sessions" => "Sess",
         "Workflows" => "Flows",
+        "Resources" => "Res",
         "Feedback" => "Feed",
         "Settings" => "Set",
         _ => name,

@@ -1874,6 +1874,7 @@ version = "0.14.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "chrono",
  "crossterm",
  "dirs",
  "fs2",
@@ -1883,6 +1884,7 @@ dependencies = [
  "medulla-link",
  "portable-pty",
  "ratatui",
+ "regex",
  "rustls",
  "serde",
  "serde_json",

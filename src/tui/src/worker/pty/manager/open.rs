@@ -221,6 +221,7 @@ impl PtyManager {
         // Seeded before the handle is published, so no caller ever sees a row
         // whose checkout is momentarily blank for a session that has one.
         handle.set_checkout(checkout);
+        handle.register_launch();
 
         write(&self.inner.sessions).push(handle.clone());
 

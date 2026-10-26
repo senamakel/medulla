@@ -27,6 +27,7 @@
 //! [`SessionStream`]: crate::worker::stream::SessionStream
 
 mod bootstrap;
+mod chunks;
 pub mod control;
 pub mod entry;
 pub mod paired;
@@ -34,6 +35,7 @@ pub mod paired;
 mod paired_tests;
 mod sessions;
 mod types;
+mod usage;
 mod workflows;
 
 // Unix only, and not for want of portability: these drive a **real pty running
@@ -102,6 +104,11 @@ pub struct RemoteServer {
     ///
     /// [`publish_sessions_if_changed`]: Self::publish_sessions_if_changed
     last_rows: Vec<RemoteSessionRow>,
+    /// Samples each session's agent process for the rows' usage.
+    usage: usage::UsageSampler,
+    /// Generation of [`last_rows`](Self::last_rows), so a client can tell the
+    /// parts of one chunked list from another's.
+    sessions_batch_id: u64,
     log: Option<LogFn>,
     /// The workflow store served to clients, when this host serves one.
     workflows: Option<Arc<WorkflowHost>>,
@@ -125,6 +132,8 @@ impl RemoteServer {
             capabilities,
             peers: HashSet::new(),
             last_rows: Vec::new(),
+            usage: usage::UsageSampler::default(),
+            sessions_batch_id: 0,
             log: None,
             workflows: None,
         }
@@ -133,6 +142,12 @@ impl RemoteServer {
     /// Offer `workspaces` on the client's workspace step.
     pub fn with_workspaces(mut self, workspaces: Vec<String>) -> Self {
         self.capabilities.workspaces = workspaces;
+        self
+    }
+
+    /// Set the minimum time between process usage samples and broadcasts.
+    pub fn with_usage_interval(mut self, interval: Duration) -> Self {
+        self.usage.set_interval(interval);
         self
     }
 
@@ -206,6 +221,7 @@ impl RemoteServer {
             return;
         }
         self.last_rows = rows;
+        self.sessions_batch_id = self.sessions_batch_id.wrapping_add(1);
         let peers: Vec<String> = self.peers.iter().cloned().collect();
         for peer in peers {
             self.send_sessions(&peer).await;
@@ -334,6 +350,7 @@ impl RemoteServer {
             | RemoteMessage::Opened { .. }
             | RemoteMessage::OpenFailed { .. }
             | RemoteMessage::WorkflowResult { .. }
+            | RemoteMessage::SessionsChunk { .. }
             | RemoteMessage::Sessions { .. } => {
                 self.log(&format!(
                     "remote: ignored a daemon-to-client message from {from}"
@@ -436,12 +453,15 @@ impl RemoteServer {
         // tick would see that same change as "new" and send it a second time
         // to every peer.
         self.last_rows = self.current_rows();
+        self.sessions_batch_id = self.sessions_batch_id.wrapping_add(1);
         self.send_sessions(peer).await;
     }
 
-    /// The session list as the client's rail draws it, freshly computed.
-    fn current_rows(&self) -> Vec<RemoteSessionRow> {
-        self.sessions
+    /// The session list as the client's rail draws it, freshly computed,
+    /// with each session's agent process usage when it is due a sample.
+    fn current_rows(&mut self) -> Vec<RemoteSessionRow> {
+        let rows = self
+            .sessions
             .sessions
             .rows()
             .iter()
@@ -453,18 +473,15 @@ impl RemoteServer {
                     .unwrap_or(false);
                 wire_row(row, bracketed)
             })
-            .collect()
+            .collect();
+        self.usage.annotate(&self.sessions.sessions, rows)
     }
 
     /// Send `peer` the cached session list.
     async fn send_sessions(&self, peer: &str) {
-        self.send(
-            peer,
-            &encode_remote_message(&RemoteMessage::Sessions {
-                rows: self.last_rows.clone(),
-            }),
-        )
-        .await;
+        for message in chunks::sessions_messages(&self.last_rows, self.sessions_batch_id) {
+            self.send(peer, &encode_remote_message(&message)).await;
+        }
     }
 
     async fn send(&self, to: &str, body: &str) {
