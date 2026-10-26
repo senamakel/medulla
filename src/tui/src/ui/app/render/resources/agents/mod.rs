@@ -14,7 +14,7 @@ use ratatui::{
 };
 
 use crate::ui::app::resources::chrome::{self, Bar};
-use crate::ui::app::resources::types::{AgentIdentity, AgentSignal, AgentSort, ResourcesState};
+use crate::ui::app::resources::types::{AgentSignal, AgentSort, ResourcesState};
 use crate::ui::theme::ResourcesTheme;
 
 mod command;
