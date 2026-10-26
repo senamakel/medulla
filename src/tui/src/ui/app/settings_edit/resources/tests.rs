@@ -1,3 +1,5 @@
+//! Unit tests for the Resources settings editor.
+
 use medulla::config::ResourcesConfig;
 
 use super::*;

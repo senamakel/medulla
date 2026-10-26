@@ -1,3 +1,5 @@
+//! Unit tests for the Resources tab state, layout, and panels.
+
 use super::{
     layout::calc_sizes,
     types::{

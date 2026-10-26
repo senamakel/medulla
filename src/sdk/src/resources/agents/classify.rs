@@ -1,3 +1,5 @@
+//! Classifies running processes into coding-agent harnesses, picking each harness's root process and attributing ownership.
+
 use std::collections::{HashMap, HashSet};
 
 use super::types::{

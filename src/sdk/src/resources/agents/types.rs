@@ -1,3 +1,5 @@
+//! Data types for agent discovery: process records, known roots, and classified agent processes.
+
 use std::path::PathBuf;
 
 /// A recognized coding agent or supported shell process.

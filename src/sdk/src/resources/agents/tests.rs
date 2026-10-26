@@ -1,3 +1,5 @@
+//! Unit tests for agent classification and discovery.
+
 use std::path::PathBuf;
 
 use super::{

@@ -1,3 +1,5 @@
+//! Unit tests for the Resources configuration.
+
 use super::*;
 
 #[test]

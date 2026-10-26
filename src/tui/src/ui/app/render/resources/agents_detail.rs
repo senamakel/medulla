@@ -1,3 +1,5 @@
+//! Detail pane for the selected agent in the Resources tab.
+
 use super::agents::AgentRow;
 use crate::ui::app::resources::chrome::{self, Bar};
 use crate::ui::theme::ResourcesTheme;

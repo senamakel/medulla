@@ -1,3 +1,5 @@
+//! Unit tests for the launch registry.
+
 use super::{AgentRegistration, AgentRegistry};
 
 fn origin(task_id: Option<&str>, session_id: Option<&str>, provider: &str) -> AgentRegistration {

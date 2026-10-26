@@ -1,3 +1,5 @@
+//! Btop-style panel layout for the Resources tab.
+
 use super::types::{BoxRects, LayoutOptions, ShownBoxes};
 use ratatui::layout::Rect;
 

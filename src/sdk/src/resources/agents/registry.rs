@@ -1,3 +1,5 @@
+//! Agent discovery driven by the launch registry: joins registered launch roots to the process table.
+
 use super::{AgentDiscoveryOptions, AgentProcess, ProcessRecord};
 use super::{AgentOrigin, KnownProcessRoot};
 

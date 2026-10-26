@@ -1,3 +1,5 @@
+//! Unit tests for the plot helpers.
+
 use super::{Gradient, Graph, Meter, Symbol};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;

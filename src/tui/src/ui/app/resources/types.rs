@@ -1,3 +1,5 @@
+//! State and layout types for the Resources tab.
+
 use ratatui::layout::Rect;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

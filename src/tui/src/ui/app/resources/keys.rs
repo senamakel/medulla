@@ -1,3 +1,5 @@
+//! Key handling for the Resources tab.
+
 use super::types::ResourcesState;
 use crossterm::event::KeyCode;
 

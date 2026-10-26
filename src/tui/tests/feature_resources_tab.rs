@@ -1,3 +1,5 @@
+//! End-to-end behavior of the Resources tab.
+
 use std::sync::Arc;
 
 use medulla::backend::MockBackend;

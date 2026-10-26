@@ -1,3 +1,5 @@
+//! Unit tests for the Agents table.
+
 use super::rows::{compare, visible_rows};
 use super::*;
 use crate::ui::app::resources::types::ResourcesState;

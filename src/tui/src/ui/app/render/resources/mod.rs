@@ -1,3 +1,5 @@
+//! Rendering for the Resources tab's Agents table and its detail pane.
+
 pub(super) mod agents;
 pub(super) mod agents_detail;
 

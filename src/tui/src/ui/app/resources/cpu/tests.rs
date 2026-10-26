@@ -1,3 +1,5 @@
+//! Unit tests for the CPU panel.
+
 use super::*;
 
 #[test]
