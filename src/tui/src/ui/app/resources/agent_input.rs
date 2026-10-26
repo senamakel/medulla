@@ -204,6 +204,10 @@ impl App {
                             .unwrap_or(0);
                         self.select_session_row(session);
                     } else {
+                        // `agent_selected` is `None` until a cursor key moves it,
+                        // though the handler already resolved it to a row; store
+                        // that row so the detail pane can find what it opens.
+                        self.resources.agent_selected = Some(row.identity());
                         self.resources.agent_detail = true;
                     }
                 }
