@@ -74,8 +74,12 @@ fn percentage_rows_fill_from_the_bottom_and_invert_to_the_top() {
     assert_eq!(glyph(&up, 0, 1), ' ');
     assert_eq!(glyph(&up, 0, 2), '⢠');
     assert_eq!(glyph(&up, 0, 3), '⢸');
-    assert_eq!(glyph(&down, 0, 2), '⠘');
-    assert_eq!(glyph(&down, 0, 3), '⢸');
+    // Inverted, the same 37.5% sample grows down from the top edge: the lowest
+    // band is the first row, and the rows below the sample stay empty.
+    assert_eq!(glyph(&down, 0, 0), '⢸');
+    assert_eq!(glyph(&down, 0, 1), '⠘');
+    assert_eq!(glyph(&down, 0, 2), ' ');
+    assert_eq!(glyph(&down, 0, 3), ' ');
     // The lower dot in the up table becomes an upper dot with the down table.
     assert_ne!(
         Symbol::Braille.glyph(false, 1, 0),
