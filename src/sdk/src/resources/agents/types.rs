@@ -63,13 +63,22 @@ impl AgentKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AgentOrigin {
     /// Launched to serve the session with this id.
-    Session { id: String },
+    Session {
+        /// Session identifier.
+        id: String,
+    },
     /// Launched to serve the task with this id.
-    Task { id: String },
+    Task {
+        /// Task identifier.
+        id: String,
+    },
     /// Launched by Medulla with no session or task attached.
     Headless,
     /// Observed on a remote host.
-    Remote { host: String },
+    Remote {
+        /// Name of the host the process runs on.
+        host: String,
+    },
     /// Started outside Medulla.
     External,
 }
@@ -120,6 +129,7 @@ pub struct ProcessRecord {
 pub struct KnownProcessRoot {
     /// Operating-system process identifier.
     pub pid: u32,
+    /// Process start time in seconds since the Unix epoch.
     pub started_at_secs: u64,
     /// Who started the process tree.
     pub origin: AgentOrigin,
@@ -159,6 +169,7 @@ pub struct AgentProcess {
     pub exe: Option<PathBuf>,
     /// Working directory, when readable.
     pub cwd: Option<PathBuf>,
+    /// Process start time in seconds since the Unix epoch.
     pub started_at_secs: u64,
     /// Seconds the process has been running.
     pub runtime_secs: u64,
