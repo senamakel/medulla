@@ -272,12 +272,16 @@ fn classify(process: &ProcessRecord) -> Option<AgentKind> {
     if has("@google/gemini-cli") {
         return Some(AgentKind::Gemini);
     }
-    let script = args
-        .iter()
-        .skip(1)
-        .find(|arg| !arg.starts_with('-'))
-        .and_then(|arg| program_name(arg))?;
-    harness_named(&script, &has_arg)
+    let script_arg = args.iter().skip(1).find(|arg| !arg.starts_with('-'))?;
+    // npm installs Claude Code as `node …/@anthropic-ai/claude-code/cli.js`, whose
+    // file name alone (`cli.js`) names nothing; match the package entry point.
+    if script_arg
+        .replace('\\', "/")
+        .ends_with("/@anthropic-ai/claude-code/cli.js")
+    {
+        return Some(AgentKind::Claude);
+    }
+    harness_named(&program_name(script_arg)?, &has_arg)
 }
 
 fn has_ancestor_of_kind(

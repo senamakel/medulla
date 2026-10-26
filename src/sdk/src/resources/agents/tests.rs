@@ -391,7 +391,10 @@ fn npm_installed_claude_code_is_recognized_by_its_package_entry_point() {
             400,
             Some(1),
             "/usr/bin/node",
-            &["node", "/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"],
+            &[
+                "node",
+                "/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js",
+            ],
             5,
         ),
         process(
