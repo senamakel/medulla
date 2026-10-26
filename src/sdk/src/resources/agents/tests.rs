@@ -381,3 +381,29 @@ fn programs_that_only_mention_a_harness_are_not_agents() {
     ];
     assert!(discover_agents(&processes, &[], 999, 50).is_empty());
 }
+
+/// An npm-installed Claude Code runs as `node …/@anthropic-ai/claude-code/cli.js`;
+/// only that package entry point counts, not any script called `cli.js`.
+#[test]
+fn npm_installed_claude_code_is_recognized_by_its_package_entry_point() {
+    let processes = vec![
+        process(
+            400,
+            Some(1),
+            "/usr/bin/node",
+            &["node", "/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"],
+            5,
+        ),
+        process(
+            401,
+            Some(1),
+            "/usr/bin/node",
+            &["node", "/srv/app/cli.js", "--claude"],
+            5,
+        ),
+    ];
+    let agents = discover_agents(&processes, &[], 999, 50);
+    assert_eq!(agents.len(), 1, "{agents:?}");
+    assert_eq!(agents[0].pid, Some(400));
+    assert_eq!(agents[0].kind, AgentKind::Claude);
+}
