@@ -149,10 +149,5 @@ pub(super) fn parse_block_stat(contents: &str) -> Option<(u64, u64, u64)> {
 }
 
 #[cfg(test)]
-mod interface_flag_tests {
-    #[test]
-    pub(super) fn linux_flags_distinguish_admin_up_from_running() {
-        assert_eq!(super::linux_interface_state(0x1), (true, false));
-        assert_eq!(super::linux_interface_state(0x40), (false, true));
-    }
-}
+#[path = "linux_tests.rs"]
+mod tests;
