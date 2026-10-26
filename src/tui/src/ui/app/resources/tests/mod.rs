@@ -209,6 +209,32 @@ fn selecting_a_preset_shows_only_the_boxes_named_by_its_entries() {
     );
 }
 
+/// Control chords are global: with Agents visible, ⌃T opens the session picker
+/// and ⌃O toggles the mouse instead of reaching the table's bare `t` / `o` keys.
+#[test]
+fn control_chords_on_the_resources_tab_are_not_agent_shortcuts() {
+    let mut app = App::new(
+        Arc::new(MockBackend::new()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.tab_index = crate::ui::app::TABS
+        .iter()
+        .position(|tab| *tab == "Resources")
+        .unwrap();
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(10, "claude", 12.0)]),
+    ));
+
+    app.on_key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL));
+
+    assert!(
+        app.resources.agent_signal_armed.is_none(),
+        "⌃T must not arm a terminate signal"
+    );
+    assert!(app.session_picker.is_some(), "⌃T opens the session picker");
+}
+
 #[test]
 fn tab_keys_still_cycle_all_tabs() {
     let mut app = App::new(
