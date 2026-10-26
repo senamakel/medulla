@@ -380,3 +380,53 @@ fn short_terminals_without_agents_keep_every_panel_inside_the_area() {
         }
     }
 }
+
+#[test]
+fn swapped_network_directions_scale_each_graph_by_its_own_samples() {
+    let mut state = ResourcesState {
+        swap_upload_download: true,
+        ..ResourcesState::default()
+    };
+    let mut snapshot = crate::ui::resources::sampler::ResourceSnapshot::default();
+    snapshot
+        .networks
+        .push(crate::ui::resources::sampler::NetworkSnapshot {
+            interface: "eth0".into(),
+            up: true,
+            connected: true,
+            ip_addresses: Vec::new(),
+            received_bytes_per_second: 10.0,
+            transmitted_bytes_per_second: 50_000_000.0,
+            total_received_bytes: 0,
+            total_transmitted_bytes: 0,
+        });
+    state.net_iface = Some("eth0".into());
+    for _ in 0..5 {
+        state.sample_network(&snapshot);
+    }
+    assert!(
+        state.net_download_scaler.max() > state.net_upload_scaler.max(),
+        "the busy transmitted direction is drawn as download when swapped"
+    );
+}
+
+#[test]
+fn escape_cancels_an_armed_signal_while_the_menu_is_open() {
+    let mut app = App::new(
+        Arc::new(MockBackend::new()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.tab_index = crate::ui::app::TABS
+        .iter()
+        .position(|tab| *tab == "Resources")
+        .unwrap();
+    app.resources.menu_open = true;
+    app.resources.agent_signal_armed = Some(AgentSignalConfirmation {
+        pid: 1,
+        started: 1,
+        signal: AgentSignal::Kill,
+    });
+    app.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert!(!app.resources.menu_open);
+    assert!(app.resources.agent_signal_armed.is_none());
+}

@@ -157,10 +157,21 @@ impl ResourcesState {
                 })
             });
         if let Some(selected) = selected {
-            self.net_download_scaler
-                .sample(selected.received_bytes_per_second);
-            self.net_upload_scaler
-                .sample(selected.transmitted_bytes_per_second);
+            // The download graph shows transmitted traffic when the directions
+            // are swapped, so its ceiling must follow the same samples.
+            let (download, upload) = if self.swap_upload_download {
+                (
+                    selected.transmitted_bytes_per_second,
+                    selected.received_bytes_per_second,
+                )
+            } else {
+                (
+                    selected.received_bytes_per_second,
+                    selected.transmitted_bytes_per_second,
+                )
+            };
+            self.net_download_scaler.sample(download);
+            self.net_upload_scaler.sample(upload);
         }
     }
 
