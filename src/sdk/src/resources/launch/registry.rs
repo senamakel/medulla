@@ -1,37 +1,14 @@
-use std::{
-    collections::BTreeMap,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc, Mutex, OnceLock, Weak,
-    },
-};
+//! Registry of child processes whose ownership is known to Medulla, with
+//! identity-safe registration guards.
+
+use std::sync::{atomic::Ordering, Arc, Mutex, OnceLock, Weak};
 
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
-type ProcessIdentity = (u32, u64);
-type RegistryEntries = BTreeMap<ProcessIdentity, (u64, AgentRegistration)>;
-
-/// Ownership metadata for a process launched to serve an agent run.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AgentRegistration {
-    /// Operating-system process identifier.
-    pub pid: u32,
-    /// Process start time in seconds since the Unix epoch.
-    pub started_at_secs: u64,
-    /// Task served by the process, when it was launched for a task.
-    pub task_id: Option<String>,
-    /// Session served by the process, when it is session-backed.
-    pub session_id: Option<String>,
-    /// Provider name (for example `claude`, `codex`, or `opencode`).
-    pub provider: String,
-}
-
-/// Registry of child processes whose ownership is known to Medulla.
-#[derive(Debug, Clone, Default)]
-pub struct AgentRegistry {
-    entries: Arc<Mutex<RegistryEntries>>,
-    next_generation: Arc<AtomicU64>,
-}
+use super::types::{
+    AgentRegistration, AgentRegistry, ProcessIdentity, RegistrationGuard, RegistrationHandle,
+    RegistryEntries,
+};
 
 impl AgentRegistry {
     /// Register a process using its current operating-system start time.
@@ -87,14 +64,6 @@ impl AgentRegistry {
     }
 }
 
-/// Removes one process identity from its registry when its owner is dropped.
-#[derive(Debug)]
-pub struct RegistrationGuard {
-    entries: Weak<Mutex<RegistryEntries>>,
-    key: ProcessIdentity,
-    generation: u64,
-}
-
 impl RegistrationGuard {
     /// Return a cloneable updater for this exact registration generation.
     /// Updates become no-ops after this guard has been dropped or replaced.
@@ -105,14 +74,6 @@ impl RegistrationGuard {
             generation: self.generation,
         }
     }
-}
-
-/// Identity-safe metadata updater for a live process registration.
-#[derive(Debug, Clone)]
-pub struct RegistrationHandle {
-    entries: Weak<Mutex<RegistryEntries>>,
-    key: ProcessIdentity,
-    generation: u64,
 }
 
 impl RegistrationHandle {

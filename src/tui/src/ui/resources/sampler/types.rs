@@ -303,3 +303,14 @@ impl ResourceHistory {
         self.process_count.push(snapshot.processes.len(), capacity);
     }
 }
+
+/// Optional disk list filtering, configured by the TUI without coupling this crate to its config type.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DiskOptions {
+    /// Keep only disks backed by physical devices.
+    pub only_physical: bool,
+    /// Restrict the list to mounts declared in `/etc/fstab`.
+    pub use_fstab: bool,
+    /// Comma-separated mount filter; an empty string keeps every mount.
+    pub filter: String,
+}

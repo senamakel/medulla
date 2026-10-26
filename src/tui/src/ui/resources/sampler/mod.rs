@@ -5,7 +5,7 @@ mod types;
 
 pub use history::History;
 pub use types::{
-    DiskSnapshot, NetworkSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot,
+    DiskOptions, DiskSnapshot, NetworkSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot,
 };
 
 mod disks;
@@ -165,12 +165,4 @@ async fn wait_for_disk_options(
         Some(receiver) => receiver.changed().await,
         None => std::future::pending().await,
     }
-}
-
-/// Optional disk list filtering, configured by the TUI without coupling this crate to its config type.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct DiskOptions {
-    pub only_physical: bool,
-    pub use_fstab: bool,
-    pub filter: String,
 }
