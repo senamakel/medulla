@@ -385,7 +385,7 @@ fn programs_that_only_mention_a_harness_are_not_agents() {
 /// An npm-installed Claude Code runs as `node …/@anthropic-ai/claude-code/cli.js`;
 /// only that package entry point counts, not any script called `cli.js`.
 #[test]
-fn npm_installed_claude_code_is_recognized_by_its_package_entry_point() {
+fn claude_code_installed_through_npm_is_recognized_by_its_entry_point() {
     let processes = vec![
         process(
             400,
