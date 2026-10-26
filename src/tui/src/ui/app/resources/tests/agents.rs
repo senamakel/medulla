@@ -44,6 +44,29 @@ fn agent_rows_render_with_classification_at_desktop_and_narrow_sizes() {
     }
 }
 
+/// Enter on a freshly opened tab acts on row zero without any cursor key having
+/// stored it, so the detail pane must be told which row it is showing.
+#[test]
+fn enter_on_an_external_agent_stores_the_selection_the_detail_pane_reads() {
+    let mut app = App::new(
+        Arc::new(MockBackend::new()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(
+        crate::ui::resources::sampler::ResourceSnapshot::default()
+            .with_processes(vec![test_agent_process(10, "claude", 12.0)]),
+    ));
+    assert_eq!(app.resources.agent_selected, None);
+
+    assert!(app.resources_key(KeyCode::Enter));
+
+    assert!(app.resources.agent_detail);
+    assert_eq!(
+        app.resources.agent_selected.as_ref().map(|id| id.pid),
+        Some(10)
+    );
+}
+
 static SIGNALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static SIGNAL_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 #[cfg(any(target_os = "linux", target_os = "macos"))]
