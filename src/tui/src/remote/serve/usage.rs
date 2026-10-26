@@ -5,9 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use medulla::protocol::{AgentUsage, RemoteSessionRow};
-use medulla::resources::agents::{
-    discover_agents, AgentOrigin, AgentProcess, KnownProcessRoot, ProcessRecord, ProcessUsage,
-};
+use medulla::resources::agents::{discover_agents, AgentOrigin, AgentProcess, KnownProcessRoot};
 
 use crate::ui::resources::sampler::{ResourceSource, SystemResourceSource};
 use crate::worker::pty::PtyManager;
@@ -89,20 +87,7 @@ impl UsageSampler {
         let processes: Vec<_> = snapshot
             .processes
             .iter()
-            .map(|process| ProcessRecord {
-                pid: process.pid,
-                ppid: process.ppid,
-                exe: process.exe.as_deref().map(std::path::PathBuf::from),
-                argv: Some(process.cmd.clone()),
-                cwd: process.cwd.as_deref().map(std::path::PathBuf::from),
-                started_at_secs: process.start_time,
-                usage: ProcessUsage {
-                    cpu_percent: process.cpu_percent as f32,
-                    rss_bytes: process.memory_bytes,
-                    threads: process.threads as u64,
-                    io: None,
-                },
-            })
+            .map(|process| process.to_record())
             .collect();
         let roots: Vec<_> = rows
             .iter()
@@ -139,7 +124,7 @@ impl UsageSampler {
         self.cache.insert(
             session_id.to_owned(),
             AgentUsage {
-                kind: agent_kind(agent.kind).to_owned(),
+                kind: agent.kind.label().to_owned(),
                 pid,
                 cpu: f64::from(agent.usage.cpu_percent),
                 rss: agent.usage.rss_bytes,
@@ -148,22 +133,6 @@ impl UsageSampler {
                 cpu_history: history.clone(),
             },
         );
-    }
-}
-
-fn agent_kind(kind: medulla::resources::agents::AgentKind) -> &'static str {
-    use medulla::resources::agents::AgentKind;
-    match kind {
-        AgentKind::Claude => "Claude",
-        AgentKind::Codex => "Codex",
-        AgentKind::CodexAppServer => "Codex App Server",
-        AgentKind::ClaudeAcp => "Claude-ACP",
-        AgentKind::CodexAcp => "Codex-ACP",
-        AgentKind::Opencode => "OpenCode",
-        AgentKind::OpencodeAcp => "OpenCode-ACP",
-        AgentKind::OpenhumanCore | AgentKind::EmbeddedOpenhuman => "OpenHuman",
-        AgentKind::Shell => "Shell",
-        AgentKind::Unknown => "Unknown",
     }
 }
 

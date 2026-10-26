@@ -8,13 +8,17 @@ pub use types::{
     DiskSnapshot, NetworkSnapshot, ProcessSnapshot, ResourceHistory, ResourceSnapshot,
 };
 
+mod disks;
 mod filters;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
 mod source;
 #[cfg(test)]
 mod tests;
 
+use disks::*;
 use filters::*;
 #[cfg(target_os = "linux")]
 use linux::*;

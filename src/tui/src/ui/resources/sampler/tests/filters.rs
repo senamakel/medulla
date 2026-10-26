@@ -146,6 +146,7 @@ fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
             read_bytes_per_second: 0.0,
             write_bytes_per_second: 0.0,
             busy_percent: None,
+            has_io: true,
         },
         super::super::DiskSnapshot {
             device: "sdb1".into(),
@@ -155,6 +156,7 @@ fn device_disk_selection_prefers_the_deepest_mount_containing_cwd() {
             read_bytes_per_second: 0.0,
             write_bytes_per_second: 0.0,
             busy_percent: None,
+            has_io: true,
         },
     ];
 

@@ -17,6 +17,9 @@ pub struct DiskSnapshot {
     pub write_bytes_per_second: f64,
     /// Device busy percentage, unavailable on non-Linux collectors.
     pub busy_percent: Option<f64>,
+    /// Whether the read and write rates were measured at all; swap, and a
+    /// volume on a disk with no IO counters, have none to graph.
+    pub has_io: bool,
 }
 
 /// Point-in-time counters and addresses for one network interface.
@@ -67,6 +70,26 @@ pub struct ProcessSnapshot {
     pub disk_written_bytes: u64,
     /// Number of threads/tasks reported for this process.
     pub threads: usize,
+}
+
+impl ProcessSnapshot {
+    /// The platform-neutral record the SDK's agent classifier reads.
+    pub fn to_record(&self) -> medulla::resources::agents::ProcessRecord {
+        medulla::resources::agents::ProcessRecord {
+            pid: self.pid,
+            ppid: self.ppid,
+            exe: self.exe.as_deref().map(std::path::PathBuf::from),
+            argv: Some(self.cmd.clone()),
+            cwd: self.cwd.as_deref().map(std::path::PathBuf::from),
+            started_at_secs: self.start_time,
+            usage: medulla::resources::agents::ProcessUsage {
+                cpu_percent: self.cpu_percent as f32,
+                rss_bytes: self.memory_bytes,
+                threads: self.threads as u64,
+                io: None,
+            },
+        }
+    }
 }
 
 /// Immutable whole-device readings suitable for sharing with renderers.

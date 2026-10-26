@@ -67,6 +67,16 @@ pub fn discover_agents_with_options(
         !matches!(kind, AgentKind::ClaudeAcp | AgentKind::CodexAcp)
             || !has_descendant_candidate(process.pid, *kind, &children, &by_pid, &candidate_pids)
     });
+    // Anything else that re-execs itself — Codex's app-server daemon and the
+    // server it supervises — is one harness: keep the outermost process as the
+    // row and let the rest aggregate beneath it.
+    let kinds: HashMap<u32, AgentKind> = candidates.iter().map(|(p, k)| (p.pid, *k)).collect();
+    candidates.retain(|(process, kind)| {
+        matches!(
+            kind,
+            AgentKind::ClaudeAcp | AgentKind::CodexAcp | AgentKind::Shell
+        ) || !has_ancestor_of_kind(process, *kind, &kinds, &by_pid)
+    });
 
     let mut agents = Vec::new();
     for (process, kind) in candidates {
@@ -166,57 +176,126 @@ fn embedded_openhuman(
     })
 }
 
+/// Interpreters whose first non-flag argument names the program they run, so
+/// `node /usr/lib/node_modules/.bin/gemini` is Gemini and not just Node.
+const INTERPRETERS: [&str; 8] = [
+    "node", "bun", "deno", "python", "python3", "env", "npx", "uv",
+];
+
+const SHELLS: [&str; 6] = ["sh", "bash", "zsh", "fish", "pwsh", "powershell"];
+
+/// Lowercased file name of `path` without a Windows `.exe` suffix.
+fn program_name(path: &str) -> Option<String> {
+    let name = std::path::Path::new(path).file_name()?.to_str()?;
+    let name = name.to_ascii_lowercase();
+    Some(name.strip_suffix(".exe").map(str::to_owned).unwrap_or(name))
+}
+
+/// Map one program name to the harness it is, if any.
+fn harness_named(name: &str, has_arg: &dyn Fn(&str) -> bool) -> Option<AgentKind> {
+    match name {
+        "claude" => Some(AgentKind::Claude),
+        "claude-agent-acp" | "claude-code-acp" => Some(AgentKind::ClaudeAcp),
+        "codex" if has_arg("app-server") => Some(AgentKind::CodexAppServer),
+        "codex" => Some(AgentKind::Codex),
+        "codex-acp" => Some(AgentKind::CodexAcp),
+        "opencode" if has_arg("acp") => Some(AgentKind::OpencodeAcp),
+        "opencode" => Some(AgentKind::Opencode),
+        "openhuman-core" | "openhuman" => Some(AgentKind::OpenhumanCore),
+        "gemini" => Some(AgentKind::Gemini),
+        "aider" => Some(AgentKind::Aider),
+        "goose" => Some(AgentKind::Goose),
+        "cursor-agent" => Some(AgentKind::CursorAgent),
+        _ => None,
+    }
+}
+
+/// Whether a process whose short name is `name` could be a harness, a shell,
+/// or an interpreter running one — the cheap pre-filter a sampler applies
+/// before paying to read a process's executable and argv.
+pub fn may_be_agent_name(name: &str) -> bool {
+    let Some(name) = program_name(name) else {
+        return false;
+    };
+    SHELLS.contains(&name.as_str())
+        || name == "dash"
+        || INTERPRETERS.contains(&name.as_str())
+        || harness_named(&name, &|_| false).is_some()
+}
+
+/// Classify one process on its own, without its tree.
+pub fn classify_process(process: &ProcessRecord) -> Option<AgentKind> {
+    classify(process)
+}
+
 fn classify(process: &ProcessRecord) -> Option<AgentKind> {
-    let raw_basename = process
+    let exe_name = process
         .exe
         .as_ref()
-        .and_then(|exe| exe.file_name())
-        .and_then(|name| name.to_str())?;
-    let normalized_basename = raw_basename.to_ascii_lowercase();
-    let basename = normalized_basename
-        .strip_suffix(".exe")
-        .unwrap_or(&normalized_basename);
+        .and_then(|exe| exe.to_str())
+        .and_then(program_name);
     let argv = match &process.argv {
         Some(argv) => argv,
         None => {
-            return matches!(
-                basename,
-                "claude"
-                    | "codex"
-                    | "opencode"
-                    | "openhuman-core"
-                    | "sh"
-                    | "bash"
-                    | "zsh"
-                    | "fish"
-                    | "pwsh"
-                    | "powershell"
-            )
-            .then_some(AgentKind::Unknown);
+            let name = exe_name?;
+            let known =
+                SHELLS.contains(&name.as_str()) || harness_named(&name, &|_| false).is_some();
+            return known.then_some(AgentKind::Unknown);
         }
     };
     let args = argv.iter().map(String::as_str).collect::<Vec<_>>();
     let has = |needle: &str| args.iter().any(|arg| arg.contains(needle));
     let has_arg = |needle: &str| args.contains(&needle);
 
-    match basename {
-        "claude" => Some(AgentKind::Claude),
-        "codex" if has_arg("app-server") => Some(AgentKind::CodexAppServer),
-        "codex" => Some(AgentKind::Codex),
-        "opencode" if has_arg("acp") => Some(AgentKind::OpencodeAcp),
-        "opencode" => Some(AgentKind::Opencode),
-        "openhuman-core" => Some(AgentKind::OpenhumanCore),
-        "sh" | "bash" | "zsh" | "fish" | "pwsh" | "powershell" => Some(AgentKind::Shell),
-        "node" | "npx" | "env"
-            if has("@agentclientprotocol/claude-agent-acp") || has("claude-agent-acp") =>
-        {
-            Some(AgentKind::ClaudeAcp)
-        }
-        "node" | "npx" | "env" if has("@agentclientprotocol/codex-acp") || has("codex-acp") => {
-            Some(AgentKind::CodexAcp)
-        }
-        _ => None,
+    // A harness can be installed under a versioned file name (Claude's native
+    // build runs as `…/claude/versions/2.1.310`), so the name it was launched
+    // as counts as much as the file it was launched from.
+    let argv0_name = args.first().and_then(|arg| program_name(arg));
+    let names = || exe_name.iter().chain(argv0_name.iter());
+    if let Some(kind) = names().find_map(|name| harness_named(name, &has_arg)) {
+        return Some(kind);
     }
+    if names().any(|name| SHELLS.contains(&name.as_str())) {
+        return Some(AgentKind::Shell);
+    }
+    if !names().any(|name| INTERPRETERS.contains(&name.as_str())) {
+        return None;
+    }
+    if has("@agentclientprotocol/claude-agent-acp") || has("claude-agent-acp") {
+        return Some(AgentKind::ClaudeAcp);
+    }
+    if has("@agentclientprotocol/codex-acp") || has("codex-acp") {
+        return Some(AgentKind::CodexAcp);
+    }
+    if has("@google/gemini-cli") {
+        return Some(AgentKind::Gemini);
+    }
+    let script = args
+        .iter()
+        .skip(1)
+        .find(|arg| !arg.starts_with('-'))
+        .and_then(|arg| program_name(arg))?;
+    harness_named(&script, &has_arg)
+}
+
+fn has_ancestor_of_kind(
+    process: &ProcessRecord,
+    kind: AgentKind,
+    kinds: &HashMap<u32, AgentKind>,
+    by_pid: &HashMap<u32, &ProcessRecord>,
+) -> bool {
+    let mut visited = HashSet::from([process.pid]);
+    let mut current = process.ppid;
+    while let Some(pid) = current {
+        if !visited.insert(pid) {
+            return false;
+        }
+        if kinds.get(&pid) == Some(&kind) {
+            return true;
+        }
+        current = by_pid.get(&pid).and_then(|parent| parent.ppid);
+    }
+    false
 }
 
 fn has_descendant_candidate(

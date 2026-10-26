@@ -32,7 +32,7 @@ fn agent_rows_render_with_classification_at_desktop_and_narrow_sizes() {
             "Claude",
             "Codex-ACP",
             "OpenHuman",
-            "External",
+            "Aider",
             "external",
             "Pid:",
         ] {
@@ -177,7 +177,7 @@ fn agent_signal_confirmation_stays_visible_in_detail_view() {
         .collect::<String>();
     assert!(text.contains("EXTERNAL PROCESS"));
     for expected in [
-        "Kind: External",
+        "Kind: Aider",
         "PID: 44",
         "Command: aider --api-key=[REDACTED] --workspace /tmp/work",
         "Origin: external",

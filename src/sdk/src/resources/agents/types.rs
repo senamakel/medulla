@@ -12,9 +12,35 @@ pub enum AgentKind {
     OpencodeAcp,
     OpenhumanCore,
     EmbeddedOpenhuman,
+    Gemini,
+    Aider,
+    Goose,
+    CursorAgent,
     Shell,
     /// A supported executable whose command-line signature could not be read.
     Unknown,
+}
+
+impl AgentKind {
+    /// The name an operator reads in a process list.
+    pub fn label(self) -> &'static str {
+        match self {
+            AgentKind::Claude => "Claude",
+            AgentKind::Codex => "Codex",
+            AgentKind::CodexAppServer => "Codex Server",
+            AgentKind::ClaudeAcp => "Claude-ACP",
+            AgentKind::CodexAcp => "Codex-ACP",
+            AgentKind::Opencode => "OpenCode",
+            AgentKind::OpencodeAcp => "OpenCode-ACP",
+            AgentKind::OpenhumanCore | AgentKind::EmbeddedOpenhuman => "OpenHuman",
+            AgentKind::Gemini => "Gemini",
+            AgentKind::Aider => "Aider",
+            AgentKind::Goose => "Goose",
+            AgentKind::CursorAgent => "Cursor Agent",
+            AgentKind::Shell => "Shell",
+            AgentKind::Unknown => "Unknown",
+        }
+    }
 }
 
 /// Ownership source for a discovered process tree.

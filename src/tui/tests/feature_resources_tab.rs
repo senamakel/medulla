@@ -49,7 +49,7 @@ fn resources_agents_pane_renders_at_common_terminal_sizes() {
             .iter()
             .map(|cell| cell.symbol())
             .collect::<String>();
-        for label in ["Claude", "Codex-ACP", "OpenHuman", "External"] {
+        for label in ["Claude", "Codex-ACP", "OpenHuman", "Aider"] {
             assert!(
                 screen.contains(label),
                 "{label} missing at {width}x{height}: {screen}"

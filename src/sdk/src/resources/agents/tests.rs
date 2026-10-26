@@ -282,3 +282,100 @@ fn external_shells_are_included_only_when_requested() {
     assert_eq!(agents[0].kind, AgentKind::Shell);
     assert_eq!(agents[0].origin, AgentOrigin::External);
 }
+
+/// Claude's native build runs from a versioned file name; the name it was
+/// launched as still identifies it.
+#[test]
+fn a_harness_on_a_versioned_executable_is_named_by_its_argv() {
+    let processes = vec![process(
+        100,
+        Some(1),
+        "/Users/me/.local/share/claude/versions/2.1.310",
+        &["claude", "--session-id", "abc"],
+        5,
+    )];
+    let agents = discover_agents(&processes, &[], 999, 50);
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].kind, AgentKind::Claude);
+}
+
+/// Codex's app-server daemon supervises an app-server child: one harness, one
+/// row, with the child's usage folded into it.
+#[test]
+fn a_harness_that_re_execs_itself_is_one_row() {
+    let codex = "/Users/me/.codex/bin/codex";
+    let processes = vec![
+        process(200, Some(1), codex, &["codex", "app-server", "daemon"], 5),
+        process(
+            201,
+            Some(200),
+            codex,
+            &["codex", "app-server", "--listen"],
+            6,
+        ),
+        process(
+            202,
+            Some(201),
+            "/Users/me/.codex/bin/codex-code-mode-host",
+            &["codex-code-mode-host"],
+            7,
+        ),
+    ];
+    let agents = discover_agents(&processes, &[], 999, 50);
+    assert_eq!(agents.len(), 1, "{agents:?}");
+    assert_eq!(agents[0].pid, Some(200));
+    assert_eq!(agents[0].kind, AgentKind::CodexAppServer);
+    assert_eq!(agents[0].usage.rss_bytes, 300);
+}
+
+/// A harness started through an interpreter is named by the script it runs.
+#[test]
+fn interpreted_harnesses_are_named_by_their_script() {
+    let processes = vec![
+        process(
+            300,
+            Some(1),
+            "/usr/bin/node",
+            &["node", "/usr/lib/node_modules/.bin/gemini"],
+            5,
+        ),
+        process(
+            301,
+            Some(1),
+            "/usr/bin/python3",
+            &["python3", "/Users/me/.local/bin/aider", "--yes"],
+            5,
+        ),
+        process(
+            302,
+            Some(1),
+            "/usr/bin/node",
+            &["node", "/srv/app/server.js"],
+            5,
+        ),
+    ];
+    let kinds: Vec<_> = discover_agents(&processes, &[], 999, 50)
+        .into_iter()
+        .map(|agent| agent.kind)
+        .collect();
+    assert_eq!(kinds, [AgentKind::Gemini, AgentKind::Aider]);
+}
+
+/// An editor whose install path mentions an agent, an MCP server, and another
+/// Medulla are not harnesses.
+#[test]
+fn programs_that_only_mention_a_harness_are_not_agents() {
+    let processes = vec![
+        process(
+            400,
+            Some(1),
+            "/Applications/Cursor.app/Contents/Frameworks/Cursor Helper (Plugin).app/Contents/MacOS/Cursor Helper (Plugin)",
+            &["Cursor Helper (Plugin): extension-host"],
+            5,
+        ),
+        process(401, Some(1), "/usr/local/bin/chrome-devtools-mcp", &["chrome-devtools-mcp", "--claude"], 5),
+        process(402, Some(1), "/Users/me/.medulla/bin/medulla", &["medulla", "mcp"], 5),
+        process(403, Some(1), "/Users/me/.codex/bin/codex-code-mode-host", &["codex-code-mode-host"], 5),
+    ];
+    assert!(discover_agents(&processes, &[], 999, 50).is_empty());
+}

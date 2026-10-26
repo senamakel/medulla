@@ -219,7 +219,7 @@ fn classifies_known_and_external_agent_processes() {
     let rows = rows(&snapshot());
     assert_eq!(
         rows.iter().map(|row| row.kind.as_str()).collect::<Vec<_>>(),
-        ["Claude", "Codex-ACP", "OpenHuman", "External"]
+        ["Claude", "Codex-ACP", "OpenHuman", "Aider"]
     );
     assert_eq!(
         rows.iter()
@@ -230,11 +230,11 @@ fn classifies_known_and_external_agent_processes() {
 }
 
 #[test]
-fn unregistered_bare_codex_process_is_visible_as_external() {
+fn unregistered_bare_codex_process_is_named_codex_with_an_external_origin() {
     let rows =
         rows(&ResourceSnapshot::default().with_processes(vec![process(987_105, "codex", 0.0, 1)]));
     assert_eq!(rows.len(), 1, "the harness-named process must be visible");
-    assert_eq!(rows[0].kind, "External");
+    assert_eq!(rows[0].kind, "Codex");
     assert_eq!(rows[0].origin, "external");
 }
 
@@ -284,7 +284,7 @@ fn registry_classifies_session_task_and_host_origins() {
     );
     assert_eq!(
         rows.iter().map(|row| row.kind.as_str()).collect::<Vec<_>>(),
-        ["Claude", "Codex-ACP", "OpenHuman", "External"]
+        ["Claude", "Codex-ACP", "OpenHuman", "Aider"]
     );
 }
 
@@ -353,4 +353,56 @@ fn sorts_each_column_reverses_and_filters_codex_by_regex() {
             .collect::<Vec<_>>(),
         ["Codex-ACP"]
     );
+}
+
+/// The process table a Mac running Cursor, Claude Code and the Codex app
+/// actually has: only the two harnesses are rows, each named for what it is,
+/// and each carrying its whole tree's memory.
+#[test]
+fn only_harnesses_are_rows_and_each_is_named_for_what_it_is() {
+    let at = |pid: u32, ppid: Option<u32>, exe: &str, cmd: &[&str], mem: u64| ProcessSnapshot {
+        pid,
+        ppid,
+        exe: Some(exe.into()),
+        cmd: cmd.iter().map(|arg| (*arg).to_string()).collect(),
+        cwd: Some("/work/repo".into()),
+        start_time: 100,
+        owner_uid: None,
+        cpu_percent: 1.0,
+        memory_bytes: mem,
+        disk_read_bytes: 0,
+        disk_written_bytes: 0,
+        threads: 4,
+    };
+    let codex = "/Users/me/.codex/packages/app-server-daemon/bin/codex";
+    let snapshot = ResourceSnapshot::default().with_processes(vec![
+        at(687, Some(1), "/Applications/Cursor.app/Contents/MacOS/Cursor", &["Cursor"], 10),
+        at(
+            1847,
+            Some(687),
+            "/Applications/Cursor.app/Contents/Frameworks/Cursor Helper (Renderer).app/Contents/MacOS/Cursor Helper (Renderer)",
+            &["Cursor Helper (Renderer)", "--type=renderer"],
+            10,
+        ),
+        at(9065, Some(1), "/Users/me/.medulla/bin/medulla", &["medulla"], 10),
+        at(
+            9235,
+            Some(9065),
+            "/Users/me/.local/share/claude/versions/2.1.310",
+            &["claude", "--session-id", "abc"],
+            500,
+        ),
+        at(9896, Some(9235), "/Users/me/.medulla/bin/medulla", &["medulla", "mcp"], 50),
+        at(10027, Some(9235), "/usr/local/bin/chrome-devtools-mcp", &["chrome-devtools-mcp"], 50),
+        at(49530, Some(1), codex, &["codex", "app-server", "daemon"], 10),
+        at(41393, Some(49530), codex, &["codex", "app-server", "--listen"], 100),
+    ]);
+    let rows = rows(&snapshot);
+    assert_eq!(
+        rows.iter()
+            .map(|row| (row.pid, row.kind.as_str(), row.memory, row.threads))
+            .collect::<Vec<_>>(),
+        [(9235, "Claude", 600, 12), (49530, "Codex Server", 110, 8)]
+    );
+    assert!(rows.iter().all(|row| row.workspace == "/work/repo"));
 }

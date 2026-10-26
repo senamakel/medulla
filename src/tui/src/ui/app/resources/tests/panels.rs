@@ -248,6 +248,7 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             read_bytes_per_second: (32 * 1024 * 1024) as f64,
             write_bytes_per_second: (64 * 1024 * 1024) as f64,
             busy_percent: Some(15.0),
+            has_io: true,
         }],
         ..Default::default()
     };
@@ -339,4 +340,111 @@ fn memory_and_disk_panel_renders_at_desktop_and_compact_terminal_sizes() {
             }
         }
     }
+}
+
+/// btop's disks column: every volume headed by a divider carrying its name and
+/// size, IO above the used meter, swap second and with no IO row of its own.
+#[test]
+fn disks_are_listed_btop_style_with_swap_after_root() {
+    let disk = |device: &str, mount: &str, has_io| crate::ui::resources::sampler::DiskSnapshot {
+        device: device.into(),
+        mount: mount.into(),
+        total_bytes: 2 * 1024 * 1024 * 1024 * 1024,
+        used_bytes: 1024 * 1024 * 1024 * 1024,
+        read_bytes_per_second: 0.0,
+        write_bytes_per_second: 0.0,
+        busy_percent: None,
+        has_io,
+    };
+    let snapshot = crate::ui::resources::sampler::ResourceSnapshot {
+        disks: vec![
+            disk("/dev/disk3s1s1", "/", true),
+            disk("/dev/disk3s6", "/System/Volumes/VM", true),
+            disk("/dev/disk1s2", "/System/Volumes/xarts", false),
+        ],
+        swap_total_bytes: 6 * 1024 * 1024 * 1024,
+        swap_used_bytes: 3 * 1024 * 1024 * 1024,
+        ..Default::default()
+    };
+    let mut app = App::new(
+        Arc::new(MockBackend::new()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(snapshot));
+    let mut terminal = Terminal::new(TestBackend::new(170, 42)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 170, 42)))
+        .unwrap();
+    let rows = screen_rows(&terminal);
+    let headers: Vec<(usize, &str)> = rows
+        .iter()
+        .enumerate()
+        .filter_map(|(y, row)| {
+            ["root", "swap", "VM", "xarts"]
+                .into_iter()
+                .find(|name| row.contains(&format!("├─{name}─")))
+                .map(|name| (y, name))
+        })
+        .collect();
+    assert_eq!(
+        headers.iter().map(|(_, name)| *name).collect::<Vec<_>>(),
+        ["root", "swap", "VM", "xarts"],
+        "{}",
+        rows.join("\n")
+    );
+    let row = |y: usize| rows[y].as_str();
+    let (root, swap) = (headers[0].0, headers[1].0);
+    assert!(row(root).contains("2.00 TiB─┤"), "{}", row(root));
+    assert!(row(root + 1).contains("IO%"), "{}", row(root + 1));
+    assert!(row(root + 2).contains("Used:"), "{}", row(root + 2));
+    assert!(row(swap + 1).contains("Used:"), "{}", row(swap + 1));
+    assert_eq!(headers[2].0, swap + 2, "swap has no IO row");
+    let xarts = headers[3].0;
+    assert!(
+        row(xarts + 1).contains("Used:"),
+        "a volume with no IO counters has no IO row"
+    );
+}
+
+/// More volumes than the column has room to graph: every one is still listed,
+/// and the spare rows give IO graphs to the first disks, root first.
+#[test]
+fn a_crowded_disks_column_lists_every_volume_and_graphs_root_first() {
+    let disk = |index: usize| crate::ui::resources::sampler::DiskSnapshot {
+        device: format!("/dev/disk3s{index}"),
+        mount: if index == 0 {
+            "/".into()
+        } else {
+            format!("/Volumes/v{index}")
+        },
+        total_bytes: 1024,
+        used_bytes: 512,
+        read_bytes_per_second: 0.0,
+        write_bytes_per_second: 0.0,
+        busy_percent: None,
+        has_io: true,
+    };
+    let snapshot = crate::ui::resources::sampler::ResourceSnapshot {
+        disks: (0..10).map(disk).collect(),
+        ..Default::default()
+    };
+    let mut app = App::new(
+        Arc::new(MockBackend::new()),
+        LoadedConfig::defaults("test.json".into()),
+    );
+    app.set_resource_snapshot(Arc::new(snapshot));
+    let mut terminal = Terminal::new(TestBackend::new(215, 61)).unwrap();
+    terminal
+        .draw(|frame| app.draw_resources(frame, Rect::new(0, 0, 215, 61)))
+        .unwrap();
+    let rows = screen_rows(&terminal);
+    let text = rows.join("\n");
+    for name in std::iter::once("root".to_string()).chain((1..10).map(|i| format!("v{i}"))) {
+        assert!(
+            text.contains(&format!("├─{name}─")),
+            "{name} missing:\n{text}"
+        );
+    }
+    let root = rows.iter().position(|row| row.contains("├─root─")).unwrap();
+    assert!(rows[root + 1].contains("IO%"), "{}", rows[root + 1]);
 }

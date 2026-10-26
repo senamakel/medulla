@@ -83,6 +83,7 @@ impl ResourceSource for SystemResourceSource {
                     .with_disk_usage()
                     .with_exe(UpdateKind::OnlyIfNotSet)
                     .with_cmd(UpdateKind::OnlyIfNotSet)
+                    .with_cwd(UpdateKind::OnlyIfNotSet)
             }
         };
         self.system
@@ -102,7 +103,8 @@ impl ResourceSource for SystemResourceSource {
                     true,
                     ProcessRefreshKind::nothing()
                         .with_exe(UpdateKind::OnlyIfNotSet)
-                        .with_cmd(UpdateKind::OnlyIfNotSet),
+                        .with_cmd(UpdateKind::OnlyIfNotSet)
+                        .with_cwd(UpdateKind::OnlyIfNotSet),
                 );
             }
             let agent_pids: Vec<_> = self
@@ -244,7 +246,11 @@ impl ResourceSource for SystemResourceSource {
                     } else {
                         0
                     },
-                    threads: process.tasks().map_or(0, |tasks| tasks.len()),
+                    threads: process
+                        .tasks()
+                        .map(|tasks| tasks.len())
+                        .or_else(|| thread_count(pid.as_u32()))
+                        .unwrap_or(0),
                 }
             })
             .collect();
@@ -397,45 +403,17 @@ impl ResourceSource for SystemResourceSource {
             },
             swap_total_bytes: self.system.total_swap(),
             swap_used_bytes: self.system.used_swap(),
-            disks: self
-                .disks
-                .list()
-                .iter()
-                .filter(|disk| disk_is_visible(disk, &self.disk_options))
-                .map(|disk| {
-                    #[cfg(target_os = "linux")]
-                    let io = linux
-                        .io
-                        .get(disk.name().to_string_lossy().trim_start_matches("/dev/"))
-                        .copied();
-                    DiskSnapshot {
-                        device: disk.name().to_string_lossy().into_owned(),
-                        mount: disk.mount_point().to_string_lossy().into_owned(),
-                        total_bytes: disk.total_space(),
-                        used_bytes: disk.total_space().saturating_sub(disk.available_space()),
-                        #[cfg(target_os = "linux")]
-                        read_bytes_per_second: io.map_or(0.0, |io| io.read_rate),
-                        #[cfg(not(target_os = "linux"))]
-                        read_bytes_per_second: per_second(
-                            disk.usage().read_bytes,
-                            elapsed,
-                            baseline_ready,
-                        ),
-                        #[cfg(target_os = "linux")]
-                        write_bytes_per_second: io.map_or(0.0, |io| io.write_rate),
-                        #[cfg(not(target_os = "linux"))]
-                        write_bytes_per_second: per_second(
-                            disk.usage().written_bytes,
-                            elapsed,
-                            baseline_ready,
-                        ),
-                        #[cfg(target_os = "linux")]
-                        busy_percent: io.map(|io| io.busy),
-                        #[cfg(not(target_os = "linux"))]
-                        busy_percent: None,
-                    }
-                })
-                .collect(),
+            disks: disk_snapshots(
+                &self.disks,
+                &self.disk_options,
+                #[cfg(not(target_os = "linux"))]
+                DiskRates {
+                    elapsed,
+                    baseline_ready,
+                },
+                #[cfg(target_os = "linux")]
+                &linux.io,
+            ),
             networks,
             processes,
         }
@@ -444,6 +422,36 @@ impl ResourceSource for SystemResourceSource {
     fn update_disk_options(&mut self, options: DiskOptions) {
         self.disk_options = options;
     }
+}
+
+/// Thread count where sysinfo has none to give: it lists a process's threads
+/// only on Linux, so macOS asks the kernel for the task's own count.
+#[cfg(target_os = "macos")]
+fn thread_count(pid: u32) -> Option<usize> {
+    let mut info = std::mem::MaybeUninit::<libc::proc_taskinfo>::zeroed();
+    let size = std::mem::size_of::<libc::proc_taskinfo>() as libc::c_int;
+    // SAFETY: `info` is a writable buffer of exactly `size` bytes, which is
+    // what PROC_PIDTASKINFO fills; a short return means it was not filled.
+    let written = unsafe {
+        libc::proc_pidinfo(
+            pid as libc::c_int,
+            libc::PROC_PIDTASKINFO,
+            0,
+            info.as_mut_ptr().cast(),
+            size,
+        )
+    };
+    if written != size {
+        return None;
+    }
+    // SAFETY: the kernel wrote the whole struct, checked above.
+    let info = unsafe { info.assume_init() };
+    usize::try_from(info.pti_threadnum).ok()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn thread_count(_pid: u32) -> Option<usize> {
+    None
 }
 
 pub(super) fn effective_user_id(process: &sysinfo::Process) -> Option<String> {

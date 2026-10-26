@@ -158,6 +158,7 @@ impl ResourceSource for DiskOptionsSource {
             read_bytes_per_second: 0.0,
             write_bytes_per_second: 0.0,
             busy_percent: None,
+            has_io: true,
         })
         .collect();
         ResourceSnapshot {
@@ -338,3 +339,52 @@ fn the_first_sample_reports_no_rate_instead_of_a_startup_spike() {
 }
 
 mod filters;
+
+/// The agents table reads a process's working directory and thread count from
+/// the sample; on macOS neither used to be collected, so every row read `—`
+/// and `0`. Linux reads both only for processes that may be agents, which the
+/// test runner is not.
+#[cfg(not(target_os = "linux"))]
+#[test]
+fn a_sample_carries_this_processs_working_directory_and_threads() {
+    let mut source = super::SystemResourceSource::default();
+    let snapshot = source.sample();
+    let me = snapshot
+        .processes
+        .iter()
+        .find(|process| process.pid == std::process::id())
+        .expect("the sampler lists its own process");
+    let cwd = std::env::current_dir().unwrap();
+    assert_eq!(
+        me.cwd.as_deref().map(std::path::Path::new),
+        Some(cwd.as_path()),
+        "{me:?}"
+    );
+    #[cfg(target_os = "macos")]
+    assert!(me.threads >= 1, "{me:?}");
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_volumes_resolve_to_the_disk_they_live_on() {
+    use super::macos::whole_disk;
+    assert_eq!(whole_disk("/dev/disk3s1s1"), Some("disk3"));
+    assert_eq!(whole_disk("/dev/disk12s2"), Some("disk12"));
+    assert_eq!(whole_disk("devfs"), None);
+    assert_eq!(whole_disk("map auto_home"), None);
+}
+
+/// sysinfo lists only the volumes Finder browses; the mount table has every
+/// local one, as btop shows, without the pseudo filesystems.
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_local_mounts_include_root_and_skip_pseudo_filesystems() {
+    let mounts = super::macos::local_mounts();
+    assert!(mounts.iter().any(|mount| mount.mount == "/"), "no root");
+    assert!(mounts
+        .iter()
+        .all(|mount| !["devfs", "autofs"].contains(&mount.filesystem.as_str())));
+    assert!(mounts
+        .iter()
+        .all(|mount| mount.total_bytes > 0 || mount.mount != "/"));
+}

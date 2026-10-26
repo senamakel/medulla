@@ -3,6 +3,7 @@
 mod agent_input;
 pub(in crate::ui::app) mod chrome;
 mod cpu;
+mod disks;
 mod input;
 mod keys;
 pub(super) mod layout;

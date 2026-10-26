@@ -4,7 +4,9 @@ mod classify;
 mod registry;
 mod types;
 
-pub use classify::{discover_agents, discover_agents_with_options};
+pub use classify::{
+    classify_process, discover_agents, discover_agents_with_options, may_be_agent_name,
+};
 pub use registry::{discover_registered_agents, registered_roots};
 pub use types::{
     AgentDiscoveryOptions, AgentKind, AgentOrigin, AgentProcess, IoCounters, KnownProcessRoot,

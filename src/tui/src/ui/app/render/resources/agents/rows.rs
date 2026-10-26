@@ -33,90 +33,122 @@ impl AgentRow {
     }
 }
 
+/// One row per harness on this machine: the SDK's classifier picks each
+/// harness's root process, and the row carries the whole tree's usage.
+///
+/// Classification goes by the program a process is — its executable or the
+/// name it was launched as — never by a substring of its path or arguments,
+/// so an editor installed under `Cursor.app` or an MCP server started with
+/// `--claude` stays out of the list.
 pub(in crate::ui::app) fn rows(snapshot: &ResourceSnapshot) -> Vec<AgentRow> {
+    use medulla::resources::agents::{discover_registered_agents, AgentOrigin};
+
     let registrations = medulla::resources::launch::agent_registry().snapshot();
-    snapshot
+    let records: Vec<_> = snapshot
         .processes
         .iter()
-        .filter_map(|process| {
-            let registered = registrations.iter().find(|entry| {
-                entry.pid == process.pid && entry.started_at_secs == process.start_time
-            });
-            let detected = detect_kind(process);
-            let kind = registered
-                .map(|entry| pretty_kind(&entry.provider))
-                .or(detected)?;
-            let (origin, session_id, task_id, external) = match registered {
-                Some(entry) if entry.session_id.is_some() => (
-                    entry.session_id.clone().unwrap_or_default(),
-                    entry.session_id.clone(),
-                    entry.task_id.clone(),
-                    false,
-                ),
-                Some(entry) if entry.task_id.is_some() => (
-                    format!("task {}", entry.task_id.as_deref().unwrap_or_default()),
-                    None,
-                    entry.task_id.clone(),
-                    false,
-                ),
-                Some(_) => ("host".into(), None, None, false),
-                None => ("external".into(), None, None, true),
-            };
-            let remote = session_id.as_deref().is_some_and(|id| {
-                matches!(
-                    crate::ui::app::remote_sessions::SessionRef::parse(id),
-                    crate::ui::app::remote_sessions::SessionRef::Remote { .. }
-                )
-            });
-            Some(AgentRow {
-                host: None,
-                pid: process.pid,
-                started: process.start_time,
-                kind,
-                origin,
-                workspace: process.cwd.clone().unwrap_or_else(|| "—".into()),
-                threads: process.threads,
-                memory: process.memory_bytes,
-                cpu: process.cpu_percent,
-                runtime: (medulla::clock::now_millis()
-                    - (process.start_time.saturating_mul(1000) as i64))
-                    .max(0) as u64
-                    / 1000,
-                ppid: process.ppid,
-                session_id,
-                task_id,
-                external,
-                remote,
-                depth: 0,
+        .map(ProcessSnapshot::to_record)
+        .collect();
+    let medulla_pid = std::process::id();
+    let now_secs = medulla::clock::now_millis().max(0) as u64 / 1000;
+    let process = |pid: u32| snapshot.processes.iter().find(|process| process.pid == pid);
+    let mut rows: Vec<AgentRow> =
+        discover_registered_agents(&records, medulla_pid, now_secs, Default::default())
+            .into_iter()
+            .map(|agent| {
+                let pid = agent.pid.unwrap_or(medulla_pid);
+                let registered = registrations.iter().find(|entry| {
+                    entry.pid == pid && entry.started_at_secs == agent.started_at_secs
+                });
+                let kind = registered
+                    .map(|entry| pretty_kind(&entry.provider))
+                    .unwrap_or_else(|| agent.kind.label().into());
+                let (origin, session_id, task_id, external) = match agent.origin {
+                    AgentOrigin::Session { id } => (
+                        id.clone(),
+                        Some(id),
+                        registered.and_then(|entry| entry.task_id.clone()),
+                        false,
+                    ),
+                    AgentOrigin::Task { id } => (format!("task {id}"), None, Some(id), false),
+                    AgentOrigin::Headless => ("host".into(), None, None, false),
+                    AgentOrigin::Remote { host } => {
+                        (format!("Remote{{{host}}}"), None, None, false)
+                    }
+                    AgentOrigin::External => ("external".into(), None, None, true),
+                };
+                AgentRow {
+                    host: None,
+                    pid,
+                    started: agent.started_at_secs,
+                    kind,
+                    origin,
+                    workspace: agent
+                        .cwd
+                        .map(|cwd| cwd.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "—".into()),
+                    threads: agent.usage.threads as usize,
+                    memory: agent.usage.rss_bytes,
+                    cpu: f64::from(agent.usage.cpu_percent),
+                    runtime: agent.runtime_secs,
+                    ppid: process(pid).and_then(|process| process.ppid),
+                    session_id,
+                    task_id,
+                    external,
+                    remote: false,
+                    depth: 0,
+                }
             })
-        })
-        .collect()
-}
-
-pub(super) fn detect_kind(process: &ProcessSnapshot) -> Option<String> {
-    let full = format!(
-        "{} {}",
-        process.exe.as_deref().unwrap_or_default(),
-        process.cmd.join(" ")
-    )
-    .to_lowercase();
-    if full.contains("codex-acp") {
-        Some("Codex-ACP".into())
-    } else if full.contains("claude") {
-        Some("Claude".into())
-    } else if full.contains("openhuman") || full.contains("medulla") {
-        Some("OpenHuman".into())
-    } else if full.contains("aider")
-        || full.contains("gemini")
-        || full.contains("goose")
-        || full.contains("cursor")
-        || full.contains("codex")
-        || full.contains("opencode")
-    {
-        Some("External".into())
-    } else {
-        None
+            .collect();
+    // A session Medulla launched stays listed even when its program is one
+    // the classifier does not know, such as a custom harness.
+    for entry in &registrations {
+        let owned = rows.iter().any(|row| {
+            row.pid == entry.pid
+                || (entry.session_id.is_some() && row.session_id == entry.session_id)
+                || (entry.task_id.is_some() && row.task_id == entry.task_id)
+        });
+        let Some(process) = process(entry.pid).filter(|p| p.start_time == entry.started_at_secs)
+        else {
+            continue;
+        };
+        if owned {
+            continue;
+        }
+        let origin = match (&entry.session_id, &entry.task_id) {
+            (Some(id), _) => id.clone(),
+            (None, Some(id)) => format!("task {id}"),
+            (None, None) => "host".into(),
+        };
+        rows.push(AgentRow {
+            host: None,
+            pid: process.pid,
+            started: process.start_time,
+            kind: pretty_kind(&entry.provider),
+            origin,
+            workspace: process.cwd.clone().unwrap_or_else(|| "—".into()),
+            threads: process.threads,
+            memory: process.memory_bytes,
+            cpu: process.cpu_percent,
+            runtime: now_secs.saturating_sub(process.start_time),
+            ppid: process.ppid,
+            session_id: entry.session_id.clone(),
+            task_id: entry.task_id.clone(),
+            external: false,
+            remote: false,
+            depth: 0,
+        });
     }
+    for row in &mut rows {
+        row.remote = row.session_id.as_deref().is_some_and(|id| {
+            matches!(
+                crate::ui::app::remote_sessions::SessionRef::parse(id),
+                crate::ui::app::remote_sessions::SessionRef::Remote { .. }
+            )
+        });
+    }
+    rows.sort_by_key(|row| row.pid);
+    rows
 }
 
 pub(super) fn pretty_kind(provider: &str) -> String {

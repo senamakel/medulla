@@ -2,31 +2,33 @@
 
 use super::*;
 
+/// Classify a process from what sysinfo has read of it so far.
+#[cfg(target_os = "linux")]
+fn agent_kind(
+    exe: Option<&std::path::Path>,
+    cmd: &[std::ffi::OsString],
+) -> Option<medulla::resources::agents::AgentKind> {
+    medulla::resources::agents::classify_process(&medulla::resources::agents::ProcessRecord {
+        pid: 0,
+        ppid: None,
+        exe: exe.map(std::path::Path::to_path_buf),
+        argv: Some(
+            cmd.iter()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect(),
+        ),
+        cwd: None,
+        started_at_secs: 0,
+        usage: Default::default(),
+    })
+}
+
 #[cfg(target_os = "linux")]
 pub(super) fn should_refresh_task_details(
     exe: Option<&std::path::Path>,
     cmd: &[std::ffi::OsString],
 ) -> bool {
-    let Some(basename) = exe
-        .and_then(std::path::Path::file_name)
-        .and_then(std::ffi::OsStr::to_str)
-    else {
-        return false;
-    };
-    let basename = basename.to_ascii_lowercase();
-    let basename = basename.strip_suffix(".exe").unwrap_or(&basename);
-    match basename {
-        "claude" | "codex" | "opencode" | "openhuman-core" | "sh" | "bash" | "zsh" | "fish"
-        | "pwsh" | "powershell" => true,
-        "node" | "npx" | "env" => cmd.iter().any(|arg| {
-            let arg = arg.to_string_lossy();
-            arg.contains("@agentclientprotocol/claude-agent-acp")
-                || arg.contains("claude-agent-acp")
-                || arg.contains("@agentclientprotocol/codex-acp")
-                || arg.contains("codex-acp")
-        }),
-        _ => false,
-    }
+    agent_kind(exe, cmd).is_some()
 }
 
 #[cfg(target_os = "linux")]
@@ -34,41 +36,12 @@ pub(super) fn should_refresh_process_tree(
     exe: Option<&std::path::Path>,
     cmd: &[std::ffi::OsString],
 ) -> bool {
-    let Some(basename) = exe
-        .and_then(std::path::Path::file_name)
-        .and_then(std::ffi::OsStr::to_str)
-    else {
-        return false;
-    };
-    let basename = basename.to_ascii_lowercase();
-    let basename = basename.strip_suffix(".exe").unwrap_or(&basename);
-    !matches!(
-        basename,
-        "sh" | "bash" | "zsh" | "fish" | "dash" | "pwsh" | "powershell"
-    ) && should_refresh_task_details(exe, cmd)
+    agent_kind(exe, cmd).is_some_and(|kind| kind != medulla::resources::agents::AgentKind::Shell)
 }
 
 #[cfg(target_os = "linux")]
 pub(super) fn may_be_agent_process(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-    let name = name.strip_suffix(".exe").unwrap_or(&name);
-    matches!(
-        name,
-        "claude"
-            | "codex"
-            | "opencode"
-            | "openhuman-core"
-            | "sh"
-            | "bash"
-            | "zsh"
-            | "fish"
-            | "dash"
-            | "pwsh"
-            | "powershell"
-            | "node"
-            | "npx"
-            | "env"
-    )
+    medulla::resources::agents::may_be_agent_name(name)
 }
 
 #[cfg(target_os = "linux")]
