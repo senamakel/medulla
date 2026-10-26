@@ -5,19 +5,33 @@ use std::path::PathBuf;
 /// A recognized coding agent or supported shell process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AgentKind {
+    /// Claude Code CLI.
     Claude,
+    /// Codex CLI.
     Codex,
+    /// Codex app-server process.
     CodexAppServer,
+    /// Claude Code ACP adapter.
     ClaudeAcp,
+    /// Codex ACP adapter.
     CodexAcp,
+    /// OpenCode CLI.
     Opencode,
+    /// OpenCode ACP adapter.
     OpencodeAcp,
+    /// Standalone OpenHuman core process.
     OpenhumanCore,
+    /// OpenHuman runtime embedded in Medulla itself.
     EmbeddedOpenhuman,
+    /// Gemini CLI.
     Gemini,
+    /// Aider.
     Aider,
+    /// Goose.
     Goose,
+    /// Cursor Agent.
     CursorAgent,
+    /// A shell hosting an agent session.
     Shell,
     /// A supported executable whose command-line signature could not be read.
     Unknown,
@@ -48,10 +62,15 @@ impl AgentKind {
 /// Ownership source for a discovered process tree.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AgentOrigin {
+    /// Launched to serve the session with this id.
     Session { id: String },
+    /// Launched to serve the task with this id.
     Task { id: String },
+    /// Launched by Medulla with no session or task attached.
     Headless,
+    /// Observed on a remote host.
     Remote { host: String },
+    /// Started outside Medulla.
     External,
 }
 
@@ -80,22 +99,29 @@ pub struct IoCounters {
 /// One platform-neutral row from a process sampler.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcessRecord {
+    /// Operating-system process identifier.
     pub pid: u32,
+    /// Parent process identifier, when known.
     pub ppid: Option<u32>,
+    /// Path of the executable, when readable.
     pub exe: Option<PathBuf>,
     /// `None` means argv could not be read (for example, macOS privacy rules).
     pub argv: Option<Vec<String>>,
+    /// Working directory, when readable.
     pub cwd: Option<PathBuf>,
     /// Process start time in seconds since the Unix epoch.
     pub started_at_secs: u64,
+    /// Resource counters for this process.
     pub usage: ProcessUsage,
 }
 
 /// A process root whose ownership is known to Medulla.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KnownProcessRoot {
+    /// Operating-system process identifier.
     pub pid: u32,
     pub started_at_secs: u64,
+    /// Who started the process tree.
     pub origin: AgentOrigin,
 }
 
@@ -109,9 +135,13 @@ pub struct AgentDiscoveryOptions {
 /// A descendant in an agent process tree.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcessNode {
+    /// Operating-system process identifier.
     pub pid: u32,
+    /// Path of the executable, when readable.
     pub exe: Option<PathBuf>,
+    /// Resource counters for this process.
     pub usage: ProcessUsage,
+    /// Descendant processes.
     pub children: Vec<ProcessNode>,
 }
 
@@ -121,12 +151,19 @@ pub struct AgentProcess {
     /// Root process identifier. `None` for an in-process agent such as the
     /// embedded OpenHuman runtime.
     pub pid: Option<u32>,
+    /// The harness this process was classified as.
     pub kind: AgentKind,
+    /// Who started the process tree.
     pub origin: AgentOrigin,
+    /// Path of the executable, when readable.
     pub exe: Option<PathBuf>,
+    /// Working directory, when readable.
     pub cwd: Option<PathBuf>,
     pub started_at_secs: u64,
+    /// Seconds the process has been running.
     pub runtime_secs: u64,
+    /// Resource counters for this process.
     pub usage: ProcessUsage,
+    /// Descendant processes.
     pub children: Vec<ProcessNode>,
 }
