@@ -1,14 +1,11 @@
 //! Registry of child processes whose ownership is known to Medulla, with
 //! identity-safe registration guards.
 
-use std::sync::{atomic::Ordering, Arc, Mutex, OnceLock, Weak};
+use std::sync::{atomic::Ordering, Arc, Mutex, OnceLock};
 
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
-use super::types::{
-    AgentRegistration, AgentRegistry, ProcessIdentity, RegistrationGuard, RegistrationHandle,
-    RegistryEntries,
-};
+use super::types::{AgentRegistration, AgentRegistry, RegistrationGuard, RegistrationHandle};
 
 impl AgentRegistry {
     /// Register a process using its current operating-system start time.
