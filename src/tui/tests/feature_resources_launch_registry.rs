@@ -62,10 +62,13 @@ fn a_launched_harness_is_registered_until_it_exits() {
     let id = idle_session(&sessions);
     let pid = sessions.pid(&id).expect("the child has a pid");
     let registered = || {
-        agent_registry()
-            .snapshot()
-            .iter()
-            .any(|entry| entry.pid == pid && entry.provider == "codex")
+        agent_registry().snapshot().iter().any(|entry| {
+            // Keyed by the manager's id so Enter on the Agents row finds the
+            // session in the Sessions rail.
+            entry.pid == pid
+                && entry.provider == "codex"
+                && entry.session_id.as_deref() == Some(id.as_str())
+        })
     };
     assert!(registered(), "a launched harness must be Medulla-owned");
 

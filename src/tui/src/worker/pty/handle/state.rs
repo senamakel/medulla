@@ -114,9 +114,6 @@ impl SessionHandle {
     pub(in super::super) fn record_session_id(&self, harness_session_id: String) {
         let mut cold = lock(&self.cold);
         if cold.session_id.is_none() {
-            if let Some(guard) = lock(&self.registration).as_ref() {
-                guard.handle().set_session_id(harness_session_id.clone());
-            }
             cold.session_id = Some(harness_session_id);
         }
     }
@@ -124,11 +121,14 @@ impl SessionHandle {
     /// Register the child in the agent launch registry so process discovery
     /// reports it as Medulla-owned rather than external.
     ///
-    /// A no-op when the platform will not name the child or the process has
+    /// The registration carries the manager's session id so the Agents table can jump
+    /// to the session's row. A no-op when the platform will not name the child or the process has
     /// already gone. The registration lasts until [`reap`](Self::reap).
     pub(in super::super) fn register_launch(&self) {
         let Some(pid) = self.pid else { return };
-        let session_id = lock(&self.cold).session_id.clone();
+        // The manager's own id, not the harness transcript id: the Sessions rail
+        // and Enter-to-session navigation are keyed by it.
+        let session_id = Some(self.meta.id.clone());
         let guard = medulla::resources::launch::agent_registry().register(
             pid,
             None,
