@@ -91,17 +91,21 @@ impl Widget for Graph<'_> {
             };
             let column = first_column + cell_index;
             for row in 0..height {
+                // The percentage band a row shows, counted from the top. An
+                // inverted graph grows downward from the top edge, so its first
+                // row holds the lowest band rather than the highest.
+                let band = if self.invert { height - 1 - row } else { row };
                 let high = if height > 1 {
-                    (100.0 * (height - row) as f32 / height as f32).round()
+                    (100.0 * (height - band) as f32 / height as f32).round()
                 } else {
                     100.0
                 };
                 let low = if height > 1 {
-                    (100.0 * (height - row - 1) as f32 / height as f32).round()
+                    (100.0 * (height - band - 1) as f32 / height as f32).round()
                 } else {
                     0.0
                 };
-                let bottom = row == height - 1;
+                let bottom = band == height - 1;
                 let left_no_zero =
                     self.no_zero && bottom && !(odd && cell_index == 0 && first == 0);
                 let left_level = level(previous, low, high, one_row_bias, left_no_zero);
