@@ -425,6 +425,7 @@ fn escape_cancels_an_armed_signal_while_the_menu_is_open() {
         pid: 1,
         started: 1,
         signal: AgentSignal::Kill,
+        stage: AgentSignalConfirmStage::First,
     });
     app.on_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert!(!app.resources.menu_open);
