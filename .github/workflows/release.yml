@@ -1,42 +1,82 @@
 name: Release
 
+# One-click release: pick a semver bump (patch, minor, or major) and this
+# workflow bumps the shared workspace version in Cargo.toml/Cargo.lock, commits
+# `chore(release): vX.Y.Z` to main, pushes a matching annotated tag, builds the
+# `medulla` binary for each supported target from that tag, and publishes a
+# GitHub Release with the packaged binaries and `latest.json` attached.
+#
+# Always releases from main, whatever ref it is dispatched on. The bump commit
+# and tag go up in one atomic push, so a rejected push (main moved underneath
+# the run) leaves neither behind. The release is created in this same workflow,
+# so GITHUB_TOKEN pushes not triggering other workflows is fine.
+
 on:
   workflow_dispatch:
+    inputs:
+      release_type:
+        description: Semver increment to apply to the current version.
+        required: true
+        default: patch
+        type: choice
+        options: [patch, minor, major]
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  # One release at a time: two concurrent bumps would race for the same tag.
+  group: release
   cancel-in-progress: false
 
 jobs:
   prepare:
-    name: Tag current main version
-    if: github.ref == 'refs/heads/main'
+    name: Bump version and tag (${{ inputs.release_type }})
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
-      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+      version: ${{ steps.bump.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: main
           fetch-depth: 0
 
-      - name: Read version and create tag
-        id: version
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Test the bump script
+        run: bash scripts/release/test-bump-version.sh
+
+      - name: Bump version
+        id: bump
+        run: bash scripts/release/bump-version.sh "${{ inputs.release_type }}"
+
+      - name: Ensure tag does not already exist
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
         run: |
           set -euo pipefail
-          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
-          tag="v${version}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "Release tag ${tag} already exists" >&2
+          git fetch origin --tags --force
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null ||
+            git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null; then
+            echo "Release tag ${TAG} already exists" >&2
             exit 1
           fi
-          git tag -a "${tag}" -m "${tag}"
-          git push origin "refs/tags/${tag}"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag, and push
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git add Cargo.toml Cargo.lock
+          git commit -m "chore(release): ${TAG}"
+          # Annotated tag + explicit ref push: --follow-tags skips lightweight
+          # tags, which would leave the build jobs nothing to check out.
+          git tag -a "${TAG}" -m "${TAG}"
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/${TAG}"
 
   build:
     needs: prepare

@@ -36,10 +36,18 @@ for the full loop and the release process.
 
 ## Releasing
 
-`Release` (`.github/workflows/release.yml`, dispatched manually) bumps the
-version here, tags it here, builds the binary for every supported target, and
-publishes the packaged artifacts — binaries, checksums, and the `latest.json`
-update manifest `medulla update` reads — as a GitHub Release on the public
-[tinyhumansai/medulla](https://github.com/tinyhumansai/medulla) repository. It
-authenticates there with a GitHub App installation token scoped to that one
-repository. Only build output crosses the boundary; no source is pushed there.
+`Release` (`.github/workflows/release.yml`, dispatched manually on `main`)
+takes a `release_type` of `patch`, `minor`, or `major`. It bumps the shared
+`[workspace.package]` version and the workspace entries in `Cargo.lock` with
+`scripts/release/bump-version.sh`, commits `chore(release): vX.Y.Z` to `main`,
+pushes the matching annotated tag, builds the binary for every supported target
+from that tag, and publishes the packaged artifacts — binaries, checksums, and
+the `latest.json` update manifest `medulla update` reads — as a GitHub Release.
+
+```sh
+gh workflow run release.yml -R tinyhumansai/medulla -f release_type=minor
+```
+
+`bash scripts/release/test-bump-version.sh` exercises the bump script offline;
+`bash scripts/release/bump-version.sh minor` shows the bump on your own tree
+(revert `Cargo.toml` and `Cargo.lock` afterwards).
