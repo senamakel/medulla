@@ -1940,12 +1940,15 @@ namespace Proc {
 
 		//* ---------------------------------------------Collection done-----------------------------------------------
 
+		//* Medulla: re-filter whenever the agent set or the agents toggle changes
+		if (refresh_agents(current_procs)) should_filter = true;
+
 		//* Match filter if defined
 		if (should_filter) {
 			filter_found = 0;
 			for (auto &p : current_procs) {
-				if (not tree and not filter.empty()) {
-					if (!matches_filter(p, filter)) {
+				if (not tree and (not filter.empty() or agents_mode())) {
+					if (!passes_filter(p, filter)) {
 						p.filtered = true;
 						filter_found++;
 					} else {
@@ -2005,7 +2008,7 @@ namespace Proc {
 				if (Config::ints.at("proc_selected") > 0) locate_selection = true;
 			}
 
-			if (should_filter or not filter.empty()) filter_found = 0;
+			if (should_filter or not filter.empty() or agents_mode()) filter_found = 0;
 
 			vector<tree_proc> tree_procs;
 			tree_procs.reserve(current_procs.size());
