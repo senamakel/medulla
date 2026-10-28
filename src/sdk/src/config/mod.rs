@@ -15,7 +15,6 @@ mod load;
 mod local_hosts;
 mod persist;
 mod remote_hosts;
-mod resources;
 mod subscriptions;
 mod types;
 mod urls;
@@ -55,9 +54,6 @@ pub use persist::{
 pub use remote_hosts::{
     remote_host_id, remote_host_name, remote_host_section, remote_hosts, RemoteHostRef,
 };
-pub use resources::{
-    ResourcesConfig, DEFAULT_RESOURCES_UPDATE_MS, MAX_RESOURCES_UPDATE_MS, MIN_RESOURCES_UPDATE_MS,
-};
 pub use subscriptions::{
     MeterId, MeterSource, SubscriptionsConfig, DEFAULT_SUBSCRIPTION_REFRESH_SECONDS,
     MIN_SUBSCRIPTION_REFRESH_SECONDS,
@@ -67,7 +63,7 @@ pub use types::{
     FavoriteWorkspace, FieldPlacement, FieldVisibility, FleetConfig, HarnessNameStyle,
     HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig, LinkConfig,
     LoadedConfig, McpSection, OnboardingConfig, OpencodeConfig, PathStyle, Peer,
-    ProviderBudgetConfig, RemoteHostSection, ResourcesThemeConfig, RouterConfig,
+    ProviderBudgetConfig, RemoteHostSection, RouterConfig,
     RouterProviderConfig, StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig,
     WorkflowsConfig,
 };
