@@ -447,11 +447,9 @@ impl RemoteServer {
         self.send_sessions(peer).await;
     }
 
-    /// The session list as the client's rail draws it, freshly computed,
-    /// with each session's agent process usage when it is due a sample.
+    /// The session list as the client's rail draws it, freshly computed.
     fn current_rows(&mut self) -> Vec<RemoteSessionRow> {
-        let rows = self
-            .sessions
+        self.sessions
             .sessions
             .rows()
             .iter()
@@ -463,8 +461,7 @@ impl RemoteServer {
                     .unwrap_or(false);
                 wire_row(row, bracketed)
             })
-            .collect();
-        rows
+            .collect()
     }
 
     /// Send `peer` the cached session list.
