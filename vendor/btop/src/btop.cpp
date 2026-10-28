@@ -60,7 +60,6 @@ tab-size = 4
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
-#include "btop_cli.hpp"
 #include "btop_config.hpp"
 #include "btop_draw.hpp"
 #include "btop_input.hpp"
