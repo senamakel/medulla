@@ -209,11 +209,7 @@ pub async fn run(args: &[String]) -> anyhow::Result<()> {
         );
     }
 
-    let mut server = RemoteServer::new(sessions, bridge, host_name)
-        .with_workspaces(workspaces)
-        .with_usage_interval(std::time::Duration::from_millis(
-            loaded.config.resources.update_ms,
-        ));
+    let mut server = RemoteServer::new(sessions, bridge, host_name).with_workspaces(workspaces);
     #[cfg(feature = "workflows")]
     {
         server = server.with_workflows(super::WorkflowHost::from_config(

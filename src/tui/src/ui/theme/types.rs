@@ -1,6 +1,7 @@
 //! Data types for the `theme` module.
 #[allow(unused_imports)]
 use super::*;
+
 /// The resolved color roles used across the TUI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Theme {

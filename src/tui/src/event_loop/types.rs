@@ -61,8 +61,8 @@ impl Drop for PendingFrame {
 
 /// Messages sent from spawned async tasks back to the event loop.
 pub(super) enum AppMsg {
-    /// Fresh whole-host resources, sampled away from the UI task.
-    Resources(std::sync::Arc<medulla_tui::ui::resources::sampler::ResourceSnapshot>),
+    /// btop drew something; redraw so the Resources tab shows it.
+    Redraw,
     /// A status-line update.
     Status(String),
     /// A remote host answered, and this is what it can do.

@@ -35,7 +35,6 @@ pub mod paired;
 mod paired_tests;
 mod sessions;
 mod types;
-mod usage;
 mod workflows;
 
 // Unix only, and not for want of portability: these drive a **real pty running
@@ -104,8 +103,6 @@ pub struct RemoteServer {
     ///
     /// [`publish_sessions_if_changed`]: Self::publish_sessions_if_changed
     last_rows: Vec<RemoteSessionRow>,
-    /// Samples each session's agent process for the rows' usage.
-    usage: usage::UsageSampler,
     /// Generation of [`last_rows`](Self::last_rows), so a client can tell the
     /// parts of one chunked list from another's.
     sessions_batch_id: u64,
@@ -132,7 +129,6 @@ impl RemoteServer {
             capabilities,
             peers: HashSet::new(),
             last_rows: Vec::new(),
-            usage: usage::UsageSampler::default(),
             sessions_batch_id: 0,
             log: None,
             workflows: None,
@@ -142,12 +138,6 @@ impl RemoteServer {
     /// Offer `workspaces` on the client's workspace step.
     pub fn with_workspaces(mut self, workspaces: Vec<String>) -> Self {
         self.capabilities.workspaces = workspaces;
-        self
-    }
-
-    /// Set the minimum time between process usage samples and broadcasts.
-    pub fn with_usage_interval(mut self, interval: Duration) -> Self {
-        self.usage.set_interval(interval);
         self
     }
 
@@ -474,7 +464,7 @@ impl RemoteServer {
                 wire_row(row, bracketed)
             })
             .collect();
-        self.usage.annotate(&self.sessions.sessions, rows)
+        rows
     }
 
     /// Send `peer` the cached session list.
