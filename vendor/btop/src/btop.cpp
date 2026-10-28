@@ -702,3 +702,162 @@ namespace Runner {
 
 }
 
+
+//* Find a UTF-8 LC_CTYPE. btop measures glyph widths with mbstowcs, which needs
+//* one; only LC_CTYPE is touched because the host process shares the locale.
+static void embed_set_ctype() {
+	for (const char* candidate : {"", "C.UTF-8", "en_US.UTF-8"}) {
+		if (const char* set = std::setlocale(LC_CTYPE, candidate); set != nullptr) {
+			if (str_to_upper(s_replace(string{set}, "-", "")).ends_with("UTF8")) return;
+		}
+	}
+	Logger::warning("No UTF-8 LC_CTYPE available; some glyphs may be measured wrongly.");
+}
+
+//* Wait for the host to make btop visible again, then force a full redraw.
+static void embed_pause() {
+	if (Runner::active) Runner::stop();
+	Embed::wait_visible();
+	Global::resized = true;
+}
+
+//* --------------------------------------- Embedded main (Medulla) ---------------------------------------------------
+//* Upstream btop_main(), minus argument parsing, the controlling terminal and
+//* signal handling. Runs on the thread medulla_btop_start() creates and returns
+//* once Embed::stopping(); fatal errors unwind as Embed::Fatal.
+auto btop_embed_main() -> void {
+	Global::start_time = time_s();
+	Global::real_uid = getuid();
+	Global::set_uid = geteuid();
+
+	//? Config, log and user themes all live under the host-chosen directory
+	Config::conf_dir = Embed::config_dir();
+	{
+		std::error_code error;
+		fs::create_directories(Config::conf_dir, error);
+	}
+	Config::conf_file = Config::conf_dir / "btop.conf";
+	Logger::init(Config::conf_dir / "btop.log");
+	Theme::user_theme_dir = Config::conf_dir / "themes";
+	{
+		std::error_code error;
+		if (not fs::exists(Theme::user_theme_dir, error) and not fs::create_directories(Theme::user_theme_dir, error))
+			Theme::user_theme_dir.clear();
+	}
+	for (auto theme_path : {"/usr/local/share/btop/themes", "/usr/share/btop/themes", "/opt/homebrew/share/btop/themes"}) {
+		if (fs::is_directory(fs::path(theme_path)) and access(theme_path, R_OK) != -1) {
+			Theme::theme_dir = fs::path(theme_path);
+			break;
+		}
+	}
+
+	std::optional<std::string> no_filter;
+	init_config(false, no_filter);
+	embed_set_ctype();
+
+	Term::init();
+	Config::set("tty_mode", Config::getB("force_tty"));
+
+	Shared::init();
+
+	if (not Config::set_boxes(Config::getS("shown_boxes"))) {
+		Config::set_boxes("cpu mem net proc");
+		Config::set("shown_boxes", "cpu mem net proc"s);
+	}
+
+	Theme::updateThemes();
+	Theme::setTheme();
+
+	if (pthread_create(&Runner::runner_id, nullptr, &Runner::_runner, nullptr) != 0) {
+		throw Embed::Fatal{"Failed to create btop's runner thread"};
+	}
+	Global::_runner_started = true;
+
+	//? Stop the runner thread however this function is left
+	struct runner_guard {
+		~runner_guard() {
+			Global::quitting = true;
+			Runner::stopping = true;
+			Runner::thread_trigger();
+			if (Config::getB("save_config_on_exit")) {
+				try { Config::write(); } catch (...) {}
+			}
+		}
+	} guard;
+
+	Config::presetsValid(Config::getS("presets"));
+	Draw::calcSizes();
+	Global::resized = true;
+
+	uint64_t update_ms = Config::getI("update_ms");
+	auto future_time = time_ms();
+
+	try {
+		while (not Embed::stopping()) {
+			if (Global::thread_exception) {
+				clean_quit(1);
+			}
+			if (not Embed::visible()) {
+				embed_pause();
+				continue;
+			}
+			//? Hot reload config from CTRL + R
+			if (Global::reload_conf) {
+				Global::reload_conf = false;
+				if (Runner::active) Runner::stop();
+				Config::unlock();
+				init_config(false, no_filter);
+				Theme::updateThemes();
+				Theme::setTheme();
+				Draw::banner_gen(0, 0, false, true);
+				Global::resized = true;
+			}
+
+			//? Pick up a host-reported resize
+			term_resize(Global::resized);
+			if (Embed::stopping()) break;
+
+			if (Global::resized) {
+				Draw::calcSizes();
+				Draw::update_clock(true);
+				Global::resized = false;
+				if (Menu::active) Menu::process();
+				else Runner::run("all", true, true);
+				atomic_wait_for(Runner::active, true, 1000);
+			}
+
+			if (Draw::update_clock() and not Menu::active) {
+				Runner::run("clock");
+			}
+
+			if (time_ms() >= future_time and not Global::resized) {
+				Runner::run("all");
+				update_ms = Config::getI("update_ms");
+				future_time = time_ms() + update_ms;
+			}
+
+			for (auto current_time = time_ms(); current_time < future_time; current_time = time_ms()) {
+				if (std::cmp_not_equal(update_ms, Config::getI("update_ms"))) {
+					update_ms = Config::getI("update_ms");
+					future_time = time_ms() + update_ms;
+				}
+				else if (future_time - current_time > update_ms) {
+					future_time = current_time;
+				}
+				else if (Input::poll(min((uint64_t)1000, future_time - current_time))) {
+					if (not Runner::active) Config::unlock();
+
+					if (Menu::active) Menu::process(Input::get());
+					else Input::process(Input::get());
+				}
+				//? Interrupted (resize, visibility, stop) or 1s elapsed
+				else break;
+			}
+		}
+	}
+	catch (const std::exception& e) {
+		Global::exit_error_msg = fmt::format("Exception in main loop -> {}", e.what());
+		clean_quit(1);
+	}
+	if (Runner::active) Runner::stop();
+}
