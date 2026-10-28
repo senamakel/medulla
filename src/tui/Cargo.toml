@@ -30,6 +30,8 @@ medulla = { workspace = true, default-features = false }
 # The host-link transport: `main.rs` brings the link up before handing the
 # worker loop a bridge over it.
 medulla-link = { workspace = true }
+# The Resources tab: btop itself, compiled in.
+medulla-btop = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 regex = { workspace = true }
