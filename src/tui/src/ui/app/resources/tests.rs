@@ -71,6 +71,19 @@ fn the_tab_runs_btop_focused_on_agents_and_q_returns_to_sessions() {
         crate::ui::btop::pane().contents()
     );
     assert!(crate::ui::btop::pane().running());
+    // btop places every box absolutely; if the emulator ignored its cursor
+    // moves the boxes would run together instead of the cpu box's title
+    // sitting on the first row and its frame on the first column.
+    let contents = crate::ui::btop::pane().contents();
+    let mut rows = contents.lines();
+    assert!(
+        rows.next().is_some_and(|row| row.contains("cpu") && row.starts_with('╭')),
+        "cpu box is not at the top: {contents}"
+    );
+    assert!(
+        rows.take(5).all(|row| row.starts_with('│')),
+        "box frame is not on the left edge: {contents}"
+    );
     // What btop drew is what the frame shows, below the tab bar.
     let frame: String = terminal
         .backend()
