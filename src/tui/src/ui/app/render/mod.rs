@@ -261,7 +261,7 @@ impl App {
         } else if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
         } else if self.tab() == "Resources" {
-            "Tab views · 1 CPU · 2 Mem · 3 Net · 4 Agents · p/P preset · +/- interval"
+            "Tab views · btop: A agents/all · e tree · f filter · Esc menu · q back"
         } else if self.tab() == "Hosts" {
             "Tab views · ↑↓ hosts · a add · e edit · d remove · i issue key · s ssh · ⏎ connect · u use · H switch host"
         } else if workflows {
