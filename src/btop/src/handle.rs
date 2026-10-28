@@ -194,6 +194,11 @@ impl Btop {
     pub fn error(&self) -> Option<String> {
         #[cfg(not(medulla_btop_unsupported))]
         {
+            // Asked every frame, so check the length before allocating.
+            // SAFETY: a null buffer with zero capacity only reports the length.
+            if unsafe { crate::ffi::medulla_btop_error(std::ptr::null_mut(), 0) } == 0 {
+                return None;
+            }
             let mut buf = vec![0u8; 512];
             // SAFETY: btop writes at most `buf.len()` bytes, NUL included.
             let len = unsafe { crate::ffi::medulla_btop_error(buf.as_mut_ptr().cast(), buf.len()) };

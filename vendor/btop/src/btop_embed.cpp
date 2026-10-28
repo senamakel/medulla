@@ -156,6 +156,10 @@ int medulla_btop_start(const char* config_dir, uint16_t cols, uint16_t rows,
 	catch (const std::system_error&) {
 		return -2;
 	}
+	//? btop's threads read C++ globals that static destruction tears down at
+	//? exit. An atexit handler registered now runs before those destructors, so
+	//? whichever way the host exits, btop has stopped (and saved) first.
+	std::atexit([] { medulla_btop_stop(2000); });
 	return 0;
 }
 
@@ -230,7 +234,7 @@ size_t medulla_btop_error(char* buf, size_t cap) {
 }
 
 void medulla_btop_stop(uint32_t timeout_ms) {
-	if (not started.load()) return;
+	if (not started.load() or finished.load()) return;
 	stop_requested = true;
 	in_cv.notify_all();
 	Embed::interrupt();

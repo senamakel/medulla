@@ -139,7 +139,9 @@ impl BtopPane {
         self.screen.screen().contents()
     }
 
-    /// Stop btop so it saves its config. Called once as the app exits.
+    /// Stop btop so it saves its config. Final: btop cannot start again in
+    /// this process, so only call it when the process is ending (btop's own
+    /// atexit hook already does this on a normal exit).
     pub fn shutdown(&mut self) {
         if let Lifecycle::Running { btop, .. } = &self.lifecycle {
             btop.stop(STOP_TIMEOUT);

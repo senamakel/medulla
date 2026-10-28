@@ -779,6 +779,9 @@ auto btop_embed_main() -> void {
 			Global::quitting = true;
 			Runner::stopping = true;
 			Runner::thread_trigger();
+			//? Joined, not left running: the host may be about to exit, and the
+			//? runner must not outlive the globals it reads.
+			pthread_join(Runner::runner_id, nullptr);
 			if (Config::getB("save_config_on_exit")) {
 				try { Config::write(); } catch (...) {}
 			}

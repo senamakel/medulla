@@ -417,6 +417,10 @@ pub(crate) async fn run(
             }
         }
     }
+    // Pause, never stop, btop here: a relogin re-enters this loop in the same
+    // process, and btop starts once per process. Its own atexit hook stops and
+    // saves it when the process really ends.
+    medulla_tui::ui::btop::pane().hide();
     Ok(if app.relogin_requested() {
         SessionExit::Relogin
     } else {
