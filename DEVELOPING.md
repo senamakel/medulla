@@ -30,6 +30,12 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 ```
 
+Building needs a C++23 compiler as well as Rust: the Resources tab is btop,
+compiled into the binary from `vendor/btop` by `src/btop/build.rs`. Use GCC 14+
+or Clang 18+ on Linux (on Ubuntu 24.04, `apt install g++-14` — the build picks
+it up when the default `g++` is older) and Xcode 16+ on macOS. Windows builds
+without it, and the tab says btop is unavailable there.
+
 Run tests, Clippy, and formatting before pushing. See
 [Contributing](https://tinyhumans.gitbook.io/medulla/developers/contributing)
 for the full loop and the release process.
