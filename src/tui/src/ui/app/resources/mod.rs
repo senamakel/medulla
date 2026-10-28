@@ -24,6 +24,9 @@ impl App {
         pane.show(&config_dir, area);
         let leave = pane.pump();
         pane.render(f.buffer_mut(), area);
+        if leave {
+            pane.hide();
+        }
         drop(pane);
         if leave {
             self.tab_index = tab_pos("Sessions");
