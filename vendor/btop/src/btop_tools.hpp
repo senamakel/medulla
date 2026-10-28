@@ -104,7 +104,9 @@ namespace Fx {
 //* Collection of escape codes and functions for cursor manipulation
 namespace Mv {
 	//* Move cursor to <line>, <column>
-	inline string to(int line, int col) { return Fx::e + to_string(line) + ';' + to_string(col) + 'f'; }
+	//? Medulla: CUP ('H') rather than upstream's equivalent HVP ('f'), which the
+	//? host's vt100 emulator does not implement.
+	inline string to(int line, int col) { return Fx::e + to_string(line) + ';' + to_string(col) + 'H'; }
 
 	//* Move cursor right <x> columns
 	inline string r(int x) { return Fx::e + to_string(x) + 'C'; }
@@ -118,11 +120,11 @@ namespace Mv {
 	//* Move cursor down x lines
 	inline string d(int x) { return Fx::e + to_string(x) + 'B'; }
 
-	//* Save cursor position
-	const string save = Fx::e + "s";
+	//* Save cursor position (Medulla: DECSC, which the host emulator implements; CSI s is not)
+	const string save = "\x1b" "7";
 
-	//* Restore saved cursor position
-	const string restore = Fx::e + "u";
+	//* Restore saved cursor position (Medulla: DECRC, for the same reason)
+	const string restore = "\x1b" "8";
 }
 
 //* Collection of escape codes and functions for terminal manipulation
