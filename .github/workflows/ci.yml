@@ -287,6 +287,25 @@ jobs:
         if: always()
         run: sccache --show-stats
 
+  # The Resources tab compiles the vendored btop (C++23) into the binary, and
+  # the macOS release build is the only other place that compiler meets it.
+  # Building just that crate here surfaces an Apple-clang gap on the pull
+  # request rather than at release time, without a full macOS workspace build.
+  btop-macos:
+    name: btop (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Test the embedded btop
+        run: cargo test --locked -p medulla-btop
+
   # ── end-to-end harness ─────────────────────────────────────────────────────
   # Does this change need the docker/tmux harness run at all?
   #
