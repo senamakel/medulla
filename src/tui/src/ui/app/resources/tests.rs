@@ -57,6 +57,14 @@ fn tab_switching_and_global_chords_stay_medullas() {
     assert!(app.should_quit, "⌃C must still quit");
 }
 
+/// Whether btop's cpu box frame and title open the screen's first row.
+fn cpu_box_on_top(screen: &str) -> bool {
+    screen
+        .lines()
+        .next()
+        .is_some_and(|row| row.starts_with('╭') && row.contains("cpu┌"))
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn the_tab_runs_btop_focused_on_agents_and_q_returns_to_sessions() {
@@ -64,24 +72,20 @@ fn the_tab_runs_btop_focused_on_agents_and_q_returns_to_sessions() {
     let mut terminal = Terminal::new(TestBackend::new(160, 48)).expect("terminal");
 
     // btop draws its boxes, with the process box narrowed to coding agents.
+    // The cpu box waits for its first sample, so wait for its frame — not just
+    // the word, which the agents box's sort label also contains.
     assert!(
-        draw_until(&mut app, &mut terminal, |_, screen| screen.contains("cpu")
+        draw_until(&mut app, &mut terminal, |_, screen| cpu_box_on_top(screen)
             && screen.contains("agents")),
         "btop never drew: {}",
         crate::ui::btop::pane().contents()
     );
     assert!(crate::ui::btop::pane().running());
-    // btop places every box absolutely; if the emulator ignored its cursor
-    // moves the boxes would run together instead of the cpu box's title
-    // sitting on the first row and its frame on the first column.
+    // btop places every box absolutely; had the emulator dropped its cursor
+    // moves the boxes would run together instead of framing the left edge.
     let contents = crate::ui::btop::pane().contents();
-    let mut rows = contents.lines();
     assert!(
-        rows.next().is_some_and(|row| row.contains("cpu") && row.starts_with('╭')),
-        "cpu box is not at the top: {contents}"
-    );
-    assert!(
-        rows.take(5).all(|row| row.starts_with('│')),
+        contents.lines().skip(1).take(5).all(|row| row.starts_with('│')),
         "box frame is not on the left edge: {contents}"
     );
     // What btop drew is what the frame shows, below the tab bar.
