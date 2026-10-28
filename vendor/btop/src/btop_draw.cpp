@@ -1704,6 +1704,17 @@ namespace Proc {
 		return (not changed ? -1 : selected);
 	}
 
+	//* Medulla: the Agent column. The agent's own process shows its name, marked
+	//* when Medulla launched it; its descendants show the name dimmed.
+	static string agent_cell(size_t pid, int size, const string& g_color, const string& end, bool highlighted) {
+		const auto* mark = agent_of(pid);
+		if (mark == nullptr) return string(max(0, size), ' ');
+		const string text = (mark->root ? (mark->launched ? "◆ " : "") : "↳ ") + mark->label;
+		const string color = highlighted ? "" : (not mark->root ? Theme::c("inactive_fg")
+			: mark->launched ? Theme::c("hi_fg") : g_color);
+		return color + uresize(text, size) + string(max(0, size - (int)ulen(text)), ' ') + end;
+	}
+
 	string draw(const vector<proc_info>& plist, bool force_redraw, bool data_same) {
 		if (Runner::stopping) return "";
 		auto proc_tree = Config::getB("proc_tree");
@@ -1832,8 +1843,8 @@ namespace Proc {
 				//? Draw structure of details box
 				const string pid_str = to_string(detailed.entry.pid);
 				out += Mv::to(y, x) + Theme::c("proc_box") + Symbols::div_left + Symbols::h_line + title_left + Theme::c("hi_fg") + Fx::b
-				+ (tty_mode ? "4" : Symbols::superscript.at(4)) + Theme::c("title") + "proc"
-					+ Fx::ub + title_right + Symbols::h_line * (width - 10) + Symbols::div_right
+				+ (tty_mode ? "4" : Symbols::superscript.at(4)) + Theme::c("title") + box_title()
+					+ Fx::ub + title_right + Symbols::h_line * (width - 6 - (int)box_title().size()) + Symbols::div_right
 					+ Mv::to(d_y, dgraph_x + 2) + title_left + Fx::b + Theme::c("title") + pid_str + Fx::ub + title_right
 					+ title_left + Fx::b + Theme::c("title") + uresize(detailed.entry.name, dgraph_width - pid_str.size() - 7, true) + Fx::ub + title_right;
 
@@ -1899,17 +1910,19 @@ namespace Proc {
 			//? Filter
 			auto filtering = Config::getB("proc_filtering"); // ? filter(20) : Config::getS("proc_filter"))
 			const auto filter_text = (filtering) ? filter(max(6, width - 66)) : uresize(Config::getS("proc_filter"), max(6, width - 66));
-			out += Mv::to(y, x+9) + title_left + (not filter_text.empty() ? Fx::b : "") + Theme::c("hi_fg") + 'f'
+			//? Medulla: the box title may be longer than "proc"; keep the filter clear of it
+			const int title_shift = (int)box_title().size() - 4;
+			out += Mv::to(y, x + 9 + title_shift) + title_left + (not filter_text.empty() ? Fx::b : "") + Theme::c("hi_fg") + 'f'
 				+ Theme::c("title") + (not filter_text.empty() ? ' ' + filter_text : "ilter")
 				+ (not filtering and not filter_text.empty() ? Theme::c("hi_fg") + " del" : "")
 				+ (filtering ? Theme::c("hi_fg") + ' ' + Symbols::enter : "") + Fx::ub + title_right;
 			if (not filtering) {
 				int f_len = (filter_text.empty() ? 6 : ulen(filter_text) + 2);
-				Input::mouse_mappings["f"] = {y, x + 10, 1, f_len};
+				Input::mouse_mappings["f"] = {y, x + 10 + title_shift, 1, f_len};
 				if (filter_text.empty() and Input::mouse_mappings.contains("delete"))
 					Input::mouse_mappings.erase("delete");
 				else if (not filter_text.empty())
-					Input::mouse_mappings["delete"] = {y, x + 11 + f_len, 1, 3};
+					Input::mouse_mappings["delete"] = {y, x + 11 + title_shift + f_len, 1, 3};
 			}
 
 			//? pause, per-core, reverse, tree and sorting
@@ -1990,7 +2003,7 @@ namespace Proc {
 					+ ljust("Tree:", tree_size) + ' ';
 
 			out += (thread_size > 0 ? Mv::l(4) + "Threads: " : "")
-					+ ljust("User:", user_size) + ' '
+					+ ljust((agents_mode() ? "Agent:" : "User:"), user_size) + ' '
 					+ rjust((mem_bytes ? "MemB" : "Mem%"), 5) + ' '
 					+ rjust("Cpu%", (show_graphs ? 10 : 5)) + Fx::ub;
 		}
@@ -2163,13 +2176,23 @@ namespace Proc {
 			}();
 
 			out += (thread_size > 0 ? t_color + rjust(proc_threads_string, thread_size) + ' ' + end : "" )
-				+ g_color + ljust((cmp_greater(p.user.size(), user_size) ? p.user.substr(0, user_size - 1) + '+' : p.user), user_size) + ' '
+				+ (agents_mode() ? agent_cell(p.pid, user_size, g_color, end, is_selected or is_followed)
+					: g_color + ljust((cmp_greater(p.user.size(), user_size) ? p.user.substr(0, user_size - 1) + '+' : p.user), user_size)) + ' '
 				+ m_color + rjust(mem_str, 5) + end + ' '
 				+ (is_selected or is_followed ? "" : Theme::c("inactive_fg")) + (show_graphs ? graph_bg * 5: "")
 				+ (p_graphs.contains(p.pid) ? Mv::l(5) + c_color + p_graphs.at(p.pid)({(p.cpu_p >= 0.1 and p.cpu_p < 5 ? 5ll : (long long)round(p.cpu_p))}, data_same) : "") + end + ' '
 				+ c_color + rjust(cpu_str, 4) + "  " + end;
 			if (lc++ > height - 5) break;
 			else if (lc > height - 5 and proc_banner_shown) break;
+		}
+
+		//? Medulla: say why an agents box is empty instead of showing a blank list
+		if (lc == 0 and agents_mode() and height > 6) {
+			const string lines[] = {"No coding agents running.", "Press A to show all processes."};
+			for (int i = 0; const auto& line : lines) {
+				out += Mv::to(y + 3 + i++, x + max(1, (width - (int)line.size()) / 2))
+					+ Theme::c("inactive_fg") + line;
+			}
 		}
 
 		out += Fx::reset;
@@ -2545,7 +2568,7 @@ namespace Draw {
 			y = (cpu_bottom and Cpu::shown) ? 1 : Cpu::height + 1;
 		#endif
 			select_max = height - 3;
-			box = createBox(x, y, width, height, Theme::c("proc_box"), true, "proc", "", 4);
+			box = createBox(x, y, width, height, Theme::c("proc_box"), true, Proc::box_title(), "", 4);
 		}
 	}
 }
