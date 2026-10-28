@@ -49,7 +49,7 @@ fn defaults_are_applied() {
 #[test]
 fn a_config_with_the_retired_resources_tables_still_loads() {
     let cfg: TuiConfig = toml::from_str(
-        r#"
+        r##"
         [theme]
         primary = "red"
 
@@ -59,7 +59,7 @@ fn a_config_with_the_retired_resources_tables_still_loads() {
         [resources]
         updateMs = 2000
         shown = ["cpu", "mem"]
-        "#,
+        "##,
     )
     .expect("a config from before the btop Resources tab parses");
 
