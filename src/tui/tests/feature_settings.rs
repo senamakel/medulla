@@ -82,8 +82,8 @@ fn number_keys_jump_subpages() {
     let _ = key(&mut app, KeyCode::Char('5'));
     assert_eq!(app.settings_subpage(), "Config");
     let _ = key(&mut app, KeyCode::Char('6'));
-    assert_eq!(app.settings_subpage(), "Resources");
-    let _ = key(&mut app, KeyCode::Char('8'));
+    assert_eq!(app.settings_subpage(), "Feedback");
+    let _ = key(&mut app, KeyCode::Char('7'));
     assert_eq!(app.settings_subpage(), "Account");
     // A digit also enters the pane, so getting to Help means stepping back out
     // to the nav first — the arrows browse content once a page has focus.
