@@ -14,6 +14,7 @@ pub use medulla::ui::{agents, command, fleet, git_review, harness, hosts, meters
 
 pub(crate) mod agent_lane;
 pub mod app;
+pub mod btop;
 pub mod chat;
 pub mod composer;
 pub(crate) mod gauge;
@@ -24,7 +25,6 @@ pub(crate) mod layout;
 pub mod login;
 pub(crate) mod multi_pane;
 pub mod onboarding;
-pub mod plot;
 pub mod resources;
 pub mod screen;
 pub(crate) mod selection;

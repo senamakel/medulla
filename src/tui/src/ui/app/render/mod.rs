@@ -21,7 +21,6 @@ mod frame_state;
 mod hosts;
 mod points;
 mod prompt;
-pub(super) mod resources;
 mod selection;
 mod session_modals;
 mod sessions;

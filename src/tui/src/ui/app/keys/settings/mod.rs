@@ -22,7 +22,7 @@ use medulla::client::FeedbackType;
 use super::super::appearance::APPEARANCE_ROWS;
 use super::super::types::{
     App, Cmd, SETTINGS_SUBPAGES, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_FEEDBACK, SP_HELP,
-    SP_RESOURCES, SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_USAGE,
+    SP_STATUS_LINE, SP_SUBSCRIPTIONS, SP_USAGE,
 };
 
 impl App {
@@ -83,24 +83,6 @@ impl App {
             SP_CONFIG => self.config_key(code),
             SP_FEEDBACK => self.feedback_key(code),
             SP_ACCOUNT => self.account_key(code),
-            SP_RESOURCES => match code {
-                KeyCode::Char('j') | KeyCode::Char('k') => {
-                    self.move_resources_settings(matches!(code, KeyCode::Char('k')));
-                    SettingsKey::handled(None)
-                }
-                KeyCode::Enter => {
-                    let status = self.toggle_resources_setting();
-                    self.set_status(status);
-                    SettingsKey::handled(None)
-                }
-                KeyCode::Left | KeyCode::Right => {
-                    let delta = if code == KeyCode::Left { -1 } else { 1 };
-                    let status = self.adjust_resources_setting(delta);
-                    self.set_status(status);
-                    SettingsKey::handled(None)
-                }
-                _ => SettingsKey::Unhandled,
-            },
             _ => SettingsKey::Unhandled,
         }
     }
@@ -132,10 +114,6 @@ impl App {
                 SettingsKey::handled(None)
             }
             SP_FEEDBACK => SettingsKey::handled(self.move_feedback_index(up)),
-            SP_RESOURCES => {
-                self.move_resources_settings(up);
-                SettingsKey::handled(None)
-            }
             // Help is a single long page rather than a list, so it scrolls by
             // the line. It outgrew a short terminal once the harness bindings
             // and commands landed on it, and a reference you cannot reach the
