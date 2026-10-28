@@ -24,6 +24,7 @@ tab-size = 4
 #include "btop_shared.hpp"
 #include "btop_theme.hpp"
 #include "btop_tools.hpp"
+#include "btop_embed.hpp"
 
 #include <errno.h>
 #include <signal.h>
@@ -1263,7 +1264,8 @@ namespace Menu {
 					currentMenu = Menus::Help;
 					return Switch;
 				case Quit:
-					clean_quit(0);
+					Embed::request_leave();
+					return Closed;
 			}
 		}
 		else if (is_in(key, "down", "tab", "mouse_scroll_down", "j")) {
@@ -1526,7 +1528,7 @@ static int optionsMenu(const string& key) {
 				}
 				else if (option == "disable_mouse") {
 					const auto is_mouse_enabled = !Config::getB("disable_mouse");
-					std::cout << (is_mouse_enabled ? Term::mouse_on : Term::mouse_off) << std::flush;
+					Embed::write(is_mouse_enabled ? Term::mouse_on : Term::mouse_off);
 				}
 			}
 			else if (selPred.test(isBrowsable)) {

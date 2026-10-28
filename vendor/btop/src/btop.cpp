@@ -160,7 +160,7 @@ void term_resize(bool force) {
 		sleep_ms(100);
 		if (Term::width < minWidth or Term::height < minHeight) {
 			int width = Term::width, height = Term::height;
-			cout << fmt::format("{clear}{fg_white}"
+			Embed::write(fmt::format("{clear}{fg_white}"
 					"{mv1}Terminal size too small:"
 					"{mv2} Width = {fg_width}{width} {fg_white}Height = {fg_height}{height}"
 					"{mv3}{fg_white}Needed for current config:"
@@ -176,14 +176,14 @@ void term_resize(bool force) {
 					"mv4"_a = Mv::to((height / 2) + 2, (width / 2) - 10),
 						"minWidth"_a = minWidth,
 						"minHeight"_a = minHeight
-			) << std::flush;
+			));
 
 			bool got_key = false;
 			for (; not Term::refresh() and not got_key; got_key = Input::poll(10));
 			if (got_key) {
 				auto key = Input::get();
 				if (key == "q")
-					clean_quit(0);
+					Embed::request_leave();
 				else if (key.size() == 1 and isint(key)) {
 					auto intKey = stoi(key);
 				#ifdef GPU_SUPPORT
@@ -618,10 +618,10 @@ namespace Runner {
 
 			//? If overlay isn't empty, print output without color and then print overlay on top
 			const bool term_sync = Config::getB("terminal_sync");
-			cout << (term_sync ? Term::sync_start : "") << (conf.overlay.empty()
+			Embed::write((term_sync ? Term::sync_start : "") + (conf.overlay.empty()
 					? output
 					: (output.empty() ? "" : Fx::ub + Theme::c("inactive_fg") + Fx::uncolor(output)) + conf.overlay)
-				<< (term_sync ? Term::sync_end : "") << flush;
+				+ (term_sync ? Term::sync_end : ""));
 		}
 		//* ----------------------------------------------- THREAD LOOP -----------------------------------------------
 		return {};
@@ -643,11 +643,11 @@ namespace Runner {
 
 		if (box == "overlay") {
 			const bool term_sync = Config::getB("terminal_sync");
-			cout << (term_sync ? Term::sync_start : "") << Global::overlay << (term_sync ? Term::sync_end : "") << flush;
+			Embed::write((term_sync ? Term::sync_start : "") + Global::overlay + (term_sync ? Term::sync_end : ""));
 		}
 		else if (box == "clock") {
 			const bool term_sync = Config::getB("terminal_sync");
-			cout << (term_sync ? Term::sync_start : "") << Global::clock << (term_sync ? Term::sync_end : "") << flush;
+			Embed::write((term_sync ? Term::sync_start : "") + Global::clock + (term_sync ? Term::sync_end : ""));
 		}
 		else {
 			Config::unlock();

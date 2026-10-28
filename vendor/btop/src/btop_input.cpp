@@ -29,6 +29,7 @@ tab-size = 4
 
 #include "btop_input.hpp"
 #include "btop_tools.hpp"
+#include "btop_embed.hpp"
 #include "btop_config.hpp"
 #include "btop_shared.hpp"
 #include "btop_menu.hpp"
@@ -92,32 +93,11 @@ namespace Input {
 	string old_filter;
 	string input;
 
+	//* Medulla: input arrives as one chunk per key or mouse event from the host.
 	bool poll(const uint64_t timeout) {
 		atomic_lock lck(polling);
-		fd_set fds;
-		FD_ZERO(&fds);
-		FD_SET(STDIN_FILENO, &fds);
-		struct timespec wait;
-		struct timespec *waitptr = nullptr;
-
-		if(timeout != std::numeric_limits<uint64_t>::max()) {
-			wait.tv_sec = timeout / 1000;
-			wait.tv_nsec = (timeout % 1000) * 1000000;
-			waitptr = &wait;
-		}
-
-		if(pselect(STDIN_FILENO + 1, &fds, nullptr, nullptr, waitptr, &signal_mask) > 0) {
-			input.clear();
-			char buf[1024];
-			ssize_t count = 0;
-			while((count = read(STDIN_FILENO, buf, sizeof(buf))) > 0) {
-				input.append(std::string_view(buf, count));
-			}
-
-			return true;
-		}
-
-		return false;
+		input.clear();
+		return Embed::wait_input(timeout, input);
 	}
 
 	string get() {
@@ -204,7 +184,7 @@ namespace Input {
 	}
 
 	void interrupt() {
-		kill(getpid(), SIGUSR1);
+		Embed::interrupt();
 	}
 
 	void clear() {
@@ -222,7 +202,8 @@ namespace Input {
 			if (not filtering) {
 				bool keep_going = false;
 				if (key == "q") {
-					clean_quit(0);
+					Embed::request_leave();
+					return;
 				}
 				else if (is_in(key, "escape", "m")) {
 					Menu::show(Menu::Menus::Main);

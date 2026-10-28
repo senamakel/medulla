@@ -36,6 +36,7 @@ tab-size = 4
 #include "btop_log.hpp"
 #include "btop_shared.hpp"
 #include "btop_tools.hpp"
+#include "btop_embed.hpp"
 #include "btop_config.hpp"
 
 using std::cout;
@@ -59,57 +60,14 @@ namespace Term {
 	atomic<int> height{};
 	string current_tty;
 
-	namespace {
-		struct termios initial_settings;
-
-		//* Toggle terminal input echo
-		bool echo(bool on=true) {
-			struct termios settings;
-			if (tcgetattr(STDIN_FILENO, &settings)) return false;
-			if (on) settings.c_lflag |= ECHO;
-			else settings.c_lflag &= ~(ECHO);
-			return 0 == tcsetattr(STDIN_FILENO, TCSANOW, &settings);
-		}
-
-		//* Toggle need for return key when reading input
-		bool linebuffered(bool on=true) {
-			struct termios settings;
-			if (tcgetattr(STDIN_FILENO, &settings)) return false;
-			if (on) settings.c_lflag |= ICANON;
-			else {
-				settings.c_lflag &= ~(ICANON);
-				settings.c_cc[VMIN] = 0;
-				settings.c_cc[VTIME] = 0;
-			}
-			if (tcsetattr(STDIN_FILENO, TCSANOW, &settings)) return false;
-			if (on) setlinebuf(stdin);
-			else setbuf(stdin, nullptr);
-			return true;
-		}
-	}
-
+	//* Medulla: the "terminal" is the host's view, sized by medulla_btop_resize().
 	bool refresh(bool only_check) {
-		// Query dimensions of '/dev/tty' of the 'STDOUT_FILENO' isn't available.
-		// This variable is set in those cases to avoid calls to ioctl
-		constinit static bool uses_dev_tty = false;
-		struct winsize wsize {};
-		if (uses_dev_tty || ioctl(STDOUT_FILENO, TIOCGWINSZ, &wsize) < 0 || (wsize.ws_col == 0 && wsize.ws_row == 0)) {
-			Logger::error(R"(Couldn't determine terminal size of "STDOUT_FILENO"!)");
-			auto dev_tty = open("/dev/tty", O_RDONLY | O_CLOEXEC);
-			if (dev_tty != -1) {
-				ioctl(dev_tty, TIOCGWINSZ, &wsize);
-				close(dev_tty);
-			}
-			else {
-				Logger::error(R"(Couldn't determine terminal size of "/dev/tty"!)");
-				return false;
-			}
-			uses_dev_tty = true;
-		}
-		if (width != wsize.ws_col or height != wsize.ws_row) {
+		const int w = Embed::width(), h = Embed::height();
+		if (w <= 0 or h <= 0) return false;
+		if (width != w or height != h) {
 			if (not only_check) {
-				width = wsize.ws_col;
-				height = wsize.ws_row;
+				width = w;
+				height = h;
 			}
 			return true;
 		}
@@ -147,38 +105,21 @@ namespace Term {
 		return { width, height };
 	}
 
+	//* Medulla: no tty to configure; the host parses output with its own emulator.
 	bool init() {
 		if (not initialized) {
-			initialized = (bool)isatty(STDIN_FILENO);
-			if (initialized) {
-				tcgetattr(STDIN_FILENO, &initial_settings);
-				current_tty = (ttyname(STDIN_FILENO) != nullptr ? static_cast<string>(ttyname(STDIN_FILENO)) : "unknown");
-
-				//? Disable stream sync - this does not seem to work on OpenBSD
-#ifndef __OpenBSD__
-				cout.sync_with_stdio(false);
-#endif
-
-				//? Disable stream ties
-				cout.tie(nullptr);
-				echo(false);
-				linebuffered(false);
-				refresh();
-
-				const auto is_mouse_enabled = !Config::getB("disable_mouse");
-				cout << alt_screen << hide_cursor << (is_mouse_enabled ? mouse_on : mouse_off) << flush;
-				Global::resized = false;
-			}
+			initialized = true;
+			current_tty = "medulla";
+			refresh();
+			const auto is_mouse_enabled = !Config::getB("disable_mouse");
+			Embed::write(hide_cursor + (is_mouse_enabled ? mouse_on : mouse_off));
+			Global::resized = false;
 		}
 		return initialized;
 	}
 
 	void restore() {
-		if (initialized) {
-			tcsetattr(STDIN_FILENO, TCSANOW, &initial_settings);
-			cout << mouse_off << clear << Fx::reset << normal_screen << show_cursor << flush;
-			initialized = false;
-		}
+		initialized = false;
 	}
 }
 
