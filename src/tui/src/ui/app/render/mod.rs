@@ -93,6 +93,8 @@ impl App {
         // Everything the last frame recorded for the next key press, dropped
         // before this one records its own — see [`frame_state`].
         self.reset_frame_state();
+        // btop collects and draws only while its tab is the one on screen.
+        self.hide_resources_unless_shown();
         // The composer now lives inside the Sessions pane, so the only thing
         // that still claims a row of its own below the content is the inline
         // prompt.
