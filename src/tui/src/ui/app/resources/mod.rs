@@ -59,11 +59,11 @@ impl App {
     /// Where btop keeps `btop.conf` and its log: beside Medulla's own state
     /// rather than in the operator's `~/.config/btop`, so Medulla's defaults
     /// (the agents box, tree view) never rewrite a standalone btop's config.
-    /// An app with no home (a test) gets a per-process scratch directory.
+    /// An app with no home (a test) shares one scratch directory.
     fn btop_config_dir(&self) -> PathBuf {
         match &self.medulla_home {
             Some(home) => home.join("btop"),
-            None => std::env::temp_dir().join(format!("medulla-btop-{}", std::process::id())),
+            None => std::env::temp_dir().join("medulla-btop"),
         }
     }
 }
