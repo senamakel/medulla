@@ -24,6 +24,10 @@ name = "medulla"
 version = "0.14.1"
 
 [[package]]
+name = "medulla-btop"
+version = "0.14.1"
+
+[[package]]
 name = "medulla-link"
 version = "0.14.1"
 
@@ -46,7 +50,7 @@ expect_bump() {
     failures=$((failures + 1))
     return
   fi
-  if [[ "$(grep -c "version = \"${want}\"" "$work/Cargo.lock")" != 3 ]] ||
+  if [[ "$(grep -c "version = \"${want}\"" "$work/Cargo.lock")" != 4 ]] ||
     ! grep -q '^name = "other"$' "$work/Cargo.lock" ||
     [[ "$(grep -A1 '^name = "other"$' "$work/Cargo.lock" | tail -1)" != 'version = "0.14.1"' ]]; then
     echo "FAIL ${kind}: lockfile not rewritten for exactly the workspace packages"
