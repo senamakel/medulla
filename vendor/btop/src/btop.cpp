@@ -157,6 +157,7 @@ void term_resize(bool force) {
 	auto minWidth = min_size.at(0), minHeight = min_size.at(1);
 
 	while (not force or (Term::width < minWidth or Term::height < minHeight)) {
+		if (Embed::stopping() or not Embed::visible()) break;
 		sleep_ms(100);
 		if (Term::width < minWidth or Term::height < minHeight) {
 			int width = Term::width, height = Term::height;

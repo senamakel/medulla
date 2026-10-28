@@ -264,7 +264,7 @@ namespace Input {
 					Runner::run("all", false, true);
 					return;
 				} else if (is_in(key, "ctrl_r")) {
-					kill(getpid(), SIGUSR2);
+					Global::reload_conf = true;
 					return;
 				} else if (key == "mouse_release") {
 					dragging_scroll = false;
