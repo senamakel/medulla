@@ -330,6 +330,8 @@ namespace Input {
 					Config::set("update_following", true);
 				}
 				else if (key == "A") {
+					//? Medulla: the box title changes with the mode, so rebuild the boxes
+					atomic_wait(Runner::active);
 					Config::flip("proc_agents");
 					Config::set("proc_start", 0);
 					Config::set("proc_selected", 0);
