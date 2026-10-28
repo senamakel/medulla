@@ -301,6 +301,11 @@ jobs:
           persist-credentials: false
           submodules: false
 
+      # Cargo reads every workspace member's manifest, path deps included,
+      # even for `-p`.
+      - name: Initialize submodules
+        run: bash scripts/init-submodules.sh
+
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Test the embedded btop
