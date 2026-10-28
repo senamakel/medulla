@@ -28,7 +28,8 @@ This repository is a two-crate Cargo workspace: the `medulla` SDK library at `sr
 - `src/tui/src/ui/` owns ratatui state, rendering, input, and theming; `src/tui/src/cli.rs` owns argument parsing; `src/tui/src/main.rs` owns process wiring.
 - `src/sdk/tests/` and `src/tui/tests/` contain feature and mocked end-to-end suites; reusable stand-ins live in `src/sdk/tests/support/` (the app crate's tests reach them via `#[path]`).
 - `src/sdk/src/agent/` is the local agent: a `tinyagents` harness plus Medulla's own tool surface (shell, filesystem), used by the in-process daemon provider.
-- `vendor/` holds the three vendored crates (`tinyagents`, `tinyflows`, `tinyhumans-sdk`), excluded from the workspace. Avoid unrelated edits there.
+- `vendor/` holds the three vendored crates (`tinyagents`, `tinyflows`, `tinyhumans-sdk`), excluded from the workspace, and the vendored C++ `btop` (`vendor/btop`, plain source, not a submodule). Avoid unrelated edits there; `vendor/btop/MEDULLA.md` lists every Medulla patch to btop.
+- `src/btop/` is the `medulla-btop` crate: its `build.rs` compiles `vendor/btop` and its safe API runs btop embedded. `src/tui/src/ui/btop/` is the host side (emulator, input encoding, agent feed) behind the Resources tab.
 - `target/` and `.medulla-state/` are generated or local runtime data; never commit them.
 
 ## Build, Test, and Development Commands
