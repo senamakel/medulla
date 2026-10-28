@@ -63,8 +63,7 @@ pub use types::{
     FavoriteWorkspace, FieldPlacement, FieldVisibility, FleetConfig, HarnessNameStyle,
     HarnessSection, HookDefaultsConfig, HostSection, HubSection, HubWorkerConfig, LinkConfig,
     LoadedConfig, McpSection, OnboardingConfig, OpencodeConfig, PathStyle, Peer,
-    ProviderBudgetConfig, RemoteHostSection, RouterConfig,
-    RouterProviderConfig, StatusLineConfig, ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig,
-    WorkflowsConfig,
+    ProviderBudgetConfig, RemoteHostSection, RouterConfig, RouterProviderConfig, StatusLineConfig,
+    ThemeConfig, TuiConfig, UpdateConfig, WorkflowConfig, WorkflowsConfig,
 };
 pub use urls::{backend_base_url, display_host, resolve_forwarder_base_url, PROD_BACKEND_BASE_URL};

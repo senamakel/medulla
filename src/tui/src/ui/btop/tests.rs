@@ -18,17 +18,41 @@ fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
 #[test]
 fn keys_encode_as_the_bytes_an_xterm_sends() {
     let none = KeyModifiers::NONE;
-    assert_eq!(key_bytes(key(KeyCode::Char('A'), none)), Some(b"A".to_vec()));
-    assert_eq!(key_bytes(key(KeyCode::Char('é'), none)), Some("é".as_bytes().to_vec()));
+    assert_eq!(
+        key_bytes(key(KeyCode::Char('A'), none)),
+        Some(b"A".to_vec())
+    );
+    assert_eq!(
+        key_bytes(key(KeyCode::Char('é'), none)),
+        Some("é".as_bytes().to_vec())
+    );
     assert_eq!(key_bytes(key(KeyCode::Enter, none)), Some(b"\n".to_vec()));
     assert_eq!(key_bytes(key(KeyCode::Esc, none)), Some(b"\x1b".to_vec()));
     assert_eq!(key_bytes(key(KeyCode::Up, none)), Some(b"\x1b[A".to_vec()));
-    assert_eq!(key_bytes(key(KeyCode::Left, none)), Some(b"\x1b[D".to_vec()));
-    assert_eq!(key_bytes(key(KeyCode::PageDown, none)), Some(b"\x1b[6~".to_vec()));
-    assert_eq!(key_bytes(key(KeyCode::Delete, none)), Some(b"\x1b[3~".to_vec()));
-    assert_eq!(key_bytes(key(KeyCode::BackTab, none)), Some(b"\x1b[Z".to_vec()));
-    assert_eq!(key_bytes(key(KeyCode::F(1), none)), Some(b"\x1bOP".to_vec()));
-    assert_eq!(key_bytes(key(KeyCode::F(12), none)), Some(b"\x1b[24~".to_vec()));
+    assert_eq!(
+        key_bytes(key(KeyCode::Left, none)),
+        Some(b"\x1b[D".to_vec())
+    );
+    assert_eq!(
+        key_bytes(key(KeyCode::PageDown, none)),
+        Some(b"\x1b[6~".to_vec())
+    );
+    assert_eq!(
+        key_bytes(key(KeyCode::Delete, none)),
+        Some(b"\x1b[3~".to_vec())
+    );
+    assert_eq!(
+        key_bytes(key(KeyCode::BackTab, none)),
+        Some(b"\x1b[Z".to_vec())
+    );
+    assert_eq!(
+        key_bytes(key(KeyCode::F(1), none)),
+        Some(b"\x1bOP".to_vec())
+    );
+    assert_eq!(
+        key_bytes(key(KeyCode::F(12), none)),
+        Some(b"\x1b[24~".to_vec())
+    );
     assert_eq!(key_bytes(key(KeyCode::F(13), none)), None);
     assert_eq!(key_bytes(key(KeyCode::CapsLock, none)), None);
 }
@@ -44,7 +68,10 @@ fn control_and_alt_modify_the_encoding() {
         key_bytes(key(KeyCode::Char('R'), KeyModifiers::CONTROL)),
         Some(vec![0x12])
     );
-    assert_eq!(key_bytes(key(KeyCode::Char('1'), KeyModifiers::CONTROL)), None);
+    assert_eq!(
+        key_bytes(key(KeyCode::Char('1'), KeyModifiers::CONTROL)),
+        None
+    );
     assert_eq!(
         key_bytes(key(KeyCode::Char('x'), KeyModifiers::ALT)),
         Some(b"\x1bx".to_vec())

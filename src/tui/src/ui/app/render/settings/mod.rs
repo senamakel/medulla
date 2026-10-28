@@ -17,8 +17,8 @@ use ratatui::Frame;
 use crate::ui::multi_pane;
 
 use super::super::types::{
-    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_FEEDBACK, SP_STATUS_LINE,
-    SP_SUBSCRIPTIONS, SP_USAGE,
+    App, SP_ACCOUNT, SP_APPEARANCE, SP_CONFIG, SP_FEEDBACK, SP_STATUS_LINE, SP_SUBSCRIPTIONS,
+    SP_USAGE,
 };
 
 mod account;

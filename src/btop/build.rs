@@ -61,7 +61,10 @@ fn main() {
         println!("cargo:rerun-if-changed={}", path.display());
         build.file(path);
     }
-    for header in watched_headers(&src).into_iter().chain([root.join("include/medulla_btop.h")]) {
+    for header in watched_headers(&src)
+        .into_iter()
+        .chain([root.join("include/medulla_btop.h")])
+    {
         println!("cargo:rerun-if-changed={}", header.display());
     }
     build.compile("medulla_btop");
@@ -78,12 +81,20 @@ fn main() {
 fn modern_gxx() -> Option<&'static str> {
     let major = |cmd: &str| -> Option<u32> {
         let out = Command::new(cmd).arg("-dumpversion").output().ok()?;
-        String::from_utf8(out.stdout).ok()?.trim().split('.').next()?.parse().ok()
+        String::from_utf8(out.stdout)
+            .ok()?
+            .trim()
+            .split('.')
+            .next()?
+            .parse()
+            .ok()
     };
     if major("g++").is_some_and(|v| v >= 14) {
         return None;
     }
-    ["g++-15", "g++-14"].into_iter().find(|cmd| major(cmd).is_some())
+    ["g++-15", "g++-14"]
+        .into_iter()
+        .find(|cmd| major(cmd).is_some())
 }
 
 /// Headers whose edits must rebuild the library.

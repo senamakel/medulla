@@ -183,7 +183,6 @@ impl App {
         self.device_monitor.inject(snapshot);
     }
 
-
     /// Configure Account logout with a testable home; without it, logout reports no writable location.
     pub fn set_medulla_home(&mut self, home: std::path::PathBuf) {
         self.medulla_home = Some(home);

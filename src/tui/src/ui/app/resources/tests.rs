@@ -29,7 +29,11 @@ fn press(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
 
 /// Redraw until the screen satisfies `done`, as the event loop would on
 /// btop's wakes; false if it never does.
-fn draw_until(app: &mut App, terminal: &mut Terminal<TestBackend>, done: impl Fn(&App, &str) -> bool) -> bool {
+fn draw_until(
+    app: &mut App,
+    terminal: &mut Terminal<TestBackend>,
+    done: impl Fn(&App, &str) -> bool,
+) -> bool {
     let deadline = Instant::now() + Duration::from_secs(15);
     while Instant::now() < deadline {
         terminal.draw(|f| app.draw(f)).expect("draw");
@@ -85,7 +89,11 @@ fn the_tab_runs_btop_focused_on_agents_and_q_returns_to_sessions() {
     // moves the boxes would run together instead of framing the left edge.
     let contents = crate::ui::btop::pane().contents();
     assert!(
-        contents.lines().skip(1).take(5).all(|row| row.starts_with('│')),
+        contents
+            .lines()
+            .skip(1)
+            .take(5)
+            .all(|row| row.starts_with('│')),
         "box frame is not on the left edge: {contents}"
     );
     // What btop drew is what the frame shows, below the tab bar.
@@ -119,6 +127,7 @@ fn the_tab_runs_btop_focused_on_agents_and_q_returns_to_sessions() {
     // Off screen, btop is paused, and coming back resumes it.
     assert!(!crate::ui::btop::pane().visible);
     app.tab_index = tab_pos("Resources");
-    assert!(draw_until(&mut app, &mut terminal, |_, _| crate::ui::btop::pane()
-        .visible));
+    assert!(draw_until(&mut app, &mut terminal, |_, _| {
+        crate::ui::btop::pane().visible
+    }));
 }

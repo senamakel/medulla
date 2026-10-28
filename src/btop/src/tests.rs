@@ -35,7 +35,8 @@ fn btop_runs_embedded_and_hands_quit_back_to_the_host() {
     // It draws its boxes into the virtual terminal, and wakes the host to say so.
     let mut seen = String::new();
     assert!(
-        drain_until(&btop, &mut seen, |out| out.contains("cpu") && out.contains("mem")),
+        drain_until(&btop, &mut seen, |out| out.contains("cpu")
+            && out.contains("mem")),
         "no boxes drawn: {seen:?}"
     );
     assert!(wakes.load(Ordering::Relaxed) > 0);
