@@ -26,6 +26,7 @@ tab-size = 4
 
 #include "btop_config.hpp"
 #include "btop_shared.hpp"
+#include "btop_embed.hpp"
 #include "btop_tools.hpp"
 
 namespace fs = std::filesystem;
@@ -193,13 +194,78 @@ bool set_priority(pid_t pid, int priority) {
 					 s_contains_ic(proc.cmd, filter) || s_contains_ic(proc.user, filter);
 	}
 
+	//* ------------------------------------------ Medulla agent focus ------------------------------------------------
+	//? Only the runner thread collects and draws, so these need no lock.
+	namespace {
+		std::unordered_map<size_t, agent_mark> agent_marks;
+		uint64_t agents_seen_generation = UINT64_MAX;
+		bool agents_seen_mode = false;
+		size_t agents_seen_count = 0;
+	}
+
+	bool agents_mode() {
+		return Config::getB("proc_agents");
+	}
+
+	bool refresh_agents(const vector<proc_info>& procs) {
+		auto [table, generation] = Embed::agents();
+		const bool mode = agents_mode();
+		std::unordered_map<size_t, size_t> parent_of;
+		parent_of.reserve(procs.size());
+		for (const auto& p : procs) parent_of[p.pid] = p.ppid;
+
+		//? Walk each process up its ancestry to the nearest agent root, memoising
+		//? every pid on the way so the whole pass stays linear in practice.
+		std::unordered_map<size_t, const Embed::Agent*> owner;
+		owner.reserve(procs.size());
+		std::unordered_map<size_t, agent_mark> marks;
+		for (const auto& p : procs) {
+			vector<size_t> path;
+			const Embed::Agent* found = nullptr;
+			size_t at = p.pid;
+			for (size_t hops = 0; at != 0 and hops < 512; ++hops) {
+				if (auto known = owner.find(at); known != owner.end()) { found = known->second; break; }
+				if (auto agent = table.find(at); agent != table.end()) { found = &agent->second; break; }
+				path.push_back(at);
+				auto parent = parent_of.find(at);
+				if (parent == parent_of.end() or parent->second == at) break;
+				at = parent->second;
+			}
+			for (auto pid : path) owner[pid] = found;
+			if (found != nullptr) {
+				marks[p.pid] = agent_mark{found->label, found->launched, table.contains(p.pid)};
+			}
+		}
+		const bool changed = generation != agents_seen_generation or mode != agents_seen_mode
+			or marks.size() != agents_seen_count;
+		agents_seen_generation = generation;
+		agents_seen_mode = mode;
+		agents_seen_count = marks.size();
+		agent_marks = std::move(marks);
+		return changed;
+	}
+
+	auto agent_of(size_t pid) -> const agent_mark* {
+		auto found = agent_marks.find(pid);
+		return found == agent_marks.end() ? nullptr : &found->second;
+	}
+
+	auto passes_filter(const proc_info& proc, const std::string& filter) -> bool {
+		if (agents_mode() and agent_of(proc.pid) == nullptr) return false;
+		return filter.empty() or matches_filter(proc, filter);
+	}
+
+	auto box_title() -> string {
+		return agents_mode() ? "agents" : "proc";
+	}
+
 	void _tree_gen(proc_info& cur_proc, vector<proc_info>& in_procs, vector<tree_proc>& out_procs,
 		int cur_depth, bool collapsed, const string& filter, bool found, bool no_update, bool should_filter) {
 		bool filtering = false;
 
 		//? If filtering, include children of matching processes
-		if (not found and (should_filter or not filter.empty())) {
-			if (!matches_filter(cur_proc, filter)) {
+		if (not found and (should_filter or not filter.empty() or agents_mode())) {
+			if (!passes_filter(cur_proc, filter)) {
 				filtering = true;
 				cur_proc.filtered = true;
 				filter_found++;

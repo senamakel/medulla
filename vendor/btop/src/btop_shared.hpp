@@ -444,6 +444,29 @@ namespace Proc {
 
 	auto matches_filter(const proc_info& proc, const std::string& filter) -> bool;
 
+	//* Medulla: how one process relates to the coding agents the host reported.
+	struct agent_mark {
+		string label;
+		bool launched{};
+		//? True for the agent's own process, false for its descendants
+		bool root{};
+	};
+
+	//* Medulla: whether the process box is narrowed to coding agents.
+	bool agents_mode();
+
+	//* Medulla: recompute agent marks for <procs>; true when the visible set may have changed.
+	bool refresh_agents(const vector<proc_info>& procs);
+
+	//* Medulla: the agent mark for <pid>, or nullptr when it is not part of an agent.
+	auto agent_of(size_t pid) -> const agent_mark*;
+
+	//* Medulla: the text filter plus, in agents mode, membership of an agent's process tree.
+	auto passes_filter(const proc_info& proc, const std::string& filter) -> bool;
+
+	//* Medulla: "agents" in agents mode, otherwise upstream's "proc".
+	auto box_title() -> string;
+
 	//* Generate process tree list
 	void _tree_gen(proc_info& cur_proc, vector<proc_info>& in_procs, vector<tree_proc>& out_procs,
 				   int cur_depth, bool collapsed, const string& filter,
