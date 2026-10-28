@@ -2,10 +2,8 @@
 //!
 //! btop is C++23 and has collectors only for Linux, macOS and the BSDs. On any
 //! other target nothing is compiled and the crate is built with
-//! `cfg(medulla_btop_unsupported)`, under which [`Btop::start`] reports
+//! `cfg(medulla_btop_unsupported)`, under which `Btop::start` reports
 //! `Unsupported` instead of linking.
-//!
-//! [`Btop::start`]: ../src/lib.rs
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
