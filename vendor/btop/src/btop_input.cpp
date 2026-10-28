@@ -329,6 +329,14 @@ namespace Input {
 					no_update = false;
 					Config::set("update_following", true);
 				}
+				else if (key == "A") {
+					Config::flip("proc_agents");
+					Config::set("proc_start", 0);
+					Config::set("proc_selected", 0);
+					Draw::calcSizes();
+					Runner::run("all", true, true);
+					return;
+				}
 				else if (key == "E" and Config::getB("proc_tree")) {
 					atomic_wait(Runner::active);
 					Proc::collapse_all = 1;
