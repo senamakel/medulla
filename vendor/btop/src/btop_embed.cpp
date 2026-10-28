@@ -160,7 +160,9 @@ int medulla_btop_start(const char* config_dir, uint16_t cols, uint16_t rows,
 }
 
 void medulla_btop_resize(uint16_t cols, uint16_t rows) {
-	if (view_width.exchange(cols) == cols and view_height.exchange(rows) == rows) return;
+	const bool same_width = view_width.exchange(cols) == cols;
+	const bool same_height = view_height.exchange(rows) == rows;
+	if (same_width and same_height) return;
 	Embed::interrupt();
 }
 
