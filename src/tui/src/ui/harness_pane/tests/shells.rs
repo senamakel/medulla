@@ -120,8 +120,8 @@ fn a_shell_session_is_spawned_bare() {
     std::fs::write(
         &bin,
         format!(
-            "#!/bin/sh\n{{ printf 'argc:%s\\n' \"$#\"; env; }} > {}\nsleep 30\n",
-            record.display()
+            "#!/bin/sh\n{{ printf 'argc:%s\\n' \"$#\"; env; }} > {r}.tmp && mv {r}.tmp {r}\nsleep 30\n",
+            r = record.display()
         ),
     )
     .expect("the stand-in shell is writable");
