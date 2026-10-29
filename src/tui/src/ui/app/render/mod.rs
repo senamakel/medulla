@@ -21,7 +21,6 @@ mod frame_state;
 mod hosts;
 mod points;
 mod prompt;
-pub(super) mod resources;
 mod selection;
 mod session_modals;
 mod sessions;
@@ -94,6 +93,8 @@ impl App {
         // Everything the last frame recorded for the next key press, dropped
         // before this one records its own — see [`frame_state`].
         self.reset_frame_state();
+        // btop collects and draws only while its tab is the one on screen.
+        self.hide_resources_unless_shown();
         // The composer now lives inside the Sessions pane, so the only thing
         // that still claims a row of its own below the content is the inline
         // prompt.
@@ -261,7 +262,7 @@ impl App {
         } else if self.tab() == "TokenMaxxxing" {
             "Tab views · ↑↓ pages · ⏎ open · Esc menu · 1-3 jump"
         } else if self.tab() == "Resources" {
-            "Tab views · 1 CPU · 2 Mem · 3 Net · 4 Agents · p/P preset · +/- interval"
+            "Tab views · btop: A agents/all · e tree · f filter · Esc menu · q back"
         } else if self.tab() == "Hosts" {
             "Tab views · ↑↓ hosts · a add · e edit · d remove · i issue key · s ssh · ⏎ connect · u use · H switch host"
         } else if workflows {

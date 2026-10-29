@@ -1851,6 +1851,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "medulla-btop"
+version = "0.15.0"
+dependencies = [
+ "cc",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "medulla-link"
 version = "0.15.0"
 dependencies = [
@@ -1881,6 +1889,7 @@ dependencies = [
  "futures",
  "libc",
  "medulla",
+ "medulla-btop",
  "medulla-link",
  "portable-pty",
  "ratatui",

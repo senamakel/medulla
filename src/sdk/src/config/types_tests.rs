@@ -43,6 +43,29 @@ fn defaults_are_applied() {
     assert!(cfg.appearance.show_session_titles);
 }
 
+/// The Resources tab used to read `[resources]` and `[theme.resources]`; it is
+/// btop now, configured in btop's own menu. A config written before that must
+/// still load, with the retired tables simply ignored.
+#[test]
+fn a_config_with_the_retired_resources_tables_still_loads() {
+    let cfg: TuiConfig = toml::from_str(
+        r##"
+        [theme]
+        primary = "red"
+
+        [theme.resources]
+        cpuBox = "#556d59"
+
+        [resources]
+        updateMs = 2000
+        shown = ["cpu", "mem"]
+        "##,
+    )
+    .expect("a config from before the btop Resources tab parses");
+
+    assert_eq!(cfg.theme.primary.as_deref(), Some("red"));
+}
+
 #[test]
 fn appearance_session_titles_can_be_hidden() {
     let cfg: TuiConfig =

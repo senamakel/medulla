@@ -35,7 +35,6 @@ fn from_config_falls_back_per_field() {
         attention_blink: Some(false),
         attention_blink_seconds: None,
         background: None,
-        resources: None,
     };
     let t = Theme::from_config(&cfg);
     assert_eq!(t.primary, Color::Rgb(0x12, 0x34, 0x56));
@@ -163,7 +162,8 @@ fn persist_theme_preserves_unrelated_sections() {
 }
 
 /// Saving Appearance rewrites only the keys it owns: a hand-set `background`
-/// and the `[theme.resources]` table survive it.
+/// and a table it does not know — here the retired `[theme.resources]`, still
+/// in older configs — survive it.
 #[test]
 fn persist_theme_keeps_theme_keys_it_does_not_own() {
     let dir = tempfile::tempdir().unwrap();

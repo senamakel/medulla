@@ -100,6 +100,11 @@ impl App {
         if self.forward_harness_mouse(&m) {
             return None;
         }
+        // btop draws its own buttons and lists; inside its screen the pointer is
+        // its, outside (the tab bar) it is ours.
+        if self.tab() == "Resources" && self.resources_mouse(&m) {
+            return None;
+        }
         match m.kind {
             MouseEventKind::ScrollUp => self.scroll_at(m.column, m.row, true),
             MouseEventKind::ScrollDown => self.scroll_at(m.column, m.row, false),
@@ -452,10 +457,6 @@ impl App {
             return None;
         }
         let tab = self.tab();
-        if tab == "Resources" {
-            self.resources_click(x, y);
-            return None;
-        }
         // Subpage nav. Clicking a page both selects it and takes focus, which is
         // what Enter does from the keyboard — a click that only moved the
         // highlight would leave the arrows driving the menu the pointer just

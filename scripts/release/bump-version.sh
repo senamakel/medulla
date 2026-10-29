@@ -18,7 +18,7 @@ root="${2:-.}"
 cargo_toml="${root}/Cargo.toml"
 cargo_lock="${root}/Cargo.lock"
 # Workspace members whose lockfile entries carry the shared version.
-packages=(medulla medulla-link medulla-tui)
+packages=(medulla medulla-btop medulla-link medulla-tui)
 
 case "$bump" in
   patch | minor | major) ;;

@@ -21,7 +21,6 @@ use medulla_tui::ui::app::{App, Cmd};
 use crate::terminal::set_mouse_capture;
 
 mod cmd_dispatch;
-mod resources;
 mod types;
 mod update_checker;
 
@@ -95,12 +94,14 @@ pub(crate) async fn run(
     // header banner. Disabled via `[update] check = false` or
     // `MEDULLA_NO_UPDATE_CHECK`.
     spawn_update_checker(&app.loaded, &msg_tx);
-    // Two readings per column, so a full-width graph is never short of history.
-    let history_capacity = usize::from(terminal.size()?.width).saturating_mul(2);
-    let resource_sampler = resources::ResourceSampler::spawn(&app, history_capacity, &msg_tx);
+    // btop draws on its own threads; this wakes the loop to show it at once
+    // rather than on the next animation tick.
+    let btop_tx = msg_tx.clone();
+    medulla_tui::ui::btop::pane().set_waker(std::sync::Arc::new(move || {
+        let _ = btop_tx.send(AppMsg::Redraw);
+    }));
 
     loop {
-        resource_sampler.retune(&app);
         terminal.draw(|f| app.draw(f))?;
         if app.should_quit {
             break;
@@ -134,7 +135,8 @@ pub(crate) async fn run(
             }
             Some(msg) = msg_rx.recv() => {
                 match msg {
-                    AppMsg::Resources(snapshot) => app.set_resource_snapshot(snapshot),
+                    // Nothing to fold in: the loop iteration itself redraws.
+                    AppMsg::Redraw => {}
                     AppMsg::Status(s) => app.set_status(s),
                     AppMsg::RemoteHostConnected {
                         host_id,
@@ -415,6 +417,10 @@ pub(crate) async fn run(
             }
         }
     }
+    // Pause, never stop, btop here: a relogin re-enters this loop in the same
+    // process, and btop starts once per process. Its own atexit hook stops and
+    // saves it when the process really ends.
+    medulla_tui::ui::btop::pane().hide();
     Ok(if app.relogin_requested() {
         SessionExit::Relogin
     } else {

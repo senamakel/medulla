@@ -274,5 +274,4 @@ fn an_empty_background_keeps_the_terminal_colour() {
         ..Default::default()
     });
     assert_eq!(theme.background, Color::Reset);
-    assert_eq!(theme.resources.main_bg, Color::Reset);
 }

@@ -1,0 +1,20 @@
+[package]
+name = "medulla-btop"
+description = "btop, compiled in: the vendored C++ system monitor behind a safe embedding API"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+# Compiles `vendor/btop`, which lives outside this package directory.
+build = "build.rs"
+links = "medulla_btop"
+
+[lib]
+name = "medulla_btop"
+path = "src/lib.rs"
+
+[dependencies]
+thiserror = { workspace = true }
+
+[build-dependencies]
+cc = "1"

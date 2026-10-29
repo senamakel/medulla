@@ -98,13 +98,12 @@ pub(in crate::ui::app) const TM_LEADERBOARD: usize = 2;
 ///
 /// This is the flat, selectable list [`App::settings_index`] indexes into.
 /// [`SETTINGS_GROUPS`] overlays the display-only headings.
-pub const SETTINGS_SUBPAGES: [&str; 9] = [
+pub const SETTINGS_SUBPAGES: [&str; 8] = [
     "Usage",
     "Appearance",
     "Subscriptions",
     "Status line",
     "Config",
-    "Resources",
     "Feedback",
     "Account",
     "Help",
@@ -123,10 +122,9 @@ pub(in crate::ui::app) const SP_APPEARANCE: usize = 1;
 pub(in crate::ui::app) const SP_SUBSCRIPTIONS: usize = 2;
 pub(in crate::ui::app) const SP_STATUS_LINE: usize = 3;
 pub(in crate::ui::app) const SP_CONFIG: usize = 4;
-pub(in crate::ui::app) const SP_RESOURCES: usize = 5;
-pub(in crate::ui::app) const SP_FEEDBACK: usize = 6;
-pub(in crate::ui::app) const SP_ACCOUNT: usize = 7;
-pub(in crate::ui::app) const SP_HELP: usize = 8;
+pub(in crate::ui::app) const SP_FEEDBACK: usize = 5;
+pub(in crate::ui::app) const SP_ACCOUNT: usize = 6;
+pub(in crate::ui::app) const SP_HELP: usize = 7;
 
 /// The index of a tab by name, or 0 if unknown. Keeps tab jumps robust as the tab
 /// list grows.
@@ -455,8 +453,6 @@ pub struct App {
     /// the page entirely. Entering the pane hands `↑↓` to the content and makes
     /// the letter bindings deliberate rather than ambient.
     pub(in crate::ui::app) settings_focused: bool,
-    /// Selected option on the Resources settings page.
-    pub(in crate::ui::app) resources_settings_index: usize,
     /// The selected row on the Appearance subpage.
     pub(in crate::ui::app) appearance_index: usize,
     /// The selected meter row on the Subscriptions subpage.
@@ -497,12 +493,9 @@ pub struct App {
     pub(in crate::ui::app) device_monitor: crate::ui::resources::DeviceMonitor,
     /// Throttled sampler backing the per-session usage shown in pane titles.
     pub(in crate::ui::app) session_monitor: crate::ui::resources::SessionMonitor,
-    /// State owned by the Resources tab.
-    pub(in crate::ui::app) resources: crate::ui::app::resources::ResourcesState,
-    /// Latest whole-host snapshot from the background sampler, drawn by the
-    /// Resources tab.
-    pub(in crate::ui::app) resource_snapshot:
-        std::sync::Arc<crate::ui::resources::sampler::ResourceSnapshot>,
+    /// Where the Resources tab last drew btop, so mouse events inside it can
+    /// be translated into btop's coordinates.
+    pub(in crate::ui::app) resources_area: ratatui::layout::Rect,
     /// The selected field row on the Status line subpage.
     pub(in crate::ui::app) status_line_index: usize,
     /// Whether the next persisted status-line edit must write the complete

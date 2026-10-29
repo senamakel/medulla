@@ -21,9 +21,18 @@ runs:
     #     in the graph on a headless build too and their build scripts fail
     #     without these. Not needed by medulla itself.
     #   - libgit2 needs nothing: libgit2-sys builds vendored C via cc.
+    #   - g++-14: the vendored btop (`src/btop`, the Resources tab) is C++23 and
+    #     needs libstdc++ 14's `std::ranges::to`. Ubuntu 24.04 defaults to
+    #     g++ 13; `src/btop/build.rs` picks `g++-14` when the default is older.
     - name: Install native build dependencies
       shell: bash
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
-          pkg-config libssl-dev libx11-dev libxi-dev libxtst-dev libxdo-dev
+          pkg-config libssl-dev libx11-dev libxi-dev libxtst-dev libxdo-dev g++-14
+
+    # Lanes with g++-14 must really build btop: without this, `src/btop/build.rs`
+    # would quietly fall back to the unsupported stub on a broken toolchain.
+    - name: Require the embedded btop
+      shell: bash
+      run: echo "MEDULLA_BTOP_REQUIRED=1" >> "$GITHUB_ENV"

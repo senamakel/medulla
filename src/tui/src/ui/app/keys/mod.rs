@@ -131,16 +131,9 @@ impl App {
 
         let tab = self.tab();
 
-        if tab == "Resources" && self.resources.menu_open && k.code == KeyCode::Esc {
-            // An armed signal promises "Esc cancels"; cancel it with the menu so
-            // a later `y` cannot confirm a kill the operator backed out of.
-            self.resources.agent_signal_armed = None;
-            self.resources.menu_open = false;
-            return None;
-        }
-        // Chorded keys belong to the global handlers below: ⌃T must open the
-        // session picker, not reach the Agents table's bare `t` binding.
-        if tab == "Resources" && !ctrl && !alt && self.resources_key(k.code) {
+        // btop owns the keyboard on its tab, bar tab switching and the global
+        // chords; see `resources_key` for exactly which keys it leaves alone.
+        if tab == "Resources" && self.resources_key(k) {
             return None;
         }
 
